@@ -1,8 +1,9 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import type { User } from '@supabase/supabase-js';
+import type { Session, User } from '@supabase/supabase-js';
 
 interface AuthContextType {
+  session: Session | null;
   user: User | null;
   username: string | null;
   login: (email: string, password: string) => Promise<boolean>;
@@ -16,9 +17,16 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+  const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [username, setUsername] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+
+  const clearLocalSession = async () => {
+    await supabase.auth.signOut({ scope: 'local' });
+    setUser(null);
+    setUsername(null);
+  };
 
   const fetchUsername = async (userId: string) => {
     const { data } = await supabase.from('profiles').select('username').eq('user_id', userId).single();
@@ -26,23 +34,56 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        setTimeout(() => fetchUsername(session.user.id), 0);
-      } else {
+    let isMounted = true;
+
+    const syncAuthState = async (nextSession: Session | null) => {
+      if (!isMounted) return;
+
+      if (!nextSession?.access_token) {
+        setSession(null);
+        setUser(null);
         setUsername(null);
+        setLoading(false);
+        return;
       }
+
+      const { data, error } = await supabase.auth.getUser(nextSession.access_token);
+      if (!isMounted) return;
+
+      if (error || !data.user) {
+        console.error('Erro ao validar sessão do Supabase:', error);
+        await clearLocalSession();
+        if (isMounted) setLoading(false);
+        return;
+      }
+
+      setSession(nextSession);
+      setUser(data.user);
+      void fetchUsername(data.user.id);
       setLoading(false);
+    };
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, nextSession) => {
+      await syncAuthState(nextSession);
     });
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null);
-      if (session?.user) fetchUsername(session.user.id);
-      setLoading(false);
+    supabase.auth.getSession().then(async ({ data: { session: nextSession }, error }) => {
+      if (!isMounted) return;
+
+      if (error) {
+        console.error('Erro ao recuperar sessão do Supabase:', error);
+        await clearLocalSession();
+        if (isMounted) setLoading(false);
+        return;
+      }
+
+      await syncAuthState(nextSession);
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      isMounted = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
   const login = async (email: string, password: string): Promise<boolean> => {
@@ -76,7 +117,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, username, login, register, resetPassword, logout, isAuthenticated: !!user, loading }}>
+    <AuthContext.Provider value={{ session, user, username, login, register, resetPassword, logout, isAuthenticated: !!user, loading }}>
       {children}
     </AuthContext.Provider>
   );

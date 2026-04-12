@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { createClient } from '@supabase/supabase-js';
+import { createClient, FunctionsFetchError, FunctionsHttpError, FunctionsRelayError } from '@supabase/supabase-js';
 import { useData } from '@/contexts/DataContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -15,6 +15,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Ban, History, Minus, Plus, Receipt, Search, ShoppingCart, Wallet, X } from 'lucide-react';
 import type { Expense, Product, Sale } from '@/types';
 import { normalizePhone } from '@/lib/phone';
+import { supabase } from '@/integrations/supabase/client';
 import type { Database } from '@/integrations/supabase/types';
 
 interface CartItem {
@@ -42,7 +43,16 @@ interface CashCloseReceipt {
   sales: Sale[];
 }
 
+interface CashCloseEmailResponse {
+  message?: string;
+  recipients?: string[];
+}
+
+type CloseCashEmailStatus = 'idle' | 'sending' | 'sent' | 'error';
+type CloseCashSendChannel = 'email' | 'whatsapp';
+
 const CASH_SESSION_KEY = 'happycash-pdv-cash-session';
+const CLOSE_CASH_WHATSAPP_PHONE_KEY = 'happycash-close-cash-whatsapp-phone';
 const adminVerificationClient = createClient<Database>(
   import.meta.env.VITE_SUPABASE_URL,
   import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
@@ -69,14 +79,31 @@ const readCashSession = (): CashSession | null => {
   }
 };
 
+const readCloseCashWhatsAppPhone = () => {
+  if (typeof window === 'undefined') return '';
+  try {
+    return window.localStorage.getItem(CLOSE_CASH_WHATSAPP_PHONE_KEY) ?? '';
+  } catch {
+    return '';
+  }
+};
+
 const silentToast = {
   success: (_message?: string) => undefined,
   error: (_message?: string) => undefined,
 };
 
+const paymentMethodLabels: Record<string, string> = {
+  dinheiro: 'Dinheiro',
+  pix: 'Pix',
+  fiado: 'Fiado',
+  cartao_debito: 'Debito',
+  cartao_credito: 'Credito',
+};
+
 export default function PDV() {
   const { products, clients, sales, saleItems, expenses, createSale, addDebtEntries, addExpense, cancelSale } = useData();
-  const { user, username } = useAuth();
+  const { user, username, session } = useAuth();
   const navigate = useNavigate();
   const searchInputRef = useRef<HTMLInputElement>(null);
   const cashReceivedInputRef = useRef<HTMLInputElement>(null);
@@ -106,8 +133,15 @@ export default function PDV() {
   const [openingAmount, setOpeningAmount] = useState('');
   const [showCloseCashReceipt, setShowCloseCashReceipt] = useState(false);
   const [showCloseCashAuth, setShowCloseCashAuth] = useState(false);
+  const [showCloseCashSendDialog, setShowCloseCashSendDialog] = useState(false);
   const [adminPassword, setAdminPassword] = useState('');
   const [closeCashAuthError, setCloseCashAuthError] = useState('');
+  const [closeCashEmailStatus, setCloseCashEmailStatus] = useState<CloseCashEmailStatus>('idle');
+  const [closeCashEmailMessage, setCloseCashEmailMessage] = useState('');
+  const [closeCashEmailRecipients, setCloseCashEmailRecipients] = useState<string[]>([]);
+  const [closeCashSendChannel, setCloseCashSendChannel] = useState<CloseCashSendChannel>('email');
+  const [closeCashLastSentChannel, setCloseCashLastSentChannel] = useState<CloseCashSendChannel | null>(null);
+  const [closeCashWhatsappPhone, setCloseCashWhatsappPhone] = useState(() => readCloseCashWhatsAppPhone());
   const [isVerifyingAdminPassword, setIsVerifyingAdminPassword] = useState(false);
   const [lastCloseReceipt, setLastCloseReceipt] = useState<CashCloseReceipt | null>(null);
   const [lastSaleData, setLastSaleData] = useState<{ items: CartItem[]; total: number; discount: number; method: string; change: number; clientId: string | null } | null>(null);
@@ -119,6 +153,77 @@ export default function PDV() {
 
   const formatMoney = (value: number) => `R$ ${value.toFixed(2)}`;
   const formatSaleDate = (value: string) => new Date(value).toLocaleString('pt-BR');
+  const formatPaymentMethod = (value: string) => paymentMethodLabels[value] || value;
+  const closeCashEmailDestination = user?.email?.trim() || '';
+
+  const buildCloseCashWhatsAppMessage = (receipt: CashCloseReceipt) => {
+    const salesLines = receipt.sales.length > 0
+      ? receipt.sales.map(sale => `• ${formatSaleDate(sale.date)} | ${formatPaymentMethod(sale.payment_method)} | ${formatMoney(sale.total)}`)
+      : ['Sem vendas nesta abertura.'];
+
+    const cashOutLines = receipt.cashOuts.length > 0
+      ? receipt.cashOuts.map(expense => `• ${formatSaleDate(expense.date)} | ${expense.description} | ${formatMoney(expense.amount)}`)
+      : ['Sem saídas nesta abertura.'];
+
+    return [
+      '🧾 *HappyCash - Fechamento do Caixa*',
+      '',
+      `Aberto por: ${receipt.openedBy}`,
+      `Data de abertura: ${formatSaleDate(receipt.openedAt)}`,
+      `Fechado por: ${receipt.closedBy}`,
+      `Data de fechamento: ${formatSaleDate(receipt.closedAt)}`,
+      '',
+      `Abertura: ${formatMoney(receipt.openingAmount)}`,
+      `Vendas: ${formatMoney(receipt.salesTotal)}`,
+      `Saídas: ${formatMoney(receipt.cashOutTotal)}`,
+      `Saldo final: ${formatMoney(receipt.finalBalance)}`,
+      `Quantidade de vendas: ${receipt.saleCount}`,
+      '',
+      `Entradas por venda (${receipt.saleCount})`,
+      ...salesLines,
+      '',
+      'Saídas de caixa',
+      ...cashOutLines,
+    ].join('\n');
+  };
+
+  const getCloseCashEmailErrorMessage = async (error: unknown) => {
+    if (error instanceof FunctionsHttpError) {
+      try {
+        const payload = await error.context.json();
+        if (payload && typeof payload === 'object' && 'error' in payload && typeof payload.error === 'string') {
+          return payload.error;
+        }
+      } catch {
+        return 'O servidor recusou o envio do relatório por e-mail.';
+      }
+      return 'O servidor recusou o envio do relatório por e-mail.';
+    }
+
+    if (error instanceof FunctionsRelayError) {
+      return 'Não foi possível encaminhar o relatório para a função de e-mail.';
+    }
+
+    if (error instanceof FunctionsFetchError) {
+      return 'Não foi possível conectar ao serviço de envio de e-mail.';
+    }
+
+    if (error instanceof Error && error.message.trim()) {
+      return error.message;
+    }
+
+    return 'Não foi possível enviar o relatório por e-mail.';
+  };
+
+  useEffect(() => {
+    if (closeCashWhatsappPhone.trim()) return;
+
+    const metadataPhone = typeof user?.user_metadata?.phone === 'string' ? user.user_metadata.phone : '';
+    const nextPhone = user?.phone || metadataPhone || readCloseCashWhatsAppPhone();
+    if (nextPhone) {
+      setCloseCashWhatsappPhone(nextPhone);
+    }
+  }, [closeCashWhatsappPhone, user]);
 
   const filtered = useMemo(() => {
     if (!search) return activeProducts;
@@ -397,6 +502,11 @@ export default function PDV() {
     };
 
     setLastCloseReceipt(receipt);
+    setCloseCashEmailStatus('idle');
+    setCloseCashEmailMessage('');
+    setCloseCashEmailRecipients([]);
+    setCloseCashLastSentChannel(null);
+    setShowCloseCashSendDialog(false);
     window.localStorage.removeItem(CASH_SESSION_KEY);
     setCashSession(null);
     setShowSalesSearch(false);
@@ -405,6 +515,87 @@ export default function PDV() {
     setSaleLimit(25);
     setShowCloseCashReceipt(true);
     silentToast.success('Caixa fechado!');
+  };
+
+  const sendCloseCashReportEmail = async (receipt: CashCloseReceipt) => {
+    if (!user || !closeCashEmailDestination || !session?.access_token) {
+      setCloseCashLastSentChannel('email');
+      setCloseCashEmailStatus('error');
+      setCloseCashEmailMessage('Faça login novamente para enviar o relatório por e-mail.');
+      setCloseCashEmailRecipients([]);
+      return;
+    }
+
+    setShowCloseCashSendDialog(false);
+    setCloseCashLastSentChannel('email');
+    setCloseCashEmailStatus('sending');
+    setCloseCashEmailMessage('Enviando relatório por e-mail...');
+    setCloseCashEmailRecipients([]);
+
+    try {
+      const { data, error } = await supabase.functions.invoke<CashCloseEmailResponse>('send-cash-close-report', {
+        body: {
+          receipt,
+          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        },
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      setCloseCashEmailStatus('sent');
+      setCloseCashEmailMessage(data?.message || 'Relatório enviado por e-mail com sucesso.');
+      setCloseCashEmailRecipients(data?.recipients ?? []);
+    } catch (error) {
+      console.error('Erro ao enviar relatório de fechamento por e-mail:', error);
+      setCloseCashEmailStatus('error');
+      setCloseCashEmailMessage(await getCloseCashEmailErrorMessage(error));
+      setCloseCashEmailRecipients([]);
+    }
+  };
+
+  const sendCloseCashReportWhatsApp = (receipt: CashCloseReceipt) => {
+    const normalizedPhone = normalizePhone(closeCashWhatsappPhone);
+    setCloseCashLastSentChannel('whatsapp');
+
+    if (!normalizedPhone) {
+      setCloseCashEmailStatus('error');
+      setCloseCashEmailMessage('Informe um número de WhatsApp para enviar o recibo.');
+      setCloseCashEmailRecipients([]);
+      return;
+    }
+
+    const message = buildCloseCashWhatsAppMessage(receipt);
+    const url = `https://wa.me/${normalizedPhone}?text=${encodeURIComponent(message)}`;
+    const openedWindow = window.open(url, '_blank');
+
+    if (!openedWindow) {
+      setCloseCashEmailStatus('error');
+      setCloseCashEmailMessage('Não foi possível abrir o WhatsApp para enviar o recibo.');
+      setCloseCashEmailRecipients([]);
+      return;
+    }
+
+    try {
+      window.localStorage.setItem(CLOSE_CASH_WHATSAPP_PHONE_KEY, normalizedPhone);
+    } catch {
+      // Ignore localStorage persistence failures for the WhatsApp destination number.
+    }
+
+    setShowCloseCashSendDialog(false);
+    setCloseCashWhatsappPhone(normalizedPhone);
+    setCloseCashEmailStatus('sent');
+    setCloseCashEmailMessage('Recibo preparado para envio pelo WhatsApp.');
+    setCloseCashEmailRecipients([normalizedPhone]);
+  };
+
+  const openCloseCashSendDialog = () => {
+    setCloseCashSendChannel(closeCashEmailDestination ? 'email' : 'whatsapp');
+    setShowCloseCashSendDialog(true);
   };
 
   const requestCloseCash = () => {
@@ -623,7 +814,7 @@ export default function PDV() {
 
         if (event.key === '5') {
           event.preventDefault();
-          handleCloseCash();
+          requestCloseCash();
           return;
         }
 
@@ -641,7 +832,7 @@ export default function PDV() {
 
         if (event.key === '7') {
           event.preventDefault();
-          handleCloseCash();
+          requestCloseCash();
           return;
         }
       }
@@ -1199,6 +1390,33 @@ export default function PDV() {
           <DialogHeader><DialogTitle>Recibo de fechamento do caixa</DialogTitle></DialogHeader>
           {lastCloseReceipt && (
             <div className="max-h-[70vh] overflow-auto space-y-3 text-sm">
+              <div
+                className={`rounded-lg border p-3 ${
+                  closeCashEmailStatus === 'sent'
+                    ? 'border-primary/30 bg-primary/5'
+                    : closeCashEmailStatus === 'error'
+                      ? 'border-destructive/30 bg-destructive/5'
+                      : 'border-border bg-secondary/20'
+                }`}
+              >
+                <p className="font-semibold">
+                  {closeCashEmailStatus === 'sending' && 'Enviando relatório por e-mail...'}
+                  {closeCashEmailStatus === 'sent' && closeCashLastSentChannel === 'whatsapp' && 'Recibo preparado para envio pelo WhatsApp.'}
+                  {closeCashEmailStatus === 'sent' && closeCashLastSentChannel !== 'whatsapp' && 'Relatório enviado por e-mail.'}
+                  {closeCashEmailStatus === 'error' && closeCashLastSentChannel === 'whatsapp' && 'Falha ao preparar o envio pelo WhatsApp.'}
+                  {closeCashEmailStatus === 'error' && closeCashLastSentChannel !== 'whatsapp' && 'Falha ao enviar o relatório por e-mail.'}
+                  {closeCashEmailStatus === 'idle' && 'Escolha se deseja enviar o recibo por e-mail ou WhatsApp.'}
+                </p>
+                {closeCashEmailMessage && (
+                  <p className="mt-1 text-xs text-muted-foreground">{closeCashEmailMessage}</p>
+                )}
+                {closeCashEmailRecipients.length > 0 && (
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Destino: {closeCashEmailRecipients.join(', ')}
+                  </p>
+                )}
+              </div>
+
               <div className="rounded-lg border border-border p-3">
                 <p><strong>Aberto por:</strong> {lastCloseReceipt.openedBy} em {formatSaleDate(lastCloseReceipt.openedAt)}</p>
                 <p><strong>Fechado por:</strong> {lastCloseReceipt.closedBy} em {formatSaleDate(lastCloseReceipt.closedAt)}</p>
@@ -1251,8 +1469,78 @@ export default function PDV() {
             </div>
           )}
           <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={openCloseCashSendDialog}
+              disabled={!lastCloseReceipt || closeCashEmailStatus === 'sending'}
+            >
+              {closeCashEmailStatus === 'sending' ? 'Enviando...' : 'Enviar recibo'}
+            </Button>
             <Button variant="outline" onClick={() => window.print()}>Imprimir recibo</Button>
             <Button onClick={() => setShowCloseCashReceipt(false)}>Fechar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showCloseCashSendDialog} onOpenChange={setShowCloseCashSendDialog}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Enviar recibo do fechamento</DialogTitle></DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Escolha por qual via deseja enviar o recibo do fechamento do caixa.
+            </p>
+
+            <div className="grid grid-cols-2 gap-2">
+              <Button
+                type="button"
+                variant={closeCashSendChannel === 'email' ? 'default' : 'outline'}
+                onClick={() => setCloseCashSendChannel('email')}
+              >
+                Email
+              </Button>
+              <Button
+                type="button"
+                variant={closeCashSendChannel === 'whatsapp' ? 'default' : 'outline'}
+                onClick={() => setCloseCashSendChannel('whatsapp')}
+              >
+                WhatsApp
+              </Button>
+            </div>
+
+            {closeCashSendChannel === 'email' ? (
+              <div className="space-y-1">
+                <Label>Destino do e-mail</Label>
+                <Input value={closeCashEmailDestination || 'Usuário logado sem e-mail'} readOnly />
+              </div>
+            ) : (
+              <div className="space-y-1">
+                <Label>WhatsApp de destino</Label>
+                <Input
+                  value={closeCashWhatsappPhone}
+                  onChange={event => setCloseCashWhatsappPhone(event.target.value)}
+                  placeholder="(11) 99999-9999"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Você pode informar o número manualmente. O sistema vai reutilizar o último número digitado.
+                </p>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowCloseCashSendDialog(false)}>Cancelar</Button>
+            <Button
+              onClick={() => {
+                if (!lastCloseReceipt) return;
+                if (closeCashSendChannel === 'email') {
+                  void sendCloseCashReportEmail(lastCloseReceipt);
+                  return;
+                }
+                sendCloseCashReportWhatsApp(lastCloseReceipt);
+              }}
+              disabled={closeCashSendChannel === 'email' && !closeCashEmailDestination}
+            >
+              {closeCashSendChannel === 'email' ? 'Enviar por e-mail' : 'Abrir no WhatsApp'}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

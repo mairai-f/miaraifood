@@ -5,7 +5,7 @@
 ### Opção 1: Via Supabase Dashboard (Recomendado)
 
 1. **Acesse o Supabase:** https://app.supabase.com
-2. **Selecione seu projeto:** `kimcggbgvkmjxmjjbcny`
+2. **Selecione seu projeto:** `ymffclntmynwfdiarlaw`
 3. **Vá para SQL Editor** (lado esquerdo)
 4. **Clique em "New Query"**
 5. **Cole o seguinte SQL:**
@@ -79,4 +79,4 @@ supabase db push
 
 Se tiver dúvidas em acessar o Supabase Dashboard:
 - URL: `https://app.supabase.com`
-- Project ID: `kimcggbgvkmjxmjjbcny`
+- Project ID: `ymffclntmynwfdiarlaw`
