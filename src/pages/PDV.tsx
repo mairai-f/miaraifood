@@ -17,6 +17,7 @@ import type { Expense, Product, Sale } from '@/types';
 import { normalizePhone } from '@/lib/phone';
 import { supabase } from '@/integrations/supabase/client';
 import type { Database } from '@/integrations/supabase/types';
+import happyCashLogo from '@/assets/happycash-logo.png';
 
 interface CartItem {
   product: Product;
@@ -50,6 +51,13 @@ interface CashCloseEmailResponse {
 
 type CloseCashEmailStatus = 'idle' | 'sending' | 'sent' | 'error';
 type CloseCashSendChannel = 'email' | 'whatsapp';
+type PaymentBreakdownItem = {
+  key: string;
+  label: string;
+  total: number;
+  count: number;
+  sales: Sale[];
+};
 
 const CASH_SESSION_KEY = 'happycash-pdv-cash-session';
 const CLOSE_CASH_WHATSAPP_PHONE_KEY = 'happycash-close-cash-whatsapp-phone';
@@ -93,12 +101,97 @@ const silentToast = {
   error: (_message?: string) => undefined,
 };
 
+const escapeHtml = (value: string) =>
+  value
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
+
 const paymentMethodLabels: Record<string, string> = {
   dinheiro: 'Dinheiro',
   pix: 'Pix',
   fiado: 'Fiado',
-  cartao_debito: 'Debito',
-  cartao_credito: 'Credito',
+  cartao_debito: 'Cartão débito',
+  cartao_credito: 'Cartão crédito',
+  outros: 'Outros',
+};
+
+const getPaymentBreakdown = (sales: Sale[]) => {
+  const breakdown = new Map<string, PaymentBreakdownItem>();
+
+  for (const sale of sales) {
+    const key = sale.payment_method || 'outros';
+    const label = paymentMethodLabels[key] || key;
+    const existing = breakdown.get(key);
+
+    if (existing) {
+      existing.total += sale.total;
+      existing.count += 1;
+      existing.sales.push(sale);
+      continue;
+    }
+
+    breakdown.set(key, {
+      key,
+      label,
+      total: sale.total,
+      count: 1,
+      sales: [sale],
+    });
+  }
+
+  return Array.from(breakdown.values()).sort((a, b) => b.total - a.total);
+};
+
+const paymentMethodPrintStyles: Record<string, { surface: string; border: string; chip: string; chipText: string; accent: string }> = {
+  dinheiro: {
+    surface: '#ecfdf5',
+    border: '#a7f3d0',
+    chip: '#d1fae5',
+    chipText: '#065f46',
+    accent: '#047857',
+  },
+  pix: {
+    surface: '#ecfeff',
+    border: '#a5f3fc',
+    chip: '#cffafe',
+    chipText: '#155e75',
+    accent: '#0f766e',
+  },
+  cartao_debito: {
+    surface: '#fffbeb',
+    border: '#fde68a',
+    chip: '#fef3c7',
+    chipText: '#92400e',
+    accent: '#b45309',
+  },
+  cartao_credito: {
+    surface: '#f5f3ff',
+    border: '#c4b5fd',
+    chip: '#ede9fe',
+    chipText: '#5b21b6',
+    accent: '#6d28d9',
+  },
+  fiado: {
+    surface: '#fff1f2',
+    border: '#fda4af',
+    chip: '#ffe4e6',
+    chipText: '#9f1239',
+    accent: '#be123c',
+  },
+  outros: {
+    surface: '#f8fafc',
+    border: '#d4d4d8',
+    chip: '#f4f4f5',
+    chipText: '#27272a',
+    accent: '#18181b',
+  },
+};
+
+const getPaymentMethodPrintStyle = (paymentMethod: string) => {
+  return paymentMethodPrintStyles[paymentMethod] ?? paymentMethodPrintStyles.outros;
 };
 
 export default function PDV() {
@@ -151,12 +244,19 @@ export default function PDV() {
   const activeClients = clients.filter(c => !c.deleted);
   const sellerName = username || user?.email || 'Vendedor';
 
-  const formatMoney = (value: number) => `R$ ${value.toFixed(2)}`;
+  const formatMoney = (value: number) =>
+    new Intl.NumberFormat('pt-BR', {
+      style: 'currency',
+      currency: 'BRL',
+    }).format(value);
   const formatSaleDate = (value: string) => new Date(value).toLocaleString('pt-BR');
   const formatPaymentMethod = (value: string) => paymentMethodLabels[value] || value;
   const closeCashEmailDestination = user?.email?.trim() || '';
 
   const buildCloseCashWhatsAppMessage = (receipt: CashCloseReceipt) => {
+    const paymentLines = getPaymentBreakdown(receipt.sales).map(item =>
+      `• ${item.label}: ${formatMoney(item.total)} (${item.count} venda${item.count === 1 ? '' : 's'})`
+    );
     const salesLines = receipt.sales.length > 0
       ? receipt.sales.map(sale => `• ${formatSaleDate(sale.date)} | ${formatPaymentMethod(sale.payment_method)} | ${formatMoney(sale.total)}`)
       : ['Sem vendas nesta abertura.'];
@@ -178,6 +278,9 @@ export default function PDV() {
       `Saídas: ${formatMoney(receipt.cashOutTotal)}`,
       `Saldo final: ${formatMoney(receipt.finalBalance)}`,
       `Quantidade de vendas: ${receipt.saleCount}`,
+      '',
+      'Formas de pagamento',
+      ...(paymentLines.length > 0 ? paymentLines : ['Sem vendas nesta abertura.']),
       '',
       `Entradas por venda (${receipt.saleCount})`,
       ...salesLines,
@@ -277,6 +380,728 @@ export default function PDV() {
   const visibleSalesTotal = visibleSales
     .filter(sale => sale.status !== 'cancelled')
     .reduce((sum, sale) => sum + sale.total, 0);
+
+  const handlePrintCloseCashReceipt = () => {
+    if (!lastCloseReceipt || typeof window === 'undefined') return;
+
+    const paymentBreakdown = getPaymentBreakdown(lastCloseReceipt.sales);
+    const printWindow = window.open('', '_blank', 'width=1280,height=920');
+
+    if (!printWindow) {
+      console.error('Nao foi possivel abrir a janela de impressao do recibo.');
+      return;
+    }
+
+    const summaryCards = [
+      { label: 'Abertura', value: formatMoney(lastCloseReceipt.openingAmount), border: '#d4d4d8', surface: '#ffffff' },
+      { label: 'Vendas', value: formatMoney(lastCloseReceipt.salesTotal), border: '#86efac', surface: '#f0fdf4' },
+      { label: 'Saídas', value: formatMoney(lastCloseReceipt.cashOutTotal), border: '#fca5a5', surface: '#fef2f2' },
+      { label: 'Saldo final', value: formatMoney(lastCloseReceipt.finalBalance), border: '#93c5fd', surface: '#eff6ff' },
+    ];
+
+    const summaryCardsHtml = summaryCards
+      .map(card => `
+        <div class="metric-card" style="border-color:${card.border};background:${card.surface};">
+          <p class="metric-label">${escapeHtml(card.label)}</p>
+          <p class="metric-value">${escapeHtml(card.value)}</p>
+        </div>
+      `)
+      .join('');
+
+    const paymentBreakdownHtml = paymentBreakdown.length > 0
+      ? paymentBreakdown
+          .map(item => {
+            const share = lastCloseReceipt.salesTotal > 0 ? (item.total / lastCloseReceipt.salesTotal) * 100 : 0;
+            const averageTicket = item.count > 0 ? item.total / item.count : 0;
+            const styles = getPaymentMethodPrintStyle(item.key);
+            const salesHtml = item.sales
+              .map(sale => `
+                <div class="payment-sale-row">
+                  <div>
+                    <p class="payment-sale-date">${escapeHtml(formatSaleDate(sale.date))}</p>
+                    <p class="payment-sale-copy">Recebimento via ${escapeHtml(item.label)}</p>
+                  </div>
+                  <p class="payment-sale-value">${escapeHtml(formatMoney(sale.total))}</p>
+                </div>
+              `)
+              .join('');
+
+            return `
+              <section class="payment-card" style="border-color:${styles.border};background:${styles.surface};">
+                <div class="payment-card-top">
+                  <div>
+                    <span class="payment-chip" style="background:${styles.chip};color:${styles.chipText};border-color:${styles.border};">
+                      ${escapeHtml(item.label)}
+                    </span>
+                    <p class="payment-total">${escapeHtml(formatMoney(item.total))}</p>
+                    <p class="payment-meta" style="color:${styles.accent};">
+                      ${item.count} venda${item.count === 1 ? '' : 's'} • Ticket médio ${escapeHtml(formatMoney(averageTicket))}
+                    </p>
+                  </div>
+                  <div class="payment-share">
+                    <p class="payment-share-label">Participação</p>
+                    <p class="payment-share-value">${escapeHtml(share.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 }))}%</p>
+                  </div>
+                </div>
+                <div class="payment-sales-list">
+                  ${salesHtml}
+                </div>
+              </section>
+            `;
+          })
+          .join('')
+      : `
+        <div class="empty-block">
+          Nenhuma venda registrada neste fechamento.
+        </div>
+      `;
+
+    const salesHtml = lastCloseReceipt.sales.length > 0
+      ? lastCloseReceipt.sales
+          .map(sale => `
+            <tr>
+              <td>${escapeHtml(formatSaleDate(sale.date))}</td>
+              <td>${escapeHtml(formatPaymentMethod(sale.payment_method))}</td>
+              <td class="table-value">${escapeHtml(formatMoney(sale.total))}</td>
+            </tr>
+          `)
+          .join('')
+      : `
+        <tr>
+          <td colspan="3" class="empty-row">Sem vendas nesta abertura.</td>
+        </tr>
+      `;
+
+    const cashOutHtml = lastCloseReceipt.cashOuts.length > 0
+      ? lastCloseReceipt.cashOuts
+          .map(expense => `
+            <tr>
+              <td>${escapeHtml(formatSaleDate(expense.date))}</td>
+              <td>${escapeHtml(expense.description)}</td>
+              <td class="table-value table-value-negative">${escapeHtml(formatMoney(expense.amount))}</td>
+            </tr>
+          `)
+          .join('')
+      : `
+        <tr>
+          <td colspan="3" class="empty-row">Sem saídas nesta abertura.</td>
+        </tr>
+      `;
+
+    const documentTitle = `recibo-fechamento-caixa-${new Date(lastCloseReceipt.closedAt).toISOString()}`;
+
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html lang="pt-BR">
+        <head>
+          <meta charset="utf-8" />
+          <meta name="viewport" content="width=device-width, initial-scale=1" />
+          <title>${escapeHtml(documentTitle)}</title>
+          <style>
+            :root {
+              color-scheme: light;
+            }
+
+            * {
+              box-sizing: border-box;
+            }
+
+            html, body {
+              margin: 0;
+              padding: 0;
+              background: #e5e7eb;
+              color: #0f172a;
+              font-family: "Segoe UI", Arial, sans-serif;
+            }
+
+            body {
+              padding: 24px;
+            }
+
+            .print-shell {
+              max-width: 1120px;
+              margin: 0 auto;
+            }
+
+            .receipt-sheet {
+              overflow: hidden;
+              border: 1px solid #cbd5e1;
+              border-radius: 32px;
+              background: radial-gradient(circle at top, #ffffff 0%, #f8fafc 42%, #ecfdf5 100%);
+              box-shadow: 0 32px 72px rgba(15, 23, 42, 0.16);
+            }
+
+            .receipt-header {
+              padding: 36px 40px 30px;
+              text-align: center;
+              background: linear-gradient(135deg, rgba(34,197,94,0.14), rgba(255,255,255,0.96), rgba(14,165,233,0.14));
+              border-bottom: 1px solid #dbe4ee;
+            }
+
+            .brand-badge {
+              width: 112px;
+              height: 112px;
+              margin: 0 auto;
+              border-radius: 28px;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              background: #ffffff;
+              border: 1px solid rgba(255, 255, 255, 0.92);
+              box-shadow: 0 18px 36px rgba(15, 23, 42, 0.14);
+            }
+
+            .brand-badge img {
+              width: 72px;
+              height: 72px;
+              object-fit: contain;
+            }
+
+            .eyebrow {
+              margin: 18px 0 0;
+              font-size: 16px;
+              font-weight: 800;
+              letter-spacing: 0.2em;
+              text-transform: uppercase;
+              color: #0f172a;
+            }
+
+            .receipt-title {
+              margin: 16px 0 0;
+              font-size: 38px;
+              line-height: 1.1;
+              font-weight: 900;
+              color: #020617;
+            }
+
+            .receipt-subtitle {
+              max-width: 760px;
+              margin: 16px auto 0;
+              font-size: 18px;
+              line-height: 1.7;
+              font-weight: 600;
+              color: #1f2937;
+            }
+
+            .receipt-body {
+              padding: 28px 28px 34px;
+            }
+
+            .top-grid {
+              display: grid;
+              grid-template-columns: 1.25fr 0.75fr;
+              gap: 16px;
+            }
+
+            .panel {
+              border: 1px solid #d4d4d8;
+              border-radius: 28px;
+              background: rgba(255, 255, 255, 0.96);
+              padding: 24px;
+            }
+
+            .panel.dark {
+              border-color: rgba(15, 23, 42, 0.1);
+              background: #0f172a;
+              color: #ffffff;
+            }
+
+            .panel-kicker {
+              margin: 0;
+              font-size: 12px;
+              font-weight: 900;
+              letter-spacing: 0.28em;
+              text-transform: uppercase;
+              color: #334155;
+            }
+
+            .panel.dark .panel-kicker {
+              color: rgba(255,255,255,0.7);
+            }
+
+            .responsible-line {
+              margin: 16px 0 0;
+              font-size: 24px;
+              line-height: 1.45;
+              font-weight: 700;
+              color: #020617;
+            }
+
+            .responsible-date {
+              margin: 6px 0 0;
+              font-size: 18px;
+              line-height: 1.6;
+              font-weight: 600;
+              color: #334155;
+            }
+
+            .divider {
+              height: 1px;
+              margin: 16px 0;
+              background: #e5e7eb;
+            }
+
+            .dark-stat-label {
+              margin: 0;
+              font-size: 18px;
+              font-weight: 600;
+              color: rgba(255,255,255,0.78);
+            }
+
+            .dark-stat-value {
+              margin: 8px 0 0;
+              font-size: 44px;
+              line-height: 1.08;
+              font-weight: 900;
+              color: #ffffff;
+            }
+
+            .metrics-grid {
+              display: grid;
+              grid-template-columns: repeat(4, minmax(0, 1fr));
+              gap: 14px;
+              margin-top: 16px;
+            }
+
+            .metric-card {
+              border: 1px solid #d4d4d8;
+              border-radius: 28px;
+              padding: 22px;
+            }
+
+            .metric-label {
+              margin: 0;
+              font-size: 12px;
+              font-weight: 900;
+              letter-spacing: 0.28em;
+              text-transform: uppercase;
+              color: #334155;
+            }
+
+            .metric-value {
+              margin: 14px 0 0;
+              font-size: 34px;
+              line-height: 1.1;
+              font-weight: 900;
+              color: #020617;
+            }
+
+            .section-card {
+              margin-top: 16px;
+              border: 1px solid #d4d4d8;
+              border-radius: 28px;
+              background: rgba(255,255,255,0.96);
+              padding: 24px;
+            }
+
+            .section-header {
+              display: flex;
+              align-items: flex-end;
+              justify-content: space-between;
+              gap: 16px;
+            }
+
+            .section-kicker {
+              margin: 0;
+              font-size: 12px;
+              font-weight: 900;
+              letter-spacing: 0.28em;
+              text-transform: uppercase;
+              color: #334155;
+            }
+
+            .section-title {
+              margin: 12px 0 0;
+              font-size: 34px;
+              line-height: 1.15;
+              font-weight: 900;
+              color: #020617;
+            }
+
+            .section-copy {
+              margin: 10px 0 0;
+              font-size: 18px;
+              line-height: 1.7;
+              font-weight: 600;
+              color: #334155;
+            }
+
+            .section-meta {
+              font-size: 18px;
+              font-weight: 700;
+              color: #0f172a;
+              white-space: nowrap;
+            }
+
+            .payment-stack {
+              display: grid;
+              gap: 16px;
+              margin-top: 20px;
+            }
+
+            .payment-card {
+              border: 1px solid #d4d4d8;
+              border-radius: 28px;
+              padding: 22px;
+              page-break-inside: avoid;
+            }
+
+            .payment-card-top {
+              display: flex;
+              align-items: flex-start;
+              justify-content: space-between;
+              gap: 16px;
+            }
+
+            .payment-chip {
+              display: inline-flex;
+              align-items: center;
+              border: 1px solid #d4d4d8;
+              border-radius: 999px;
+              padding: 8px 16px;
+              font-size: 12px;
+              font-weight: 900;
+              letter-spacing: 0.22em;
+              text-transform: uppercase;
+            }
+
+            .payment-total {
+              margin: 18px 0 0;
+              font-size: 36px;
+              line-height: 1.08;
+              font-weight: 900;
+              color: #020617;
+            }
+
+            .payment-meta {
+              margin: 10px 0 0;
+              font-size: 18px;
+              line-height: 1.6;
+              font-weight: 700;
+            }
+
+            .payment-share {
+              min-width: 180px;
+              padding: 16px 18px;
+              border: 1px solid rgba(255,255,255,0.9);
+              border-radius: 24px;
+              background: rgba(255,255,255,0.9);
+            }
+
+            .payment-share-label {
+              margin: 0;
+              font-size: 12px;
+              font-weight: 900;
+              letter-spacing: 0.24em;
+              text-transform: uppercase;
+              color: #334155;
+            }
+
+            .payment-share-value {
+              margin: 10px 0 0;
+              font-size: 34px;
+              font-weight: 900;
+              color: #020617;
+            }
+
+            .payment-sales-list {
+              display: grid;
+              gap: 12px;
+              margin-top: 18px;
+            }
+
+            .payment-sale-row {
+              display: flex;
+              align-items: flex-start;
+              justify-content: space-between;
+              gap: 16px;
+              padding: 16px 18px;
+              border: 1px solid rgba(255,255,255,0.88);
+              border-radius: 22px;
+              background: rgba(255,255,255,0.92);
+            }
+
+            .payment-sale-date {
+              margin: 0;
+              font-size: 18px;
+              line-height: 1.55;
+              font-weight: 800;
+              color: #020617;
+            }
+
+            .payment-sale-copy {
+              margin: 6px 0 0;
+              font-size: 15px;
+              line-height: 1.55;
+              font-weight: 600;
+              color: #334155;
+            }
+
+            .payment-sale-value {
+              margin: 0;
+              font-size: 28px;
+              line-height: 1.2;
+              font-weight: 900;
+              color: #020617;
+              white-space: nowrap;
+            }
+
+            .tables-grid {
+              display: grid;
+              grid-template-columns: repeat(2, minmax(0, 1fr));
+              gap: 16px;
+              margin-top: 16px;
+            }
+
+            .table-card {
+              border: 1px solid #d4d4d8;
+              border-radius: 28px;
+              background: rgba(255,255,255,0.96);
+              padding: 24px;
+            }
+
+            .table {
+              width: 100%;
+              margin-top: 18px;
+              border-collapse: collapse;
+            }
+
+            .table th {
+              padding: 0 0 12px;
+              text-align: left;
+              font-size: 12px;
+              font-weight: 900;
+              letter-spacing: 0.24em;
+              text-transform: uppercase;
+              color: #475569;
+            }
+
+            .table td {
+              padding: 14px 0;
+              border-top: 1px solid #e5e7eb;
+              font-size: 17px;
+              line-height: 1.55;
+              font-weight: 600;
+              color: #0f172a;
+              vertical-align: top;
+            }
+
+            .table-value {
+              text-align: right;
+              font-size: 22px;
+              font-weight: 900;
+              color: #020617;
+              white-space: nowrap;
+            }
+
+            .table-value-negative {
+              color: #b91c1c;
+            }
+
+            .empty-row {
+              color: #475569;
+              font-weight: 700;
+            }
+
+            .empty-block {
+              border: 1px dashed #cbd5e1;
+              border-radius: 24px;
+              padding: 22px;
+              background: #f8fafc;
+              font-size: 18px;
+              line-height: 1.6;
+              font-weight: 700;
+              color: #334155;
+            }
+
+            @media (max-width: 920px) {
+              body {
+                padding: 0;
+              }
+
+              .receipt-sheet {
+                border-radius: 0;
+                border: none;
+                box-shadow: none;
+              }
+
+              .receipt-header,
+              .receipt-body {
+                padding-left: 18px;
+                padding-right: 18px;
+              }
+
+              .top-grid,
+              .metrics-grid,
+              .tables-grid {
+                grid-template-columns: 1fr;
+              }
+
+              .payment-card-top,
+              .section-header,
+              .payment-sale-row {
+                flex-direction: column;
+              }
+
+              .section-meta,
+              .payment-sale-value {
+                white-space: normal;
+              }
+            }
+
+            @media print {
+              @page {
+                size: A4 portrait;
+                margin: 10mm;
+              }
+
+              html, body {
+                background: #ffffff;
+              }
+
+              body {
+                padding: 0;
+              }
+
+              .receipt-sheet {
+                border-radius: 0;
+                border: none;
+                box-shadow: none;
+              }
+            }
+          </style>
+        </head>
+        <body>
+          <main class="print-shell">
+            <article class="receipt-sheet">
+              <header class="receipt-header">
+                <div class="brand-badge">
+                  <img src="${happyCashLogo}" alt="HappyCash" />
+                </div>
+                <p class="eyebrow">HappyCash</p>
+                <h1 class="receipt-title">Recibo de Fechamento do Caixa</h1>
+                <p class="receipt-subtitle">
+                  Uma única via grande, legível e completa para conferência e controle total do caixa encerrado.
+                </p>
+              </header>
+
+              <section class="receipt-body">
+                <div class="top-grid">
+                  <section class="panel">
+                    <p class="panel-kicker">Responsáveis</p>
+                    <p class="responsible-line">Aberto por: <strong>${escapeHtml(lastCloseReceipt.openedBy)}</strong></p>
+                    <p class="responsible-date">${escapeHtml(formatSaleDate(lastCloseReceipt.openedAt))}</p>
+                    <div class="divider"></div>
+                    <p class="responsible-line">Fechado por: <strong>${escapeHtml(lastCloseReceipt.closedBy)}</strong></p>
+                    <p class="responsible-date">${escapeHtml(formatSaleDate(lastCloseReceipt.closedAt))}</p>
+                  </section>
+
+                  <section class="panel dark">
+                    <p class="panel-kicker">Controle total</p>
+                    <div style="margin-top:18px;">
+                      <p class="dark-stat-label">Quantidade de vendas</p>
+                      <p class="dark-stat-value">${lastCloseReceipt.saleCount}</p>
+                    </div>
+                    <div style="margin-top:18px;">
+                      <p class="dark-stat-label">Saldo final</p>
+                      <p class="dark-stat-value">${escapeHtml(formatMoney(lastCloseReceipt.finalBalance))}</p>
+                    </div>
+                  </section>
+                </div>
+
+                <section class="metrics-grid">
+                  ${summaryCardsHtml}
+                </section>
+
+                <section class="section-card">
+                  <div class="section-header">
+                    <div>
+                      <p class="section-kicker">Formas de pagamento</p>
+                      <h2 class="section-title">Separação por recebimento</h2>
+                      <p class="section-copy">
+                        Cada forma mostra total recebido, ticket médio, participação e a lista das vendas daquele grupo.
+                      </p>
+                    </div>
+                    <p class="section-meta">${paymentBreakdown.length} forma${paymentBreakdown.length === 1 ? '' : 's'} registrada${paymentBreakdown.length === 1 ? '' : 's'}</p>
+                  </div>
+                  <div class="payment-stack">
+                    ${paymentBreakdownHtml}
+                  </div>
+                </section>
+
+                <section class="tables-grid">
+                  <section class="table-card">
+                    <div class="section-header">
+                      <div>
+                        <p class="section-kicker">Entradas</p>
+                        <h2 class="section-title" style="font-size:30px;">Vendas registradas</h2>
+                      </div>
+                      <p class="section-meta">${lastCloseReceipt.saleCount} total</p>
+                    </div>
+                    <table class="table">
+                      <thead>
+                        <tr>
+                          <th>Horário</th>
+                          <th>Pagamento</th>
+                          <th style="text-align:right;">Valor</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        ${salesHtml}
+                      </tbody>
+                    </table>
+                  </section>
+
+                  <section class="table-card">
+                    <div class="section-header">
+                      <div>
+                        <p class="section-kicker">Saídas</p>
+                        <h2 class="section-title" style="font-size:30px;">Movimentações do caixa</h2>
+                      </div>
+                      <p class="section-meta">${lastCloseReceipt.cashOuts.length} total</p>
+                    </div>
+                    <table class="table">
+                      <thead>
+                        <tr>
+                          <th>Horário</th>
+                          <th>Descrição</th>
+                          <th style="text-align:right;">Valor</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        ${cashOutHtml}
+                      </tbody>
+                    </table>
+                  </section>
+                </section>
+              </section>
+            </article>
+          </main>
+
+          <script>
+            window.addEventListener('load', () => {
+              const startPrint = () => {
+                window.focus();
+                window.print();
+              };
+
+              const logo = document.querySelector('img');
+              if (logo && !logo.complete) {
+                logo.addEventListener('load', () => setTimeout(startPrint, 250), { once: true });
+                logo.addEventListener('error', () => setTimeout(startPrint, 250), { once: true });
+              } else {
+                setTimeout(startPrint, 250);
+              }
+
+              window.onafterprint = () => window.close();
+            });
+          </script>
+        </body>
+      </html>
+    `);
+
+    printWindow.document.close();
+  };
 
   const cancelledSales = useMemo(() => {
     return sessionScopedSales
@@ -1446,7 +2271,7 @@ export default function PDV() {
                 <div className="space-y-1">
                   {lastCloseReceipt.sales.map(sale => (
                     <div key={sale.id} className="flex justify-between gap-3">
-                      <span className="truncate">{formatSaleDate(sale.date)} | {sale.payment_method}</span>
+                      <span className="truncate">{formatSaleDate(sale.date)} | {formatPaymentMethod(sale.payment_method)}</span>
                       <span className="font-medium">{formatMoney(sale.total)}</span>
                     </div>
                   ))}
@@ -1476,7 +2301,7 @@ export default function PDV() {
             >
               {closeCashEmailStatus === 'sending' ? 'Enviando...' : 'Enviar recibo'}
             </Button>
-            <Button variant="outline" onClick={() => window.print()}>Imprimir recibo</Button>
+            <Button variant="outline" onClick={handlePrintCloseCashReceipt}>Imprimir recibo</Button>
             <Button onClick={() => setShowCloseCashReceipt(false)}>Fechar</Button>
           </DialogFooter>
         </DialogContent>
