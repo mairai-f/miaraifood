@@ -1,0 +1,1288 @@
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { motion } from 'framer-motion';
+import { createClient } from '@supabase/supabase-js';
+import { useData } from '@/contexts/DataContext';
+import { useAuth } from '@/contexts/AuthContext';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Ban, History, Minus, Plus, Receipt, Search, ShoppingCart, Wallet, X } from 'lucide-react';
+import type { Expense, Product, Sale } from '@/types';
+import { normalizePhone } from '@/lib/phone';
+import type { Database } from '@/integrations/supabase/types';
+
+interface CartItem {
+  product: Product;
+  quantity: number;
+}
+
+interface CashSession {
+  openedAt: string;
+  openingAmount: number;
+  openedBy: string;
+}
+
+interface CashCloseReceipt {
+  openedAt: string;
+  closedAt: string;
+  openedBy: string;
+  closedBy: string;
+  openingAmount: number;
+  salesTotal: number;
+  cashOutTotal: number;
+  finalBalance: number;
+  saleCount: number;
+  cashOuts: Expense[];
+  sales: Sale[];
+}
+
+const CASH_SESSION_KEY = 'happycash-pdv-cash-session';
+const adminVerificationClient = createClient<Database>(
+  import.meta.env.VITE_SUPABASE_URL,
+  import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+  {
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+      detectSessionInUrl: false,
+      storageKey: 'happycash-admin-close-cash-verification',
+    },
+  }
+);
+
+const readCashSession = (): CashSession | null => {
+  if (typeof window === 'undefined') return null;
+  try {
+    const stored = window.localStorage.getItem(CASH_SESSION_KEY);
+    if (!stored) return null;
+    const parsed = JSON.parse(stored) as CashSession;
+    if (!parsed.openedAt || typeof parsed.openingAmount !== 'number') return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+};
+
+const silentToast = {
+  success: (_message?: string) => undefined,
+  error: (_message?: string) => undefined,
+};
+
+export default function PDV() {
+  const { products, clients, sales, saleItems, expenses, createSale, addDebtEntries, addExpense, cancelSale } = useData();
+  const { user, username } = useAuth();
+  const navigate = useNavigate();
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const cashReceivedInputRef = useRef<HTMLInputElement>(null);
+  const finalizeLockRef = useRef(false);
+  const [search, setSearch] = useState('');
+  const [cart, setCart] = useState<CartItem[]>([]);
+  const [cartItemPendingRemoval, setCartItemPendingRemoval] = useState<CartItem | null>(null);
+  const [discountType, setDiscountType] = useState<'value' | 'percent'>('value');
+  const [discountInput, setDiscountInput] = useState('');
+  const [paymentMethod, setPaymentMethod] = useState('');
+  const [cashReceived, setCashReceived] = useState('');
+  const [selectedClientId, setSelectedClientId] = useState<string>('');
+  const [isDelivery, setIsDelivery] = useState(false);
+  const [showCheckout, setShowCheckout] = useState(false);
+  const [showFinalizeConfirm, setShowFinalizeConfirm] = useState(false);
+  const [showReceipt, setShowReceipt] = useState(false);
+  const [showSalesSearch, setShowSalesSearch] = useState(false);
+  const [showCancelledSales, setShowCancelledSales] = useState(false);
+  const [showCashOut, setShowCashOut] = useState(false);
+  const [saleSearch, setSaleSearch] = useState('');
+  const [saleLimit, setSaleLimit] = useState(25);
+  const [saleToCancel, setSaleToCancel] = useState<string | null>(null);
+  const [cancelReason, setCancelReason] = useState('');
+  const [cashOutAmount, setCashOutAmount] = useState('');
+  const [cashOutReason, setCashOutReason] = useState('');
+  const [cashSession, setCashSession] = useState<CashSession | null>(() => readCashSession());
+  const [openingAmount, setOpeningAmount] = useState('');
+  const [showCloseCashReceipt, setShowCloseCashReceipt] = useState(false);
+  const [showCloseCashAuth, setShowCloseCashAuth] = useState(false);
+  const [adminPassword, setAdminPassword] = useState('');
+  const [closeCashAuthError, setCloseCashAuthError] = useState('');
+  const [isVerifyingAdminPassword, setIsVerifyingAdminPassword] = useState(false);
+  const [lastCloseReceipt, setLastCloseReceipt] = useState<CashCloseReceipt | null>(null);
+  const [lastSaleData, setLastSaleData] = useState<{ items: CartItem[]; total: number; discount: number; method: string; change: number; clientId: string | null } | null>(null);
+  const [isFinalizingSale, setIsFinalizingSale] = useState(false);
+
+  const activeProducts = products.filter(p => !('deleted' in p && (p as any).deleted));
+  const activeClients = clients.filter(c => !c.deleted);
+  const sellerName = username || user?.email || 'Vendedor';
+
+  const formatMoney = (value: number) => `R$ ${value.toFixed(2)}`;
+  const formatSaleDate = (value: string) => new Date(value).toLocaleString('pt-BR');
+
+  const filtered = useMemo(() => {
+    if (!search) return activeProducts;
+    const q = search.trim().toLowerCase();
+    return activeProducts.filter(p =>
+      p.name.toLowerCase().includes(q) ||
+      p.barcode?.toLowerCase().includes(q) ||
+      p.code?.toString().includes(q)
+    );
+  }, [search, activeProducts]);
+
+  const subtotal = cart.reduce((s, i) => s + i.product.price * i.quantity, 0);
+  const cartUnits = cart.reduce((sum, item) => sum + item.quantity, 0);
+  const discount = discountType === 'percent'
+    ? subtotal * (parseFloat(discountInput) || 0) / 100
+    : parseFloat(discountInput) || 0;
+  const total = Math.max(0, subtotal - discount);
+  const change = paymentMethod === 'dinheiro' ? Math.max(0, (parseFloat(cashReceived) || 0) - total) : 0;
+  const canFinalizeCheckout = Boolean(paymentMethod)
+    && (paymentMethod !== 'dinheiro' || (parseFloat(cashReceived) || 0) >= total)
+    && (paymentMethod !== 'fiado' || Boolean(selectedClientId));
+
+  const saleSearchTerm = saleSearch.trim().toLowerCase();
+  const isInCurrentCashSession = (value: string) => {
+    if (!cashSession) return false;
+    return new Date(value).getTime() >= new Date(cashSession.openedAt).getTime();
+  };
+
+  const sessionScopedSales = useMemo(() => {
+    return sales.filter(sale => isInCurrentCashSession(sale.date));
+  }, [cashSession, sales]);
+
+  const visibleSales = useMemo(() => {
+    return sessionScopedSales
+      .filter(sale => {
+        if (!saleSearchTerm) return true;
+        const client = activeClients.find(c => c.id === sale.client_id);
+        return [
+          sale.id,
+          sale.payment_method,
+          sale.seller_name || '',
+          client?.name || '',
+          formatSaleDate(sale.date),
+          sale.total.toFixed(2),
+        ].some(value => value.toLowerCase().includes(saleSearchTerm));
+      })
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+      .slice(0, saleLimit);
+  }, [activeClients, saleLimit, saleSearchTerm, sessionScopedSales]);
+
+  const visibleSalesTotal = visibleSales
+    .filter(sale => sale.status !== 'cancelled')
+    .reduce((sum, sale) => sum + sale.total, 0);
+
+  const cancelledSales = useMemo(() => {
+    return sessionScopedSales
+      .filter(sale => sale.status === 'cancelled')
+      .sort((a, b) => new Date(b.cancelled_at || b.date).getTime() - new Date(a.cancelled_at || a.date).getTime());
+  }, [sessionScopedSales]);
+
+  const cashSessionSales = useMemo(() => {
+    return sessionScopedSales.filter(sale => sale.status !== 'cancelled');
+  }, [sessionScopedSales]);
+
+  const cashSessionCashOuts = useMemo(() => {
+    return expenses.filter(expense => expense.category === 'Saída de caixa' && isInCurrentCashSession(expense.date));
+  }, [cashSession, expenses]);
+
+  const cashSalesTotal = cashSessionSales
+    .reduce((sum, sale) => sum + sale.total, 0);
+  const cashOutTotal = cashSessionCashOuts
+    .reduce((sum, expense) => sum + expense.amount, 0);
+  const cashOpeningAmount = cashSession?.openingAmount || 0;
+  const currentCashBalance = cashOpeningAmount + cashSalesTotal - cashOutTotal;
+  const parsedCashOutAmount = parseFloat(cashOutAmount);
+  const cashOutAmountValue = Number.isFinite(parsedCashOutAmount) ? parsedCashOutAmount : 0;
+  const cashOutExceedsBalance = cashOutAmountValue > currentCashBalance;
+  const showOpenCashDialog = !cashSession && !showCloseCashReceipt;
+
+  const addToCart = (p: Product) => {
+    setCart(prev => {
+      const existing = prev.find(i => i.product.id === p.id);
+      if (existing) return prev.map(i => i.product.id === p.id ? { ...i, quantity: i.quantity + 1 } : i);
+      return [...prev, { product: p, quantity: 1 }];
+    });
+    searchInputRef.current?.blur();
+  };
+
+  const focusProductSearch = () => {
+    requestAnimationFrame(() => searchInputRef.current?.focus());
+  };
+
+  const addSearchResultToCart = () => {
+    const q = search.trim().toLowerCase();
+    const exactMatch = q
+      ? activeProducts.find(p =>
+          p.code?.toString() === q ||
+          p.barcode?.toLowerCase() === q ||
+          p.name.toLowerCase() === q
+        )
+      : null;
+    const product = exactMatch || filtered[0];
+
+    if (!product) {
+      silentToast.error('Produto não encontrado');
+      return;
+    }
+
+    addToCart(product);
+    setSearch('');
+    silentToast.success(`${product.name} adicionado`);
+  };
+
+  const updateQty = (productId: string, delta: number) => {
+    setCart(prev => prev.map(i => {
+      if (i.product.id !== productId) return i;
+      const newQty = i.quantity + delta;
+      return newQty <= 0 ? i : { ...i, quantity: newQty };
+    }));
+  };
+
+  const removeFromCart = (productId: string) => setCart(prev => prev.filter(i => i.product.id !== productId));
+  const requestRemoveFromCart = (item: CartItem) => setCartItemPendingRemoval(item);
+  const confirmRemoveFromCart = () => {
+    if (!cartItemPendingRemoval) return;
+    removeFromCart(cartItemPendingRemoval.product.id);
+    setCartItemPendingRemoval(null);
+  };
+
+  const clearCart = () => {
+    if (cart.length === 0) return;
+    setCart([]);
+    silentToast.success('Carrinho zerado');
+    searchInputRef.current?.blur();
+  };
+
+  const handlePaymentMethodChange = (method: string) => {
+    setPaymentMethod(method);
+    if (method === 'dinheiro') {
+      requestAnimationFrame(() => {
+        cashReceivedInputRef.current?.focus();
+        cashReceivedInputRef.current?.select();
+      });
+      return;
+    }
+    requestAnimationFrame(() => {
+      cashReceivedInputRef.current?.blur();
+    });
+  };
+
+  const openCheckout = () => {
+    if (!cashSession) { silentToast.error('Abra o caixa antes de vender'); return; }
+    if (cart.length === 0) { silentToast.error('Carrinho vazio'); return; }
+    setPaymentMethod('');
+    setCashReceived('');
+    setSelectedClientId('');
+    setShowFinalizeConfirm(false);
+    setShowCheckout(true);
+  };
+
+  const requestFinalizeConfirmation = () => {
+    if (!canFinalizeCheckout || isFinalizingSale) return;
+    setShowFinalizeConfirm(true);
+  };
+
+  const finalizeSale = async () => {
+    if (!cashSession) { silentToast.error('Abra o caixa antes de vender'); return; }
+    if (cart.length === 0) { silentToast.error('Carrinho vazio'); return; }
+    if (!paymentMethod) return;
+    if (finalizeLockRef.current) return;
+    if (paymentMethod === 'dinheiro' && (parseFloat(cashReceived) || 0) < total) {
+      silentToast.error('Valor recebido insuficiente'); return;
+    }
+    if (paymentMethod === 'fiado' && !selectedClientId) {
+      silentToast.error('Selecione um cliente para fiado'); return;
+    }
+
+    finalizeLockRef.current = true;
+    setIsFinalizingSale(true);
+    try {
+      const items = cart.map(i => ({
+        product_id: i.product.id,
+        product_name: i.product.name,
+        quantity: i.quantity,
+        unit_price: i.product.price,
+        cost_price: i.product.cost_price || 0,
+        total: i.product.price * i.quantity,
+      }));
+
+      await createSale({
+        client_id: selectedClientId || null,
+        user_id: user!.id,
+        seller_name: sellerName,
+        is_delivery: isDelivery,
+        status: 'completed',
+        total,
+        discount,
+        payment_method: paymentMethod,
+        cash_received: parseFloat(cashReceived) || 0,
+        change_amount: change,
+      }, items);
+
+      // If fiado, create debt entries
+      if (paymentMethod === 'fiado' && selectedClientId) {
+        await addDebtEntries(items.map(i => ({
+          clientId: selectedClientId,
+          productId: i.product_id,
+          productName: i.product_name,
+          quantity: i.quantity,
+          unitPrice: i.unit_price,
+          registeredBy: username || user?.email,
+        })));
+      }
+
+      setLastSaleData({ items: [...cart], total, discount, method: paymentMethod, change, clientId: selectedClientId || null });
+      setShowFinalizeConfirm(false);
+      setShowCheckout(false);
+      setShowReceipt(true);
+      setCart([]);
+      setDiscountInput('');
+      setPaymentMethod('');
+      setCashReceived('');
+      setSelectedClientId('');
+      setIsDelivery(false);
+      silentToast.success('Venda finalizada!');
+    } catch {
+      silentToast.error('Erro ao finalizar venda');
+    } finally {
+      finalizeLockRef.current = false;
+      setIsFinalizingSale(false);
+    }
+  };
+
+  const sendReceiptWhatsApp = () => {
+    if (!lastSaleData?.clientId) return;
+    const client = activeClients.find(c => c.id === lastSaleData.clientId);
+    if (!client?.phone) { silentToast.error('Cliente sem telefone'); return; }
+    const lines = lastSaleData.items.map(i => `• ${i.product.name} x${i.quantity} — R$ ${(i.product.price * i.quantity).toFixed(2)}`);
+    const msg = `🧾 *AdegaGS - Comprovante*\n\n${lines.join('\n')}\n\n${lastSaleData.discount > 0 ? `Desconto: R$ ${lastSaleData.discount.toFixed(2)}\n` : ''}💰 *Total: R$ ${lastSaleData.total.toFixed(2)}*\n📅 ${new Date().toLocaleString('pt-BR')}\nPagamento: ${lastSaleData.method}`;
+    window.open(`https://wa.me/${normalizePhone(client.phone)}?text=${encodeURIComponent(msg)}`, '_blank');
+  };
+
+  const handleOpenCash = () => {
+    const amount = parseFloat(openingAmount) || 0;
+    if (amount < 0) { silentToast.error('Valor de abertura inválido'); return; }
+
+    const session: CashSession = {
+      openedAt: new Date().toISOString(),
+      openingAmount: amount,
+      openedBy: sellerName,
+    };
+
+    window.localStorage.setItem(CASH_SESSION_KEY, JSON.stringify(session));
+    setCashSession(session);
+    setOpeningAmount('');
+    setSaleSearch('');
+    setSaleLimit(25);
+    silentToast.success('Caixa aberto!');
+  };
+
+  const handleCloseCash = () => {
+    if (!cashSession) return;
+
+    const receipt: CashCloseReceipt = {
+      openedAt: cashSession.openedAt,
+      closedAt: new Date().toISOString(),
+      openedBy: cashSession.openedBy,
+      closedBy: sellerName,
+      openingAmount: cashOpeningAmount,
+      salesTotal: cashSalesTotal,
+      cashOutTotal,
+      finalBalance: currentCashBalance,
+      saleCount: cashSessionSales.length,
+      cashOuts: cashSessionCashOuts,
+      sales: cashSessionSales,
+    };
+
+    setLastCloseReceipt(receipt);
+    window.localStorage.removeItem(CASH_SESSION_KEY);
+    setCashSession(null);
+    setShowSalesSearch(false);
+    setShowCashOut(false);
+    setSaleSearch('');
+    setSaleLimit(25);
+    setShowCloseCashReceipt(true);
+    silentToast.success('Caixa fechado!');
+  };
+
+  const requestCloseCash = () => {
+    if (!cashSession) return;
+    if (cart.length > 0) {
+      silentToast.error('Finalize ou zere o carrinho antes de fechar o caixa');
+      return;
+    }
+
+    setAdminPassword('');
+    setCloseCashAuthError('');
+    setShowCloseCashAuth(true);
+  };
+
+  const confirmCloseCashWithAdminPassword = async () => {
+    if (!user?.email) {
+      setCloseCashAuthError('Não foi possível identificar o administrador logado.');
+      return;
+    }
+
+    if (!adminPassword.trim()) {
+      setCloseCashAuthError('Digite a senha do administrador.');
+      return;
+    }
+
+    setIsVerifyingAdminPassword(true);
+    setCloseCashAuthError('');
+
+    try {
+      const { error } = await adminVerificationClient.auth.signInWithPassword({
+        email: user.email,
+        password: adminPassword,
+      });
+
+      if (error) {
+        setCloseCashAuthError('Senha do administrador incorreta.');
+        return;
+      }
+
+      await adminVerificationClient.auth.signOut();
+      setShowCloseCashAuth(false);
+      setAdminPassword('');
+      handleCloseCash();
+    } catch (error) {
+      console.error('Erro ao validar senha do administrador:', error);
+      setCloseCashAuthError('Não foi possível validar a senha do administrador.');
+    } finally {
+      setIsVerifyingAdminPassword(false);
+    }
+  };
+
+  const handleCashOut = async () => {
+    if (!cashSession) { silentToast.error('Abra o caixa antes de registrar saída'); return; }
+    const amount = cashOutAmountValue;
+    if (!amount || amount <= 0) { silentToast.error('Valor inválido'); return; }
+    if (!cashOutReason.trim()) { silentToast.error('Informe o motivo da saída'); return; }
+    if (cashOutExceedsBalance) {
+      silentToast.error(`Saída maior que o saldo disponível: ${formatMoney(currentCashBalance)}`);
+      return;
+    }
+
+    try {
+      await addExpense(cashOutReason.trim(), amount, 'Saída de caixa');
+      setCashOutAmount('');
+      setCashOutReason('');
+      setShowCashOut(false);
+      silentToast.success('Saída de caixa registrada!');
+    } catch (error) {
+      console.error('Erro ao registrar saída de caixa:', error);
+      silentToast.error('Não foi possível registrar a saída de caixa');
+    }
+  };
+
+  const handleCancelSale = async () => {
+    if (!saleToCancel) return;
+    if (!cancelReason.trim()) { silentToast.error('Informe o motivo do cancelamento'); return; }
+
+    try {
+      await cancelSale(saleToCancel, cancelReason.trim());
+      setSaleToCancel(null);
+      setCancelReason('');
+      silentToast.success('Venda cancelada!');
+    } catch (error) {
+      console.error('Erro ao cancelar venda:', error);
+      const message = error instanceof Error ? error.message : 'Não foi possível cancelar a venda';
+      silentToast.error(message);
+    }
+  };
+
+  useEffect(() => {
+    const isEditableTarget = (target: EventTarget | null) => {
+      const element = target as HTMLElement | null;
+      if (!element) return false;
+      const tag = element.tagName;
+      return element.isContentEditable || tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT';
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.ctrlKey || event.altKey || event.metaKey) return;
+
+      if (event.key === 'F1') {
+        event.preventDefault();
+        navigate('/');
+        return;
+      }
+
+      if (event.key === 'Escape' && event.target === searchInputRef.current) {
+        event.preventDefault();
+        setSearch('');
+        searchInputRef.current?.blur();
+        return;
+      }
+
+      if (showFinalizeConfirm) {
+        if (event.key === 'Escape') {
+          event.preventDefault();
+          setShowFinalizeConfirm(false);
+          return;
+        }
+
+        if (event.key === 'Enter') {
+          event.preventDefault();
+          finalizeSale();
+          return;
+        }
+
+        return;
+      }
+
+      if (showCheckout) {
+        if (event.key === 'Escape') {
+          event.preventDefault();
+          setShowFinalizeConfirm(false);
+          setShowCheckout(false);
+          return;
+        }
+
+        if (!isEditableTarget(event.target)) {
+          if (event.key === '1') {
+            event.preventDefault();
+            handlePaymentMethodChange('dinheiro');
+            return;
+          }
+
+          if (event.key === '2') {
+            event.preventDefault();
+            handlePaymentMethodChange('pix');
+            return;
+          }
+
+          if (event.key === '3') {
+            event.preventDefault();
+            handlePaymentMethodChange('fiado');
+            return;
+          }
+
+          if (event.key === '4') {
+            event.preventDefault();
+            handlePaymentMethodChange('cartao_debito');
+            return;
+          }
+
+          if (event.key === '5') {
+            event.preventDefault();
+            handlePaymentMethodChange('cartao_credito');
+            return;
+          }
+
+          if (event.key === 'Enter') {
+            event.preventDefault();
+            requestFinalizeConfirmation();
+            return;
+          }
+        }
+        return;
+      }
+
+      if (showReceipt || showSalesSearch || showCancelledSales || showCashOut || showCloseCashReceipt || showOpenCashDialog || saleToCancel) return;
+
+      if (event.key === 'Escape' && !showReceipt) {
+        event.preventDefault();
+        clearCart();
+        return;
+      }
+
+      if (event.code === 'Space' && !isEditableTarget(event.target)) {
+        event.preventDefault();
+        focusProductSearch();
+        return;
+      }
+
+      if (!isEditableTarget(event.target)) {
+        if (event.key === '1') {
+          event.preventDefault();
+          navigate('/');
+          return;
+        }
+
+        if (event.key === '2') {
+          event.preventDefault();
+          setShowSalesSearch(true);
+          return;
+        }
+
+        if (event.key === '3') {
+          event.preventDefault();
+          setShowCashOut(true);
+          return;
+        }
+
+        if (event.key === '4') {
+          event.preventDefault();
+          openCheckout();
+          return;
+        }
+
+        if (event.key === '5') {
+          event.preventDefault();
+          handleCloseCash();
+          return;
+        }
+
+        if (event.key === '0') {
+          event.preventDefault();
+          navigate('/');
+          return;
+        }
+
+        if (event.key === '6') {
+          event.preventDefault();
+          setShowCashOut(true);
+          return;
+        }
+
+        if (event.key === '7') {
+          event.preventDefault();
+          handleCloseCash();
+          return;
+        }
+      }
+
+      if (event.key === 'F2') {
+        event.preventDefault();
+        openCheckout();
+        return;
+      }
+
+      if (event.key === 'F3') {
+        event.preventDefault();
+        openCheckout();
+        return;
+      }
+
+      if (event.key === 'F4') {
+        event.preventDefault();
+        openCheckout();
+        return;
+      }
+
+      if (event.key === 'F5') {
+        event.preventDefault();
+        openCheckout();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [activeProducts, filtered, search, cart, discount, paymentMethod, cashReceived, selectedClientId, total, change, canFinalizeCheckout, showCheckout, showFinalizeConfirm, showReceipt, showSalesSearch, showCancelledSales, showCashOut, showCloseCashReceipt, showOpenCashDialog, saleToCancel, navigate]);
+
+  return (
+    <div className="flex min-h-[calc(100vh-1.5rem)] flex-col gap-4 sm:min-h-[calc(100vh-2rem)] lg:h-[calc(100vh-3rem)] lg:flex-row">
+      {/* Products panel */}
+      <div className="flex min-w-0 flex-1 flex-col">
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <h1 className="text-2xl font-bold">Caixa</h1>
+          <div className="flex flex-wrap justify-end gap-2">
+            <Button variant="outline" size="sm" onClick={() => navigate('/')}>Menu (1)</Button>
+            <Button variant="outline" size="sm" onClick={() => setShowSalesSearch(true)}><History className="h-4 w-4 mr-1" />Buscar vendas (2)</Button>
+            <Button variant="outline" size="sm" onClick={() => setShowCashOut(true)}><Wallet className="h-4 w-4 mr-1" />Saída de caixa (3)</Button>
+            <span className="inline-flex items-center rounded border border-border px-2.5 py-1 text-sm font-semibold">
+              Caixa: {cashSession ? formatMoney(currentCashBalance) : 'fechado'}
+            </span>
+            <Button variant="destructive" size="sm" onClick={requestCloseCash} disabled={!cashSession}>Fechar caixa (5)</Button>
+          </div>
+        </div>
+        <div className="relative mb-3">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+          <Input
+            ref={searchInputRef}
+            className="h-11 pl-11 text-base"
+            placeholder="Espaço: buscar produto por nome, código ou barras. Enter adiciona."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            onKeyDown={e => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                addSearchResultToCart();
+              }
+            }}
+          />
+        </div>
+        <div className="grid min-h-0 flex-1 grid-cols-2 gap-2 overflow-auto sm:grid-cols-3">
+          {filtered.map(p => (
+            <motion.div key={p.id} whileTap={{ scale: 0.95 }}>
+              <Card className="cursor-pointer hover:border-primary/50 transition-colors border-border/50" onClick={() => { addToCart(p); setSearch(''); }}>
+                <CardContent className="p-4">
+                  <p className="font-medium text-sm truncate">{p.code ? `#${p.code} ` : ''}{p.name}</p>
+                  <p className="text-primary font-bold text-base">R$ {p.price.toFixed(2)}</p>
+                  {p.stock > 0 && p.stock <= (p.min_stock || 5) && (
+                    <p className="text-xs text-destructive">⚠️ Estoque: {p.stock}</p>
+                  )}
+                </CardContent>
+              </Card>
+            </motion.div>
+          ))}
+        </div>
+      </div>
+
+      {/* Cart panel */}
+      <div className="flex min-h-[70vh] w-full flex-col lg:min-h-0 lg:w-[32rem] xl:w-[38rem]">
+        <Card className="flex min-h-0 flex-1 flex-col border-border/50">
+          <CardHeader className="pb-2 px-4 pt-4">
+            <CardTitle className="text-base flex items-center gap-2"><ShoppingCart className="h-5 w-5" />Carrinho ({cart.length}) <span className="text-xs font-medium text-muted-foreground">Esc zera</span></CardTitle>
+          </CardHeader>
+          <CardContent className="flex min-h-0 flex-1 flex-col p-4 pt-0 gap-3">
+            <div className="min-h-0 flex-1 overflow-auto space-y-2">
+              {cart.map(i => (
+                <div key={i.product.id} className="flex items-center gap-3 p-3 rounded-lg bg-secondary/50">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate">{i.product.name}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {i.quantity} x {formatMoney(i.product.price)}
+                    </p>
+                    <p className="text-sm font-semibold text-primary">{formatMoney(i.product.price * i.quantity)}</p>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => updateQty(i.product.id, -1)}><Minus className="h-4 w-4" /></Button>
+                    <span className="text-sm w-8 text-center font-medium">{i.quantity}</span>
+                    <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => updateQty(i.product.id, 1)}><Plus className="h-4 w-4" /></Button>
+                    <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => requestRemoveFromCart(i)}><X className="h-4 w-4" /></Button>
+                  </div>
+                </div>
+              ))}
+              {cart.length === 0 && <p className="text-sm text-muted-foreground text-center py-8">Carrinho vazio</p>}
+            </div>
+
+            <div className="rounded-lg border border-border bg-background/80 p-3 space-y-2">
+              <div className="flex items-center justify-between text-sm text-muted-foreground">
+                <span>Itens adicionados</span>
+                <span>{cartUnits} unidade{cartUnits === 1 ? '' : 's'}</span>
+              </div>
+              <div className="flex items-center justify-between text-base font-semibold">
+                <span>Total dos itens adicionados</span>
+                <span className="text-primary">{formatMoney(subtotal)}</span>
+              </div>
+            </div>
+
+            <Button type="button" onClick={() => openCheckout()} className="h-11 w-full text-base" disabled={cart.length === 0 || isFinalizingSale}>
+              <Receipt className="h-5 w-5 mr-2" />Finalizar Venda (4)
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+
+      <AlertDialog open={!!cartItemPendingRemoval} onOpenChange={open => { if (!open) setCartItemPendingRemoval(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remover item do carrinho?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {cartItemPendingRemoval
+                ? `${cartItemPendingRemoval.product.name} (${cartItemPendingRemoval.quantity} unidade${cartItemPendingRemoval.quantity === 1 ? '' : 's'}) será removido do carrinho.`
+                : 'Confirme a remoção do item.'}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmRemoveFromCart}>Remover</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Checkout dialog */}
+      <Dialog open={showCheckout} onOpenChange={open => { if (!isFinalizingSale) setShowCheckout(open); }}>
+        <DialogContent className="max-w-3xl overflow-hidden" onOpenAutoFocus={event => event.preventDefault()}>
+          <DialogHeader className="space-y-1 pb-1"><DialogTitle>Finalizar venda</DialogTitle></DialogHeader>
+          <div className="grid gap-4 lg:grid-cols-[1.15fr_0.85fr]">
+            <div className="space-y-3">
+              <div className="rounded-lg border border-border p-3">
+                <p className="mb-2 text-sm font-semibold">Itens do carrinho</p>
+                <div className="space-y-1.5">
+                  {cart.map(i => (
+                    <div key={i.product.id} className="flex justify-between gap-3 text-sm">
+                      <span className="truncate">{i.product.name} x{i.quantity}</span>
+                      <span className="font-medium">R$ {(i.product.price * i.quantity).toFixed(2)}</span>
+                    </div>
+                  ))}
+                  {cart.length === 0 && <p className="text-sm text-muted-foreground">Carrinho vazio</p>}
+                </div>
+              </div>
+
+              <div className="rounded-lg border border-border p-3 space-y-1">
+                <div className="flex justify-between text-sm"><span>Subtotal</span><span>R$ {subtotal.toFixed(2)}</span></div>
+                {discount > 0 && <div className="flex justify-between text-sm text-destructive"><span>Desconto</span><span>-R$ {discount.toFixed(2)}</span></div>}
+                <div className="flex justify-between text-lg font-bold"><span>Total</span><span className="text-primary">R$ {total.toFixed(2)}</span></div>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <div className="grid grid-cols-[1fr_88px] gap-2 items-end">
+                <div className="flex-1 space-y-1">
+                  <Label className="text-sm">Desconto</Label>
+                  <Input type="number" step="0.01" placeholder="0" value={discountInput} onChange={e => setDiscountInput(e.target.value)} className="h-9 text-sm" />
+                </div>
+                <Select value={discountType} onValueChange={v => setDiscountType(v as 'value' | 'percent')}>
+                  <SelectTrigger className="w-20 h-9 text-sm"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="value">R$</SelectItem>
+                    <SelectItem value="percent">%</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-sm">Pagamento</Label>
+                <div className="grid grid-cols-2 gap-2">
+                  <Button type="button" variant={paymentMethod === 'dinheiro' ? 'default' : 'outline'} onClick={() => handlePaymentMethodChange('dinheiro')}>[1] Dinheiro</Button>
+                  <Button type="button" variant={paymentMethod === 'pix' ? 'default' : 'outline'} onClick={() => handlePaymentMethodChange('pix')}>[2] Pix</Button>
+                  <Button type="button" variant={paymentMethod === 'fiado' ? 'default' : 'outline'} onClick={() => handlePaymentMethodChange('fiado')}>[3] Fiado</Button>
+                  <Button type="button" variant={paymentMethod === 'cartao_debito' ? 'default' : 'outline'} onClick={() => handlePaymentMethodChange('cartao_debito')}>[4] Débito</Button>
+                  <Button type="button" className="col-span-2" variant={paymentMethod === 'cartao_credito' ? 'default' : 'outline'} onClick={() => handlePaymentMethodChange('cartao_credito')}>[5] Crédito</Button>
+                </div>
+              </div>
+
+              {paymentMethod === 'dinheiro' && (
+                <div className="space-y-1">
+                  <Label className="text-sm">Valor recebido</Label>
+                  <Input
+                    ref={cashReceivedInputRef}
+                    type="number"
+                    step="0.01"
+                  value={cashReceived}
+                  onFocus={e => e.currentTarget.select()}
+                  onChange={e => setCashReceived(e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      e.currentTarget.blur();
+                    }
+                  }}
+                    className="h-9 text-sm"
+                  />
+                  {change > 0 && <p className="text-sm text-primary font-bold">Troco: R$ {change.toFixed(2)}</p>}
+                </div>
+              )}
+
+              <Button
+                type="button"
+                variant={isDelivery ? 'default' : 'outline'}
+                className="h-9 w-full text-sm"
+                onClick={() => setIsDelivery(prev => !prev)}
+              >
+                {isDelivery ? 'Delivery ativo' : 'Balcão / Retirada'}
+              </Button>
+
+              {paymentMethod === 'fiado' && (
+                <div className="space-y-1">
+                  <Label className="text-sm">Cliente</Label>
+                  <Select value={selectedClientId} onValueChange={setSelectedClientId}>
+                    <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Selecione..." /></SelectTrigger>
+                    <SelectContent>
+                      {activeClients.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
+              <p className="text-xs text-muted-foreground">Enter pede confirmação para finalizar.</p>
+            </div>
+          </div>
+          <DialogFooter className="gap-2 border-t border-border pt-4">
+            <Button type="button" variant="outline" onClick={() => setShowCheckout(false)} disabled={isFinalizingSale}>Voltar</Button>
+            <Button type="button" onClick={requestFinalizeConfirmation} disabled={cart.length === 0 || isFinalizingSale || !canFinalizeCheckout}>
+              <Receipt className="h-4 w-4 mr-2" />Finalizar venda
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showFinalizeConfirm} onOpenChange={open => { if (!isFinalizingSale) setShowFinalizeConfirm(open); }}>
+        <DialogContent className="max-w-sm" onOpenAutoFocus={event => event.preventDefault()}>
+          <DialogHeader>
+            <DialogTitle>Finalizar venda?</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">Confirma a finalização desta venda agora?</p>
+          <DialogFooter className="gap-2">
+            <Button type="button" variant="outline" onClick={() => setShowFinalizeConfirm(false)} disabled={isFinalizingSale}>Voltar</Button>
+            <Button type="button" onClick={finalizeSale} disabled={isFinalizingSale || !canFinalizeCheckout}>
+              Confirmar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Sales search dialog */}
+      <Dialog open={showSalesSearch} onOpenChange={setShowSalesSearch}>
+        <DialogContent className="max-h-[90vh] max-w-5xl overflow-hidden">
+          <DialogHeader><DialogTitle>Buscar vendas</DialogTitle></DialogHeader>
+          <div className="flex min-h-0 flex-col gap-3">
+            <div className="grid gap-2 sm:grid-cols-[1fr_180px]">
+              <Input
+                value={saleSearch}
+                onChange={e => setSaleSearch(e.target.value)}
+                placeholder="Buscar por vendedor, cliente, data, total ou forma..."
+                className="h-10 text-sm"
+              />
+              <Select value={saleLimit.toString()} onValueChange={value => setSaleLimit(parseInt(value, 10))}>
+                <SelectTrigger className="h-10"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {[25, 50, 75, 100, 125, 150].map(limit => (
+                    <SelectItem key={limit} value={limit.toString()}>0-{limit} registros</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="grid gap-2 sm:grid-cols-3">
+              <div className="rounded-lg border border-border p-3">
+                <p className="text-xs text-muted-foreground">Total exibido</p>
+                <p className="text-lg font-bold text-primary">{formatMoney(visibleSalesTotal)}</p>
+              </div>
+              <div className="rounded-lg border border-border p-3">
+                <p className="text-xs text-muted-foreground">Vendas exibidas</p>
+                <p className="text-lg font-bold">{visibleSales.length}</p>
+              </div>
+              <div className="rounded-lg border border-border p-3">
+                <p className="text-xs text-muted-foreground">Vendas canceladas</p>
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-lg font-bold text-destructive">{cancelledSales.length}</p>
+                  <Button variant="outline" size="sm" onClick={() => setShowCancelledSales(true)}>Abrir motivos</Button>
+                </div>
+              </div>
+            </div>
+
+            <div className="min-h-0 max-h-[55vh] overflow-auto space-y-2">
+              {visibleSales.map(sale => {
+                const client = activeClients.find(c => c.id === sale.client_id);
+                const items = saleItems.filter(item => item.sale_id === sale.id);
+                const isCancelled = sale.status === 'cancelled';
+                return (
+                  <div key={sale.id} className={`rounded-lg border border-border p-3 ${isCancelled ? 'opacity-60' : ''}`}>
+                    <div className="grid gap-2 lg:grid-cols-[1fr_auto]">
+                      <div className="min-w-0 space-y-1">
+                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                          <p className="font-semibold">{formatSaleDate(sale.date)}</p>
+                          <span className="text-sm text-muted-foreground">{sale.is_delivery ? 'Delivery' : 'Balcão'}</span>
+                          {isCancelled && <span className="text-sm font-semibold text-destructive">Cancelada</span>}
+                        </div>
+                        <p className="text-sm text-muted-foreground">
+                          Vendedor: {sale.seller_name || (sale.user_id === user?.id ? sellerName : 'Não informado')}
+                          {client?.name ? ` | Cliente: ${client.name}` : ''}
+                        </p>
+                        <p className="text-sm text-muted-foreground truncate">
+                          {items.length > 0
+                            ? items.map(item => `${item.product_name} x${item.quantity}`).join(' | ')
+                            : 'Itens não carregados'}
+                        </p>
+                        {sale.cancel_reason && <p className="text-sm text-destructive">Motivo: {sale.cancel_reason}</p>}
+                      </div>
+                      <div className="flex flex-col items-start gap-2 lg:items-end">
+                        <div className="text-left lg:text-right">
+                          <p className="text-lg font-bold text-primary">{formatMoney(sale.total)}</p>
+                          <p className="text-sm text-muted-foreground">Desconto: {formatMoney(sale.discount || 0)}</p>
+                          <p className="text-sm text-muted-foreground">{sale.payment_method}</p>
+                        </div>
+                        {!isCancelled && (
+                          <Button variant="destructive" size="sm" onClick={() => { setSaleToCancel(sale.id); setCancelReason(''); }}>
+                            <Ban className="h-4 w-4 mr-1" />Cancelar
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+              {visibleSales.length === 0 && <p className="py-8 text-center text-sm text-muted-foreground">Nenhuma venda encontrada.</p>}
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Cancelled sales dialog */}
+      <Dialog open={showCancelledSales} onOpenChange={setShowCancelledSales}>
+        <DialogContent className="max-h-[90vh] max-w-3xl overflow-hidden">
+          <DialogHeader><DialogTitle>Vendas canceladas</DialogTitle></DialogHeader>
+          <div className="max-h-[70vh] overflow-auto space-y-2">
+            {cancelledSales.map(sale => {
+              const client = activeClients.find(c => c.id === sale.client_id);
+              const items = saleItems.filter(item => item.sale_id === sale.id);
+              return (
+                <div key={sale.id} className="rounded-lg border border-border p-3">
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div className="min-w-0 space-y-1">
+                      <p className="font-semibold">{formatSaleDate(sale.cancelled_at || sale.date)}</p>
+                      <p className="text-sm text-muted-foreground">
+                        Venda: {formatSaleDate(sale.date)}
+                        {client?.name ? ` | Cliente: ${client.name}` : ''}
+                      </p>
+                      <p className="text-sm text-muted-foreground">
+                        Vendedor: {sale.seller_name || (sale.user_id === user?.id ? sellerName : 'Não informado')}
+                      </p>
+                      <p className="text-sm text-muted-foreground">
+                        {items.length > 0
+                          ? items.map(item => `${item.product_name} x${item.quantity}`).join(' | ')
+                          : 'Itens não carregados'}
+                      </p>
+                      <p className="text-sm font-medium text-destructive">Motivo: {sale.cancel_reason || 'Motivo não informado'}</p>
+                    </div>
+                    <div className="text-left sm:text-right">
+                      <p className="text-lg font-bold text-primary">{formatMoney(sale.total)}</p>
+                      <p className="text-sm text-muted-foreground">Desconto: {formatMoney(sale.discount || 0)}</p>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+            {cancelledSales.length === 0 && <p className="py-8 text-center text-sm text-muted-foreground">Nenhuma venda cancelada.</p>}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowCancelledSales(false)}>Fechar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Cash out dialog */}
+      <Dialog open={showCashOut} onOpenChange={setShowCashOut}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Saída de caixa</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <div className="grid grid-cols-3 gap-2">
+              <div className="rounded-lg border border-border p-3">
+                <p className="text-xs text-muted-foreground">Entradas</p>
+                <p className="text-sm font-bold text-primary">{formatMoney(cashOpeningAmount + cashSalesTotal)}</p>
+              </div>
+              <div className="rounded-lg border border-border p-3">
+                <p className="text-xs text-muted-foreground">Saídas</p>
+                <p className="text-sm font-bold text-destructive">{formatMoney(cashOutTotal)}</p>
+              </div>
+              <div className="rounded-lg border border-border p-3">
+                <p className="text-xs text-muted-foreground">Saldo no caixa</p>
+                <p className="text-sm font-bold">{formatMoney(currentCashBalance)}</p>
+              </div>
+            </div>
+            <div className="space-y-1">
+              <Label>Valor da saída</Label>
+              <Input
+                type="number"
+                step="0.01"
+                value={cashOutAmount}
+                onChange={e => setCashOutAmount(e.target.value)}
+                placeholder="0.00"
+                className={cashOutExceedsBalance ? 'border-destructive focus-visible:ring-destructive' : ''}
+              />
+              {cashOutExceedsBalance && (
+                <p className="text-sm font-medium text-destructive">
+                  O valor excede o saldo do caixa: {formatMoney(currentCashBalance)}
+                </p>
+              )}
+            </div>
+            <div className="space-y-1">
+              <Label>Motivo</Label>
+              <Textarea value={cashOutReason} onChange={e => setCashOutReason(e.target.value)} placeholder="Ex: sangria, troco, pagamento fornecedor..." />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowCashOut(false)}>Fechar</Button>
+            <Button onClick={handleCashOut} disabled={cashOutExceedsBalance}>Registrar saída</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={showCloseCashAuth}
+        onOpenChange={open => {
+          setShowCloseCashAuth(open);
+          if (!open) {
+            setAdminPassword('');
+            setCloseCashAuthError('');
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader><DialogTitle>Senha do administrador</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              Para fechar o caixa, confirme a senha do administrador logado.
+            </p>
+            <div className="space-y-1">
+              <Label>Administrador</Label>
+              <Input value={username || user?.email || 'Administrador'} readOnly />
+            </div>
+            <div className="space-y-1">
+              <Label>Senha</Label>
+              <Input
+                autoFocus
+                type="password"
+                value={adminPassword}
+                onChange={e => setAdminPassword(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    void confirmCloseCashWithAdminPassword();
+                  }
+                }}
+                placeholder="Digite a senha do administrador"
+              />
+            </div>
+            {closeCashAuthError && (
+              <p className="text-sm font-medium text-destructive">{closeCashAuthError}</p>
+            )}
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowCloseCashAuth(false);
+                setAdminPassword('');
+                setCloseCashAuthError('');
+              }}
+            >
+              Cancelar
+            </Button>
+            <Button variant="destructive" onClick={() => void confirmCloseCashWithAdminPassword()} disabled={isVerifyingAdminPassword}>
+              {isVerifyingAdminPassword ? 'Validando...' : 'Confirmar e fechar caixa'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Cancel sale dialog */}
+      <Dialog open={!!saleToCancel} onOpenChange={open => { if (!open) setSaleToCancel(null); }}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Cancelar venda</DialogTitle></DialogHeader>
+          <div className="space-y-2">
+            <Label>Motivo do cancelamento</Label>
+            <Textarea value={cancelReason} onChange={e => setCancelReason(e.target.value)} placeholder="Informe o motivo para deixar registrado..." />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSaleToCancel(null)}>Voltar</Button>
+            <Button variant="destructive" onClick={handleCancelSale}>Confirmar cancelamento</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Open cash dialog */}
+      <Dialog open={showOpenCashDialog} onOpenChange={() => undefined}>
+        <DialogContent
+          onEscapeKeyDown={event => event.preventDefault()}
+          onPointerDownOutside={event => event.preventDefault()}
+        >
+          <DialogHeader><DialogTitle>Abrir caixa</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">Informe o valor inicial para liberar o PDV.</p>
+            <div className="space-y-1">
+              <Label>Valor de abertura</Label>
+              <Input
+                autoFocus
+                type="number"
+                step="0.01"
+                value={openingAmount}
+                onChange={e => setOpeningAmount(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleOpenCash();
+                  }
+                }}
+                placeholder="0.00"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => navigate('/')}>Voltar ao menu</Button>
+            <Button onClick={handleOpenCash}>Abrir caixa</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Close cash receipt dialog */}
+      <Dialog open={showCloseCashReceipt} onOpenChange={setShowCloseCashReceipt}>
+        <DialogContent className="max-h-[90vh] max-w-3xl overflow-hidden">
+          <DialogHeader><DialogTitle>Recibo de fechamento do caixa</DialogTitle></DialogHeader>
+          {lastCloseReceipt && (
+            <div className="max-h-[70vh] overflow-auto space-y-3 text-sm">
+              <div className="rounded-lg border border-border p-3">
+                <p><strong>Aberto por:</strong> {lastCloseReceipt.openedBy} em {formatSaleDate(lastCloseReceipt.openedAt)}</p>
+                <p><strong>Fechado por:</strong> {lastCloseReceipt.closedBy} em {formatSaleDate(lastCloseReceipt.closedAt)}</p>
+              </div>
+
+              <div className="grid gap-2 sm:grid-cols-4">
+                <div className="rounded-lg border border-border p-3">
+                  <p className="text-xs text-muted-foreground">Abertura</p>
+                  <p className="font-bold">{formatMoney(lastCloseReceipt.openingAmount)}</p>
+                </div>
+                <div className="rounded-lg border border-border p-3">
+                  <p className="text-xs text-muted-foreground">Vendas</p>
+                  <p className="font-bold text-primary">{formatMoney(lastCloseReceipt.salesTotal)}</p>
+                </div>
+                <div className="rounded-lg border border-border p-3">
+                  <p className="text-xs text-muted-foreground">Saídas</p>
+                  <p className="font-bold text-destructive">{formatMoney(lastCloseReceipt.cashOutTotal)}</p>
+                </div>
+                <div className="rounded-lg border border-border p-3">
+                  <p className="text-xs text-muted-foreground">Saldo final</p>
+                  <p className="font-bold">{formatMoney(lastCloseReceipt.finalBalance)}</p>
+                </div>
+              </div>
+
+              <div className="rounded-lg border border-border p-3">
+                <p className="mb-2 font-semibold">Entradas por venda ({lastCloseReceipt.saleCount})</p>
+                <div className="space-y-1">
+                  {lastCloseReceipt.sales.map(sale => (
+                    <div key={sale.id} className="flex justify-between gap-3">
+                      <span className="truncate">{formatSaleDate(sale.date)} | {sale.payment_method}</span>
+                      <span className="font-medium">{formatMoney(sale.total)}</span>
+                    </div>
+                  ))}
+                  {lastCloseReceipt.sales.length === 0 && <p className="text-muted-foreground">Sem vendas nesta abertura.</p>}
+                </div>
+              </div>
+
+              <div className="rounded-lg border border-border p-3">
+                <p className="mb-2 font-semibold">Saídas de caixa</p>
+                <div className="space-y-1">
+                  {lastCloseReceipt.cashOuts.map(expense => (
+                    <div key={expense.id} className="flex justify-between gap-3">
+                      <span className="truncate">{formatSaleDate(expense.date)} | {expense.description}</span>
+                      <span className="font-medium text-destructive">{formatMoney(expense.amount)}</span>
+                    </div>
+                  ))}
+                  {lastCloseReceipt.cashOuts.length === 0 && <p className="text-muted-foreground">Sem saídas nesta abertura.</p>}
+                </div>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => window.print()}>Imprimir recibo</Button>
+            <Button onClick={() => setShowCloseCashReceipt(false)}>Fechar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Receipt dialog */}
+      <Dialog open={showReceipt} onOpenChange={setShowReceipt}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>✅ Venda Finalizada!</DialogTitle></DialogHeader>
+          {lastSaleData && (
+            <div className="space-y-2 text-base">
+              {lastSaleData.items.map((i, idx) => (
+                <div key={idx} className="flex justify-between">
+                  <span>{i.product.name} x{i.quantity}</span>
+                  <span>R$ {(i.product.price * i.quantity).toFixed(2)}</span>
+                </div>
+              ))}
+              <div className="border-t pt-2 font-bold flex justify-between">
+                <span>Total</span><span>R$ {lastSaleData.total.toFixed(2)}</span>
+              </div>
+              {lastSaleData.change > 0 && (
+                <p className="text-primary font-medium">Troco: R$ {lastSaleData.change.toFixed(2)}</p>
+              )}
+            </div>
+          )}
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setShowReceipt(false)}>Fechar</Button>
+            <Button onClick={sendReceiptWhatsApp}>📱 Enviar WhatsApp</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}

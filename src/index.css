@@ -1,0 +1,127 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 222 25% 6%;
+    --foreground: 210 15% 90%;
+    --card: 222 20% 10%;
+    --card-foreground: 210 15% 90%;
+    --popover: 222 20% 12%;
+    --popover-foreground: 210 15% 90%;
+    --primary: 217 91% 60%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 222 20% 15%;
+    --secondary-foreground: 210 15% 85%;
+    --muted: 222 15% 20%;
+    --muted-foreground: 215 15% 55%;
+    --accent: 217 80% 50%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 222 15% 18%;
+    --input: 222 15% 15%;
+    --ring: 217 91% 60%;
+    --radius: 0.75rem;
+    --success: 142 71% 45%;
+    --success-foreground: 0 0% 100%;
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 0%;
+    --sidebar-background: 222 25% 8%;
+    --sidebar-foreground: 210 15% 85%;
+    --sidebar-primary: 217 91% 60%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 222 20% 14%;
+    --sidebar-accent-foreground: 210 15% 90%;
+    --sidebar-border: 222 15% 16%;
+    --sidebar-ring: 217 91% 60%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground antialiased;
+  }
+}
+
+@layer components {
+  .page-header {
+    @apply mb-8;
+  }
+
+  .page-title {
+    @apply text-3xl font-bold tracking-tight mb-2;
+  }
+
+  .page-subtitle {
+    @apply text-muted-foreground text-lg;
+  }
+
+  .card-tight {
+    @apply p-4;
+  }
+
+  .money-value {
+    @apply font-mono text-lg font-semibold;
+  }
+
+  .item-row-responsive {
+    @apply flex justify-between items-center gap-4;
+  }
+
+  @media (max-width: 640px) {
+    .item-row-responsive {
+      @apply flex-col items-start gap-2;
+    }
+
+    .page-title {
+      @apply text-2xl;
+    }
+
+    .page-subtitle {
+      @apply text-base;
+    }
+
+    .money-value {
+      @apply text-base;
+    }
+  }
+}
+
+@layer utilities {
+  .page-header {
+    @apply mb-6;
+  }
+
+  .page-title {
+    @apply text-2xl font-bold leading-tight tracking-tight;
+  }
+
+  .page-subtitle {
+    @apply mt-1 text-sm font-medium leading-relaxed text-muted-foreground/90;
+  }
+
+  .card-tight {
+    @apply p-4 sm:p-5;
+  }
+
+  .meta-text {
+    @apply text-xs font-medium leading-relaxed text-muted-foreground/85;
+  }
+
+  .money-value {
+    @apply whitespace-nowrap tabular-nums;
+  }
+
+  .item-row-responsive {
+    @apply flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between;
+  }
+
+  .mobile-full-btn {
+    @apply w-full sm:w-auto;
+  }
+}
