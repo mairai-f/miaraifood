@@ -14,6 +14,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Ban, History, Minus, Plus, Receipt, Search, ShoppingCart, Wallet, X } from 'lucide-react';
 import type { Expense, Product, Sale } from '@/types';
+import { openExternalUrl } from '@/lib/openExternalUrl';
 import { normalizePhone } from '@/lib/phone';
 import { supabase } from '@/integrations/supabase/client';
 import type { Database } from '@/integrations/supabase/types';
@@ -1288,7 +1289,7 @@ export default function PDV() {
     if (!client?.phone) { silentToast.error('Cliente sem telefone'); return; }
     const lines = lastSaleData.items.map(i => `• ${i.product.name} x${i.quantity} — R$ ${(i.product.price * i.quantity).toFixed(2)}`);
     const msg = `🧾 *AdegaGS - Comprovante*\n\n${lines.join('\n')}\n\n${lastSaleData.discount > 0 ? `Desconto: R$ ${lastSaleData.discount.toFixed(2)}\n` : ''}💰 *Total: R$ ${lastSaleData.total.toFixed(2)}*\n📅 ${new Date().toLocaleString('pt-BR')}\nPagamento: ${lastSaleData.method}`;
-    window.open(`https://wa.me/${normalizePhone(client.phone)}?text=${encodeURIComponent(msg)}`, '_blank');
+    openExternalUrl(`https://wa.me/${normalizePhone(client.phone)}?text=${encodeURIComponent(msg)}`);
   };
 
   const handleOpenCash = () => {
@@ -1396,7 +1397,7 @@ export default function PDV() {
 
     const message = buildCloseCashWhatsAppMessage(receipt);
     const url = `https://wa.me/${normalizedPhone}?text=${encodeURIComponent(message)}`;
-    const openedWindow = window.open(url, '_blank');
+    const openedWindow = openExternalUrl(url);
 
     if (!openedWindow) {
       setCloseCashEmailStatus('error');

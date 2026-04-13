@@ -17,6 +17,7 @@ import { format, isToday, isThisWeek, isThisMonth, isWithinInterval, startOfDay,
 import { ptBR } from 'date-fns/locale';
 import { findClientByRef, getClientUniqueSlug } from '@/lib/clientSlug';
 import { getPaymentLabel, groupPaymentSnapshotItems, parsePaymentType } from '@/lib/payment';
+import { openExternalUrl } from '@/lib/openExternalUrl';
 import { buildWhatsAppUrl, buildItemWhatsAppUrl, buildPaymentWhatsAppUrl } from '@/lib/whatsapp';
 import { normalizePhone } from '@/lib/phone';
 
@@ -302,7 +303,9 @@ export default function ClientDetail() {
         date_paid: null, registered_by: username,
       }));
       const url = buildItemWhatsAppUrl(client.phone, client.name, cartEntries, newBalance);
-      window.open(url, '_blank');
+      if (!openExternalUrl(url)) {
+        toast.error('Não foi possível abrir o WhatsApp.');
+      }
     }
 
     setCart([]);
@@ -334,7 +337,9 @@ export default function ClientDetail() {
       const newBalance = balance - amount;
       const remainingEntries = isFullPayment ? [] : entries.filter(e => e.status === 'pending');
       const url = buildPaymentWhatsAppUrl(client.phone, client.name, amount, remainingEntries, Math.max(0, newBalance));
-      window.open(url, '_blank');
+      if (!openExternalUrl(url)) {
+        toast.error('Não foi possível abrir o WhatsApp.');
+      }
     }
     setPayAmount(''); setPayOpen(false);
   };
@@ -343,7 +348,9 @@ export default function ClientDetail() {
     if (!client.phone) { toast.error('Cliente sem telefone cadastrado'); return; }
     const allEntries = data.debtEntries.filter(d => d.client_id === id && !d.deleted);
     const url = buildWhatsAppUrl(client.phone, client.name, allEntries, clientPayments, balance);
-    window.open(url, '_blank');
+    if (!openExternalUrl(url)) {
+      toast.error('Não foi possível abrir o WhatsApp.');
+    }
   };
 
   const handleSaveEdit = async (entryId: string) => {

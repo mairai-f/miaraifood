@@ -5,7 +5,7 @@
 ### Opção 1: Via Supabase Dashboard (Recomendado)
 
 1. **Acesse o Supabase:** https://app.supabase.com
-2. **Selecione seu projeto:** `ymffclntmynwfdiarlaw`
+2. **Selecione seu projeto:** `''
 3. **Vá para SQL Editor** (lado esquerdo)
 4. **Clique em "New Query"**
 5. **Cole o seguinte SQL:**
@@ -29,20 +29,19 @@ CREATE POLICY "Authenticated users can view rewards" ON public.rewards FOR SELEC
 CREATE POLICY "Authenticated users can insert rewards" ON public.rewards FOR INSERT TO authenticated WITH CHECK (true);
 CREATE POLICY "Authenticated users can update rewards" ON public.rewards FOR UPDATE TO authenticated USING (true);
 CREATE POLICY "Authenticated users can delete rewards" ON public.rewards FOR DELETE TO authenticated USING (true);
-
 -- Criar trigger para atualizar updated_at
 CREATE TRIGGER update_rewards_updated_at BEFORE UPDATE ON public.rewards FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
 ```
 
 6. **Clique em "Run"** (ou Ctrl+Enter)
-7. ✅ **Pronto!** A tabela foi criada
+7. ✅ **Pronto!** A tabela foi crida
 
 ---
 
 ### Opção 2: Via Terminal (Se o Supabase CLI estiver authenticado)
 
 ```bash
-cd /home/celio/Documentos/testehappycash
+cd /home/user/Documentos/testehappycash
 supabase db push
 ```
 
@@ -65,18 +64,3 @@ supabase db push
 | Desconto 10% | Desconto de 10% na próxima compra | R$ 500 |
 | Frete Grátis | Entrega gratuita no próximo pedido | R$ 200 |
 
----
-
-## 🔧 Após Criar a Tabela
-
-1. **Reload a aplicação** (F5 no navegador)
-2. **Acesse a página de Recompensas:** `/recompensas`
-3. **Crie sua primeira recompensa!** ✨
-
----
-
-## 📞 Suporte
-
-Se tiver dúvidas em acessar o Supabase Dashboard:
-- URL: `https://app.supabase.com`
-- Project ID: `ymffclntmynwfdiarlaw`
