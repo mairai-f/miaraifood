@@ -64,16 +64,16 @@ export function AppLayout({ children }: { children: ReactNode }) {
 
   if (isPdvMode) {
     return (
-      <div className="min-h-screen bg-background">
-        <main className="min-h-screen p-3 sm:p-4 lg:p-6 overflow-auto">{children}</main>
+      <div className="h-screen overflow-hidden bg-background">
+        <main className="h-screen overflow-y-auto p-3 sm:p-4 lg:p-6">{children}</main>
       </div>
     );
   }
 
   return (
-    <div className="flex min-h-screen overflow-x-hidden bg-background">
+    <div className="flex h-screen overflow-hidden bg-background">
       {open && <div className="fixed inset-0 bg-background/80 z-40 lg:hidden" onClick={() => setOpen(false)} />}
-      <aside className={`fixed lg:static inset-y-0 left-0 z-50 w-64 bg-card border-r border-border flex flex-col transition-transform duration-300 ${open ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}>
+      <aside className={`fixed inset-y-0 left-0 z-50 flex h-full w-64 flex-col border-r border-border bg-card transition-transform duration-300 lg:static lg:h-screen lg:translate-x-0 lg:shrink-0 ${open ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}>
         <div className="border-b border-border px-4 py-5">
           <div className="relative flex items-start justify-end">
             <div className="min-w-0 flex-1 pr-2 text-center">
@@ -118,11 +118,11 @@ export function AppLayout({ children }: { children: ReactNode }) {
           </button>
         </div>
       </aside>
-      <div className="flex-1 flex flex-col min-h-screen">
-        <header className="lg:hidden p-3 sm:p-4 border-b border-border">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+        <header className="shrink-0 border-b border-border p-3 sm:p-4 lg:hidden">
           <button onClick={() => setOpen(true)} className="text-muted-foreground hover:text-foreground"><Menu className="h-6 w-6" /></button>
         </header>
-        <main className="flex-1 p-3 sm:p-4 lg:p-8 overflow-auto">{children}</main>
+        <main className="flex-1 overflow-y-auto p-3 sm:p-4 lg:p-8">{children}</main>
       </div>
     </div>
   );
