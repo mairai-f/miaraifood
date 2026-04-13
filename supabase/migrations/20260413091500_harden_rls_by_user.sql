@@ -10,7 +10,7 @@ DECLARE
   missing_product_count integer;
   missing_reward_count integer;
 BEGIN
-  SELECT CASE WHEN count(*) = 1 THEN min(owner_id) ELSE NULL END
+  SELECT CASE WHEN count(*) = 1 THEN min(owner_id::text)::uuid ELSE NULL END
   INTO inferred_owner_id
   FROM (
     SELECT DISTINCT user_id AS owner_id FROM public.clients
@@ -22,12 +22,13 @@ BEGIN
     SELECT DISTINCT user_id AS owner_id FROM public.expenses
     UNION
     SELECT DISTINCT user_id AS owner_id FROM public.profiles
-  ) AS owners;
+  ) AS owners
+  WHERE owner_id IS NOT NULL;
 
   WITH product_owner_from_stock AS (
     SELECT
       sm.product_id,
-      min(sm.user_id) AS user_id
+      min(sm.user_id::text)::uuid AS user_id
     FROM public.stock_movements AS sm
     GROUP BY sm.product_id
     HAVING count(DISTINCT sm.user_id) = 1
@@ -41,7 +42,7 @@ BEGIN
   WITH product_owner_from_sales AS (
     SELECT
       si.product_id,
-      min(s.user_id) AS user_id
+      min(s.user_id::text)::uuid AS user_id
     FROM public.sale_items AS si
     JOIN public.sales AS s
       ON s.id = si.sale_id
@@ -58,7 +59,7 @@ BEGIN
   WITH product_owner_from_debts AS (
     SELECT
       de.product_id,
-      min(c.user_id) AS user_id
+      min(c.user_id::text)::uuid AS user_id
     FROM public.debt_entries AS de
     JOIN public.clients AS c
       ON c.id = de.client_id

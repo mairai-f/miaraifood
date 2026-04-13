@@ -73,8 +73,8 @@ export function AppLayout({ children }: { children: ReactNode }) {
   return (
     <div className="flex h-screen overflow-hidden bg-background">
       {open && <div className="fixed inset-0 bg-background/80 z-40 lg:hidden" onClick={() => setOpen(false)} />}
-      <aside className={`fixed inset-y-0 left-0 z-50 flex h-full w-64 flex-col border-r border-border bg-card transition-transform duration-300 lg:static lg:h-screen lg:translate-x-0 lg:shrink-0 ${open ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}>
-        <div className="border-b border-border px-4 py-5">
+      <aside className={`fixed inset-y-0 left-0 z-50 flex h-full w-64 flex-col overflow-hidden border-r border-border bg-card transition-transform duration-300 lg:static lg:h-screen lg:translate-x-0 lg:shrink-0 ${open ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}>
+        <div className="shrink-0 border-b border-border px-4 py-5">
           <div className="relative flex items-start justify-end">
             <div className="min-w-0 flex-1 pr-2 text-center">
               <img
@@ -89,7 +89,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
             <button className="lg:hidden text-muted-foreground" onClick={() => setOpen(false)}><X className="h-5 w-5" /></button>
           </div>
         </div>
-        <nav className="flex-1 p-4 space-y-1 overflow-auto">
+        <nav className="min-h-0 flex-1 overflow-hidden p-4 space-y-1">
           {navItems.map(item => {
             const active = location.pathname === item.path;
             return (
@@ -106,7 +106,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
             );
           })}
         </nav>
-        <div className="p-4 border-t border-border space-y-2">
+        <div className="shrink-0 space-y-2 border-t border-border p-4">
           {user && (
             <div className="flex items-center gap-2 px-4 py-2 text-sm text-muted-foreground">
               <UserCircle className="h-5 w-5 text-primary" />
