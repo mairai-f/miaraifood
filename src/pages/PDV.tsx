@@ -19,6 +19,9 @@ import { normalizePhone } from '@/lib/phone';
 import { supabase } from '@/integrations/supabase/client';
 import type { Database } from '@/integrations/supabase/types';
 import happyCashLogo from '@/assets/happycash-logo.png';
+import { roleLabel } from '@/lib/access';
+
+const db = supabase as any;
 
 interface CartItem {
   product: Product;
@@ -26,6 +29,7 @@ interface CartItem {
 }
 
 interface CashSession {
+  id?: string;
   openedAt: string;
   openingAmount: number;
   openedBy: string;
@@ -85,6 +89,19 @@ const readCashSession = (): CashSession | null => {
     return parsed;
   } catch {
     return null;
+  }
+};
+
+const writeCashSession = (session: CashSession | null) => {
+  if (typeof window === 'undefined') return;
+  try {
+    if (!session) {
+      window.localStorage.removeItem(CASH_SESSION_KEY);
+      return;
+    }
+    window.localStorage.setItem(CASH_SESSION_KEY, JSON.stringify(session));
+  } catch {
+    // Ignore localStorage write failures and keep the in-memory state.
   }
 };
 
@@ -197,7 +214,7 @@ const getPaymentMethodPrintStyle = (paymentMethod: string) => {
 
 export default function PDV() {
   const { products, clients, sales, saleItems, expenses, createSale, addDebtEntries, addExpense, cancelSale } = useData();
-  const { user, username, session } = useAuth();
+  const { user, username, session, role, ownerUserId } = useAuth();
   const navigate = useNavigate();
   const searchInputRef = useRef<HTMLInputElement>(null);
   const cashReceivedInputRef = useRef<HTMLInputElement>(null);
@@ -224,6 +241,7 @@ export default function PDV() {
   const [cashOutAmount, setCashOutAmount] = useState('');
   const [cashOutReason, setCashOutReason] = useState('');
   const [cashSession, setCashSession] = useState<CashSession | null>(() => readCashSession());
+  const [cashSessionLoading, setCashSessionLoading] = useState(true);
   const [openingAmount, setOpeningAmount] = useState('');
   const [showCloseCashReceipt, setShowCloseCashReceipt] = useState(false);
   const [showCloseCashAuth, setShowCloseCashAuth] = useState(false);
@@ -244,6 +262,7 @@ export default function PDV() {
   const activeProducts = products.filter(p => !('deleted' in p && (p as any).deleted));
   const activeClients = clients.filter(c => !c.deleted);
   const sellerName = username || user?.email || 'Vendedor';
+  const roleName = roleLabel[role];
 
   const formatMoney = (value: number) =>
     new Intl.NumberFormat('pt-BR', {
@@ -318,6 +337,67 @@ export default function PDV() {
 
     return 'Não foi possível enviar o relatório por e-mail.';
   };
+
+  useEffect(() => {
+    let active = true;
+
+    const syncCashSession = async () => {
+      if (!user || !ownerUserId) {
+        if (active) {
+          setCashSession(readCashSession());
+          setCashSessionLoading(false);
+        }
+        return;
+      }
+
+      const storedSession = readCashSession();
+      if (storedSession && active) {
+        setCashSession(storedSession);
+      }
+
+      const { data, error } = await db
+        .from('cash_sessions')
+        .select('id, opened_at, opening_amount, opened_by_name')
+        .eq('owner_user_id', ownerUserId)
+        .eq('operator_user_id', user.id)
+        .eq('status', 'open')
+        .order('opened_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (!active) return;
+
+      if (error) {
+        console.error('Erro ao sincronizar caixa aberto:', error);
+        setCashSessionLoading(false);
+        return;
+      }
+
+      if (!data) {
+        setCashSession(null);
+        writeCashSession(null);
+        setCashSessionLoading(false);
+        return;
+      }
+
+      const nextSession: CashSession = {
+        id: data.id,
+        openedAt: data.opened_at,
+        openingAmount: Number(data.opening_amount || 0),
+        openedBy: data.opened_by_name,
+      };
+
+      setCashSession(nextSession);
+      writeCashSession(nextSession);
+      setCashSessionLoading(false);
+    };
+
+    void syncCashSession();
+
+    return () => {
+      active = false;
+    };
+  }, [ownerUserId, user]);
 
   useEffect(() => {
     if (closeCashWhatsappPhone.trim()) return;
@@ -1127,7 +1207,7 @@ export default function PDV() {
   const parsedCashOutAmount = parseFloat(cashOutAmount);
   const cashOutAmountValue = Number.isFinite(parsedCashOutAmount) ? parsedCashOutAmount : 0;
   const cashOutExceedsBalance = cashOutAmountValue > currentCashBalance;
-  const showOpenCashDialog = !cashSession && !showCloseCashReceipt;
+  const showOpenCashDialog = !cashSession && !showCloseCashReceipt && !cashSessionLoading;
 
   const addToCart = (p: Product) => {
     setCart(prev => {
@@ -1292,17 +1372,41 @@ export default function PDV() {
     openExternalUrl(`https://wa.me/${normalizePhone(client.phone)}?text=${encodeURIComponent(msg)}`);
   };
 
-  const handleOpenCash = () => {
+  const handleOpenCash = async () => {
+    if (!user || !ownerUserId) {
+      silentToast.error('Faça login novamente para abrir o caixa');
+      return;
+    }
+
     const amount = parseFloat(openingAmount) || 0;
     if (amount < 0) { silentToast.error('Valor de abertura inválido'); return; }
 
+    const { data, error } = await db
+      .from('cash_sessions')
+      .insert({
+        owner_user_id: ownerUserId,
+        operator_user_id: user.id,
+        operator_name: sellerName,
+        opened_by_name: sellerName,
+        opening_amount: amount,
+      })
+      .select('id, opened_at, opening_amount, opened_by_name')
+      .single();
+
+    if (error || !data) {
+      console.error('Erro ao abrir caixa:', error);
+      silentToast.error('Não foi possível abrir o caixa');
+      return;
+    }
+
     const session: CashSession = {
-      openedAt: new Date().toISOString(),
-      openingAmount: amount,
-      openedBy: sellerName,
+      id: data.id,
+      openedAt: data.opened_at,
+      openingAmount: Number(data.opening_amount || 0),
+      openedBy: data.opened_by_name,
     };
 
-    window.localStorage.setItem(CASH_SESSION_KEY, JSON.stringify(session));
+    writeCashSession(session);
     setCashSession(session);
     setOpeningAmount('');
     setSaleSearch('');
@@ -1310,7 +1414,7 @@ export default function PDV() {
     silentToast.success('Caixa aberto!');
   };
 
-  const handleCloseCash = () => {
+  const handleCloseCash = async () => {
     if (!cashSession) return;
 
     const receipt: CashCloseReceipt = {
@@ -1327,14 +1431,34 @@ export default function PDV() {
       sales: cashSessionSales,
     };
 
+    if (cashSession.id) {
+      const { error } = await db
+        .from('cash_sessions')
+        .update({
+          status: 'closed',
+          closed_at: receipt.closedAt,
+          closed_by_user_id: user?.id ?? null,
+          closed_by_name: sellerName,
+          closing_balance: currentCashBalance,
+        })
+        .eq('id', cashSession.id);
+
+      if (error) {
+        console.error('Erro ao fechar caixa:', error);
+        silentToast.error('Não foi possível registrar o fechamento do caixa');
+        return;
+      }
+    }
+
     setLastCloseReceipt(receipt);
     setCloseCashEmailStatus('idle');
     setCloseCashEmailMessage('');
     setCloseCashEmailRecipients([]);
     setCloseCashLastSentChannel(null);
     setShowCloseCashSendDialog(false);
-    window.localStorage.removeItem(CASH_SESSION_KEY);
+    writeCashSession(null);
     setCashSession(null);
+    setCashSessionLoading(false);
     setShowSalesSearch(false);
     setShowCashOut(false);
     setSaleSearch('');
@@ -1438,12 +1562,12 @@ export default function PDV() {
 
   const confirmCloseCashWithAdminPassword = async () => {
     if (!user?.email) {
-      setCloseCashAuthError('Não foi possível identificar o administrador logado.');
+      setCloseCashAuthError('Não foi possível identificar o usuário logado.');
       return;
     }
 
     if (!adminPassword.trim()) {
-      setCloseCashAuthError('Digite a senha do administrador.');
+      setCloseCashAuthError('Digite sua senha para confirmar.');
       return;
     }
 
@@ -1457,17 +1581,17 @@ export default function PDV() {
       });
 
       if (error) {
-        setCloseCashAuthError('Senha do administrador incorreta.');
+        setCloseCashAuthError('Senha incorreta.');
         return;
       }
 
       await adminVerificationClient.auth.signOut();
       setShowCloseCashAuth(false);
       setAdminPassword('');
-      handleCloseCash();
+      await handleCloseCash();
     } catch (error) {
-      console.error('Erro ao validar senha do administrador:', error);
-      setCloseCashAuthError('Não foi possível validar a senha do administrador.');
+      console.error('Erro ao validar senha para fechamento do caixa:', error);
+      setCloseCashAuthError('Não foi possível validar sua senha.');
     } finally {
       setIsVerifyingAdminPassword(false);
     }
@@ -1695,8 +1819,13 @@ export default function PDV() {
     <div className="flex min-h-[calc(100vh-1.5rem)] flex-col gap-4 sm:min-h-[calc(100vh-2rem)] lg:h-[calc(100vh-3rem)] lg:flex-row">
       {/* Products panel */}
       <div className="flex min-w-0 flex-1 flex-col">
-        <div className="mb-3 flex items-center justify-between gap-3">
-          <h1 className="text-2xl font-bold">Caixa</h1>
+        <div className="mb-3 flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+          <div>
+            <h1 className="text-2xl font-bold">Caixa</h1>
+            <p className="text-sm text-muted-foreground">
+              Operador do caixa: <span className="font-medium text-foreground">{sellerName}</span> • {roleName}
+            </p>
+          </div>
           <div className="flex flex-wrap justify-end gap-2">
             <Button variant="outline" size="sm" onClick={() => navigate('/')}>Menu (1)</Button>
             <Button variant="outline" size="sm" onClick={() => setShowSalesSearch(true)}><History className="h-4 w-4 mr-1" />Buscar vendas (2)</Button>
@@ -2114,14 +2243,14 @@ export default function PDV() {
         }}
       >
         <DialogContent>
-          <DialogHeader><DialogTitle>Senha do administrador</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>Confirmar fechamento</DialogTitle></DialogHeader>
           <div className="space-y-3">
             <p className="text-sm text-muted-foreground">
-              Para fechar o caixa, confirme a senha do administrador logado.
+              Para fechar o caixa, confirme a senha do usuário logado.
             </p>
             <div className="space-y-1">
-              <Label>Administrador</Label>
-              <Input value={username || user?.email || 'Administrador'} readOnly />
+              <Label>Usuário</Label>
+              <Input value={username || user?.email || 'Usuário'} readOnly />
             </div>
             <div className="space-y-1">
               <Label>Senha</Label>
@@ -2136,7 +2265,7 @@ export default function PDV() {
                     void confirmCloseCashWithAdminPassword();
                   }
                 }}
-                placeholder="Digite a senha do administrador"
+                placeholder="Digite sua senha"
               />
             </div>
             {closeCashAuthError && (

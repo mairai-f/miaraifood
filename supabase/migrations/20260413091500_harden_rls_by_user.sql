@@ -9,22 +9,8 @@ DECLARE
   inferred_owner_id uuid;
   missing_product_count integer;
   missing_reward_count integer;
+  owner_candidate_summary text;
 BEGIN
-  SELECT CASE WHEN count(*) = 1 THEN min(owner_id::text)::uuid ELSE NULL END
-  INTO inferred_owner_id
-  FROM (
-    SELECT DISTINCT user_id AS owner_id FROM public.clients
-    UNION
-    SELECT DISTINCT user_id AS owner_id FROM public.sales
-    UNION
-    SELECT DISTINCT user_id AS owner_id FROM public.stock_movements
-    UNION
-    SELECT DISTINCT user_id AS owner_id FROM public.expenses
-    UNION
-    SELECT DISTINCT user_id AS owner_id FROM public.profiles
-  ) AS owners
-  WHERE owner_id IS NOT NULL;
-
   WITH product_owner_from_stock AS (
     SELECT
       sm.product_id,
@@ -72,6 +58,66 @@ BEGIN
   WHERE p.id = source.product_id
     AND p.user_id IS NULL;
 
+  -- Prefer exact consensus across business data. Extra profiles alone should not
+  -- block backfilling untouched catalog rows.
+  WITH distinct_owners AS (
+    SELECT owner_id
+    FROM (
+      SELECT DISTINCT user_id AS owner_id FROM public.clients
+      UNION
+      SELECT DISTINCT user_id AS owner_id FROM public.sales
+      UNION
+      SELECT DISTINCT user_id AS owner_id FROM public.stock_movements
+      UNION
+      SELECT DISTINCT user_id AS owner_id FROM public.expenses
+      UNION
+      SELECT DISTINCT user_id AS owner_id FROM public.products
+      UNION
+      SELECT DISTINCT user_id AS owner_id FROM public.rewards
+    ) AS owners
+    WHERE owner_id IS NOT NULL
+  )
+  SELECT CASE WHEN count(*) = 1 THEN min(owner_id::text)::uuid ELSE NULL END
+  INTO inferred_owner_id
+  FROM distinct_owners;
+
+  -- Legacy fallback: if one owner clearly dominates the existing business data,
+  -- use it for orphaned products/rewards that never participated in sales/stock/debts.
+  IF inferred_owner_id IS NULL THEN
+    WITH owner_signals AS (
+      SELECT
+        signal_rows.user_id,
+        count(*)::bigint AS signal_count
+      FROM (
+        SELECT user_id FROM public.clients WHERE user_id IS NOT NULL
+        UNION ALL
+        SELECT user_id FROM public.sales WHERE user_id IS NOT NULL
+        UNION ALL
+        SELECT user_id FROM public.stock_movements WHERE user_id IS NOT NULL
+        UNION ALL
+        SELECT user_id FROM public.expenses WHERE user_id IS NOT NULL
+        UNION ALL
+        SELECT user_id FROM public.products WHERE user_id IS NOT NULL
+        UNION ALL
+        SELECT user_id FROM public.rewards WHERE user_id IS NOT NULL
+      ) AS signal_rows
+      GROUP BY signal_rows.user_id
+    ),
+    ranked_owner_signals AS (
+      SELECT
+        user_id,
+        signal_count,
+        row_number() OVER (ORDER BY signal_count DESC, user_id::text) AS rank_position,
+        lead(signal_count) OVER (ORDER BY signal_count DESC, user_id::text) AS next_signal_count
+      FROM owner_signals
+    )
+    SELECT user_id
+    INTO inferred_owner_id
+    FROM ranked_owner_signals
+    WHERE rank_position = 1
+      AND (next_signal_count IS NULL OR signal_count > next_signal_count);
+  END IF;
+
   IF inferred_owner_id IS NOT NULL THEN
     UPDATE public.products
     SET user_id = inferred_owner_id
@@ -91,10 +137,38 @@ BEGIN
   WHERE user_id IS NULL;
 
   IF missing_product_count > 0 OR missing_reward_count > 0 THEN
+    WITH owner_signals AS (
+      SELECT
+        signal_rows.user_id,
+        count(*)::bigint AS signal_count
+      FROM (
+        SELECT user_id FROM public.clients WHERE user_id IS NOT NULL
+        UNION ALL
+        SELECT user_id FROM public.sales WHERE user_id IS NOT NULL
+        UNION ALL
+        SELECT user_id FROM public.stock_movements WHERE user_id IS NOT NULL
+        UNION ALL
+        SELECT user_id FROM public.expenses WHERE user_id IS NOT NULL
+        UNION ALL
+        SELECT user_id FROM public.products WHERE user_id IS NOT NULL
+        UNION ALL
+        SELECT user_id FROM public.rewards WHERE user_id IS NOT NULL
+      ) AS signal_rows
+      GROUP BY signal_rows.user_id
+    )
+    SELECT string_agg(
+      format('%s (%s sinais)', user_id::text, signal_count),
+      ', '
+      ORDER BY signal_count DESC, user_id::text
+    )
+    INTO owner_candidate_summary
+    FROM owner_signals;
+
     RAISE EXCEPTION
-      'Could not infer user_id for % product(s) and % reward(s). Backfill those rows before applying this migration.',
+      'Could not infer user_id for % product(s) and % reward(s). Backfill those rows before applying this migration. Candidate owners by activity: %',
       missing_product_count,
-      missing_reward_count;
+      missing_reward_count,
+      COALESCE(owner_candidate_summary, 'none');
   END IF;
 END $$;
 

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { useData } from '@/contexts/DataContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -10,9 +11,11 @@ import { Label } from '@/components/ui/label';
 import { Plus, Search, Edit, Trash2, TrendingUp } from 'lucide-react';
 import { toast } from 'sonner';
 import { Product } from '@/types';
+import { canManageProducts } from '@/lib/access';
 
 export default function Products() {
   const { products, addProduct, updateProduct, deleteProduct } = useData();
+  const { role } = useAuth();
   const [search, setSearch] = useState('');
   const [open, setOpen] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
@@ -23,6 +26,7 @@ export default function Products() {
   const [barcode, setBarcode] = useState('');
   const [stock, setStock] = useState('');
   const [minStock, setMinStock] = useState('');
+  const readOnly = !canManageProducts(role);
 
   const activeProducts = products.filter(p => !('deleted' in p && (p as any).deleted));
   const filtered = activeProducts.filter(p => {
@@ -84,33 +88,38 @@ export default function Products() {
   return (
     <div>
       <div className="flex items-center justify-between mb-4 gap-3">
-        <h1 className="text-xl sm:text-2xl font-bold">Produtos</h1>
-        <Dialog open={open} onOpenChange={v => { if (!v) resetForm(); setOpen(v); }}>
-          <DialogTrigger asChild><Button size="sm"><Plus className="h-4 w-4 mr-1" />Novo</Button></DialogTrigger>
-          <DialogContent>
-            <DialogHeader><DialogTitle>{editId ? 'Editar Produto' : 'Cadastrar Produto'}</DialogTitle></DialogHeader>
-            <div className="space-y-3 max-h-[60vh] overflow-auto">
-              <div className="space-y-1"><Label>Nome / Marca</Label><Input value={name} onChange={e => setName(e.target.value)} placeholder="Ex: Skol 600ml" /></div>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1"><Label>Preço Venda (R$)</Label><Input type="number" step="0.01" value={price} onChange={e => setPrice(e.target.value)} placeholder="0.00" /></div>
-                <div className="space-y-1"><Label>Preço Custo (R$)</Label><Input type="number" step="0.01" value={costPrice} onChange={e => setCostPrice(e.target.value)} placeholder="0.00" /></div>
-              </div>
-              {price && costPrice && parseFloat(costPrice) > 0 && (
-                <div className="flex items-center gap-2 text-xs p-2 rounded-lg bg-primary/10">
-                  <TrendingUp className="h-4 w-4 text-primary" />
-                  <span>Margem de lucro: <strong>{getMargin(parseFloat(price), parseFloat(costPrice)).toFixed(1)}%</strong></span>
+        <div>
+          <h1 className="text-xl sm:text-2xl font-bold">Produtos</h1>
+          {readOnly && <p className="text-sm text-muted-foreground">Modo operador: consulta liberada, edição bloqueada.</p>}
+        </div>
+        {!readOnly && (
+          <Dialog open={open} onOpenChange={v => { if (!v) resetForm(); setOpen(v); }}>
+            <DialogTrigger asChild><Button size="sm"><Plus className="h-4 w-4 mr-1" />Novo</Button></DialogTrigger>
+            <DialogContent>
+              <DialogHeader><DialogTitle>{editId ? 'Editar Produto' : 'Cadastrar Produto'}</DialogTitle></DialogHeader>
+              <div className="space-y-3 max-h-[60vh] overflow-auto">
+                <div className="space-y-1"><Label>Nome / Marca</Label><Input value={name} onChange={e => setName(e.target.value)} placeholder="Ex: Skol 600ml" /></div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1"><Label>Preço Venda (R$)</Label><Input type="number" step="0.01" value={price} onChange={e => setPrice(e.target.value)} placeholder="0.00" /></div>
+                  <div className="space-y-1"><Label>Preço Custo (R$)</Label><Input type="number" step="0.01" value={costPrice} onChange={e => setCostPrice(e.target.value)} placeholder="0.00" /></div>
                 </div>
-              )}
-              <div className="space-y-1"><Label>Código de Barras</Label><Input value={barcode} onChange={e => setBarcode(e.target.value)} placeholder="Ex: 7891234567890" /></div>
-              <div className="space-y-1"><Label>Categoria</Label><Input value={category} onChange={e => setCategory(e.target.value)} placeholder="Ex: Cerveja, Cigarro" /></div>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1"><Label>Estoque</Label><Input type="number" value={stock} onChange={e => setStock(e.target.value)} placeholder="0" /></div>
-                <div className="space-y-1"><Label>Estoque Mínimo</Label><Input type="number" value={minStock} onChange={e => setMinStock(e.target.value)} placeholder="0" /></div>
+                {price && costPrice && parseFloat(costPrice) > 0 && (
+                  <div className="flex items-center gap-2 text-xs p-2 rounded-lg bg-primary/10">
+                    <TrendingUp className="h-4 w-4 text-primary" />
+                    <span>Margem de lucro: <strong>{getMargin(parseFloat(price), parseFloat(costPrice)).toFixed(1)}%</strong></span>
+                  </div>
+                )}
+                <div className="space-y-1"><Label>Código de Barras</Label><Input value={barcode} onChange={e => setBarcode(e.target.value)} placeholder="Ex: 7891234567890" /></div>
+                <div className="space-y-1"><Label>Categoria</Label><Input value={category} onChange={e => setCategory(e.target.value)} placeholder="Ex: Cerveja, Cigarro" /></div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1"><Label>Estoque</Label><Input type="number" value={stock} onChange={e => setStock(e.target.value)} placeholder="0" /></div>
+                  <div className="space-y-1"><Label>Estoque Mínimo</Label><Input type="number" value={minStock} onChange={e => setMinStock(e.target.value)} placeholder="0" /></div>
+                </div>
               </div>
-            </div>
-            <DialogFooter><Button onClick={handleSave} className="w-full sm:w-auto">{editId ? 'Salvar' : 'Cadastrar'}</Button></DialogFooter>
-          </DialogContent>
-        </Dialog>
+              <DialogFooter><Button onClick={handleSave} className="w-full sm:w-auto">{editId ? 'Salvar' : 'Cadastrar'}</Button></DialogFooter>
+            </DialogContent>
+          </Dialog>
+        )}
       </div>
 
       <div className="relative mb-4">
@@ -137,18 +146,20 @@ export default function Products() {
                     {p.cost_price > 0 && <span className="text-primary font-medium">Lucro: {margin.toFixed(1)}%</span>}
                     <span className={p.stock <= p.min_stock && p.min_stock > 0 ? 'text-destructive font-bold' : ''}>Est: {p.stock}</span>
                   </div>
-                  <div className="flex gap-2">
-                    <Button variant="outline" size="sm" className="flex-1 text-xs" onClick={() => openEdit(p)}><Edit className="h-3 w-3 mr-1" />Editar</Button>
-                    <AlertDialog>
-                      <AlertDialogTrigger asChild>
-                        <Button variant="destructive" size="sm" className="flex-1 text-xs"><Trash2 className="h-3 w-3 mr-1" />Excluir</Button>
-                      </AlertDialogTrigger>
-                      <AlertDialogContent>
-                        <AlertDialogHeader><AlertDialogTitle>Excluir produto?</AlertDialogTitle><AlertDialogDescription>"{p.name}" será removido permanentemente.</AlertDialogDescription></AlertDialogHeader>
-                        <AlertDialogFooter><AlertDialogCancel>Cancelar</AlertDialogCancel><AlertDialogAction onClick={() => { deleteProduct(p.id); toast.success('Produto excluído'); }}>Confirmar</AlertDialogAction></AlertDialogFooter>
-                      </AlertDialogContent>
-                    </AlertDialog>
-                  </div>
+                  {!readOnly && (
+                    <div className="flex gap-2">
+                      <Button variant="outline" size="sm" className="flex-1 text-xs" onClick={() => openEdit(p)}><Edit className="h-3 w-3 mr-1" />Editar</Button>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button variant="destructive" size="sm" className="flex-1 text-xs"><Trash2 className="h-3 w-3 mr-1" />Excluir</Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader><AlertDialogTitle>Excluir produto?</AlertDialogTitle><AlertDialogDescription>"{p.name}" será removido permanentemente.</AlertDialogDescription></AlertDialogHeader>
+                          <AlertDialogFooter><AlertDialogCancel>Cancelar</AlertDialogCancel><AlertDialogAction onClick={() => { deleteProduct(p.id); toast.success('Produto excluído'); }}>Confirmar</AlertDialogAction></AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             </motion.div>

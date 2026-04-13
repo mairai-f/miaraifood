@@ -67,7 +67,7 @@ interface DataContextType {
 const DataContext = createContext<DataContextType | null>(null);
 
 export function DataProvider({ children }: { children: ReactNode }) {
-  const { user } = useAuth();
+  const { user, ownerUserId, loading: authLoading } = useAuth();
   const [clients, setClients] = useState<Client[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [debtEntries, setDebtEntries] = useState<DebtEntry[]>([]);
@@ -80,7 +80,12 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   const fetchAll = useCallback(async () => {
-    if (!user) {
+    if (authLoading) {
+      setLoading(true);
+      return;
+    }
+
+    if (!user || !ownerUserId) {
       setClients([]); setProducts([]); setDebtEntries([]); setPayments([]); setRewards([]);
       setSales([]); setSaleItems([]); setStockMovements([]); setExpenses([]);
       setLoading(false); return;
@@ -112,13 +117,13 @@ export function DataProvider({ children }: { children: ReactNode }) {
     setStockMovements((sm.data as StockMovement[]) ?? []);
     setExpenses((exp.data as Expense[]) ?? []);
     setLoading(false);
-  }, [user]);
+  }, [authLoading, ownerUserId, user]);
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
 
   // --- Clients ---
   const addClient = async (name: string, phone: string) => {
-    const { data, error } = await db.from('clients').insert({ name, phone, user_id: user!.id }).select('*').single();
+    const { data, error } = await db.from('clients').insert({ name, phone, user_id: ownerUserId! }).select('*').single();
     if (error) throw error;
     setClients(prev => [data as Client, ...prev]);
   };
@@ -136,7 +141,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   // --- Products ---
   const addProduct = async (name: string, price: number, category: string, extra: Partial<Product> = {}) => {
     const { data, error } = await db.from('products').insert({
-      user_id: user!.id,
+      user_id: ownerUserId!,
       name,
       price,
       category,
@@ -312,7 +317,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
   // --- Sales (PDV) ---
   const createSale = async (sale: Omit<Sale, 'id' | 'created_at' | 'date'>, items: Omit<SaleItem, 'id' | 'sale_id'>[]) => {
-    const salePayload = sale as any;
+    const salePayload = {
+      ...sale,
+      user_id: ownerUserId!,
+    } as any;
     const { data, error } = await db.from('sales').insert(salePayload).select('*').single();
     let saleData = data;
     let saleError = error;
@@ -344,7 +352,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       .filter(item => item.product_id)
       .map(item => ({
         product_id: item.product_id,
-        user_id: user!.id,
+        user_id: ownerUserId!,
         type: 'saida',
         quantity: item.quantity,
         reason: 'Venda PDV',
@@ -404,7 +412,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     if (itemsToRestore.length > 0) {
       const { data: movementRows, error: movementError } = await db.from('stock_movements').insert(itemsToRestore.map(item => ({
         product_id: item.product_id,
-        user_id: user!.id,
+        user_id: ownerUserId!,
         type: 'entrada',
         quantity: item.quantity,
         reason: `Cancelamento venda: ${reason}`,
@@ -427,7 +435,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
   // --- Stock ---
   const addStockMovement = async (productId: string, type: string, quantity: number, reason: string) => {
-    const { data, error } = await db.from('stock_movements').insert({ product_id: productId, user_id: user!.id, type, quantity, reason }).select('*').single();
+    const { data, error } = await db.from('stock_movements').insert({ product_id: productId, user_id: ownerUserId!, type, quantity, reason }).select('*').single();
     if (error) throw error;
     setStockMovements(prev => [data as StockMovement, ...prev]);
   };
@@ -447,7 +455,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
     const movementsPayload = stockedProducts.map(product => ({
       product_id: product.id,
-      user_id: user!.id,
+      user_id: ownerUserId!,
       type: 'saida',
       quantity: product.stock,
       reason,
@@ -476,7 +484,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
   // --- Expenses ---
   const addExpense = async (description: string, amount: number, category: string) => {
-    const { data, error } = await db.from('expenses').insert({ user_id: user!.id, description, amount, category }).select('*').single();
+    const { data, error } = await db.from('expenses').insert({ user_id: ownerUserId!, description, amount, category }).select('*').single();
     if (error) throw error;
     setExpenses(prev => [data as Expense, ...prev]);
   };
@@ -487,7 +495,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
   // --- Rewards ---
   const addReward = async (name: string, description: string, minimum_spending: number) => {
-    ensureSuccess(await db.from('rewards').insert({ user_id: user!.id, name, description, minimum_spending }));
+    ensureSuccess(await db.from('rewards').insert({ user_id: ownerUserId!, name, description, minimum_spending }));
     await fetchAll();
   };
 

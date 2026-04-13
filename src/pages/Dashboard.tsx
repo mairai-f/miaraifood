@@ -1,7 +1,7 @@
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useData } from '@/contexts/DataContext';
 import { Users, AlertTriangle, DollarSign, TrendingUp, Clock } from 'lucide-react';
 import { getClientUniqueSlug } from '@/lib/clientSlug';
@@ -14,7 +14,7 @@ const container = { hidden: {}, show: { transition: { staggerChildren: 0.1 } } }
 const item = { hidden: { opacity: 0, y: 20 }, show: { opacity: 1, y: 0 } };
 
 export default function Dashboard() {
-  const { clients, payments, getClientBalance, getClientTotalSpending, debtEntries } = useData();
+  const { clients, payments, getClientBalance, getClientTotalSpending } = useData();
   const navigate = useNavigate();
   const [showDebtorsOnly, setShowDebtorsOnly] = useState(false);
   const [showPaymentsModal, setShowPaymentsModal] = useState(false);

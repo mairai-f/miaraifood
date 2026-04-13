@@ -1,11 +1,31 @@
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import type { Session, User } from '@supabase/supabase-js';
+import type { UserRole } from '@/lib/access';
+
+interface UserProfile {
+  username: string | null;
+  email: string | null;
+  role: UserRole;
+  owner_user_id: string | null;
+}
+
+interface ProfileQueryRow {
+  username?: string | null;
+  email?: string | null;
+  role?: string | null;
+  owner_user_id?: string | null;
+}
 
 interface AuthContextType {
   session: Session | null;
   user: User | null;
   username: string | null;
+  profileEmail: string | null;
+  role: UserRole;
+  ownerUserId: string | null;
+  isAdmin: boolean;
+  isOperator: boolean;
   login: (email: string, password: string) => Promise<boolean>;
   register: (email: string, password: string, username: string) => Promise<string | true>;
   resetPassword: (email: string) => Promise<boolean>;
@@ -20,71 +40,147 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [username, setUsername] = useState<string | null>(null);
+  const [profileEmail, setProfileEmail] = useState<string | null>(null);
+  const [role, setRole] = useState<UserRole>('admin');
+  const [ownerUserId, setOwnerUserId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const clearLocalSession = async () => {
-    await supabase.auth.signOut({ scope: 'local' });
+  const resetAuthState = useCallback(() => {
+    setSession(null);
     setUser(null);
     setUsername(null);
-  };
+    setProfileEmail(null);
+    setRole('admin');
+    setOwnerUserId(null);
+  }, []);
 
-  const fetchUsername = async (userId: string) => {
-    const { data } = await supabase.from('profiles').select('username').eq('user_id', userId).single();
-    setUsername(data?.username ?? null);
-  };
+  const clearLocalSession = useCallback(() => {
+    window.setTimeout(() => {
+      void supabase.auth.signOut({ scope: 'local' });
+    }, 0);
+  }, []);
+
+  const fetchProfile = useCallback(async (currentUser: User): Promise<UserProfile> => {
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('username, email, role, owner_user_id')
+        .eq('user_id', currentUser.id)
+        .maybeSingle();
+
+      if (error) {
+        console.error('Erro ao carregar perfil do usuário:', error);
+      }
+
+      const profile = (data ?? null) as ProfileQueryRow | null;
+
+      return {
+        username: profile?.username ?? null,
+        email: profile?.email ?? currentUser.email ?? null,
+        role: profile?.role === 'operator' ? 'operator' : 'admin',
+        owner_user_id: profile?.owner_user_id ?? currentUser.id,
+      };
+    } catch (error) {
+      console.error('Erro inesperado ao carregar perfil do usuário:', error);
+
+      return {
+        username: null,
+        email: currentUser.email ?? null,
+        role: 'admin',
+        owner_user_id: currentUser.id,
+      };
+    }
+  }, []);
+
+  const syncProfileState = useCallback(async (currentUser: User) => {
+    const profile = await fetchProfile(currentUser);
+    setUsername(profile.username);
+    setProfileEmail(profile.email);
+    setRole(profile.role);
+    setOwnerUserId(profile.owner_user_id ?? currentUser.id);
+  }, [fetchProfile]);
 
   useEffect(() => {
     let isMounted = true;
+    let syncRequestId = 0;
 
     const syncAuthState = async (nextSession: Session | null) => {
-      if (!isMounted) return;
+      const currentRequestId = ++syncRequestId;
 
-      if (!nextSession?.access_token) {
-        setSession(null);
-        setUser(null);
-        setUsername(null);
-        setLoading(false);
-        return;
+      if (isMounted) {
+        setLoading(true);
       }
 
-      const { data, error } = await supabase.auth.getUser(nextSession.access_token);
-      if (!isMounted) return;
+      try {
+        if (!nextSession?.access_token) {
+          if (isMounted && currentRequestId === syncRequestId) {
+            resetAuthState();
+          }
+          return;
+        }
 
-      if (error || !data.user) {
-        console.error('Erro ao validar sessão do Supabase:', error);
-        await clearLocalSession();
-        if (isMounted) setLoading(false);
-        return;
+        const { data, error } = await supabase.auth.getUser(nextSession.access_token);
+
+        if (!isMounted || currentRequestId !== syncRequestId) return;
+
+        if (error || !data.user) {
+          console.error('Erro ao validar sessão do Supabase:', error);
+          resetAuthState();
+          clearLocalSession();
+          return;
+        }
+
+        setSession(nextSession);
+        setUser(data.user);
+        await syncProfileState(data.user);
+      } catch (error) {
+        if (!isMounted || currentRequestId !== syncRequestId) return;
+
+        console.error('Erro ao sincronizar autenticação:', error);
+        resetAuthState();
+      } finally {
+        if (isMounted && currentRequestId === syncRequestId) {
+          setLoading(false);
+        }
       }
-
-      setSession(nextSession);
-      setUser(data.user);
-      void fetchUsername(data.user.id);
-      setLoading(false);
     };
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, nextSession) => {
-      await syncAuthState(nextSession);
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, nextSession) => {
+      if (event === 'INITIAL_SESSION') return;
+
+      window.setTimeout(() => {
+        void syncAuthState(nextSession);
+      }, 0);
     });
 
-    supabase.auth.getSession().then(async ({ data: { session: nextSession }, error }) => {
-      if (!isMounted) return;
+    void (async () => {
+      try {
+        const { data: { session: nextSession }, error } = await supabase.auth.getSession();
+        if (!isMounted) return;
 
-      if (error) {
-        console.error('Erro ao recuperar sessão do Supabase:', error);
-        await clearLocalSession();
-        if (isMounted) setLoading(false);
-        return;
+        if (error) {
+          console.error('Erro ao recuperar sessão do Supabase:', error);
+          resetAuthState();
+          setLoading(false);
+          return;
+        }
+
+        await syncAuthState(nextSession);
+      } catch (error) {
+        if (!isMounted) return;
+
+        console.error('Erro ao inicializar autenticação:', error);
+        resetAuthState();
+        setLoading(false);
       }
-
-      await syncAuthState(nextSession);
-    });
+    })();
 
     return () => {
       isMounted = false;
+      syncRequestId += 1;
       subscription.unsubscribe();
     };
-  }, []);
+  }, [clearLocalSession, resetAuthState, syncProfileState]);
 
   const login = async (email: string, password: string): Promise<boolean> => {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
@@ -92,14 +188,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const register = async (email: string, password: string, uname: string): Promise<string | true> => {
-    // Check admin limit
-    const { count } = await supabase.from('profiles').select('*', { count: 'exact', head: true });
+    const { count } = await supabase
+      .from('profiles')
+      .select('id', { count: 'exact', head: true })
+      .eq('role', 'admin');
     if ((count ?? 0) >= 2) return 'Limite de 2 administradores atingido.';
 
     const { error } = await supabase.auth.signUp({
       email,
       password,
-      options: { data: { username: uname } }
+      options: { data: { username: uname, role: 'admin' } }
     });
     if (error) return error.message;
     return true;
@@ -117,7 +215,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ session, user, username, login, register, resetPassword, logout, isAuthenticated: !!user, loading }}>
+    <AuthContext.Provider
+      value={{
+        session,
+        user,
+        username,
+        profileEmail,
+        role,
+        ownerUserId,
+        isAdmin: role === 'admin',
+        isOperator: role === 'operator',
+        login,
+        register,
+        resetPassword,
+        logout,
+        isAuthenticated: !!user,
+        loading,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );

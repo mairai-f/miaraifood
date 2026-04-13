@@ -3,27 +3,36 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Home, Users, Package, Gift, Trash2, LogOut, Menu, X, UserCircle, Receipt, BarChart3, DollarSign, Boxes, ChevronDown, ChevronUp } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import happyCashLogo from '@/assets/happycash-logo.png';
+import { roleLabel } from '@/lib/access';
 
 const navItems = [
-  { path: '/', label: 'Painel', icon: Home, shortcut: '1' },
-  { path: '/pdv', label: 'PDV 🧾', icon: Receipt, shortcut: '2' },
-  { path: '/clientes', label: 'Clientes', icon: Users, shortcut: '3' },
-  { path: '/produtos', label: 'Produtos', icon: Package, shortcut: '4' },
-  { path: '/estoque', label: 'Estoque', icon: Boxes, shortcut: '5' },
-  { path: '/relatorios', label: 'Relatórios', icon: BarChart3, shortcut: '6' },
-  { path: '/financeiro', label: 'Financeiro', icon: DollarSign, shortcut: '7' },
-  { path: '/recompensas', label: 'Recompensas', icon: Gift },
-  { path: '/excluidos', label: 'Excluídos', icon: Trash2 },
+  { path: '/', label: 'Painel', icon: Home, shortcut: '1', roles: ['admin', 'operator'] },
+  { path: '/pdv', label: 'PDV 🧾', icon: Receipt, shortcut: '2', roles: ['admin', 'operator'] },
+  { path: '/clientes', label: 'Clientes', icon: Users, shortcut: '3', roles: ['admin', 'operator'] },
+  { path: '/produtos', label: 'Produtos', icon: Package, shortcut: '4', roles: ['admin', 'operator'] },
+  { path: '/estoque', label: 'Estoque', icon: Boxes, shortcut: '5', roles: ['admin'] },
+  { path: '/relatorios', label: 'Relatórios', icon: BarChart3, shortcut: '6', roles: ['admin'] },
+  { path: '/financeiro', label: 'Financeiro', icon: DollarSign, shortcut: '7', roles: ['admin'] },
+  { path: '/recompensas', label: 'Recompensas', icon: Gift, roles: ['admin'] },
+  { path: '/excluidos', label: 'Excluídos', icon: Trash2, roles: ['admin'] },
 ];
 
 export function AppLayout({ children }: { children: ReactNode }) {
-  const { logout, user, username } = useAuth();
+  const { logout, user, username, role } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const navRef = useRef<HTMLElement | null>(null);
   const [scrollHints, setScrollHints] = useState({ top: false, bottom: false });
   const isPdvMode = location.pathname === '/pdv';
+  const visibleNavItems = navItems.filter(item => item.roles.includes(role));
+  const canOpenSettings = role === 'admin';
+
+  const handleAccountClick = () => {
+    if (!canOpenSettings) return;
+    setOpen(false);
+    navigate('/configuracoes?modal=cadastrar-operador');
+  };
 
   const updateScrollHints = useCallback(() => {
     const nav = navRef.current;
@@ -57,22 +66,12 @@ export function AppLayout({ children }: { children: ReactNode }) {
       if (isPdvMode) return;
       if (event.ctrlKey || event.altKey || event.metaKey) return;
       if (isEditableTarget(event.target)) return;
-      const pathByKey: Record<string, string> = {
-        '1': '/',
-        '2': '/pdv',
-        '3': '/clientes',
-        '4': '/produtos',
-        '5': '/estoque',
-        '6': '/relatorios',
-        '7': '/financeiro',
-        F1: '/',
-        F2: '/pdv',
-        F3: '/clientes',
-        F4: '/produtos',
-        F5: '/estoque',
-        F6: '/relatorios',
-        F7: '/financeiro',
-      };
+      const pathByKey = visibleNavItems.reduce<Record<string, string>>((acc, item) => {
+        if (!item.shortcut) return acc;
+        acc[item.shortcut] = item.path;
+        acc[`F${item.shortcut}`] = item.path;
+        return acc;
+      }, {});
       const path = pathByKey[event.key];
       if (!path) return;
       event.preventDefault();
@@ -82,7 +81,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isPdvMode, navigate]);
+  }, [isPdvMode, navigate, visibleNavItems]);
 
   useEffect(() => {
     const nav = navRef.current;
@@ -143,7 +142,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
             </div>
           )}
           <nav ref={navRef} className="no-scrollbar min-h-0 h-full overflow-y-auto p-4 space-y-1">
-            {navItems.map(item => {
+            {visibleNavItems.map(item => {
               const active = location.pathname === item.path;
               return (
                 <Link key={item.path} to={item.path} onClick={() => setOpen(false)}
@@ -169,10 +168,31 @@ export function AppLayout({ children }: { children: ReactNode }) {
         </div>
         <div className="shrink-0 space-y-2 border-t border-border p-4">
           {user && (
-            <div className="flex items-center gap-2 px-4 py-2 text-sm text-muted-foreground">
-              <UserCircle className="h-5 w-5 text-primary" />
-              <span className="truncate font-medium">{username ?? user.email}</span>
-            </div>
+            canOpenSettings ? (
+              <button
+                type="button"
+                onClick={handleAccountClick}
+                className="w-full rounded-lg px-4 py-2 text-left text-sm text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+              >
+                <div className="flex items-center gap-2">
+                  <UserCircle className="h-5 w-5 text-primary" />
+                  <span className="truncate font-medium">{username ?? user.email}</span>
+                </div>
+                <p className="mt-1 pl-7 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground/80">
+                  {roleLabel[role]} • Configuracoes
+                </p>
+              </button>
+            ) : (
+              <div className="px-4 py-2 text-sm text-muted-foreground">
+                <div className="flex items-center gap-2">
+                  <UserCircle className="h-5 w-5 text-primary" />
+                  <span className="truncate font-medium">{username ?? user.email}</span>
+                </div>
+                <p className="mt-1 pl-7 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground/80">
+                  {roleLabel[role]}
+                </p>
+              </div>
+            )
           )}
           <button onClick={logout} className="flex items-center gap-3 px-4 py-3 rounded-lg text-muted-foreground hover:bg-destructive/10 hover:text-destructive w-full transition-colors">
             <LogOut className="h-5 w-5" /><span>Sair</span>

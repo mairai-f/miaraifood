@@ -18,14 +18,23 @@ import PDV from "@/pages/PDV";
 import Reports from "@/pages/Reports";
 import Financial from "@/pages/Financial";
 import Stock from "@/pages/Stock";
+import Settings from "@/pages/Settings";
 import { SplashScreen } from "@/components/SplashScreen";
+import type { UserRole } from "@/lib/access";
 
 const queryClient = new QueryClient();
 
-function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated, loading } = useAuth();
+function ProtectedRoute({
+  children,
+  allowedRoles,
+}: {
+  children: React.ReactNode;
+  allowedRoles?: UserRole[];
+}) {
+  const { isAuthenticated, loading, role } = useAuth();
   if (loading) return <SplashScreen progress={100} />;
   if (!isAuthenticated) return <Navigate to="/login" />;
+  if (allowedRoles && !allowedRoles.includes(role)) return <Navigate to="/" replace />;
   return <AppLayout>{children}</AppLayout>;
 }
 
@@ -77,16 +86,17 @@ function AppRoutes() {
   return (
     <Routes>
       <Route path="/login" element={isAuthenticated ? <Navigate to="/" /> : <Login />} />
-      <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-      <Route path="/pdv" element={<ProtectedRoute><PDV /></ProtectedRoute>} />
-      <Route path="/clientes" element={<ProtectedRoute><Clients /></ProtectedRoute>} />
-      <Route path="/produtos" element={<ProtectedRoute><Products /></ProtectedRoute>} />
-      <Route path="/estoque" element={<ProtectedRoute><Stock /></ProtectedRoute>} />
-      <Route path="/relatorios" element={<ProtectedRoute><Reports /></ProtectedRoute>} />
-      <Route path="/financeiro" element={<ProtectedRoute><Financial /></ProtectedRoute>} />
-      <Route path="/recompensas" element={<ProtectedRoute><Rewards /></ProtectedRoute>} />
-      <Route path="/cliente/:clientRef" element={<ProtectedRoute><ClientDetail /></ProtectedRoute>} />
-      <Route path="/excluidos" element={<ProtectedRoute><DeletedClients /></ProtectedRoute>} />
+      <Route path="/" element={<ProtectedRoute allowedRoles={['admin', 'operator']}><Dashboard /></ProtectedRoute>} />
+      <Route path="/pdv" element={<ProtectedRoute allowedRoles={['admin', 'operator']}><PDV /></ProtectedRoute>} />
+      <Route path="/clientes" element={<ProtectedRoute allowedRoles={['admin', 'operator']}><Clients /></ProtectedRoute>} />
+      <Route path="/produtos" element={<ProtectedRoute allowedRoles={['admin', 'operator']}><Products /></ProtectedRoute>} />
+      <Route path="/estoque" element={<ProtectedRoute allowedRoles={['admin']}><Stock /></ProtectedRoute>} />
+      <Route path="/relatorios" element={<ProtectedRoute allowedRoles={['admin']}><Reports /></ProtectedRoute>} />
+      <Route path="/financeiro" element={<ProtectedRoute allowedRoles={['admin']}><Financial /></ProtectedRoute>} />
+      <Route path="/configuracoes" element={<ProtectedRoute allowedRoles={['admin']}><Settings /></ProtectedRoute>} />
+      <Route path="/recompensas" element={<ProtectedRoute allowedRoles={['admin']}><Rewards /></ProtectedRoute>} />
+      <Route path="/cliente/:clientRef" element={<ProtectedRoute allowedRoles={['admin', 'operator']}><ClientDetail /></ProtectedRoute>} />
+      <Route path="/excluidos" element={<ProtectedRoute allowedRoles={['admin']}><DeletedClients /></ProtectedRoute>} />
       <Route path="*" element={<Navigate to="/" />} />
     </Routes>
   );

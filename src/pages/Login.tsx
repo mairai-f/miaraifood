@@ -10,12 +10,10 @@ import { toast } from 'sonner';
 import happyCashLogo from '@/assets/happycash-logo.png';
 
 export default function Login() {
-  const [isRegister, setIsRegister] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [username, setUsername] = useState('');
   const [submitting, setSubmitting] = useState(false);
-  const { login, register, resetPassword } = useAuth();
+  const { login, resetPassword } = useAuth();
 
   const [resetOpen, setResetOpen] = useState(false);
   const [resetEmail, setResetEmail] = useState('');
@@ -23,14 +21,8 @@ export default function Login() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
-    if (isRegister) {
-      if (!username.trim()) { toast.error('Digite um nome de usuário'); setSubmitting(false); return; }
-      const result = await register(email, password, username);
-      if (result !== true) toast.error(result);
-    } else {
-      const ok = await login(email, password);
-      if (!ok) toast.error('Email ou senha incorretos.');
-    }
+    const ok = await login(email, password);
+    if (!ok) toast.error('Email ou senha incorretos.');
     setSubmitting(false);
   };
 
@@ -66,21 +58,13 @@ export default function Login() {
 
           <Card className="border-yellow-400/15 bg-black/45 shadow-[0_24px_60px_rgba(0,0,0,0.35)] backdrop-blur-md">
             <CardHeader className="pb-2 text-center">
-              <CardTitle className="text-3xl font-bold tracking-wide text-yellow-300">
-                {isRegister ? 'Criar acesso' : 'Entrar'}
-              </CardTitle>
+              <CardTitle className="text-3xl font-bold tracking-wide text-yellow-300">Entrar</CardTitle>
               <p className="text-sm text-muted-foreground">
-                {isRegister ? 'Cadastre seu usuário para começar.' : 'Acesse sua conta para continuar.'}
+                Acesse sua conta para continuar.
               </p>
             </CardHeader>
             <CardContent>
               <form onSubmit={handleSubmit} className="space-y-4">
-                {isRegister && (
-                  <div className="space-y-2">
-                    <Label>Nome de Usuário</Label>
-                    <Input type="text" value={username} onChange={e => setUsername(e.target.value)} required placeholder="Seu nome" />
-                  </div>
-                )}
                 <div className="space-y-2">
                   <Label>Email</Label>
                   <Input type="email" value={email} onChange={e => setEmail(e.target.value)} required placeholder="usuario@happycash.com" />
@@ -94,17 +78,15 @@ export default function Login() {
                   className="w-full bg-yellow-400 py-5 text-lg font-semibold text-black hover:bg-yellow-300"
                   disabled={submitting}
                 >
-                  {submitting ? 'Aguarde...' : isRegister ? 'Cadastrar' : 'Entrar'}
+                  {submitting ? 'Aguarde...' : 'Entrar'}
                 </Button>
                 <div className="flex flex-col gap-3 pt-2 sm:flex-row sm:items-center sm:justify-between">
-                  <button type="button" onClick={() => setIsRegister(!isRegister)} className="text-sm text-muted-foreground transition-colors hover:text-yellow-300">
-                    {isRegister ? 'Já tem conta? Entrar' : 'Primeiro acesso? Cadastrar'}
+                  <p className="text-sm text-muted-foreground">
+                    Operadores são criados pelo administrador.
+                  </p>
+                  <button type="button" onClick={() => setResetOpen(true)} className="text-sm text-muted-foreground transition-colors hover:text-yellow-300">
+                    Esqueci a senha
                   </button>
-                  {!isRegister && (
-                    <button type="button" onClick={() => setResetOpen(true)} className="text-sm text-muted-foreground transition-colors hover:text-yellow-300">
-                      Esqueci a senha
-                    </button>
-                  )}
                 </div>
               </form>
             </CardContent>
