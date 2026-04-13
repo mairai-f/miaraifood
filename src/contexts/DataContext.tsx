@@ -334,8 +334,21 @@ export function DataProvider({ children }: { children: ReactNode }) {
     let saleData = data;
     let saleError = error;
 
-    if (saleError?.message && ['seller_name', 'is_delivery', 'status', 'cancel_reason', 'cancelled_at'].some(column => saleError.message.includes(column))) {
-      const { seller_name, is_delivery, status, cancel_reason, cancelled_at, ...baseSalePayload } = salePayload;
+    if (
+      saleError?.message
+      && ['seller_name', 'is_delivery', 'status', 'cancel_reason', 'cancelled_at', 'operator_user_id', 'cash_session_id']
+        .some(column => saleError.message.includes(column))
+    ) {
+      const {
+        seller_name,
+        is_delivery,
+        status,
+        cancel_reason,
+        cancelled_at,
+        operator_user_id,
+        cash_session_id,
+        ...baseSalePayload
+      } = salePayload;
       const retry = await db.from('sales').insert(baseSalePayload).select('*').single();
       saleData = retry.data;
       saleError = retry.error;
@@ -502,7 +515,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       date?: string;
     }
   ) => {
-    const { data, error } = await db.from('expenses').insert({
+    const expensePayload = {
       user_id: ownerUserId!,
       operator_user_id: metadata?.operatorUserId ?? null,
       cash_session_id: metadata?.cashSessionId ?? null,
@@ -510,9 +523,20 @@ export function DataProvider({ children }: { children: ReactNode }) {
       amount,
       category,
       date: metadata?.date || new Date().toISOString(),
-    }).select('*').single();
-    if (error) throw error;
-    setExpenses(prev => [data as Expense, ...prev]);
+    };
+    const { data, error } = await db.from('expenses').insert(expensePayload).select('*').single();
+    let expenseData = data;
+    let expenseError = error;
+
+    if (expenseError?.message && ['operator_user_id', 'cash_session_id'].some(column => expenseError.message.includes(column))) {
+      const { operator_user_id, cash_session_id, ...baseExpensePayload } = expensePayload;
+      const retry = await db.from('expenses').insert(baseExpensePayload).select('*').single();
+      expenseData = retry.data;
+      expenseError = retry.error;
+    }
+
+    if (expenseError) throw expenseError;
+    setExpenses(prev => [expenseData as Expense, ...prev]);
   };
   const deleteExpense = async (id: string) => {
     ensureSuccess(await db.from('expenses').delete().eq('id', id));

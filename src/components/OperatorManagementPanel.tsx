@@ -26,16 +26,6 @@ import type { Expense, Sale } from '@/types';
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
 
-const paymentMethodCards: Array<{ key: PaymentMethodKey; label: string }> = [
-  { key: 'dinheiro', label: 'Dinheiro' },
-  { key: 'cartao_debito', label: 'Debito' },
-  { key: 'pix', label: 'Pix' },
-  { key: 'cartao_credito', label: 'Credito' },
-];
-
-const normalizeLabel = (value: string | null | undefined) => value?.trim().toLocaleLowerCase('pt-BR') ?? '';
-const formatMoney = (value: number) => `R$ ${value.toFixed(2)}`;
-
 interface OperatorProfile {
   user_id: string;
   username: string;
@@ -62,6 +52,16 @@ interface OpenCashSummary {
   cashOutCount: number;
   hasLegacyCashOutGap: boolean;
 }
+
+const paymentMethodCards: Array<{ key: PaymentMethodKey; label: string }> = [
+  { key: 'dinheiro', label: 'Dinheiro' },
+  { key: 'cartao_debito', label: 'Debito' },
+  { key: 'pix', label: 'Pix' },
+  { key: 'cartao_credito', label: 'Credito' },
+];
+
+const normalizeLabel = (value: string | null | undefined) => value?.trim().toLocaleLowerCase('pt-BR') ?? '';
+const formatMoney = (value: number) => `R$ ${value.toFixed(2)}`;
 
 interface OperatorFunctionResponse {
   success?: boolean;
