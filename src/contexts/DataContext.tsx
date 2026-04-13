@@ -5,7 +5,7 @@ import type { Client, Product, DebtEntry, Payment, Sale, SaleItem, StockMovement
 
 const db = supabase as any;
 
-interface Reward { id: string; name: string; description: string; minimum_spending: number; created_at: string; }
+interface Reward { id: string; name: string; description: string; minimum_spending: number; created_at: string; user_id: string; }
 
 const ensureSuccess = <T extends { error?: unknown }>(result: T) => {
   if (result.error) throw result.error;
@@ -136,6 +136,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   // --- Products ---
   const addProduct = async (name: string, price: number, category: string, extra: Partial<Product> = {}) => {
     const { data, error } = await db.from('products').insert({
+      user_id: user!.id,
       name,
       price,
       category,
@@ -486,7 +487,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
   // --- Rewards ---
   const addReward = async (name: string, description: string, minimum_spending: number) => {
-    ensureSuccess(await db.from('rewards').insert({ name, description, minimum_spending }));
+    ensureSuccess(await db.from('rewards').insert({ user_id: user!.id, name, description, minimum_spending }));
     await fetchAll();
   };
 

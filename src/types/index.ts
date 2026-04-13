@@ -10,6 +10,7 @@ export interface Client {
 
 export interface Product {
   id: string;
+  user_id: string;
   code?: number | null;
   name: string;
   price: number;
