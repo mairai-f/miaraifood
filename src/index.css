@@ -46,6 +46,17 @@
   body {
     @apply bg-background text-foreground antialiased;
   }
+
+  @keyframes floatHint {
+    0%, 100% {
+      transform: translateY(0);
+      opacity: 0.82;
+    }
+    50% {
+      transform: translateY(4px);
+      opacity: 1;
+    }
+  }
 }
 
 @layer components {
@@ -93,6 +104,15 @@
 }
 
 @layer utilities {
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
   .page-header {
     @apply mb-6;
   }

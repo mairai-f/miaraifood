@@ -1,6 +1,6 @@
-import { ReactNode, useEffect, useState } from 'react';
+import { ReactNode, useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Home, Users, Package, Gift, Trash2, LogOut, Menu, X, UserCircle, Receipt, BarChart3, DollarSign, Boxes } from 'lucide-react';
+import { Home, Users, Package, Gift, Trash2, LogOut, Menu, X, UserCircle, Receipt, BarChart3, DollarSign, Boxes, ChevronDown, ChevronUp } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import happyCashLogo from '@/assets/happycash-logo.png';
 
@@ -21,7 +21,29 @@ export function AppLayout({ children }: { children: ReactNode }) {
   const location = useLocation();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
+  const navRef = useRef<HTMLElement | null>(null);
+  const [scrollHints, setScrollHints] = useState({ top: false, bottom: false });
   const isPdvMode = location.pathname === '/pdv';
+
+  const updateScrollHints = useCallback(() => {
+    const nav = navRef.current;
+    if (!nav) {
+      setScrollHints({ top: false, bottom: false });
+      return;
+    }
+
+    const threshold = 8;
+    const hasTopOverflow = nav.scrollTop > threshold;
+    const hasBottomOverflow = nav.scrollTop + nav.clientHeight < nav.scrollHeight - threshold;
+
+    setScrollHints((current) => {
+      if (current.top === hasTopOverflow && current.bottom === hasBottomOverflow) {
+        return current;
+      }
+
+      return { top: hasTopOverflow, bottom: hasBottomOverflow };
+    });
+  }, []);
 
   useEffect(() => {
     const isEditableTarget = (target: EventTarget | null) => {
@@ -62,6 +84,29 @@ export function AppLayout({ children }: { children: ReactNode }) {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isPdvMode, navigate]);
 
+  useEffect(() => {
+    const nav = navRef.current;
+    if (!nav) return;
+
+    const runUpdate = () => window.requestAnimationFrame(updateScrollHints);
+    runUpdate();
+
+    nav.addEventListener('scroll', updateScrollHints, { passive: true });
+    window.addEventListener('resize', runUpdate);
+
+    const resizeObserver = typeof ResizeObserver !== 'undefined'
+      ? new ResizeObserver(runUpdate)
+      : null;
+
+    resizeObserver?.observe(nav);
+
+    return () => {
+      nav.removeEventListener('scroll', updateScrollHints);
+      window.removeEventListener('resize', runUpdate);
+      resizeObserver?.disconnect();
+    };
+  }, [location.pathname, open, updateScrollHints]);
+
   if (isPdvMode) {
     return (
       <div className="h-screen overflow-hidden bg-background">
@@ -89,23 +134,39 @@ export function AppLayout({ children }: { children: ReactNode }) {
             <button className="lg:hidden text-muted-foreground" onClick={() => setOpen(false)}><X className="h-5 w-5" /></button>
           </div>
         </div>
-        <nav className="min-h-0 flex-1 overflow-hidden p-4 space-y-1">
-          {navItems.map(item => {
-            const active = location.pathname === item.path;
-            return (
-              <Link key={item.path} to={item.path} onClick={() => setOpen(false)}
-                className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 ${active ? 'bg-primary text-primary-foreground shadow-lg' : 'text-muted-foreground hover:bg-secondary hover:text-foreground'}`}>
-                <item.icon className="h-5 w-5" />
-                <span className="font-medium">{item.label}</span>
-                {'shortcut' in item && item.shortcut && (
-                  <span className={`ml-auto rounded border px-1.5 py-0.5 text-[10px] font-semibold ${active ? 'border-primary-foreground/40 text-primary-foreground' : 'border-border text-muted-foreground'}`}>
-                    {item.shortcut}
-                  </span>
-                )}
-              </Link>
-            );
-          })}
-        </nav>
+        <div className="relative min-h-0 flex-1">
+          {scrollHints.top && (
+            <div className="pointer-events-none absolute inset-x-4 top-0 z-10 flex justify-center bg-gradient-to-b from-card via-card/85 to-transparent pb-4 pt-2">
+              <div className="rounded-full border border-border/70 bg-background/80 p-1.5 text-muted-foreground shadow-lg backdrop-blur-sm animate-[floatHint_1.7s_ease-in-out_infinite]">
+                <ChevronUp className="h-4 w-4" />
+              </div>
+            </div>
+          )}
+          <nav ref={navRef} className="no-scrollbar min-h-0 h-full overflow-y-auto p-4 space-y-1">
+            {navItems.map(item => {
+              const active = location.pathname === item.path;
+              return (
+                <Link key={item.path} to={item.path} onClick={() => setOpen(false)}
+                  className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 ${active ? 'bg-primary text-primary-foreground shadow-lg' : 'text-muted-foreground hover:bg-secondary hover:text-foreground'}`}>
+                  <item.icon className="h-5 w-5" />
+                  <span className="font-medium">{item.label}</span>
+                  {'shortcut' in item && item.shortcut && (
+                    <span className={`ml-auto rounded border px-1.5 py-0.5 text-[10px] font-semibold ${active ? 'border-primary-foreground/40 text-primary-foreground' : 'border-border text-muted-foreground'}`}>
+                      {item.shortcut}
+                    </span>
+                  )}
+                </Link>
+              );
+            })}
+          </nav>
+          {scrollHints.bottom && (
+            <div className="pointer-events-none absolute inset-x-4 bottom-0 z-10 flex justify-center bg-gradient-to-t from-card via-card/85 to-transparent pb-2 pt-4">
+              <div className="rounded-full border border-border/70 bg-background/80 p-1.5 text-muted-foreground shadow-lg backdrop-blur-sm animate-[floatHint_1.7s_ease-in-out_infinite]">
+                <ChevronDown className="h-4 w-4" />
+              </div>
+            </div>
+          )}
+        </div>
         <div className="shrink-0 space-y-2 border-t border-border p-4">
           {user && (
             <div className="flex items-center gap-2 px-4 py-2 text-sm text-muted-foreground">
