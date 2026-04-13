@@ -56,7 +56,16 @@ interface DataContextType {
   cancelSale: (saleId: string, reason: string) => Promise<void>;
   addStockMovement: (productId: string, type: string, quantity: number, reason: string) => Promise<void>;
   clearAllStock: (reason?: string) => Promise<void>;
-  addExpense: (description: string, amount: number, category: string) => Promise<void>;
+  addExpense: (
+    description: string,
+    amount: number,
+    category: string,
+    metadata?: {
+      operatorUserId?: string | null;
+      cashSessionId?: string | null;
+      date?: string;
+    }
+  ) => Promise<void>;
   deleteExpense: (id: string) => Promise<void>;
   addReward: (name: string, description: string, minimum_spending: number) => Promise<void>;
   updateReward: (id: string, data: Partial<Reward>) => Promise<void>;
@@ -483,8 +492,25 @@ export function DataProvider({ children }: { children: ReactNode }) {
   };
 
   // --- Expenses ---
-  const addExpense = async (description: string, amount: number, category: string) => {
-    const { data, error } = await db.from('expenses').insert({ user_id: ownerUserId!, description, amount, category }).select('*').single();
+  const addExpense = async (
+    description: string,
+    amount: number,
+    category: string,
+    metadata?: {
+      operatorUserId?: string | null;
+      cashSessionId?: string | null;
+      date?: string;
+    }
+  ) => {
+    const { data, error } = await db.from('expenses').insert({
+      user_id: ownerUserId!,
+      operator_user_id: metadata?.operatorUserId ?? null,
+      cash_session_id: metadata?.cashSessionId ?? null,
+      description,
+      amount,
+      category,
+      date: metadata?.date || new Date().toISOString(),
+    }).select('*').single();
     if (error) throw error;
     setExpenses(prev => [data as Expense, ...prev]);
   };

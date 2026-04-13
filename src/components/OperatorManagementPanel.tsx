@@ -1,22 +1,44 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
+import { useData } from '@/contexts/DataContext';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { toast } from 'sonner';
-import { Eye, KeyRound, Plus, Users, Wallet } from 'lucide-react';
+import { Eye, KeyRound, Plus, Trash2, Users, Wallet } from 'lucide-react';
+import type { Expense, Sale } from '@/types';
 
 // Generated Supabase types are behind the current schema for these admin tables.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
 
+const paymentMethodCards: Array<{ key: PaymentMethodKey; label: string }> = [
+  { key: 'dinheiro', label: 'Dinheiro' },
+  { key: 'cartao_debito', label: 'Debito' },
+  { key: 'pix', label: 'Pix' },
+  { key: 'cartao_credito', label: 'Credito' },
+];
+
+const normalizeLabel = (value: string | null | undefined) => value?.trim().toLocaleLowerCase('pt-BR') ?? '';
+const formatMoney = (value: number) => `R$ ${value.toFixed(2)}`;
+
 interface OperatorProfile {
   user_id: string;
   username: string;
-  email: string | null;
   created_at: string;
 }
 
@@ -28,12 +50,24 @@ interface OpenCashSession {
   opened_at: string;
 }
 
+type PaymentMethodKey = 'dinheiro' | 'pix' | 'cartao_debito' | 'cartao_credito';
+
+interface OpenCashSummary {
+  entriesTotal: number;
+  cashOutTotal: number;
+  currentBalance: number;
+  paymentTotals: Record<PaymentMethodKey, number>;
+  otherEntriesTotal: number;
+  salesCount: number;
+  cashOutCount: number;
+  hasLegacyCashOutGap: boolean;
+}
+
 interface OperatorFunctionResponse {
   success?: boolean;
   operator?: {
     user_id: string;
     username: string;
-    email: string | null;
   };
   temporaryPassword?: string;
   error?: string;
@@ -48,21 +82,21 @@ export function OperatorManagementPanel({
   createDialogOpen: controlledCreateDialogOpen,
   onCreateDialogOpenChange,
 }: OperatorManagementPanelProps) {
-  const { isAdmin, ownerUserId } = useAuth();
+  const { isAdmin, ownerUserId, session } = useAuth();
+  const { sales, expenses, loading: dataLoading } = useData();
   const [operators, setOperators] = useState<OperatorProfile[]>([]);
   const [openCashSessions, setOpenCashSessions] = useState<OpenCashSession[]>([]);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [resetting, setResetting] = useState(false);
+  const [deletingOperatorId, setDeletingOperatorId] = useState<string | null>(null);
   const [username, setUsername] = useState('');
-  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [resetDialogOpen, setResetDialogOpen] = useState(false);
   const [resetPassword, setResetPassword] = useState('');
   const [selectedOperator, setSelectedOperator] = useState<OperatorProfile | null>(null);
   const [latestCredential, setLatestCredential] = useState<{
     username: string;
-    email: string | null;
     temporaryPassword: string;
   } | null>(null);
   const [internalCreateDialogOpen, setInternalCreateDialogOpen] = useState(false);
@@ -72,7 +106,6 @@ export function OperatorManagementPanel({
 
   const resetCreateForm = useCallback(() => {
     setUsername('');
-    setEmail('');
     setPassword('');
   }, []);
 
@@ -97,7 +130,7 @@ export function OperatorManagementPanel({
     const [{ data: operatorRows, error: operatorError }, { data: openRows, error: openError }] = await Promise.all([
       db
         .from('profiles')
-        .select('user_id, username, email, created_at')
+        .select('user_id, username, created_at')
         .eq('owner_user_id', ownerUserId)
         .eq('role', 'operator')
         .order('created_at', { ascending: false }),
@@ -128,13 +161,85 @@ export function OperatorManagementPanel({
     void loadData();
   }, [loadData]);
 
+  const openSessionByOperatorId = new Map(openCashSessions.map(session => [session.operator_user_id, session]));
+  const hasSingleOpenSession = openCashSessions.length === 1;
+  const isLoading = loading || dataLoading;
+
+  const matchesSessionSale = useCallback((sale: Sale, cashSession: OpenCashSession) => {
+    if (sale.status === 'cancelled') return false;
+    if (new Date(sale.date).getTime() < new Date(cashSession.opened_at).getTime()) return false;
+    if (sale.cash_session_id) return sale.cash_session_id === cashSession.id;
+    if (sale.operator_user_id) return sale.operator_user_id === cashSession.operator_user_id;
+    return normalizeLabel(sale.seller_name) === normalizeLabel(cashSession.operator_name);
+  }, []);
+
+  const matchesSessionExpense = useCallback((expense: Expense, cashSession: OpenCashSession) => {
+    if (expense.category !== 'Saída de caixa') return false;
+    if (new Date(expense.date).getTime() < new Date(cashSession.opened_at).getTime()) return false;
+    if (expense.cash_session_id) return expense.cash_session_id === cashSession.id;
+    if (expense.operator_user_id) return expense.operator_user_id === cashSession.operator_user_id;
+    return hasSingleOpenSession;
+  }, [hasSingleOpenSession]);
+
+  const openCashSummaryByOperatorId = useMemo(() => {
+    return new Map<string, OpenCashSummary>(
+      openCashSessions.map(cashSession => {
+        const sessionSales = sales.filter(sale => matchesSessionSale(sale, cashSession));
+        const sessionCashOuts = expenses.filter(expense => matchesSessionExpense(expense, cashSession));
+        const paymentTotals: Record<PaymentMethodKey, number> = {
+          dinheiro: 0,
+          pix: 0,
+          cartao_debito: 0,
+          cartao_credito: 0,
+        };
+
+        let otherEntriesTotal = 0;
+
+        for (const sale of sessionSales) {
+          if (sale.payment_method in paymentTotals) {
+            paymentTotals[sale.payment_method as PaymentMethodKey] += Number(sale.total || 0);
+            continue;
+          }
+
+          otherEntriesTotal += Number(sale.total || 0);
+        }
+
+        const entriesTotal = sessionSales.reduce((sum, sale) => sum + Number(sale.total || 0), 0);
+        const cashOutTotal = sessionCashOuts.reduce((sum, expense) => sum + Number(expense.amount || 0), 0);
+        const hasLegacyCashOutGap = !hasSingleOpenSession && expenses.some(expense =>
+          expense.category === 'Saída de caixa'
+          && !expense.cash_session_id
+          && !expense.operator_user_id
+          && new Date(expense.date).getTime() >= new Date(cashSession.opened_at).getTime()
+        );
+
+        return [
+          cashSession.operator_user_id,
+          {
+            entriesTotal,
+            cashOutTotal,
+            currentBalance: Number(cashSession.opening_amount || 0) + entriesTotal - cashOutTotal,
+            paymentTotals,
+            otherEntriesTotal,
+            salesCount: sessionSales.length,
+            cashOutCount: sessionCashOuts.length,
+            hasLegacyCashOutGap,
+          },
+        ];
+      })
+    );
+  }, [expenses, hasSingleOpenSession, matchesSessionExpense, matchesSessionSale, openCashSessions, sales]);
+
   if (!isAdmin) return null;
 
-  const openSessionByOperatorId = new Map(openCashSessions.map(session => [session.operator_user_id, session]));
-
   const handleCreateOperator = async () => {
-    if (!username.trim() || !email.trim() || !password.trim()) {
-      toast.error('Preencha nome, e-mail e senha');
+    if (!session?.access_token) {
+      toast.error('Sua sessão expirou. Entre novamente para cadastrar operadores.');
+      return;
+    }
+
+    if (!username.trim() || !password.trim()) {
+      toast.error('Preencha usuário e senha');
       return;
     }
 
@@ -146,24 +251,38 @@ export function OperatorManagementPanel({
     setCreating(true);
 
     const { data, error } = await supabase.functions.invoke<OperatorFunctionResponse>('manage-operators', {
+      headers: {
+        Authorization: `Bearer ${session.access_token}`,
+      },
       body: {
         action: 'create',
         username: username.trim(),
-        email: email.trim(),
         password: password.trim(),
       },
     });
 
     if (error || !data?.success || !data.operator || !data.temporaryPassword) {
+      let functionErrorMessage = data?.error || 'Não foi possível criar o operador';
+
+      if (error && typeof error === 'object' && 'context' in error && error.context instanceof Response) {
+        try {
+          const errorPayload = await error.context.clone().json() as { error?: string; message?: string };
+          functionErrorMessage = errorPayload.error || errorPayload.message || functionErrorMessage;
+        } catch {
+          functionErrorMessage = error.context.status === 401
+            ? 'Sua sessão expirou ou não foi enviada corretamente. Entre novamente e tente de novo.'
+            : functionErrorMessage;
+        }
+      }
+
       console.error('Erro ao criar operador:', error);
-      toast.error(data?.error || 'Não foi possível criar o operador');
+      toast.error(functionErrorMessage);
       setCreating(false);
       return;
     }
 
     setLatestCredential({
       username: data.operator.username,
-      email: data.operator.email,
       temporaryPassword: data.temporaryPassword,
     });
     resetCreateForm();
@@ -174,6 +293,11 @@ export function OperatorManagementPanel({
   };
 
   const handleResetPassword = async () => {
+    if (!session?.access_token) {
+      toast.error('Sua sessão expirou. Entre novamente para redefinir senhas.');
+      return;
+    }
+
     if (!selectedOperator) return;
     if (!resetPassword.trim()) {
       toast.error('Informe a nova senha');
@@ -187,6 +311,9 @@ export function OperatorManagementPanel({
     setResetting(true);
 
     const { data, error } = await supabase.functions.invoke<OperatorFunctionResponse>('manage-operators', {
+      headers: {
+        Authorization: `Bearer ${session.access_token}`,
+      },
       body: {
         action: 'reset_password',
         operatorUserId: selectedOperator.user_id,
@@ -195,15 +322,27 @@ export function OperatorManagementPanel({
     });
 
     if (error || !data?.success || !data.operator || !data.temporaryPassword) {
+      let functionErrorMessage = data?.error || 'Não foi possível redefinir a senha';
+
+      if (error && typeof error === 'object' && 'context' in error && error.context instanceof Response) {
+        try {
+          const errorPayload = await error.context.clone().json() as { error?: string; message?: string };
+          functionErrorMessage = errorPayload.error || errorPayload.message || functionErrorMessage;
+        } catch {
+          functionErrorMessage = error.context.status === 401
+            ? 'Sua sessão expirou ou não foi enviada corretamente. Entre novamente e tente de novo.'
+            : functionErrorMessage;
+        }
+      }
+
       console.error('Erro ao redefinir senha do operador:', error);
-      toast.error(data?.error || 'Não foi possível redefinir a senha');
+      toast.error(functionErrorMessage);
       setResetting(false);
       return;
     }
 
     setLatestCredential({
       username: data.operator.username,
-      email: data.operator.email,
       temporaryPassword: data.temporaryPassword,
     });
     setResetPassword('');
@@ -212,6 +351,49 @@ export function OperatorManagementPanel({
     toast.success('Senha redefinida com sucesso');
     await loadData();
     setResetting(false);
+  };
+
+  const handleDeleteOperator = async (operator: OperatorProfile) => {
+    if (!session?.access_token) {
+      toast.error('Sua sessão expirou. Entre novamente para excluir operadores.');
+      return;
+    }
+
+    setDeletingOperatorId(operator.user_id);
+
+    const { data, error } = await supabase.functions.invoke<OperatorFunctionResponse>('manage-operators', {
+      headers: {
+        Authorization: `Bearer ${session.access_token}`,
+      },
+      body: {
+        action: 'delete',
+        operatorUserId: operator.user_id,
+      },
+    });
+
+    if (error || !data?.success) {
+      let functionErrorMessage = data?.error || 'Não foi possível excluir o operador';
+
+      if (error && typeof error === 'object' && 'context' in error && error.context instanceof Response) {
+        try {
+          const errorPayload = await error.context.clone().json() as { error?: string; message?: string };
+          functionErrorMessage = errorPayload.error || errorPayload.message || functionErrorMessage;
+        } catch {
+          functionErrorMessage = error.context.status === 401
+            ? 'Sua sessão expirou ou não foi enviada corretamente. Entre novamente e tente de novo.'
+            : functionErrorMessage;
+        }
+      }
+
+      console.error('Erro ao excluir operador:', error);
+      toast.error(functionErrorMessage);
+      setDeletingOperatorId(null);
+      return;
+    }
+
+    toast.success(`Operador ${operator.username} excluído com sucesso`);
+    await loadData();
+    setDeletingOperatorId(null);
   };
 
   return (
@@ -261,13 +443,12 @@ export function OperatorManagementPanel({
 
             {latestCredential ? (
               <div className="space-y-2 rounded-lg border border-primary/20 bg-primary/5 p-4 text-sm">
-                <p><strong>Nome:</strong> {latestCredential.username}</p>
-                <p><strong>E-mail:</strong> {latestCredential.email || 'Sem e-mail'}</p>
+                <p><strong>Usuário:</strong> {latestCredential.username}</p>
                 <p><strong>Senha provisoria:</strong> {latestCredential.temporaryPassword}</p>
               </div>
             ) : (
               <p className="text-sm text-muted-foreground">
-                A senha aparece apenas quando o operador e criado ou quando voce redefine a senha dele.
+                O usuário e a senha aparecem apenas quando o operador e criado ou quando voce redefine a senha dele.
               </p>
             )}
 
@@ -278,7 +459,7 @@ export function OperatorManagementPanel({
 
           <div className="space-y-3">
             <h3 className="font-semibold">Operadores cadastrados</h3>
-            {loading ? (
+            {isLoading ? (
               <p className="text-sm text-muted-foreground">Carregando operadores...</p>
             ) : operators.length === 0 ? (
               <p className="text-sm text-muted-foreground">Nenhum operador cadastrado.</p>
@@ -286,6 +467,7 @@ export function OperatorManagementPanel({
               <div className="grid gap-3 md:grid-cols-2">
                 {operators.map(operator => {
                   const openSession = openSessionByOperatorId.get(operator.user_id);
+                  const openCashSummary = openSession ? openCashSummaryByOperatorId.get(operator.user_id) : null;
 
                   return (
                     <Card key={operator.user_id} className="border-border/50">
@@ -293,7 +475,7 @@ export function OperatorManagementPanel({
                         <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0">
                             <p className="truncate font-semibold">{operator.username}</p>
-                            <p className="truncate text-sm text-muted-foreground">{operator.email || 'Sem e-mail'}</p>
+                            <p className="truncate text-sm text-muted-foreground">Login do operador</p>
                           </div>
                           <span className={`rounded-full px-2 py-1 text-[11px] font-semibold ${openSession ? 'bg-primary/15 text-primary' : 'bg-secondary text-muted-foreground'}`}>
                             {openSession ? 'Caixa aberto' : 'Caixa fechado'}
@@ -301,26 +483,124 @@ export function OperatorManagementPanel({
                         </div>
 
                         {openSession ? (
-                          <div className="rounded-lg border border-border bg-secondary/20 p-3 text-sm">
-                            <p><strong>Abertura:</strong> {new Date(openSession.opened_at).toLocaleString('pt-BR')}</p>
-                            <p><strong>Valor inicial:</strong> R$ {Number(openSession.opening_amount || 0).toFixed(2)}</p>
+                          <div className="space-y-3 rounded-lg border border-border bg-secondary/20 p-3 text-sm">
+                            <div className="grid gap-2 sm:grid-cols-2">
+                              <div className="rounded-md border border-border/70 bg-background/80 p-3">
+                                <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Operador</p>
+                                <p className="mt-1 font-semibold">{openSession.operator_name}</p>
+                              </div>
+                              <div className="rounded-md border border-border/70 bg-background/80 p-3">
+                                <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Abertura</p>
+                                <p className="mt-1 font-semibold">{new Date(openSession.opened_at).toLocaleString('pt-BR')}</p>
+                              </div>
+                            </div>
+
+                            <div className="grid gap-2 sm:grid-cols-3">
+                              <div className="rounded-md border border-border/70 bg-background/80 p-3">
+                                <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Valor inicial</p>
+                                <p className="mt-1 text-base font-semibold">{formatMoney(Number(openSession.opening_amount || 0))}</p>
+                              </div>
+                              <div className="rounded-md border border-emerald-200/70 bg-emerald-50/60 p-3">
+                                <p className="text-[11px] uppercase tracking-wide text-emerald-700/80">Entradas</p>
+                                <p className="mt-1 text-base font-semibold text-emerald-700">
+                                  {formatMoney(openCashSummary?.entriesTotal ?? 0)}
+                                </p>
+                                <p className="text-xs text-emerald-700/80">
+                                  {openCashSummary?.salesCount ?? 0} venda{(openCashSummary?.salesCount ?? 0) === 1 ? '' : 's'}
+                                </p>
+                              </div>
+                              <div className="rounded-md border border-rose-200/70 bg-rose-50/60 p-3">
+                                <p className="text-[11px] uppercase tracking-wide text-rose-700/80">Saidas</p>
+                                <p className="mt-1 text-base font-semibold text-rose-700">
+                                  {formatMoney(openCashSummary?.cashOutTotal ?? 0)}
+                                </p>
+                                <p className="text-xs text-rose-700/80">
+                                  {openCashSummary?.cashOutCount ?? 0} registro{(openCashSummary?.cashOutCount ?? 0) === 1 ? '' : 's'}
+                                </p>
+                              </div>
+                            </div>
+
+                            <div className="rounded-md border border-primary/20 bg-primary/5 p-3">
+                              <p className="text-[11px] uppercase tracking-wide text-primary/80">Total do caixa aberto</p>
+                              <p className="mt-1 text-lg font-semibold text-primary">
+                                {formatMoney(openCashSummary?.currentBalance ?? Number(openSession.opening_amount || 0))}
+                              </p>
+                            </div>
+
+                            <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+                              {paymentMethodCards.map(paymentMethod => (
+                                <div key={paymentMethod.key} className="rounded-md border border-border/70 bg-background/80 p-3">
+                                  <p className="text-[11px] uppercase tracking-wide text-muted-foreground">{paymentMethod.label}</p>
+                                  <p className="mt-1 font-semibold">
+                                    {formatMoney(openCashSummary?.paymentTotals[paymentMethod.key] ?? 0)}
+                                  </p>
+                                </div>
+                              ))}
+                            </div>
+
+                            {(openCashSummary?.otherEntriesTotal ?? 0) > 0 && (
+                              <p className="text-xs text-muted-foreground">
+                                Outras entradas registradas neste caixa: {formatMoney(openCashSummary?.otherEntriesTotal ?? 0)}
+                              </p>
+                            )}
+
+                            {openCashSummary?.hasLegacyCashOutGap && (
+                              <p className="text-xs text-muted-foreground">
+                                Saidas antigas sem vinculo direto com operador podem nao aparecer neste resumo.
+                              </p>
+                            )}
                           </div>
                         ) : (
                           <p className="text-sm text-muted-foreground">Nenhum caixa aberto para este operador agora.</p>
                         )}
 
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => {
-                            setSelectedOperator(operator);
-                            setResetPassword('');
-                            setResetDialogOpen(true);
-                          }}
-                        >
-                          <KeyRound className="mr-2 h-4 w-4" />
-                          Redefinir senha
-                        </Button>
+                        <div className="flex gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="flex-1"
+                            onClick={() => {
+                              setSelectedOperator(operator);
+                              setResetPassword('');
+                              setResetDialogOpen(true);
+                            }}
+                          >
+                            <KeyRound className="mr-2 h-4 w-4" />
+                            Redefinir senha
+                          </Button>
+                          {!openSession && (
+                            <AlertDialog>
+                              <AlertDialogTrigger asChild>
+                                <Button
+                                  variant="destructive"
+                                  size="sm"
+                                  className="flex-1"
+                                  disabled={deletingOperatorId === operator.user_id}
+                                >
+                                  <Trash2 className="mr-2 h-4 w-4" />
+                                  {deletingOperatorId === operator.user_id ? 'Excluindo...' : 'Excluir'}
+                                </Button>
+                              </AlertDialogTrigger>
+                              <AlertDialogContent>
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle>Excluir operador?</AlertDialogTitle>
+                                  <AlertDialogDescription>
+                                    O operador "{operator.username}" será removido do sistema.
+                                  </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                  <AlertDialogAction
+                                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                    onClick={() => void handleDeleteOperator(operator)}
+                                  >
+                                    Excluir operador
+                                  </AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
+                          )}
+                        </div>
                       </CardContent>
                     </Card>
                   );
@@ -339,17 +619,16 @@ export function OperatorManagementPanel({
 
           <div className="space-y-3">
             <div className="space-y-1">
-              <Label>Nome</Label>
-              <Input value={username} onChange={event => setUsername(event.target.value)} placeholder="Nome do operador" />
-            </div>
-            <div className="space-y-1">
-              <Label>E-mail</Label>
-              <Input type="email" value={email} onChange={event => setEmail(event.target.value)} placeholder="operador@empresa.com" />
+              <Label>Usuário</Label>
+              <Input value={username} onChange={event => setUsername(event.target.value)} placeholder="Ex: operador.caixa" />
             </div>
             <div className="space-y-1">
               <Label>Senha inicial</Label>
               <Input type="password" value={password} onChange={event => setPassword(event.target.value)} placeholder="Minimo de 6 caracteres" />
             </div>
+            <p className="text-xs text-muted-foreground">
+              Use de 3 a 24 caracteres com letras, numeros, ponto, hifen ou underscore.
+            </p>
           </div>
 
           <DialogFooter>

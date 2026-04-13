@@ -26,12 +26,22 @@ interface AuthContextType {
   ownerUserId: string | null;
   isAdmin: boolean;
   isOperator: boolean;
-  login: (email: string, password: string) => Promise<boolean>;
+  login: (email: string, password: string) => Promise<string | true>;
+  loginOperator: (username: string, password: string) => Promise<string | true>;
   register: (email: string, password: string, username: string) => Promise<string | true>;
   resetPassword: (email: string) => Promise<boolean>;
   logout: () => Promise<void>;
   isAuthenticated: boolean;
   loading: boolean;
+}
+
+interface OperatorLoginResponse {
+  success?: boolean;
+  session?: {
+    access_token?: string;
+    refresh_token?: string;
+  };
+  error?: string;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -182,9 +192,40 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, [clearLocalSession, resetAuthState, syncProfileState]);
 
-  const login = async (email: string, password: string): Promise<boolean> => {
+  const login = async (email: string, password: string): Promise<string | true> => {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
-    return !error;
+    return error ? error.message : true;
+  };
+
+  const loginOperator = async (username: string, password: string): Promise<string | true> => {
+    const { data, error } = await supabase.functions.invoke<OperatorLoginResponse>('operator-login', {
+      body: {
+        username,
+        password,
+      },
+    });
+
+    if (error || !data?.success || !data.session?.access_token || !data.session?.refresh_token) {
+      let functionErrorMessage = data?.error || 'Usuário ou senha incorretos.';
+
+      if (error && typeof error === 'object' && 'context' in error && error.context instanceof Response) {
+        try {
+          const errorPayload = await error.context.clone().json() as { error?: string; message?: string };
+          functionErrorMessage = errorPayload.error || errorPayload.message || functionErrorMessage;
+        } catch {
+          functionErrorMessage = 'Usuário ou senha incorretos.';
+        }
+      }
+
+      return functionErrorMessage;
+    }
+
+    const { error: setSessionError } = await supabase.auth.setSession({
+      access_token: data.session.access_token,
+      refresh_token: data.session.refresh_token,
+    });
+
+    return setSessionError ? setSessionError.message : true;
   };
 
   const register = async (email: string, password: string, uname: string): Promise<string | true> => {
@@ -226,6 +267,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isAdmin: role === 'admin',
         isOperator: role === 'operator',
         login,
+        loginOperator,
         register,
         resetPassword,
         logout,

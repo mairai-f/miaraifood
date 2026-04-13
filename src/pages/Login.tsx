@@ -6,31 +6,54 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
 import happyCashLogo from '@/assets/happycash-logo.png';
 
+type LoginMode = 'admin' | 'operator';
+
 export default function Login() {
+  const [loginMode, setLoginMode] = useState<LoginMode>('admin');
   const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [adminPassword, setAdminPassword] = useState('');
+  const [operatorUsername, setOperatorUsername] = useState('');
+  const [operatorPassword, setOperatorPassword] = useState('');
   const [submitting, setSubmitting] = useState(false);
-  const { login, resetPassword } = useAuth();
+  const { login, loginOperator, resetPassword } = useAuth();
 
   const [resetOpen, setResetOpen] = useState(false);
   const [resetEmail, setResetEmail] = useState('');
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleAdminSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
-    const ok = await login(email, password);
-    if (!ok) toast.error('Email ou senha incorretos.');
+    const result = await login(email, adminPassword);
+    if (result !== true) toast.error(result || 'Email ou senha incorretos.');
+    setSubmitting(false);
+  };
+
+  const handleOperatorSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmitting(true);
+    const result = await loginOperator(operatorUsername, operatorPassword);
+    if (result !== true) toast.error(result || 'Usuário ou senha incorretos.');
     setSubmitting(false);
   };
 
   const handleReset = async () => {
-    if (!resetEmail) { toast.error('Digite seu email'); return; }
+    if (!resetEmail) {
+      toast.error('Digite seu email');
+      return;
+    }
+
     const ok = await resetPassword(resetEmail);
-    if (ok) { toast.success('Email de redefinição enviado!'); setResetOpen(false); setResetEmail(''); }
-    else toast.error('Erro ao enviar email de redefinição.');
+    if (ok) {
+      toast.success('Email de redefinição enviado!');
+      setResetOpen(false);
+      setResetEmail('');
+    } else {
+      toast.error('Erro ao enviar email de redefinição.');
+    }
   };
 
   return (
@@ -60,35 +83,98 @@ export default function Login() {
             <CardHeader className="pb-2 text-center">
               <CardTitle className="text-3xl font-bold tracking-wide text-yellow-300">Entrar</CardTitle>
               <p className="text-sm text-muted-foreground">
-                Acesse sua conta para continuar.
+                Administrador entra com email. Operador entra com usuário.
               </p>
             </CardHeader>
             <CardContent>
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div className="space-y-2">
-                  <Label>Email</Label>
-                  <Input type="email" value={email} onChange={e => setEmail(e.target.value)} required placeholder="usuario@happycash.com" />
-                </div>
-                <div className="space-y-2">
-                  <Label>Senha</Label>
-                  <Input type="password" value={password} onChange={e => setPassword(e.target.value)} required placeholder="••••••••" minLength={6} />
-                </div>
-                <Button
-                  type="submit"
-                  className="w-full bg-yellow-400 py-5 text-lg font-semibold text-black hover:bg-yellow-300"
-                  disabled={submitting}
-                >
-                  {submitting ? 'Aguarde...' : 'Entrar'}
-                </Button>
-                <div className="flex flex-col gap-3 pt-2 sm:flex-row sm:items-center sm:justify-between">
-                  <p className="text-sm text-muted-foreground">
-                    Operadores são criados pelo administrador.
-                  </p>
-                  <button type="button" onClick={() => setResetOpen(true)} className="text-sm text-muted-foreground transition-colors hover:text-yellow-300">
-                    Esqueci a senha
-                  </button>
-                </div>
-              </form>
+              <Tabs value={loginMode} onValueChange={(value) => setLoginMode(value as LoginMode)}>
+                <TabsList className="grid w-full grid-cols-2">
+                  <TabsTrigger value="admin">Administrador</TabsTrigger>
+                  <TabsTrigger value="operator">Operador</TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="admin">
+                  <form onSubmit={handleAdminSubmit} className="space-y-4 pt-4">
+                    <div className="space-y-2">
+                      <Label>Email</Label>
+                      <Input
+                        type="email"
+                        value={email}
+                        onChange={e => setEmail(e.target.value)}
+                        required
+                        placeholder="usuario@happycash.com"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Senha</Label>
+                      <Input
+                        type="password"
+                        value={adminPassword}
+                        onChange={e => setAdminPassword(e.target.value)}
+                        required
+                        placeholder="••••••••"
+                        minLength={6}
+                      />
+                    </div>
+                    <Button
+                      type="submit"
+                      className="w-full bg-yellow-400 py-5 text-lg font-semibold text-black hover:bg-yellow-300"
+                      disabled={submitting}
+                    >
+                      {submitting ? 'Aguarde...' : 'Entrar como administrador'}
+                    </Button>
+                    <div className="flex flex-col gap-3 pt-2 sm:flex-row sm:items-center sm:justify-between">
+                      <p className="text-sm text-muted-foreground">
+                        Administradores acessam com email e senha.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => setResetOpen(true)}
+                        className="text-sm text-muted-foreground transition-colors hover:text-yellow-300"
+                      >
+                        Esqueci a senha
+                      </button>
+                    </div>
+                  </form>
+                </TabsContent>
+
+                <TabsContent value="operator">
+                  <form onSubmit={handleOperatorSubmit} className="space-y-4 pt-4">
+                    <div className="space-y-2">
+                      <Label>Usuário</Label>
+                      <Input
+                        value={operatorUsername}
+                        onChange={e => setOperatorUsername(e.target.value)}
+                        required
+                        placeholder="Ex: operador.caixa"
+                        autoCapitalize="none"
+                        autoCorrect="off"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Senha</Label>
+                      <Input
+                        type="password"
+                        value={operatorPassword}
+                        onChange={e => setOperatorPassword(e.target.value)}
+                        required
+                        placeholder="••••••••"
+                        minLength={6}
+                      />
+                    </div>
+                    <Button
+                      type="submit"
+                      className="w-full bg-yellow-400 py-5 text-lg font-semibold text-black hover:bg-yellow-300"
+                      disabled={submitting}
+                    >
+                      {submitting ? 'Aguarde...' : 'Entrar como operador'}
+                    </Button>
+                    <p className="pt-2 text-sm text-muted-foreground">
+                      Operadores usam apenas usuário e senha definidos pelo administrador.
+                    </p>
+                  </form>
+                </TabsContent>
+              </Tabs>
             </CardContent>
           </Card>
         </motion.div>
@@ -96,12 +182,26 @@ export default function Login() {
 
       <Dialog open={resetOpen} onOpenChange={setResetOpen}>
         <DialogContent>
-          <DialogHeader><DialogTitle>Redefinir Senha</DialogTitle></DialogHeader>
+          <DialogHeader>
+            <DialogTitle>Redefinir Senha</DialogTitle>
+          </DialogHeader>
           <div className="space-y-4">
-            <p className="text-sm text-muted-foreground">Enviaremos um email com link para redefinir sua senha.</p>
-            <div className="space-y-2"><Label>Email</Label><Input type="email" value={resetEmail} onChange={e => setResetEmail(e.target.value)} placeholder="usuario@happycash.com" /></div>
+            <p className="text-sm text-muted-foreground">
+              Enviaremos um email com link para redefinir sua senha.
+            </p>
+            <div className="space-y-2">
+              <Label>Email</Label>
+              <Input
+                type="email"
+                value={resetEmail}
+                onChange={e => setResetEmail(e.target.value)}
+                placeholder="usuario@happycash.com"
+              />
+            </div>
           </div>
-          <DialogFooter><Button onClick={handleReset}>Enviar</Button></DialogFooter>
+          <DialogFooter>
+            <Button onClick={handleReset}>Enviar</Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

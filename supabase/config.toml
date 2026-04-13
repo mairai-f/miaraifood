@@ -1,1 +1,7 @@
 project_id = "ymffclntmynwfdiarlaw"
+
+[functions.manage-operators]
+verify_jwt = false
+
+[functions.operator-login]
+verify_jwt = false
