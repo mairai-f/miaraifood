@@ -1,0 +1,137 @@
+import { createClient } from 'npm:@supabase/supabase-js@2';
+
+type OperatorLoginRequest = {
+  username?: string;
+  password?: string;
+};
+
+type OperatorProfileRow = {
+  user_id: string;
+  email: string | null;
+  username: string | null;
+};
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+};
+
+const jsonResponse = (body: Record<string, unknown>, status = 200) =>
+  new Response(JSON.stringify(body), {
+    status,
+    headers: {
+      ...corsHeaders,
+      'Content-Type': 'application/json',
+    },
+  });
+
+const getBody = async (request: Request): Promise<OperatorLoginRequest | null> => {
+  try {
+    return await request.json();
+  } catch {
+    return null;
+  }
+};
+
+Deno.serve(async (request) => {
+  if (request.method === 'OPTIONS') {
+    return new Response('ok', { headers: corsHeaders });
+  }
+
+  if (request.method !== 'POST') {
+    return jsonResponse({ error: 'Método não suportado.' }, 405);
+  }
+
+  const body = await getBody(request);
+  const username = body?.username?.trim();
+  const password = body?.password?.trim();
+
+  if (!username || !password) {
+    return jsonResponse({ error: 'Informe usuário e senha.' }, 400);
+  }
+
+  const supabaseUrl = Deno.env.get('SUPABASE_URL');
+  const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY');
+  const supabaseServiceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+
+  if (!supabaseUrl || !supabaseAnonKey || !supabaseServiceRoleKey) {
+    return jsonResponse({ error: 'Configuração de autenticação inválida.' }, 500);
+  }
+
+  const serviceClient = createClient(supabaseUrl, supabaseServiceRoleKey, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+    },
+  });
+
+  const authClient = createClient(supabaseUrl, supabaseAnonKey, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+    },
+  });
+
+  const normalizedUsername = username.toLocaleLowerCase('pt-BR');
+
+  const { data: profiles, error: profileError } = await serviceClient
+    .from('profiles')
+    .select('user_id, email, username')
+    .eq('role', 'operator')
+    .ilike('username', normalizedUsername);
+
+  if (profileError || !profiles || profiles.length === 0) {
+    return jsonResponse({ error: 'Usuário ou senha incorretos.' }, 401);
+  }
+
+  const matchingProfiles = (profiles as OperatorProfileRow[]).filter(profile =>
+    (profile.username ?? '').trim().toLocaleLowerCase('pt-BR') === normalizedUsername
+      && typeof profile.email === 'string'
+      && profile.email.length > 0
+  );
+
+  if (matchingProfiles.length === 0) {
+    return jsonResponse({ error: 'Usuário ou senha incorretos.' }, 401);
+  }
+
+  for (const profile of matchingProfiles) {
+    let operatorEmail = profile.email;
+
+    if (!operatorEmail) {
+      const { data: authUserData, error: authUserError } = await serviceClient.auth.admin.getUserById(profile.user_id);
+
+      if (!authUserError && authUserData.user?.email) {
+        operatorEmail = authUserData.user.email;
+
+        await serviceClient
+          .from('profiles')
+          .update({ email: operatorEmail })
+          .eq('user_id', profile.user_id);
+      }
+    }
+
+    if (!operatorEmail) {
+      continue;
+    }
+
+    const { data: sessionData, error: loginError } = await authClient.auth.signInWithPassword({
+      email: operatorEmail,
+      password,
+    });
+
+    if (loginError || !sessionData.session) {
+      continue;
+    }
+
+    return jsonResponse({
+      success: true,
+      session: {
+        access_token: sessionData.session.access_token,
+        refresh_token: sessionData.session.refresh_token,
+      },
+    });
+  }
+
+  return jsonResponse({ error: 'Usuário ou senha incorretos.' }, 401);
+});

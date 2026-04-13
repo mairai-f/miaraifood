@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
+import { useData } from '@/contexts/DataContext';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -8,6 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import { Eye, KeyRound, Plus, Users, Wallet } from 'lucide-react';
+import type { Expense, Sale } from '@/types';
 
 // Generated Supabase types are behind the current schema for these admin tables.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -28,6 +30,19 @@ interface OpenCashSession {
   opened_at: string;
 }
 
+type PaymentMethodKey = 'dinheiro' | 'pix' | 'cartao_debito' | 'cartao_credito';
+
+interface OpenCashSummary {
+  entriesTotal: number;
+  cashOutTotal: number;
+  currentBalance: number;
+  paymentTotals: Record<PaymentMethodKey, number>;
+  otherEntriesTotal: number;
+  salesCount: number;
+  cashOutCount: number;
+  hasLegacyCashOutGap: boolean;
+}
+
 interface OperatorFunctionResponse {
   success?: boolean;
   operator?: {
@@ -44,11 +59,22 @@ interface OperatorManagementPanelProps {
   onCreateDialogOpenChange?: (open: boolean) => void;
 }
 
+const paymentMethodCards: Array<{ key: PaymentMethodKey; label: string }> = [
+  { key: 'dinheiro', label: 'Dinheiro' },
+  { key: 'cartao_debito', label: 'Debito' },
+  { key: 'pix', label: 'Pix' },
+  { key: 'cartao_credito', label: 'Credito' },
+];
+
+const normalizeLabel = (value: string | null | undefined) => value?.trim().toLocaleLowerCase('pt-BR') ?? '';
+const formatMoney = (value: number) => `R$ ${value.toFixed(2)}`;
+
 export function OperatorManagementPanel({
   createDialogOpen: controlledCreateDialogOpen,
   onCreateDialogOpenChange,
 }: OperatorManagementPanelProps) {
   const { isAdmin, ownerUserId } = useAuth();
+  const { sales, expenses, loading: dataLoading } = useData();
   const [operators, setOperators] = useState<OperatorProfile[]>([]);
   const [openCashSessions, setOpenCashSessions] = useState<OpenCashSession[]>([]);
   const [loading, setLoading] = useState(true);
@@ -128,9 +154,70 @@ export function OperatorManagementPanel({
     void loadData();
   }, [loadData]);
 
-  if (!isAdmin) return null;
-
   const openSessionByOperatorId = new Map(openCashSessions.map(session => [session.operator_user_id, session]));
+  const hasSingleOpenSession = openCashSessions.length === 1;
+  const isLoading = loading || dataLoading;
+
+  const matchesSessionSale = useCallback((sale: Sale, cashSession: OpenCashSession) => {
+    if (sale.status === 'cancelled') return false;
+    if (new Date(sale.date).getTime() < new Date(cashSession.opened_at).getTime()) return false;
+    return normalizeLabel(sale.seller_name) === normalizeLabel(cashSession.operator_name);
+  }, []);
+
+  const matchesSessionExpense = useCallback((expense: Expense, cashSession: OpenCashSession) => {
+    if (expense.category !== 'Saída de caixa') return false;
+    if (new Date(expense.date).getTime() < new Date(cashSession.opened_at).getTime()) return false;
+    return hasSingleOpenSession;
+  }, [hasSingleOpenSession]);
+
+  const openCashSummaryByOperatorId = useMemo(() => {
+    return new Map<string, OpenCashSummary>(
+      openCashSessions.map(cashSession => {
+        const sessionSales = sales.filter(sale => matchesSessionSale(sale, cashSession));
+        const sessionCashOuts = expenses.filter(expense => matchesSessionExpense(expense, cashSession));
+        const paymentTotals: Record<PaymentMethodKey, number> = {
+          dinheiro: 0,
+          pix: 0,
+          cartao_debito: 0,
+          cartao_credito: 0,
+        };
+
+        let otherEntriesTotal = 0;
+
+        for (const sale of sessionSales) {
+          if (sale.payment_method in paymentTotals) {
+            paymentTotals[sale.payment_method as PaymentMethodKey] += Number(sale.total || 0);
+            continue;
+          }
+
+          otherEntriesTotal += Number(sale.total || 0);
+        }
+
+        const entriesTotal = sessionSales.reduce((sum, sale) => sum + Number(sale.total || 0), 0);
+        const cashOutTotal = sessionCashOuts.reduce((sum, expense) => sum + Number(expense.amount || 0), 0);
+        const hasLegacyCashOutGap = !hasSingleOpenSession && expenses.some(expense =>
+          expense.category === 'Saída de caixa'
+          && new Date(expense.date).getTime() >= new Date(cashSession.opened_at).getTime()
+        );
+
+        return [
+          cashSession.operator_user_id,
+          {
+            entriesTotal,
+            cashOutTotal,
+            currentBalance: Number(cashSession.opening_amount || 0) + entriesTotal - cashOutTotal,
+            paymentTotals,
+            otherEntriesTotal,
+            salesCount: sessionSales.length,
+            cashOutCount: sessionCashOuts.length,
+            hasLegacyCashOutGap,
+          },
+        ];
+      })
+    );
+  }, [expenses, hasSingleOpenSession, matchesSessionExpense, matchesSessionSale, openCashSessions, sales]);
+
+  if (!isAdmin) return null;
 
   const handleCreateOperator = async () => {
     if (!username.trim() || !email.trim() || !password.trim()) {
@@ -278,7 +365,7 @@ export function OperatorManagementPanel({
 
           <div className="space-y-3">
             <h3 className="font-semibold">Operadores cadastrados</h3>
-            {loading ? (
+            {isLoading ? (
               <p className="text-sm text-muted-foreground">Carregando operadores...</p>
             ) : operators.length === 0 ? (
               <p className="text-sm text-muted-foreground">Nenhum operador cadastrado.</p>
@@ -286,6 +373,7 @@ export function OperatorManagementPanel({
               <div className="grid gap-3 md:grid-cols-2">
                 {operators.map(operator => {
                   const openSession = openSessionByOperatorId.get(operator.user_id);
+                  const openCashSummary = openSession ? openCashSummaryByOperatorId.get(operator.user_id) : null;
 
                   return (
                     <Card key={operator.user_id} className="border-border/50">
@@ -301,9 +389,72 @@ export function OperatorManagementPanel({
                         </div>
 
                         {openSession ? (
-                          <div className="rounded-lg border border-border bg-secondary/20 p-3 text-sm">
-                            <p><strong>Abertura:</strong> {new Date(openSession.opened_at).toLocaleString('pt-BR')}</p>
-                            <p><strong>Valor inicial:</strong> R$ {Number(openSession.opening_amount || 0).toFixed(2)}</p>
+                          <div className="space-y-3 rounded-lg border border-border bg-secondary/20 p-3 text-sm">
+                            <div className="grid gap-2 sm:grid-cols-2">
+                              <div className="rounded-md border border-border/70 bg-background/80 p-3">
+                                <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Operador</p>
+                                <p className="mt-1 font-semibold">{openSession.operator_name}</p>
+                              </div>
+                              <div className="rounded-md border border-border/70 bg-background/80 p-3">
+                                <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Abertura</p>
+                                <p className="mt-1 font-semibold">{new Date(openSession.opened_at).toLocaleString('pt-BR')}</p>
+                              </div>
+                            </div>
+
+                            <div className="grid gap-2 sm:grid-cols-3">
+                              <div className="rounded-md border border-border/70 bg-background/80 p-3">
+                                <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Valor inicial</p>
+                                <p className="mt-1 text-base font-semibold">{formatMoney(Number(openSession.opening_amount || 0))}</p>
+                              </div>
+                              <div className="rounded-md border border-emerald-200/70 bg-emerald-50/60 p-3">
+                                <p className="text-[11px] uppercase tracking-wide text-emerald-700/80">Entradas</p>
+                                <p className="mt-1 text-base font-semibold text-emerald-700">
+                                  {formatMoney(openCashSummary?.entriesTotal ?? 0)}
+                                </p>
+                                <p className="text-xs text-emerald-700/80">
+                                  {openCashSummary?.salesCount ?? 0} venda{(openCashSummary?.salesCount ?? 0) === 1 ? '' : 's'}
+                                </p>
+                              </div>
+                              <div className="rounded-md border border-rose-200/70 bg-rose-50/60 p-3">
+                                <p className="text-[11px] uppercase tracking-wide text-rose-700/80">Saidas</p>
+                                <p className="mt-1 text-base font-semibold text-rose-700">
+                                  {formatMoney(openCashSummary?.cashOutTotal ?? 0)}
+                                </p>
+                                <p className="text-xs text-rose-700/80">
+                                  {openCashSummary?.cashOutCount ?? 0} registro{(openCashSummary?.cashOutCount ?? 0) === 1 ? '' : 's'}
+                                </p>
+                              </div>
+                            </div>
+
+                            <div className="rounded-md border border-primary/20 bg-primary/5 p-3">
+                              <p className="text-[11px] uppercase tracking-wide text-primary/80">Total do caixa aberto</p>
+                              <p className="mt-1 text-lg font-semibold text-primary">
+                                {formatMoney(openCashSummary?.currentBalance ?? Number(openSession.opening_amount || 0))}
+                              </p>
+                            </div>
+
+                            <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+                              {paymentMethodCards.map(paymentMethod => (
+                                <div key={paymentMethod.key} className="rounded-md border border-border/70 bg-background/80 p-3">
+                                  <p className="text-[11px] uppercase tracking-wide text-muted-foreground">{paymentMethod.label}</p>
+                                  <p className="mt-1 font-semibold">
+                                    {formatMoney(openCashSummary?.paymentTotals[paymentMethod.key] ?? 0)}
+                                  </p>
+                                </div>
+                              ))}
+                            </div>
+
+                            {(openCashSummary?.otherEntriesTotal ?? 0) > 0 && (
+                              <p className="text-xs text-muted-foreground">
+                                Outras entradas registradas neste caixa: {formatMoney(openCashSummary?.otherEntriesTotal ?? 0)}
+                              </p>
+                            )}
+
+                            {openCashSummary?.hasLegacyCashOutGap && (
+                              <p className="text-xs text-muted-foreground">
+                                Saidas antigas sem vinculo direto com operador podem nao aparecer neste resumo.
+                              </p>
+                            )}
                           </div>
                         ) : (
                           <p className="text-sm text-muted-foreground">Nenhum caixa aberto para este operador agora.</p>

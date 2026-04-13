@@ -214,7 +214,7 @@ const getPaymentMethodPrintStyle = (paymentMethod: string) => {
 
 export default function PDV() {
   const { products, clients, sales, saleItems, expenses, createSale, addDebtEntries, addExpense, cancelSale } = useData();
-  const { user, username, session, role, ownerUserId } = useAuth();
+  const { user, username, session, role, ownerUserId, isAdmin } = useAuth();
   const navigate = useNavigate();
   const searchInputRef = useRef<HTMLInputElement>(null);
   const cashReceivedInputRef = useRef<HTMLInputElement>(null);
@@ -1550,6 +1550,10 @@ export default function PDV() {
 
   const requestCloseCash = () => {
     if (!cashSession) return;
+    if (!isAdmin) {
+      silentToast.error('Somente administrador pode fechar o caixa');
+      return;
+    }
     if (cart.length > 0) {
       silentToast.error('Finalize ou zere o carrinho antes de fechar o caixa');
       return;
@@ -1561,6 +1565,11 @@ export default function PDV() {
   };
 
   const confirmCloseCashWithAdminPassword = async () => {
+    if (!isAdmin) {
+      setCloseCashAuthError('Somente administrador pode fechar o caixa.');
+      return;
+    }
+
     if (!user?.email) {
       setCloseCashAuthError('Não foi possível identificar o usuário logado.');
       return;
@@ -1764,7 +1773,9 @@ export default function PDV() {
 
         if (event.key === '5') {
           event.preventDefault();
-          requestCloseCash();
+          if (isAdmin) {
+            requestCloseCash();
+          }
           return;
         }
 
@@ -1782,7 +1793,9 @@ export default function PDV() {
 
         if (event.key === '7') {
           event.preventDefault();
-          requestCloseCash();
+          if (isAdmin) {
+            requestCloseCash();
+          }
           return;
         }
       }
@@ -1813,7 +1826,7 @@ export default function PDV() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [activeProducts, filtered, search, cart, discount, paymentMethod, cashReceived, selectedClientId, total, change, canFinalizeCheckout, showCheckout, showFinalizeConfirm, showReceipt, showSalesSearch, showCancelledSales, showCashOut, showCloseCashReceipt, showOpenCashDialog, saleToCancel, navigate]);
+  }, [activeProducts, filtered, search, cart, discount, paymentMethod, cashReceived, selectedClientId, total, change, canFinalizeCheckout, showCheckout, showFinalizeConfirm, showReceipt, showSalesSearch, showCancelledSales, showCashOut, showCloseCashReceipt, showOpenCashDialog, saleToCancel, navigate, isAdmin]);
 
   return (
     <div className="flex min-h-[calc(100vh-1.5rem)] flex-col gap-4 sm:min-h-[calc(100vh-2rem)] lg:h-[calc(100vh-3rem)] lg:flex-row">
@@ -1833,7 +1846,13 @@ export default function PDV() {
             <span className="inline-flex items-center rounded border border-border px-2.5 py-1 text-sm font-semibold">
               Caixa: {cashSession ? formatMoney(currentCashBalance) : 'fechado'}
             </span>
-            <Button variant="destructive" size="sm" onClick={requestCloseCash} disabled={!cashSession}>Fechar caixa (5)</Button>
+            {isAdmin ? (
+              <Button variant="destructive" size="sm" onClick={requestCloseCash} disabled={!cashSession}>Fechar caixa (5)</Button>
+            ) : (
+              <span className="inline-flex items-center rounded border border-border px-2.5 py-1 text-xs text-muted-foreground">
+                Fechamento apenas por administrador
+              </span>
+            )}
           </div>
         </div>
         <div className="relative mb-3">
@@ -2243,10 +2262,10 @@ export default function PDV() {
         }}
       >
         <DialogContent>
-          <DialogHeader><DialogTitle>Confirmar fechamento</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>Confirmar fechamento (admin)</DialogTitle></DialogHeader>
           <div className="space-y-3">
             <p className="text-sm text-muted-foreground">
-              Para fechar o caixa, confirme a senha do usuário logado.
+              Para fechar o caixa, confirme a senha do administrador logado.
             </p>
             <div className="space-y-1">
               <Label>Usuário</Label>
