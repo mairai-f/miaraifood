@@ -15,6 +15,10 @@ export const openExternalUrl = (url: string) => {
     return false;
   }
 
+  if (typeof window.electronAPI?.openExternal === 'function') {
+    return window.electronAPI.openExternal(parsedUrl.toString());
+  }
+
   const openedWindow = window.open(parsedUrl.toString(), '_blank', 'noopener,noreferrer');
 
   if (!openedWindow) {

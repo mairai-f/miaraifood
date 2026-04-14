@@ -63,3 +63,18 @@ Comportamento:
 - O sistema envia primeiro para o e-mail do usuário autenticado que fechou o caixa.
 - Se o usuário autenticado não tiver e-mail disponível, ele usa `CASH_CLOSE_REPORT_RECIPIENTS` como fallback.
 - O fechamento do caixa continua normalmente mesmo se o envio falhar, e o status aparece no recibo de fechamento.
+
+__________________________________________________________________________________
+🖥️ Versão Desktop (Electron) :
+
+O projeto agora está preparado para rodar e empacotar como aplicativo desktop.
+
+```bash
+# rodar desktop em desenvolvimento
+npm run electron:dev
+
+# gerar executável/instalador da plataforma atual
+npm run electron:build
+```
+
+O arquivo final será gerado na pasta `release/`.
