@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Eye, EyeOff } from 'lucide-react';
 import { toast } from 'sonner';
 import happyCashLogo from '@/assets/happycash-logo.png';
 
@@ -16,8 +17,10 @@ export default function Login() {
   const [loginMode, setLoginMode] = useState<LoginMode>('admin');
   const [email, setEmail] = useState('');
   const [adminPassword, setAdminPassword] = useState('');
+  const [showAdminPassword, setShowAdminPassword] = useState(false);
   const [operatorUsername, setOperatorUsername] = useState('');
   const [operatorPassword, setOperatorPassword] = useState('');
+  const [showOperatorPassword, setShowOperatorPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const { login, loginOperator, resetPassword } = useAuth();
 
@@ -119,14 +122,26 @@ export default function Login() {
                     </div>
                     <div className="space-y-2">
                       <Label>Senha</Label>
-                      <Input
-                        type="password"
-                        value={adminPassword}
-                        onChange={e => setAdminPassword(e.target.value)}
-                        required
-                        placeholder="••••••••"
-                        minLength={6}
-                      />
+                      <div className="relative">
+                        <Input
+                          type={showAdminPassword ? 'text' : 'password'}
+                          value={adminPassword}
+                          onChange={e => setAdminPassword(e.target.value)}
+                          required
+                          placeholder="••••••••"
+                          minLength={6}
+                          autoComplete="current-password"
+                          className="pr-10"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowAdminPassword(current => !current)}
+                          className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground"
+                          aria-label={showAdminPassword ? 'Ocultar senha' : 'Mostrar senha'}
+                        >
+                          {showAdminPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        </button>
+                      </div>
                     </div>
                     <Button
                       type="submit"
@@ -165,14 +180,26 @@ export default function Login() {
                     </div>
                     <div className="space-y-2">
                       <Label>Senha</Label>
-                      <Input
-                        type="password"
-                        value={operatorPassword}
-                        onChange={e => setOperatorPassword(e.target.value)}
-                        required
-                        placeholder="••••••••"
-                        minLength={6}
-                      />
+                      <div className="relative">
+                        <Input
+                          type={showOperatorPassword ? 'text' : 'password'}
+                          value={operatorPassword}
+                          onChange={e => setOperatorPassword(e.target.value)}
+                          required
+                          placeholder="••••••••"
+                          minLength={6}
+                          autoComplete="current-password"
+                          className="pr-10"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowOperatorPassword(current => !current)}
+                          className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground"
+                          aria-label={showOperatorPassword ? 'Ocultar senha' : 'Mostrar senha'}
+                        >
+                          {showOperatorPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        </button>
+                      </div>
                     </div>
                     <Button
                       type="submit"
