@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
@@ -13,10 +14,17 @@ import happyCashLogo from '@/assets/happycash-logo.png';
 type LoginMode = 'admin' | 'operator';
 
 export default function Login() {
+<<<<<<< HEAD
   const [loginMode, setLoginMode] = useState<LoginMode>('admin');
   const [email, setEmail] = useState('');
   const [adminPassword, setAdminPassword] = useState('');
   const [operatorUsername, setOperatorUsername] = useState('');
+=======
+  const [loginMode, setLoginMode] = useState<'admin' | 'operator'>('admin');
+  const [email, setEmail] = useState('');
+  const [operatorUsername, setOperatorUsername] = useState('');
+  const [adminPassword, setAdminPassword] = useState('');
+>>>>>>> main
   const [operatorPassword, setOperatorPassword] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const { login, loginOperator, resetPassword } = useAuth();
@@ -28,7 +36,15 @@ export default function Login() {
     e.preventDefault();
     setSubmitting(true);
     const result = await login(email, adminPassword);
+<<<<<<< HEAD
     if (result !== true) toast.error(result || 'Email ou senha incorretos.');
+=======
+
+    if (result !== true) {
+      toast.error(result);
+    }
+
+>>>>>>> main
     setSubmitting(false);
   };
 
@@ -36,7 +52,15 @@ export default function Login() {
     e.preventDefault();
     setSubmitting(true);
     const result = await loginOperator(operatorUsername, operatorPassword);
+<<<<<<< HEAD
     if (result !== true) toast.error(result || 'Usuário ou senha incorretos.');
+=======
+
+    if (result !== true) {
+      toast.error(result);
+    }
+
+>>>>>>> main
     setSubmitting(false);
   };
 
@@ -87,14 +111,23 @@ export default function Login() {
               </p>
             </CardHeader>
             <CardContent>
+<<<<<<< HEAD
               <Tabs value={loginMode} onValueChange={(value) => setLoginMode(value as LoginMode)}>
                 <TabsList className="grid w-full grid-cols-2">
+=======
+              <Tabs value={loginMode} onValueChange={value => setLoginMode(value as 'admin' | 'operator')} className="w-full">
+                <TabsList className="mb-4 grid w-full grid-cols-2 bg-zinc-900/70">
+>>>>>>> main
                   <TabsTrigger value="admin">Administrador</TabsTrigger>
                   <TabsTrigger value="operator">Operador</TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="admin">
+<<<<<<< HEAD
                   <form onSubmit={handleAdminSubmit} className="space-y-4 pt-4">
+=======
+                  <form onSubmit={handleAdminSubmit} className="space-y-4">
+>>>>>>> main
                     <div className="space-y-2">
                       <Label>Email</Label>
                       <Input
@@ -125,7 +158,11 @@ export default function Login() {
                     </Button>
                     <div className="flex flex-col gap-3 pt-2 sm:flex-row sm:items-center sm:justify-between">
                       <p className="text-sm text-muted-foreground">
+<<<<<<< HEAD
                         Administradores acessam com email e senha.
+=======
+                        Operadores são criados pelo administrador.
+>>>>>>> main
                       </p>
                       <button
                         type="button"
@@ -139,16 +176,24 @@ export default function Login() {
                 </TabsContent>
 
                 <TabsContent value="operator">
+<<<<<<< HEAD
                   <form onSubmit={handleOperatorSubmit} className="space-y-4 pt-4">
+=======
+                  <form onSubmit={handleOperatorSubmit} className="space-y-4">
+>>>>>>> main
                     <div className="space-y-2">
                       <Label>Usuário</Label>
                       <Input
                         value={operatorUsername}
                         onChange={e => setOperatorUsername(e.target.value)}
                         required
+<<<<<<< HEAD
                         placeholder="Ex: operador.caixa"
                         autoCapitalize="none"
                         autoCorrect="off"
+=======
+                        placeholder="operador.caixa"
+>>>>>>> main
                       />
                     </div>
                     <div className="space-y-2">
@@ -170,7 +215,11 @@ export default function Login() {
                       {submitting ? 'Aguarde...' : 'Entrar como operador'}
                     </Button>
                     <p className="pt-2 text-sm text-muted-foreground">
+<<<<<<< HEAD
                       Operadores usam apenas usuário e senha definidos pelo administrador.
+=======
+                      Use o usuário cadastrado em Configurações e a senha definida pelo administrador.
+>>>>>>> main
                     </p>
                   </form>
                 </TabsContent>

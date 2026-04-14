@@ -53,6 +53,7 @@ interface OpenCashSummary {
   hasLegacyCashOutGap: boolean;
 }
 
+<<<<<<< HEAD
 const paymentMethodCards: Array<{ key: PaymentMethodKey; label: string }> = [
   { key: 'dinheiro', label: 'Dinheiro' },
   { key: 'cartao_debito', label: 'Debito' },
@@ -63,8 +64,13 @@ const paymentMethodCards: Array<{ key: PaymentMethodKey; label: string }> = [
 const normalizeLabel = (value: string | null | undefined) => value?.trim().toLocaleLowerCase('pt-BR') ?? '';
 const formatMoney = (value: number) => `R$ ${value.toFixed(2)}`;
 
+=======
+>>>>>>> main
 interface OperatorFunctionResponse {
   success?: boolean;
+  cashSession?: {
+    id: string;
+  };
   operator?: {
     user_id: string;
     username: string;
@@ -78,6 +84,16 @@ interface OperatorManagementPanelProps {
   onCreateDialogOpenChange?: (open: boolean) => void;
 }
 
+const paymentMethodCards: Array<{ key: PaymentMethodKey; label: string }> = [
+  { key: 'dinheiro', label: 'Dinheiro' },
+  { key: 'cartao_debito', label: 'Debito' },
+  { key: 'pix', label: 'Pix' },
+  { key: 'cartao_credito', label: 'Credito' },
+];
+
+const normalizeLabel = (value: string | null | undefined) => value?.trim().toLocaleLowerCase('pt-BR') ?? '';
+const formatMoney = (value: number) => `R$ ${value.toFixed(2)}`;
+
 export function OperatorManagementPanel({
   createDialogOpen: controlledCreateDialogOpen,
   onCreateDialogOpenChange,
@@ -89,11 +105,18 @@ export function OperatorManagementPanel({
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [resetting, setResetting] = useState(false);
+<<<<<<< HEAD
+=======
+  const [openingCash, setOpeningCash] = useState(false);
+>>>>>>> main
   const [deletingOperatorId, setDeletingOperatorId] = useState<string | null>(null);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [openingAmount, setOpeningAmount] = useState('');
+  const [openCashDialogOpen, setOpenCashDialogOpen] = useState(false);
   const [resetDialogOpen, setResetDialogOpen] = useState(false);
   const [resetPassword, setResetPassword] = useState('');
+  const [operatorToOpenCash, setOperatorToOpenCash] = useState<OperatorProfile | null>(null);
   const [selectedOperator, setSelectedOperator] = useState<OperatorProfile | null>(null);
   const [latestCredential, setLatestCredential] = useState<{
     username: string;
@@ -116,6 +139,27 @@ export function OperatorManagementPanel({
       resetCreateForm();
     }
   }, [resetCreateForm, setCreateDialogOpen]);
+
+  const resolveFunctionErrorMessage = useCallback(async (
+    error: unknown,
+    fallbackMessage: string,
+    data?: OperatorFunctionResponse
+  ) => {
+    let functionErrorMessage = data?.error || fallbackMessage;
+
+    if (error && typeof error === 'object' && 'context' in error && error.context instanceof Response) {
+      try {
+        const errorPayload = await error.context.clone().json() as { error?: string; message?: string };
+        functionErrorMessage = errorPayload.error || errorPayload.message || functionErrorMessage;
+      } catch {
+        functionErrorMessage = error.context.status === 401
+          ? 'Sua sessão expirou. Entre novamente para continuar.'
+          : functionErrorMessage;
+      }
+    }
+
+    return functionErrorMessage;
+  }, []);
 
   const loadData = useCallback(async () => {
     if (!isAdmin || !ownerUserId) {
@@ -168,16 +212,22 @@ export function OperatorManagementPanel({
   const matchesSessionSale = useCallback((sale: Sale, cashSession: OpenCashSession) => {
     if (sale.status === 'cancelled') return false;
     if (new Date(sale.date).getTime() < new Date(cashSession.opened_at).getTime()) return false;
+<<<<<<< HEAD
     if (sale.cash_session_id) return sale.cash_session_id === cashSession.id;
     if (sale.operator_user_id) return sale.operator_user_id === cashSession.operator_user_id;
+=======
+>>>>>>> main
     return normalizeLabel(sale.seller_name) === normalizeLabel(cashSession.operator_name);
   }, []);
 
   const matchesSessionExpense = useCallback((expense: Expense, cashSession: OpenCashSession) => {
     if (expense.category !== 'Saída de caixa') return false;
     if (new Date(expense.date).getTime() < new Date(cashSession.opened_at).getTime()) return false;
+<<<<<<< HEAD
     if (expense.cash_session_id) return expense.cash_session_id === cashSession.id;
     if (expense.operator_user_id) return expense.operator_user_id === cashSession.operator_user_id;
+=======
+>>>>>>> main
     return hasSingleOpenSession;
   }, [hasSingleOpenSession]);
 
@@ -208,8 +258,11 @@ export function OperatorManagementPanel({
         const cashOutTotal = sessionCashOuts.reduce((sum, expense) => sum + Number(expense.amount || 0), 0);
         const hasLegacyCashOutGap = !hasSingleOpenSession && expenses.some(expense =>
           expense.category === 'Saída de caixa'
+<<<<<<< HEAD
           && !expense.cash_session_id
           && !expense.operator_user_id
+=======
+>>>>>>> main
           && new Date(expense.date).getTime() >= new Date(cashSession.opened_at).getTime()
         );
 
@@ -238,8 +291,13 @@ export function OperatorManagementPanel({
       return;
     }
 
+<<<<<<< HEAD
     if (!username.trim() || !password.trim()) {
       toast.error('Preencha usuário e senha');
+=======
+    if (!username.trim() || !email.trim() || !password.trim()) {
+      toast.error('Preencha nome, e-mail e senha');
+>>>>>>> main
       return;
     }
 
@@ -276,7 +334,11 @@ export function OperatorManagementPanel({
       }
 
       console.error('Erro ao criar operador:', error);
+<<<<<<< HEAD
       toast.error(functionErrorMessage);
+=======
+      toast.error(await resolveFunctionErrorMessage(error, 'Não foi possível criar o operador', data));
+>>>>>>> main
       setCreating(false);
       return;
     }
@@ -336,7 +398,11 @@ export function OperatorManagementPanel({
       }
 
       console.error('Erro ao redefinir senha do operador:', error);
+<<<<<<< HEAD
       toast.error(functionErrorMessage);
+=======
+      toast.error(await resolveFunctionErrorMessage(error, 'Não foi possível redefinir a senha', data));
+>>>>>>> main
       setResetting(false);
       return;
     }
@@ -353,6 +419,51 @@ export function OperatorManagementPanel({
     setResetting(false);
   };
 
+<<<<<<< HEAD
+=======
+  const handleOpenCashForOperator = async () => {
+    if (!session?.access_token) {
+      toast.error('Sua sessão expirou. Entre novamente para abrir caixas.');
+      return;
+    }
+
+    if (!operatorToOpenCash) return;
+
+    const parsedOpeningAmount = Number.parseFloat(openingAmount || '0');
+    if (Number.isNaN(parsedOpeningAmount) || parsedOpeningAmount < 0) {
+      toast.error('Informe um valor inicial valido');
+      return;
+    }
+
+    setOpeningCash(true);
+
+    const { data, error } = await supabase.functions.invoke<OperatorFunctionResponse>('manage-operators', {
+      headers: {
+        Authorization: `Bearer ${session.access_token}`,
+      },
+      body: {
+        action: 'open_cash',
+        operatorUserId: operatorToOpenCash.user_id,
+        openingAmount: Number(parsedOpeningAmount.toFixed(2)),
+      },
+    });
+
+    if (error || !data?.success || !data.cashSession) {
+      console.error('Erro ao abrir caixa do operador:', error);
+      toast.error(await resolveFunctionErrorMessage(error, 'Não foi possível abrir o caixa para este operador', data));
+      setOpeningCash(false);
+      return;
+    }
+
+    toast.success(`Caixa aberto para ${operatorToOpenCash.username}`);
+    setOpenCashDialogOpen(false);
+    setOperatorToOpenCash(null);
+    setOpeningAmount('');
+    await loadData();
+    setOpeningCash(false);
+  };
+
+>>>>>>> main
   const handleDeleteOperator = async (operator: OperatorProfile) => {
     if (!session?.access_token) {
       toast.error('Sua sessão expirou. Entre novamente para excluir operadores.');
@@ -372,6 +483,7 @@ export function OperatorManagementPanel({
     });
 
     if (error || !data?.success) {
+<<<<<<< HEAD
       let functionErrorMessage = data?.error || 'Não foi possível excluir o operador';
 
       if (error && typeof error === 'object' && 'context' in error && error.context instanceof Response) {
@@ -387,11 +499,19 @@ export function OperatorManagementPanel({
 
       console.error('Erro ao excluir operador:', error);
       toast.error(functionErrorMessage);
+=======
+      console.error('Erro ao excluir operador:', error);
+      toast.error(await resolveFunctionErrorMessage(error, 'Não foi possível excluir o operador', data));
+>>>>>>> main
       setDeletingOperatorId(null);
       return;
     }
 
+<<<<<<< HEAD
     toast.success(`Operador ${operator.username} excluído com sucesso`);
+=======
+    toast.success(`Operador ${operator.username} excluido com sucesso`);
+>>>>>>> main
     await loadData();
     setDeletingOperatorId(null);
   };
@@ -568,6 +688,7 @@ export function OperatorManagementPanel({
                             <KeyRound className="mr-2 h-4 w-4" />
                             Redefinir senha
                           </Button>
+<<<<<<< HEAD
                           {!openSession && (
                             <AlertDialog>
                               <AlertDialogTrigger asChild>
@@ -600,6 +721,55 @@ export function OperatorManagementPanel({
                               </AlertDialogContent>
                             </AlertDialog>
                           )}
+=======
+
+                          {!openSession && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="flex-1"
+                              onClick={() => {
+                                setOperatorToOpenCash(operator);
+                                setOpeningAmount('0.00');
+                                setOpenCashDialogOpen(true);
+                              }}
+                            >
+                              <Wallet className="mr-2 h-4 w-4" />
+                              Abrir caixa
+                            </Button>
+                          )}
+
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button
+                                variant="destructive"
+                                size="sm"
+                                className="flex-1"
+                                disabled={deletingOperatorId === operator.user_id}
+                              >
+                                <Trash2 className="mr-2 h-4 w-4" />
+                                {deletingOperatorId === operator.user_id ? 'Excluindo...' : 'Excluir'}
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Excluir operador?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  O operador "{operator.username}" sera removido do sistema.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                <AlertDialogAction
+                                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                  onClick={() => void handleDeleteOperator(operator)}
+                                >
+                                  Excluir operador
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+>>>>>>> main
                         </div>
                       </CardContent>
                     </Card>
@@ -637,6 +807,53 @@ export function OperatorManagementPanel({
             </Button>
             <Button onClick={() => void handleCreateOperator()} disabled={creating}>
               {creating ? 'Criando...' : 'Criar operador'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={openCashDialogOpen}
+        onOpenChange={open => {
+          setOpenCashDialogOpen(open);
+          if (!open) {
+            setOperatorToOpenCash(null);
+            setOpeningAmount('');
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Abrir caixa para operador</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-3">
+            <div className="space-y-1">
+              <Label>Operador</Label>
+              <Input value={operatorToOpenCash?.username || ''} readOnly />
+            </div>
+            <div className="space-y-1">
+              <Label>Valor inicial</Label>
+              <Input
+                type="number"
+                step="0.01"
+                min="0"
+                value={openingAmount}
+                onChange={event => setOpeningAmount(event.target.value)}
+                placeholder="0.00"
+              />
+            </div>
+            <p className="text-xs text-muted-foreground">
+              O operador selecionado tera o caixa aberto com este valor inicial.
+            </p>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setOpenCashDialogOpen(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={() => void handleOpenCashForOperator()} disabled={openingCash}>
+              {openingCash ? 'Abrindo...' : 'Abrir caixa'}
             </Button>
           </DialogFooter>
         </DialogContent>

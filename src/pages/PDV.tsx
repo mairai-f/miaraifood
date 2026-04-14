@@ -214,7 +214,7 @@ const getPaymentMethodPrintStyle = (paymentMethod: string) => {
 
 export default function PDV() {
   const { products, clients, sales, saleItems, expenses, createSale, addDebtEntries, addExpense, cancelSale } = useData();
-  const { user, username, session, role, ownerUserId } = useAuth();
+  const { user, username, session, role, ownerUserId, isAdmin } = useAuth();
   const navigate = useNavigate();
   const searchInputRef = useRef<HTMLInputElement>(null);
   const cashReceivedInputRef = useRef<HTMLInputElement>(null);
@@ -246,6 +246,7 @@ export default function PDV() {
   const [showCloseCashReceipt, setShowCloseCashReceipt] = useState(false);
   const [showCloseCashAuth, setShowCloseCashAuth] = useState(false);
   const [showCloseCashSendDialog, setShowCloseCashSendDialog] = useState(false);
+  const [adminEmail, setAdminEmail] = useState('');
   const [adminPassword, setAdminPassword] = useState('');
   const [closeCashAuthError, setCloseCashAuthError] = useState('');
   const [closeCashEmailStatus, setCloseCashEmailStatus] = useState<CloseCashEmailStatus>('idle');
@@ -1416,7 +1417,7 @@ export default function PDV() {
     silentToast.success('Caixa aberto!');
   };
 
-  const handleCloseCash = async () => {
+  const handleCloseCash = async (cashClient: typeof db = db) => {
     if (!cashSession) return;
 
     const receipt: CashCloseReceipt = {
@@ -1434,7 +1435,7 @@ export default function PDV() {
     };
 
     if (cashSession.id) {
-      const { error } = await db
+      const { error } = await cashClient
         .from('cash_sessions')
         .update({
           status: 'closed',
@@ -1557,14 +1558,17 @@ export default function PDV() {
       return;
     }
 
+    setAdminEmail(isAdmin ? (user?.email || '') : '');
     setAdminPassword('');
     setCloseCashAuthError('');
     setShowCloseCashAuth(true);
   };
 
   const confirmCloseCashWithAdminPassword = async () => {
-    if (!user?.email) {
-      setCloseCashAuthError('Não foi possível identificar o usuário logado.');
+    const normalizedAdminEmail = adminEmail.trim().toLowerCase();
+
+    if (!normalizedAdminEmail) {
+      setCloseCashAuthError('Digite o email do administrador.');
       return;
     }
 
@@ -1577,24 +1581,50 @@ export default function PDV() {
     setCloseCashAuthError('');
 
     try {
-      const { error } = await adminVerificationClient.auth.signInWithPassword({
-        email: user.email,
+      const { data: authData, error } = await adminVerificationClient.auth.signInWithPassword({
+        email: normalizedAdminEmail,
         password: adminPassword,
       });
 
       if (error) {
-        setCloseCashAuthError('Senha incorreta.');
+        setCloseCashAuthError('Email ou senha de administrador incorretos.');
         return;
       }
 
-      await adminVerificationClient.auth.signOut();
+      const adminUserId = authData.user?.id;
+
+      if (!adminUserId) {
+        setCloseCashAuthError('Não foi possível validar o administrador.');
+        return;
+      }
+
+      const adminDb = adminVerificationClient as any;
+      const { data: adminProfile, error: adminProfileError } = await adminDb
+        .from('profiles')
+        .select('role, owner_user_id')
+        .eq('user_id', adminUserId)
+        .maybeSingle();
+
+      if (adminProfileError || !adminProfile || adminProfile.role !== 'admin') {
+        setCloseCashAuthError('A conta informada não é de administrador.');
+        return;
+      }
+
+      const adminOwnerUserId = adminProfile.owner_user_id ?? adminUserId;
+      if (ownerUserId && adminOwnerUserId !== ownerUserId) {
+        setCloseCashAuthError('Administrador não pertence a esta loja.');
+        return;
+      }
+
       setShowCloseCashAuth(false);
+      setAdminEmail('');
       setAdminPassword('');
-      await handleCloseCash();
+      await handleCloseCash(adminDb);
     } catch (error) {
       console.error('Erro ao validar senha para fechamento do caixa:', error);
-      setCloseCashAuthError('Não foi possível validar sua senha.');
+      setCloseCashAuthError('Não foi possível validar as credenciais do administrador.');
     } finally {
+      await adminVerificationClient.auth.signOut();
       setIsVerifyingAdminPassword(false);
     }
   };
@@ -1818,7 +1848,7 @@ export default function PDV() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [activeProducts, filtered, search, cart, discount, paymentMethod, cashReceived, selectedClientId, total, change, canFinalizeCheckout, showCheckout, showFinalizeConfirm, showReceipt, showSalesSearch, showCancelledSales, showCashOut, showCloseCashReceipt, showOpenCashDialog, saleToCancel, navigate]);
+  }, [activeProducts, filtered, search, cart, discount, paymentMethod, cashReceived, selectedClientId, total, change, canFinalizeCheckout, showCheckout, showFinalizeConfirm, showReceipt, showSalesSearch, showCancelledSales, showCashOut, showCloseCashReceipt, showOpenCashDialog, saleToCancel, navigate, isAdmin]);
 
   return (
     <div className="flex min-h-[calc(100vh-1.5rem)] flex-col gap-4 sm:min-h-[calc(100vh-2rem)] lg:h-[calc(100vh-3rem)] lg:flex-row">
@@ -2242,25 +2272,31 @@ export default function PDV() {
         onOpenChange={open => {
           setShowCloseCashAuth(open);
           if (!open) {
+            setAdminEmail('');
             setAdminPassword('');
             setCloseCashAuthError('');
           }
         }}
       >
         <DialogContent>
-          <DialogHeader><DialogTitle>Confirmar fechamento</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>Confirmar fechamento (administrador)</DialogTitle></DialogHeader>
           <div className="space-y-3">
             <p className="text-sm text-muted-foreground">
-              Para fechar o caixa, confirme a senha do usuário logado.
+              Para fechar o caixa, informe o login e a senha de um administrador da loja.
             </p>
             <div className="space-y-1">
-              <Label>Usuário</Label>
-              <Input value={username || user?.email || 'Usuário'} readOnly />
+              <Label>Login do administrador (email)</Label>
+              <Input
+                autoFocus
+                type="email"
+                value={adminEmail}
+                onChange={e => setAdminEmail(e.target.value)}
+                placeholder="admin@empresa.com"
+              />
             </div>
             <div className="space-y-1">
               <Label>Senha</Label>
               <Input
-                autoFocus
                 type="password"
                 value={adminPassword}
                 onChange={e => setAdminPassword(e.target.value)}
@@ -2282,6 +2318,7 @@ export default function PDV() {
               variant="outline"
               onClick={() => {
                 setShowCloseCashAuth(false);
+                setAdminEmail('');
                 setAdminPassword('');
                 setCloseCashAuthError('');
               }}
