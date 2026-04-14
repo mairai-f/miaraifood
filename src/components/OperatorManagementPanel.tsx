@@ -29,7 +29,6 @@ const db = supabase as any;
 interface OperatorProfile {
   user_id: string;
   username: string;
-  email: string | null;
   created_at: string;
 }
 
@@ -53,7 +52,6 @@ interface OpenCashSummary {
   cashOutCount: number;
   hasLegacyCashOutGap: boolean;
 }
-
 interface OperatorFunctionResponse {
   success?: boolean;
   cashSession?: {
@@ -62,7 +60,6 @@ interface OperatorFunctionResponse {
   operator?: {
     user_id: string;
     username: string;
-    email: string | null;
   };
   temporaryPassword?: string;
   error?: string;
@@ -97,7 +94,6 @@ export function OperatorManagementPanel({
   const [openingCash, setOpeningCash] = useState(false);
   const [deletingOperatorId, setDeletingOperatorId] = useState<string | null>(null);
   const [username, setUsername] = useState('');
-  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [openingAmount, setOpeningAmount] = useState('');
   const [openCashDialogOpen, setOpenCashDialogOpen] = useState(false);
@@ -107,7 +103,6 @@ export function OperatorManagementPanel({
   const [selectedOperator, setSelectedOperator] = useState<OperatorProfile | null>(null);
   const [latestCredential, setLatestCredential] = useState<{
     username: string;
-    email: string | null;
     temporaryPassword: string;
   } | null>(null);
   const [internalCreateDialogOpen, setInternalCreateDialogOpen] = useState(false);
@@ -117,7 +112,6 @@ export function OperatorManagementPanel({
 
   const resetCreateForm = useCallback(() => {
     setUsername('');
-    setEmail('');
     setPassword('');
   }, []);
 
@@ -163,7 +157,7 @@ export function OperatorManagementPanel({
     const [{ data: operatorRows, error: operatorError }, { data: openRows, error: openError }] = await Promise.all([
       db
         .from('profiles')
-        .select('user_id, username, email, created_at')
+        .select('user_id, username, created_at')
         .eq('owner_user_id', ownerUserId)
         .eq('role', 'operator')
         .order('created_at', { ascending: false }),
@@ -265,8 +259,8 @@ export function OperatorManagementPanel({
       return;
     }
 
-    if (!username.trim() || !email.trim() || !password.trim()) {
-      toast.error('Preencha nome, e-mail e senha');
+    if (!username.trim() || !password.trim()) {
+      toast.error('Preencha usuário e senha');
       return;
     }
 
@@ -284,12 +278,24 @@ export function OperatorManagementPanel({
       body: {
         action: 'create',
         username: username.trim(),
-        email: email.trim(),
         password: password.trim(),
       },
     });
 
     if (error || !data?.success || !data.operator || !data.temporaryPassword) {
+      let functionErrorMessage = data?.error || 'Não foi possível criar o operador';
+
+      if (error && typeof error === 'object' && 'context' in error && error.context instanceof Response) {
+        try {
+          const errorPayload = await error.context.clone().json() as { error?: string; message?: string };
+          functionErrorMessage = errorPayload.error || errorPayload.message || functionErrorMessage;
+        } catch {
+          functionErrorMessage = error.context.status === 401
+            ? 'Sua sessão expirou ou não foi enviada corretamente. Entre novamente e tente de novo.'
+            : functionErrorMessage;
+        }
+      }
+
       console.error('Erro ao criar operador:', error);
       toast.error(await resolveFunctionErrorMessage(error, 'Não foi possível criar o operador', data));
       setCreating(false);
@@ -298,7 +304,6 @@ export function OperatorManagementPanel({
 
     setLatestCredential({
       username: data.operator.username,
-      email: data.operator.email,
       temporaryPassword: data.temporaryPassword,
     });
     resetCreateForm();
@@ -338,6 +343,19 @@ export function OperatorManagementPanel({
     });
 
     if (error || !data?.success || !data.operator || !data.temporaryPassword) {
+      let functionErrorMessage = data?.error || 'Não foi possível redefinir a senha';
+
+      if (error && typeof error === 'object' && 'context' in error && error.context instanceof Response) {
+        try {
+          const errorPayload = await error.context.clone().json() as { error?: string; message?: string };
+          functionErrorMessage = errorPayload.error || errorPayload.message || functionErrorMessage;
+        } catch {
+          functionErrorMessage = error.context.status === 401
+            ? 'Sua sessão expirou ou não foi enviada corretamente. Entre novamente e tente de novo.'
+            : functionErrorMessage;
+        }
+      }
+
       console.error('Erro ao redefinir senha do operador:', error);
       toast.error(await resolveFunctionErrorMessage(error, 'Não foi possível redefinir a senha', data));
       setResetting(false);
@@ -346,7 +364,6 @@ export function OperatorManagementPanel({
 
     setLatestCredential({
       username: data.operator.username,
-      email: data.operator.email,
       temporaryPassword: data.temporaryPassword,
     });
     setResetPassword('');
@@ -398,7 +415,6 @@ export function OperatorManagementPanel({
     await loadData();
     setOpeningCash(false);
   };
-
   const handleDeleteOperator = async (operator: OperatorProfile) => {
     if (!session?.access_token) {
       toast.error('Sua sessão expirou. Entre novamente para excluir operadores.');
@@ -476,13 +492,12 @@ export function OperatorManagementPanel({
 
             {latestCredential ? (
               <div className="space-y-2 rounded-lg border border-primary/20 bg-primary/5 p-4 text-sm">
-                <p><strong>Nome:</strong> {latestCredential.username}</p>
-                <p><strong>E-mail:</strong> {latestCredential.email || 'Sem e-mail'}</p>
+                <p><strong>Usuário:</strong> {latestCredential.username}</p>
                 <p><strong>Senha provisoria:</strong> {latestCredential.temporaryPassword}</p>
               </div>
             ) : (
               <p className="text-sm text-muted-foreground">
-                A senha aparece apenas quando o operador e criado ou quando voce redefine a senha dele.
+                O usuário e a senha aparecem apenas quando o operador e criado ou quando voce redefine a senha dele.
               </p>
             )}
 
@@ -509,7 +524,7 @@ export function OperatorManagementPanel({
                         <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0">
                             <p className="truncate font-semibold">{operator.username}</p>
-                            <p className="truncate text-sm text-muted-foreground">{operator.email || 'Sem e-mail'}</p>
+                            <p className="truncate text-sm text-muted-foreground">Login do operador</p>
                           </div>
                           <span className={`rounded-full px-2 py-1 text-[11px] font-semibold ${openSession ? 'bg-primary/15 text-primary' : 'bg-secondary text-muted-foreground'}`}>
                             {openSession ? 'Caixa aberto' : 'Caixa fechado'}
@@ -602,7 +617,6 @@ export function OperatorManagementPanel({
                             <KeyRound className="mr-2 h-4 w-4" />
                             Redefinir senha
                           </Button>
-
                           {!openSession && (
                             <Button
                               variant="outline"
@@ -668,17 +682,16 @@ export function OperatorManagementPanel({
 
           <div className="space-y-3">
             <div className="space-y-1">
-              <Label>Nome</Label>
-              <Input value={username} onChange={event => setUsername(event.target.value)} placeholder="Nome do operador" />
-            </div>
-            <div className="space-y-1">
-              <Label>E-mail</Label>
-              <Input type="email" value={email} onChange={event => setEmail(event.target.value)} placeholder="operador@empresa.com" />
+              <Label>Usuário</Label>
+              <Input value={username} onChange={event => setUsername(event.target.value)} placeholder="Ex: operador.caixa" />
             </div>
             <div className="space-y-1">
               <Label>Senha inicial</Label>
               <Input type="password" value={password} onChange={event => setPassword(event.target.value)} placeholder="Minimo de 6 caracteres" />
             </div>
+            <p className="text-xs text-muted-foreground">
+              Use de 3 a 24 caracteres com letras, numeros, ponto, hifen ou underscore.
+            </p>
           </div>
 
           <DialogFooter>

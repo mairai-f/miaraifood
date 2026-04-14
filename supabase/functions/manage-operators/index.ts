@@ -1,10 +1,15 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
+import {
+  buildOperatorEmail,
+  isValidOperatorUsername,
+  normalizeOperatorUsername,
+  operatorUsernameHelpText,
+} from '../_shared/operatorCredentials.ts';
 
 type ManageOperatorRequest =
   | {
       action: 'create';
       username?: string;
-      email?: string;
       password?: string;
     }
   | {
@@ -27,6 +32,11 @@ type ManageOperatorRequest =
       adminPassword?: string;
     };
 
+interface OperatorLookupRow {
+  user_id: string;
+  username: string;
+}
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -42,8 +52,6 @@ const jsonResponse = (body: Record<string, unknown>, status = 200) =>
     },
   });
 
-const normalizeEmail = (value: string) => value.trim().toLowerCase();
-
 const getBody = async (request: Request): Promise<ManageOperatorRequest | null> => {
   try {
     return await request.json();
@@ -51,6 +59,14 @@ const getBody = async (request: Request): Promise<ManageOperatorRequest | null> 
     return null;
   }
 };
+
+const extractAccessToken = (authorization: string | null) => {
+  if (!authorization) return null;
+  const matchedToken = authorization.match(/^Bearer\s+(.+)$/i);
+  return matchedToken?.[1]?.trim() || null;
+};
+
+const normalizeEmail = (value: string) => value.trim().toLowerCase();
 
 Deno.serve(async (request) => {
   if (request.method === 'OPTIONS') {
@@ -64,17 +80,20 @@ Deno.serve(async (request) => {
   const supabaseUrl = Deno.env.get('SUPABASE_URL');
   const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY');
   const supabaseServiceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
-  const authorization = request.headers.get('Authorization');
+  const accessToken = extractAccessToken(request.headers.get('Authorization'));
 
-  if (!supabaseUrl || !supabaseAnonKey || !supabaseServiceRoleKey || !authorization) {
+  if (!supabaseUrl || !supabaseAnonKey || !supabaseServiceRoleKey) {
     return jsonResponse({ error: 'Configuração de autenticação inválida.' }, 500);
   }
 
+  if (!accessToken) {
+    return jsonResponse({ error: 'Sessão inválida. Faça login novamente.' }, 401);
+  }
+
   const authClient = createClient(supabaseUrl, supabaseAnonKey, {
-    global: {
-      headers: {
-        Authorization: authorization,
-      },
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
     },
   });
 
@@ -88,7 +107,7 @@ Deno.serve(async (request) => {
   const {
     data: { user },
     error: authError,
-  } = await authClient.auth.getUser();
+  } = await authClient.auth.getUser(accessToken);
 
   if (authError || !user) {
     return jsonResponse({ error: 'Sessão inválida. Faça login novamente.' }, 401);
@@ -116,28 +135,42 @@ Deno.serve(async (request) => {
   }
 
   if (body.action === 'create') {
-    const username = body.username?.trim();
-    const email = normalizeEmail(body.email ?? '');
+    const normalizedUsername = normalizeOperatorUsername(body.username ?? '');
     const password = body.password?.trim();
 
-    if (!username) {
-      return jsonResponse({ error: 'Informe o nome do operador.' }, 400);
-    }
-
-    if (!email) {
-      return jsonResponse({ error: 'Informe o e-mail do operador.' }, 400);
+    if (!isValidOperatorUsername(normalizedUsername)) {
+      return jsonResponse({ error: operatorUsernameHelpText }, 400);
     }
 
     if (!password || password.length < 6) {
       return jsonResponse({ error: 'A senha deve ter ao menos 6 caracteres.' }, 400);
     }
 
+    const { data: existingOperators, error: existingOperatorsError } = await serviceClient
+      .from('profiles')
+      .select('user_id, username')
+      .eq('role', 'operator');
+
+    if (existingOperatorsError) {
+      return jsonResponse({ error: 'Não foi possível validar o usuário do operador.' }, 500);
+    }
+
+    const usernameAlreadyExists = ((existingOperators as OperatorLookupRow[] | null) ?? []).some(
+      (operator) => normalizeOperatorUsername(operator.username) === normalizedUsername,
+    );
+
+    if (usernameAlreadyExists) {
+      return jsonResponse({ error: 'Esse usuário já está em uso. Escolha outro.' }, 409);
+    }
+
+    const generatedEmail = buildOperatorEmail(normalizedUsername);
+
     const { data: createdUser, error: createError } = await serviceClient.auth.admin.createUser({
-      email,
+      email: generatedEmail,
       password,
       email_confirm: true,
       user_metadata: {
-        username,
+        username: normalizedUsername,
         role: 'operator',
         owner_user_id: ownerUserId,
         created_by_user_id: user.id,
@@ -145,14 +178,18 @@ Deno.serve(async (request) => {
     });
 
     if (createError || !createdUser.user) {
-      return jsonResponse({ error: createError?.message || 'Não foi possível criar o operador.' }, 400);
+      const errorMessage = createError?.message?.toLowerCase().includes('already')
+        ? 'Esse usuário já está em uso. Escolha outro.'
+        : createError?.message || 'Não foi possível criar o operador.';
+
+      return jsonResponse({ error: errorMessage }, 400);
     }
 
     const { error: updateProfileError } = await serviceClient
       .from('profiles')
       .update({
-        username,
-        email,
+        username: normalizedUsername,
+        email: generatedEmail,
         role: 'operator',
         owner_user_id: ownerUserId,
         created_by_user_id: user.id,
@@ -167,8 +204,7 @@ Deno.serve(async (request) => {
       success: true,
       operator: {
         user_id: createdUser.user.id,
-        username,
-        email,
+        username: normalizedUsername,
       },
       temporaryPassword: password,
     });
@@ -188,7 +224,7 @@ Deno.serve(async (request) => {
 
     const { data: targetProfile, error: targetProfileError } = await serviceClient
       .from('profiles')
-      .select('user_id, role, owner_user_id, username, email')
+      .select('user_id, role, owner_user_id, username')
       .eq('user_id', operatorUserId)
       .single();
 
@@ -213,7 +249,6 @@ Deno.serve(async (request) => {
       operator: {
         user_id: targetProfile.user_id,
         username: targetProfile.username,
-        email: targetProfile.email,
       },
       temporaryPassword: password,
     });
@@ -298,7 +333,7 @@ Deno.serve(async (request) => {
 
     const { data: targetProfile, error: targetProfileError } = await serviceClient
       .from('profiles')
-      .select('user_id, role, owner_user_id, username, email')
+      .select('user_id, role, owner_user_id, username')
       .eq('user_id', operatorUserId)
       .single();
 
@@ -323,13 +358,12 @@ Deno.serve(async (request) => {
     }
 
     if (openSession?.id) {
-      return jsonResponse({ error: 'Feche o caixa deste operador antes de excluí-lo.' }, 400);
+      return jsonResponse({ error: 'Feche o caixa desse operador antes de excluí-lo.' }, 400);
     }
 
-    const { error: deleteAuthError } = await serviceClient.auth.admin.deleteUser(operatorUserId);
-
-    if (deleteAuthError) {
-      return jsonResponse({ error: deleteAuthError.message || 'Não foi possível excluir o operador.' }, 400);
+    const { error: deleteUserError } = await serviceClient.auth.admin.deleteUser(operatorUserId);
+    if (deleteUserError) {
+      return jsonResponse({ error: deleteUserError.message || 'Não foi possível excluir o operador.' }, 400);
     }
 
     await serviceClient
@@ -337,7 +371,13 @@ Deno.serve(async (request) => {
       .delete()
       .eq('user_id', operatorUserId);
 
-    return jsonResponse({ success: true });
+    return jsonResponse({
+      success: true,
+      operator: {
+        user_id: targetProfile.user_id,
+        username: targetProfile.username,
+      },
+    });
   }
 
   if (body.action === 'reset_financial' || body.action === 'reset_reports' || body.action === 'reset_financial_reports') {
@@ -517,61 +557,6 @@ Deno.serve(async (request) => {
           saleItems: reportResult?.deletedSaleItems ?? 0,
         },
       });
-    }
-
-    const { data: clients, error: clientsError } = await serviceClient
-      .from('clients')
-      .select('id')
-      .eq('user_id', ownerUserId);
-
-    if (clientsError) {
-      return jsonResponse({ error: 'Não foi possível preparar a limpeza dos dados financeiros.' }, 500);
-    }
-
-    const clientIds = (clients ?? []).map(client => client.id);
-
-    const { count: deletedSales, error: deleteSalesError } = await serviceClient
-      .from('sales')
-      .delete({ count: 'exact' })
-      .eq('user_id', ownerUserId);
-
-    if (deleteSalesError) {
-      return jsonResponse({ error: 'Falha ao limpar as vendas.' }, 500);
-    }
-
-    const { count: deletedExpenses, error: deleteExpensesError } = await serviceClient
-      .from('expenses')
-      .delete({ count: 'exact' })
-      .eq('user_id', ownerUserId);
-
-    if (deleteExpensesError) {
-      return jsonResponse({ error: 'Falha ao limpar as despesas.' }, 500);
-    }
-
-    let deletedDebtEntries = 0;
-    let deletedPayments = 0;
-
-    if (clientIds.length > 0) {
-      const { count: paymentsCount, error: deletePaymentsError } = await serviceClient
-        .from('payments')
-        .delete({ count: 'exact' })
-        .in('client_id', clientIds);
-
-      if (deletePaymentsError) {
-        return jsonResponse({ error: 'Falha ao limpar os pagamentos.' }, 500);
-      }
-
-      const { count: debtEntriesCount, error: deleteDebtEntriesError } = await serviceClient
-        .from('debt_entries')
-        .delete({ count: 'exact' })
-        .in('client_id', clientIds);
-
-      if (deleteDebtEntriesError) {
-        return jsonResponse({ error: 'Falha ao limpar os fiados.' }, 500);
-      }
-
-      deletedPayments = paymentsCount ?? 0;
-      deletedDebtEntries = debtEntriesCount ?? 0;
     }
 
     return jsonResponse({

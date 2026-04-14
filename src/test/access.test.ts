@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { canAccessPath } from '@/lib/access';
+import { canAccessPath, canManageProducts } from '@/lib/access';
 
 describe('canAccessPath', () => {
   it('permite que admin acesse rotas administrativas', () => {
@@ -19,5 +19,10 @@ describe('canAccessPath', () => {
     expect(canAccessPath('operator', '/clientes')).toBe(true);
     expect(canAccessPath('operator', '/produtos')).toBe(true);
     expect(canAccessPath('operator', '/cliente/joao')).toBe(true);
+  });
+
+  it('bloqueia gestao de produtos para operador', () => {
+    expect(canManageProducts('operator')).toBe(false);
+    expect(canManageProducts('admin')).toBe(true);
   });
 });

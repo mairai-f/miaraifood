@@ -51,6 +51,8 @@ export interface Sale {
   id: string;
   client_id?: string | null;
   user_id: string;
+  operator_user_id?: string | null;
+  cash_session_id?: string | null;
   seller_name?: string | null;
   is_delivery?: boolean;
   status?: string;
@@ -89,6 +91,8 @@ export interface StockMovement {
 export interface Expense {
   id: string;
   user_id: string;
+  operator_user_id?: string | null;
+  cash_session_id?: string | null;
   description: string;
   amount: number;
   category: string;

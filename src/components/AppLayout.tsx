@@ -31,7 +31,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
   const handleAccountClick = () => {
     if (!canOpenSettings) return;
     setOpen(false);
-    navigate('/configuracoes?modal=cadastrar-operador');
+    navigate('/configuracoes');
   };
 
   const updateScrollHints = useCallback(() => {

@@ -1,4 +1,8 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
+import {
+  isValidOperatorUsername,
+  normalizeOperatorUsername,
+} from '../_shared/operatorCredentials.ts';
 
 type OperatorLoginRequest = {
   username?: string;
@@ -44,11 +48,11 @@ Deno.serve(async (request) => {
   }
 
   const body = await getBody(request);
-  const username = body?.username?.trim();
+  const normalizedUsername = normalizeOperatorUsername(body?.username ?? '');
   const password = body?.password?.trim();
 
-  if (!username || !password) {
-    return jsonResponse({ error: 'Informe usuário e senha.' }, 400);
+  if (!isValidOperatorUsername(normalizedUsername) || !password) {
+    return jsonResponse({ error: 'Usuário ou senha incorretos.' }, 401);
   }
 
   const supabaseUrl = Deno.env.get('SUPABASE_URL');
@@ -73,22 +77,18 @@ Deno.serve(async (request) => {
     },
   });
 
-  const normalizedUsername = username.toLocaleLowerCase('pt-BR');
-
   const { data: profiles, error: profileError } = await serviceClient
     .from('profiles')
     .select('user_id, email, username')
     .eq('role', 'operator')
-    .ilike('username', normalizedUsername);
+    .eq('username', normalizedUsername);
 
   if (profileError || !profiles || profiles.length === 0) {
     return jsonResponse({ error: 'Usuário ou senha incorretos.' }, 401);
   }
 
   const matchingProfiles = (profiles as OperatorProfileRow[]).filter(profile =>
-    (profile.username ?? '').trim().toLocaleLowerCase('pt-BR') === normalizedUsername
-      && typeof profile.email === 'string'
-      && profile.email.length > 0
+    normalizeOperatorUsername(profile.username ?? '') === normalizedUsername,
   );
 
   if (matchingProfiles.length === 0) {

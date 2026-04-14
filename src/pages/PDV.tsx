@@ -1323,6 +1323,8 @@ export default function PDV() {
       await createSale({
         client_id: selectedClientId || null,
         user_id: user!.id,
+        operator_user_id: user!.id,
+        cash_session_id: cashSession.id ?? null,
         seller_name: sellerName,
         is_delivery: isDelivery,
         status: 'completed',
@@ -1638,7 +1640,10 @@ export default function PDV() {
     }
 
     try {
-      await addExpense(cashOutReason.trim(), amount, 'Saída de caixa');
+      await addExpense(cashOutReason.trim(), amount, 'Saída de caixa', {
+        operatorUserId: user?.id ?? null,
+        cashSessionId: cashSession.id ?? null,
+      });
       setCashOutAmount('');
       setCashOutReason('');
       setShowCashOut(false);
