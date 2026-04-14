@@ -6,15 +6,26 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
+
+# Environment
 .env
 .env.*
 !.env.example
 !.env.sample
 .envrc
-node_modules
-dist
-dist-ssr
+
+# Dependencies and build output
+node_modules/
+dist/
+dist-ssr/
+dist-electron/
+release/
+win-unpacked/
+linux-unpacked/
 *.local
+*.exe
+*.AppImage
+*.asar
 
 # Editor directories and files
 .vscode/*
