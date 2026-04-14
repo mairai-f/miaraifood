@@ -6,6 +6,7 @@ const UPDATE_CHECK_DELAY_MS = 15_000;
 const UPDATE_CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000;
 const isDevelopment = Boolean(process.env.VITE_DEV_SERVER_URL) || !app.isPackaged;
 let autoUpdatesConfigured = false;
+const APP_USER_MODEL_ID = 'com.happycash.desktop';
 
 const isHttpUrl = (value) => {
   try {
@@ -20,6 +21,12 @@ const getWindowIconPath = () => {
   const iconFilename = process.platform === 'win32' ? 'icon.ico' : 'icon.png';
   return path.join(__dirname, '..', 'build', iconFilename);
 };
+
+app.setName('HappyCash');
+
+if (process.platform === 'win32') {
+  app.setAppUserModelId(APP_USER_MODEL_ID);
+}
 
 const checkForUpdates = async () => {
   try {
