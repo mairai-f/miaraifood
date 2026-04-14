@@ -4,6 +4,8 @@ import { motion } from 'framer-motion';
 import { createClient, FunctionsFetchError, FunctionsHttpError, FunctionsRelayError } from '@supabase/supabase-js';
 import { useData } from '@/contexts/DataContext';
 import { useAuth } from '@/contexts/AuthContext';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -12,7 +14,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { Ban, History, Minus, Plus, Receipt, Search, ShoppingCart, Wallet, X } from 'lucide-react';
+import { Ban, FileText, History, Loader2, Minus, Plus, Printer, Receipt, Search, ShoppingCart, Wallet, X } from 'lucide-react';
 import type { Expense, Product, Sale } from '@/types';
 import { openExternalUrl } from '@/lib/openExternalUrl';
 import { normalizePhone } from '@/lib/phone';
@@ -20,6 +22,16 @@ import { supabase } from '@/integrations/supabase/client';
 import type { Database } from '@/integrations/supabase/types';
 import happyCashLogo from '@/assets/happycash-logo.png';
 import { roleLabel } from '@/lib/access';
+import {
+  type FiscalDocumentRecord,
+  type FiscalRuntimeStatus,
+  type ManageFiscalDocumentsResponse,
+  fiscalStatusLabel,
+  fiscalStatusVariant,
+  normalizeFiscalDocumentRecord,
+  normalizeFiscalRuntimeStatus,
+  openFiscalDocumentPrintWindow,
+} from '@/lib/fiscal';
 
 const db = supabase as any;
 
@@ -52,6 +64,16 @@ interface CashCloseReceipt {
 interface CashCloseEmailResponse {
   message?: string;
   recipients?: string[];
+}
+
+interface LastSaleReceiptData {
+  saleId: string;
+  items: CartItem[];
+  total: number;
+  discount: number;
+  method: string;
+  change: number;
+  clientId: string | null;
 }
 
 type CloseCashEmailStatus = 'idle' | 'sending' | 'sent' | 'error';
@@ -263,10 +285,17 @@ export default function PDV() {
   const [closeCashWhatsappPhone, setCloseCashWhatsappPhone] = useState(() => readCloseCashWhatsAppPhone());
   const [isVerifyingAdminPassword, setIsVerifyingAdminPassword] = useState(false);
   const [lastCloseReceipt, setLastCloseReceipt] = useState<CashCloseReceipt | null>(null);
-  const [lastSaleData, setLastSaleData] = useState<{ items: CartItem[]; total: number; discount: number; method: string; change: number; clientId: string | null } | null>(null);
+  const [lastSaleData, setLastSaleData] = useState<LastSaleReceiptData | null>(null);
   const [isFinalizingSale, setIsFinalizingSale] = useState(false);
+  const [fiscalRuntime, setFiscalRuntime] = useState<FiscalRuntimeStatus | null>(null);
+  const [loadingFiscalRuntime, setLoadingFiscalRuntime] = useState(true);
+  const [fiscalRuntimeError, setFiscalRuntimeError] = useState('');
+  const [issuingFiscalDocument, setIssuingFiscalDocument] = useState(false);
+  const [lastFiscalDocument, setLastFiscalDocument] = useState<FiscalDocumentRecord | null>(null);
+  const [lastFiscalDocumentError, setLastFiscalDocumentError] = useState('');
   const lastEscToClearCartAtRef = useRef(0);
   const ignoreCartClearOnEscRef = useRef(false);
+  const fiscalIssuanceSaleIdRef = useRef<string | null>(null);
 
   const activeProducts = products.filter(p => !('deleted' in p && (p as any).deleted));
   const activeClients = clients.filter(c => !c.deleted);
@@ -346,6 +375,127 @@ export default function PDV() {
 
     return 'Não foi possível enviar o relatório por e-mail.';
   };
+
+  const getFiscalFunctionErrorMessage = async (
+    error: unknown,
+    fallbackMessage: string,
+    data?: ManageFiscalDocumentsResponse | null,
+  ) => {
+    let resolvedMessage = data?.error || fallbackMessage;
+    let missingItems = data?.missingItems ?? [];
+
+    if (error instanceof FunctionsHttpError) {
+      try {
+        const payload = await error.context.clone().json() as ManageFiscalDocumentsResponse & { message?: string };
+        resolvedMessage = payload.error || payload.message || resolvedMessage;
+        missingItems = payload.missingItems ?? missingItems;
+      } catch {
+        if (error.context.status === 401) {
+          resolvedMessage = 'Sua sessao expirou. Entre novamente para emitir a NFC-e.';
+        } else if (error.context.status === 404) {
+          resolvedMessage = 'A funcao fiscal ainda nao foi publicada no Supabase.';
+        }
+      }
+    } else if (error instanceof FunctionsRelayError) {
+      resolvedMessage = 'Nao foi possivel encaminhar a solicitacao para a funcao fiscal.';
+    } else if (error instanceof FunctionsFetchError) {
+      resolvedMessage = 'Nao foi possivel conectar ao servico fiscal agora.';
+    } else if (error instanceof Error && error.message.trim()) {
+      resolvedMessage = error.message;
+    }
+
+    if (missingItems.length > 0) {
+      return `${resolvedMessage} Pendencias: ${missingItems.join(', ')}.`;
+    }
+
+    return resolvedMessage;
+  };
+
+  const loadFiscalRuntime = async () => {
+    if (!session?.access_token) {
+      setFiscalRuntime(null);
+      setFiscalRuntimeError('');
+      setLoadingFiscalRuntime(false);
+      return;
+    }
+
+    setLoadingFiscalRuntime(true);
+    setFiscalRuntimeError('');
+
+    const { data, error } = await supabase.functions.invoke<ManageFiscalDocumentsResponse>('manage-fiscal-documents', {
+      headers: {
+        Authorization: `Bearer ${session.access_token}`,
+      },
+      body: {
+        action: 'runtime_status',
+      },
+    });
+
+    if (error || !data?.success || !data.runtime) {
+      setFiscalRuntime(null);
+      setFiscalRuntimeError(await getFiscalFunctionErrorMessage(
+        error,
+        'Nao foi possivel carregar o status fiscal do PDV.',
+        data,
+      ));
+      setLoadingFiscalRuntime(false);
+      return;
+    }
+
+    setFiscalRuntime(normalizeFiscalRuntimeStatus(data.runtime as Record<string, unknown>));
+    setLoadingFiscalRuntime(false);
+  };
+
+  const issueFiscalDocumentInHomologation = async (saleId: string) => {
+    fiscalIssuanceSaleIdRef.current = saleId;
+
+    if (!session?.access_token) {
+      if (fiscalIssuanceSaleIdRef.current === saleId) {
+        setLastFiscalDocument(null);
+        setLastFiscalDocumentError('Sua sessao expirou. Entre novamente para emitir a NFC-e.');
+        setIssuingFiscalDocument(false);
+      }
+      return;
+    }
+
+    setIssuingFiscalDocument(true);
+    setLastFiscalDocument(null);
+    setLastFiscalDocumentError('');
+
+    const { data, error } = await supabase.functions.invoke<ManageFiscalDocumentsResponse>('manage-fiscal-documents', {
+      headers: {
+        Authorization: `Bearer ${session.access_token}`,
+      },
+      body: {
+        action: 'issue_nfce_homologation',
+        saleId,
+      },
+    });
+
+    if (error || !data?.success || !data.document) {
+      if (fiscalIssuanceSaleIdRef.current === saleId) {
+        setLastFiscalDocument(null);
+        setLastFiscalDocumentError(await getFiscalFunctionErrorMessage(
+          error,
+          'Nao foi possivel emitir a NFC-e de homologacao desta venda.',
+          data,
+        ));
+        setIssuingFiscalDocument(false);
+      }
+      void loadFiscalRuntime();
+      return;
+    }
+
+    if (fiscalIssuanceSaleIdRef.current === saleId) {
+      setLastFiscalDocument(normalizeFiscalDocumentRecord(data.document as Record<string, unknown>));
+      setIssuingFiscalDocument(false);
+    }
+    void loadFiscalRuntime();
+  };
+
+  useEffect(() => {
+    void loadFiscalRuntime();
+  }, [session?.access_token]);
 
   useEffect(() => {
     let active = true;
@@ -454,6 +604,30 @@ export default function PDV() {
     && (paymentMethod !== 'dinheiro' || (parseFloat(cashReceived) || 0) >= total)
     && (paymentMethod !== 'fiado' || Boolean(selectedClientId))
     && (paymentMethod !== 'cartao_credito' || Boolean(creditInstallments && creditInstallments > 0));
+  const canIssueFiscalDocumentInHomologation = Boolean(
+    session?.access_token
+    && fiscalRuntime?.enabled
+    && fiscalRuntime.environment === 'homologacao'
+    && fiscalRuntime.ready,
+  );
+  const checkoutFiscalBadgeVariant: 'default' | 'secondary' | 'destructive' | 'outline' = loadingFiscalRuntime
+    ? 'outline'
+    : fiscalRuntimeError
+      ? 'destructive'
+      : !fiscalRuntime?.enabled
+        ? 'secondary'
+        : fiscalRuntime.ready
+          ? 'default'
+          : 'destructive';
+  const checkoutFiscalStatusLabel = loadingFiscalRuntime
+    ? 'Carregando'
+    : fiscalRuntimeError
+      ? 'Falha'
+      : !fiscalRuntime?.enabled
+        ? 'Desativada'
+        : fiscalRuntime.ready
+          ? 'Pronta'
+          : 'Pendente';
 
   const saleSearchTerm = saleSearch.trim().toLowerCase();
   const isInCurrentCashSession = (value: string) => {
@@ -1404,7 +1578,7 @@ export default function PDV() {
         total: i.product.price * i.quantity,
       }));
 
-      await createSale({
+      const { sale } = await createSale({
         client_id: selectedClientId || null,
         user_id: user!.id,
         operator_user_id: user!.id,
@@ -1435,7 +1609,21 @@ export default function PDV() {
         ? `cartao_credito (${creditInstallments}x)`
         : paymentMethod;
 
-      setLastSaleData({ items: [...cart], total, discount, method: finalizedPaymentMethod, change, clientId: selectedClientId || null });
+      const finalizedSaleData: LastSaleReceiptData = {
+        saleId: sale.id,
+        items: [...cart],
+        total,
+        discount,
+        method: finalizedPaymentMethod,
+        change,
+        clientId: selectedClientId || null,
+      };
+
+      setLastSaleData(finalizedSaleData);
+      setLastFiscalDocument(null);
+      setLastFiscalDocumentError('');
+      setIssuingFiscalDocument(canIssueFiscalDocumentInHomologation);
+      fiscalIssuanceSaleIdRef.current = canIssueFiscalDocumentInHomologation ? sale.id : null;
       setShowFinalizeConfirm(false);
       setShowCheckout(false);
       setShowReceipt(true);
@@ -1448,6 +1636,10 @@ export default function PDV() {
       setSelectedClientId('');
       setIsDelivery(false);
       silentToast.success('Venda finalizada!');
+
+      if (canIssueFiscalDocumentInHomologation) {
+        void issueFiscalDocumentInHomologation(sale.id);
+      }
     } catch {
       silentToast.error('Erro ao finalizar venda');
     } finally {
@@ -1463,6 +1655,11 @@ export default function PDV() {
     const lines = lastSaleData.items.map(i => `• ${i.product.name} x${i.quantity} — R$ ${(i.product.price * i.quantity).toFixed(2)}`);
     const msg = `🧾 *AdegaGS - Comprovante*\n\n${lines.join('\n')}\n\n${lastSaleData.discount > 0 ? `Desconto: R$ ${lastSaleData.discount.toFixed(2)}\n` : ''}💰 *Total: R$ ${lastSaleData.total.toFixed(2)}*\n📅 ${new Date().toLocaleString('pt-BR')}\nPagamento: ${lastSaleData.method}`;
     openExternalUrl(`https://wa.me/${normalizePhone(client.phone)}?text=${encodeURIComponent(msg)}`);
+  };
+
+  const retryFiscalIssuance = () => {
+    if (!lastSaleData?.saleId || issuingFiscalDocument) return;
+    void issueFiscalDocumentInHomologation(lastSaleData.saleId);
   };
 
   const handleOpenCash = async () => {
@@ -2241,6 +2438,53 @@ export default function PDV() {
                 </div>
               )}
 
+              <div className="rounded-lg border border-border p-3 space-y-2">
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <p className="text-sm font-medium">NFC-e no PDV</p>
+                    <p className="text-xs text-muted-foreground">
+                      Fluxo inicial de homologacao lido da area Notas.
+                    </p>
+                  </div>
+                  <Badge variant={checkoutFiscalBadgeVariant}>{checkoutFiscalStatusLabel}</Badge>
+                </div>
+
+                {loadingFiscalRuntime ? (
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    Carregando configuracao fiscal...
+                  </div>
+                ) : fiscalRuntimeError ? (
+                  <p className="text-xs text-destructive">{fiscalRuntimeError}</p>
+                ) : !fiscalRuntime?.enabled ? (
+                  <p className="text-xs text-muted-foreground">
+                    A NFC-e esta desativada na area Notas. A venda sera concluida sem emissao fiscal.
+                  </p>
+                ) : !fiscalRuntime.ready ? (
+                  <div className="space-y-1">
+                    <p className="text-xs text-muted-foreground">
+                      A NFC-e esta habilitada, mas ainda faltam dados obrigatorios para emitir em homologacao.
+                    </p>
+                    {fiscalRuntime.missingItems.length > 0 && (
+                      <p className="text-xs text-destructive">
+                        Pendencias: {fiscalRuntime.missingItems.join(', ')}.
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  <div className="space-y-1 text-xs text-muted-foreground">
+                    <p>
+                      Ambiente: <span className="font-medium text-foreground">{fiscalRuntime.environment}</span>
+                      {' '}| Serie: <span className="font-medium text-foreground">{fiscalRuntime.series}</span>
+                      {' '}| Proximo numero: <span className="font-medium text-foreground">{fiscalRuntime.nextNumber}</span>
+                    </p>
+                    <p>
+                      Emitente: <span className="font-medium text-foreground">{fiscalRuntime.issuerName || 'Nao informado'}</span>
+                    </p>
+                  </div>
+                )}
+              </div>
+
               <p className="text-xs text-muted-foreground">Enter pede confirmação para finalizar.</p>
             </div>
           </div>
@@ -2772,26 +3016,156 @@ export default function PDV() {
 
       {/* Receipt dialog */}
       <Dialog open={showReceipt} onOpenChange={setShowReceipt}>
-        <DialogContent>
-          <DialogHeader><DialogTitle>✅ Venda Finalizada!</DialogTitle></DialogHeader>
-          {lastSaleData && (
-            <div className="space-y-2 text-base">
-              {lastSaleData.items.map((i, idx) => (
-                <div key={idx} className="flex justify-between">
-                  <span>{i.product.name} x{i.quantity}</span>
-                  <span>R$ {(i.product.price * i.quantity).toFixed(2)}</span>
+        <DialogContent className="max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Venda finalizada</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            {lastSaleData && (
+              <div className="space-y-3 rounded-lg border border-border p-4">
+                <div className="flex items-center gap-2">
+                  <Receipt className="h-4 w-4 text-primary" />
+                  <p className="text-sm font-semibold">Resumo da venda</p>
                 </div>
-              ))}
-              <div className="border-t pt-2 font-bold flex justify-between">
-                <span>Total</span><span>R$ {lastSaleData.total.toFixed(2)}</span>
+
+                <div className="space-y-2 text-sm">
+                  {lastSaleData.items.map((item, index) => (
+                    <div key={index} className="flex justify-between gap-3">
+                      <span>{item.product.name} x{item.quantity}</span>
+                      <span>R$ {(item.product.price * item.quantity).toFixed(2)}</span>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="space-y-1 border-t pt-3 text-sm">
+                  {lastSaleData.discount > 0 && (
+                    <div className="flex justify-between text-destructive">
+                      <span>Desconto</span>
+                      <span>-R$ {lastSaleData.discount.toFixed(2)}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between font-bold">
+                    <span>Total</span>
+                    <span>R$ {lastSaleData.total.toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between text-muted-foreground">
+                    <span>Pagamento</span>
+                    <span>{lastSaleData.method}</span>
+                  </div>
+                  {lastSaleData.change > 0 && (
+                    <p className="font-medium text-primary">Troco: R$ {lastSaleData.change.toFixed(2)}</p>
+                  )}
+                </div>
               </div>
-              {lastSaleData.change > 0 && (
-                <p className="text-primary font-medium">Troco: R$ {lastSaleData.change.toFixed(2)}</p>
+            )}
+
+            <div className="space-y-3 rounded-lg border border-border p-4">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <FileText className="h-4 w-4 text-primary" />
+                  <div>
+                    <p className="text-sm font-semibold">NFC-e em homologacao</p>
+                    <p className="text-xs text-muted-foreground">
+                      Fluxo inicial salvo em Notas e executado no PDV.
+                    </p>
+                  </div>
+                </div>
+                {lastFiscalDocument ? (
+                  <Badge variant={fiscalStatusVariant(lastFiscalDocument.status)}>
+                    {fiscalStatusLabel(lastFiscalDocument.status)}
+                  </Badge>
+                ) : issuingFiscalDocument ? (
+                  <Badge variant="outline">Emitindo</Badge>
+                ) : (
+                  <Badge variant={checkoutFiscalBadgeVariant}>{checkoutFiscalStatusLabel}</Badge>
+                )}
+              </div>
+
+              {issuingFiscalDocument && (
+                <div className="flex items-center gap-2 rounded-lg border border-dashed border-border p-3 text-sm text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Gerando o DANFE simplificado de homologacao desta venda...
+                </div>
+              )}
+
+              {!issuingFiscalDocument && lastFiscalDocument && (
+                <div className="space-y-3 rounded-lg border border-primary/20 bg-primary/5 p-3">
+                  <div className="grid gap-2 sm:grid-cols-2 text-sm">
+                    <p>
+                      <span className="text-muted-foreground">Numero/Série:</span>{' '}
+                      <span className="font-medium">{lastFiscalDocument.number}/{lastFiscalDocument.series}</span>
+                    </p>
+                    <p>
+                      <span className="text-muted-foreground">Ambiente:</span>{' '}
+                      <span className="font-medium">{lastFiscalDocument.environment}</span>
+                    </p>
+                    <p>
+                      <span className="text-muted-foreground">Emissao:</span>{' '}
+                      <span className="font-medium">{formatSaleDate(lastFiscalDocument.emittedAt)}</span>
+                    </p>
+                    <p>
+                      <span className="text-muted-foreground">Venda:</span>{' '}
+                      <span className="font-medium">{lastFiscalDocument.saleId}</span>
+                    </p>
+                  </div>
+
+                  <div className="space-y-1 text-sm">
+                    <p className="text-muted-foreground">Chave de acesso</p>
+                    <p className="break-all font-mono text-xs">{lastFiscalDocument.accessKey}</p>
+                  </div>
+
+                  <div className="flex flex-wrap gap-2">
+                    <Button type="button" variant="outline" onClick={() => openFiscalDocumentPrintWindow(lastFiscalDocument)}>
+                      <Printer className="mr-2 h-4 w-4" />
+                      Abrir DANFE
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {!issuingFiscalDocument && lastFiscalDocumentError && (
+                <div className="space-y-3">
+                  <Alert variant="destructive">
+                    <AlertTitle>Falha ao emitir a NFC-e de homologacao</AlertTitle>
+                    <AlertDescription>{lastFiscalDocumentError}</AlertDescription>
+                  </Alert>
+
+                  {lastSaleData && (
+                    <Button type="button" variant="outline" onClick={retryFiscalIssuance}>
+                      Tentar novamente
+                    </Button>
+                  )}
+                </div>
+              )}
+
+              {!issuingFiscalDocument && !lastFiscalDocument && !lastFiscalDocumentError && !canIssueFiscalDocumentInHomologation && (
+                <Alert>
+                  <AlertTitle>NFC-e nao emitida para esta venda</AlertTitle>
+                  <AlertDescription>
+                    {fiscalRuntimeError
+                      ? fiscalRuntimeError
+                      : !fiscalRuntime?.enabled
+                        ? 'A NFC-e esta desativada no painel Notas.'
+                        : !fiscalRuntime?.ready
+                          ? `A configuracao fiscal ainda esta incompleta${fiscalRuntime?.missingItems?.length ? `: ${fiscalRuntime.missingItems.join(', ')}.` : '.'}`
+                          : 'O fluxo inicial desta etapa aceita apenas emissao em homologacao.'}
+                  </AlertDescription>
+                </Alert>
               )}
             </div>
-          )}
+          </div>
+
           <DialogFooter className="gap-2">
             <Button variant="outline" onClick={() => setShowReceipt(false)}>Fechar</Button>
+            <Button variant="outline" onClick={() => void loadFiscalRuntime()} disabled={loadingFiscalRuntime}>
+              {loadingFiscalRuntime ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <FileText className="mr-2 h-4 w-4" />
+              )}
+              Atualizar status fiscal
+            </Button>
             <Button onClick={sendReceiptWhatsApp}>📱 Enviar WhatsApp</Button>
           </DialogFooter>
         </DialogContent>
