@@ -16,6 +16,11 @@ const isHttpUrl = (value) => {
   }
 };
 
+const getWindowIconPath = () => {
+  const iconFilename = process.platform === 'win32' ? 'icon.ico' : 'icon.png';
+  return path.join(__dirname, '..', 'build', iconFilename);
+};
+
 const checkForUpdates = async () => {
   try {
     await autoUpdater.checkForUpdates();
@@ -97,6 +102,7 @@ const createMainWindow = async () => {
     fullscreen: true,
     autoHideMenuBar: true,
     backgroundColor: '#050505',
+    icon: getWindowIconPath(),
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
       contextIsolation: true,

@@ -110,6 +110,8 @@
     },
     "files": [
       "dist/**/*",
+      "build/icon.png",
+      "build/icon.ico",
       "electron/**/*",
       "package.json"
     ],
