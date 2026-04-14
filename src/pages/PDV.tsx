@@ -212,6 +212,8 @@ const getPaymentMethodPrintStyle = (paymentMethod: string) => {
   return paymentMethodPrintStyles[paymentMethod] ?? paymentMethodPrintStyles.outros;
 };
 
+const CREDIT_INSTALLMENT_OPTIONS = Array.from({ length: 12 }, (_, index) => index + 1);
+
 export default function PDV() {
   const { products, clients, sales, saleItems, expenses, createSale, addDebtEntries, addExpense, cancelSale } = useData();
   const { user, username, session, role, ownerUserId, isAdmin } = useAuth();
@@ -231,6 +233,7 @@ export default function PDV() {
   const [isDelivery, setIsDelivery] = useState(false);
   const [showCheckout, setShowCheckout] = useState(false);
   const [showFinalizeConfirm, setShowFinalizeConfirm] = useState(false);
+  const [showCreditInstallmentsDialog, setShowCreditInstallmentsDialog] = useState(false);
   const [showReceipt, setShowReceipt] = useState(false);
   const [showSalesSearch, setShowSalesSearch] = useState(false);
   const [showCancelledSales, setShowCancelledSales] = useState(false);
@@ -241,6 +244,8 @@ export default function PDV() {
   const [cancelReason, setCancelReason] = useState('');
   const [cashOutAmount, setCashOutAmount] = useState('');
   const [cashOutReason, setCashOutReason] = useState('');
+  const [creditInstallments, setCreditInstallments] = useState<number | null>(null);
+  const [pendingCreditInstallments, setPendingCreditInstallments] = useState(1);
   const [cashSession, setCashSession] = useState<CashSession | null>(() => readCashSession());
   const [cashSessionLoading, setCashSessionLoading] = useState(true);
   const [openingAmount, setOpeningAmount] = useState('');
@@ -447,7 +452,8 @@ export default function PDV() {
   const change = paymentMethod === 'dinheiro' ? Math.max(0, (parseFloat(cashReceived) || 0) - total) : 0;
   const canFinalizeCheckout = Boolean(paymentMethod)
     && (paymentMethod !== 'dinheiro' || (parseFloat(cashReceived) || 0) >= total)
-    && (paymentMethod !== 'fiado' || Boolean(selectedClientId));
+    && (paymentMethod !== 'fiado' || Boolean(selectedClientId))
+    && (paymentMethod !== 'cartao_credito' || Boolean(creditInstallments && creditInstallments > 0));
 
   const saleSearchTerm = saleSearch.trim().toLowerCase();
   const isInCurrentCashSession = (value: string) => {
@@ -1313,6 +1319,19 @@ export default function PDV() {
 
   const handlePaymentMethodChange = (method: string) => {
     setPaymentMethod(method);
+    if (method === 'cartao_credito') {
+      setPendingCreditInstallments(creditInstallments ?? 1);
+      setShowCreditInstallmentsDialog(true);
+      requestAnimationFrame(() => {
+        cashReceivedInputRef.current?.blur();
+      });
+      return;
+    }
+
+    if (creditInstallments !== null) {
+      setCreditInstallments(null);
+    }
+
     if (method === 'dinheiro') {
       requestAnimationFrame(() => {
         cashReceivedInputRef.current?.focus();
@@ -1325,10 +1344,25 @@ export default function PDV() {
     });
   };
 
+  const confirmCreditInstallments = () => {
+    const nextInstallments = Math.max(1, Math.min(12, pendingCreditInstallments || 1));
+    setCreditInstallments(nextInstallments);
+    setShowCreditInstallmentsDialog(false);
+  };
+
+  const closeCreditInstallmentsDialog = () => {
+    setShowCreditInstallmentsDialog(false);
+    if (paymentMethod === 'cartao_credito' && !creditInstallments) {
+      setPaymentMethod('');
+    }
+  };
+
   const openCheckout = () => {
     if (!cashSession) { silentToast.error('Abra o caixa antes de vender'); return; }
     if (cart.length === 0) { silentToast.error('Carrinho vazio'); return; }
     setPaymentMethod('');
+    setCreditInstallments(null);
+    setPendingCreditInstallments(1);
     setCashReceived('');
     setSelectedClientId('');
     setShowFinalizeConfirm(false);
@@ -1336,6 +1370,12 @@ export default function PDV() {
   };
 
   const requestFinalizeConfirmation = () => {
+    if (paymentMethod === 'cartao_credito' && !creditInstallments) {
+      setPendingCreditInstallments(1);
+      setShowCreditInstallmentsDialog(true);
+      return;
+    }
+
     if (!canFinalizeCheckout || isFinalizingSale) return;
     setShowFinalizeConfirm(true);
   };
@@ -1391,13 +1431,19 @@ export default function PDV() {
         })));
       }
 
-      setLastSaleData({ items: [...cart], total, discount, method: paymentMethod, change, clientId: selectedClientId || null });
+      const finalizedPaymentMethod = paymentMethod === 'cartao_credito' && creditInstallments
+        ? `cartao_credito (${creditInstallments}x)`
+        : paymentMethod;
+
+      setLastSaleData({ items: [...cart], total, discount, method: finalizedPaymentMethod, change, clientId: selectedClientId || null });
       setShowFinalizeConfirm(false);
       setShowCheckout(false);
       setShowReceipt(true);
       setCart([]);
       setDiscountInput('');
       setPaymentMethod('');
+      setCreditInstallments(null);
+      setPendingCreditInstallments(1);
       setCashReceived('');
       setSelectedClientId('');
       setIsDelivery(false);
@@ -1739,6 +1785,22 @@ export default function PDV() {
         return;
       }
 
+      if (showCreditInstallmentsDialog) {
+        if (event.key === 'Escape') {
+          event.preventDefault();
+          closeCreditInstallmentsDialog();
+          return;
+        }
+
+        if (event.key === 'Enter') {
+          event.preventDefault();
+          confirmCreditInstallments();
+          return;
+        }
+
+        return;
+      }
+
       if (showFinalizeConfirm) {
         if (event.key === 'Escape') {
           event.preventDefault();
@@ -1913,7 +1975,7 @@ export default function PDV() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [activeProducts, filtered, search, cart, discount, paymentMethod, cashReceived, selectedClientId, total, change, canFinalizeCheckout, showCheckout, showFinalizeConfirm, showReceipt, showSalesSearch, showCancelledSales, showCashOut, showCloseCashReceipt, showOpenCashDialog, saleToCancel, navigate, isAdmin]);
+  }, [activeProducts, filtered, search, cart, discount, paymentMethod, cashReceived, selectedClientId, total, change, canFinalizeCheckout, showCheckout, showFinalizeConfirm, showCreditInstallmentsDialog, showReceipt, showSalesSearch, showCancelledSales, showCashOut, showCloseCashReceipt, showOpenCashDialog, saleToCancel, navigate, isAdmin, creditInstallments, pendingCreditInstallments]);
 
   return (
     <div className="flex min-h-[calc(100vh-1.5rem)] flex-col gap-4 sm:min-h-[calc(100vh-2rem)] lg:h-[calc(100vh-3rem)] lg:flex-row">
@@ -2111,6 +2173,30 @@ export default function PDV() {
                 </div>
               </div>
 
+              {paymentMethod === 'cartao_credito' && (
+                <div className="space-y-2 rounded-lg border border-border p-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <div>
+                      <p className="text-sm font-medium">Parcelamento</p>
+                      <p className="text-xs text-muted-foreground">
+                        {creditInstallments ? `${creditInstallments}x sem juros` : 'Escolha a quantidade de parcelas'}
+                      </p>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setPendingCreditInstallments(creditInstallments ?? 1);
+                        setShowCreditInstallmentsDialog(true);
+                      }}
+                    >
+                      Escolher parcelas
+                    </Button>
+                  </div>
+                </div>
+              )}
+
               {paymentMethod === 'dinheiro' && (
                 <div className="space-y-1">
                   <Label className="text-sm">Valor recebido</Label>
@@ -2162,6 +2248,49 @@ export default function PDV() {
             <Button type="button" variant="outline" onClick={() => setShowCheckout(false)} disabled={isFinalizingSale}>Voltar</Button>
             <Button type="button" onClick={requestFinalizeConfirmation} disabled={cart.length === 0 || isFinalizingSale || !canFinalizeCheckout}>
               <Receipt className="h-4 w-4 mr-2" />Finalizar venda
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={showCreditInstallmentsDialog}
+        onOpenChange={open => {
+          if (open) {
+            setShowCreditInstallmentsDialog(true);
+            return;
+          }
+
+          closeCreditInstallmentsDialog();
+        }}
+      >
+        <DialogContent className="max-w-sm" onOpenAutoFocus={event => event.preventDefault()}>
+          <DialogHeader>
+            <DialogTitle>Parcelamento no crédito</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              Selecione a quantidade de parcelas para finalizar no cartão de crédito.
+            </p>
+            <div className="grid grid-cols-4 gap-2">
+              {CREDIT_INSTALLMENT_OPTIONS.map(installments => (
+                <Button
+                  key={installments}
+                  type="button"
+                  variant={pendingCreditInstallments === installments ? 'default' : 'outline'}
+                  onClick={() => setPendingCreditInstallments(installments)}
+                >
+                  {installments}x
+                </Button>
+              ))}
+            </div>
+          </div>
+          <DialogFooter className="gap-2">
+            <Button type="button" variant="outline" onClick={closeCreditInstallmentsDialog}>
+              Cancelar
+            </Button>
+            <Button type="button" onClick={confirmCreditInstallments}>
+              Confirmar parcelas
             </Button>
           </DialogFooter>
         </DialogContent>
