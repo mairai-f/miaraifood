@@ -52,20 +52,6 @@ interface OpenCashSummary {
   cashOutCount: number;
   hasLegacyCashOutGap: boolean;
 }
-
-<<<<<<< HEAD
-const paymentMethodCards: Array<{ key: PaymentMethodKey; label: string }> = [
-  { key: 'dinheiro', label: 'Dinheiro' },
-  { key: 'cartao_debito', label: 'Debito' },
-  { key: 'pix', label: 'Pix' },
-  { key: 'cartao_credito', label: 'Credito' },
-];
-
-const normalizeLabel = (value: string | null | undefined) => value?.trim().toLocaleLowerCase('pt-BR') ?? '';
-const formatMoney = (value: number) => `R$ ${value.toFixed(2)}`;
-
-=======
->>>>>>> main
 interface OperatorFunctionResponse {
   success?: boolean;
   cashSession?: {
@@ -105,10 +91,7 @@ export function OperatorManagementPanel({
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [resetting, setResetting] = useState(false);
-<<<<<<< HEAD
-=======
   const [openingCash, setOpeningCash] = useState(false);
->>>>>>> main
   const [deletingOperatorId, setDeletingOperatorId] = useState<string | null>(null);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -212,22 +195,12 @@ export function OperatorManagementPanel({
   const matchesSessionSale = useCallback((sale: Sale, cashSession: OpenCashSession) => {
     if (sale.status === 'cancelled') return false;
     if (new Date(sale.date).getTime() < new Date(cashSession.opened_at).getTime()) return false;
-<<<<<<< HEAD
-    if (sale.cash_session_id) return sale.cash_session_id === cashSession.id;
-    if (sale.operator_user_id) return sale.operator_user_id === cashSession.operator_user_id;
-=======
->>>>>>> main
     return normalizeLabel(sale.seller_name) === normalizeLabel(cashSession.operator_name);
   }, []);
 
   const matchesSessionExpense = useCallback((expense: Expense, cashSession: OpenCashSession) => {
     if (expense.category !== 'Saída de caixa') return false;
     if (new Date(expense.date).getTime() < new Date(cashSession.opened_at).getTime()) return false;
-<<<<<<< HEAD
-    if (expense.cash_session_id) return expense.cash_session_id === cashSession.id;
-    if (expense.operator_user_id) return expense.operator_user_id === cashSession.operator_user_id;
-=======
->>>>>>> main
     return hasSingleOpenSession;
   }, [hasSingleOpenSession]);
 
@@ -258,11 +231,6 @@ export function OperatorManagementPanel({
         const cashOutTotal = sessionCashOuts.reduce((sum, expense) => sum + Number(expense.amount || 0), 0);
         const hasLegacyCashOutGap = !hasSingleOpenSession && expenses.some(expense =>
           expense.category === 'Saída de caixa'
-<<<<<<< HEAD
-          && !expense.cash_session_id
-          && !expense.operator_user_id
-=======
->>>>>>> main
           && new Date(expense.date).getTime() >= new Date(cashSession.opened_at).getTime()
         );
 
@@ -291,13 +259,8 @@ export function OperatorManagementPanel({
       return;
     }
 
-<<<<<<< HEAD
     if (!username.trim() || !password.trim()) {
       toast.error('Preencha usuário e senha');
-=======
-    if (!username.trim() || !email.trim() || !password.trim()) {
-      toast.error('Preencha nome, e-mail e senha');
->>>>>>> main
       return;
     }
 
@@ -334,11 +297,7 @@ export function OperatorManagementPanel({
       }
 
       console.error('Erro ao criar operador:', error);
-<<<<<<< HEAD
-      toast.error(functionErrorMessage);
-=======
       toast.error(await resolveFunctionErrorMessage(error, 'Não foi possível criar o operador', data));
->>>>>>> main
       setCreating(false);
       return;
     }
@@ -398,11 +357,7 @@ export function OperatorManagementPanel({
       }
 
       console.error('Erro ao redefinir senha do operador:', error);
-<<<<<<< HEAD
-      toast.error(functionErrorMessage);
-=======
       toast.error(await resolveFunctionErrorMessage(error, 'Não foi possível redefinir a senha', data));
->>>>>>> main
       setResetting(false);
       return;
     }
@@ -419,8 +374,6 @@ export function OperatorManagementPanel({
     setResetting(false);
   };
 
-<<<<<<< HEAD
-=======
   const handleOpenCashForOperator = async () => {
     if (!session?.access_token) {
       toast.error('Sua sessão expirou. Entre novamente para abrir caixas.');
@@ -462,8 +415,6 @@ export function OperatorManagementPanel({
     await loadData();
     setOpeningCash(false);
   };
-
->>>>>>> main
   const handleDeleteOperator = async (operator: OperatorProfile) => {
     if (!session?.access_token) {
       toast.error('Sua sessão expirou. Entre novamente para excluir operadores.');
@@ -483,35 +434,13 @@ export function OperatorManagementPanel({
     });
 
     if (error || !data?.success) {
-<<<<<<< HEAD
-      let functionErrorMessage = data?.error || 'Não foi possível excluir o operador';
-
-      if (error && typeof error === 'object' && 'context' in error && error.context instanceof Response) {
-        try {
-          const errorPayload = await error.context.clone().json() as { error?: string; message?: string };
-          functionErrorMessage = errorPayload.error || errorPayload.message || functionErrorMessage;
-        } catch {
-          functionErrorMessage = error.context.status === 401
-            ? 'Sua sessão expirou ou não foi enviada corretamente. Entre novamente e tente de novo.'
-            : functionErrorMessage;
-        }
-      }
-
-      console.error('Erro ao excluir operador:', error);
-      toast.error(functionErrorMessage);
-=======
       console.error('Erro ao excluir operador:', error);
       toast.error(await resolveFunctionErrorMessage(error, 'Não foi possível excluir o operador', data));
->>>>>>> main
       setDeletingOperatorId(null);
       return;
     }
 
-<<<<<<< HEAD
-    toast.success(`Operador ${operator.username} excluído com sucesso`);
-=======
     toast.success(`Operador ${operator.username} excluido com sucesso`);
->>>>>>> main
     await loadData();
     setDeletingOperatorId(null);
   };
@@ -688,41 +617,6 @@ export function OperatorManagementPanel({
                             <KeyRound className="mr-2 h-4 w-4" />
                             Redefinir senha
                           </Button>
-<<<<<<< HEAD
-                          {!openSession && (
-                            <AlertDialog>
-                              <AlertDialogTrigger asChild>
-                                <Button
-                                  variant="destructive"
-                                  size="sm"
-                                  className="flex-1"
-                                  disabled={deletingOperatorId === operator.user_id}
-                                >
-                                  <Trash2 className="mr-2 h-4 w-4" />
-                                  {deletingOperatorId === operator.user_id ? 'Excluindo...' : 'Excluir'}
-                                </Button>
-                              </AlertDialogTrigger>
-                              <AlertDialogContent>
-                                <AlertDialogHeader>
-                                  <AlertDialogTitle>Excluir operador?</AlertDialogTitle>
-                                  <AlertDialogDescription>
-                                    O operador "{operator.username}" será removido do sistema.
-                                  </AlertDialogDescription>
-                                </AlertDialogHeader>
-                                <AlertDialogFooter>
-                                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                  <AlertDialogAction
-                                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                                    onClick={() => void handleDeleteOperator(operator)}
-                                  >
-                                    Excluir operador
-                                  </AlertDialogAction>
-                                </AlertDialogFooter>
-                              </AlertDialogContent>
-                            </AlertDialog>
-                          )}
-=======
-
                           {!openSession && (
                             <Button
                               variant="outline"
@@ -769,7 +663,6 @@ export function OperatorManagementPanel({
                               </AlertDialogFooter>
                             </AlertDialogContent>
                           </AlertDialog>
->>>>>>> main
                         </div>
                       </CardContent>
                     </Card>

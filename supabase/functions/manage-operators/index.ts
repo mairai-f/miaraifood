@@ -18,10 +18,6 @@ type ManageOperatorRequest =
       password?: string;
     }
   | {
-<<<<<<< HEAD
-      action: 'delete';
-      operatorUserId?: string;
-=======
       action: 'open_cash';
       operatorUserId?: string;
       openingAmount?: number | string;
@@ -34,7 +30,6 @@ type ManageOperatorRequest =
       action: 'reset_financial' | 'reset_reports' | 'reset_financial_reports';
       adminEmail?: string;
       adminPassword?: string;
->>>>>>> main
     };
 
 interface OperatorLookupRow {
@@ -67,10 +62,11 @@ const getBody = async (request: Request): Promise<ManageOperatorRequest | null> 
 
 const extractAccessToken = (authorization: string | null) => {
   if (!authorization) return null;
-
   const matchedToken = authorization.match(/^Bearer\s+(.+)$/i);
   return matchedToken?.[1]?.trim() || null;
 };
+
+const normalizeEmail = (value: string) => value.trim().toLowerCase();
 
 Deno.serve(async (request) => {
   if (request.method === 'OPTIONS') {
@@ -258,28 +254,20 @@ Deno.serve(async (request) => {
     });
   }
 
-<<<<<<< HEAD
-  if (body.action === 'delete') {
-    const operatorUserId = body.operatorUserId?.trim();
-=======
   if (body.action === 'open_cash') {
     const operatorUserId = body.operatorUserId?.trim();
     const parsedOpeningAmount = typeof body.openingAmount === 'number'
       ? body.openingAmount
       : Number.parseFloat(String(body.openingAmount ?? '0'));
->>>>>>> main
 
     if (!operatorUserId) {
       return jsonResponse({ error: 'Operador inválido.' }, 400);
     }
 
-<<<<<<< HEAD
-=======
     if (Number.isNaN(parsedOpeningAmount) || parsedOpeningAmount < 0) {
       return jsonResponse({ error: 'Valor inicial inválido.' }, 400);
     }
 
->>>>>>> main
     const { data: targetProfile, error: targetProfileError } = await serviceClient
       .from('profiles')
       .select('user_id, role, owner_user_id, username')
@@ -291,30 +279,6 @@ Deno.serve(async (request) => {
     }
 
     if (targetProfile.role !== 'operator' || targetProfile.owner_user_id !== ownerUserId) {
-<<<<<<< HEAD
-      return jsonResponse({ error: 'Você não pode excluir este operador.' }, 403);
-    }
-
-    const { count: openCashSessionCount, error: openCashSessionError } = await serviceClient
-      .from('cash_sessions')
-      .select('id', { count: 'exact', head: true })
-      .eq('owner_user_id', ownerUserId)
-      .eq('operator_user_id', operatorUserId)
-      .eq('status', 'open');
-
-    if (openCashSessionError) {
-      return jsonResponse({ error: 'Não foi possível validar o caixa do operador.' }, 500);
-    }
-
-    if ((openCashSessionCount ?? 0) > 0) {
-      return jsonResponse({ error: 'Feche o caixa desse operador antes de excluí-lo.' }, 409);
-    }
-
-    const { error: deleteUserError } = await serviceClient.auth.admin.deleteUser(operatorUserId);
-
-    if (deleteUserError) {
-      return jsonResponse({ error: deleteUserError.message || 'Não foi possível excluir o operador.' }, 400);
-=======
       return jsonResponse({ error: 'Você não pode abrir caixa para este operador.' }, 403);
     }
 
@@ -350,16 +314,10 @@ Deno.serve(async (request) => {
 
     if (createCashSessionError || !createdCashSession) {
       return jsonResponse({ error: createCashSessionError?.message || 'Não foi possível abrir o caixa para este operador.' }, 400);
->>>>>>> main
     }
 
     return jsonResponse({
       success: true,
-<<<<<<< HEAD
-      operator: {
-        user_id: targetProfile.user_id,
-        username: targetProfile.username,
-=======
       cashSession: {
         id: createdCashSession.id,
       },
@@ -375,7 +333,7 @@ Deno.serve(async (request) => {
 
     const { data: targetProfile, error: targetProfileError } = await serviceClient
       .from('profiles')
-      .select('user_id, role, owner_user_id, username, email')
+      .select('user_id, role, owner_user_id, username')
       .eq('user_id', operatorUserId)
       .single();
 
@@ -400,13 +358,12 @@ Deno.serve(async (request) => {
     }
 
     if (openSession?.id) {
-      return jsonResponse({ error: 'Feche o caixa deste operador antes de excluí-lo.' }, 400);
+      return jsonResponse({ error: 'Feche o caixa desse operador antes de excluí-lo.' }, 400);
     }
 
-    const { error: deleteAuthError } = await serviceClient.auth.admin.deleteUser(operatorUserId);
-
-    if (deleteAuthError) {
-      return jsonResponse({ error: deleteAuthError.message || 'Não foi possível excluir o operador.' }, 400);
+    const { error: deleteUserError } = await serviceClient.auth.admin.deleteUser(operatorUserId);
+    if (deleteUserError) {
+      return jsonResponse({ error: deleteUserError.message || 'Não foi possível excluir o operador.' }, 400);
     }
 
     await serviceClient
@@ -414,7 +371,13 @@ Deno.serve(async (request) => {
       .delete()
       .eq('user_id', operatorUserId);
 
-    return jsonResponse({ success: true });
+    return jsonResponse({
+      success: true,
+      operator: {
+        user_id: targetProfile.user_id,
+        username: targetProfile.username,
+      },
+    });
   }
 
   if (body.action === 'reset_financial' || body.action === 'reset_reports' || body.action === 'reset_financial_reports') {
@@ -604,7 +567,6 @@ Deno.serve(async (request) => {
         expenses: financialResult?.deletedExpenses ?? 0,
         payments: financialResult?.deletedPayments ?? 0,
         debtEntries: financialResult?.deletedDebtEntries ?? 0,
->>>>>>> main
       },
     });
   }

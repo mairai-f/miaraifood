@@ -1,29 +1,19 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
-<<<<<<< HEAD
 import {
   isValidOperatorUsername,
   normalizeOperatorUsername,
 } from '../_shared/operatorCredentials.ts';
-=======
->>>>>>> main
 
 type OperatorLoginRequest = {
   username?: string;
   password?: string;
 };
 
-<<<<<<< HEAD
-interface OperatorProfileRow {
-  email: string | null;
-  username: string;
-}
-=======
 type OperatorProfileRow = {
   user_id: string;
   email: string | null;
   username: string | null;
 };
->>>>>>> main
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -57,26 +47,6 @@ Deno.serve(async (request) => {
     return jsonResponse({ error: 'Método não suportado.' }, 405);
   }
 
-<<<<<<< HEAD
-=======
-  const body = await getBody(request);
-  const username = body?.username?.trim();
-  const password = body?.password?.trim();
-
-  if (!username || !password) {
-    return jsonResponse({ error: 'Informe usuário e senha.' }, 400);
-  }
-
->>>>>>> main
-  const supabaseUrl = Deno.env.get('SUPABASE_URL');
-  const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY');
-  const supabaseServiceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
-
-  if (!supabaseUrl || !supabaseAnonKey || !supabaseServiceRoleKey) {
-    return jsonResponse({ error: 'Configuração de autenticação inválida.' }, 500);
-  }
-
-<<<<<<< HEAD
   const body = await getBody(request);
   const normalizedUsername = normalizeOperatorUsername(body?.username ?? '');
   const password = body?.password?.trim();
@@ -85,8 +55,14 @@ Deno.serve(async (request) => {
     return jsonResponse({ error: 'Usuário ou senha incorretos.' }, 401);
   }
 
-=======
->>>>>>> main
+  const supabaseUrl = Deno.env.get('SUPABASE_URL');
+  const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY');
+  const supabaseServiceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+
+  if (!supabaseUrl || !supabaseAnonKey || !supabaseServiceRoleKey) {
+    return jsonResponse({ error: 'Configuração de autenticação inválida.' }, 500);
+  }
+
   const serviceClient = createClient(supabaseUrl, supabaseServiceRoleKey, {
     auth: {
       autoRefreshToken: false,
@@ -101,53 +77,18 @@ Deno.serve(async (request) => {
     },
   });
 
-<<<<<<< HEAD
-  const { data: profiles, error: profileError } = await serviceClient
-    .from('profiles')
-    .select('email, username')
-    .eq('role', 'operator');
-
-  const matchingProfiles = ((profiles as OperatorProfileRow[] | null) ?? []).filter(
-    (profile) => normalizeOperatorUsername(profile.username) === normalizedUsername,
-  );
-
-  if (profileError || matchingProfiles.length !== 1 || !matchingProfiles[0].email) {
-    return jsonResponse({ error: 'Usuário ou senha incorretos.' }, 401);
-  }
-
-  const { data: loginData, error: loginError } = await authClient.auth.signInWithPassword({
-    email: matchingProfiles[0].email,
-    password,
-  });
-
-  if (loginError || !loginData.session || !loginData.user) {
-    return jsonResponse({ error: 'Usuário ou senha incorretos.' }, 401);
-  }
-
-  return jsonResponse({
-    success: true,
-    session: {
-      access_token: loginData.session.access_token,
-      refresh_token: loginData.session.refresh_token,
-    },
-  });
-=======
-  const normalizedUsername = username.toLocaleLowerCase('pt-BR');
-
   const { data: profiles, error: profileError } = await serviceClient
     .from('profiles')
     .select('user_id, email, username')
     .eq('role', 'operator')
-    .ilike('username', normalizedUsername);
+    .eq('username', normalizedUsername);
 
   if (profileError || !profiles || profiles.length === 0) {
     return jsonResponse({ error: 'Usuário ou senha incorretos.' }, 401);
   }
 
   const matchingProfiles = (profiles as OperatorProfileRow[]).filter(profile =>
-    (profile.username ?? '').trim().toLocaleLowerCase('pt-BR') === normalizedUsername
-      && typeof profile.email === 'string'
-      && profile.email.length > 0
+    normalizeOperatorUsername(profile.username ?? '') === normalizedUsername,
   );
 
   if (matchingProfiles.length === 0) {
@@ -193,5 +134,4 @@ Deno.serve(async (request) => {
   }
 
   return jsonResponse({ error: 'Usuário ou senha incorretos.' }, 401);
->>>>>>> main
 });
