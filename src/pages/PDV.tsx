@@ -220,6 +220,7 @@ export default function PDV() {
   const cashReceivedInputRef = useRef<HTMLInputElement>(null);
   const finalizeLockRef = useRef(false);
   const [search, setSearch] = useState('');
+  const [searchSelectedIndex, setSearchSelectedIndex] = useState(-1);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [cartItemPendingRemoval, setCartItemPendingRemoval] = useState<CartItem | null>(null);
   const [discountType, setDiscountType] = useState<'value' | 'percent'>('value');
@@ -259,6 +260,8 @@ export default function PDV() {
   const [lastCloseReceipt, setLastCloseReceipt] = useState<CashCloseReceipt | null>(null);
   const [lastSaleData, setLastSaleData] = useState<{ items: CartItem[]; total: number; discount: number; method: string; change: number; clientId: string | null } | null>(null);
   const [isFinalizingSale, setIsFinalizingSale] = useState(false);
+  const lastEscToClearCartAtRef = useRef(0);
+  const ignoreCartClearOnEscRef = useRef(false);
 
   const activeProducts = products.filter(p => !('deleted' in p && (p as any).deleted));
   const activeClients = clients.filter(c => !c.deleted);
@@ -419,6 +422,21 @@ export default function PDV() {
       p.code?.toString().includes(q)
     );
   }, [search, activeProducts]);
+
+  useEffect(() => {
+    if (filtered.length === 0) {
+      setSearchSelectedIndex(-1);
+      return;
+    }
+
+    setSearchSelectedIndex(currentIndex => {
+      if (currentIndex >= 0 && currentIndex < filtered.length) {
+        return currentIndex;
+      }
+
+      return 0;
+    });
+  }, [filtered.length, search]);
 
   const subtotal = cart.reduce((s, i) => s + i.product.price * i.quantity, 0);
   const cartUnits = cart.reduce((sum, item) => sum + item.quantity, 0);
@@ -1232,7 +1250,8 @@ export default function PDV() {
           p.name.toLowerCase() === q
         )
       : null;
-    const product = exactMatch || filtered[0];
+    const selectedProduct = searchSelectedIndex >= 0 ? filtered[searchSelectedIndex] : null;
+    const product = exactMatch || selectedProduct || filtered[0];
 
     if (!product) {
       silentToast.error('Produto não encontrado');
@@ -1241,7 +1260,24 @@ export default function PDV() {
 
     addToCart(product);
     setSearch('');
+    setSearchSelectedIndex(-1);
     silentToast.success(`${product.name} adicionado`);
+  };
+
+  const moveSearchSelection = (backward = false) => {
+    if (filtered.length === 0) return;
+
+    setSearchSelectedIndex(currentIndex => {
+      if (currentIndex < 0) {
+        return backward ? filtered.length - 1 : 0;
+      }
+
+      if (backward) {
+        return (currentIndex - 1 + filtered.length) % filtered.length;
+      }
+
+      return (currentIndex + 1) % filtered.length;
+    });
   };
 
   const updateQty = (productId: string, delta: number) => {
@@ -1263,8 +1299,16 @@ export default function PDV() {
   const clearCart = () => {
     if (cart.length === 0) return;
     setCart([]);
+    lastEscToClearCartAtRef.current = 0;
     silentToast.success('Carrinho zerado');
     searchInputRef.current?.blur();
+  };
+
+  const suppressCartClearForCurrentEsc = () => {
+    ignoreCartClearOnEscRef.current = true;
+    requestAnimationFrame(() => {
+      ignoreCartClearOnEscRef.current = false;
+    });
   };
 
   const handlePaymentMethodChange = (method: string) => {
@@ -1690,6 +1734,7 @@ export default function PDV() {
       if (event.key === 'Escape' && event.target === searchInputRef.current) {
         event.preventDefault();
         setSearch('');
+        setSearchSelectedIndex(-1);
         searchInputRef.current?.blur();
         return;
       }
@@ -1713,6 +1758,8 @@ export default function PDV() {
       if (showCheckout) {
         if (event.key === 'Escape') {
           event.preventDefault();
+          suppressCartClearForCurrentEsc();
+          lastEscToClearCartAtRef.current = Date.now();
           setShowFinalizeConfirm(false);
           setShowCheckout(false);
           return;
@@ -1762,7 +1809,25 @@ export default function PDV() {
 
       if (event.key === 'Escape' && !showReceipt) {
         event.preventDefault();
-        clearCart();
+        if (ignoreCartClearOnEscRef.current) {
+          return;
+        }
+
+        if (cart.length === 0) {
+          lastEscToClearCartAtRef.current = 0;
+          return;
+        }
+
+        const now = Date.now();
+        const shouldClearCart = now - lastEscToClearCartAtRef.current <= 900;
+
+        if (shouldClearCart) {
+          clearCart();
+          lastEscToClearCartAtRef.current = 0;
+          return;
+        }
+
+        lastEscToClearCartAtRef.current = now;
         return;
       }
 
@@ -1876,10 +1941,16 @@ export default function PDV() {
           <Input
             ref={searchInputRef}
             className="h-11 pl-11 text-base"
-            placeholder="Espaço: buscar produto por nome, código ou barras. Enter adiciona."
+            placeholder="Espaço: buscar produto. Tab seleciona item e Enter adiciona."
             value={search}
             onChange={e => setSearch(e.target.value)}
             onKeyDown={e => {
+              if (e.key === 'Tab' && filtered.length > 0) {
+                e.preventDefault();
+                moveSearchSelection(e.shiftKey);
+                return;
+              }
+
               if (e.key === 'Enter') {
                 e.preventDefault();
                 addSearchResultToCart();
@@ -1888,9 +1959,20 @@ export default function PDV() {
           />
         </div>
         <div className="grid min-h-0 flex-1 grid-cols-2 gap-2 overflow-auto sm:grid-cols-3">
-          {filtered.map(p => (
+          {filtered.map((p, index) => (
             <motion.div key={p.id} whileTap={{ scale: 0.95 }}>
-              <Card className="cursor-pointer hover:border-primary/50 transition-colors border-border/50" onClick={() => { addToCart(p); setSearch(''); }}>
+              <Card
+                className={`cursor-pointer transition-colors ${
+                  search && index === searchSelectedIndex
+                    ? 'border-primary ring-2 ring-primary/30'
+                    : 'border-border/50 hover:border-primary/50'
+                }`}
+                onClick={() => {
+                  addToCart(p);
+                  setSearch('');
+                  setSearchSelectedIndex(-1);
+                }}
+              >
                 <CardContent className="p-4">
                   <p className="font-medium text-sm truncate">{p.code ? `#${p.code} ` : ''}{p.name}</p>
                   <p className="text-primary font-bold text-base">R$ {p.price.toFixed(2)}</p>
@@ -1969,7 +2051,17 @@ export default function PDV() {
 
       {/* Checkout dialog */}
       <Dialog open={showCheckout} onOpenChange={open => { if (!isFinalizingSale) setShowCheckout(open); }}>
-        <DialogContent className="max-w-3xl overflow-hidden" onOpenAutoFocus={event => event.preventDefault()}>
+        <DialogContent
+          className="max-w-3xl overflow-hidden"
+          onOpenAutoFocus={event => event.preventDefault()}
+          onEscapeKeyDown={event => {
+            event.preventDefault();
+            suppressCartClearForCurrentEsc();
+            lastEscToClearCartAtRef.current = Date.now();
+            setShowFinalizeConfirm(false);
+            setShowCheckout(false);
+          }}
+        >
           <DialogHeader className="space-y-1 pb-1"><DialogTitle>Finalizar venda</DialogTitle></DialogHeader>
           <div className="grid gap-4 lg:grid-cols-[1.15fr_0.85fr]">
             <div className="space-y-3">
@@ -2076,7 +2168,14 @@ export default function PDV() {
       </Dialog>
 
       <Dialog open={showFinalizeConfirm} onOpenChange={open => { if (!isFinalizingSale) setShowFinalizeConfirm(open); }}>
-        <DialogContent className="max-w-sm" onOpenAutoFocus={event => event.preventDefault()}>
+        <DialogContent
+          className="max-w-sm"
+          onOpenAutoFocus={event => event.preventDefault()}
+          onEscapeKeyDown={event => {
+            event.preventDefault();
+            setShowFinalizeConfirm(false);
+          }}
+        >
           <DialogHeader>
             <DialogTitle>Finalizar venda?</DialogTitle>
           </DialogHeader>
