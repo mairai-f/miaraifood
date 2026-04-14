@@ -1,6 +1,7 @@
 import { useCallback, useState } from 'react';
 import { Settings as SettingsIcon, ShieldAlert } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
+import { NfceSettingsPanel } from '@/components/NfceSettingsPanel';
 import { OperatorManagementPanel } from '@/components/OperatorManagementPanel';
 import { useAuth } from '@/contexts/AuthContext';
 import { useData } from '@/contexts/DataContext';
@@ -196,6 +197,8 @@ export default function Settings() {
         createDialogOpen={isCreateOperatorModalOpen}
         onCreateDialogOpenChange={handleCreateDialogOpenChange}
       />
+
+      <NfceSettingsPanel />
 
       <Card className="border-destructive/30">
         <CardHeader className="space-y-2">
