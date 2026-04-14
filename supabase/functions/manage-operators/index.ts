@@ -519,61 +519,6 @@ Deno.serve(async (request) => {
       });
     }
 
-    const { data: clients, error: clientsError } = await serviceClient
-      .from('clients')
-      .select('id')
-      .eq('user_id', ownerUserId);
-
-    if (clientsError) {
-      return jsonResponse({ error: 'Não foi possível preparar a limpeza dos dados financeiros.' }, 500);
-    }
-
-    const clientIds = (clients ?? []).map(client => client.id);
-
-    const { count: deletedSales, error: deleteSalesError } = await serviceClient
-      .from('sales')
-      .delete({ count: 'exact' })
-      .eq('user_id', ownerUserId);
-
-    if (deleteSalesError) {
-      return jsonResponse({ error: 'Falha ao limpar as vendas.' }, 500);
-    }
-
-    const { count: deletedExpenses, error: deleteExpensesError } = await serviceClient
-      .from('expenses')
-      .delete({ count: 'exact' })
-      .eq('user_id', ownerUserId);
-
-    if (deleteExpensesError) {
-      return jsonResponse({ error: 'Falha ao limpar as despesas.' }, 500);
-    }
-
-    let deletedDebtEntries = 0;
-    let deletedPayments = 0;
-
-    if (clientIds.length > 0) {
-      const { count: paymentsCount, error: deletePaymentsError } = await serviceClient
-        .from('payments')
-        .delete({ count: 'exact' })
-        .in('client_id', clientIds);
-
-      if (deletePaymentsError) {
-        return jsonResponse({ error: 'Falha ao limpar os pagamentos.' }, 500);
-      }
-
-      const { count: debtEntriesCount, error: deleteDebtEntriesError } = await serviceClient
-        .from('debt_entries')
-        .delete({ count: 'exact' })
-        .in('client_id', clientIds);
-
-      if (deleteDebtEntriesError) {
-        return jsonResponse({ error: 'Falha ao limpar os fiados.' }, 500);
-      }
-
-      deletedPayments = paymentsCount ?? 0;
-      deletedDebtEntries = debtEntriesCount ?? 0;
-    }
-
     return jsonResponse({
       success: true,
       deleted: {
