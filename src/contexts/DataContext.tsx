@@ -52,7 +52,10 @@ interface DataContextType {
   getClientTotalSpending: (clientId: string) => number;
   closeAllDebt: (clientId: string, date?: string) => Promise<void>;
   deleteClientHistory: (clientId: string) => Promise<void>;
-  createSale: (sale: Omit<Sale, 'id' | 'created_at' | 'date'>, items: Omit<SaleItem, 'id' | 'sale_id'>[]) => Promise<void>;
+  createSale: (
+    sale: Omit<Sale, 'id' | 'created_at' | 'date'>,
+    items: Omit<SaleItem, 'id' | 'sale_id'>[],
+  ) => Promise<{ sale: Sale; items: SaleItem[] }>;
   cancelSale: (saleId: string, reason: string) => Promise<void>;
   addStockMovement: (productId: string, type: string, quantity: number, reason: string) => Promise<void>;
   clearAllStock: (reason?: string) => Promise<void>;
@@ -325,7 +328,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
   };
 
   // --- Sales (PDV) ---
-  const createSale = async (sale: Omit<Sale, 'id' | 'created_at' | 'date'>, items: Omit<SaleItem, 'id' | 'sale_id'>[]) => {
+  const createSale = async (
+    sale: Omit<Sale, 'id' | 'created_at' | 'date'>,
+    items: Omit<SaleItem, 'id' | 'sale_id'>[],
+  ) => {
     const salePayload = {
       ...sale,
       user_id: ownerUserId!,
@@ -400,6 +406,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
     if (insertedStockMovements.length > 0) {
       setStockMovements(prev => [...insertedStockMovements, ...prev]);
     }
+
+    return {
+      sale: saleData as Sale,
+      items: (insertedItems as SaleItem[]) ?? [],
+    };
   };
 
   const cancelSale = async (saleId: string, reason: string) => {

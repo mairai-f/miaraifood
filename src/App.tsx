@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Route, Routes, Navigate } from "react-router-dom";
+import { BrowserRouter, HashRouter, Route, Routes, Navigate } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -18,11 +18,13 @@ import PDV from "@/pages/PDV";
 import Reports from "@/pages/Reports";
 import Financial from "@/pages/Financial";
 import Stock from "@/pages/Stock";
+import Notes from "@/pages/Notes";
 import Settings from "@/pages/Settings";
 import { SplashScreen } from "@/components/SplashScreen";
 import type { UserRole } from "@/lib/access";
 
 const queryClient = new QueryClient();
+const Router = typeof window !== "undefined" && window.location.protocol === "file:" ? HashRouter : BrowserRouter;
 
 function ProtectedRoute({
   children,
@@ -93,6 +95,7 @@ function AppRoutes() {
       <Route path="/estoque" element={<ProtectedRoute allowedRoles={['admin']}><Stock /></ProtectedRoute>} />
       <Route path="/relatorios" element={<ProtectedRoute allowedRoles={['admin']}><Reports /></ProtectedRoute>} />
       <Route path="/financeiro" element={<ProtectedRoute allowedRoles={['admin']}><Financial /></ProtectedRoute>} />
+      <Route path="/notas" element={<ProtectedRoute allowedRoles={['admin']}><Notes /></ProtectedRoute>} />
       <Route path="/configuracoes" element={<ProtectedRoute allowedRoles={['admin']}><Settings /></ProtectedRoute>} />
       <Route path="/recompensas" element={<ProtectedRoute allowedRoles={['admin']}><Rewards /></ProtectedRoute>} />
       <Route path="/cliente/:clientRef" element={<ProtectedRoute allowedRoles={['admin', 'operator']}><ClientDetail /></ProtectedRoute>} />
@@ -109,9 +112,9 @@ const App = () => (
       <Sonner />
       <AuthProvider>
         <DataProvider>
-          <BrowserRouter>
+          <Router>
             <AppRoutes />
-          </BrowserRouter>
+          </Router>
         </DataProvider>
       </AuthProvider>
     </TooltipProvider>

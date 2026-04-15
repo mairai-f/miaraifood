@@ -1,7 +1,11 @@
 {
   "name": "vite_react_shadcn_ts",
   "private": true,
+<<<<<<< HEAD
   "version": "0.0.0",
+=======
+  "version": "0.1.0",
+>>>>>>> main
   "main": "electron/main.cjs",
   "type": "module",
   "scripts": {
@@ -9,8 +13,15 @@
     "build": "vite build",
     "build:dev": "vite build --mode development",
     "electron:dev": "concurrently -k \"npm run dev\" \"wait-on http://localhost:8080 && cross-env VITE_DEV_SERVER_URL=http://localhost:8080 electron .\"",
+<<<<<<< HEAD
     "electron:build": "npm run build && electron-builder --publish never",
     "electron:build:dir": "npm run build && electron-builder --dir",
+=======
+    "electron:build:win": "npm run build && electron-builder --win nsis --x64 --publish never -c.win.signAndEditExecutable=false",
+    "electron:build:linux": "npm run build && electron-builder --linux AppImage --x64 --publish never",
+    "electron:publish:win": "npm run build && electron-builder --win nsis --x64 --publish always -c.win.signAndEditExecutable=false",
+    "electron:publish:linux": "npm run build && electron-builder --linux AppImage --x64 --publish always",
+>>>>>>> main
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest run",
@@ -52,6 +63,7 @@
     "cmdk": "^1.1.1",
     "date-fns": "^3.6.0",
     "date-fns-tz": "^3.2.0",
+    "electron-updater": "^6.8.3",
     "embla-carousel-react": "^8.6.0",
     "framer-motion": "^12.38.0",
     "input-otp": "^1.4.2",
@@ -101,19 +113,54 @@
   "build": {
     "appId": "com.happycash.desktop",
     "productName": "HappyCash",
+<<<<<<< HEAD
+=======
+    "electronUpdaterCompatibility": ">=2.16",
+>>>>>>> main
     "directories": {
       "output": "release"
     },
     "files": [
       "dist/**/*",
+<<<<<<< HEAD
       "electron/**/*",
       "package.json"
     ],
     "linux": {
+=======
+      "build/icon.png",
+      "build/icon.ico",
+      "electron/**/*",
+      "package.json"
+    ],
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "celioantonio7",
+        "repo": "HappyCash",
+        "releaseType": "release"
+      }
+    ],
+    "win": {
+      "icon": "icon.ico",
+      "artifactName": "HappyCash-Setup-${version}.${ext}",
+      "target": [
+        "nsis"
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    },
+    "linux": {
+      "icon": "icon.png",
+      "artifactName": "HappyCash-${version}.${ext}",
+>>>>>>> main
       "target": [
         "AppImage"
       ],
       "category": "Office"
+<<<<<<< HEAD
     },
     "win": {
       "target": [
@@ -125,6 +172,8 @@
       "target": [
         "dmg"
       ]
+=======
+>>>>>>> main
     }
   }
 }

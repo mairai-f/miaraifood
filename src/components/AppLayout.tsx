@@ -1,6 +1,6 @@
 import { ReactNode, useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Home, Users, Package, Gift, Trash2, LogOut, Menu, X, UserCircle, Receipt, BarChart3, DollarSign, Boxes, ChevronDown, ChevronUp } from 'lucide-react';
+import { Home, Users, Package, Gift, Trash2, LogOut, Menu, X, UserCircle, Receipt, BarChart3, DollarSign, Boxes, ChevronDown, ChevronUp, FileText } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import happyCashLogo from '@/assets/happycash-logo.png';
 import { roleLabel } from '@/lib/access';
@@ -13,6 +13,7 @@ const navItems = [
   { path: '/estoque', label: 'Estoque', icon: Boxes, shortcut: '5', roles: ['admin'] },
   { path: '/relatorios', label: 'Relatórios', icon: BarChart3, shortcut: '6', roles: ['admin'] },
   { path: '/financeiro', label: 'Financeiro', icon: DollarSign, shortcut: '7', roles: ['admin'] },
+  { path: '/notas', label: 'Notas', icon: FileText, shortcut: '8', roles: ['admin'] },
   { path: '/recompensas', label: 'Recompensas', icon: Gift, roles: ['admin'] },
   { path: '/excluidos', label: 'Excluídos', icon: Trash2, roles: ['admin'] },
 ];
