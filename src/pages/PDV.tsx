@@ -619,7 +619,8 @@ export default function PDV() {
     && (paymentMethod !== 'fiado' || Boolean(selectedClientId))
     && (paymentMethod !== 'cartao_credito' || Boolean(creditInstallments && creditInstallments > 0));
   const canIssueFiscalDocumentInHomologation = Boolean(
-    session?.access_token
+    isAdmin
+    && session?.access_token
     && fiscalRuntime?.enabled
     && fiscalRuntime.environment === 'homologacao'
     && fiscalRuntime.ready,
@@ -2378,18 +2379,16 @@ export default function PDV() {
                     {isCartItemPriceEdited(i) && (
                       <p className="text-xs text-muted-foreground">Preço base: {formatMoney(i.product.price)}</p>
                     )}
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <p className="text-sm font-semibold text-primary">{formatMoney(getCartItemTotal(i))}</p>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        className="h-7 px-2 text-xs"
-                        onClick={() => openCartItemPriceEditor(i)}
-                      >
-                        Alterar preço
-                      </Button>
-                    </div>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 justify-start px-0 text-xs text-primary hover:text-primary"
+                      onClick={() => openCartItemPriceEditor(i)}
+                    >
+                      Alterar preço
+                    </Button>
+                    <p className="text-sm font-semibold text-primary">{formatMoney(getCartItemTotal(i))}</p>
                   </div>
                   <div className="flex items-center gap-1 self-center">
                     <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => updateQty(i.product.id, -1)}><Minus className="h-4 w-4" /></Button>
@@ -2613,52 +2612,54 @@ export default function PDV() {
                 </div>
               )}
 
-              <div className="rounded-lg border border-border p-3 space-y-2">
-                <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <p className="text-sm font-medium">NFC-e no PDV</p>
-                    <p className="text-xs text-muted-foreground">
-                      Fluxo inicial de homologacao lido da area Notas.
-                    </p>
-                  </div>
-                  <Badge variant={checkoutFiscalBadgeVariant}>{checkoutFiscalStatusLabel}</Badge>
-                </div>
-
-                {loadingFiscalRuntime ? (
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    Carregando configuracao fiscal...
-                  </div>
-                ) : fiscalRuntimeError ? (
-                  <p className="text-xs text-destructive">{fiscalRuntimeError}</p>
-                ) : !fiscalRuntime?.enabled ? (
-                  <p className="text-xs text-muted-foreground">
-                    A NFC-e esta desativada na area Notas. A venda sera concluida sem emissao fiscal.
-                  </p>
-                ) : !fiscalRuntime.ready ? (
-                  <div className="space-y-1">
-                    <p className="text-xs text-muted-foreground">
-                      A NFC-e esta habilitada, mas ainda faltam dados obrigatorios para emitir em homologacao.
-                    </p>
-                    {fiscalRuntime.missingItems.length > 0 && (
-                      <p className="text-xs text-destructive">
-                        Pendencias: {fiscalRuntime.missingItems.join(', ')}.
+              {isAdmin && (
+                <div className="rounded-lg border border-border p-3 space-y-2">
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <p className="text-sm font-medium">NFC-e no PDV</p>
+                      <p className="text-xs text-muted-foreground">
+                        Fluxo inicial de homologacao lido da area Notas.
                       </p>
-                    )}
+                    </div>
+                    <Badge variant={checkoutFiscalBadgeVariant}>{checkoutFiscalStatusLabel}</Badge>
                   </div>
-                ) : (
-                  <div className="space-y-1 text-xs text-muted-foreground">
-                    <p>
-                      Ambiente: <span className="font-medium text-foreground">{fiscalRuntime.environment}</span>
-                      {' '}| Serie: <span className="font-medium text-foreground">{fiscalRuntime.series}</span>
-                      {' '}| Proximo numero: <span className="font-medium text-foreground">{fiscalRuntime.nextNumber}</span>
+
+                  {loadingFiscalRuntime ? (
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      Carregando configuracao fiscal...
+                    </div>
+                  ) : fiscalRuntimeError ? (
+                    <p className="text-xs text-destructive">{fiscalRuntimeError}</p>
+                  ) : !fiscalRuntime?.enabled ? (
+                    <p className="text-xs text-muted-foreground">
+                      A NFC-e esta desativada na area Notas. A venda sera concluida sem emissao fiscal.
                     </p>
-                    <p>
-                      Emitente: <span className="font-medium text-foreground">{fiscalRuntime.issuerName || 'Nao informado'}</span>
-                    </p>
-                  </div>
-                )}
-              </div>
+                  ) : !fiscalRuntime.ready ? (
+                    <div className="space-y-1">
+                      <p className="text-xs text-muted-foreground">
+                        A NFC-e esta habilitada, mas ainda faltam dados obrigatorios para emitir em homologacao.
+                      </p>
+                      {fiscalRuntime.missingItems.length > 0 && (
+                        <p className="text-xs text-destructive">
+                          Pendencias: {fiscalRuntime.missingItems.join(', ')}.
+                        </p>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="space-y-1 text-xs text-muted-foreground">
+                      <p>
+                        Ambiente: <span className="font-medium text-foreground">{fiscalRuntime.environment}</span>
+                        {' '}| Serie: <span className="font-medium text-foreground">{fiscalRuntime.series}</span>
+                        {' '}| Proximo numero: <span className="font-medium text-foreground">{fiscalRuntime.nextNumber}</span>
+                      </p>
+                      <p>
+                        Emitente: <span className="font-medium text-foreground">{fiscalRuntime.issuerName || 'Nao informado'}</span>
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
 
               <p className="text-xs text-muted-foreground">Enter pede confirmação para finalizar.</p>
             </div>
@@ -3270,112 +3271,116 @@ export default function PDV() {
               </div>
             )}
 
-            <div className="space-y-3 rounded-lg border border-border p-4">
-              <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-2">
-                  <FileText className="h-4 w-4 text-primary" />
-                  <div>
-                    <p className="text-sm font-semibold">NFC-e em homologacao</p>
-                    <p className="text-xs text-muted-foreground">
-                      Fluxo inicial salvo em Notas e executado no PDV.
-                    </p>
+            {isAdmin && (
+              <div className="space-y-3 rounded-lg border border-border p-4">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <FileText className="h-4 w-4 text-primary" />
+                    <div>
+                      <p className="text-sm font-semibold">NFC-e em homologacao</p>
+                      <p className="text-xs text-muted-foreground">
+                        Fluxo inicial salvo em Notas e executado no PDV.
+                      </p>
+                    </div>
                   </div>
-                </div>
-                {lastFiscalDocument ? (
-                  <Badge variant={fiscalStatusVariant(lastFiscalDocument.status)}>
-                    {fiscalStatusLabel(lastFiscalDocument.status)}
-                  </Badge>
-                ) : issuingFiscalDocument ? (
-                  <Badge variant="outline">Emitindo</Badge>
-                ) : (
-                  <Badge variant={checkoutFiscalBadgeVariant}>{checkoutFiscalStatusLabel}</Badge>
-                )}
-              </div>
-
-              {issuingFiscalDocument && (
-                <div className="flex items-center gap-2 rounded-lg border border-dashed border-border p-3 text-sm text-muted-foreground">
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Gerando o DANFE simplificado de homologacao desta venda...
-                </div>
-              )}
-
-              {!issuingFiscalDocument && lastFiscalDocument && (
-                <div className="space-y-3 rounded-lg border border-primary/20 bg-primary/5 p-3">
-                  <div className="grid gap-2 sm:grid-cols-2 text-sm">
-                    <p>
-                      <span className="text-muted-foreground">Numero/Série:</span>{' '}
-                      <span className="font-medium">{lastFiscalDocument.number}/{lastFiscalDocument.series}</span>
-                    </p>
-                    <p>
-                      <span className="text-muted-foreground">Ambiente:</span>{' '}
-                      <span className="font-medium">{lastFiscalDocument.environment}</span>
-                    </p>
-                    <p>
-                      <span className="text-muted-foreground">Emissao:</span>{' '}
-                      <span className="font-medium">{formatSaleDate(lastFiscalDocument.emittedAt)}</span>
-                    </p>
-                    <p>
-                      <span className="text-muted-foreground">Venda:</span>{' '}
-                      <span className="font-medium">{lastFiscalDocument.saleId}</span>
-                    </p>
-                  </div>
-
-                  <div className="space-y-1 text-sm">
-                    <p className="text-muted-foreground">Chave de acesso</p>
-                    <p className="break-all font-mono text-xs">{lastFiscalDocument.accessKey}</p>
-                  </div>
-
-                  <div className="flex flex-wrap gap-2">
-                    <Button type="button" variant="outline" onClick={() => openFiscalDocumentPrintWindow(lastFiscalDocument)}>
-                      <Printer className="mr-2 h-4 w-4" />
-                      Abrir DANFE
-                    </Button>
-                  </div>
-                </div>
-              )}
-
-              {!issuingFiscalDocument && lastFiscalDocumentError && (
-                <div className="space-y-3">
-                  <Alert variant="destructive">
-                    <AlertTitle>Falha ao emitir a NFC-e de homologacao</AlertTitle>
-                    <AlertDescription>{lastFiscalDocumentError}</AlertDescription>
-                  </Alert>
-
-                  {lastSaleData && (
-                    <Button type="button" variant="outline" onClick={retryFiscalIssuance}>
-                      Tentar novamente
-                    </Button>
+                  {lastFiscalDocument ? (
+                    <Badge variant={fiscalStatusVariant(lastFiscalDocument.status)}>
+                      {fiscalStatusLabel(lastFiscalDocument.status)}
+                    </Badge>
+                  ) : issuingFiscalDocument ? (
+                    <Badge variant="outline">Emitindo</Badge>
+                  ) : (
+                    <Badge variant={checkoutFiscalBadgeVariant}>{checkoutFiscalStatusLabel}</Badge>
                   )}
                 </div>
-              )}
 
-              {!issuingFiscalDocument && !lastFiscalDocument && !lastFiscalDocumentError && !canIssueFiscalDocumentInHomologation && (
-                <Alert>
-                  <AlertTitle>NFC-e nao emitida para esta venda</AlertTitle>
-                  <AlertDescription>
-                    {fiscalRuntimeError
-                      ? fiscalRuntimeError
-                      : !fiscalRuntime?.enabled
-                        ? 'A NFC-e esta desativada no painel Notas.'
-                        : !fiscalRuntime?.ready
-                          ? `A configuracao fiscal ainda esta incompleta${fiscalRuntime?.missingItems?.length ? `: ${fiscalRuntime.missingItems.join(', ')}.` : '.'}`
-                          : 'O fluxo inicial desta etapa aceita apenas emissao em homologacao.'}
-                  </AlertDescription>
-                </Alert>
-              )}
-            </div>
+                {issuingFiscalDocument && (
+                  <div className="flex items-center gap-2 rounded-lg border border-dashed border-border p-3 text-sm text-muted-foreground">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Gerando o DANFE simplificado de homologacao desta venda...
+                  </div>
+                )}
+
+                {!issuingFiscalDocument && lastFiscalDocument && (
+                  <div className="space-y-3 rounded-lg border border-primary/20 bg-primary/5 p-3">
+                    <div className="grid gap-2 sm:grid-cols-2 text-sm">
+                      <p>
+                        <span className="text-muted-foreground">Numero/Série:</span>{' '}
+                        <span className="font-medium">{lastFiscalDocument.number}/{lastFiscalDocument.series}</span>
+                      </p>
+                      <p>
+                        <span className="text-muted-foreground">Ambiente:</span>{' '}
+                        <span className="font-medium">{lastFiscalDocument.environment}</span>
+                      </p>
+                      <p>
+                        <span className="text-muted-foreground">Emissao:</span>{' '}
+                        <span className="font-medium">{formatSaleDate(lastFiscalDocument.emittedAt)}</span>
+                      </p>
+                      <p>
+                        <span className="text-muted-foreground">Venda:</span>{' '}
+                        <span className="font-medium">{lastFiscalDocument.saleId}</span>
+                      </p>
+                    </div>
+
+                    <div className="space-y-1 text-sm">
+                      <p className="text-muted-foreground">Chave de acesso</p>
+                      <p className="break-all font-mono text-xs">{lastFiscalDocument.accessKey}</p>
+                    </div>
+
+                    <div className="flex flex-wrap gap-2">
+                      <Button type="button" variant="outline" onClick={() => openFiscalDocumentPrintWindow(lastFiscalDocument)}>
+                        <Printer className="mr-2 h-4 w-4" />
+                        Abrir DANFE
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                {!issuingFiscalDocument && lastFiscalDocumentError && (
+                  <div className="space-y-3">
+                    <Alert variant="destructive">
+                      <AlertTitle>Falha ao emitir a NFC-e de homologacao</AlertTitle>
+                      <AlertDescription>{lastFiscalDocumentError}</AlertDescription>
+                    </Alert>
+
+                    {lastSaleData && (
+                      <Button type="button" variant="outline" onClick={retryFiscalIssuance}>
+                        Tentar novamente
+                      </Button>
+                    )}
+                  </div>
+                )}
+
+                {!issuingFiscalDocument && !lastFiscalDocument && !lastFiscalDocumentError && !canIssueFiscalDocumentInHomologation && (
+                  <Alert>
+                    <AlertTitle>NFC-e nao emitida para esta venda</AlertTitle>
+                    <AlertDescription>
+                      {fiscalRuntimeError
+                        ? fiscalRuntimeError
+                        : !fiscalRuntime?.enabled
+                          ? 'A NFC-e esta desativada no painel Notas.'
+                          : !fiscalRuntime?.ready
+                            ? `A configuracao fiscal ainda esta incompleta${fiscalRuntime?.missingItems?.length ? `: ${fiscalRuntime.missingItems.join(', ')}.` : '.'}`
+                            : 'O fluxo inicial desta etapa aceita apenas emissao em homologacao.'}
+                    </AlertDescription>
+                  </Alert>
+                )}
+              </div>
+            )}
           </div>
 
           <DialogFooter className="gap-2">
             <Button variant="outline" onClick={() => setShowReceipt(false)}>Fechar</Button>
-            <Button variant="outline" onClick={() => void loadFiscalRuntime()} disabled={loadingFiscalRuntime}>
-              {loadingFiscalRuntime ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : (
-                <FileText className="mr-2 h-4 w-4" />
-              )}
-              Atualizar status fiscal
-            </Button>
+            {isAdmin && (
+              <Button variant="outline" onClick={() => void loadFiscalRuntime()} disabled={loadingFiscalRuntime}>
+                {loadingFiscalRuntime ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <FileText className="mr-2 h-4 w-4" />
+                )}
+                Atualizar status fiscal
+              </Button>
+            )}
             <Button onClick={sendReceiptWhatsApp}>📱 Enviar WhatsApp</Button>
           </DialogFooter>
         </DialogContent>
