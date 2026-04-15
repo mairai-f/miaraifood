@@ -249,9 +249,11 @@ export default function PDV() {
   const searchInputRef = useRef<HTMLInputElement>(null);
   const cashReceivedInputRef = useRef<HTMLInputElement>(null);
   const finalizeLockRef = useRef(false);
+  const cartItemSelectionRefs = useRef<Array<HTMLDivElement | null>>([]);
   const [search, setSearch] = useState('');
   const [searchSelectedIndex, setSearchSelectedIndex] = useState(-1);
   const [cart, setCart] = useState<CartItem[]>([]);
+  const [cartKeyboardSelectionIndex, setCartKeyboardSelectionIndex] = useState<number | null>(null);
   const [cartItemPendingRemoval, setCartItemPendingRemoval] = useState<CartItem | null>(null);
   const [cartItemPendingPriceEdit, setCartItemPendingPriceEdit] = useState<CartItem | null>(null);
   const [pendingCartItemPrice, setPendingCartItemPrice] = useState('');
@@ -1488,6 +1490,57 @@ export default function PDV() {
     setPendingCartItemPrice(item.unitPrice.toFixed(2));
   };
 
+  const startCartPriceSelection = () => {
+    if (cart.length === 0) {
+      silentToast.error('Carrinho vazio');
+      return;
+    }
+
+    setCartKeyboardSelectionIndex(currentIndex => {
+      if (currentIndex !== null && currentIndex >= 0 && currentIndex < cart.length) {
+        requestAnimationFrame(() => {
+          cartItemSelectionRefs.current[currentIndex]?.focus();
+        });
+        return currentIndex;
+      }
+
+      return 0;
+    });
+  };
+
+  const moveCartKeyboardSelection = (backward = false) => {
+    if (cart.length === 0) {
+      return;
+    }
+
+    setCartKeyboardSelectionIndex(currentIndex => {
+      if (currentIndex === null) {
+        return backward ? cart.length - 1 : 0;
+      }
+
+      if (backward) {
+        return Math.max(0, currentIndex - 1);
+      }
+
+      return Math.min(cart.length - 1, currentIndex + 1);
+    });
+  };
+
+  const openSelectedCartItemPriceEditor = () => {
+    if (cart.length === 0) {
+      silentToast.error('Carrinho vazio');
+      return;
+    }
+
+    const selectedIndex = cartKeyboardSelectionIndex ?? 0;
+    const selectedItem = cart[selectedIndex];
+    if (!selectedItem) {
+      return;
+    }
+
+    openCartItemPriceEditor(selectedItem);
+  };
+
   const closeCartItemPriceEditor = () => {
     setCartItemPendingPriceEdit(null);
     setPendingCartItemPrice('');
@@ -1523,12 +1576,51 @@ export default function PDV() {
   const clearCart = () => {
     if (cart.length === 0) return;
     setCart([]);
+    setCartKeyboardSelectionIndex(null);
     closeCartItemPriceEditor();
     setCartItemPendingRemoval(null);
     lastEscToClearCartAtRef.current = 0;
     silentToast.success('Carrinho zerado');
     searchInputRef.current?.blur();
   };
+
+  useEffect(() => {
+    if (cart.length === 0) {
+      setCartKeyboardSelectionIndex(null);
+      return;
+    }
+
+    setCartKeyboardSelectionIndex(currentIndex => {
+      if (currentIndex === null) return null;
+      return Math.min(currentIndex, cart.length - 1);
+    });
+  }, [cart.length]);
+
+  useEffect(() => {
+    if (cartKeyboardSelectionIndex === null) return;
+
+    const selectedElement = cartItemSelectionRefs.current[cartKeyboardSelectionIndex];
+    if (!selectedElement) return;
+
+    selectedElement.focus();
+    selectedElement.scrollIntoView({ block: 'nearest' });
+  }, [cartKeyboardSelectionIndex, cart]);
+
+  useEffect(() => {
+    if (
+      showCheckout
+      || showReceipt
+      || showSalesSearch
+      || showCancelledSales
+      || showCashOut
+      || showCloseCashReceipt
+      || showOpenCashDialog
+      || Boolean(saleToCancel)
+      || Boolean(cartItemPendingPriceEdit)
+    ) {
+      setCartKeyboardSelectionIndex(null);
+    }
+  }, [showCheckout, showReceipt, showSalesSearch, showCancelledSales, showCashOut, showCloseCashReceipt, showOpenCashDialog, saleToCancel, cartItemPendingPriceEdit]);
 
   const suppressCartClearForCurrentEsc = () => {
     ignoreCartClearOnEscRef.current = true;
@@ -2095,6 +2187,34 @@ export default function PDV() {
         return;
       }
 
+      if (cartItemPendingPriceEdit) {
+        if (event.key === 'Escape') {
+          event.preventDefault();
+          closeCartItemPriceEditor();
+        }
+        return;
+      }
+
+      if (cartKeyboardSelectionIndex !== null) {
+        if (event.key === 'Escape') {
+          event.preventDefault();
+          setCartKeyboardSelectionIndex(null);
+          return;
+        }
+
+        if (event.key === 'Tab') {
+          event.preventDefault();
+          moveCartKeyboardSelection(event.shiftKey);
+          return;
+        }
+
+        if (event.key === 'Enter') {
+          event.preventDefault();
+          openSelectedCartItemPriceEditor();
+          return;
+        }
+      }
+
       if (showCreditInstallmentsDialog) {
         if (event.key === 'Escape') {
           event.preventDefault();
@@ -2257,6 +2377,12 @@ export default function PDV() {
           requestCloseCash();
           return;
         }
+
+        if (event.key === '8') {
+          event.preventDefault();
+          startCartPriceSelection();
+          return;
+        }
       }
 
       if (event.key === 'F2') {
@@ -2285,7 +2411,7 @@ export default function PDV() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [activeProducts, filtered, search, cart, discount, paymentMethod, cashReceived, selectedClientId, total, change, canFinalizeCheckout, showCheckout, showFinalizeConfirm, showCreditInstallmentsDialog, showReceipt, showSalesSearch, showCancelledSales, showCashOut, showCloseCashReceipt, showOpenCashDialog, saleToCancel, navigate, isAdmin, creditInstallments, pendingCreditInstallments]);
+  }, [activeProducts, filtered, search, cart, cartKeyboardSelectionIndex, cartItemPendingPriceEdit, discount, paymentMethod, cashReceived, selectedClientId, total, change, canFinalizeCheckout, showCheckout, showFinalizeConfirm, showCreditInstallmentsDialog, showReceipt, showSalesSearch, showCancelledSales, showCashOut, showCloseCashReceipt, showOpenCashDialog, saleToCancel, navigate, isAdmin, creditInstallments, pendingCreditInstallments]);
 
   return (
     <div className="flex min-h-[calc(100vh-1.5rem)] flex-col gap-4 sm:min-h-[calc(100vh-2rem)] lg:h-[calc(100vh-3rem)] lg:flex-row">
@@ -2364,12 +2490,28 @@ export default function PDV() {
       <div className="flex min-h-[70vh] w-full flex-col lg:min-h-0 lg:w-[26rem] xl:w-[30rem]">
         <Card className="flex min-h-0 flex-1 flex-col border-border/50">
           <CardHeader className="pb-2 px-4 pt-4">
-            <CardTitle className="text-base flex items-center gap-2"><ShoppingCart className="h-5 w-5" />Carrinho ({cart.length}) <span className="text-xs font-medium text-muted-foreground">Esc zera</span></CardTitle>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <ShoppingCart className="h-5 w-5" />
+              Carrinho ({cart.length})
+              <span className="text-xs font-medium text-muted-foreground">Esc zera</span>
+              <span className="text-xs font-medium text-destructive">8 preço • Tab navega</span>
+            </CardTitle>
           </CardHeader>
           <CardContent className="flex min-h-0 flex-1 flex-col p-4 pt-0 gap-3">
             <div className="min-h-0 flex-1 overflow-auto space-y-2">
-              {cart.map(i => (
-                <div key={i.product.id} className="flex items-start gap-3 rounded-lg bg-secondary/50 p-3">
+              {cart.map((i, index) => (
+                <div
+                  key={i.product.id}
+                  ref={element => {
+                    cartItemSelectionRefs.current[index] = element;
+                  }}
+                  tabIndex={cartKeyboardSelectionIndex === index ? 0 : -1}
+                  className={`flex items-start gap-3 rounded-lg bg-secondary/50 p-3 outline-none transition-colors ${
+                    cartKeyboardSelectionIndex === index
+                      ? 'ring-2 ring-destructive/60 bg-destructive/5'
+                      : ''
+                  }`}
+                >
                   <div className="min-w-0 flex-1 space-y-1.5">
                     <p className="text-sm font-medium leading-tight whitespace-normal break-words">{i.product.name}</p>
                     <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
@@ -2381,9 +2523,9 @@ export default function PDV() {
                     )}
                     <Button
                       type="button"
-                      variant="ghost"
+                      variant="outline"
                       size="sm"
-                      className="h-7 justify-start px-0 text-xs text-primary hover:text-primary"
+                      className="h-7 justify-start border-destructive/40 px-2 text-xs text-destructive hover:bg-destructive/10 hover:text-destructive"
                       onClick={() => openCartItemPriceEditor(i)}
                     >
                       Alterar preço
@@ -2482,7 +2624,7 @@ export default function PDV() {
       {/* Checkout dialog */}
       <Dialog open={showCheckout} onOpenChange={open => { if (!isFinalizingSale) setShowCheckout(open); }}>
         <DialogContent
-          className="max-w-3xl overflow-hidden"
+          className="max-h-[90vh] max-w-3xl overflow-hidden"
           onOpenAutoFocus={event => event.preventDefault()}
           onEscapeKeyDown={event => {
             event.preventDefault();
@@ -2493,11 +2635,11 @@ export default function PDV() {
           }}
         >
           <DialogHeader className="space-y-1 pb-1"><DialogTitle>Finalizar venda</DialogTitle></DialogHeader>
-          <div className="grid gap-4 lg:grid-cols-[1.15fr_0.85fr]">
-            <div className="space-y-3">
+          <div className="grid min-h-0 gap-4 overflow-hidden lg:grid-cols-[1.15fr_0.85fr]">
+            <div className="min-h-0 space-y-3">
               <div className="rounded-lg border border-border p-3">
                 <p className="mb-2 text-sm font-semibold">Itens do carrinho</p>
-                <div className="space-y-1.5">
+                <div className="max-h-[30vh] space-y-1.5 overflow-y-auto pr-1 sm:max-h-[36vh]">
                   {cart.map(i => (
                     <div key={i.product.id} className="flex items-start justify-between gap-3 text-sm">
                       <div className="min-w-0">
@@ -3199,12 +3341,12 @@ export default function PDV() {
 
       {/* Receipt dialog */}
       <Dialog open={showReceipt} onOpenChange={setShowReceipt}>
-        <DialogContent className="max-h-[90vh] overflow-y-auto">
+        <DialogContent className="grid-rows-[auto_minmax(0,1fr)_auto] max-h-[90vh] overflow-hidden">
           <DialogHeader>
             <DialogTitle>Venda finalizada</DialogTitle>
           </DialogHeader>
 
-          <div className="space-y-4">
+          <div className="min-h-0 space-y-4 overflow-y-auto pr-1">
             {lastSaleData && (
               <div className="space-y-3 rounded-lg border border-border p-4">
                 <div className="flex items-center gap-2">
@@ -3212,7 +3354,7 @@ export default function PDV() {
                   <p className="text-sm font-semibold">Resumo da venda</p>
                 </div>
 
-                <div className="space-y-2 text-sm">
+                <div className="max-h-[30vh] space-y-2 overflow-y-auto pr-1 text-sm sm:max-h-[36vh]">
                   {lastSaleData.items.map((item, index) => (
                     <div key={index} className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
