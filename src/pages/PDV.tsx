@@ -13,11 +13,12 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Ban, FileText, History, Loader2, Minus, Plus, Printer, Receipt, Search, ShoppingCart, Wallet, X } from 'lucide-react';
 import type { Expense, Product, Sale } from '@/types';
 import { openExternalUrl } from '@/lib/openExternalUrl';
 import { normalizePhone } from '@/lib/phone';
+import { openRetailCouponPrintWindow } from '@/lib/retailCoupon';
 import { supabase } from '@/integrations/supabase/client';
 import type { Database } from '@/integrations/supabase/types';
 import happyCashLogo from '@/assets/happycash-logo.png';
@@ -38,6 +39,7 @@ const db = supabase as any;
 interface CartItem {
   product: Product;
   quantity: number;
+  unitPrice: number;
 }
 
 interface CashSession {
@@ -68,12 +70,16 @@ interface CashCloseEmailResponse {
 
 interface LastSaleReceiptData {
   saleId: string;
+  saleDate: string;
+  sellerName: string;
   items: CartItem[];
   total: number;
   discount: number;
   method: string;
+  cashReceived: number;
   change: number;
   clientId: string | null;
+  isDelivery: boolean;
 }
 
 type CloseCashEmailStatus = 'idle' | 'sending' | 'sent' | 'error';
@@ -247,6 +253,8 @@ export default function PDV() {
   const [searchSelectedIndex, setSearchSelectedIndex] = useState(-1);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [cartItemPendingRemoval, setCartItemPendingRemoval] = useState<CartItem | null>(null);
+  const [cartItemPendingPriceEdit, setCartItemPendingPriceEdit] = useState<CartItem | null>(null);
+  const [pendingCartItemPrice, setPendingCartItemPrice] = useState('');
   const [discountType, setDiscountType] = useState<'value' | 'percent'>('value');
   const [discountInput, setDiscountInput] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('');
@@ -307,9 +315,15 @@ export default function PDV() {
       style: 'currency',
       currency: 'BRL',
     }).format(value);
+  const getCartItemTotal = (item: CartItem) => item.unitPrice * item.quantity;
+  const isCartItemPriceEdited = (item: CartItem) => Math.abs(item.unitPrice - item.product.price) > 0.009;
   const formatSaleDate = (value: string) => new Date(value).toLocaleString('pt-BR');
   const formatPaymentMethod = (value: string) => paymentMethodLabels[value] || value;
   const closeCashEmailDestination = user?.email?.trim() || '';
+  const retailCouponStoreName = fiscalRuntime?.issuerName
+    || lastFiscalDocument?.payload?.issuer?.tradeName
+    || lastFiscalDocument?.payload?.issuer?.legalName
+    || 'HappyCash';
 
   const buildCloseCashWhatsAppMessage = (receipt: CashCloseReceipt) => {
     const paymentLines = getPaymentBreakdown(receipt.sales).map(item =>
@@ -593,7 +607,7 @@ export default function PDV() {
     });
   }, [filtered.length, search]);
 
-  const subtotal = cart.reduce((s, i) => s + i.product.price * i.quantity, 0);
+  const subtotal = cart.reduce((s, i) => s + getCartItemTotal(i), 0);
   const cartUnits = cart.reduce((sum, item) => sum + item.quantity, 0);
   const discount = discountType === 'percent'
     ? subtotal * (parseFloat(discountInput) || 0) / 100
@@ -1412,7 +1426,7 @@ export default function PDV() {
     setCart(prev => {
       const existing = prev.find(i => i.product.id === p.id);
       if (existing) return prev.map(i => i.product.id === p.id ? { ...i, quantity: i.quantity + 1 } : i);
-      return [...prev, { product: p, quantity: 1 }];
+      return [...prev, { product: p, quantity: 1, unitPrice: p.price }];
     });
     searchInputRef.current?.blur();
   };
@@ -1468,6 +1482,35 @@ export default function PDV() {
     }));
   };
 
+  const openCartItemPriceEditor = (item: CartItem) => {
+    setCartItemPendingPriceEdit(item);
+    setPendingCartItemPrice(item.unitPrice.toFixed(2));
+  };
+
+  const closeCartItemPriceEditor = () => {
+    setCartItemPendingPriceEdit(null);
+    setPendingCartItemPrice('');
+  };
+
+  const applyCartItemPriceChange = () => {
+    if (!cartItemPendingPriceEdit) return;
+
+    const parsedPrice = Number.parseFloat(pendingCartItemPrice.replace(',', '.').trim());
+    if (!Number.isFinite(parsedPrice) || parsedPrice < 0) {
+      silentToast.error('Informe um preço válido');
+      return;
+    }
+
+    const nextPrice = Math.round(parsedPrice * 100) / 100;
+    setCart(prev => prev.map(item =>
+      item.product.id === cartItemPendingPriceEdit.product.id
+        ? { ...item, unitPrice: nextPrice }
+        : item
+    ));
+    closeCartItemPriceEditor();
+    silentToast.success('Preço atualizado');
+  };
+
   const removeFromCart = (productId: string) => setCart(prev => prev.filter(i => i.product.id !== productId));
   const requestRemoveFromCart = (item: CartItem) => setCartItemPendingRemoval(item);
   const confirmRemoveFromCart = () => {
@@ -1479,6 +1522,8 @@ export default function PDV() {
   const clearCart = () => {
     if (cart.length === 0) return;
     setCart([]);
+    closeCartItemPriceEditor();
+    setCartItemPendingRemoval(null);
     lastEscToClearCartAtRef.current = 0;
     silentToast.success('Carrinho zerado');
     searchInputRef.current?.blur();
@@ -1573,9 +1618,9 @@ export default function PDV() {
         product_id: i.product.id,
         product_name: i.product.name,
         quantity: i.quantity,
-        unit_price: i.product.price,
+        unit_price: i.unitPrice,
         cost_price: i.product.cost_price || 0,
-        total: i.product.price * i.quantity,
+        total: getCartItemTotal(i),
       }));
 
       const { sale } = await createSale({
@@ -1606,17 +1651,21 @@ export default function PDV() {
       }
 
       const finalizedPaymentMethod = paymentMethod === 'cartao_credito' && creditInstallments
-        ? `cartao_credito (${creditInstallments}x)`
-        : paymentMethod;
+        ? `Cartão crédito (${creditInstallments}x)`
+        : formatPaymentMethod(paymentMethod);
 
       const finalizedSaleData: LastSaleReceiptData = {
         saleId: sale.id,
+        saleDate: sale.date,
+        sellerName: sale.seller_name || sellerName,
         items: [...cart],
         total,
         discount,
         method: finalizedPaymentMethod,
+        cashReceived: parseFloat(cashReceived) || 0,
         change,
         clientId: selectedClientId || null,
+        isDelivery,
       };
 
       setLastSaleData(finalizedSaleData);
@@ -1652,9 +1701,72 @@ export default function PDV() {
     if (!lastSaleData?.clientId) return;
     const client = activeClients.find(c => c.id === lastSaleData.clientId);
     if (!client?.phone) { silentToast.error('Cliente sem telefone'); return; }
-    const lines = lastSaleData.items.map(i => `• ${i.product.name} x${i.quantity} — R$ ${(i.product.price * i.quantity).toFixed(2)}`);
+    const lines = lastSaleData.items.map(i => `• ${i.product.name} x${i.quantity} (${formatMoney(i.unitPrice)}) — ${formatMoney(getCartItemTotal(i))}`);
     const msg = `🧾 *AdegaGS - Comprovante*\n\n${lines.join('\n')}\n\n${lastSaleData.discount > 0 ? `Desconto: R$ ${lastSaleData.discount.toFixed(2)}\n` : ''}💰 *Total: R$ ${lastSaleData.total.toFixed(2)}*\n📅 ${new Date().toLocaleString('pt-BR')}\nPagamento: ${lastSaleData.method}`;
     openExternalUrl(`https://wa.me/${normalizePhone(client.phone)}?text=${encodeURIComponent(msg)}`);
+  };
+
+  const printLastSaleCoupon = (copyLabel?: string) => {
+    if (!lastSaleData) return;
+
+    const client = lastSaleData.clientId
+      ? activeClients.find(item => item.id === lastSaleData.clientId)
+      : null;
+    const subtotalValue = lastSaleData.items.reduce((sum, item) => sum + getCartItemTotal(item), 0);
+
+    openRetailCouponPrintWindow({
+      storeName: retailCouponStoreName,
+      saleId: lastSaleData.saleId,
+      saleDate: lastSaleData.saleDate,
+      operatorName: lastSaleData.sellerName,
+      customerName: client?.name || null,
+      paymentMethod: lastSaleData.method,
+      total: lastSaleData.total,
+      subtotal: subtotalValue,
+      discount: lastSaleData.discount,
+      changeAmount: lastSaleData.change,
+      cashReceived: lastSaleData.cashReceived,
+      isDelivery: lastSaleData.isDelivery,
+      items: lastSaleData.items.map(item => ({
+        productName: item.product.name,
+        quantity: item.quantity,
+        unitPrice: item.unitPrice,
+        total: getCartItemTotal(item),
+      })),
+      copyLabel,
+      footerMessage: 'Cupom emitido pelo PDV HappyCash.',
+    });
+  };
+
+  const printSaleCouponCopy = (sale: Sale) => {
+    const client = sale.client_id
+      ? activeClients.find(item => item.id === sale.client_id)
+      : null;
+    const items = saleItems.filter(item => item.sale_id === sale.id);
+    const subtotalValue = items.reduce((sum, item) => sum + item.total, 0);
+
+    openRetailCouponPrintWindow({
+      storeName: retailCouponStoreName,
+      saleId: sale.id,
+      saleDate: sale.date,
+      operatorName: sale.seller_name || sellerName,
+      customerName: client?.name || null,
+      paymentMethod: formatPaymentMethod(sale.payment_method),
+      total: sale.total,
+      subtotal: subtotalValue,
+      discount: sale.discount,
+      changeAmount: sale.change_amount,
+      cashReceived: sale.cash_received,
+      isDelivery: sale.is_delivery,
+      items: items.map(item => ({
+        productName: item.product_name,
+        quantity: item.quantity,
+        unitPrice: item.unit_price,
+        total: item.total,
+      })),
+      copyLabel: '2ª via',
+      footerMessage: 'Reimpressao do cupom da venda.',
+    });
   };
 
   const retryFiscalIssuance = () => {
@@ -2232,8 +2344,10 @@ export default function PDV() {
                   setSearchSelectedIndex(-1);
                 }}
               >
-                <CardContent className="p-4">
-                  <p className="font-medium text-sm truncate">{p.code ? `#${p.code} ` : ''}{p.name}</p>
+                <CardContent className="space-y-2 p-4">
+                  <p className="min-h-[2.5rem] text-sm font-medium leading-tight whitespace-normal break-words">
+                    {p.code ? `#${p.code} ` : ''}{p.name}
+                  </p>
                   <p className="text-primary font-bold text-base">R$ {p.price.toFixed(2)}</p>
                   {p.stock > 0 && p.stock <= (p.min_stock || 5) && (
                     <p className="text-xs text-destructive">⚠️ Estoque: {p.stock}</p>
@@ -2246,7 +2360,7 @@ export default function PDV() {
       </div>
 
       {/* Cart panel */}
-      <div className="flex min-h-[70vh] w-full flex-col lg:min-h-0 lg:w-[32rem] xl:w-[38rem]">
+      <div className="flex min-h-[70vh] w-full flex-col lg:min-h-0 lg:w-[26rem] xl:w-[30rem]">
         <Card className="flex min-h-0 flex-1 flex-col border-border/50">
           <CardHeader className="pb-2 px-4 pt-4">
             <CardTitle className="text-base flex items-center gap-2"><ShoppingCart className="h-5 w-5" />Carrinho ({cart.length}) <span className="text-xs font-medium text-muted-foreground">Esc zera</span></CardTitle>
@@ -2254,15 +2368,30 @@ export default function PDV() {
           <CardContent className="flex min-h-0 flex-1 flex-col p-4 pt-0 gap-3">
             <div className="min-h-0 flex-1 overflow-auto space-y-2">
               {cart.map(i => (
-                <div key={i.product.id} className="flex items-center gap-3 p-3 rounded-lg bg-secondary/50">
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate">{i.product.name}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {i.quantity} x {formatMoney(i.product.price)}
-                    </p>
-                    <p className="text-sm font-semibold text-primary">{formatMoney(i.product.price * i.quantity)}</p>
+                <div key={i.product.id} className="flex items-start gap-3 rounded-lg bg-secondary/50 p-3">
+                  <div className="min-w-0 flex-1 space-y-1.5">
+                    <p className="text-sm font-medium leading-tight whitespace-normal break-words">{i.product.name}</p>
+                    <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                      <span>{i.quantity} x {formatMoney(i.unitPrice)}</span>
+                      {isCartItemPriceEdited(i) && <Badge variant="secondary">Preço alterado</Badge>}
+                    </div>
+                    {isCartItemPriceEdited(i) && (
+                      <p className="text-xs text-muted-foreground">Preço base: {formatMoney(i.product.price)}</p>
+                    )}
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="text-sm font-semibold text-primary">{formatMoney(getCartItemTotal(i))}</p>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-7 px-2 text-xs"
+                        onClick={() => openCartItemPriceEditor(i)}
+                      >
+                        Alterar preço
+                      </Button>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-1">
+                  <div className="flex items-center gap-1 self-center">
                     <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => updateQty(i.product.id, -1)}><Minus className="h-4 w-4" /></Button>
                     <span className="text-sm w-8 text-center font-medium">{i.quantity}</span>
                     <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => updateQty(i.product.id, 1)}><Plus className="h-4 w-4" /></Button>
@@ -2308,6 +2437,49 @@ export default function PDV() {
         </AlertDialogContent>
       </AlertDialog>
 
+      <Dialog open={!!cartItemPendingPriceEdit} onOpenChange={open => { if (!open) closeCartItemPriceEditor(); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Alterar preço do item</DialogTitle>
+            <DialogDescription>
+              {cartItemPendingPriceEdit
+                ? `Defina o valor de venda para ${cartItemPendingPriceEdit.product.name}.`
+                : 'Defina o novo valor do item.'}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="rounded-lg border border-border bg-muted/30 p-3 text-sm">
+              <p className="font-medium">{cartItemPendingPriceEdit?.product.name}</p>
+              <p className="text-muted-foreground">
+                Preço original: {cartItemPendingPriceEdit ? formatMoney(cartItemPendingPriceEdit.product.price) : 'R$ 0,00'}
+              </p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="cart-item-price">Novo preço</Label>
+              <Input
+                id="cart-item-price"
+                type="number"
+                step="0.01"
+                min="0"
+                value={pendingCartItemPrice}
+                onFocus={e => e.currentTarget.select()}
+                onChange={e => setPendingCartItemPrice(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    applyCartItemPriceChange();
+                  }
+                }}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={closeCartItemPriceEditor}>Cancelar</Button>
+            <Button type="button" onClick={applyCartItemPriceChange}>Salvar preço</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Checkout dialog */}
       <Dialog open={showCheckout} onOpenChange={open => { if (!isFinalizingSale) setShowCheckout(open); }}>
         <DialogContent
@@ -2328,9 +2500,12 @@ export default function PDV() {
                 <p className="mb-2 text-sm font-semibold">Itens do carrinho</p>
                 <div className="space-y-1.5">
                   {cart.map(i => (
-                    <div key={i.product.id} className="flex justify-between gap-3 text-sm">
-                      <span className="truncate">{i.product.name} x{i.quantity}</span>
-                      <span className="font-medium">R$ {(i.product.price * i.quantity).toFixed(2)}</span>
+                    <div key={i.product.id} className="flex items-start justify-between gap-3 text-sm">
+                      <div className="min-w-0">
+                        <span className="block whitespace-normal break-words">{i.product.name}</span>
+                        <span className="text-xs text-muted-foreground">{i.quantity} x {formatMoney(i.unitPrice)}</span>
+                      </div>
+                      <span className="font-medium whitespace-nowrap">{formatMoney(getCartItemTotal(i))}</span>
                     </div>
                   ))}
                   {cart.length === 0 && <p className="text-sm text-muted-foreground">Carrinho vazio</p>}
@@ -2631,13 +2806,20 @@ export default function PDV() {
                         <div className="text-left lg:text-right">
                           <p className="text-lg font-bold text-primary">{formatMoney(sale.total)}</p>
                           <p className="text-sm text-muted-foreground">Desconto: {formatMoney(sale.discount || 0)}</p>
-                          <p className="text-sm text-muted-foreground">{sale.payment_method}</p>
+                          <p className="text-sm text-muted-foreground">{formatPaymentMethod(sale.payment_method)}</p>
                         </div>
-                        {!isCancelled && (
-                          <Button variant="destructive" size="sm" onClick={() => { setSaleToCancel(sale.id); setCancelReason(''); }}>
-                            <Ban className="h-4 w-4 mr-1" />Cancelar
-                          </Button>
-                        )}
+                        <div className="flex flex-wrap gap-2 lg:justify-end">
+                          {!isCancelled && (
+                            <Button type="button" variant="outline" size="sm" onClick={() => printSaleCouponCopy(sale)}>
+                              <Printer className="mr-1 h-4 w-4" />2ª via do cupom
+                            </Button>
+                          )}
+                          {!isCancelled && (
+                            <Button variant="destructive" size="sm" onClick={() => { setSaleToCancel(sale.id); setCancelReason(''); }}>
+                              <Ban className="h-4 w-4 mr-1" />Cancelar
+                            </Button>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -3031,9 +3213,12 @@ export default function PDV() {
 
                 <div className="space-y-2 text-sm">
                   {lastSaleData.items.map((item, index) => (
-                    <div key={index} className="flex justify-between gap-3">
-                      <span>{item.product.name} x{item.quantity}</span>
-                      <span>R$ {(item.product.price * item.quantity).toFixed(2)}</span>
+                    <div key={index} className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <span className="block whitespace-normal break-words">{item.product.name}</span>
+                        <span className="text-xs text-muted-foreground">{item.quantity} x {formatMoney(item.unitPrice)}</span>
+                      </div>
+                      <span className="whitespace-nowrap">{formatMoney(getCartItemTotal(item))}</span>
                     </div>
                   ))}
                 </div>
@@ -3056,6 +3241,31 @@ export default function PDV() {
                   {lastSaleData.change > 0 && (
                     <p className="font-medium text-primary">Troco: R$ {lastSaleData.change.toFixed(2)}</p>
                   )}
+                </div>
+              </div>
+            )}
+
+            {lastSaleData && (
+              <div className="space-y-3 rounded-lg border border-border p-4">
+                <div className="flex items-center gap-2">
+                  <Printer className="h-4 w-4 text-primary" />
+                  <div>
+                    <p className="text-sm font-semibold">Cupom fiscal</p>
+                    <p className="text-xs text-muted-foreground">
+                      Documento de venda rápida de varejo ao consumidor final.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap gap-2">
+                  <Button type="button" onClick={() => printLastSaleCoupon()}>
+                    <Printer className="mr-2 h-4 w-4" />
+                    Imprimir cupom
+                  </Button>
+                  <Button type="button" variant="outline" onClick={() => printLastSaleCoupon('2ª via')}>
+                    <Printer className="mr-2 h-4 w-4" />
+                    Imprimir 2ª via
+                  </Button>
                 </div>
               </div>
             )}

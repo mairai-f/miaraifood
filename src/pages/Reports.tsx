@@ -127,7 +127,7 @@ export default function Reports() {
       .slice(0, 10);
   }, [clients, filteredFiadoEntries, filteredFiadoPayments]);
 
-  // Sales by day
+  // Vendas do dia 
   const salesByDay = useMemo(() => {
     const map = new Map<string, number>();
     for (const s of filteredSales) {
@@ -137,7 +137,7 @@ export default function Reports() {
     return Array.from(map.entries()).map(([day, total]) => ({ day, total }));
   }, [filteredSales]);
 
-  // Payment methods
+  // metodo de pagamento
   const paymentBreakdown = useMemo(() => {
     const map = new Map<string, number>();
     for (const s of filteredSales) {
