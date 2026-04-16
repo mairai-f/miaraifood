@@ -7,6 +7,7 @@ const UPDATE_CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000;
 const isDevelopment = Boolean(process.env.VITE_DEV_SERVER_URL) || !app.isPackaged;
 let autoUpdatesConfigured = false;
 const APP_USER_MODEL_ID = 'com.happycash.desktop';
+const VALID_UPDATE_CHANNELS = new Set(['latest', 'beta', 'alpha']);
 
 const isHttpUrl = (value) => {
   try {
@@ -30,6 +31,26 @@ const getWindowIconPath = () => {
   return path.join(__dirname, '..', 'build', iconFilename);
 };
 
+const getUpdateChannel = () => {
+  const configuredChannel = process.env.HAPPYCASH_UPDATE_CHANNEL?.trim().toLowerCase();
+
+  if (configuredChannel && VALID_UPDATE_CHANNELS.has(configuredChannel)) {
+    return configuredChannel;
+  }
+
+  const version = app.getVersion().toLowerCase();
+
+  if (version.includes('-alpha')) {
+    return 'alpha';
+  }
+
+  if (version.includes('-beta')) {
+    return 'beta';
+  }
+
+  return 'latest';
+};
+
 app.setName('HappyCash');
 
 if (process.platform === 'win32') {
@@ -47,11 +68,15 @@ const checkForUpdates = async () => {
 const setupAutoUpdates = (mainWindow) => {
   if (isDevelopment || autoUpdatesConfigured) return;
   autoUpdatesConfigured = true;
+  const updateChannel = getUpdateChannel();
 
   autoUpdater.autoDownload = true;
   autoUpdater.autoInstallOnAppQuit = true;
-  autoUpdater.allowPrerelease = false;
-  autoUpdater.allowDowngrade = false;
+  autoUpdater.channel = updateChannel;
+  autoUpdater.allowPrerelease = updateChannel !== 'latest';
+  autoUpdater.allowDowngrade = updateChannel !== 'latest';
+
+  console.log(`Canal de atualizacao configurado: ${updateChannel}`);
 
   autoUpdater.on('checking-for-update', () => {
     console.log('Verificando atualizacoes do HappyCash...');
