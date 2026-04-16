@@ -1,8 +1,5 @@
 const path = require('path');
-<<<<<<< HEAD
-const { app, BrowserWindow, ipcMain, shell } = require('electron');
-=======
-const { app, BrowserWindow, dialog, shell } = require('electron');
+const { app, BrowserWindow, dialog, ipcMain, shell } = require('electron');
 const { autoUpdater } = require('electron-updater');
 
 const UPDATE_CHECK_DELAY_MS = 15_000;
@@ -10,7 +7,6 @@ const UPDATE_CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000;
 const isDevelopment = Boolean(process.env.VITE_DEV_SERVER_URL) || !app.isPackaged;
 let autoUpdatesConfigured = false;
 const APP_USER_MODEL_ID = 'com.happycash.desktop';
->>>>>>> main
 
 const isHttpUrl = (value) => {
   try {
@@ -21,14 +17,14 @@ const isHttpUrl = (value) => {
   }
 };
 
-<<<<<<< HEAD
 const resolveRendererEntry = () => {
   if (process.env.VITE_DEV_SERVER_URL) {
     return process.env.VITE_DEV_SERVER_URL;
   }
 
   return path.join(__dirname, '..', 'dist', 'index.html');
-=======
+};
+
 const getWindowIconPath = () => {
   const iconFilename = process.platform === 'win32' ? 'icon.ico' : 'icon.png';
   return path.join(__dirname, '..', 'build', iconFilename);
@@ -109,28 +105,19 @@ const setupAutoUpdates = (mainWindow) => {
     clearTimeout(initialTimer);
     clearInterval(recurringTimer);
   });
->>>>>>> main
 };
 
 const createMainWindow = async () => {
   const mainWindow = new BrowserWindow({
-<<<<<<< HEAD
-=======
     show: false,
->>>>>>> main
     width: 1366,
     height: 840,
     minWidth: 1120,
     minHeight: 700,
-<<<<<<< HEAD
-    autoHideMenuBar: true,
-    backgroundColor: '#050505',
-=======
     fullscreen: true,
     autoHideMenuBar: true,
     backgroundColor: '#050505',
     icon: getWindowIconPath(),
->>>>>>> main
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
       contextIsolation: true,
@@ -143,7 +130,6 @@ const createMainWindow = async () => {
     if (isHttpUrl(url)) {
       shell.openExternal(url);
     }
-<<<<<<< HEAD
 
     return { action: 'deny' };
   });
@@ -173,12 +159,20 @@ const createMainWindow = async () => {
     }
   });
 
+  mainWindow.once('ready-to-show', () => {
+    if (mainWindow.isDestroyed()) return;
+    mainWindow.setFullScreen(true);
+    mainWindow.show();
+  });
+
   const rendererEntry = resolveRendererEntry();
   if (rendererEntry.startsWith('http://') || rendererEntry.startsWith('https://')) {
     await mainWindow.loadURL(rendererEntry);
-  } else {
-    await mainWindow.loadFile(rendererEntry);
+    return mainWindow;
   }
+
+  await mainWindow.loadFile(rendererEntry);
+  return mainWindow;
 };
 
 ipcMain.on('open-external-url', (event, url) => {
@@ -190,36 +184,6 @@ ipcMain.on('open-external-url', (event, url) => {
   shell.openExternal(url);
   event.returnValue = true;
 });
-
-app.whenReady().then(() => {
-  createMainWindow().catch((error) => {
-    console.error('Erro ao iniciar janela principal:', error);
-  });
-
-  app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
-      createMainWindow().catch((error) => {
-        console.error('Erro ao reabrir janela principal:', error);
-      });
-=======
-    return { action: 'deny' };
-  });
-
-  mainWindow.once('ready-to-show', () => {
-    if (mainWindow.isDestroyed()) return;
-    mainWindow.setFullScreen(true);
-    mainWindow.show();
-  });
-
-  const devUrl = process.env.VITE_DEV_SERVER_URL;
-  if (devUrl) {
-    await mainWindow.loadURL(devUrl);
-    return mainWindow;
-  }
-
-  await mainWindow.loadFile(path.join(__dirname, '..', 'dist', 'index.html'));
-  return mainWindow;
-};
 
 app.whenReady().then(() => {
   createMainWindow()
@@ -239,7 +203,6 @@ app.whenReady().then(() => {
         .catch((error) => {
           console.error('Erro ao reabrir app desktop:', error);
         });
->>>>>>> main
     }
   });
 });

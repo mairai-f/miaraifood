@@ -13,14 +13,6 @@ lerna-debug.log*
 !.env.example
 !.env.sample
 .envrc
-<<<<<<< HEAD
-node_modules
-dist
-dist-ssr
-release
-=======
-
-# Dependencies and build output
 node_modules/
 dist/
 dist-ssr/
@@ -28,7 +20,6 @@ dist-electron/
 release/
 win-unpacked/
 linux-unpacked/
->>>>>>> main
 *.local
 *.exe
 *.AppImage

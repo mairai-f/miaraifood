@@ -297,10 +297,6 @@ export default function PDV() {
   const [lastCloseReceipt, setLastCloseReceipt] = useState<CashCloseReceipt | null>(null);
   const [lastSaleData, setLastSaleData] = useState<LastSaleReceiptData | null>(null);
   const [isFinalizingSale, setIsFinalizingSale] = useState(false);
-<<<<<<< HEAD
-  const lastEscToClearCartAtRef = useRef(0);
-  const ignoreCartClearOnEscRef = useRef(false);
-=======
   const [fiscalRuntime, setFiscalRuntime] = useState<FiscalRuntimeStatus | null>(null);
   const [loadingFiscalRuntime, setLoadingFiscalRuntime] = useState(true);
   const [fiscalRuntimeError, setFiscalRuntimeError] = useState('');
@@ -310,7 +306,6 @@ export default function PDV() {
   const lastEscToClearCartAtRef = useRef(0);
   const ignoreCartClearOnEscRef = useRef(false);
   const fiscalIssuanceSaleIdRef = useRef<string | null>(null);
->>>>>>> main
 
   const activeProducts = products.filter(p => !('deleted' in p && (p as any).deleted));
   const activeClients = clients.filter(c => !c.deleted);
@@ -614,11 +609,7 @@ export default function PDV() {
     });
   }, [filtered.length, search]);
 
-<<<<<<< HEAD
-  const subtotal = cart.reduce((s, i) => s + i.product.price * i.quantity, 0);
-=======
   const subtotal = cart.reduce((s, i) => s + getCartItemTotal(i), 0);
->>>>>>> main
   const cartUnits = cart.reduce((sum, item) => sum + item.quantity, 0);
   const discount = discountType === 'percent'
     ? subtotal * (parseFloat(discountInput) || 0) / 100
@@ -629,8 +620,6 @@ export default function PDV() {
     && (paymentMethod !== 'dinheiro' || (parseFloat(cashReceived) || 0) >= total)
     && (paymentMethod !== 'fiado' || Boolean(selectedClientId))
     && (paymentMethod !== 'cartao_credito' || Boolean(creditInstallments && creditInstallments > 0));
-<<<<<<< HEAD
-=======
   const canIssueFiscalDocumentInHomologation = Boolean(
     isAdmin
     && session?.access_token
@@ -656,7 +645,6 @@ export default function PDV() {
         : fiscalRuntime.ready
           ? 'Pronta'
           : 'Pendente';
->>>>>>> main
 
   const saleSearchTerm = saleSearch.trim().toLowerCase();
   const isInCurrentCashSession = (value: string) => {
@@ -1588,19 +1576,14 @@ export default function PDV() {
   const clearCart = () => {
     if (cart.length === 0) return;
     setCart([]);
-<<<<<<< HEAD
-=======
     setCartKeyboardSelectionIndex(null);
     closeCartItemPriceEditor();
     setCartItemPendingRemoval(null);
->>>>>>> main
     lastEscToClearCartAtRef.current = 0;
     silentToast.success('Carrinho zerado');
     searchInputRef.current?.blur();
   };
 
-<<<<<<< HEAD
-=======
   useEffect(() => {
     if (cart.length === 0) {
       setCartKeyboardSelectionIndex(null);
@@ -1638,8 +1621,6 @@ export default function PDV() {
       setCartKeyboardSelectionIndex(null);
     }
   }, [showCheckout, showReceipt, showSalesSearch, showCancelledSales, showCashOut, showCloseCashReceipt, showOpenCashDialog, saleToCancel, cartItemPendingPriceEdit]);
-
->>>>>>> main
   const suppressCartClearForCurrentEsc = () => {
     ignoreCartClearOnEscRef.current = true;
     requestAnimationFrame(() => {
@@ -1762,12 +1743,6 @@ export default function PDV() {
       }
 
       const finalizedPaymentMethod = paymentMethod === 'cartao_credito' && creditInstallments
-<<<<<<< HEAD
-        ? `cartao_credito (${creditInstallments}x)`
-        : paymentMethod;
-
-      setLastSaleData({ items: [...cart], total, discount, method: finalizedPaymentMethod, change, clientId: selectedClientId || null });
-=======
         ? `Cartão crédito (${creditInstallments}x)`
         : formatPaymentMethod(paymentMethod);
 
@@ -1790,7 +1765,6 @@ export default function PDV() {
       setLastFiscalDocumentError('');
       setIssuingFiscalDocument(canIssueFiscalDocumentInHomologation);
       fiscalIssuanceSaleIdRef.current = canIssueFiscalDocumentInHomologation ? sale.id : null;
->>>>>>> main
       setShowFinalizeConfirm(false);
       setShowCheckout(false);
       setShowReceipt(true);
@@ -1815,8 +1789,6 @@ export default function PDV() {
     }
   };
 
-<<<<<<< HEAD
-=======
   const sendReceiptWhatsApp = () => {
     if (!lastSaleData?.clientId) return;
     const client = activeClients.find(c => c.id === lastSaleData.clientId);
@@ -1893,8 +1865,6 @@ export default function PDV() {
     if (!lastSaleData?.saleId || issuingFiscalDocument) return;
     void issueFiscalDocumentInHomologation(lastSaleData.saleId);
   };
-
->>>>>>> main
   const handleOpenCash = async () => {
     if (!user || !ownerUserId) {
       silentToast.error('Faça login novamente para abrir o caixa');
@@ -2215,23 +2185,16 @@ export default function PDV() {
         return;
       }
 
-<<<<<<< HEAD
-      if (showReceipt) {
-        if (event.key === 'Enter' || event.key === 'NumpadEnter') {
-          event.preventDefault();
-          setShowReceipt(false);
-=======
       if (cartItemPendingPriceEdit) {
         if (event.key === 'Escape') {
           event.preventDefault();
           closeCartItemPriceEditor();
->>>>>>> main
         }
         return;
       }
 
-<<<<<<< HEAD
-=======
+      if (showReceipt) return;
+
       if (cartKeyboardSelectionIndex !== null) {
         if (event.key === 'Escape') {
           event.preventDefault();
@@ -2251,8 +2214,6 @@ export default function PDV() {
           return;
         }
       }
-
->>>>>>> main
       if (showCreditInstallmentsDialog) {
         if (event.key === 'Escape') {
           event.preventDefault();
@@ -2342,10 +2303,6 @@ export default function PDV() {
         if (ignoreCartClearOnEscRef.current) {
           return;
         }
-<<<<<<< HEAD
-=======
-
->>>>>>> main
         if (cart.length === 0) {
           lastEscToClearCartAtRef.current = 0;
           return;
@@ -2353,10 +2310,6 @@ export default function PDV() {
 
         const now = Date.now();
         const shouldClearCart = now - lastEscToClearCartAtRef.current <= 900;
-<<<<<<< HEAD
-=======
-
->>>>>>> main
         if (shouldClearCart) {
           clearCart();
           lastEscToClearCartAtRef.current = 0;
@@ -2455,11 +2408,7 @@ export default function PDV() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-<<<<<<< HEAD
-  }, [activeProducts, filtered, search, cart, discount, paymentMethod, cashReceived, selectedClientId, total, change, canFinalizeCheckout, showCheckout, showFinalizeConfirm, showCreditInstallmentsDialog, showReceipt, showSalesSearch, showCancelledSales, showCashOut, showCloseCashReceipt, showOpenCashDialog, saleToCancel, navigate, isAdmin, creditInstallments, pendingCreditInstallments]);
-=======
   }, [activeProducts, filtered, search, cart, cartKeyboardSelectionIndex, cartItemPendingPriceEdit, discount, paymentMethod, cashReceived, selectedClientId, total, change, canFinalizeCheckout, showCheckout, showFinalizeConfirm, showCreditInstallmentsDialog, showReceipt, showSalesSearch, showCancelledSales, showCashOut, showCloseCashReceipt, showOpenCashDialog, saleToCancel, navigate, isAdmin, creditInstallments, pendingCreditInstallments]);
->>>>>>> main
 
   return (
     <div className="flex min-h-[calc(100vh-1.5rem)] flex-col gap-4 sm:min-h-[calc(100vh-2rem)] lg:h-[calc(100vh-3rem)] lg:flex-row">
@@ -2519,15 +2468,10 @@ export default function PDV() {
                   setSearchSelectedIndex(-1);
                 }}
               >
-<<<<<<< HEAD
-                <CardContent className="p-4">
-                  <p className="font-medium text-sm truncate">{p.code ? `#${p.code} ` : ''}{p.name}</p>
-=======
                 <CardContent className="space-y-2 p-4">
                   <p className="min-h-[2.5rem] text-sm font-medium leading-tight whitespace-normal break-words">
                     {p.code ? `#${p.code} ` : ''}{p.name}
                   </p>
->>>>>>> main
                   <p className="text-primary font-bold text-base">R$ {p.price.toFixed(2)}</p>
                   {p.stock > 0 && p.stock <= (p.min_stock || 5) && (
                     <p className="text-xs text-destructive">⚠️ Estoque: {p.stock}</p>
@@ -2677,11 +2621,7 @@ export default function PDV() {
       {/* Checkout dialog */}
       <Dialog open={showCheckout} onOpenChange={open => { if (!isFinalizingSale) setShowCheckout(open); }}>
         <DialogContent
-<<<<<<< HEAD
-          className="max-w-3xl overflow-hidden"
-=======
           className="max-h-[90vh] max-w-3xl overflow-hidden"
->>>>>>> main
           onOpenAutoFocus={event => event.preventDefault()}
           onEscapeKeyDown={event => {
             event.preventDefault();
@@ -3569,9 +3509,6 @@ export default function PDV() {
           </div>
 
           <DialogFooter className="gap-2">
-<<<<<<< HEAD
-            <Button onClick={() => setShowReceipt(false)}>Fechar (Enter)</Button>
-=======
             <Button variant="outline" onClick={() => setShowReceipt(false)}>Fechar</Button>
             {isAdmin && (
               <Button variant="outline" onClick={() => void loadFiscalRuntime()} disabled={loadingFiscalRuntime}>
@@ -3584,7 +3521,6 @@ export default function PDV() {
               </Button>
             )}
             <Button onClick={sendReceiptWhatsApp}>📱 Enviar WhatsApp</Button>
->>>>>>> main
           </DialogFooter>
         </DialogContent>
       </Dialog>
