@@ -1,7 +1,0 @@
-project_id = "ymffclntmynwfdiarlaw"
-
-[functions.register-account]
-verify_jwt = false
-
-[functions.activate-plan]
-verify_jwt = true

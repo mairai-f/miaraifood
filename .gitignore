@@ -15,6 +15,7 @@ lerna-debug.log*
 .envrc
 node_modules/
 dist/
+dist-site/
 dist-ssr/
 dist-electron/
 release/
@@ -35,3 +36,4 @@ linux-unpacked/
 *.njsproj
 *.sln
 *.sw?
+supabase/.temp/

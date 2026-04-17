@@ -325,6 +325,14 @@ Deno.serve(async (request) => {
       return jsonResponse({ error: 'Nao foi possivel validar o usuario autenticado.' }, 401);
     }
 
+    const { data: hasCashAccess, error: cashAccessError } = await supabase.rpc('current_store_has_feature', {
+      target_feature: 'cash.manage',
+    });
+
+    if (cashAccessError || !hasCashAccess) {
+      return jsonResponse({ error: 'Seu plano atual nao libera o fechamento de caixa.' }, 403);
+    }
+
     const { receipt, timezone }: CashCloseEmailRequest = await request.json();
 
     if (!receipt) {

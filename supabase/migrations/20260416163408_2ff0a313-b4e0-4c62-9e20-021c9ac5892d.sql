@@ -1,0 +1,4 @@
+-- Esta migration existia no projeto do site antigo, mas a estrutura atual
+-- usa store_accounts/store_subscriptions em vez da tabela legada empresas.
+-- Mantemos o mesmo versionamento aqui como no-op para alinhar o historico
+-- do Supabase em um unico diretório canônico de migrations.

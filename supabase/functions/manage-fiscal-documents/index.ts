@@ -266,6 +266,11 @@ Deno.serve(async (request) => {
   }
 
   const authClient = createClient(supabaseUrl, supabaseAnonKey, {
+    global: {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    },
     auth: {
       autoRefreshToken: false,
       persistSession: false,
@@ -304,6 +309,19 @@ Deno.serve(async (request) => {
   }
 
   const typedCallerProfile = callerProfile as CallerProfileRow;
+
+  if (typedCallerProfile.role !== 'admin') {
+    return jsonResponse({ error: 'Somente administradores podem emitir documentos fiscais.' }, 403);
+  }
+
+  const { data: hasFiscalAccess, error: fiscalAccessError } = await authClient.rpc('current_store_has_feature', {
+    target_feature: 'fiscal.manage',
+  });
+
+  if (fiscalAccessError || !hasFiscalAccess) {
+    return jsonResponse({ error: 'Seu plano atual nao libera documentos fiscais.' }, 403);
+  }
+
   const ownerUserId = typedCallerProfile.owner_user_id ?? user.id;
 
   const { data: settingsData, error: settingsError } = await serviceClient

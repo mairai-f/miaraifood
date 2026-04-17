@@ -2,32 +2,34 @@ import { ReactNode, useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Home, Users, Package, Gift, Trash2, LogOut, Menu, X, UserCircle, Receipt, BarChart3, DollarSign, Boxes, ChevronDown, ChevronUp, FileText } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { usePlanAccess } from '@/contexts/PlanContext';
 import happyCashLogo from '@/assets/happycash-logo.png';
 import { roleLabel } from '@/lib/access';
 
 const navItems = [
-  { path: '/', label: 'Painel', icon: Home, shortcut: '1', roles: ['admin', 'operator'] },
-  { path: '/pdv', label: 'PDV 🧾', icon: Receipt, shortcut: '2', roles: ['admin', 'operator'] },
-  { path: '/clientes', label: 'Clientes', icon: Users, shortcut: '3', roles: ['admin', 'operator'] },
-  { path: '/produtos', label: 'Produtos', icon: Package, shortcut: '4', roles: ['admin', 'operator'] },
-  { path: '/estoque', label: 'Estoque', icon: Boxes, shortcut: '5', roles: ['admin'] },
-  { path: '/relatorios', label: 'Relatórios', icon: BarChart3, shortcut: '6', roles: ['admin'] },
-  { path: '/financeiro', label: 'Financeiro', icon: DollarSign, shortcut: '7', roles: ['admin'] },
-  { path: '/notas', label: 'Notas', icon: FileText, shortcut: '8', roles: ['admin'] },
-  { path: '/recompensas', label: 'Recompensas', icon: Gift, roles: ['admin'] },
-  { path: '/excluidos', label: 'Excluídos', icon: Trash2, roles: ['admin'] },
+  { path: '/', label: 'Painel', icon: Home, shortcut: '1', roles: ['admin', 'operator'], featureKey: 'dashboard.view' },
+  { path: '/pdv', label: 'PDV 🧾', icon: Receipt, shortcut: '2', roles: ['admin', 'operator'], featureKey: 'pdv.use' },
+  { path: '/clientes', label: 'Clientes', icon: Users, shortcut: '3', roles: ['admin', 'operator'], featureKey: 'clients.manage' },
+  { path: '/produtos', label: 'Produtos', icon: Package, shortcut: '4', roles: ['admin', 'operator'], featureKey: 'products.manage' },
+  { path: '/estoque', label: 'Estoque', icon: Boxes, shortcut: '5', roles: ['admin'], featureKey: 'stock.manage' },
+  { path: '/relatorios', label: 'Relatórios', icon: BarChart3, shortcut: '6', roles: ['admin'], featureKey: 'reports.view' },
+  { path: '/financeiro', label: 'Financeiro', icon: DollarSign, shortcut: '7', roles: ['admin'], featureKey: 'financial.manage' },
+  { path: '/notas', label: 'Notas', icon: FileText, shortcut: '8', roles: ['admin'], featureKey: 'notes.manage' },
+  { path: '/recompensas', label: 'Recompensas', icon: Gift, roles: ['admin'], featureKey: 'rewards.manage' },
+  { path: '/excluidos', label: 'Excluídos', icon: Trash2, roles: ['admin'], featureKey: 'deleted.view' },
 ];
 
 export function AppLayout({ children }: { children: ReactNode }) {
   const { logout, user, username, role } = useAuth();
+  const { hasFeature } = usePlanAccess();
   const location = useLocation();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const navRef = useRef<HTMLElement | null>(null);
   const [scrollHints, setScrollHints] = useState({ top: false, bottom: false });
   const isPdvMode = location.pathname === '/pdv';
-  const visibleNavItems = navItems.filter(item => item.roles.includes(role));
-  const canOpenSettings = role === 'admin';
+  const visibleNavItems = navItems.filter(item => item.roles.includes(role) && hasFeature(item.featureKey));
+  const canOpenSettings = role === 'admin' && hasFeature('settings.manage');
 
   const handleAccountClick = () => {
     if (!canOpenSettings) return;

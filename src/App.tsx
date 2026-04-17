@@ -5,8 +5,10 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
+import { PlanProvider, usePlanAccess } from "@/contexts/PlanContext";
 import { DataProvider } from "@/contexts/DataContext";
 import { AppLayout } from "@/components/AppLayout";
+import { FeatureLocked } from "@/components/FeatureLocked";
 import Login from "@/pages/Login";
 import Dashboard from "@/pages/Dashboard";
 import Clients from "@/pages/Clients";
@@ -29,14 +31,18 @@ const Router = typeof window !== "undefined" && window.location.protocol === "fi
 function ProtectedRoute({
   children,
   allowedRoles,
+  requiredFeature,
 }: {
   children: React.ReactNode;
   allowedRoles?: UserRole[];
+  requiredFeature?: string;
 }) {
   const { isAuthenticated, loading, role } = useAuth();
-  if (loading) return <SplashScreen progress={100} />;
+  const { loading: planLoading, hasFeature } = usePlanAccess();
+  if (loading || planLoading) return <SplashScreen progress={100} />;
   if (!isAuthenticated) return <Navigate to="/login" />;
   if (allowedRoles && !allowedRoles.includes(role)) return <Navigate to="/" replace />;
+  if (requiredFeature && !hasFeature(requiredFeature)) return <AppLayout><FeatureLocked /></AppLayout>;
   return <AppLayout>{children}</AppLayout>;
 }
 
@@ -88,18 +94,18 @@ function AppRoutes() {
   return (
     <Routes>
       <Route path="/login" element={isAuthenticated ? <Navigate to="/" /> : <Login />} />
-      <Route path="/" element={<ProtectedRoute allowedRoles={['admin', 'operator']}><Dashboard /></ProtectedRoute>} />
-      <Route path="/pdv" element={<ProtectedRoute allowedRoles={['admin', 'operator']}><PDV /></ProtectedRoute>} />
-      <Route path="/clientes" element={<ProtectedRoute allowedRoles={['admin', 'operator']}><Clients /></ProtectedRoute>} />
-      <Route path="/produtos" element={<ProtectedRoute allowedRoles={['admin', 'operator']}><Products /></ProtectedRoute>} />
-      <Route path="/estoque" element={<ProtectedRoute allowedRoles={['admin']}><Stock /></ProtectedRoute>} />
-      <Route path="/relatorios" element={<ProtectedRoute allowedRoles={['admin']}><Reports /></ProtectedRoute>} />
-      <Route path="/financeiro" element={<ProtectedRoute allowedRoles={['admin']}><Financial /></ProtectedRoute>} />
-      <Route path="/notas" element={<ProtectedRoute allowedRoles={['admin']}><Notes /></ProtectedRoute>} />
-      <Route path="/configuracoes" element={<ProtectedRoute allowedRoles={['admin']}><Settings /></ProtectedRoute>} />
-      <Route path="/recompensas" element={<ProtectedRoute allowedRoles={['admin']}><Rewards /></ProtectedRoute>} />
-      <Route path="/cliente/:clientRef" element={<ProtectedRoute allowedRoles={['admin', 'operator']}><ClientDetail /></ProtectedRoute>} />
-      <Route path="/excluidos" element={<ProtectedRoute allowedRoles={['admin']}><DeletedClients /></ProtectedRoute>} />
+      <Route path="/" element={<ProtectedRoute allowedRoles={['admin', 'operator']} requiredFeature="dashboard.view"><Dashboard /></ProtectedRoute>} />
+      <Route path="/pdv" element={<ProtectedRoute allowedRoles={['admin', 'operator']} requiredFeature="pdv.use"><PDV /></ProtectedRoute>} />
+      <Route path="/clientes" element={<ProtectedRoute allowedRoles={['admin', 'operator']} requiredFeature="clients.manage"><Clients /></ProtectedRoute>} />
+      <Route path="/produtos" element={<ProtectedRoute allowedRoles={['admin', 'operator']} requiredFeature="products.manage"><Products /></ProtectedRoute>} />
+      <Route path="/estoque" element={<ProtectedRoute allowedRoles={['admin']} requiredFeature="stock.manage"><Stock /></ProtectedRoute>} />
+      <Route path="/relatorios" element={<ProtectedRoute allowedRoles={['admin']} requiredFeature="reports.view"><Reports /></ProtectedRoute>} />
+      <Route path="/financeiro" element={<ProtectedRoute allowedRoles={['admin']} requiredFeature="financial.manage"><Financial /></ProtectedRoute>} />
+      <Route path="/notas" element={<ProtectedRoute allowedRoles={['admin']} requiredFeature="notes.manage"><Notes /></ProtectedRoute>} />
+      <Route path="/configuracoes" element={<ProtectedRoute allowedRoles={['admin']} requiredFeature="settings.manage"><Settings /></ProtectedRoute>} />
+      <Route path="/recompensas" element={<ProtectedRoute allowedRoles={['admin']} requiredFeature="rewards.manage"><Rewards /></ProtectedRoute>} />
+      <Route path="/cliente/:clientRef" element={<ProtectedRoute allowedRoles={['admin', 'operator']} requiredFeature="clients.manage"><ClientDetail /></ProtectedRoute>} />
+      <Route path="/excluidos" element={<ProtectedRoute allowedRoles={['admin']} requiredFeature="deleted.view"><DeletedClients /></ProtectedRoute>} />
       <Route path="*" element={<Navigate to="/" />} />
     </Routes>
   );
@@ -111,11 +117,13 @@ const App = () => (
       <Toaster />
       <Sonner />
       <AuthProvider>
-        <DataProvider>
-          <Router>
-            <AppRoutes />
-          </Router>
-        </DataProvider>
+        <PlanProvider>
+          <DataProvider>
+            <Router>
+              <AppRoutes />
+            </Router>
+          </DataProvider>
+        </PlanProvider>
       </AuthProvider>
     </TooltipProvider>
   </QueryClientProvider>

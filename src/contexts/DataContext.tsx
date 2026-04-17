@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './AuthContext';
+import { usePlanAccess } from './PlanContext';
 import type { Client, Product, DebtEntry, Payment, Sale, SaleItem, StockMovement, Expense } from '@/types';
 
 const db = supabase as any;
@@ -80,6 +81,7 @@ const DataContext = createContext<DataContextType | null>(null);
 
 export function DataProvider({ children }: { children: ReactNode }) {
   const { user, ownerUserId, loading: authLoading } = useAuth();
+  const { hasFeature, loading: planLoading } = usePlanAccess();
   const [clients, setClients] = useState<Client[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [debtEntries, setDebtEntries] = useState<DebtEntry[]>([]);
@@ -92,7 +94,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   const fetchAll = useCallback(async () => {
-    if (authLoading) {
+    if (authLoading || planLoading) {
       setLoading(true);
       return;
     }
@@ -103,21 +105,36 @@ export function DataProvider({ children }: { children: ReactNode }) {
       setLoading(false); return;
     }
     setLoading(true);
-    const productsByCode = await db.from('products').select('*').order('code', { ascending: true });
-    const productsResponse = productsByCode.error?.message?.includes('products.code')
-      ? await db.from('products').select('*').order('created_at', { ascending: true })
-      : productsByCode;
+
+    const canReadClients = hasFeature('clients.manage');
+    const canReadProducts = hasFeature('products.manage');
+    const canReadFiado = hasFeature('fiado.manage');
+    const canReadRewards = hasFeature('rewards.manage');
+    const canReadSales = hasFeature('pdv.use');
+    const canReadStock = hasFeature('stock.manage');
+    const canReadExpenses = hasFeature('financial.manage');
+
+    const emptyResult = Promise.resolve({ data: [], error: null });
+
+    let productsResponse = { data: [], error: null };
+
+    if (canReadProducts) {
+      const productsByCode = await db.from('products').select('*').order('code', { ascending: true });
+      productsResponse = productsByCode.error?.message?.includes('products.code')
+        ? await db.from('products').select('*').order('created_at', { ascending: true })
+        : productsByCode;
+    }
 
     const [c, p, d, pay, r, s, si, sm, exp] = await Promise.all([
-      db.from('clients').select('*').order('created_at', { ascending: false }),
-      productsResponse,
-      db.from('debt_entries').select('*').order('date_added', { ascending: false }),
-      db.from('payments').select('*').order('date', { ascending: false }),
-      db.from('rewards').select('*').order('created_at', { ascending: false }),
-      db.from('sales').select('*').order('date', { ascending: false }),
-      db.from('sale_items').select('*'),
-      db.from('stock_movements').select('*').order('date', { ascending: false }),
-      db.from('expenses').select('*').order('date', { ascending: false }),
+      canReadClients ? db.from('clients').select('*').order('created_at', { ascending: false }) : emptyResult,
+      Promise.resolve(productsResponse),
+      canReadFiado ? db.from('debt_entries').select('*').order('date_added', { ascending: false }) : emptyResult,
+      canReadFiado ? db.from('payments').select('*').order('date', { ascending: false }) : emptyResult,
+      canReadRewards ? db.from('rewards').select('*').order('created_at', { ascending: false }) : emptyResult,
+      canReadSales ? db.from('sales').select('*').order('date', { ascending: false }) : emptyResult,
+      canReadSales ? db.from('sale_items').select('*') : emptyResult,
+      canReadStock ? db.from('stock_movements').select('*').order('date', { ascending: false }) : emptyResult,
+      canReadExpenses ? db.from('expenses').select('*').order('date', { ascending: false }) : emptyResult,
     ]);
     setClients((c.data as Client[]) ?? []);
     setProducts(productsWithDisplayCodes((p.data as Product[]) ?? []));
@@ -129,7 +146,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     setStockMovements((sm.data as StockMovement[]) ?? []);
     setExpenses((exp.data as Expense[]) ?? []);
     setLoading(false);
-  }, [authLoading, ownerUserId, user]);
+  }, [authLoading, hasFeature, ownerUserId, planLoading, user]);
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
 

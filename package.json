@@ -6,7 +6,10 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:site": "vite --config site/vite.config.ts",
     "build": "vite build",
+    "build:site": "vite build --config site/vite.config.ts",
+    "build:all": "npm run build && npm run build:site",
     "build:dev": "vite build --mode development",
     "electron:dev": "concurrently -k \"npm run dev\" \"wait-on http://localhost:8080 && cross-env VITE_DEV_SERVER_URL=http://localhost:8080 electron .\"",
     "electron:build": "npm run build && electron-builder --publish never",
@@ -19,6 +22,7 @@
     "electron:publish:linux:beta": "npm run build && electron-builder --linux AppImage --x64 --publish always -c.publish.channel=beta -c.publish.releaseType=prerelease",
     "lint": "eslint .",
     "preview": "vite preview",
+    "preview:site": "vite preview --config site/vite.config.ts --port 4174",
     "test": "vitest run",
     "test:watch": "vitest"
   },
@@ -61,6 +65,7 @@
     "electron-updater": "^6.8.3",
     "embla-carousel-react": "^8.6.0",
     "framer-motion": "^12.38.0",
+    "gsap": "^3.15.0",
     "input-otp": "^1.4.2",
     "lucide-react": "^0.462.0",
     "next-themes": "^0.3.0",

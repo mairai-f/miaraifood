@@ -91,6 +91,11 @@ Deno.serve(async (request) => {
   }
 
   const authClient = createClient(supabaseUrl, supabaseAnonKey, {
+    global: {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    },
     auth: {
       autoRefreshToken: false,
       persistSession: false,
@@ -125,6 +130,14 @@ Deno.serve(async (request) => {
 
   if (callerProfile.role !== 'admin') {
     return jsonResponse({ error: 'Somente administradores podem gerenciar operadores.' }, 403);
+  }
+
+  const { data: hasSettingsAccess, error: accessError } = await authClient.rpc('current_store_has_feature', {
+    target_feature: 'settings.manage',
+  });
+
+  if (accessError || !hasSettingsAccess) {
+    return jsonResponse({ error: 'Seu plano atual nao libera configuracoes da loja.' }, 403);
   }
 
   const ownerUserId = callerProfile.owner_user_id ?? user.id;
