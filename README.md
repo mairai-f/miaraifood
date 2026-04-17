@@ -1,4 +1,4 @@
-🍻 HappyCash - Sistema de Cobranças
+🍻 HappyCash - Sistema de gestao,frente de caixa,caderneta fiado,estoque.
 
 Sistema completo de gestão e cobranças para adegas e pequenos comércios.
 Simples, intuitivo e rápido para uso no dia a dia.
