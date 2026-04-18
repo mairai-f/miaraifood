@@ -1,0 +1,16 @@
+.git
+.codex
+.env
+.env.*
+.vercel
+node_modules
+happycashsite/node_modules
+dist
+dist-site
+release
+win-unpacked
+linux-unpacked
+*.log
+*.exe
+*.AppImage
+*.asar

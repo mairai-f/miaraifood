@@ -37,3 +37,4 @@ linux-unpacked/
 *.sln
 *.sw?
 supabase/.temp/
+.vercel
