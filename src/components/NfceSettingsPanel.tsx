@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { PasswordInput } from '@/components/ui/password-input';
 import {
   Select,
   SelectContent,
@@ -591,8 +592,7 @@ export function NfceSettingsPanel() {
 
                 <div className="space-y-1">
                   <Label>CSC token</Label>
-                  <Input
-                    type="password"
+                  <PasswordInput
                     value={form.cscToken}
                     onChange={event => updateForm('cscToken', event.target.value)}
                     placeholder="Codigo de seguranca do contribuinte"

@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { PasswordInput } from '@/components/ui/password-input';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -687,7 +688,7 @@ export function OperatorManagementPanel({
             </div>
             <div className="space-y-1">
               <Label>Senha inicial</Label>
-              <Input type="password" value={password} onChange={event => setPassword(event.target.value)} placeholder="Minimo de 6 caracteres" />
+              <PasswordInput value={password} onChange={event => setPassword(event.target.value)} placeholder="Minimo de 6 caracteres" />
             </div>
             <p className="text-xs text-muted-foreground">
               Use de 3 a 24 caracteres com letras, numeros, ponto, hifen ou underscore.
@@ -773,8 +774,7 @@ export function OperatorManagementPanel({
             </div>
             <div className="space-y-1">
               <Label>Nova senha</Label>
-              <Input
-                type="password"
+              <PasswordInput
                 value={resetPassword}
                 onChange={event => setResetPassword(event.target.value)}
                 placeholder="Informe a nova senha"

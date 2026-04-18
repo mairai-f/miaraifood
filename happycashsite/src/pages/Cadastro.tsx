@@ -133,7 +133,7 @@ const Cadastro = () => {
           ? `Sua demo gratuita vai ate ${new Date(data.trialEndsAt).toLocaleString("pt-BR")}.`
           : "Bem-vindo ao HappyCash!",
       });
-      navigate(selectedPlanId ? `/dashboard?plan=${selectedPlanId}` : "/dashboard");
+      navigate(selectedPlanId ? `/?plan=${selectedPlanId}` : "/");
     } catch (error) {
       toast({
         title: "Erro ao criar conta",
@@ -200,7 +200,12 @@ const Cadastro = () => {
                 <Label>Senha</Label>
                 <div className="relative">
                   <Input type={showPassword ? "text" : "password"} placeholder="Mínimo 6 caracteres" value={password} onChange={e => setPassword(e.target.value)} required minLength={6} className="h-12 bg-muted/50 pr-12" />
-                  <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground">
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+                    aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"}
+                  >
                     {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                   </button>
                 </div>

@@ -1,13 +1,16 @@
 import { useEffect, useRef } from "react";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
+import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Check, Star, Zap, Monitor, Smartphone, Download } from "lucide-react";
+import { useAuthSession } from "@/hooks/use-auth-session";
 
 gsap.registerPlugin(ScrollTrigger);
 
 const plans = [
   {
+    id: "demo",
     name: "Demo Grátis",
     price: "0",
     description: "Teste o sistema completo por 3 horas",
@@ -21,6 +24,7 @@ const plans = [
     ],
   },
   {
+    id: "fiado",
     name: "Caderneta Fiado Digital",
     price: "100",
     description: "Ideal para quem vive de fiado e precisa de controle simples por 30 dias",
@@ -36,6 +40,7 @@ const plans = [
     ],
   },
   {
+    id: "completo",
     name: "Plano Completo",
     subtitle: "PDV + Fiado",
     price: "230",
@@ -55,6 +60,7 @@ const plans = [
     ],
   },
   {
+    id: "pro",
     name: "Plano PRO",
     subtitle: "Completo + App",
     price: "347",
@@ -76,6 +82,7 @@ const WHATSAPP_NUMBER = "5512988918792";
 
 const Pricing = () => {
   const ref = useRef<HTMLElement>(null);
+  const { isAuthenticated } = useAuthSession();
 
   useEffect(() => {
     const ctx = gsap.context(() => {
@@ -178,14 +185,22 @@ const Pricing = () => {
               <div className="flex flex-col gap-3">
                 {plan.highlight === "demo" ? (
                   <Button asChild className="w-full font-semibold h-12 text-base bg-secondary text-secondary-foreground hover:bg-secondary/90" size="lg">
-                    <a href="/cadastro">Testar Demo Grátis</a>
+                    {isAuthenticated ? (
+                      <Link to={`/dashboard?plan=${plan.id}`}>Abrir Demo no Painel</Link>
+                    ) : (
+                      <Link to={`/cadastro?plan=${plan.id}`}>Testar Demo Grátis</Link>
+                    )}
                   </Button>
                 ) : (
                   <>
                     <Button asChild className={`w-full font-semibold h-12 text-base transition-all duration-300 hover:scale-[1.02] hover:shadow-lg ${
                       plan.popular ? "bg-primary text-primary-foreground hover:bg-primary/90 hover:shadow-primary/30" : "bg-muted text-foreground hover:bg-muted/80"
                     }`} size="lg">
-                      <a href="/pix">Assinar com Pix</a>
+                      {isAuthenticated ? (
+                        <Link to={`/dashboard?plan=${plan.id}`}>Abrir no Painel</Link>
+                      ) : (
+                        <Link to={`/cadastro?plan=${plan.id}`}>Assinar com Pix</Link>
+                      )}
                     </Button>
                     <Button asChild variant="outline" className="w-full font-semibold h-12 text-base" size="lg">
                       <a href={`https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(`Olá! Tenho interesse no ${plan.name} - R$${plan.price} a cada 30 dias no HappyCash`)}`}
