@@ -7,6 +7,7 @@ export interface RetailCouponPrintItem {
 
 export interface RetailCouponPrintPayload {
   storeName: string;
+  systemBrandLabel?: string | null;
   saleId: string;
   saleDate: string;
   operatorName?: string | null;
@@ -65,6 +66,7 @@ export const openRetailCouponPrintWindow = (payload: RetailCouponPrintPayload) =
   const saleDate = new Date(payload.saleDate).toLocaleString('pt-BR');
   const copyLabel = payload.copyLabel?.trim();
   const footerMessage = payload.footerMessage?.trim() || 'Obrigado pela preferencia.';
+  const systemBrandLabel = payload.systemBrandLabel?.trim() || 'Sistema HappyCash';
 
   const html = `
     <!doctype html>
@@ -116,6 +118,14 @@ export const openRetailCouponPrintWindow = (payload: RetailCouponPrintPayload) =
             font-weight: 700;
             text-transform: uppercase;
             letter-spacing: 0.04em;
+          }
+
+          .system-brand {
+            margin-top: 4px;
+            color: #4b5563;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.12em;
           }
 
           .title {
@@ -258,6 +268,7 @@ export const openRetailCouponPrintWindow = (payload: RetailCouponPrintPayload) =
           <article class="coupon">
             <header class="center">
               <div class="store-name">${escapeHtml(payload.storeName)}</div>
+              <div class="system-brand">${escapeHtml(systemBrandLabel)}</div>
               <div class="title">Cupom fiscal</div>
               <div class="subtitle">Documento de venda rapida de varejo ao consumidor final</div>
               ${copyLabel ? `<div class="copy-label">${escapeHtml(copyLabel)}</div>` : ''}

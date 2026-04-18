@@ -1,10 +1,12 @@
 import { useState, useEffect } from "react";
 import { Menu, X } from "lucide-react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuthSession } from "@/hooks/use-auth-session";
-import { isPublicPlanId } from "@/lib/subscriptionPlans";
+import { useCurrentSubscription } from "@/hooks/use-current-subscription";
+import { isPublicPlanId, publicPlanContent } from "@/lib/subscriptionPlans";
 import logo from "@/assets/logo-happycash.png";
 
 const Header = () => {
@@ -14,6 +16,7 @@ const Header = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { user, isAuthenticated } = useAuthSession();
+  const { subscription, countdown, loading: loadingSubscription } = useCurrentSubscription(user?.id);
   const selectedPlanId = (() => {
     const value = searchParams.get("plan");
     return isPublicPlanId(value) ? value : null;
@@ -21,6 +24,12 @@ const Header = () => {
   const loginHref = selectedPlanId ? `/login?plan=${selectedPlanId}` : "/login";
   const dashboardHref = selectedPlanId ? `/dashboard?plan=${selectedPlanId}` : "/dashboard";
   const homeHref = selectedPlanId ? `/?plan=${selectedPlanId}` : "/";
+  const currentPlanName = subscription?.plan_id && isPublicPlanId(subscription.plan_id)
+    ? publicPlanContent[subscription.plan_id].name
+    : null;
+  const subscriptionMarker = currentPlanName && countdown.markerLabel
+    ? `${currentPlanName} • ${countdown.markerLabel}`
+    : currentPlanName;
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 50);
@@ -69,6 +78,11 @@ const Header = () => {
         <div className="hidden md:flex items-center gap-3">
           {isAuthenticated ? (
             <>
+              {!loadingSubscription && subscriptionMarker && (
+                <Badge variant={countdown.badgeVariant} className="max-w-[260px] truncate">
+                  {subscriptionMarker}
+                </Badge>
+              )}
               <span className="max-w-[220px] truncate text-xs font-medium text-muted-foreground">
                 {user?.email}
               </span>
@@ -118,6 +132,11 @@ const Header = () => {
             ))}
             {isAuthenticated ? (
               <>
+                {!loadingSubscription && subscriptionMarker && (
+                  <Badge variant={countdown.badgeVariant} className="w-fit">
+                    {subscriptionMarker}
+                  </Badge>
+                )}
                 <Button asChild variant="outline" className="w-full">
                   <Link to={dashboardHref} onClick={() => setMobileOpen(false)}>Minha conta</Link>
                 </Button>

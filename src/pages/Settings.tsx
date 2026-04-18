@@ -1,10 +1,14 @@
 import { useCallback, useState } from 'react';
-import { Settings as SettingsIcon, ShieldAlert } from 'lucide-react';
+import { Clock3, Settings as SettingsIcon, ShieldAlert } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
+import { CompanyProfileCard } from '@/components/CompanyProfileCard';
 import { OperatorManagementPanel } from '@/components/OperatorManagementPanel';
 import { useAuth } from '@/contexts/AuthContext';
 import { useData } from '@/contexts/DataContext';
+import { useCurrentSubscription } from '@/hooks/use-current-subscription';
 import { supabase } from '@/integrations/supabase/client';
+import { getSubscriptionEndAt } from '@/lib/subscriptionStatus';
+import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -36,9 +40,17 @@ interface ResetActionResponse {
   error?: string;
 }
 
+const planLabels: Record<string, string> = {
+  demo: 'Demo 3 Horas',
+  fiado: 'Plano Fiado',
+  completo: 'Plano Completo',
+  pro: 'Plano PRO',
+};
+
 export default function Settings() {
   const { session } = useAuth();
   const { refetch } = useData();
+  const { subscription, countdown, statusLabel, loading: loadingSubscription } = useCurrentSubscription();
   const [searchParams, setSearchParams] = useSearchParams();
   const isCreateOperatorModalOpen = searchParams.get('modal') === CREATE_OPERATOR_MODAL;
   const [resetTarget, setResetTarget] = useState<ResetTarget | null>(null);
@@ -180,6 +192,8 @@ export default function Settings() {
   const resetDescription = resetTarget === 'financial'
     ? 'Serão removidos despesas, fiados e pagamentos da loja.'
     : 'Serão removidas vendas e itens vendidos usados nos relatórios.';
+  const currentPlanLabel = subscription?.plan_id ? planLabels[subscription.plan_id] || subscription.plan_id : 'Sem plano ativo';
+  const currentDeadline = getSubscriptionEndAt(subscription);
 
   return (
     <div className="space-y-6">
@@ -192,6 +206,59 @@ export default function Settings() {
           Gerencie acessos da loja e abra o cadastro de operadores pelo seu nome no menu lateral.
         </p>
       </div>
+
+      <Card>
+        <CardHeader className="space-y-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Clock3 className="h-4 w-4 text-primary" />
+              Licenca e validade
+            </CardTitle>
+            {!loadingSubscription && <Badge variant={countdown.badgeVariant}>{statusLabel}</Badge>}
+          </div>
+          <p className="text-sm text-muted-foreground">
+            Marcador rapido para acompanhar quanto tempo falta no plano atual antes do vencimento.
+          </p>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {loadingSubscription ? (
+            <div className="text-sm text-muted-foreground">Carregando status da assinatura...</div>
+          ) : (
+            <>
+              <div className="grid gap-4 md:grid-cols-3">
+                <div className="rounded-lg border border-border/70 bg-background/70 p-4">
+                  <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Plano atual</p>
+                  <p className="mt-2 font-semibold">{currentPlanLabel}</p>
+                </div>
+                <div className="rounded-lg border border-border/70 bg-background/70 p-4">
+                  <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Marcador</p>
+                  <p className="mt-2 font-semibold">{countdown.markerLabel || 'Sem prazo ativo'}</p>
+                </div>
+                <div className="rounded-lg border border-border/70 bg-background/70 p-4">
+                  <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Valido ate</p>
+                  <p className="mt-2 font-semibold">
+                    {currentDeadline ? new Date(currentDeadline).toLocaleString('pt-BR') : 'Sem vencimento definido'}
+                  </p>
+                </div>
+              </div>
+
+              {countdown.remainingLabel && (
+                <div className="rounded-lg border border-primary/20 bg-primary/5 p-4 text-sm text-muted-foreground">
+                  <p className="font-medium text-foreground">{countdown.markerLabel}</p>
+                  <p className="mt-1">{countdown.remainingLabel}</p>
+                  {subscription?.plan_id === 'pro' && !countdown.isExpired && (
+                    <p className="mt-2 text-primary">
+                      O plano PRO fica apto para liberar o download do desktop na area logada do site.
+                    </p>
+                  )}
+                </div>
+              )}
+            </>
+          )}
+        </CardContent>
+      </Card>
+
+      <CompanyProfileCard />
 
       <OperatorManagementPanel
         createDialogOpen={isCreateOperatorModalOpen}

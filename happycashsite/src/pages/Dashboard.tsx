@@ -5,12 +5,15 @@ import {
   Check,
   Clock3,
   Crown,
+  Download,
   Loader2,
   LogOut,
   ShieldCheck,
   Sparkles,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { desktopDownloads } from "@/lib/desktopDownloads";
+import { getSubscriptionCountdown, getSubscriptionEndAt, getSubscriptionStatusLabel, isCurrentSubscription } from "@/lib/subscriptionStatus";
 import { publicPlanContent, publicPlanList, isPaidPlanId, isPublicPlanId, type PaidPlanId, type PublicPlanId } from "@/lib/subscriptionPlans";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -67,8 +70,6 @@ type ActivatePlanResponse = {
   };
 };
 
-const activeStatuses = new Set(["trialing", "active", "past_due"]);
-
 const formatDateTime = (value?: string | null) => {
   if (!value) return "Sem data";
   return new Date(value).toLocaleString("pt-BR", {
@@ -82,50 +83,6 @@ const formatCurrency = (value?: number | null) =>
     style: "currency",
     currency: "BRL",
   }).format(Number(value || 0));
-
-const getRemainingLabel = (subscription: StoreSubscriptionRow | null) => {
-  if (!subscription) return null;
-
-  const endAt = subscription.status === "trialing"
-    ? subscription.trial_ends_at
-    : subscription.current_period_ends_at;
-
-  if (!endAt) return null;
-
-  const diffMs = new Date(endAt).getTime() - Date.now();
-  if (diffMs <= 0) return "Periodo encerrado.";
-
-  if (subscription.status === "trialing") {
-    const totalMinutes = Math.ceil(diffMs / (1000 * 60));
-    const hours = Math.floor(totalMinutes / 60);
-    const minutes = totalMinutes % 60;
-    return `Restam ${hours}h${minutes > 0 ? ` ${minutes}min` : ""} na demo.`;
-  }
-
-  const totalDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
-  return `Restam ${totalDays} dia${totalDays === 1 ? "" : "s"} neste ciclo.`;
-};
-
-const getStatusLabel = (subscription: StoreSubscriptionRow | null) => {
-  if (!subscription) return "Sem plano ativo";
-  if (subscription.status === "trialing") return "Demo ativa";
-  if (subscription.status === "active") return "Plano ativo";
-  if (subscription.status === "past_due") return "Pagamento pendente";
-  if (subscription.status === "expired") return "Encerrado";
-  return subscription.status;
-};
-
-const isCurrentSubscription = (subscription: StoreSubscriptionRow) => {
-  if (!activeStatuses.has(subscription.status)) return false;
-
-  const endAt = subscription.status === "trialing"
-    ? subscription.trial_ends_at
-    : subscription.current_period_ends_at;
-
-  if (!endAt) return true;
-
-  return new Date(endAt).getTime() > Date.now();
-};
 
 const Dashboard = () => {
   const [searchParams] = useSearchParams();
@@ -237,10 +194,9 @@ const Dashboard = () => {
   const currentSubscription = subscriptions.find(isCurrentSubscription) || subscriptions[0] || null;
   const currentPlanId = currentSubscription?.plan_id || null;
   const currentPlanContent = currentPlanId ? publicPlanContent[currentPlanId] : null;
-  const remainingLabel = getRemainingLabel(currentSubscription);
-  const currentDeadline = currentSubscription?.status === "trialing"
-    ? currentSubscription.trial_ends_at
-    : currentSubscription?.current_period_ends_at;
+  const countdown = getSubscriptionCountdown(currentSubscription);
+  const currentDeadline = getSubscriptionEndAt(currentSubscription);
+  const isCurrentProPlan = currentPlanId === "pro" && isCurrentSubscription(currentSubscription);
 
   const sortedPlans = publicPlanList.map((fallbackPlan) => {
     const dbPlan = plans.find((plan) => plan.id === fallbackPlan.id);
@@ -371,8 +327,8 @@ const Dashboard = () => {
           <Card className="rounded-3xl border-border/70">
             <CardHeader className="space-y-4">
               <div className="flex flex-wrap items-center gap-3">
-                <Badge variant={currentSubscription?.status === "trialing" ? "secondary" : "default"}>
-                  {getStatusLabel(currentSubscription)}
+                <Badge variant={countdown.badgeVariant}>
+                  {getSubscriptionStatusLabel(currentSubscription)}
                 </Badge>
                 {currentPlanContent && (
                   <Badge variant="outline">
@@ -410,14 +366,17 @@ const Dashboard = () => {
               </div>
 
               <div className="rounded-2xl border border-primary/20 bg-primary/5 p-5">
-                <div className="flex items-center gap-2 text-sm font-medium text-primary">
+                <div className="flex flex-wrap items-center gap-2 text-sm font-medium text-primary">
                   <Clock3 className="h-4 w-4" />
                   {currentDeadline
                     ? `Valido ate ${formatDateTime(currentDeadline)}`
                     : "Sem vencimento definido"}
+                  {countdown.markerLabel && (
+                    <Badge variant={countdown.badgeVariant}>{countdown.markerLabel}</Badge>
+                  )}
                 </div>
-                {remainingLabel && (
-                  <p className="mt-2 text-sm text-muted-foreground">{remainingLabel}</p>
+                {countdown.remainingLabel && (
+                  <p className="mt-2 text-sm text-muted-foreground">{countdown.remainingLabel}</p>
                 )}
                 <p className="mt-3 text-sm text-muted-foreground">
                   {currentPlanContent?.summary || "Escolha um plano abaixo para liberar seu acesso."}
@@ -452,6 +411,40 @@ const Dashboard = () => {
                   <li>3. Os planos pagos ficam ativos por 30 dias.</li>
                   <li>4. O Pix automatico pelo Asaas entra na proxima etapa.</li>
                 </ul>
+              </div>
+
+              <div className="rounded-2xl border border-border bg-background/70 p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold">Downloads do desktop</p>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      O executavel fica liberado apenas para contas com plano PRO ativo.
+                    </p>
+                  </div>
+                  <Badge variant={isCurrentProPlan ? "default" : "outline"}>
+                    {isCurrentProPlan ? "PRO liberado" : "Somente PRO"}
+                  </Badge>
+                </div>
+
+                {isCurrentProPlan ? (
+                  <div className="mt-4 grid gap-3">
+                    <Button asChild className="h-11 font-semibold">
+                      <a href={desktopDownloads.windows.href} target="_blank" rel="noreferrer">
+                        <Download className="mr-2 h-4 w-4" />
+                        Baixar executavel Windows
+                      </a>
+                    </Button>
+                    <Button asChild variant="outline" className="h-11 font-semibold">
+                      <a href={desktopDownloads.linux.href} target="_blank" rel="noreferrer">
+                        Baixar AppImage Linux
+                      </a>
+                    </Button>
+                  </div>
+                ) : (
+                  <p className="mt-4 text-sm text-muted-foreground">
+                    Quando o plano PRO estiver ativo, esta area libera o download do app desktop para Windows e Linux.
+                  </p>
+                )}
               </div>
 
               <div className="grid gap-3">
@@ -489,8 +482,8 @@ const Dashboard = () => {
               const isSelected = selectedPlanId === plan.id;
               const isCurrentPaidPlan =
                 currentSubscription?.plan_id === plan.id &&
-                activeStatuses.has(currentSubscription.status) &&
-                isCurrentSubscription(currentSubscription);
+                isCurrentSubscription(currentSubscription) &&
+                isPaidPlanId(plan.id);
               const isPaidPlan = isPaidPlanId(plan.id);
               const content = publicPlanContent[plan.id];
 
