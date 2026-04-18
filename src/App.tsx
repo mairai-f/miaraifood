@@ -26,7 +26,12 @@ import { SplashScreen } from "@/components/SplashScreen";
 import type { UserRole } from "@/lib/access";
 
 const queryClient = new QueryClient();
-const Router = typeof window !== "undefined" && window.location.protocol === "file:" ? HashRouter : BrowserRouter;
+const isEmbeddedMobileRuntime = typeof window !== "undefined" && (
+  window.location.protocol === "file:" ||
+  window.location.protocol === "app:" ||
+  "cordova" in window
+);
+const Router = isEmbeddedMobileRuntime ? HashRouter : BrowserRouter;
 
 function ProtectedRoute({
   children,

@@ -78,3 +78,31 @@ npm run electron:build
 ```
 
 O arquivo final será gerado na pasta `release/`.
+
+__________________________________________________________________________________
+📱 Versão Mobile (Cordova) :
+
+O projeto agora também está preparado para empacotar o app principal em Android e iOS com um container Cordova separado em `mobile/`.
+
+```bash
+# sincronizar o build web principal com o container mobile
+npm run mobile:sync
+
+# depois de instalar as dependências de mobile/ e adicionar as plataformas
+npm run mobile:android
+npm run mobile:ios
+```
+
+Fluxo inicial:
+
+```bash
+cd mobile
+npm install
+npx cordova platform add android
+npx cordova platform add ios
+```
+
+Observações:
+
+- O mobile usa o mesmo frontend principal do sistema, sem mexer no deploy web nem no Electron.
+- Links externos no app mobile já ficam preparados para abrir fora do WebView via `cordova-plugin-inappbrowser`.

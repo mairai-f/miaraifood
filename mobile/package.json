@@ -1,0 +1,22 @@
+{
+  "name": "happycash-mobile",
+  "private": true,
+  "version": "0.1.1",
+  "description": "Shell Cordova do HappyCash para Android e iOS.",
+  "scripts": {
+    "prepare:web": "npm --prefix .. run build && node ../scripts/sync-cordova-web.mjs",
+    "platform:add:android": "npx cordova platform add android",
+    "platform:add:ios": "npx cordova platform add ios",
+    "prepare:cordova": "npm run prepare:web && npx cordova prepare",
+    "build:android": "npm run prepare:web && npx cordova build android",
+    "build:ios": "npm run prepare:web && npx cordova build ios",
+    "run:android": "npm run prepare:web && npx cordova run android",
+    "run:ios": "npm run prepare:web && npx cordova run ios"
+  },
+  "devDependencies": {
+    "cordova": "^12.0.0",
+    "cordova-android": "^13.0.0",
+    "cordova-ios": "^7.1.1",
+    "cordova-plugin-inappbrowser": "^6.0.0"
+  }
+}

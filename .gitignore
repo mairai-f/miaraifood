@@ -38,3 +38,9 @@ linux-unpacked/
 *.sw?
 supabase/.temp/
 .vercel
+mobile/node_modules/
+mobile/platforms/
+mobile/plugins/
+mobile/www/*
+!mobile/www/.gitkeep
+mobile/package-lock.json

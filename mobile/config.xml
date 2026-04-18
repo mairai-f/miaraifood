@@ -1,0 +1,36 @@
+<?xml version='1.0' encoding='utf-8'?>
+<widget id="com.happycash.mobile" version="0.1.1" xmlns="http://www.w3.org/ns/widgets" xmlns:cdv="http://cordova.apache.org/ns/1.0">
+  <name>HappyCash Mobile</name>
+  <description>App mobile do HappyCash para Android e iOS usando o mesmo frontend principal do sistema.</description>
+  <author email="celioantonio.dev@gmail.com" href="https://happycashsite.vercel.app">Celio Antonio da Silva Junior</author>
+
+  <content src="index.html" />
+
+  <access origin="*" />
+  <allow-navigation href="*" />
+  <allow-intent href="http://*/*" />
+  <allow-intent href="https://*/*" />
+  <allow-intent href="tel:*" />
+  <allow-intent href="sms:*" />
+  <allow-intent href="mailto:*" />
+  <allow-intent href="geo:*" />
+
+  <preference name="BackupWebStorage" value="none" />
+  <preference name="DisallowOverscroll" value="true" />
+  <preference name="AutoHideSplashScreen" value="true" />
+  <preference name="SplashScreenDelay" value="0" />
+
+  <platform name="android">
+    <preference name="AndroidLaunchMode" value="singleTask" />
+    <preference name="android-minSdkVersion" value="24" />
+  </platform>
+
+  <platform name="ios">
+    <preference name="scheme" value="app" />
+    <preference name="hostname" value="happycash" />
+    <allow-intent href="itms:*" />
+    <allow-intent href="itms-apps:*" />
+  </platform>
+
+  <plugin name="cordova-plugin-inappbrowser" spec="^6.0.0" />
+</widget>

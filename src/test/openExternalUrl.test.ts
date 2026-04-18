@@ -4,6 +4,7 @@ import { openExternalUrl } from '@/lib/openExternalUrl';
 
 describe('openExternalUrl', () => {
   afterEach(() => {
+    delete (window as Window & { cordova?: unknown }).cordova;
     vi.restoreAllMocks();
   });
 
@@ -31,5 +32,20 @@ describe('openExternalUrl', () => {
     vi.spyOn(window, 'open').mockReturnValue(null);
 
     expect(openExternalUrl('https://wa.me/5511999999999')).toBe(false);
+  });
+
+  it('usa _system quando roda no Cordova', () => {
+    const openSpy = vi.spyOn(window, 'open').mockReturnValue(null);
+    Object.defineProperty(window, 'cordova', {
+      configurable: true,
+      value: {},
+    });
+
+    expect(openExternalUrl('https://wa.me/5511999999999')).toBe(true);
+    expect(openSpy).toHaveBeenCalledWith(
+      'https://wa.me/5511999999999',
+      '_system',
+      'location=yes'
+    );
   });
 });
