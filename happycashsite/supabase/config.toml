@@ -1,0 +1,16 @@
+# Compatibilidade legada: o Supabase canonico do projeto fica em /supabase.
+# Mantemos este arquivo alinhado ao projeto principal para evitar apontar
+# acidentalmente o happycashsite para outro projeto Supabase.
+project_id = "ymffclntmynwfdiarlaw"
+
+[functions.register-account]
+verify_jwt = false
+
+[functions.activate-plan]
+verify_jwt = true
+
+[functions.manage-operators]
+verify_jwt = false
+
+[functions.operator-login]
+verify_jwt = false
