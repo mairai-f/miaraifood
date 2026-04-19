@@ -6,7 +6,7 @@ import {
   isValid,
   parseISO,
 } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
+import { getDateFnsLocale } from '../../shared/locale/format';
 
 const resolveDate = (value: string) => {
   const parsed = parseISO(value);
@@ -18,7 +18,7 @@ const resolveDate = (value: string) => {
 export const parseClientDate = (value: string) => resolveDate(value);
 
 export const formatClientDateTime = (value: string) =>
-  format(resolveDate(value), 'dd/MM/yyyy HH:mm', { locale: ptBR });
+  format(resolveDate(value), 'Pp', { locale: getDateFnsLocale() });
 
 export const toClientDateTimeInputValue = (value: string) =>
   format(resolveDate(value), "yyyy-MM-dd'T'HH:mm");
@@ -32,7 +32,7 @@ export const isClientDateToday = (value: string) => isToday(resolveDate(value));
 
 export const isClientDateThisWeek = (value: string) =>
   isThisWeek(resolveDate(value), {
-    locale: ptBR,
+    locale: getDateFnsLocale(),
     weekStartsOn: 1,
   });
 

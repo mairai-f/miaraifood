@@ -67,6 +67,53 @@ type BillingCustomerRow = {
   provider_customer_id: string | null;
 };
 
+type DashboardQueryError = { message: string } | null;
+
+type DashboardQueryClient = {
+  from(table: "store_accounts"): {
+    select(columns: string): {
+      eq(column: string, value: string): {
+        maybeSingle(): Promise<{
+          data: StoreAccountRow | null;
+          error: DashboardQueryError;
+        }>;
+      };
+    };
+  };
+  from(table: "subscription_plans"): {
+    select(columns: string): {
+      eq(column: string, value: boolean): {
+        eq(column: string, value: boolean): {
+          order(column: string, options: { ascending: boolean }): Promise<{
+            data: SubscriptionPlanRow[] | null;
+            error: DashboardQueryError;
+          }>;
+        };
+      };
+    };
+  };
+  from(table: "store_subscriptions"): {
+    select(columns: string): {
+      eq(column: string, value: string): {
+        order(column: string, options: { ascending: boolean }): Promise<{
+          data: StoreSubscriptionRow[] | null;
+          error: DashboardQueryError;
+        }>;
+      };
+    };
+  };
+  from(table: "billing_customers"): {
+    select(columns: string): {
+      eq(column: string, value: string): {
+        maybeSingle(): Promise<{
+          data: BillingCustomerRow | null;
+          error: DashboardQueryError;
+        }>;
+      };
+    };
+  };
+};
+
 type CreatePlanChargeResponse = {
   success?: boolean;
   reusedPending?: boolean;
@@ -132,7 +179,7 @@ const Dashboard = () => {
   const querySuffix = selectedPlanId ? `?plan=${selectedPlanId}` : "";
 
   const loadDashboard = async (userId: string) => {
-    const db = supabase as any;
+    const db = supabase as unknown as DashboardQueryClient;
     setRefreshing(true);
     setLoadError(null);
 

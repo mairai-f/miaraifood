@@ -34,6 +34,7 @@ import {
   normalizeFiscalRuntimeStatus,
   openFiscalDocumentPrintWindow,
 } from '@/lib/fiscal';
+import { formatCurrency, formatDateTime, formatPercent, getActiveLocale, translateCurrentText } from '../../shared/locale/format';
 
 const db = supabase as any;
 
@@ -156,13 +157,21 @@ const escapeHtml = (value: string) =>
     .replaceAll('"', '&quot;')
     .replaceAll("'", '&#39;');
 
-const paymentMethodLabels: Record<string, string> = {
-  dinheiro: 'Dinheiro',
-  pix: 'Pix',
-  fiado: 'Fiado',
-  cartao_debito: 'Cartão débito',
-  cartao_credito: 'Cartão crédito',
-  outros: 'Outros',
+const getPaymentMethodLabel = (value: string) => {
+  switch (value) {
+    case 'dinheiro':
+      return translateCurrentText('Dinheiro');
+    case 'pix':
+      return 'Pix';
+    case 'fiado':
+      return translateCurrentText('Fiado');
+    case 'cartao_debito':
+      return translateCurrentText('Cartao debito');
+    case 'cartao_credito':
+      return translateCurrentText('Cartao credito');
+    default:
+      return value ? translateCurrentText(value) : translateCurrentText('Outros');
+  }
 };
 
 const getPaymentBreakdown = (sales: Sale[]) => {
@@ -170,7 +179,7 @@ const getPaymentBreakdown = (sales: Sale[]) => {
 
   for (const sale of sales) {
     const key = sale.payment_method || 'outros';
-    const label = paymentMethodLabels[key] || key;
+    const label = getPaymentMethodLabel(key);
     const existing = breakdown.get(key);
 
     if (existing) {
@@ -311,18 +320,14 @@ export default function PDV() {
 
   const activeProducts = products.filter(p => !('deleted' in p && (p as any).deleted));
   const activeClients = clients.filter(c => !c.deleted);
-  const sellerName = username || user?.email || 'Vendedor';
+  const sellerName = username || user?.email || translateCurrentText('Vendedor');
   const roleName = roleLabel[role];
 
-  const formatMoney = (value: number) =>
-    new Intl.NumberFormat('pt-BR', {
-      style: 'currency',
-      currency: 'BRL',
-    }).format(value);
+  const formatMoney = (value: number) => formatCurrency(value);
   const getCartItemTotal = (item: CartItem) => item.unitPrice * item.quantity;
   const isCartItemPriceEdited = (item: CartItem) => Math.abs(item.unitPrice - item.product.price) > 0.009;
-  const formatSaleDate = (value: string) => new Date(value).toLocaleString('pt-BR');
-  const formatPaymentMethod = (value: string) => paymentMethodLabels[value] || value;
+  const formatSaleDate = (value: string) => formatDateTime(value);
+  const formatPaymentMethod = (value: string) => getPaymentMethodLabel(value);
   const closeCashEmailDestination = user?.email?.trim() || '';
   const retailCouponStoreName = fiscalRuntime?.issuerName
     || lastFiscalDocument?.payload?.issuer?.tradeName
@@ -739,7 +744,7 @@ export default function PDV() {
                   </div>
                   <div class="payment-share">
                     <p class="payment-share-label">Participação</p>
-                    <p class="payment-share-value">${escapeHtml(share.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 }))}%</p>
+                    <p class="payment-share-value">${escapeHtml(formatPercent(share))}%</p>
                   </div>
                 </div>
                 <div class="payment-sales-list">
@@ -791,7 +796,7 @@ export default function PDV() {
 
     printWindow.document.write(`
       <!DOCTYPE html>
-      <html lang="pt-BR">
+      <html lang="${escapeHtml(getActiveLocale())}">
         <head>
           <meta charset="utf-8" />
           <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -1784,13 +1789,13 @@ export default function PDV() {
       setCashReceived('');
       setSelectedClientId('');
       setIsDelivery(false);
-      silentToast.success('Venda finalizada!');
+      silentToast.success(translateCurrentText('Venda finalizada!'));
 
       if (canIssueFiscalDocumentInHomologation) {
         void issueFiscalDocumentInHomologation(sale.id);
       }
     } catch {
-      silentToast.error('Erro ao finalizar venda');
+      silentToast.error(translateCurrentText('Erro ao finalizar venda'));
     } finally {
       finalizeLockRef.current = false;
       setIsFinalizingSale(false);
@@ -1800,9 +1805,9 @@ export default function PDV() {
   const sendReceiptWhatsApp = () => {
     if (!lastSaleData?.clientId) return;
     const client = activeClients.find(c => c.id === lastSaleData.clientId);
-    if (!client?.phone) { silentToast.error('Cliente sem telefone'); return; }
+    if (!client?.phone) { silentToast.error(translateCurrentText('Cliente sem telefone')); return; }
     const lines = lastSaleData.items.map(i => `• ${i.product.name} x${i.quantity} (${formatMoney(i.unitPrice)}) — ${formatMoney(getCartItemTotal(i))}`);
-    const msg = `🧾 *AdegaGS - Comprovante*\n\n${lines.join('\n')}\n\n${lastSaleData.discount > 0 ? `Desconto: R$ ${lastSaleData.discount.toFixed(2)}\n` : ''}💰 *Total: R$ ${lastSaleData.total.toFixed(2)}*\n📅 ${new Date().toLocaleString('pt-BR')}\nPagamento: ${lastSaleData.method}`;
+    const msg = `🧾 *HappyCash - ${translateCurrentText('Comprovante')}*\n\n${lines.join('\n')}\n\n${lastSaleData.discount > 0 ? `${translateCurrentText('Desconto')}: ${formatMoney(lastSaleData.discount)}\n` : ''}💰 *${translateCurrentText('Total')}: ${formatMoney(lastSaleData.total)}*\n📅 ${formatDateTime(new Date())}\n${translateCurrentText('Pagamento')}: ${lastSaleData.method}`;
     openExternalUrl(`https://wa.me/${normalizePhone(client.phone)}?text=${encodeURIComponent(msg)}`);
   };
 

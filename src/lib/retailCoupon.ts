@@ -1,3 +1,5 @@
+import { formatCurrency, formatDateTime, getActiveLocale, translateCurrentText } from '../../shared/locale/format';
+
 export interface RetailCouponPrintItem {
   productName: string;
   quantity: number;
@@ -32,11 +34,7 @@ const escapeHtml = (value: string) =>
     .replaceAll('"', '&quot;')
     .replaceAll("'", '&#39;');
 
-const formatMoney = (value: number) =>
-  new Intl.NumberFormat('pt-BR', {
-    style: 'currency',
-    currency: 'BRL',
-  }).format(value ?? 0);
+const formatMoney = (value: number) => formatCurrency(value);
 
 const formatSaleCode = (saleId: string) => {
   const normalized = saleId.replaceAll('-', '').toUpperCase();
@@ -63,14 +61,14 @@ export const openRetailCouponPrintWindow = (payload: RetailCouponPrintPayload) =
       <div class="empty-state">Nenhum item encontrado para este cupom.</div>
     `;
 
-  const saleDate = new Date(payload.saleDate).toLocaleString('pt-BR');
+  const saleDate = formatDateTime(payload.saleDate);
   const copyLabel = payload.copyLabel?.trim();
-  const footerMessage = payload.footerMessage?.trim() || 'Obrigado pela preferencia.';
-  const systemBrandLabel = payload.systemBrandLabel?.trim() || 'Sistema HappyCash';
+  const footerMessage = payload.footerMessage?.trim() || translateCurrentText('Obrigado pela preferencia.');
+  const systemBrandLabel = payload.systemBrandLabel?.trim() || translateCurrentText('Sistema HappyCash');
 
   const html = `
     <!doctype html>
-    <html lang="pt-BR">
+    <html lang="${escapeHtml(getActiveLocale())}">
       <head>
         <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />

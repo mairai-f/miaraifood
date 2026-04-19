@@ -14,6 +14,21 @@ type StoreSubscriptionRow = {
   created_at: string;
 };
 
+type SubscriptionQueryError = { message: string } | null;
+
+type SubscriptionQueryClient = {
+  from(table: "store_subscriptions"): {
+    select(columns: string): {
+      eq(column: string, value: string): {
+        order(column: string, options: { ascending: boolean }): Promise<{
+          data: StoreSubscriptionRow[] | null;
+          error: SubscriptionQueryError;
+        }>;
+      };
+    };
+  };
+};
+
 export function useCurrentSubscription(userId?: string | null) {
   const [subscription, setSubscription] = useState<StoreSubscriptionRow | null>(null);
   const [loading, setLoading] = useState(true);
@@ -26,7 +41,7 @@ export function useCurrentSubscription(userId?: string | null) {
     }
 
     let active = true;
-    const db = supabase as any;
+    const db = supabase as unknown as SubscriptionQueryClient;
 
     const loadSubscription = async () => {
       setLoading(true);

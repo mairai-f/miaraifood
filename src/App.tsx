@@ -24,6 +24,7 @@ import Notes from "@/pages/Notes";
 import Settings from "@/pages/Settings";
 import { SplashScreen } from "@/components/SplashScreen";
 import type { UserRole } from "@/lib/access";
+import { LocaleProvider } from "../shared/locale/LocaleContext";
 
 const queryClient = new QueryClient();
 const Router = typeof window !== "undefined" && window.location.protocol === "file:" ? HashRouter : BrowserRouter;
@@ -112,21 +113,23 @@ function AppRoutes() {
 }
 
 const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <AuthProvider>
-        <PlanProvider>
-          <DataProvider>
-            <Router>
-              <AppRoutes />
-            </Router>
-          </DataProvider>
-        </PlanProvider>
-      </AuthProvider>
-    </TooltipProvider>
-  </QueryClientProvider>
+  <LocaleProvider>
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>
+        <Toaster />
+        <Sonner />
+        <AuthProvider>
+          <PlanProvider>
+            <DataProvider>
+              <Router>
+                <AppRoutes />
+              </Router>
+            </DataProvider>
+          </PlanProvider>
+        </AuthProvider>
+      </TooltipProvider>
+    </QueryClientProvider>
+  </LocaleProvider>
 );
 
 export default App;

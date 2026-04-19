@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { TrendingUp, TrendingDown, DollarSign, Plus, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { formatDateOnly, formatDateTime } from '../../shared/locale/format';
 
 export default function Financial() {
   const { sales, expenses, addExpense, deleteExpense, clients, getClientBalance } = useData();
@@ -102,7 +103,7 @@ export default function Financial() {
                 <div key={e.id} className="flex items-center justify-between p-2 rounded-lg bg-secondary/50 text-xs">
                   <div>
                     <p className="font-medium">{e.description}</p>
-                    <p className="text-muted-foreground">{e.category} — {new Date(e.date).toLocaleDateString('pt-BR')}</p>
+                    <p className="text-muted-foreground">{e.category} — {formatDateOnly(e.date)}</p>
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="font-bold text-destructive">R$ {e.amount.toFixed(2)}</span>
@@ -131,7 +132,7 @@ export default function Financial() {
                 <div key={s.id} className="flex items-center justify-between p-2 rounded-lg bg-secondary/50 text-xs">
                   <div>
                     <p className="font-medium">{s.payment_method}</p>
-                    <p className="text-muted-foreground">{new Date(s.date).toLocaleString('pt-BR')}</p>
+                    <p className="text-muted-foreground">{formatDateTime(s.date)}</p>
                   </div>
                   <span className="font-bold text-green-500">R$ {s.total.toFixed(2)}</span>
                 </div>

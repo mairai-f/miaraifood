@@ -14,6 +14,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { formatDateTime } from '../../shared/locale/format';
 
 const db = supabase as any;
 
@@ -106,7 +107,7 @@ export default function Notes() {
                 const sellerName = sale.sellerName || 'Operador nao informado';
                 const total = Number(sale.total ?? 0);
                 const emittedAt = document.emittedAt
-                  ? new Date(document.emittedAt).toLocaleString('pt-BR')
+                  ? formatDateTime(document.emittedAt)
                   : '-';
 
                 return (

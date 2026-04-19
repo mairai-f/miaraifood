@@ -1,3 +1,5 @@
+import { formatDateTime } from '../../../shared/locale/format';
+
 export interface SubscriptionTimingLike {
   status: string;
   trial_ends_at?: string | null;
@@ -64,10 +66,7 @@ export const getSubscriptionCountdown = (subscription: SubscriptionTimingLike | 
   }
 
   const diffMs = new Date(endAt).getTime() - Date.now();
-  const endAtLabel = new Date(endAt).toLocaleString("pt-BR", {
-    dateStyle: "short",
-    timeStyle: "short",
-  });
+  const endAtLabel = formatDateTime(endAt);
 
   if (diffMs <= 0) {
     return {

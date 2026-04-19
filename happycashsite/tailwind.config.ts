@@ -1,6 +1,8 @@
 import type { Config } from "tailwindcss";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import typography from "@tailwindcss/typography";
+import tailwindcssAnimate from "tailwindcss-animate";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -113,5 +115,5 @@ export default {
       },
     },
   },
-  plugins: [require("tailwindcss-animate"), require("@tailwindcss/typography")],
+  plugins: [tailwindcssAnimate, typography],
 } satisfies Config;

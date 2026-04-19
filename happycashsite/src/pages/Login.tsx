@@ -17,6 +17,7 @@ import {
 } from '@/lib/authSessionPreferences';
 import { isPublicPlanId, publicPlanContent } from '@/lib/subscriptionPlans';
 import logo from '@/assets/logo-happycash.png';
+import { LanguageSwitcher } from '../../../shared/locale/LanguageSwitcher';
 
 const Login = () => {
   const initialPreferences = getSiteLoginPreferences();
@@ -105,6 +106,7 @@ const Login = () => {
 
   return (
     <div className="relative h-[100svh] overflow-hidden bg-[#050505] px-3 py-2 sm:px-4 sm:py-3">
+      <LanguageSwitcher />
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(250,204,21,0.18),_transparent_35%),radial-gradient(circle_at_bottom_right,_rgba(245,158,11,0.12),_transparent_42%)]" />
       <div className="relative mx-auto flex h-full w-full max-w-[23rem] items-center justify-center sm:max-w-sm">
         <div className="w-full">

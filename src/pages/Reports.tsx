@@ -6,6 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { TrendingUp, Package, Users, DollarSign } from 'lucide-react';
+import { formatDateOnly, translateCurrentText } from '../../shared/locale/format';
 
 const COLORS = ['hsl(var(--primary))', 'hsl(var(--destructive))', 'hsl(var(--accent))', '#8884d8', '#82ca9d', '#ffc658'];
 
@@ -131,7 +132,7 @@ export default function Reports() {
   const salesByDay = useMemo(() => {
     const map = new Map<string, number>();
     for (const s of filteredSales) {
-      const day = new Date(s.date).toLocaleDateString('pt-BR');
+      const day = formatDateOnly(s.date);
       map.set(day, (map.get(day) || 0) + s.total);
     }
     return Array.from(map.entries()).map(([day, total]) => ({ day, total }));
@@ -141,7 +142,13 @@ export default function Reports() {
   const paymentBreakdown = useMemo(() => {
     const map = new Map<string, number>();
     for (const s of filteredSales) {
-      const label = { dinheiro: 'Dinheiro', cartao_debito: 'Débito', cartao_credito: 'Crédito', pix: 'Pix', fiado: 'Fiado' }[s.payment_method] || s.payment_method;
+      const label = {
+        dinheiro: translateCurrentText('Dinheiro'),
+        cartao_debito: translateCurrentText('Debito'),
+        cartao_credito: translateCurrentText('Credito'),
+        pix: 'Pix',
+        fiado: translateCurrentText('Fiado'),
+      }[s.payment_method] || translateCurrentText(s.payment_method);
       map.set(label, (map.get(label) || 0) + s.total);
     }
     return Array.from(map.entries()).map(([name, value]) => ({ name, value }));

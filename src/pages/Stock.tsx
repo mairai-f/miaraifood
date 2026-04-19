@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Search, Plus, AlertTriangle, Package } from 'lucide-react';
 import { toast } from 'sonner';
+import { formatDateTime } from '../../shared/locale/format';
 
 export default function Stock() {
   const { products, stockMovements, addStockMovement, updateProduct, clearAllStock } = useData();
@@ -171,7 +172,7 @@ export default function Stock() {
                   <div key={m.id} className="flex items-center justify-between p-2 rounded-lg bg-secondary/50 text-xs">
                     <div>
                       <p className="font-medium">{product?.name || 'Produto removido'}</p>
-                      <p className="text-muted-foreground">{m.reason} — {new Date(m.date).toLocaleString('pt-BR')}</p>
+                      <p className="text-muted-foreground">{m.reason} — {formatDateTime(m.date)}</p>
                     </div>
                     <span className={`font-bold ${m.type === 'entrada' ? 'text-green-500' : 'text-destructive'}`}>
                       {m.type === 'entrada' ? '+' : '-'}{m.quantity}

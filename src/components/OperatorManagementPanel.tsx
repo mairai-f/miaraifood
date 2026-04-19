@@ -22,6 +22,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '
 import { toast } from 'sonner';
 import { Eye, KeyRound, Plus, Trash2, Users, Wallet } from 'lucide-react';
 import type { Expense, Sale } from '@/types';
+import { formatDateTime } from '../../shared/locale/format';
 
 // Generated Supabase types are behind the current schema for these admin tables.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -78,7 +79,7 @@ const paymentMethodCards: Array<{ key: PaymentMethodKey; label: string }> = [
   { key: 'cartao_credito', label: 'Credito' },
 ];
 
-const normalizeLabel = (value: string | null | undefined) => value?.trim().toLocaleLowerCase('pt-BR') ?? '';
+const normalizeLabel = (value: string | null | undefined) => value?.trim().toLowerCase() ?? '';
 const formatMoney = (value: number) => `R$ ${value.toFixed(2)}`;
 
 export function OperatorManagementPanel({
@@ -541,7 +542,7 @@ export function OperatorManagementPanel({
                               </div>
                               <div className="rounded-md border border-border/70 bg-background/80 p-3">
                                 <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Abertura</p>
-                                <p className="mt-1 font-semibold">{new Date(openSession.opened_at).toLocaleString('pt-BR')}</p>
+                                <p className="mt-1 font-semibold">{formatDateTime(openSession.opened_at)}</p>
                               </div>
                             </div>
 

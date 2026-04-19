@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Loader2, Receipt, Save, ShieldCheck } from 'lucide-react';
 import { toast } from 'sonner';
+import { formatDateTime } from '../../shared/locale/format';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -641,7 +642,7 @@ export function NfceSettingsPanel() {
             <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border/60 p-4">
               <div className="text-sm text-muted-foreground">
                 {lastSavedAt
-                  ? `Ultima gravacao: ${new Date(lastSavedAt).toLocaleString('pt-BR')}`
+                  ? `Ultima gravacao: ${formatDateTime(lastSavedAt)}`
                   : 'Nenhuma configuracao fiscal salva ainda.'}
               </div>
               <Button onClick={() => void handleSave()} disabled={saving}>

@@ -2,8 +2,8 @@ import { motion } from 'framer-motion';
 import { useData } from '@/contexts/DataContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { format } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
 import { UserX } from 'lucide-react';
+import { getDateFnsLocale } from '../../shared/locale/format';
 
 export default function DeletedClients() {
   const { clients, debtEntries, payments } = useData();
@@ -28,7 +28,7 @@ export default function DeletedClients() {
                 <CardHeader>
                   <CardTitle className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
                     <span className="break-words">{c.name}</span>
-                    <span className="meta-text">Excluído: {c.deleted_at ? format(new Date(c.deleted_at), 'dd/MM/yyyy', { locale: ptBR }) : '-'}</span>
+                    <span className="meta-text">Excluído: {c.deleted_at ? format(new Date(c.deleted_at), 'P', { locale: getDateFnsLocale() }) : '-'}</span>
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
@@ -42,7 +42,7 @@ export default function DeletedClients() {
                       <div className="space-y-1 max-h-40 overflow-auto">
                         {cEntries.map(e => (
                           <div key={e.id} className="item-row-responsive text-sm">
-                            <span className="min-w-0 break-words">{e.product_name} <span className="whitespace-nowrap">x{e.quantity}</span> <span className="whitespace-nowrap text-muted-foreground">({format(new Date(e.date_added), 'dd/MM', { locale: ptBR })})</span></span>
+                            <span className="min-w-0 break-words">{e.product_name} <span className="whitespace-nowrap">x{e.quantity}</span> <span className="whitespace-nowrap text-muted-foreground">({format(new Date(e.date_added), 'P', { locale: getDateFnsLocale() })})</span></span>
                             <span className="money-value font-medium">R$ {e.total.toFixed(2)}</span>
                           </div>
                         ))}

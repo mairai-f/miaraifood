@@ -1,3 +1,5 @@
+import { formatCurrency, formatDateTime, getActiveLocale, translateCurrentText } from '../../shared/locale/format';
+
 export const HOMOLOGATION_MESSAGE = 'EMITIDA EM AMBIENTE DE HOMOLOGACAO - SEM VALOR FISCAL';
 
 export type FiscalEnvironment = 'homologacao' | 'producao';
@@ -153,40 +155,36 @@ export const fiscalStatusVariant = (
 export const fiscalStatusLabel = (status: string) => {
   switch (status) {
     case 'homologacao_emitida':
-      return 'Homologacao emitida';
+      return translateCurrentText('Homologacao emitida');
     case 'autorizada':
-      return 'Autorizada';
+      return translateCurrentText('Autorizada');
     case 'erro':
-      return 'Erro';
+      return translateCurrentText('Erro');
     case 'cancelada':
-      return 'Cancelada';
+      return translateCurrentText('Cancelada');
     default:
-      return 'Pendente';
+      return translateCurrentText('Pendente');
   }
 };
 
 export const paymentMethodLabel = (value?: string | null) => {
   switch (value) {
     case 'dinheiro':
-      return 'Dinheiro';
+      return translateCurrentText('Dinheiro');
     case 'pix':
       return 'Pix';
     case 'fiado':
-      return 'Fiado';
+      return translateCurrentText('Fiado');
     case 'cartao_debito':
-      return 'Cartao de debito';
+      return translateCurrentText('Cartao de debito');
     case 'cartao_credito':
-      return 'Cartao de credito';
+      return translateCurrentText('Cartao de credito');
     default:
-      return value || 'Nao informado';
+      return value ? translateCurrentText(value) : translateCurrentText('Nao informado');
   }
 };
 
-export const formatMoney = (value: number) =>
-  new Intl.NumberFormat('pt-BR', {
-    style: 'currency',
-    currency: 'BRL',
-  }).format(value ?? 0);
+export const formatMoney = (value: number) => formatCurrency(value);
 
 const escapeHtml = (value: string) =>
   value
@@ -206,8 +204,8 @@ export const openFiscalDocumentPrintWindow = (document: FiscalDocumentRecord) =>
   const sale = payload.sale ?? {};
   const items = getPayloadItems(document);
   const customer = payload.customer ?? {};
-  const emittedAt = new Date(document.emittedAt).toLocaleString('pt-BR');
-  const saleDate = sale.date ? new Date(sale.date).toLocaleString('pt-BR') : emittedAt;
+  const emittedAt = formatDateTime(document.emittedAt);
+  const saleDate = sale.date ? formatDateTime(sale.date) : emittedAt;
   const tradeName = issuer.tradeName || issuer.legalName || 'HappyCash';
   const addressParts = [
     issuer.addressStreet,
@@ -236,7 +234,7 @@ export const openFiscalDocumentPrintWindow = (document: FiscalDocumentRecord) =>
 
   const html = `
     <!doctype html>
-    <html lang="pt-BR">
+    <html lang="${escapeHtml(getActiveLocale())}">
       <head>
         <meta charset="utf-8" />
         <title>DANFE NFC-e Homologacao</title>
