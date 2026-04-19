@@ -1,18 +1,22 @@
 export type DesktopDownloadPlatform = "windows" | "linux";
 
-const windowsTargetUrl = import.meta.env.VITE_WINDOWS_DESKTOP_DOWNLOAD_URL?.trim() || null;
-const linuxTargetUrl = import.meta.env.VITE_LINUX_DESKTOP_DOWNLOAD_URL?.trim() || null;
+export const desktopDownloadConfigKeys = {
+  bucket: "DESKTOP_DOWNLOAD_BUCKET",
+  signedUrlTtl: "DESKTOP_DOWNLOAD_SIGNED_URL_TTL",
+  windowsObjectPath: "DESKTOP_WINDOWS_OBJECT_PATH",
+  linuxObjectPath: "DESKTOP_LINUX_OBJECT_PATH",
+} as const;
 
 export const desktopDownloads = {
   windows: {
     label: "Windows (.exe)",
     route: "/downloads/windows",
-    targetUrl: windowsTargetUrl,
+    requiredEnv: [desktopDownloadConfigKeys.bucket, desktopDownloadConfigKeys.windowsObjectPath],
   },
   linux: {
     label: "Linux (AppImage)",
     route: "/downloads/linux",
-    targetUrl: linuxTargetUrl,
+    requiredEnv: [desktopDownloadConfigKeys.bucket, desktopDownloadConfigKeys.linuxObjectPath],
   },
 };
 

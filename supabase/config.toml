@@ -6,6 +6,15 @@ verify_jwt = false
 [functions.activate-plan]
 verify_jwt = true
 
+[functions.create-plan-charge]
+verify_jwt = true
+
+[functions.asaas-webhook]
+verify_jwt = false
+
+[functions.desktop-download]
+verify_jwt = true
+
 [functions.manage-operators]
 verify_jwt = false
 

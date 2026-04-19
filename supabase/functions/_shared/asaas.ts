@@ -18,6 +18,46 @@ export interface AsaasCustomer {
   externalReference?: string;
 }
 
+export interface AsaasPayment {
+  id: string;
+  customer: string;
+  billingType: string;
+  value: number;
+  dueDate: string;
+  status?: string;
+  description?: string;
+  externalReference?: string;
+  invoiceUrl?: string | null;
+}
+
+export interface AsaasPixQrCode {
+  encodedImage: string;
+  payload: string;
+  expirationDate: string;
+}
+
+export interface AsaasWebhookPayload {
+  id: string;
+  event: string;
+  dateCreated?: string;
+  payment?: {
+    id: string;
+    customer?: string;
+    subscription?: string | null;
+    billingType?: string;
+    status?: string;
+    value?: number;
+    netValue?: number;
+    dueDate?: string;
+    originalDueDate?: string;
+    paymentDate?: string | null;
+    clientPaymentDate?: string | null;
+    description?: string;
+    externalReference?: string | null;
+    invoiceUrl?: string | null;
+  };
+}
+
 interface AsaasListResponse<T> {
   data?: T[];
 }
@@ -35,6 +75,15 @@ export interface CreateAsaasCustomerInput {
   externalReference: string;
   company?: string;
   notificationDisabled?: boolean;
+}
+
+export interface CreateAsaasPaymentInput {
+  customer: string;
+  billingType: "PIX";
+  value: number;
+  dueDate: string;
+  description?: string;
+  externalReference?: string;
 }
 
 const getAsaasBaseUrl = () => {
@@ -99,6 +148,31 @@ export async function createAsaasCustomer(input: CreateAsaasCustomerInput) {
 
 export async function removeAsaasCustomer(customerId: string) {
   await requestAsaas(`/customers/${customerId}`, {
+    method: "DELETE",
+  });
+}
+
+export async function createAsaasPayment(input: CreateAsaasPaymentInput) {
+  return requestAsaas<AsaasPayment>("/payments", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function getAsaasPayment(paymentId: string) {
+  return requestAsaas<AsaasPayment>(`/payments/${paymentId}`, {
+    method: "GET",
+  });
+}
+
+export async function getAsaasPixQrCode(paymentId: string) {
+  return requestAsaas<AsaasPixQrCode>(`/payments/${paymentId}/pixQrCode`, {
+    method: "GET",
+  });
+}
+
+export async function deleteAsaasPayment(paymentId: string) {
+  await requestAsaas(`/payments/${paymentId}`, {
     method: "DELETE",
   });
 }

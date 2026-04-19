@@ -27,6 +27,7 @@ export const isCurrentSubscription = (subscription: SubscriptionTimingLike | nul
 
 export const getSubscriptionStatusLabel = (subscription: SubscriptionTimingLike | null | undefined) => {
   if (!subscription) return "Sem plano ativo";
+  if (subscription.status === "pending") return "Aguardando pagamento";
   if (subscription.status === "trialing") return "Demo ativa";
   if (subscription.status === "active") return "Plano ativo";
   if (subscription.status === "past_due") return "Pagamento pendente";
@@ -36,6 +37,18 @@ export const getSubscriptionStatusLabel = (subscription: SubscriptionTimingLike 
 };
 
 export const getSubscriptionCountdown = (subscription: SubscriptionTimingLike | null | undefined) => {
+  if (subscription?.status === "pending") {
+    return {
+      endAt: null,
+      endAtLabel: null,
+      remainingLabel: "Aguardando pagamento do Pix para liberar o plano.",
+      markerLabel: "Pix pendente",
+      badgeVariant: "secondary" as const,
+      isExpired: false,
+      isExpiringSoon: false,
+    };
+  }
+
   const endAt = getSubscriptionEndAt(subscription);
 
   if (!subscription || !endAt) {

@@ -4,10 +4,12 @@ import {
   ArrowLeft,
   Check,
   Clock3,
+  Copy,
   Crown,
   Download,
   Loader2,
   LogOut,
+  QrCode,
   ShieldCheck,
   Sparkles,
 } from "lucide-react";
@@ -19,7 +21,9 @@ import { publicPlanContent, publicPlanList, isPaidPlanId, isPublicPlanId, type P
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import logo from "@/assets/logo-happycash.png";
 
@@ -49,10 +53,12 @@ type StoreSubscriptionRow = {
   plan_id: PublicPlanId;
   status: string;
   provider: string | null;
+  provider_payment_id: string | null;
   current_period_starts_at: string | null;
   current_period_ends_at: string | null;
   trial_started_at: string | null;
   trial_ends_at: string | null;
+  metadata?: Record<string, unknown> | null;
   created_at: string;
 };
 
@@ -61,19 +67,35 @@ type BillingCustomerRow = {
   provider_customer_id: string | null;
 };
 
-type ActivatePlanResponse = {
+type CreatePlanChargeResponse = {
   success?: boolean;
+  reusedPending?: boolean;
   error?: string;
-  subscription?: {
-    id: string;
-    plan_id: PaidPlanId;
-    current_period_ends_at: string;
+  code?: string;
+  checkout?: {
+    subscriptionId: string;
+    planId: PaidPlanId;
+    paymentId: string;
+    paymentStatus: string;
+    value: number;
+    dueDate: string;
+    invoiceUrl?: string | null;
+    copyPasteCode: string;
+    qrCodeBase64: string;
+    qrCodeExpirationDate: string;
   };
 };
 
+type PixCheckoutState = NonNullable<CreatePlanChargeResponse["checkout"]>;
+
 const formatDateTime = (value?: string | null) => {
   if (!value) return "Sem data";
-  return new Date(value).toLocaleString("pt-BR", {
+
+  const resolvedDate = /^\d{4}-\d{2}-\d{2}$/.test(value)
+    ? new Date(`${value}T12:00:00`)
+    : new Date(value);
+
+  return resolvedDate.toLocaleString("pt-BR", {
     dateStyle: "short",
     timeStyle: "short",
   });
@@ -97,6 +119,8 @@ const Dashboard = () => {
   const [activatingPlan, setActivatingPlan] = useState<PaidPlanId | null>(null);
   const [loggingOut, setLoggingOut] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [pixDialogOpen, setPixDialogOpen] = useState(false);
+  const [pixCheckout, setPixCheckout] = useState<PixCheckoutState | null>(null);
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -120,7 +144,7 @@ const Dashboard = () => {
     ] = await Promise.all([
       db.from("store_accounts").select("id, nome_cliente, nome_estabelecimento, email").eq("owner_user_id", userId).maybeSingle(),
       db.from("subscription_plans").select("id, name, description, price, duration_days, sort_order").eq("is_public", true).eq("is_active", true).order("sort_order", { ascending: true }),
-      db.from("store_subscriptions").select("id, plan_id, status, provider, current_period_starts_at, current_period_ends_at, trial_started_at, trial_ends_at, created_at").eq("owner_user_id", userId).order("created_at", { ascending: false }),
+      db.from("store_subscriptions").select("id, plan_id, status, provider, provider_payment_id, current_period_starts_at, current_period_ends_at, trial_started_at, trial_ends_at, metadata, created_at").eq("owner_user_id", userId).order("created_at", { ascending: false }),
       db.from("billing_customers").select("provider, provider_customer_id").eq("owner_user_id", userId).maybeSingle(),
     ]);
 
@@ -200,6 +224,9 @@ const Dashboard = () => {
   const countdown = getSubscriptionCountdown(currentSubscription);
   const currentDeadline = getSubscriptionEndAt(currentSubscription);
   const isCurrentProPlan = currentPlanId === "pro" && isCurrentSubscription(currentSubscription);
+  const pendingSubscription = subscriptions.find(subscription => subscription.status === "pending") || null;
+  const pendingPlanId = pendingSubscription && isPaidPlanId(pendingSubscription.plan_id) ? pendingSubscription.plan_id : null;
+  const pendingPlanContent = pendingPlanId ? publicPlanContent[pendingPlanId] : null;
 
   const sortedPlans = publicPlanList.map((fallbackPlan) => {
     const dbPlan = plans.find((plan) => plan.id === fallbackPlan.id);
@@ -225,7 +252,32 @@ const Dashboard = () => {
     }
   };
 
-  const handleActivatePlan = async (planId: PaidPlanId) => {
+  useEffect(() => {
+    if (!pixDialogOpen || !pixCheckout || !user?.id) return;
+
+    const intervalId = window.setInterval(() => {
+      void loadDashboard(user.id);
+    }, 10000);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, [pixCheckout, pixDialogOpen, user?.id]);
+
+  useEffect(() => {
+    if (!pixDialogOpen || !pixCheckout) return;
+
+    if (currentSubscription?.plan_id === pixCheckout.planId && isCurrentSubscription(currentSubscription)) {
+      setPixDialogOpen(false);
+      setPixCheckout(null);
+      toast({
+        title: `${publicPlanContent[pixCheckout.planId].name} liberado`,
+        description: "Pagamento confirmado. Seu plano já está ativo por 30 dias.",
+      });
+    }
+  }, [currentSubscription, pixCheckout, pixDialogOpen, toast]);
+
+  const handleCreatePlanCharge = async (planId: PaidPlanId) => {
     setActivatingPlan(planId);
 
     try {
@@ -236,31 +288,66 @@ const Dashboard = () => {
         return;
       }
 
-      const { data, error } = await supabase.functions.invoke<ActivatePlanResponse>("activate-plan", {
+      const { data, error } = await supabase.functions.invoke<CreatePlanChargeResponse>("create-plan-charge", {
         body: { planId },
         headers: {
           Authorization: `Bearer ${session.access_token}`,
         },
       });
 
-      if (error || !data?.success) {
-        throw new Error(data?.error || error?.message || "Nao foi possivel ativar o plano.");
+      if (error || !data?.success || !data.checkout) {
+        let functionErrorMessage = data?.error || "Nao foi possivel gerar a cobranca Pix.";
+
+        if (error && typeof error === "object" && "context" in error && error.context instanceof Response) {
+          try {
+            const errorPayload = await error.context.clone().json() as { error?: string; message?: string };
+            functionErrorMessage = errorPayload.error || errorPayload.message || functionErrorMessage;
+          } catch {
+            functionErrorMessage = error.context.status === 401
+              ? "Sua sessao expirou. Entre novamente para continuar."
+              : functionErrorMessage;
+          }
+        }
+
+        throw new Error(functionErrorMessage);
       }
 
       await loadDashboard(session.user.id);
+      setPixCheckout(data.checkout);
+      setPixDialogOpen(true);
       navigate(`/dashboard?plan=${planId}`, { replace: true });
       toast({
-        title: `${publicPlanContent[planId].name} ativado`,
-        description: `Esse plano fica liberado por 30 dias. A cobranca Pix automatica no Asaas entra na proxima etapa.`,
+        title: data.reusedPending ? "Pix pendente reaberto" : "Pix gerado com sucesso",
+        description: data.reusedPending
+          ? "Use o mesmo QR Code ou copie o codigo Pix para concluir o pagamento."
+          : "Pague o Pix para liberar o plano automaticamente.",
       });
     } catch (error) {
       toast({
-        title: "Erro ao ativar plano",
-        description: error instanceof Error ? error.message : "Nao foi possivel ativar o plano agora.",
+        title: "Erro ao gerar cobranca Pix",
+        description: error instanceof Error ? error.message : "Nao foi possivel preparar o pagamento agora.",
         variant: "destructive",
       });
     } finally {
       setActivatingPlan(null);
+    }
+  };
+
+  const handleCopyPixCode = async () => {
+    if (!pixCheckout?.copyPasteCode) return;
+
+    try {
+      await navigator.clipboard.writeText(pixCheckout.copyPasteCode);
+      toast({
+        title: "Codigo Pix copiado",
+        description: "Agora voce pode colar o codigo no app do banco.",
+      });
+    } catch {
+      toast({
+        title: "Nao foi possivel copiar",
+        description: "Copie o codigo Pix manualmente.",
+        variant: "destructive",
+      });
     }
   };
 
@@ -312,7 +399,7 @@ const Dashboard = () => {
             <AlertDescription>
               {selectedPlanId === "demo"
                 ? "Sua demo de 3 horas ja comeca no cadastro."
-                : `Esse plano fica liberado por 30 dias. Voce pode ativar quando quiser logo abaixo.`}
+                : `Esse plano fica liberado por 30 dias. Gere o Pix quando quiser logo abaixo.`}
             </AlertDescription>
           </Alert>
         )}
@@ -327,9 +414,37 @@ const Dashboard = () => {
         {!billingCustomer?.provider_customer_id && (
           <Alert className="border-secondary/40 bg-secondary/10">
             <ShieldCheck className="h-4 w-4" />
-            <AlertTitle>Cobranca Pix em preparacao</AlertTitle>
+            <AlertTitle>Cliente de cobranca sera criado no primeiro Pix</AlertTitle>
             <AlertDescription>
-              Seu acesso ja pode ser organizado aqui. Assim que o Asaas for configurado, o cadastro de cobranca por Pix passa a ser automatico.
+              Se esta conta foi criada antes da configuracao do Asaas, o cliente de cobranca sera vinculado automaticamente quando voce gerar o primeiro Pix.
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {pendingSubscription && pendingPlanContent && (
+          <Alert className="border-primary/30 bg-primary/5">
+            <QrCode className="h-4 w-4" />
+            <AlertTitle>Existe um Pix pendente para {pendingPlanContent.name}</AlertTitle>
+            <AlertDescription className="space-y-3">
+              <p>
+                Abra novamente a cobranca para copiar o codigo Pix, exibir o QR Code ou acompanhar a liberacao automatica do plano.
+              </p>
+              <div>
+                <Button
+                  className="h-10"
+                  onClick={() => handleCreatePlanCharge(pendingPlanId!)}
+                  disabled={activatingPlan === pendingPlanId}
+                >
+                  {activatingPlan === pendingPlanId ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Abrindo Pix...
+                    </>
+                  ) : (
+                    "Abrir cobranca Pix"
+                  )}
+                </Button>
+              </div>
             </AlertDescription>
           </Alert>
         )}
@@ -419,8 +534,8 @@ const Dashboard = () => {
                 <ul className="mt-3 space-y-2 text-sm text-muted-foreground">
                   <li>1. O cadastro cria sua conta unica no HappyCash.</li>
                   <li>2. A demo libera tudo por 3 horas.</li>
-                  <li>3. Os planos pagos ficam ativos por 30 dias.</li>
-                  <li>4. O Pix automatico pelo Asaas entra na proxima etapa.</li>
+                  <li>3. Os planos pagos sao cobrados por Pix e valem 30 dias.</li>
+                  <li>4. Assim que o pagamento cair no Asaas, o plano ativa automaticamente.</li>
                 </ul>
               </div>
 
@@ -482,7 +597,7 @@ const Dashboard = () => {
             <div>
               <h2 className="font-heading text-2xl font-bold">Escolha seu plano</h2>
               <p className="text-sm text-muted-foreground">
-                Todos os planos pagos ficam ativos por 30 dias. A demo continua com 3 horas.
+                Todos os planos pagos ficam ativos por 30 dias. Gere o Pix e o plano libera sozinho quando o pagamento cair.
               </p>
             </div>
             <Badge variant="outline">Pagamento via Pix</Badge>
@@ -549,17 +664,19 @@ const Dashboard = () => {
                       <Button
                         className="h-12 w-full font-semibold"
                         disabled={isCurrentPaidPlan || activatingPlan === plan.id}
-                        onClick={() => handleActivatePlan(plan.id)}
+                        onClick={() => handleCreatePlanCharge(plan.id)}
                       >
                         {activatingPlan === plan.id ? (
                           <>
                             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            Ativando...
+                            Gerando Pix...
                           </>
                         ) : isCurrentPaidPlan ? (
                           "Plano atual"
+                        ) : pendingPlanId === plan.id ? (
+                          "Abrir Pix"
                         ) : (
-                          `Ativar por 30 dias`
+                          `Pagar com Pix`
                         )}
                       </Button>
                     )}
@@ -569,6 +686,80 @@ const Dashboard = () => {
             })}
           </div>
         </div>
+
+        <Dialog open={pixDialogOpen} onOpenChange={setPixDialogOpen}>
+          <DialogContent className="max-w-xl">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <QrCode className="h-5 w-5" />
+                Pagamento via Pix
+              </DialogTitle>
+            </DialogHeader>
+
+            {pixCheckout && (
+              <div className="space-y-5">
+                <div className="rounded-2xl border border-primary/20 bg-primary/5 p-4">
+                  <p className="text-sm font-semibold">
+                    {publicPlanContent[pixCheckout.planId].name}
+                  </p>
+                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                    <div>
+                      <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Valor</p>
+                      <p className="mt-1 font-semibold">{formatCurrency(pixCheckout.value)}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Vencimento</p>
+                      <p className="mt-1 font-semibold">{formatDateTime(pixCheckout.dueDate)}</p>
+                    </div>
+                  </div>
+                  <p className="mt-3 text-sm text-muted-foreground">
+                    Depois do pagamento, o plano ativa automaticamente e o painel atualiza sozinho.
+                  </p>
+                </div>
+
+                <div className="flex justify-center">
+                  <div className="rounded-3xl border border-border bg-white p-4 shadow-sm">
+                    <img
+                      src={`data:image/png;base64,${pixCheckout.qrCodeBase64}`}
+                      alt="QR Code Pix do plano"
+                      className="h-56 w-56 rounded-2xl object-contain"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <p className="text-sm font-medium">Codigo Pix copia e cola</p>
+                  <Textarea
+                    value={pixCheckout.copyPasteCode}
+                    readOnly
+                    className="min-h-[110px] resize-none bg-muted/30 font-mono text-xs"
+                  />
+                  <div className="flex flex-col gap-2 sm:flex-row">
+                    <Button className="h-11 flex-1 font-semibold" onClick={handleCopyPixCode}>
+                      <Copy className="mr-2 h-4 w-4" />
+                      Copiar codigo Pix
+                    </Button>
+                    {pixCheckout.invoiceUrl && (
+                      <Button asChild variant="outline" className="h-11 flex-1 font-semibold">
+                        <a href={pixCheckout.invoiceUrl} target="_blank" rel="noreferrer">
+                          Abrir fatura
+                        </a>
+                      </Button>
+                    )}
+                  </div>
+                </div>
+
+                <Alert className="border-secondary/40 bg-secondary/10">
+                  <Clock3 className="h-4 w-4" />
+                  <AlertTitle>Pagamento monitorado automaticamente</AlertTitle>
+                  <AlertDescription>
+                    Enquanto este modal estiver aberto, a conta sera atualizada periodicamente para liberar o plano assim que o Pix for recebido.
+                  </AlertDescription>
+                </Alert>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );

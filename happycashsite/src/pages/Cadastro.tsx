@@ -122,7 +122,7 @@ const Cadastro = () => {
         toast({
           title: "Conta criada com sucesso!",
           description: selectedPlanId && selectedPlanId !== "demo"
-            ? "Sua demo foi iniciada. Faça login para entrar e ativar o plano escolhido."
+            ? "Sua demo foi iniciada. Faça login para entrar e pagar o plano escolhido."
             : "Sua demo foi iniciada. Faça login para continuar.",
         });
         navigate(selectedPlanId ? `/login?plan=${selectedPlanId}` : "/login");

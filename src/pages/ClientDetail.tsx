@@ -13,34 +13,21 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { ArrowLeft, Plus, DollarSign, MessageCircle, Trash2, CheckCircle, Edit, X, User, ChevronDown, ChevronRight, Calendar } from 'lucide-react';
 import { toast } from 'sonner';
-import { format, isToday, isThisWeek, isThisMonth, isWithinInterval, startOfDay, endOfDay } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
+import { isWithinInterval, startOfDay, endOfDay } from 'date-fns';
 import { findClientByRef, getClientUniqueSlug } from '@/lib/clientSlug';
+import {
+  formatClientDateTime,
+  isClientDateThisMonth,
+  isClientDateThisWeek,
+  isClientDateToday,
+  parseClientDate,
+  toClientDateTimeInputValue,
+  toUtcIsoString,
+} from '@/lib/clientDateTime';
 import { getPaymentLabel, groupPaymentSnapshotItems, parsePaymentType } from '@/lib/payment';
 import { openExternalUrl } from '@/lib/openExternalUrl';
 import { buildWhatsAppUrl, buildItemWhatsAppUrl, buildPaymentWhatsAppUrl } from '@/lib/whatsapp';
 import { normalizePhone } from '@/lib/phone';
-
-const formatDateLocal = (dateStr: string) => {
-  const utcDate = new Date(dateStr);
-  const localDate = new Date(utcDate.getTime() - 3 * 60 * 60 * 1000);
-  return format(localDate, 'dd/MM/yyyy HH:mm', { locale: ptBR });
-};
-
-const formatDateLocalShort = (dateStr: string) => {
-  const utcDate = new Date(dateStr);
-  const localDate = new Date(utcDate.getTime() - 3 * 60 * 60 * 1000);
-  return format(localDate, 'dd/MM/yyyy', { locale: ptBR });
-};
-
-const utcToLocal = (dateStr: string) => {
-  const utcDate = new Date(dateStr);
-  return new Date(utcDate.getTime() - 3 * 60 * 60 * 1000);
-};
-
-const localToUtc = (localDate: Date) => {
-  return new Date(localDate.getTime() + 3 * 60 * 60 * 1000);
-};
 
 const samePaymentMoment = (left?: string | null, right?: string | null) => {
   if (!left || !right) return false;
@@ -164,19 +151,18 @@ export default function ClientDetail() {
 
   // ── Histórico de dívidas filtrado (sem pagamentos) ─────────────────────────
   const filteredHistory = useMemo((): HistoryItem[] => {
-    const historySource = historyFilter === 'custom' ? allClientEntries : entries;
-    const all: HistoryItem[] = historySource
+    const all: HistoryItem[] = allClientEntries
       .map(e => ({ kind: 'debt' as const, date: e.date_added, productName: e.product_name, quantity: e.quantity, total: e.total, registered_by: e.registered_by }))
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
-    if (historyFilter === 'daily') return all.filter(i => isToday(utcToLocal(i.date)));
-    if (historyFilter === 'weekly') return all.filter(i => isThisWeek(utcToLocal(i.date)));
-    if (historyFilter === 'monthly') return all.filter(i => isThisMonth(utcToLocal(i.date)));
+    if (historyFilter === 'daily') return all.filter(i => isClientDateToday(i.date));
+    if (historyFilter === 'weekly') return all.filter(i => isClientDateThisWeek(i.date));
+    if (historyFilter === 'monthly') return all.filter(i => isClientDateThisMonth(i.date));
 
     if (historyFilter === 'custom') {
       if (!customDateRange) return [];
       return all.filter(item =>
-        isWithinInterval(utcToLocal(item.date), {
+        isWithinInterval(parseClientDate(item.date), {
           start: startOfDay(new Date(customDateRange.from + 'T00:00:00')),
           end: endOfDay(new Date(customDateRange.to + 'T00:00:00')),
         })
@@ -184,7 +170,7 @@ export default function ClientDetail() {
     }
 
     return all;
-  }, [allClientEntries, entries, historyFilter, customDateRange]);
+  }, [allClientEntries, historyFilter, customDateRange]);
 
   const groupedPayments = useMemo(
     () =>
@@ -269,9 +255,7 @@ export default function ClientDetail() {
   const handleSubmitCart = async (sendWhatsApp: boolean = true) => {
     if (cart.length === 0) { toast.error('Adicione pelo menos um produto'); return; }
 
-    const localDate = new Date();
-    const utcDate = localToUtc(localDate);
-    const dateAdded = utcDate.toISOString();
+    const dateAdded = new Date().toISOString();
 
     try {
       await data.addDebtEntries(
@@ -314,15 +298,14 @@ export default function ClientDetail() {
   const handlePayment = async () => {
     const amount = parseFloat(payAmount);
     if (!amount || amount <= 0) { toast.error('Valor inválido'); return; }
-    const now = new Date();
-    const utcDate = localToUtc(now);
+    const paymentDate = new Date().toISOString();
 
     try {
       if (amount >= balance) {
-        await data.closeAllDebt(id, utcDate.toISOString());
+        await data.closeAllDebt(id, paymentDate);
         toast.success('🎉 PARABÉNS! Você quitou sua dívida! 🏆 Todas as pendências foram resolvidas! 💯');
       } else {
-        await data.addPayment(id, amount, 'partial', utcDate.toISOString());
+        await data.addPayment(id, amount, 'partial', paymentDate);
         toast.success(`Pagamento de R$ ${amount.toFixed(2)} registrado!`);
       }
     } catch (error) {
@@ -356,14 +339,10 @@ export default function ClientDetail() {
   const handleSaveEdit = async (entryId: string) => {
     const updates: Record<string, unknown> = {};
     if (editDateAdded) {
-      const localDate = new Date(editDateAdded);
-      const utcDate = localToUtc(localDate);
-      updates.date_added = utcDate.toISOString();
+      updates.date_added = toUtcIsoString(editDateAdded);
     }
     if (editDatePaid) {
-      const localDate = new Date(editDatePaid);
-      const utcDate = localToUtc(localDate);
-      updates.date_paid = utcDate.toISOString();
+      updates.date_paid = toUtcIsoString(editDatePaid);
     }
     await data.updateDebtEntry(entryId, updates);
     setEditEntry(null); toast.success('Atualizado!');
@@ -563,8 +542,8 @@ export default function ClientDetail() {
                             <div className="flex items-start justify-between gap-2 px-1">
                               <div className="min-w-0 flex-1">
                                 <p className="text-xs text-muted-foreground">
-                                  x{e.quantity} — {formatDateLocal(e.date_added)}
-                                  {e.date_paid && ` • Pago: ${formatDateLocal(e.date_paid)}`}
+                                  x{e.quantity} — {formatClientDateTime(e.date_added)}
+                                  {e.date_paid && ` • Pago: ${formatClientDateTime(e.date_paid)}`}
                                 </p>
                                 {e.registered_by && <p className="text-xs text-muted-foreground">Por: {e.registered_by}</p>}
                               </div>
@@ -572,11 +551,9 @@ export default function ClientDetail() {
                                 <span className="font-medium text-destructive text-xs">R$ {e.total.toFixed(2)}</span>
                                 <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => {
                                   setEditEntry(e.id);
-                                  const localDateAdded = utcToLocal(e.date_added);
-                                  setEditDateAdded(format(localDateAdded, "yyyy-MM-dd'T'HH:mm"));
+                                  setEditDateAdded(toClientDateTimeInputValue(e.date_added));
                                   if (e.date_paid) {
-                                    const localDatePaid = utcToLocal(e.date_paid);
-                                    setEditDatePaid(format(localDatePaid, "yyyy-MM-dd'T'HH:mm"));
+                                    setEditDatePaid(toClientDateTimeInputValue(e.date_paid));
                                   } else {
                                     setEditDatePaid('');
                                   }
@@ -678,7 +655,7 @@ export default function ClientDetail() {
                                 <div className="flex items-start justify-between gap-2 px-1">
                                   <div className="min-w-0">
                                     <p className="text-sm font-medium truncate">{item.productName} x{item.quantity}</p>
-                                    <p className="text-xs text-muted-foreground">{formatDateLocal(item.date)}</p>
+                                    <p className="text-xs text-muted-foreground">{formatClientDateTime(item.date)}</p>
                                     {item.registered_by && <p className="text-xs text-muted-foreground">Por: {item.registered_by}</p>}
                                   </div>
                                   <span className="text-destructive font-medium text-sm whitespace-nowrap">- R$ {item.total.toFixed(2)}</span>
@@ -692,7 +669,7 @@ export default function ClientDetail() {
                       <CardContent className="p-3 flex items-center justify-between gap-2">
                         <div className="min-w-0">
                           <p className="text-sm font-medium truncate">{group.items[0].productName} x{group.items[0].quantity}</p>
-                          <p className="text-xs text-muted-foreground">{formatDateLocal(group.items[0].date)}</p>
+                          <p className="text-xs text-muted-foreground">{formatClientDateTime(group.items[0].date)}</p>
                           {group.items[0].registered_by && <p className="text-xs text-muted-foreground">Por: {group.items[0].registered_by}</p>}
                         </div>
                         <span className="text-destructive font-medium text-sm whitespace-nowrap">- R$ {group.items[0].total.toFixed(2)}</span>
@@ -705,7 +682,7 @@ export default function ClientDetail() {
                     <CardContent className="p-3 flex items-center justify-between gap-2">
                       <div className="min-w-0">
                         <p className="text-sm font-medium truncate">{item.productName} x{item.quantity}</p>
-                        <p className="text-xs text-muted-foreground">{formatDateLocal(item.date)}</p>
+                        <p className="text-xs text-muted-foreground">{formatClientDateTime(item.date)}</p>
                         {item.registered_by && <p className="text-xs text-muted-foreground">Por: {item.registered_by}</p>}
                       </div>
                       <span className="text-destructive font-medium text-sm whitespace-nowrap">- R$ {item.total.toFixed(2)}</span>
@@ -735,7 +712,7 @@ export default function ClientDetail() {
                                 : <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />}
                               <div className="min-w-0">
                                 <p className="text-sm font-medium text-success">{getPaymentLabel(p.type)}</p>
-                                <p className="text-xs text-muted-foreground">{formatDateLocal(p.date)}</p>
+                                <p className="text-xs text-muted-foreground">{formatClientDateTime(p.date)}</p>
                                 {p.groupedItems.length > 0 && (
                                   <p className="text-xs text-muted-foreground">
                                     {p.groupedItems.length} produto{p.groupedItems.length > 1 ? 's' : ''} quitado{p.groupedItems.length > 1 ? 's' : ''}
@@ -785,7 +762,7 @@ export default function ClientDetail() {
                                         <div key={`${group.key}-${index}`} className="flex items-start justify-between gap-2 text-sm">
                                           <div className="min-w-0">
                                             <p className="font-medium truncate">{item.product_name} x{item.quantity}</p>
-                                            <p className="text-xs text-muted-foreground">{formatDateLocal(item.date_added)}</p>
+                                            <p className="text-xs text-muted-foreground">{formatClientDateTime(item.date_added)}</p>
                                             {item.registered_by && <p className="text-xs text-muted-foreground">Por: {item.registered_by}</p>}
                                           </div>
                                           <span className="text-xs font-medium whitespace-nowrap">R$ {item.total.toFixed(2)}</span>
@@ -799,7 +776,7 @@ export default function ClientDetail() {
                                   <div className="flex items-start justify-between gap-2 px-1 text-sm">
                                     <div className="min-w-0">
                                       <p className="font-medium truncate">{group.items[0].product_name} x{group.items[0].quantity}</p>
-                                      <p className="text-xs text-muted-foreground">{formatDateLocal(group.items[0].date_added)}</p>
+                                      <p className="text-xs text-muted-foreground">{formatClientDateTime(group.items[0].date_added)}</p>
                                       {group.items[0].registered_by && <p className="text-xs text-muted-foreground">Por: {group.items[0].registered_by}</p>}
                                     </div>
                                     <span className="text-xs font-medium whitespace-nowrap">R$ {group.items[0].total.toFixed(2)}</span>

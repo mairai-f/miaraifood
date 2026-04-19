@@ -21,8 +21,8 @@ const Pix = () => {
           <div className="text-center space-y-3">
             <h1 className="font-heading text-3xl font-bold">Assinatura via Pix</h1>
             <p className="text-muted-foreground text-sm max-w-xl mx-auto">
-              O HappyCash está preparado para trabalhar com Pix pelo Asaas. Nesta etapa, o cadastro já cria seu
-              cliente de cobrança automaticamente. Os planos pagos têm duração de 30 dias por ciclo.
+              O HappyCash gera a cobranca Pix pelo Asaas, mostra o QR Code no painel e libera o plano automaticamente
+              assim que o pagamento cair. Os planos pagos têm duração de 30 dias por ciclo.
             </p>
           </div>
 
@@ -45,7 +45,8 @@ const Pix = () => {
                 <li>1. Crie sua conta no HappyCash.</li>
                 <li>2. Seu cadastro é criado no Supabase Auth.</li>
                 <li>3. O cliente também é criado automaticamente no Asaas.</li>
-                <li>4. A cobrança do plano será gerada por Pix com ciclo de 30 dias.</li>
+                <li>4. O painel gera o Pix, mostra QR Code e copia e cola.</li>
+                <li>5. O webhook do Asaas ativa o plano automaticamente após o pagamento.</li>
               </ul>
             </div>
 

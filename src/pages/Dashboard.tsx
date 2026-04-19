@@ -4,10 +4,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useData } from '@/contexts/DataContext';
 import { Users, AlertTriangle, DollarSign, TrendingUp, Clock } from 'lucide-react';
+import { formatClientDateTime, isClientDateToday } from '@/lib/clientDateTime';
 import { getClientUniqueSlug } from '@/lib/clientSlug';
 import { getPaymentLabel } from '@/lib/payment';
-import { isToday, format } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
 import { useState } from 'react';
 
 const container = { hidden: {}, show: { transition: { staggerChildren: 0.1 } } };
@@ -23,12 +22,7 @@ export default function Dashboard() {
   const debtors = active.filter(c => getClientBalance(c.id) > 0);
   const totalDebt = debtors.reduce((s, c) => s + getClientBalance(c.id), 0);
 
-  // Filtrar pagamentos de hoje (considerando timezone local)
-  const todayPayments = payments.filter(p => {
-    const utcDate = new Date(p.date);
-    const localDate = new Date(utcDate.getTime() - 3 * 60 * 60 * 1000); // UTC-3 for Brazil
-    return isToday(localDate);
-  });
+  const todayPayments = payments.filter(payment => isClientDateToday(payment.date));
 
   const todayTotal = todayPayments.reduce((s, p) => s + p.amount, 0);
 
@@ -132,8 +126,6 @@ export default function Dashboard() {
                     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
                     .map(payment => {
                       const client = active.find(c => c.id === payment.client_id);
-                      const utcDate = new Date(payment.date);
-                      const localDate = new Date(utcDate.getTime() - 3 * 60 * 60 * 1000);
                       
                       return (
                         <Card key={payment.id} className="border-border/50">
@@ -143,7 +135,7 @@ export default function Dashboard() {
                                 <div className="font-medium truncate">{client?.name || 'Cliente não encontrado'}</div>
                                 <div className="text-sm text-muted-foreground flex items-center gap-1">
                                   <Clock className="h-3 w-3 flex-shrink-0" />
-                                  <span className="truncate">{format(localDate, "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}</span>
+                                  <span className="truncate">{formatClientDateTime(payment.date)}</span>
                                 </div>
                               </div>
                               <div className="text-right flex-shrink-0">
