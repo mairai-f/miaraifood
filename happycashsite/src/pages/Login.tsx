@@ -56,29 +56,33 @@ const Login = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4">
-      <div className="w-full max-w-md space-y-8">
-        <div className="text-center space-y-4">
-          <img src={logo} alt="HappyCash" className="h-24 mx-auto" />
-          <p className="text-xs tracking-[0.3em] uppercase text-muted-foreground">
+    <div className="flex h-[100svh] flex-col items-center justify-center overflow-hidden bg-background p-4 sm:p-6">
+      <div className="w-full max-w-md space-y-4 sm:space-y-6">
+        <div className="space-y-2 text-center sm:space-y-3">
+          <img
+            src={logo}
+            alt="HappyCash"
+            className="mx-auto h-auto w-[clamp(7.5rem,36vw,11.5rem)] max-w-full object-contain"
+          />
+          <p className="text-[10px] uppercase tracking-[0.22em] text-muted-foreground sm:text-[11px] sm:tracking-[0.28em]">
             Sistema PDV • Vendas • Controle • Gestão
           </p>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-xs text-muted-foreground sm:text-sm">
             {selectedPlan
               ? `Depois do login, voce pode ativar o ${selectedPlan.name} por ${selectedPlanId === "demo" ? "3 horas" : "30 dias"}.`
               : "Use o mesmo email e senha para entrar no site e no HappyCash."}
           </p>
         </div>
 
-        <div className="rounded-2xl border border-border bg-card/80 backdrop-blur-sm p-8 space-y-6">
-          <h1 className="font-heading text-3xl font-bold text-center text-primary">Entrar</h1>
-          <p className="text-sm text-muted-foreground text-center">
+        <div className="space-y-4 rounded-2xl border border-border bg-card/80 p-5 backdrop-blur-sm sm:space-y-5 sm:p-6">
+          <h1 className="text-center font-heading text-xl font-bold text-primary sm:text-2xl">Entrar</h1>
+          <p className="text-center text-xs text-muted-foreground sm:text-sm">
             {selectedPlan
               ? "Acesse com seu email e senha para seguir no plano que voce escolheu."
               : "Acesse com seu email e senha. Depois voce pode escolher ou renovar seu plano de 30 dias."}
           </p>
 
-          <form onSubmit={handleLogin} className="space-y-4">
+          <form onSubmit={handleLogin} className="space-y-3 sm:space-y-4">
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
               <Input
@@ -88,7 +92,7 @@ const Login = () => {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
-                className="h-12 bg-muted/50 border-border"
+                className="h-11 border-border bg-muted/50 sm:h-12"
               />
             </div>
             <div className="space-y-2">
@@ -101,7 +105,7 @@ const Login = () => {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
-                  className="h-12 bg-muted/50 border-border pr-12"
+                  className="h-11 border-border bg-muted/50 pr-12 sm:h-12"
                 />
                 <button
                   type="button"
@@ -113,42 +117,36 @@ const Login = () => {
                 </button>
               </div>
             </div>
-            <div className="rounded-xl border border-border/70 bg-muted/20 p-4 space-y-3">
-              <div className="flex items-start gap-3">
+            <div className="space-y-2 pt-1">
+              <div className="flex items-center gap-2">
                 <Checkbox
                   id="site-remember-account"
                   checked={rememberAccount}
                   onCheckedChange={(checked) => setRememberAccount(checked === true)}
                   className="mt-0.5"
                 />
-                <div className="space-y-1">
-                  <Label htmlFor="site-remember-account" className="cursor-pointer text-sm font-medium">
-                    Lembrar última conta neste dispositivo
-                  </Label>
-                  <p className="text-xs text-muted-foreground">
-                    Preenche seu email de novo no navegador, no executável e no mobile deste aparelho.
-                  </p>
-                </div>
+                <Label htmlFor="site-remember-account" className="cursor-pointer text-sm">
+                  Lembrar conta
+                </Label>
               </div>
-              <div className="flex items-start gap-3">
+              <div className="flex items-center gap-2">
                 <Checkbox
                   id="site-keep-connected"
                   checked={keepConnected}
                   onCheckedChange={(checked) => setKeepConnected(checked === true)}
                   className="mt-0.5"
                 />
-                <div className="space-y-1">
-                  <Label htmlFor="site-keep-connected" className="cursor-pointer text-sm font-medium">
-                    Manter conectado neste dispositivo
-                  </Label>
-                  <p className="text-xs text-muted-foreground">
-                    Desmarcado, o acesso fica ativo só enquanto esta aba, app ou janela estiver aberta.
-                  </p>
-                </div>
+                <Label htmlFor="site-keep-connected" className="cursor-pointer text-sm">
+                  Manter conectado
+                </Label>
               </div>
             </div>
 
-            <Button type="submit" disabled={loading} className="w-full h-12 text-base font-semibold bg-primary text-primary-foreground">
+            <Button
+              type="submit"
+              disabled={loading}
+              className="h-11 w-full px-4 text-sm font-semibold text-primary-foreground sm:h-12 sm:text-base bg-primary"
+            >
               {loading ? (
                 <>
                   <Loader2 className="mr-2 animate-spin" />
@@ -157,13 +155,13 @@ const Login = () => {
               ) : (
                 <>
                   <LogIn size={18} className="mr-2" />
-                  Entrar
+                  <span>Entrar</span>
                 </>
               )}
             </Button>
           </form>
 
-          <div className="text-center text-sm space-y-2">
+          <div className="space-y-2 text-center text-sm">
             <p className="text-muted-foreground">
               Não tem conta?{" "}
               <Link to={selectedPlanId ? `/cadastro?plan=${selectedPlanId}` : "/cadastro"} className="text-primary hover:underline font-medium">

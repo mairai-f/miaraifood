@@ -14,7 +14,7 @@ import {
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
 
-const defaultPublicSiteUrl = 'https://happycashsite.vercel.app';
+const defaultPublicSystemUrl = 'https://happycash.vercel.app';
 const runtimeEnv = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env ?? {};
 const envConfiguredUrl = runtimeEnv.EXPO_PUBLIC_HAPPYCASH_WEB_URL?.trim() || '';
 const envSuggestedDevUrl = runtimeEnv.EXPO_PUBLIC_HAPPYCASH_DEV_URL?.trim() || '';
@@ -31,9 +31,10 @@ const isValidHttpUrl = (value: string) => {
 };
 
 export default function App() {
-  const [draftUrl, setDraftUrl] = useState(envConfiguredUrl || envSuggestedDevUrl || defaultPublicSiteUrl);
-  const [activeUrl, setActiveUrl] = useState(envConfiguredUrl || '');
-  const [showConfig, setShowConfig] = useState(!envConfiguredUrl);
+  const initialActiveUrl = isValidHttpUrl(envConfiguredUrl) ? normalizeUrl(envConfiguredUrl) : defaultPublicSystemUrl;
+  const [draftUrl, setDraftUrl] = useState(envConfiguredUrl || envSuggestedDevUrl || defaultPublicSystemUrl);
+  const [activeUrl, setActiveUrl] = useState(initialActiveUrl);
+  const [showConfig, setShowConfig] = useState(false);
   const [loadError, setLoadError] = useState('');
 
   const canLoadDraft = isValidHttpUrl(draftUrl);
@@ -60,8 +61,8 @@ export default function App() {
         </Text>
 
         <View style={styles.quickActions}>
-          <Pressable style={[styles.quickButton, styles.quickButtonPrimary]} onPress={() => setDraftUrl(defaultPublicSiteUrl)}>
-            <Text style={styles.quickButtonPrimaryText}>Usar site publico</Text>
+          <Pressable style={[styles.quickButton, styles.quickButtonPrimary]} onPress={() => setDraftUrl(defaultPublicSystemUrl)}>
+            <Text style={styles.quickButtonPrimaryText}>Usar sistema publico</Text>
           </Pressable>
           <Pressable
             style={styles.quickButton}

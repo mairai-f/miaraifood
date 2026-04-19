@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useState, type FormEvent } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { motion } from 'framer-motion';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -38,19 +38,6 @@ export default function Login() {
 
   const [resetOpen, setResetOpen] = useState(false);
   const [resetEmail, setResetEmail] = useState('');
-
-  useEffect(() => {
-    const previousHtmlOverflow = document.documentElement.style.overflow;
-    const previousBodyOverflow = document.body.style.overflow;
-
-    document.documentElement.style.overflow = 'hidden';
-    document.body.style.overflow = 'hidden';
-
-    return () => {
-      document.documentElement.style.overflow = previousHtmlOverflow;
-      document.body.style.overflow = previousBodyOverflow;
-    };
-  }, []);
 
   const handleAdminSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -131,44 +118,44 @@ export default function Login() {
   };
 
   return (
-    <div className="relative h-screen overflow-hidden bg-[#050505] px-4 py-4 sm:px-6">
+    <div className="relative h-[100svh] overflow-hidden bg-[#050505] px-3 py-2 sm:px-4 sm:py-3">
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(250,204,21,0.18),_transparent_35%),radial-gradient(circle_at_bottom_right,_rgba(245,158,11,0.12),_transparent_42%)]" />
-      <div className="relative mx-auto flex h-full w-full max-w-md items-center justify-center">
+      <div className="relative mx-auto flex h-full w-full max-w-[23rem] items-center justify-center sm:max-w-sm">
         <motion.div
           initial={{ opacity: 0, scale: 0.97, y: 20 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           transition={{ duration: 0.45, type: 'spring' }}
           className="w-full"
         >
-          <div className="mb-6 text-center">
+          <div className="mb-2 text-center sm:mb-3">
             <motion.img
               src={happyCashLogo}
               alt="HappyCash"
-              className="mx-auto h-auto w-full max-w-[220px] object-contain sm:max-w-[250px]"
+              className="mx-auto h-auto w-[clamp(6.25rem,28vw,10rem)] max-w-full object-contain"
               animate={{ y: [0, -8, 0] }}
               transition={{ duration: 4.2, repeat: Infinity, ease: 'easeInOut' }}
             />
-            <p className="mt-4 text-[11px] font-semibold uppercase tracking-[0.34em] text-yellow-200/80 sm:text-xs">
+            <p className="mt-1.5 text-[9px] font-semibold uppercase tracking-[0.18em] text-yellow-200/80 sm:mt-2 sm:text-[10px] sm:tracking-[0.24em]">
               Sistema PDV • Vendas • Controle • Gestão
             </p>
           </div>
 
           <Card className="border-yellow-400/15 bg-black/45 shadow-[0_24px_60px_rgba(0,0,0,0.35)] backdrop-blur-md">
-            <CardHeader className="pb-2 text-center">
-              <CardTitle className="text-3xl font-bold tracking-wide text-yellow-300">Entrar</CardTitle>
-              <p className="text-sm text-muted-foreground">
+            <CardHeader className="px-4 pb-1 pt-3 text-center sm:px-5 sm:pt-4">
+              <CardTitle className="text-lg font-bold tracking-wide text-yellow-300 sm:text-xl">Entrar</CardTitle>
+              <p className="text-[11px] text-muted-foreground sm:text-xs">
                 Administrador entra com email. Operador entra com usuário.
               </p>
             </CardHeader>
-            <CardContent>
+            <CardContent className="px-4 pb-3 sm:px-5 sm:pb-4">
               <Tabs value={loginMode} onValueChange={value => setLoginMode(value as LoginMode)} className="w-full">
-                <TabsList className="mb-4 grid w-full grid-cols-2 bg-zinc-900/70">
+                <TabsList className="mb-2.5 grid h-9 w-full grid-cols-2 bg-zinc-900/70 p-1">
                   <TabsTrigger value="admin">Administrador</TabsTrigger>
                   <TabsTrigger value="operator">Operador</TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="admin">
-                  <form onSubmit={handleAdminSubmit} className="space-y-4">
+                  <form onSubmit={handleAdminSubmit} className="space-y-2.5 sm:space-y-3">
                     <div className="space-y-2">
                       <Label>Email</Label>
                       <Input
@@ -177,10 +164,23 @@ export default function Login() {
                         onChange={e => setEmail(e.target.value)}
                         required
                         placeholder="usuario@happycash.com"
+                        className="h-10 sm:h-11"
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label>Senha</Label>
+                      <div className="flex items-center justify-between gap-3">
+                        <Label>Senha</Label>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setResetEmail(email.trim() || (rememberAccount ? initialPreferences.adminEmail : ''));
+                            setResetOpen(true);
+                          }}
+                          className="shrink-0 text-xs text-muted-foreground transition-colors hover:text-yellow-300"
+                        >
+                          Esqueci a senha
+                        </button>
+                      </div>
                       <div className="relative">
                         <Input
                           type={showAdminPassword ? 'text' : 'password'}
@@ -190,7 +190,7 @@ export default function Login() {
                           placeholder="••••••••"
                           minLength={6}
                           autoComplete="current-password"
-                          className="pr-10"
+                          className="h-10 pr-10 sm:h-11"
                         />
                         <button
                           type="button"
@@ -202,43 +202,33 @@ export default function Login() {
                         </button>
                       </div>
                     </div>
-                    <div className="rounded-xl border border-yellow-400/10 bg-zinc-950/70 p-3">
-                      <div className="flex items-start gap-3">
+                    <div className="grid grid-cols-2 gap-2 pt-0.5">
+                      <div className="flex min-w-0 items-center gap-2">
                         <Checkbox
                           id="remember-admin-account"
                           checked={rememberAccount}
                           onCheckedChange={checked => setRememberAccount(checked === true)}
                           className="mt-0.5 border-yellow-400/60 data-[state=checked]:bg-yellow-400 data-[state=checked]:text-black"
                         />
-                        <div className="space-y-1">
-                          <Label htmlFor="remember-admin-account" className="cursor-pointer text-sm font-medium text-foreground">
-                            Lembrar última conta neste dispositivo
-                          </Label>
-                          <p className="text-xs text-muted-foreground">
-                            Preenche seu último email ou usuário no web, no executável e no mobile deste aparelho.
-                          </p>
-                        </div>
+                        <Label htmlFor="remember-admin-account" className="cursor-pointer text-xs leading-none text-foreground sm:text-sm">
+                          Lembrar conta
+                        </Label>
                       </div>
-                      <div className="mt-3 flex items-start gap-3">
+                      <div className="flex min-w-0 items-center gap-2">
                         <Checkbox
                           id="keep-admin-connected"
                           checked={keepConnected}
                           onCheckedChange={checked => setKeepConnected(checked === true)}
                           className="mt-0.5 border-yellow-400/60 data-[state=checked]:bg-yellow-400 data-[state=checked]:text-black"
                         />
-                        <div className="space-y-1">
-                          <Label htmlFor="keep-admin-connected" className="cursor-pointer text-sm font-medium text-foreground">
-                            Manter conectado neste dispositivo
-                          </Label>
-                          <p className="text-xs text-muted-foreground">
-                            Se desmarcar, a sessão vale só enquanto esta janela ou app estiver aberto.
-                          </p>
-                        </div>
+                        <Label htmlFor="keep-admin-connected" className="cursor-pointer text-xs leading-none text-foreground sm:text-sm">
+                          Manter conectado
+                        </Label>
                       </div>
                     </div>
                     <Button
                       type="submit"
-                      className="w-full bg-yellow-400 py-5 text-lg font-semibold text-black hover:bg-yellow-300"
+                      className="h-10 w-full px-4 text-center text-sm font-semibold text-black hover:bg-yellow-300 sm:h-11 bg-yellow-400"
                       disabled={submitting}
                     >
                       {submitting ? (
@@ -247,29 +237,14 @@ export default function Login() {
                           Entrando...
                         </>
                       ) : (
-                        'Entrar como administrador'
+                        'Entrar'
                       )}
                     </Button>
-                    <div className="flex flex-col gap-3 pt-2 sm:flex-row sm:items-center sm:justify-between">
-                      <p className="text-sm text-muted-foreground">
-                        Administradores acessam com email e senha.
-                      </p>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setResetEmail(email.trim() || (rememberAccount ? initialPreferences.adminEmail : ''));
-                          setResetOpen(true);
-                        }}
-                        className="text-sm text-muted-foreground transition-colors hover:text-yellow-300"
-                      >
-                        Esqueci a senha
-                      </button>
-                    </div>
                   </form>
                 </TabsContent>
 
                 <TabsContent value="operator">
-                  <form onSubmit={handleOperatorSubmit} className="space-y-4">
+                  <form onSubmit={handleOperatorSubmit} className="space-y-2.5 sm:space-y-3">
                     <div className="space-y-2">
                       <Label>Usuário</Label>
                       <Input
@@ -279,6 +254,7 @@ export default function Login() {
                         placeholder="Ex: operador.caixa"
                         autoCapitalize="none"
                         autoCorrect="off"
+                        className="h-10 sm:h-11"
                       />
                     </div>
                     <div className="space-y-2">
@@ -292,7 +268,7 @@ export default function Login() {
                           placeholder="••••••••"
                           minLength={6}
                           autoComplete="current-password"
-                          className="pr-10"
+                          className="h-10 pr-10 sm:h-11"
                         />
                         <button
                           type="button"
@@ -304,43 +280,33 @@ export default function Login() {
                         </button>
                       </div>
                     </div>
-                    <div className="rounded-xl border border-yellow-400/10 bg-zinc-950/70 p-3">
-                      <div className="flex items-start gap-3">
+                    <div className="grid grid-cols-2 gap-2 pt-0.5">
+                      <div className="flex min-w-0 items-center gap-2">
                         <Checkbox
                           id="remember-operator-account"
                           checked={rememberAccount}
                           onCheckedChange={checked => setRememberAccount(checked === true)}
                           className="mt-0.5 border-yellow-400/60 data-[state=checked]:bg-yellow-400 data-[state=checked]:text-black"
                         />
-                        <div className="space-y-1">
-                          <Label htmlFor="remember-operator-account" className="cursor-pointer text-sm font-medium text-foreground">
-                            Lembrar última conta neste dispositivo
-                          </Label>
-                          <p className="text-xs text-muted-foreground">
-                            Guarda o último usuário para agilizar a entrada do operador neste aparelho.
-                          </p>
-                        </div>
+                        <Label htmlFor="remember-operator-account" className="cursor-pointer text-xs leading-none text-foreground sm:text-sm">
+                          Lembrar conta
+                        </Label>
                       </div>
-                      <div className="mt-3 flex items-start gap-3">
+                      <div className="flex min-w-0 items-center gap-2">
                         <Checkbox
                           id="keep-operator-connected"
                           checked={keepConnected}
                           onCheckedChange={checked => setKeepConnected(checked === true)}
                           className="mt-0.5 border-yellow-400/60 data-[state=checked]:bg-yellow-400 data-[state=checked]:text-black"
                         />
-                        <div className="space-y-1">
-                          <Label htmlFor="keep-operator-connected" className="cursor-pointer text-sm font-medium text-foreground">
-                            Manter conectado neste dispositivo
-                          </Label>
-                          <p className="text-xs text-muted-foreground">
-                            Desmarcado, o acesso sai sozinho quando esta janela ou app for fechado.
-                          </p>
-                        </div>
+                        <Label htmlFor="keep-operator-connected" className="cursor-pointer text-xs leading-none text-foreground sm:text-sm">
+                          Manter conectado
+                        </Label>
                       </div>
                     </div>
                     <Button
                       type="submit"
-                      className="w-full bg-yellow-400 py-5 text-lg font-semibold text-black hover:bg-yellow-300"
+                      className="h-10 w-full px-4 text-center text-sm font-semibold text-black hover:bg-yellow-300 sm:h-11 bg-yellow-400"
                       disabled={submitting}
                     >
                       {submitting ? (
@@ -349,12 +315,9 @@ export default function Login() {
                           Entrando...
                         </>
                       ) : (
-                        'Entrar como operador'
+                        'Entrar'
                       )}
                     </Button>
-                    <p className="pt-2 text-sm text-muted-foreground">
-                      Operadores usam apenas usuário e senha definidos pelo administrador.
-                    </p>
                   </form>
                 </TabsContent>
               </Tabs>
@@ -364,7 +327,7 @@ export default function Login() {
       </div>
 
       <Dialog open={resetOpen} onOpenChange={setResetOpen}>
-        <DialogContent>
+        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Redefinir Senha</DialogTitle>
           </DialogHeader>

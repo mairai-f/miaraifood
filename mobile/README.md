@@ -4,9 +4,11 @@ App Expo do HappyCash para testar Android e iOS sem mexer no frontend web atual.
 
 ## Como funciona
 
-- Este app abre o HappyCash dentro de um `WebView`.
+- Este app abre o sistema HappyCash dentro de um `WebView`.
 - Você pode apontar para uma URL pública ou para o frontend local na mesma rede.
 - O caminho mais rápido para iPhone e Android é usar `Expo Go`.
+
+Por padrão, o app abre `https://happycash.vercel.app`.
 
 ## Instalação
 

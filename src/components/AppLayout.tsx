@@ -112,7 +112,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
   if (isPdvMode) {
     return (
       <div className="h-screen overflow-hidden bg-background">
-        <main className="h-screen overflow-y-auto p-3 sm:p-4 lg:p-6">{children}</main>
+        <main className="h-screen overflow-hidden p-3 sm:p-4 lg:overflow-y-auto lg:p-6">{children}</main>
       </div>
     );
   }

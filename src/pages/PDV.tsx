@@ -254,6 +254,7 @@ export default function PDV() {
   const [search, setSearch] = useState('');
   const [searchSelectedIndex, setSearchSelectedIndex] = useState(-1);
   const [cart, setCart] = useState<CartItem[]>([]);
+  const [mobilePanel, setMobilePanel] = useState<'products' | 'cart'>('products');
   const [cartKeyboardSelectionIndex, setCartKeyboardSelectionIndex] = useState<number | null>(null);
   const [cartItemPendingRemoval, setCartItemPendingRemoval] = useState<CartItem | null>(null);
   const [cartItemPendingPriceEdit, setCartItemPendingPriceEdit] = useState<CartItem | null>(null);
@@ -1608,6 +1609,12 @@ export default function PDV() {
   }, [cartKeyboardSelectionIndex, cart]);
 
   useEffect(() => {
+    if (mobilePanel === 'cart' && cart.length === 0) {
+      setMobilePanel('products');
+    }
+  }, [cart.length, mobilePanel]);
+
+  useEffect(() => {
     if (
       showCheckout
       || showReceipt
@@ -2412,10 +2419,47 @@ export default function PDV() {
   }, [activeProducts, filtered, search, cart, cartKeyboardSelectionIndex, cartItemPendingPriceEdit, discount, paymentMethod, cashReceived, selectedClientId, total, change, canFinalizeCheckout, showCheckout, showFinalizeConfirm, showCreditInstallmentsDialog, showReceipt, showSalesSearch, showCancelledSales, showCashOut, showCloseCashReceipt, showOpenCashDialog, saleToCancel, navigate, isAdmin, creditInstallments, pendingCreditInstallments]);
 
   return (
-    <div className="flex min-h-[calc(100vh-1.5rem)] flex-col gap-4 sm:min-h-[calc(100vh-2rem)] lg:h-[calc(100vh-3rem)] lg:flex-row">
+    <div className="flex h-full min-h-0 flex-col gap-3 overflow-hidden sm:gap-4 lg:flex-row">
+      <div className="shrink-0 lg:hidden">
+        <Card className="border-border/50">
+          <CardContent className="space-y-3 p-3">
+            <div className="grid grid-cols-2 gap-2">
+              <Button
+                type="button"
+                variant={mobilePanel === 'products' ? 'default' : 'outline'}
+                className="h-10"
+                onClick={() => setMobilePanel('products')}
+              >
+                Produtos
+              </Button>
+              <Button
+                type="button"
+                variant={mobilePanel === 'cart' ? 'default' : 'outline'}
+                className="h-10"
+                onClick={() => setMobilePanel('cart')}
+              >
+                Carrinho ({cart.length})
+              </Button>
+            </div>
+            <div className="flex items-center justify-between gap-3 rounded-lg border border-border bg-background/80 px-3 py-2 text-sm">
+              <div>
+                <p className="font-medium">Resumo do carrinho</p>
+                <p className="text-xs text-muted-foreground">
+                  {cartUnits} unidade{cartUnits === 1 ? '' : 's'}
+                </p>
+              </div>
+              <div className="text-right">
+                <p className="text-xs text-muted-foreground">Total</p>
+                <p className="font-semibold text-primary">{formatMoney(subtotal)}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
       {/* Products panel */}
-      <div className="flex min-w-0 flex-1 flex-col">
-        <div className="mb-3 flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+      <div className={`${mobilePanel === 'products' ? 'flex' : 'hidden'} min-h-0 min-w-0 flex-1 flex-col overflow-hidden lg:flex`}>
+        <div className="mb-3 shrink-0 flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
           <div>
             <h1 className="text-2xl font-bold">Caixa</h1>
             <p className="text-sm text-muted-foreground">
@@ -2432,7 +2476,7 @@ export default function PDV() {
             <Button variant="destructive" size="sm" onClick={requestCloseCash} disabled={!cashSession}>Fechar caixa (5)</Button>
           </div>
         </div>
-        <div className="relative mb-3">
+        <div className="relative mb-3 shrink-0">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
           <Input
             ref={searchInputRef}
@@ -2454,7 +2498,7 @@ export default function PDV() {
             }}
           />
         </div>
-        <div className="grid min-h-0 flex-1 grid-cols-2 gap-2 overflow-auto sm:grid-cols-3">
+        <div className="grid min-h-0 flex-1 grid-cols-2 gap-2 overflow-y-auto pr-1 sm:grid-cols-3">
           {filtered.map((p, index) => (
             <motion.div key={p.id} whileTap={{ scale: 0.95 }}>
               <Card
@@ -2485,9 +2529,9 @@ export default function PDV() {
       </div>
 
       {/* Cart panel */}
-      <div className="flex min-h-[70vh] w-full flex-col lg:min-h-0 lg:w-[26rem] xl:w-[30rem]">
-        <Card className="flex min-h-0 flex-1 flex-col border-border/50">
-          <CardHeader className="pb-2 px-4 pt-4">
+      <div className={`${mobilePanel === 'cart' ? 'flex' : 'hidden'} min-h-0 w-full flex-1 flex-col overflow-hidden lg:flex lg:w-[26rem] lg:flex-none xl:w-[30rem]`}>
+        <Card className="flex min-h-0 flex-1 flex-col overflow-hidden border-border/50">
+          <CardHeader className="shrink-0 pb-2 px-4 pt-4">
             <CardTitle className="flex items-center gap-2 text-base">
               <ShoppingCart className="h-5 w-5" />
               Carrinho ({cart.length})
@@ -2495,8 +2539,8 @@ export default function PDV() {
               <span className="text-xs font-medium text-destructive">8 preço • Tab navega</span>
             </CardTitle>
           </CardHeader>
-          <CardContent className="flex min-h-0 flex-1 flex-col p-4 pt-0 gap-3">
-            <div className="min-h-0 flex-1 overflow-auto space-y-2">
+          <CardContent className="flex min-h-0 flex-1 flex-col gap-3 p-4 pt-0">
+            <div className="min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
               {cart.map((i, index) => (
                 <div
                   key={i.product.id}
@@ -2541,7 +2585,7 @@ export default function PDV() {
               {cart.length === 0 && <p className="text-sm text-muted-foreground text-center py-8">Carrinho vazio</p>}
             </div>
 
-            <div className="rounded-lg border border-border bg-background/80 p-3 space-y-2">
+            <div className="shrink-0 rounded-lg border border-border bg-background/80 p-3 space-y-2">
               <div className="flex items-center justify-between text-sm text-muted-foreground">
                 <span>Itens adicionados</span>
                 <span>{cartUnits} unidade{cartUnits === 1 ? '' : 's'}</span>
@@ -2552,8 +2596,11 @@ export default function PDV() {
               </div>
             </div>
 
-            <Button type="button" onClick={() => openCheckout()} className="h-11 w-full text-base" disabled={cart.length === 0 || isFinalizingSale}>
+            <Button type="button" onClick={() => openCheckout()} className="h-11 w-full shrink-0 text-base" disabled={cart.length === 0 || isFinalizingSale}>
               <Receipt className="h-5 w-5 mr-2" />Finalizar Venda (4)
+            </Button>
+            <Button type="button" variant="outline" className="h-10 w-full shrink-0 lg:hidden" onClick={() => setMobilePanel('products')}>
+              Voltar para produtos
             </Button>
           </CardContent>
         </Card>
@@ -2622,7 +2669,7 @@ export default function PDV() {
       {/* Checkout dialog */}
       <Dialog open={showCheckout} onOpenChange={open => { if (!isFinalizingSale) setShowCheckout(open); }}>
         <DialogContent
-          className="max-h-[90vh] max-w-3xl overflow-hidden"
+          className="max-h-[92svh] w-[calc(100vw-1rem)] max-w-3xl grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden border-border bg-background p-4 shadow-2xl sm:max-h-[90vh] sm:w-full sm:p-6 lg:grid-rows-none lg:shadow-lg"
           onOpenAutoFocus={event => event.preventDefault()}
           onEscapeKeyDown={event => {
             event.preventDefault();
@@ -2632,12 +2679,14 @@ export default function PDV() {
             setShowCheckout(false);
           }}
         >
-          <DialogHeader className="space-y-1 pb-1"><DialogTitle>Finalizar venda</DialogTitle></DialogHeader>
-          <div className="grid min-h-0 gap-4 overflow-hidden lg:grid-cols-[1.15fr_0.85fr]">
+          <DialogHeader className="space-y-1 pb-1 pr-8">
+            <DialogTitle>Finalizar venda</DialogTitle>
+          </DialogHeader>
+          <div className="grid min-h-0 gap-4 overflow-y-auto pr-1 lg:grid-cols-[1.15fr_0.85fr] lg:overflow-hidden lg:pr-0">
             <div className="min-h-0 space-y-3">
-              <div className="rounded-lg border border-border p-3">
+              <div className="rounded-lg border border-border bg-background p-3 lg:bg-transparent">
                 <p className="mb-2 text-sm font-semibold">Itens do carrinho</p>
-                <div className="max-h-[30vh] space-y-1.5 overflow-y-auto pr-1 sm:max-h-[36vh]">
+                <div className="max-h-[22svh] space-y-1.5 overflow-y-auto pr-1 sm:max-h-[36vh]">
                   {cart.map(i => (
                     <div key={i.product.id} className="flex items-start justify-between gap-3 text-sm">
                       <div className="min-w-0">
@@ -2651,15 +2700,15 @@ export default function PDV() {
                 </div>
               </div>
 
-              <div className="rounded-lg border border-border p-3 space-y-1">
+              <div className="rounded-lg border border-border bg-background p-3 space-y-1 lg:bg-transparent">
                 <div className="flex justify-between text-sm"><span>Subtotal</span><span>R$ {subtotal.toFixed(2)}</span></div>
                 {discount > 0 && <div className="flex justify-between text-sm text-destructive"><span>Desconto</span><span>-R$ {discount.toFixed(2)}</span></div>}
                 <div className="flex justify-between text-lg font-bold"><span>Total</span><span className="text-primary">R$ {total.toFixed(2)}</span></div>
               </div>
             </div>
 
-            <div className="space-y-3">
-              <div className="grid grid-cols-[1fr_88px] gap-2 items-end">
+            <div className="space-y-3 rounded-lg border border-border bg-background p-3 lg:rounded-none lg:border-0 lg:bg-transparent lg:p-0">
+              <div className="grid grid-cols-[1fr_88px] items-end gap-2">
                 <div className="flex-1 space-y-1">
                   <Label className="text-sm">Desconto</Label>
                   <Input type="number" step="0.01" placeholder="0" value={discountInput} onChange={e => setDiscountInput(e.target.value)} className="h-9 text-sm" />
@@ -2685,8 +2734,8 @@ export default function PDV() {
               </div>
 
               {paymentMethod === 'cartao_credito' && (
-                <div className="space-y-2 rounded-lg border border-border p-3">
-                  <div className="flex items-center justify-between gap-2">
+                <div className="space-y-2 rounded-lg border border-border bg-card p-3 lg:bg-transparent">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <div>
                       <p className="text-sm font-medium">Parcelamento</p>
                       <p className="text-xs text-muted-foreground">
@@ -2753,7 +2802,7 @@ export default function PDV() {
               )}
 
               {isAdmin && (
-                <div className="rounded-lg border border-border p-3 space-y-2">
+                <div className="rounded-lg border border-border bg-card p-3 space-y-2 lg:bg-transparent">
                   <div className="flex items-start justify-between gap-2">
                     <div>
                       <p className="text-sm font-medium">NFC-e no PDV</p>
@@ -2801,12 +2850,12 @@ export default function PDV() {
                 </div>
               )}
 
-              <p className="text-xs text-muted-foreground">Enter pede confirmação para finalizar.</p>
+              <p className="pb-1 text-xs text-muted-foreground">Enter pede confirmação para finalizar.</p>
             </div>
           </div>
-          <DialogFooter className="gap-2 border-t border-border pt-4">
-            <Button type="button" variant="outline" onClick={() => setShowCheckout(false)} disabled={isFinalizingSale}>Voltar</Button>
-            <Button type="button" onClick={requestFinalizeConfirmation} disabled={cart.length === 0 || isFinalizingSale || !canFinalizeCheckout}>
+          <DialogFooter className="gap-2 border-t border-border bg-background pt-3 sm:pt-4 lg:bg-transparent">
+            <Button type="button" variant="outline" className="w-full sm:w-auto" onClick={() => setShowCheckout(false)} disabled={isFinalizingSale}>Voltar</Button>
+            <Button type="button" className="w-full sm:w-auto" onClick={requestFinalizeConfirmation} disabled={cart.length === 0 || isFinalizingSale || !canFinalizeCheckout}>
               <Receipt className="h-4 w-4 mr-2" />Finalizar venda
             </Button>
           </DialogFooter>
