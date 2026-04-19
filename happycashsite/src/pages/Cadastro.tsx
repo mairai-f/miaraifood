@@ -2,12 +2,10 @@ import { useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { applySiteSessionPreference, getSiteLoginPreferences, saveSiteLoginPreferences } from "@/lib/authSessionPreferences";
 import { isPublicPlanId, publicPlanContent } from "@/lib/subscriptionPlans";
 import logo from "@/assets/logo-happycash.png";
 import { Eye, EyeOff, Loader2, UserPlus } from "lucide-react";
@@ -30,7 +28,6 @@ const estados = [
 ];
 
 const Cadastro = () => {
-  const initialPreferences = getSiteLoginPreferences();
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
@@ -43,11 +40,9 @@ const Cadastro = () => {
   const selectedPlan = selectedPlanId ? publicPlanContent[selectedPlanId] : null;
 
   // Step 1 - Account
-  const [email, setEmail] = useState(initialPreferences.rememberAccount ? initialPreferences.email : "");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [rememberAccount, setRememberAccount] = useState(initialPreferences.rememberAccount);
-  const [keepConnected, setKeepConnected] = useState(initialPreferences.keepConnected);
 
   // Step 2 - Business
   const [nomeCliente, setNomeCliente] = useState("");
@@ -92,12 +87,6 @@ const Cadastro = () => {
       return;
     }
 
-    saveSiteLoginPreferences({
-      rememberAccount,
-      keepConnected,
-      email,
-    });
-
     setLoading(true);
     try {
       const { data, error } = await supabase.functions.invoke<RegisterAccountResponse>("register-account", {
@@ -140,7 +129,6 @@ const Cadastro = () => {
         return;
       }
 
-      applySiteSessionPreference(keepConnected);
       toast({
         title: "Conta criada com sucesso!",
         description: selectedPlanId && selectedPlanId !== "demo"
@@ -224,40 +212,6 @@ const Cadastro = () => {
                   >
                     {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                   </button>
-                </div>
-              </div>
-              <div className="rounded-xl border border-border/70 bg-muted/20 p-4 space-y-3">
-                <div className="flex items-start gap-3">
-                  <Checkbox
-                    id="cadastro-remember-account"
-                    checked={rememberAccount}
-                    onCheckedChange={(checked) => setRememberAccount(checked === true)}
-                    className="mt-0.5"
-                  />
-                  <div className="space-y-1">
-                    <Label htmlFor="cadastro-remember-account" className="cursor-pointer text-sm font-medium">
-                      Lembrar última conta neste dispositivo
-                    </Label>
-                    <p className="text-xs text-muted-foreground">
-                      Guarda o email para acelerar os próximos acessos neste aparelho.
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-start gap-3">
-                  <Checkbox
-                    id="cadastro-keep-connected"
-                    checked={keepConnected}
-                    onCheckedChange={(checked) => setKeepConnected(checked === true)}
-                    className="mt-0.5"
-                  />
-                  <div className="space-y-1">
-                    <Label htmlFor="cadastro-keep-connected" className="cursor-pointer text-sm font-medium">
-                      Manter conectado neste dispositivo
-                    </Label>
-                    <p className="text-xs text-muted-foreground">
-                      Se desmarcar, o login criado agora vale só até fechar a aba, app ou janela.
-                    </p>
-                  </div>
                 </div>
               </div>
             </>

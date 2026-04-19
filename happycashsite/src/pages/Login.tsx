@@ -1,12 +1,12 @@
 import { useState, type FormEvent } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { motion } from 'framer-motion';
 import { Eye, EyeOff, Loader2 } from 'lucide-react';
 
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
@@ -26,6 +26,9 @@ const Login = () => {
   const [rememberAccount, setRememberAccount] = useState(initialPreferences.rememberAccount);
   const [keepConnected, setKeepConnected] = useState(initialPreferences.keepConnected);
   const [loading, setLoading] = useState(false);
+  const [resetOpen, setResetOpen] = useState(false);
+  const [resetEmail, setResetEmail] = useState('');
+  const [resettingPassword, setResettingPassword] = useState(false);
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { toast } = useToast();
@@ -65,23 +68,51 @@ const Login = () => {
     }
   };
 
+  const handleReset = async () => {
+    if (resettingPassword) return;
+
+    if (!resetEmail.trim()) {
+      toast({ title: 'Digite seu email', variant: 'destructive' });
+      return;
+    }
+
+    setResettingPassword(true);
+
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(resetEmail.trim(), {
+        redirectTo: `${window.location.origin}/reset-password`,
+      });
+
+      if (error) {
+        toast({
+          title: 'Erro ao enviar email',
+          description: error.message,
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      toast({
+        title: 'Email enviado',
+        description: 'Enviamos o link para redefinir sua senha.',
+      });
+      setResetOpen(false);
+      setResetEmail('');
+    } finally {
+      setResettingPassword(false);
+    }
+  };
+
   return (
     <div className="relative h-[100svh] overflow-hidden bg-[#050505] px-3 py-2 sm:px-4 sm:py-3">
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(250,204,21,0.18),_transparent_35%),radial-gradient(circle_at_bottom_right,_rgba(245,158,11,0.12),_transparent_42%)]" />
       <div className="relative mx-auto flex h-full w-full max-w-[23rem] items-center justify-center sm:max-w-sm">
-        <motion.div
-          initial={{ opacity: 0, scale: 0.97, y: 20 }}
-          animate={{ opacity: 1, scale: 1, y: 0 }}
-          transition={{ duration: 0.45, type: 'spring' }}
-          className="w-full"
-        >
+        <div className="w-full">
           <div className="mb-2 text-center sm:mb-3">
-            <motion.img
+            <img
               src={logo}
               alt="HappyCash"
               className="mx-auto h-auto w-[clamp(6.25rem,28vw,10rem)] max-w-full object-contain"
-              animate={{ y: [0, -8, 0] }}
-              transition={{ duration: 4.2, repeat: Infinity, ease: 'easeInOut' }}
             />
             <p className="mt-1.5 text-[9px] font-semibold uppercase tracking-[0.18em] text-yellow-200/80 sm:mt-2 sm:text-[10px] sm:tracking-[0.24em]">
               Sistema PDV • Vendas • Controle • Gestao
@@ -118,7 +149,19 @@ const Login = () => {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="password">Senha</Label>
+                  <div className="flex items-center justify-between gap-3">
+                    <Label htmlFor="password">Senha</Label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setResetEmail(email.trim() || initialPreferences.email);
+                        setResetOpen(true);
+                      }}
+                      className="shrink-0 text-xs text-muted-foreground transition-colors hover:text-yellow-300"
+                    >
+                      Esqueci a senha
+                    </button>
+                  </div>
                   <div className="relative">
                     <Input
                       id="password"
@@ -203,8 +246,49 @@ const Login = () => {
               </div>
             </CardContent>
           </Card>
-        </motion.div>
+        </div>
       </div>
+
+      <Dialog open={resetOpen} onOpenChange={setResetOpen}>
+        <DialogContent className="max-w-[calc(100vw-2rem)] border-yellow-400/15 bg-zinc-950 text-foreground sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Redefinir Senha</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Enviaremos um email com o link para redefinir sua senha.
+            </p>
+            <div className="space-y-2">
+              <Label htmlFor="reset-email">Email</Label>
+              <Input
+                id="reset-email"
+                type="email"
+                value={resetEmail}
+                onChange={e => setResetEmail(e.target.value)}
+                placeholder="usuario@happycash.com"
+                className="border-border/70 bg-zinc-950/70"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              onClick={handleReset}
+              disabled={resettingPassword}
+              className="bg-yellow-400 text-black hover:bg-yellow-300"
+            >
+              {resettingPassword ? (
+                <>
+                  <Loader2 className="mr-2 animate-spin" />
+                  Enviando...
+                </>
+              ) : (
+                'Enviar'
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
