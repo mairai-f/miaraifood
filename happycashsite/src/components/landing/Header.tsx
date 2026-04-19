@@ -1,10 +1,11 @@
 import { useState, useEffect } from "react";
-import { Menu, X } from "lucide-react";
+import { Loader2, Menu, X } from "lucide-react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuthSession } from "@/hooks/use-auth-session";
+import { clearSiteTemporarySessionPreference } from "@/lib/authSessionPreferences";
 import { useCurrentSubscription } from "@/hooks/use-current-subscription";
 import { isPublicPlanId, publicPlanContent } from "@/lib/subscriptionPlans";
 import logo from "@/assets/logo-happycash.png";
@@ -38,11 +39,17 @@ const Header = () => {
   }, []);
 
   const handleLogout = async () => {
+    if (loggingOut) return;
+
     setLoggingOut(true);
-    await supabase.auth.signOut();
-    setMobileOpen(false);
-    setLoggingOut(false);
-    navigate(homeHref, { replace: true });
+    try {
+      clearSiteTemporarySessionPreference();
+      await supabase.auth.signOut();
+      setMobileOpen(false);
+      navigate(homeHref, { replace: true });
+    } finally {
+      setLoggingOut(false);
+    }
   };
 
   const links = [
@@ -97,6 +104,7 @@ const Header = () => {
                 onClick={() => void handleLogout()}
                 disabled={loggingOut}
               >
+                {loggingOut ? <Loader2 className="animate-spin" /> : null}
                 {loggingOut ? "Saindo..." : "Sair"}
               </Button>
             </>
@@ -147,6 +155,7 @@ const Header = () => {
                   onClick={() => void handleLogout()}
                   disabled={loggingOut}
                 >
+                  {loggingOut ? <Loader2 className="animate-spin" /> : null}
                   {loggingOut ? "Saindo..." : "Sair"}
                 </Button>
               </>

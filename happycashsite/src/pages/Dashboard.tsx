@@ -12,6 +12,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { clearSiteTemporarySessionPreference, enforceSiteSessionPreference } from "@/lib/authSessionPreferences";
 import { desktopDownloads } from "@/lib/desktopDownloads";
 import { getSubscriptionCountdown, getSubscriptionEndAt, getSubscriptionStatusLabel, isCurrentSubscription } from "@/lib/subscriptionStatus";
 import { publicPlanContent, publicPlanList, isPaidPlanId, isPublicPlanId, type PaidPlanId, type PublicPlanId } from "@/lib/subscriptionPlans";
@@ -94,6 +95,7 @@ const Dashboard = () => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [activatingPlan, setActivatingPlan] = useState<PaidPlanId | null>(null);
+  const [loggingOut, setLoggingOut] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -148,6 +150,7 @@ const Dashboard = () => {
     let mounted = true;
 
     const bootstrap = async () => {
+      await enforceSiteSessionPreference(supabase);
       const { data: { session } } = await supabase.auth.getSession();
 
       if (!mounted) return;
@@ -210,8 +213,16 @@ const Dashboard = () => {
   });
 
   const handleLogout = async () => {
-    await supabase.auth.signOut();
-    navigate(`/login${querySuffix}`, { replace: true });
+    if (loggingOut) return;
+
+    setLoggingOut(true);
+    try {
+      clearSiteTemporarySessionPreference();
+      await supabase.auth.signOut();
+      navigate(`/login${querySuffix}`, { replace: true });
+    } finally {
+      setLoggingOut(false);
+    }
   };
 
   const handleActivatePlan = async (planId: PaidPlanId) => {
@@ -287,9 +298,9 @@ const Dashboard = () => {
                 Voltar ao site
               </Link>
             </Button>
-            <Button variant="outline" onClick={handleLogout} className="gap-2">
-              <LogOut className="h-4 w-4" />
-              Sair
+            <Button variant="outline" onClick={handleLogout} className="gap-2" disabled={loggingOut}>
+              {loggingOut ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogOut className="h-4 w-4" />}
+              {loggingOut ? "Saindo..." : "Sair"}
             </Button>
           </div>
         </div>
@@ -429,15 +440,15 @@ const Dashboard = () => {
                 {isCurrentProPlan ? (
                   <div className="mt-4 grid gap-3">
                     <Button asChild className="h-11 font-semibold">
-                      <a href={desktopDownloads.windows.href} target="_blank" rel="noreferrer">
+                      <Link to={desktopDownloads.windows.route}>
                         <Download className="mr-2 h-4 w-4" />
                         Baixar executavel Windows
-                      </a>
+                      </Link>
                     </Button>
                     <Button asChild variant="outline" className="h-11 font-semibold">
-                      <a href={desktopDownloads.linux.href} target="_blank" rel="noreferrer">
+                      <Link to={desktopDownloads.linux.route}>
                         Baixar AppImage Linux
-                      </a>
+                      </Link>
                     </Button>
                   </div>
                 ) : (

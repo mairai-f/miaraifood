@@ -80,15 +80,13 @@ npm run electron:build
 O arquivo final será gerado na pasta `release/`.
 
 __________________________________________________________________________________
-📱 Versão Mobile (Cordova) :
+📱 Versão Mobile (Expo) :
 
-O projeto agora também está preparado para empacotar o app principal em Android e iOS com um container Cordova separado em `mobile/`.
+O projeto agora também está preparado para testar Android e iOS com um app Expo separado em `mobile/`.
 
 ```bash
-# sincronizar o build web principal com o container mobile
-npm run mobile:sync
-
-# depois de instalar as dependências de mobile/ e adicionar as plataformas
+# iniciar o app mobile
+npm run mobile:start
 npm run mobile:android
 npm run mobile:ios
 ```
@@ -98,11 +96,10 @@ Fluxo inicial:
 ```bash
 cd mobile
 npm install
-npx cordova platform add android
-npx cordova platform add ios
 ```
 
 Observações:
 
-- O mobile usa o mesmo frontend principal do sistema, sem mexer no deploy web nem no Electron.
-- Links externos no app mobile já ficam preparados para abrir fora do WebView via `cordova-plugin-inappbrowser`.
+- O app mobile usa um `WebView` para carregar o HappyCash sem mexer no deploy web nem no Electron.
+- Para testar no celular pela rede local, rode o frontend principal com `npm run dev` e informe no app uma URL como `http://SEU-IP:8080`.
+- Se depois quisermos gerar builds nativos para loja, a próxima etapa será adicionar EAS Build.

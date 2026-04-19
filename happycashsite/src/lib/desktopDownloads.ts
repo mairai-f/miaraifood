@@ -1,12 +1,20 @@
-const GITHUB_LATEST_DOWNLOAD_BASE = "https://github.com/celioantonio7/HappyCash/releases/latest/download";
+export type DesktopDownloadPlatform = "windows" | "linux";
+
+const windowsTargetUrl = import.meta.env.VITE_WINDOWS_DESKTOP_DOWNLOAD_URL?.trim() || null;
+const linuxTargetUrl = import.meta.env.VITE_LINUX_DESKTOP_DOWNLOAD_URL?.trim() || null;
 
 export const desktopDownloads = {
   windows: {
     label: "Windows (.exe)",
-    href: `${GITHUB_LATEST_DOWNLOAD_BASE}/HappyCash-Setup-0.1.1.exe`,
+    route: "/downloads/windows",
+    targetUrl: windowsTargetUrl,
   },
   linux: {
     label: "Linux (AppImage)",
-    href: `${GITHUB_LATEST_DOWNLOAD_BASE}/HappyCash-0.1.1.AppImage`,
+    route: "/downloads/linux",
+    targetUrl: linuxTargetUrl,
   },
 };
+
+export const isDesktopDownloadPlatform = (value: string | null | undefined): value is DesktopDownloadPlatform =>
+  value === "windows" || value === "linux";

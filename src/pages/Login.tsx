@@ -4,24 +4,36 @@ import { motion } from 'framer-motion';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { Eye, EyeOff } from 'lucide-react';
+import { Eye, EyeOff, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import happyCashLogo from '@/assets/happycash-logo.png';
+import {
+  applySystemSessionPreference,
+  getSystemLoginPreferences,
+  saveSystemLoginPreferences,
+} from '@/lib/authSessionPreferences';
 
 type LoginMode = 'admin' | 'operator';
 
 export default function Login() {
-  const [loginMode, setLoginMode] = useState<LoginMode>('admin');
-  const [email, setEmail] = useState('');
+  const initialPreferences = getSystemLoginPreferences();
+  const [loginMode, setLoginMode] = useState<LoginMode>(initialPreferences.loginMode);
+  const [email, setEmail] = useState(initialPreferences.rememberAccount ? initialPreferences.adminEmail : '');
   const [adminPassword, setAdminPassword] = useState('');
   const [showAdminPassword, setShowAdminPassword] = useState(false);
-  const [operatorUsername, setOperatorUsername] = useState('');
+  const [operatorUsername, setOperatorUsername] = useState(
+    initialPreferences.rememberAccount ? initialPreferences.operatorUsername : '',
+  );
   const [operatorPassword, setOperatorPassword] = useState('');
   const [showOperatorPassword, setShowOperatorPassword] = useState(false);
+  const [rememberAccount, setRememberAccount] = useState(initialPreferences.rememberAccount);
+  const [keepConnected, setKeepConnected] = useState(initialPreferences.keepConnected);
   const [submitting, setSubmitting] = useState(false);
+  const [resettingPassword, setResettingPassword] = useState(false);
   const { login, loginOperator, resetPassword } = useAuth();
 
   const [resetOpen, setResetOpen] = useState(false);
@@ -42,13 +54,26 @@ export default function Login() {
 
   const handleAdminSubmit = async (e: FormEvent) => {
     e.preventDefault();
+    if (submitting) return;
+
+    saveSystemLoginPreferences({
+      loginMode: 'admin',
+      rememberAccount,
+      keepConnected,
+      adminEmail: email,
+      operatorUsername,
+    });
+
     setSubmitting(true);
 
     try {
       const result = await login(email, adminPassword);
       if (result !== true) {
         toast.error(result || 'Email ou senha incorretos.');
+        return;
       }
+
+      applySystemSessionPreference(keepConnected);
     } finally {
       setSubmitting(false);
     }
@@ -56,31 +81,52 @@ export default function Login() {
 
   const handleOperatorSubmit = async (e: FormEvent) => {
     e.preventDefault();
+    if (submitting) return;
+
+    saveSystemLoginPreferences({
+      loginMode: 'operator',
+      rememberAccount,
+      keepConnected,
+      adminEmail: email,
+      operatorUsername,
+    });
+
     setSubmitting(true);
 
     try {
       const result = await loginOperator(operatorUsername, operatorPassword);
       if (result !== true) {
         toast.error(result || 'Usuário ou senha incorretos.');
+        return;
       }
+
+      applySystemSessionPreference(keepConnected);
     } finally {
       setSubmitting(false);
     }
   };
 
   const handleReset = async () => {
+    if (resettingPassword) return;
+
     if (!resetEmail) {
       toast.error('Digite seu email');
       return;
     }
 
-    const ok = await resetPassword(resetEmail);
-    if (ok) {
-      toast.success('Email de redefinição enviado!');
-      setResetOpen(false);
-      setResetEmail('');
-    } else {
-      toast.error('Erro ao enviar email de redefinição.');
+    setResettingPassword(true);
+
+    try {
+      const ok = await resetPassword(resetEmail);
+      if (ok) {
+        toast.success('Email de redefinição enviado!');
+        setResetOpen(false);
+        setResetEmail('');
+      } else {
+        toast.error('Erro ao enviar email de redefinição.');
+      }
+    } finally {
+      setResettingPassword(false);
     }
   };
 
@@ -156,12 +202,53 @@ export default function Login() {
                         </button>
                       </div>
                     </div>
+                    <div className="rounded-xl border border-yellow-400/10 bg-zinc-950/70 p-3">
+                      <div className="flex items-start gap-3">
+                        <Checkbox
+                          id="remember-admin-account"
+                          checked={rememberAccount}
+                          onCheckedChange={checked => setRememberAccount(checked === true)}
+                          className="mt-0.5 border-yellow-400/60 data-[state=checked]:bg-yellow-400 data-[state=checked]:text-black"
+                        />
+                        <div className="space-y-1">
+                          <Label htmlFor="remember-admin-account" className="cursor-pointer text-sm font-medium text-foreground">
+                            Lembrar última conta neste dispositivo
+                          </Label>
+                          <p className="text-xs text-muted-foreground">
+                            Preenche seu último email ou usuário no web, no executável e no mobile deste aparelho.
+                          </p>
+                        </div>
+                      </div>
+                      <div className="mt-3 flex items-start gap-3">
+                        <Checkbox
+                          id="keep-admin-connected"
+                          checked={keepConnected}
+                          onCheckedChange={checked => setKeepConnected(checked === true)}
+                          className="mt-0.5 border-yellow-400/60 data-[state=checked]:bg-yellow-400 data-[state=checked]:text-black"
+                        />
+                        <div className="space-y-1">
+                          <Label htmlFor="keep-admin-connected" className="cursor-pointer text-sm font-medium text-foreground">
+                            Manter conectado neste dispositivo
+                          </Label>
+                          <p className="text-xs text-muted-foreground">
+                            Se desmarcar, a sessão vale só enquanto esta janela ou app estiver aberto.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
                     <Button
                       type="submit"
                       className="w-full bg-yellow-400 py-5 text-lg font-semibold text-black hover:bg-yellow-300"
                       disabled={submitting}
                     >
-                      {submitting ? 'Aguarde...' : 'Entrar como administrador'}
+                      {submitting ? (
+                        <>
+                          <Loader2 className="mr-2 animate-spin" />
+                          Entrando...
+                        </>
+                      ) : (
+                        'Entrar como administrador'
+                      )}
                     </Button>
                     <div className="flex flex-col gap-3 pt-2 sm:flex-row sm:items-center sm:justify-between">
                       <p className="text-sm text-muted-foreground">
@@ -169,7 +256,10 @@ export default function Login() {
                       </p>
                       <button
                         type="button"
-                        onClick={() => setResetOpen(true)}
+                        onClick={() => {
+                          setResetEmail(email.trim() || (rememberAccount ? initialPreferences.adminEmail : ''));
+                          setResetOpen(true);
+                        }}
                         className="text-sm text-muted-foreground transition-colors hover:text-yellow-300"
                       >
                         Esqueci a senha
@@ -214,12 +304,53 @@ export default function Login() {
                         </button>
                       </div>
                     </div>
+                    <div className="rounded-xl border border-yellow-400/10 bg-zinc-950/70 p-3">
+                      <div className="flex items-start gap-3">
+                        <Checkbox
+                          id="remember-operator-account"
+                          checked={rememberAccount}
+                          onCheckedChange={checked => setRememberAccount(checked === true)}
+                          className="mt-0.5 border-yellow-400/60 data-[state=checked]:bg-yellow-400 data-[state=checked]:text-black"
+                        />
+                        <div className="space-y-1">
+                          <Label htmlFor="remember-operator-account" className="cursor-pointer text-sm font-medium text-foreground">
+                            Lembrar última conta neste dispositivo
+                          </Label>
+                          <p className="text-xs text-muted-foreground">
+                            Guarda o último usuário para agilizar a entrada do operador neste aparelho.
+                          </p>
+                        </div>
+                      </div>
+                      <div className="mt-3 flex items-start gap-3">
+                        <Checkbox
+                          id="keep-operator-connected"
+                          checked={keepConnected}
+                          onCheckedChange={checked => setKeepConnected(checked === true)}
+                          className="mt-0.5 border-yellow-400/60 data-[state=checked]:bg-yellow-400 data-[state=checked]:text-black"
+                        />
+                        <div className="space-y-1">
+                          <Label htmlFor="keep-operator-connected" className="cursor-pointer text-sm font-medium text-foreground">
+                            Manter conectado neste dispositivo
+                          </Label>
+                          <p className="text-xs text-muted-foreground">
+                            Desmarcado, o acesso sai sozinho quando esta janela ou app for fechado.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
                     <Button
                       type="submit"
                       className="w-full bg-yellow-400 py-5 text-lg font-semibold text-black hover:bg-yellow-300"
                       disabled={submitting}
                     >
-                      {submitting ? 'Aguarde...' : 'Entrar como operador'}
+                      {submitting ? (
+                        <>
+                          <Loader2 className="mr-2 animate-spin" />
+                          Entrando...
+                        </>
+                      ) : (
+                        'Entrar como operador'
+                      )}
                     </Button>
                     <p className="pt-2 text-sm text-muted-foreground">
                       Operadores usam apenas usuário e senha definidos pelo administrador.
@@ -252,7 +383,16 @@ export default function Login() {
             </div>
           </div>
           <DialogFooter>
-            <Button onClick={handleReset}>Enviar</Button>
+            <Button onClick={handleReset} disabled={resettingPassword}>
+              {resettingPassword ? (
+                <>
+                  <Loader2 className="mr-2 animate-spin" />
+                  Enviando...
+                </>
+              ) : (
+                'Enviar'
+              )}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

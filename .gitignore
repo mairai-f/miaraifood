@@ -39,8 +39,8 @@ linux-unpacked/
 supabase/.temp/
 .vercel
 mobile/node_modules/
-mobile/platforms/
-mobile/plugins/
-mobile/www/*
-!mobile/www/.gitkeep
-mobile/package-lock.json
+mobile/.expo/
+mobile/android/
+mobile/ios/
+mobile/dist/
+mobile/web-build/

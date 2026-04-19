@@ -2,6 +2,7 @@ import { createContext, useContext, useState, useEffect, useCallback, ReactNode 
 import { supabase } from '@/integrations/supabase/client';
 import type { Session, User } from '@supabase/supabase-js';
 import type { UserRole } from '@/lib/access';
+import { clearSystemTemporarySessionPreference, enforceSystemSessionPreference } from '@/lib/authSessionPreferences';
 
 interface UserProfile {
   username: string | null;
@@ -66,6 +67,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const clearLocalSession = useCallback(() => {
     window.setTimeout(() => {
+      clearSystemTemporarySessionPreference();
       void supabase.auth.signOut({ scope: 'local' });
     }, 0);
   }, []);
@@ -165,6 +167,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     void (async () => {
       try {
+        await enforceSystemSessionPreference(supabase);
         const { data: { session: nextSession }, error } = await supabase.auth.getSession();
         if (!isMounted) return;
 
@@ -252,6 +255,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const logout = async () => {
+    clearSystemTemporarySessionPreference();
     await supabase.auth.signOut();
   };
 

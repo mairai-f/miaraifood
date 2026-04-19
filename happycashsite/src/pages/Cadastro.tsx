@@ -2,13 +2,15 @@ import { useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
+import { applySiteSessionPreference, getSiteLoginPreferences, saveSiteLoginPreferences } from "@/lib/authSessionPreferences";
 import { isPublicPlanId, publicPlanContent } from "@/lib/subscriptionPlans";
 import logo from "@/assets/logo-happycash.png";
-import { Eye, EyeOff, UserPlus } from "lucide-react";
+import { Eye, EyeOff, Loader2, UserPlus } from "lucide-react";
 
 interface RegisterAccountResponse {
   success?: boolean;
@@ -28,6 +30,7 @@ const estados = [
 ];
 
 const Cadastro = () => {
+  const initialPreferences = getSiteLoginPreferences();
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
@@ -40,9 +43,11 @@ const Cadastro = () => {
   const selectedPlan = selectedPlanId ? publicPlanContent[selectedPlanId] : null;
 
   // Step 1 - Account
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(initialPreferences.rememberAccount ? initialPreferences.email : "");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [rememberAccount, setRememberAccount] = useState(initialPreferences.rememberAccount);
+  const [keepConnected, setKeepConnected] = useState(initialPreferences.keepConnected);
 
   // Step 2 - Business
   const [nomeCliente, setNomeCliente] = useState("");
@@ -81,7 +86,17 @@ const Cadastro = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (step < 3) { setStep(step + 1); return; }
+    if (loading) return;
+    if (step < 3) {
+      setStep(current => Math.min(3, current + 1));
+      return;
+    }
+
+    saveSiteLoginPreferences({
+      rememberAccount,
+      keepConnected,
+      email,
+    });
 
     setLoading(true);
     try {
@@ -125,6 +140,7 @@ const Cadastro = () => {
         return;
       }
 
+      applySiteSessionPreference(keepConnected);
       toast({
         title: "Conta criada com sucesso!",
         description: selectedPlanId && selectedPlanId !== "demo"
@@ -208,6 +224,40 @@ const Cadastro = () => {
                   >
                     {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                   </button>
+                </div>
+              </div>
+              <div className="rounded-xl border border-border/70 bg-muted/20 p-4 space-y-3">
+                <div className="flex items-start gap-3">
+                  <Checkbox
+                    id="cadastro-remember-account"
+                    checked={rememberAccount}
+                    onCheckedChange={(checked) => setRememberAccount(checked === true)}
+                    className="mt-0.5"
+                  />
+                  <div className="space-y-1">
+                    <Label htmlFor="cadastro-remember-account" className="cursor-pointer text-sm font-medium">
+                      Lembrar última conta neste dispositivo
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      Guarda o email para acelerar os próximos acessos neste aparelho.
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3">
+                  <Checkbox
+                    id="cadastro-keep-connected"
+                    checked={keepConnected}
+                    onCheckedChange={(checked) => setKeepConnected(checked === true)}
+                    className="mt-0.5"
+                  />
+                  <div className="space-y-1">
+                    <Label htmlFor="cadastro-keep-connected" className="cursor-pointer text-sm font-medium">
+                      Manter conectado neste dispositivo
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      Se desmarcar, o login criado agora vale só até fechar a aba, app ou janela.
+                    </p>
+                  </div>
                 </div>
               </div>
             </>
@@ -304,12 +354,24 @@ const Cadastro = () => {
 
           <div className="flex gap-3 pt-2">
             {step > 1 && (
-              <Button type="button" variant="outline" onClick={() => setStep(step - 1)} className="flex-1 h-12">
+              <Button type="button" variant="outline" onClick={() => setStep(step - 1)} className="flex-1 h-12" disabled={loading}>
                 Voltar
               </Button>
             )}
             <Button type="submit" disabled={loading} className="flex-1 h-12 bg-primary text-primary-foreground font-semibold text-base">
-              {step < 3 ? "Próximo" : loading ? "Criando..." : <><UserPlus size={18} className="mr-2" /> Criar Conta</>}
+              {loading ? (
+                <>
+                  <Loader2 className="mr-2 animate-spin" />
+                  Criando...
+                </>
+              ) : step < 3 ? (
+                "Próximo"
+              ) : (
+                <>
+                  <UserPlus size={18} className="mr-2" />
+                  Criar Conta
+                </>
+              )}
             </Button>
           </div>
 

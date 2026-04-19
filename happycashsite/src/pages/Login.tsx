@@ -2,17 +2,22 @@ import { useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
+import { applySiteSessionPreference, getSiteLoginPreferences, saveSiteLoginPreferences } from "@/lib/authSessionPreferences";
 import { isPublicPlanId, publicPlanContent } from "@/lib/subscriptionPlans";
 import logo from "@/assets/logo-happycash.png";
-import { Eye, EyeOff, LogIn } from "lucide-react";
+import { Eye, EyeOff, Loader2, LogIn } from "lucide-react";
 
 const Login = () => {
-  const [email, setEmail] = useState("");
+  const initialPreferences = getSiteLoginPreferences();
+  const [email, setEmail] = useState(initialPreferences.rememberAccount ? initialPreferences.email : "");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [rememberAccount, setRememberAccount] = useState(initialPreferences.rememberAccount);
+  const [keepConnected, setKeepConnected] = useState(initialPreferences.keepConnected);
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -25,14 +30,28 @@ const Login = () => {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (loading) return;
+
+    saveSiteLoginPreferences({
+      rememberAccount,
+      keepConnected,
+      email,
+    });
+
     setLoading(true);
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    setLoading(false);
-    if (error) {
-      toast({ title: "Erro ao entrar", description: error.message, variant: "destructive" });
-    } else {
+    try {
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+
+      if (error) {
+        toast({ title: "Erro ao entrar", description: error.message, variant: "destructive" });
+        return;
+      }
+
+      applySiteSessionPreference(keepConnected);
       toast({ title: "Bem-vindo de volta!" });
       navigate(selectedPlanId ? `/dashboard?plan=${selectedPlanId}` : "/dashboard");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -94,9 +113,53 @@ const Login = () => {
                 </button>
               </div>
             </div>
+            <div className="rounded-xl border border-border/70 bg-muted/20 p-4 space-y-3">
+              <div className="flex items-start gap-3">
+                <Checkbox
+                  id="site-remember-account"
+                  checked={rememberAccount}
+                  onCheckedChange={(checked) => setRememberAccount(checked === true)}
+                  className="mt-0.5"
+                />
+                <div className="space-y-1">
+                  <Label htmlFor="site-remember-account" className="cursor-pointer text-sm font-medium">
+                    Lembrar última conta neste dispositivo
+                  </Label>
+                  <p className="text-xs text-muted-foreground">
+                    Preenche seu email de novo no navegador, no executável e no mobile deste aparelho.
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-start gap-3">
+                <Checkbox
+                  id="site-keep-connected"
+                  checked={keepConnected}
+                  onCheckedChange={(checked) => setKeepConnected(checked === true)}
+                  className="mt-0.5"
+                />
+                <div className="space-y-1">
+                  <Label htmlFor="site-keep-connected" className="cursor-pointer text-sm font-medium">
+                    Manter conectado neste dispositivo
+                  </Label>
+                  <p className="text-xs text-muted-foreground">
+                    Desmarcado, o acesso fica ativo só enquanto esta aba, app ou janela estiver aberta.
+                  </p>
+                </div>
+              </div>
+            </div>
 
             <Button type="submit" disabled={loading} className="w-full h-12 text-base font-semibold bg-primary text-primary-foreground">
-              {loading ? "Entrando..." : <><LogIn size={18} className="mr-2" /> Entrar</>}
+              {loading ? (
+                <>
+                  <Loader2 className="mr-2 animate-spin" />
+                  Entrando...
+                </>
+              ) : (
+                <>
+                  <LogIn size={18} className="mr-2" />
+                  Entrar
+                </>
+              )}
             </Button>
           </form>
 

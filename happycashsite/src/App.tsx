@@ -8,6 +8,7 @@ import Pix from "./pages/Pix.tsx";
 import Login from "./pages/Login.tsx";
 import Cadastro from "./pages/Cadastro.tsx";
 import Dashboard from "./pages/Dashboard.tsx";
+import DownloadRedirect from "./pages/DownloadRedirect.tsx";
 import NotFound from "./pages/NotFound.tsx";
 
 const queryClient = new QueryClient();
@@ -24,6 +25,7 @@ const App = () => (
           <Route path="/login" element={<Login />} />
           <Route path="/cadastro" element={<Cadastro />} />
           <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/downloads/:platform" element={<DownloadRedirect />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>

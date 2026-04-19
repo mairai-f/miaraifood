@@ -19,11 +19,6 @@ export const openExternalUrl = (url: string) => {
     return window.electronAPI.openExternal(parsedUrl.toString());
   }
 
-  if ('cordova' in window && typeof window.open === 'function') {
-    window.open(parsedUrl.toString(), '_system', 'location=yes');
-    return true;
-  }
-
   const openedWindow = window.open(parsedUrl.toString(), '_blank', 'noopener,noreferrer');
 
   if (!openedWindow) {
