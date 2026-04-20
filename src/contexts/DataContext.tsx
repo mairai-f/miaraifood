@@ -291,6 +291,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         date_paid: null,
         status: 'pending',
         deleted: false,
+        manual_deleted: false,
         registered_by: registeredBy ?? null,
       };
       setDebtEntries(prev => [entry, ...prev]);
@@ -324,6 +325,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         date_paid: null,
         status: 'pending',
         deleted: false,
+        manual_deleted: false,
         registered_by: entry.registeredBy ?? null,
       } as DebtEntry));
       setDebtEntries(prev => [...nextEntries, ...prev]);
@@ -375,6 +377,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       setDebtEntries(prev => prev.map(entry => entry.id === id ? {
         ...entry,
         deleted: true,
+        manual_deleted: true,
         deleted_at: nowIso(),
         deleted_reason: trimmedReason,
         deleted_by: user?.email ?? 'Administrador',
@@ -383,6 +386,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     }
     ensureSuccess(await db.from('debt_entries').update({
       deleted: true,
+      manual_deleted: true,
       deleted_at: nowIso(),
       deleted_reason: trimmedReason,
       deleted_by: user?.email ?? 'Administrador',
@@ -431,7 +435,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       .reduce((latest, payment) => Math.max(latest, new Date(payment.date).getTime()), 0);
 
     const totalDebt = debtEntries
-      .filter(d => d.client_id === clientId && !d.deleted && d.status === 'pending')
+      .filter(d => d.client_id === clientId && !d.manual_deleted && d.status === 'pending')
       .reduce((sum, debt) => sum + debt.total, 0);
 
     const partialPaymentsInCurrentCycle = clientPayments
@@ -442,11 +446,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
   };
 
   const getClientTotalSpending = (clientId: string) => {
-    return debtEntries.filter(d => d.client_id === clientId && !d.deleted).reduce((s, d) => s + d.total, 0);
+    return debtEntries.filter(d => d.client_id === clientId && !d.manual_deleted).reduce((s, d) => s + d.total, 0);
   };
 
   const buildDebtDetailsSnapshot = (clientId: string): string => {
-    const pending = debtEntries.filter(d => d.client_id === clientId && !d.deleted && d.status === 'pending');
+    const pending = debtEntries.filter(d => d.client_id === clientId && !d.manual_deleted && d.status === 'pending');
     if (pending.length === 0) return '';
     const groups = new Map<string, typeof pending>();
     for (const e of pending) {
@@ -474,7 +478,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const closeAllDebt = async (clientId: string, date?: string) => {
     const balance = getClientBalance(clientId);
     const paymentDate = date || new Date().toISOString();
-    const pendingIds = debtEntries.filter(d => d.client_id === clientId && !d.deleted && d.status === 'pending').map(d => d.id);
+    const pendingIds = debtEntries.filter(d => d.client_id === clientId && !d.manual_deleted && d.status === 'pending').map(d => d.id);
 
     if (isDemoMode) {
       if (balance > 0) {
@@ -491,7 +495,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       if (pendingIds.length > 0) {
         setDebtEntries(prev => prev.map(entry =>
           pendingIds.includes(entry.id)
-            ? { ...entry, status: 'paid', date_paid: paymentDate, deleted: true }
+            ? { ...entry, status: 'paid', date_paid: paymentDate, deleted: true, manual_deleted: false }
             : entry
         ));
       }
@@ -509,7 +513,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     if (pendingIds.length > 0) {
       const { error } = await db
         .from('debt_entries')
-        .update({ status: 'paid', date_paid: paymentDate, deleted: true })
+        .update({ status: 'paid', date_paid: paymentDate, deleted: true, manual_deleted: false })
         .in('id', pendingIds);
 
       if (error) throw error;

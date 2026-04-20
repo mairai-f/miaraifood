@@ -82,8 +82,8 @@ export default function ClientDetail() {
   const id = client?.id;
 
   const allClientEntries = useMemo(() => data.debtEntries.filter(d => d.client_id === id), [data.debtEntries, id]);
-  const entries = useMemo(() => allClientEntries.filter(d => !d.deleted), [allClientEntries]);
-  const deletedEntries = useMemo(() => allClientEntries.filter(d => d.deleted), [allClientEntries]);
+  const entries = useMemo(() => allClientEntries.filter(d => !d.manual_deleted), [allClientEntries]);
+  const deletedEntries = useMemo(() => allClientEntries.filter(d => d.manual_deleted), [allClientEntries]);
   const clientPayments = useMemo(() => data.payments.filter(p => p.client_id === id), [data.payments, id]);
   const parsedPayments = useMemo(
     () =>
@@ -93,7 +93,7 @@ export default function ClientDetail() {
           parsedType.kind === 'total'
             ? groupPaymentSnapshotItems(
                 allClientEntries
-                  .filter(entry => entry.status === 'paid' && samePaymentMoment(entry.date_paid, payment.date))
+                  .filter(entry => !entry.manual_deleted && entry.status === 'paid' && samePaymentMoment(entry.date_paid, payment.date))
                   .map(entry => ({
                     product_name: entry.product_name,
                     quantity: entry.quantity,
@@ -166,7 +166,7 @@ export default function ClientDetail() {
   // ── Histórico de dívidas filtrado (sem pagamentos) ─────────────────────────
   const filteredHistory = useMemo((): HistoryItem[] => {
     const all: HistoryItem[] = allClientEntries
-      .filter(e => !e.deleted)
+      .filter(e => !e.manual_deleted)
       .map(e => ({ kind: 'debt' as const, date: e.date_added, productName: e.product_name, quantity: e.quantity, total: e.total, registered_by: e.registered_by }))
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
