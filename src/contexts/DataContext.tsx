@@ -51,7 +51,7 @@ interface DataContextType {
   addDebtEntry: (clientId: string, productId: string, productName: string, quantity: number, unitPrice: number, dateAdded?: string, registeredBy?: string) => Promise<void>;
   addDebtEntries: (entries: Array<{ clientId: string; productId: string; productName: string; quantity: number; unitPrice: number; dateAdded?: string; registeredBy?: string }>) => Promise<void>;
   updateDebtEntry: (id: string, data: Record<string, unknown>) => Promise<void>;
-  deleteDebtEntry: (id: string) => Promise<void>;
+  deleteDebtEntry: (id: string, reason: string) => Promise<void>;
   addPayment: (clientId: string, amount: number, type: 'total' | 'partial', date?: string) => Promise<void>;
   deletePayment: (id: string) => Promise<void>;
   getClientBalance: (clientId: string) => number;
@@ -361,16 +361,32 @@ export function DataProvider({ children }: { children: ReactNode }) {
     ensureSuccess(await db.from('debt_entries').update(mapped as any).eq('id', id));
     await fetchAll();
   };
-  const deleteDebtEntry = async (id: string) => {
+  const deleteDebtEntry = async (id: string, reason: string) => {
     if (!isAdmin) {
       throw new Error('Operador não pode excluir itens da caderneta.');
     }
 
+    const trimmedReason = reason.trim();
+    if (!trimmedReason) {
+      throw new Error('Informe o motivo da exclusão do item.');
+    }
+
     if (isDemoMode) {
-      setDebtEntries(prev => prev.map(entry => entry.id === id ? { ...entry, deleted: true } : entry));
+      setDebtEntries(prev => prev.map(entry => entry.id === id ? {
+        ...entry,
+        deleted: true,
+        deleted_at: nowIso(),
+        deleted_reason: trimmedReason,
+        deleted_by: user?.email ?? 'Administrador',
+      } : entry));
       return;
     }
-    ensureSuccess(await db.from('debt_entries').update({ deleted: true }).eq('id', id));
+    ensureSuccess(await db.from('debt_entries').update({
+      deleted: true,
+      deleted_at: nowIso(),
+      deleted_reason: trimmedReason,
+      deleted_by: user?.email ?? 'Administrador',
+    }).eq('id', id));
     await fetchAll();
   };
 

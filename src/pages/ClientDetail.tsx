@@ -41,6 +41,7 @@ const samePaymentMoment = (left?: string | null, right?: string | null) => {
 };
 
 type HistoryItem = { kind: 'debt'; date: string; productName: string; quantity: number; total: number; registered_by?: string };
+type DeletedHistoryItem = HistoryItem & { deleted_at?: string | null; deleted_reason?: string | null; deleted_by?: string | null };
 
 export default function ClientDetail() {
   const { clientRef } = useParams<{ clientRef: string }>();
@@ -74,6 +75,7 @@ export default function ClientDetail() {
   const [deleteAuthOpen, setDeleteAuthOpen] = useState(false);
   const [deleteAuthEmail, setDeleteAuthEmail] = useState('');
   const [deleteAuthPassword, setDeleteAuthPassword] = useState('');
+  const [deleteReason, setDeleteReason] = useState('');
   const [deletingProtectedItem, setDeletingProtectedItem] = useState(false);
 
   const client = findClientByRef(data.clients.filter(c => !c.deleted), clientRef || '');
@@ -81,6 +83,7 @@ export default function ClientDetail() {
 
   const allClientEntries = useMemo(() => data.debtEntries.filter(d => d.client_id === id), [data.debtEntries, id]);
   const entries = useMemo(() => allClientEntries.filter(d => !d.deleted), [allClientEntries]);
+  const deletedEntries = useMemo(() => allClientEntries.filter(d => d.deleted), [allClientEntries]);
   const clientPayments = useMemo(() => data.payments.filter(p => p.client_id === id), [data.payments, id]);
   const parsedPayments = useMemo(
     () =>
@@ -163,6 +166,7 @@ export default function ClientDetail() {
   // ── Histórico de dívidas filtrado (sem pagamentos) ─────────────────────────
   const filteredHistory = useMemo((): HistoryItem[] => {
     const all: HistoryItem[] = allClientEntries
+      .filter(e => !e.deleted)
       .map(e => ({ kind: 'debt' as const, date: e.date_added, productName: e.product_name, quantity: e.quantity, total: e.total, registered_by: e.registered_by }))
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
@@ -182,6 +186,22 @@ export default function ClientDetail() {
 
     return all;
   }, [allClientEntries, historyFilter, customDateRange]);
+
+  const deletedHistory = useMemo((): DeletedHistoryItem[] => (
+    deletedEntries
+      .map(e => ({
+        kind: 'debt' as const,
+        date: e.date_added,
+        productName: e.product_name,
+        quantity: e.quantity,
+        total: e.total,
+        registered_by: e.registered_by,
+        deleted_at: e.deleted_at,
+        deleted_reason: e.deleted_reason,
+        deleted_by: e.deleted_by,
+      }))
+      .sort((a, b) => new Date(b.deleted_at || b.date).getTime() - new Date(a.deleted_at || a.date).getTime())
+  ), [deletedEntries]);
 
   const groupedPayments = useMemo(
     () =>
@@ -387,6 +407,7 @@ export default function ClientDetail() {
     setProtectedDeletion(target);
     setDeleteAuthEmail((profileEmail || user?.email || '').trim());
     setDeleteAuthPassword('');
+    setDeleteReason('');
     setDeleteAuthOpen(true);
   };
 
@@ -398,6 +419,11 @@ export default function ClientDetail() {
 
     if (!normalizedEmail || !deleteAuthPassword.trim()) {
       toast.error('Informe email e senha do administrador.');
+      return;
+    }
+
+    if (protectedDeletion.kind === 'debt' && !deleteReason.trim()) {
+      toast.error('Informe o motivo da exclusão do item.');
       return;
     }
 
@@ -420,7 +446,7 @@ export default function ClientDetail() {
       }
 
       if (protectedDeletion.kind === 'debt') {
-        await data.deleteDebtEntry(protectedDeletion.debtEntryId);
+        await data.deleteDebtEntry(protectedDeletion.debtEntryId, deleteReason);
         toast.success('Item removido da caderneta.');
       } else {
         await data.deleteClientHistory(id);
@@ -493,6 +519,7 @@ export default function ClientDetail() {
         <TabsList className="mb-3 w-full sm:w-auto">
           <TabsTrigger value="debts" className="flex-1 sm:flex-none">Dívidas</TabsTrigger>
           <TabsTrigger value="history" className="flex-1 sm:flex-none">Histórico</TabsTrigger>
+          <TabsTrigger value="deleted" className="flex-1 sm:flex-none">Itens apagados</TabsTrigger>
           <TabsTrigger value="payments" className="flex-1 sm:flex-none">Pagamentos</TabsTrigger>
         </TabsList>
 
@@ -753,7 +780,37 @@ export default function ClientDetail() {
                 ))}
             {filteredHistory.length === 0 && <p className="text-center text-muted-foreground py-4 text-sm">{emptyHistoryMessage}</p>}
           </div>
-      </TabsContent>
+        </TabsContent>
+
+        <TabsContent value="deleted">
+          <div className="space-y-1.5">
+            {deletedHistory.length === 0 ? (
+              <p className="text-center text-muted-foreground py-4 text-sm">Nenhum item apagado desse cliente.</p>
+            ) : deletedHistory.map((item, i) => (
+              <Card key={`${item.productName}-${i}`} className="border-border/50">
+                <CardContent className="p-3 space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium truncate">{item.productName} x{item.quantity}</p>
+                      <p className="text-xs text-muted-foreground">Lançado em {formatClientDateTime(item.date)}</p>
+                      <p className="text-xs text-muted-foreground">Apagado em {item.deleted_at ? formatClientDateTime(item.deleted_at) : '-'}</p>
+                    </div>
+                    <span className="text-destructive font-medium text-sm whitespace-nowrap">R$ {item.total.toFixed(2)}</span>
+                  </div>
+                  {item.deleted_by && (
+                    <p className="text-xs text-muted-foreground">Apagado por: {item.deleted_by}</p>
+                  )}
+                  {item.deleted_reason && (
+                    <div className="rounded-md border border-border/60 bg-muted/30 p-2">
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Motivo</p>
+                      <p className="text-sm">{item.deleted_reason}</p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </TabsContent>
 
         <TabsContent value="payments">
           <div className="space-y-1.5">
@@ -917,6 +974,16 @@ export default function ClientDetail() {
                 placeholder="••••••••"
               />
             </div>
+            {protectedDeletion?.kind === 'debt' && (
+              <div className="space-y-2">
+                <Label>Motivo da exclusão</Label>
+                <Input
+                  value={deleteReason}
+                  onChange={event => setDeleteReason(event.target.value)}
+                  placeholder="Ex: item lançado em duplicidade"
+                />
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteAuthOpen(false)} disabled={deletingProtectedItem}>

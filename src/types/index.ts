@@ -36,6 +36,9 @@ export interface DebtEntry {
   status: string;
   deleted: boolean;
   registered_by?: string | null;
+  deleted_at?: string | null;
+  deleted_reason?: string | null;
+  deleted_by?: string | null;
 }
 
 export interface Payment {
