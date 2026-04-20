@@ -61,7 +61,7 @@ export function buildItemWhatsAppUrl(
   entries: DebtEntry[],
   balance: number
 ): string {
-  const grouped = groupEntries(entries.filter(e => !e.deleted && e.status === 'pending'));
+  const grouped = groupEntries(entries.filter(e => !e.deleted && !e.manual_deleted && e.status === 'pending'));
   const items = grouped
     .map(g => `• ${g.name} (${g.quantity}x) — R$ ${g.total.toFixed(2)}`)
     .join('\n');
@@ -93,7 +93,7 @@ export function buildPaymentWhatsAppUrl(
   remainingEntries: DebtEntry[],
   newBalance: number
 ): string {
-  const grouped = groupEntries(remainingEntries.filter(e => !e.deleted && e.status === 'pending'));
+  const grouped = groupEntries(remainingEntries.filter(e => !e.deleted && !e.manual_deleted && e.status === 'pending'));
   const isFullyPaid = grouped.length === 0 && newBalance <= 0;
 
   let msg: string;

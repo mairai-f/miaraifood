@@ -36,6 +36,10 @@ const nowIso = () => new Date().toISOString();
 const createId = () => (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
   ? crypto.randomUUID()
   : `temp-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`);
+const isManualDeletedDebtEntry = (entry: DebtEntry) => entry.manual_deleted === true;
+const isLegacyDeletedDebtEntry = (entry: DebtEntry) => entry.deleted === true && entry.status !== 'paid' && !isManualDeletedDebtEntry(entry);
+const isVisibleDebtEntry = (entry: DebtEntry) => !isManualDeletedDebtEntry(entry) && !isLegacyDeletedDebtEntry(entry);
+const isVisiblePendingDebtEntry = (entry: DebtEntry) => isVisibleDebtEntry(entry) && entry.status === 'pending' && !entry.deleted;
 
 interface DataContextType {
   clients: Client[]; products: Product[]; debtEntries: DebtEntry[]; payments: Payment[]; rewards: Reward[];
@@ -435,7 +439,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       .reduce((latest, payment) => Math.max(latest, new Date(payment.date).getTime()), 0);
 
     const totalDebt = debtEntries
-      .filter(d => d.client_id === clientId && !d.manual_deleted && d.status === 'pending')
+      .filter(d => d.client_id === clientId && isVisiblePendingDebtEntry(d))
       .reduce((sum, debt) => sum + debt.total, 0);
 
     const partialPaymentsInCurrentCycle = clientPayments
@@ -446,11 +450,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
   };
 
   const getClientTotalSpending = (clientId: string) => {
-    return debtEntries.filter(d => d.client_id === clientId && !d.manual_deleted).reduce((s, d) => s + d.total, 0);
+    return debtEntries.filter(d => d.client_id === clientId && isVisibleDebtEntry(d)).reduce((s, d) => s + d.total, 0);
   };
 
   const buildDebtDetailsSnapshot = (clientId: string): string => {
-    const pending = debtEntries.filter(d => d.client_id === clientId && !d.manual_deleted && d.status === 'pending');
+    const pending = debtEntries.filter(d => d.client_id === clientId && isVisiblePendingDebtEntry(d));
     if (pending.length === 0) return '';
     const groups = new Map<string, typeof pending>();
     for (const e of pending) {
@@ -478,7 +482,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const closeAllDebt = async (clientId: string, date?: string) => {
     const balance = getClientBalance(clientId);
     const paymentDate = date || new Date().toISOString();
-    const pendingIds = debtEntries.filter(d => d.client_id === clientId && !d.manual_deleted && d.status === 'pending').map(d => d.id);
+    const pendingIds = debtEntries.filter(d => d.client_id === clientId && isVisiblePendingDebtEntry(d)).map(d => d.id);
 
     if (isDemoMode) {
       if (balance > 0) {

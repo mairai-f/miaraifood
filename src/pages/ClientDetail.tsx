@@ -42,6 +42,11 @@ const samePaymentMoment = (left?: string | null, right?: string | null) => {
 
 type HistoryItem = { kind: 'debt'; date: string; productName: string; quantity: number; total: number; registered_by?: string };
 type DeletedHistoryItem = HistoryItem & { deleted_at?: string | null; deleted_reason?: string | null; deleted_by?: string | null };
+const isManualDeletedDebtEntry = (entry: { manual_deleted?: boolean }) => entry.manual_deleted === true;
+const isLegacyDeletedDebtEntry = (entry: { deleted: boolean; status: string; manual_deleted?: boolean }) =>
+  entry.deleted === true && entry.status !== 'paid' && !isManualDeletedDebtEntry(entry);
+const isVisibleDebtEntry = (entry: { deleted: boolean; status: string; manual_deleted?: boolean }) =>
+  !isManualDeletedDebtEntry(entry) && !isLegacyDeletedDebtEntry(entry);
 
 export default function ClientDetail() {
   const { clientRef } = useParams<{ clientRef: string }>();
@@ -82,8 +87,8 @@ export default function ClientDetail() {
   const id = client?.id;
 
   const allClientEntries = useMemo(() => data.debtEntries.filter(d => d.client_id === id), [data.debtEntries, id]);
-  const entries = useMemo(() => allClientEntries.filter(d => !d.manual_deleted), [allClientEntries]);
-  const deletedEntries = useMemo(() => allClientEntries.filter(d => d.manual_deleted), [allClientEntries]);
+  const entries = useMemo(() => allClientEntries.filter(isVisibleDebtEntry), [allClientEntries]);
+  const deletedEntries = useMemo(() => allClientEntries.filter(isManualDeletedDebtEntry), [allClientEntries]);
   const clientPayments = useMemo(() => data.payments.filter(p => p.client_id === id), [data.payments, id]);
   const parsedPayments = useMemo(
     () =>
@@ -93,7 +98,7 @@ export default function ClientDetail() {
           parsedType.kind === 'total'
             ? groupPaymentSnapshotItems(
                 allClientEntries
-                  .filter(entry => !entry.manual_deleted && entry.status === 'paid' && samePaymentMoment(entry.date_paid, payment.date))
+                  .filter(entry => isVisibleDebtEntry(entry) && entry.status === 'paid' && samePaymentMoment(entry.date_paid, payment.date))
                   .map(entry => ({
                     product_name: entry.product_name,
                     quantity: entry.quantity,
@@ -166,7 +171,7 @@ export default function ClientDetail() {
   // ── Histórico de dívidas filtrado (sem pagamentos) ─────────────────────────
   const filteredHistory = useMemo((): HistoryItem[] => {
     const all: HistoryItem[] = allClientEntries
-      .filter(e => !e.manual_deleted)
+      .filter(isVisibleDebtEntry)
       .map(e => ({ kind: 'debt' as const, date: e.date_added, productName: e.product_name, quantity: e.quantity, total: e.total, registered_by: e.registered_by }))
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
