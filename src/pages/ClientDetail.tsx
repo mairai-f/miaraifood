@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useData } from '@/contexts/DataContext';
 import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -29,6 +30,11 @@ import { openExternalUrl } from '@/lib/openExternalUrl';
 import { buildWhatsAppUrl, buildItemWhatsAppUrl, buildPaymentWhatsAppUrl } from '@/lib/whatsapp';
 import { normalizePhone } from '@/lib/phone';
 
+type PendingProtectedDeletion =
+  | { kind: 'debt'; debtEntryId: string }
+  | { kind: 'history' }
+  | null;
+
 const samePaymentMoment = (left?: string | null, right?: string | null) => {
   if (!left || !right) return false;
   return Math.abs(new Date(left).getTime() - new Date(right).getTime()) < 1000;
@@ -40,7 +46,7 @@ export default function ClientDetail() {
   const { clientRef } = useParams<{ clientRef: string }>();
   const navigate = useNavigate();
   const data = useData();
-  const { username } = useAuth();
+  const { username, isAdmin, profileEmail, user } = useAuth();
 
   const [productSearch, setProductSearch] = useState('');
   const [selectedProduct, setSelectedProduct] = useState<{ id: string; name: string; price: number } | null>(null);
@@ -64,6 +70,11 @@ export default function ClientDetail() {
   const [openPaymentGroups, setOpenPaymentGroups] = useState<Set<string>>(new Set());
   const [openPaymentItems, setOpenPaymentItems] = useState<Set<string>>(new Set());
   const [openHistoryItems, setOpenHistoryItems] = useState<Set<string>>(new Set());
+  const [protectedDeletion, setProtectedDeletion] = useState<PendingProtectedDeletion>(null);
+  const [deleteAuthOpen, setDeleteAuthOpen] = useState(false);
+  const [deleteAuthEmail, setDeleteAuthEmail] = useState('');
+  const [deleteAuthPassword, setDeleteAuthPassword] = useState('');
+  const [deletingProtectedItem, setDeletingProtectedItem] = useState(false);
 
   const client = findClientByRef(data.clients.filter(c => !c.deleted), clientRef || '');
   const id = client?.id;
@@ -367,6 +378,65 @@ export default function ClientDetail() {
     setCustomDateRange({ from: customDateFrom, to: customDateTo });
   };
 
+  const openProtectedDeletion = (target: PendingProtectedDeletion) => {
+    if (!isAdmin) {
+      toast.error('Operador não pode excluir itens da caderneta.');
+      return;
+    }
+
+    setProtectedDeletion(target);
+    setDeleteAuthEmail((profileEmail || user?.email || '').trim());
+    setDeleteAuthPassword('');
+    setDeleteAuthOpen(true);
+  };
+
+  const handleProtectedDeletion = async () => {
+    if (!protectedDeletion) return;
+
+    const expectedEmail = (profileEmail || user?.email || '').trim().toLowerCase();
+    const normalizedEmail = deleteAuthEmail.trim().toLowerCase();
+
+    if (!normalizedEmail || !deleteAuthPassword.trim()) {
+      toast.error('Informe email e senha do administrador.');
+      return;
+    }
+
+    if (expectedEmail && normalizedEmail !== expectedEmail) {
+      toast.error('Use o email do administrador logado para confirmar.');
+      return;
+    }
+
+    setDeletingProtectedItem(true);
+
+    try {
+      const { error } = await supabase.auth.signInWithPassword({
+        email: deleteAuthEmail.trim(),
+        password: deleteAuthPassword,
+      });
+
+      if (error) {
+        toast.error('Email ou senha inválidos.');
+        return;
+      }
+
+      if (protectedDeletion.kind === 'debt') {
+        await data.deleteDebtEntry(protectedDeletion.debtEntryId);
+        toast.success('Item removido da caderneta.');
+      } else {
+        await data.deleteClientHistory(id);
+        toast.success('Histórico de produtos excluído.');
+      }
+
+      setDeleteAuthOpen(false);
+      setProtectedDeletion(null);
+      setDeleteAuthPassword('');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Não foi possível concluir a exclusão.');
+    } finally {
+      setDeletingProtectedItem(false);
+    }
+  };
+
   return (
     <div>
       {/* Header */}
@@ -558,15 +628,11 @@ export default function ClientDetail() {
                                     setEditDatePaid('');
                                   }
                                 }}><Edit className="h-3 w-3" /></Button>
-                                <AlertDialog>
-                                  <AlertDialogTrigger asChild>
-                                    <Button size="icon" variant="ghost" className="h-6 w-6"><Trash2 className="h-3 w-3" /></Button>
-                                  </AlertDialogTrigger>
-                                  <AlertDialogContent>
-                                    <AlertDialogHeader><AlertDialogTitle>Remover dívida?</AlertDialogTitle><AlertDialogDescription>Essa ação não pode ser desfeita.</AlertDialogDescription></AlertDialogHeader>
-                                    <AlertDialogFooter><AlertDialogCancel>Cancelar</AlertDialogCancel><AlertDialogAction onClick={() => { data.deleteDebtEntry(e.id); toast.success('Removido'); }}>Confirmar</AlertDialogAction></AlertDialogFooter>
-                                  </AlertDialogContent>
-                                </AlertDialog>
+                                {isAdmin && (
+                                  <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => openProtectedDeletion({ kind: 'debt', debtEntryId: e.id })}>
+                                    <Trash2 className="h-3 w-3" />
+                                  </Button>
+                                )}
                               </div>
                             </div>
                           )}
@@ -591,15 +657,11 @@ export default function ClientDetail() {
                   {{ all: 'Tudo', daily: 'Hoje', weekly: 'Semana', monthly: 'Mês', custom: 'Personalizado' }[f]}
                 </Button>
               ))}
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <Button variant="destructive" size="sm" className="text-xs"><Trash2 className="h-3 w-3 mr-1" />Limpar Produtos</Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader><AlertDialogTitle>Limpar histórico de produtos?</AlertDialogTitle><AlertDialogDescription>Somente o histórico de produtos será removido. Os pagamentos continuarão salvos.</AlertDialogDescription></AlertDialogHeader>
-                  <AlertDialogFooter><AlertDialogCancel>Cancelar</AlertDialogCancel><AlertDialogAction onClick={() => { data.deleteClientHistory(id); toast.success('Histórico de produtos excluído'); }}>Confirmar</AlertDialogAction></AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
+              {isAdmin && (
+                <Button variant="destructive" size="sm" className="text-xs" onClick={() => openProtectedDeletion({ kind: 'history' })}>
+                  <Trash2 className="h-3 w-3 mr-1" />Limpar Produtos
+                </Button>
+              )}
             </div>
 
             {/* Filtro de data personalizado */}
@@ -691,7 +753,7 @@ export default function ClientDetail() {
                 ))}
             {filteredHistory.length === 0 && <p className="text-center text-muted-foreground py-4 text-sm">{emptyHistoryMessage}</p>}
           </div>
-        </TabsContent>
+      </TabsContent>
 
         <TabsContent value="payments">
           <div className="space-y-1.5">
@@ -825,6 +887,45 @@ export default function ClientDetail() {
             </div>
           </div>
           <DialogFooter><Button onClick={handleEditClient} className="w-full sm:w-auto">Salvar</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={deleteAuthOpen} onOpenChange={setDeleteAuthOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Confirmar exclusão na caderneta</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              Para excluir um item ou limpar o histórico da caderneta, informe o email e a senha do administrador.
+            </p>
+            <div className="space-y-2">
+              <Label>Email do administrador</Label>
+              <Input
+                type="email"
+                value={deleteAuthEmail}
+                onChange={event => setDeleteAuthEmail(event.target.value)}
+                placeholder="admin@empresa.com"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Senha</Label>
+              <Input
+                type="password"
+                value={deleteAuthPassword}
+                onChange={event => setDeleteAuthPassword(event.target.value)}
+                placeholder="••••••••"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteAuthOpen(false)} disabled={deletingProtectedItem}>
+              Cancelar
+            </Button>
+            <Button onClick={() => void handleProtectedDeletion()} disabled={deletingProtectedItem}>
+              Confirmar exclusão
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

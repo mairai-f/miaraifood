@@ -1,5 +1,3 @@
-import { Languages } from "lucide-react";
-
 import { useLocale } from "./useLocale";
 
 export function LanguageSwitcher() {
@@ -12,7 +10,7 @@ export function LanguageSwitcher() {
       title={locale === "en" ? "Change language" : "Trocar idioma"}
     >
       <div className="flex h-8 w-8 items-center justify-center rounded-full bg-muted text-muted-foreground">
-        <Languages className="h-4 w-4" />
+        <span className="text-[11px] font-bold tracking-[0.12em]">A/文</span>
       </div>
       <button
         type="button"

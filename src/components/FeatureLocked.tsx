@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { usePlanAccess } from '@/contexts/PlanContext';
+import { useCurrentSubscription } from '@/hooks/use-current-subscription';
 
 const planLabels: Record<string, string> = {
   demo: 'Demo 3 Horas',
@@ -13,7 +14,9 @@ const planLabels: Record<string, string> = {
 
 export function FeatureLocked() {
   const { planId } = usePlanAccess();
+  const { subscription } = useCurrentSubscription();
   const planLabel = planId ? planLabels[planId] || planId : 'Sem plano ativo';
+  const demoExpired = subscription?.plan_id === 'demo' && subscription?.status === 'expired';
 
   return (
     <div className="flex min-h-[60vh] items-center justify-center">
@@ -21,20 +24,33 @@ export function FeatureLocked() {
         <CardHeader>
           <CardTitle className="flex items-center gap-3 text-2xl">
             <ShieldAlert className="h-6 w-6 text-primary" />
-            Recurso indisponível no seu plano
+            {demoExpired ? 'Sua demo expirou' : 'Recurso indisponível no seu plano'}
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <p className="text-sm text-muted-foreground">
-            Seu acesso atual é <strong className="text-foreground">{planLabel}</strong>. Esse recurso não está liberado
-            para este plano.
-          </p>
-          <p className="text-sm text-muted-foreground">
-            Se você acabou de trocar de plano, atualize a sessão. Caso contrário, faça o upgrade para continuar.
-          </p>
+          {demoExpired ? (
+            <>
+              <p className="text-sm text-muted-foreground">
+                O período de teste gratuito de 3 horas foi encerrado. Para continuar usando o sistema, agora é preciso ativar um plano pago.
+              </p>
+              <p className="text-sm text-muted-foreground">
+                Entre no site da sua conta, escolha um plano e volte ao sistema depois da ativação.
+              </p>
+            </>
+          ) : (
+            <>
+              <p className="text-sm text-muted-foreground">
+                Seu acesso atual é <strong className="text-foreground">{planLabel}</strong>. Esse recurso não está liberado
+                para este plano.
+              </p>
+              <p className="text-sm text-muted-foreground">
+                Se você acabou de trocar de plano, atualize a sessão. Caso contrário, faça o upgrade para continuar.
+              </p>
+            </>
+          )}
           <div className="flex flex-col gap-3 sm:flex-row">
             <Button asChild className="sm:flex-1">
-              <Link to="/">Voltar ao painel</Link>
+              <Link to={demoExpired ? '/configuracoes' : '/'}>{demoExpired ? 'Ver situação da conta' : 'Voltar ao painel'}</Link>
             </Button>
           </div>
         </CardContent>

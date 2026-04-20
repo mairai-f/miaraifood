@@ -3,6 +3,7 @@ import { Building2, FileBadge2, Loader2, Save } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { useAuth } from '@/contexts/AuthContext';
+import { usePlanAccess } from '@/contexts/PlanContext';
 import { supabase } from '@/integrations/supabase/client';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -51,14 +52,23 @@ const toOptionalText = (value: string) => {
 
 export function CompanyProfileCard() {
   const { ownerUserId, user, isAdmin } = useAuth();
+  const { planId } = usePlanAccess();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [savedForm, setSavedForm] = useState<CompanyForm>(defaultForm);
   const [form, setForm] = useState<CompanyForm>(defaultForm);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const isDemoMode = planId === 'demo';
 
   useEffect(() => {
     if (!isAdmin) return;
+
+    if (isDemoMode) {
+      setSavedForm(defaultForm);
+      setForm(defaultForm);
+      setLoading(false);
+      return;
+    }
 
     if (!ownerUserId) {
       setLoading(false);
@@ -114,7 +124,7 @@ export function CompanyProfileCard() {
     return () => {
       active = false;
     };
-  }, [isAdmin, ownerUserId]);
+  }, [isAdmin, isDemoMode, ownerUserId]);
 
   const companyDisplayName = useMemo(
     () => savedForm.tradeName.trim() || savedForm.legalName.trim() || 'Empresa nao cadastrada',
@@ -145,6 +155,14 @@ export function CompanyProfileCard() {
     }
 
     setSaving(true);
+    if (isDemoMode) {
+      setSaving(false);
+      setSavedForm(form);
+      toast.success('Modo demo: os dados da empresa ficam disponíveis apenas durante este teste e não são salvos no banco.');
+      setDialogOpen(false);
+      return;
+    }
+
     const db = supabase as any;
     const businessName = form.tradeName.trim() || form.legalName.trim();
 

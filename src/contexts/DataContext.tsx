@@ -32,6 +32,11 @@ const withDisplayCode = (product: Product, existing: Product[] = []) => ({
   min_stock: product.min_stock ?? 0,
 });
 
+const nowIso = () => new Date().toISOString();
+const createId = () => (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+  ? crypto.randomUUID()
+  : `temp-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`);
+
 interface DataContextType {
   clients: Client[]; products: Product[]; debtEntries: DebtEntry[]; payments: Payment[]; rewards: Reward[];
   sales: Sale[]; saleItems: SaleItem[]; stockMovements: StockMovement[]; expenses: Expense[];
@@ -80,8 +85,8 @@ interface DataContextType {
 const DataContext = createContext<DataContextType | null>(null);
 
 export function DataProvider({ children }: { children: ReactNode }) {
-  const { user, ownerUserId, loading: authLoading } = useAuth();
-  const { hasFeature, loading: planLoading } = usePlanAccess();
+  const { user, ownerUserId, loading: authLoading, isAdmin } = useAuth();
+  const { hasFeature, loading: planLoading, planId } = usePlanAccess();
   const [clients, setClients] = useState<Client[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [debtEntries, setDebtEntries] = useState<DebtEntry[]>([]);
@@ -92,6 +97,22 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [stockMovements, setStockMovements] = useState<StockMovement[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [loading, setLoading] = useState(true);
+  const isDemoMode = planId === 'demo';
+
+  useEffect(() => {
+    if (!user || !ownerUserId || !isDemoMode) return;
+
+    setClients([]);
+    setProducts([]);
+    setDebtEntries([]);
+    setPayments([]);
+    setRewards([]);
+    setSales([]);
+    setSaleItems([]);
+    setStockMovements([]);
+    setExpenses([]);
+    setLoading(false);
+  }, [isDemoMode, ownerUserId, user]);
 
   const fetchAll = useCallback(async () => {
     if (authLoading || planLoading) {
@@ -104,6 +125,12 @@ export function DataProvider({ children }: { children: ReactNode }) {
       setSales([]); setSaleItems([]); setStockMovements([]); setExpenses([]);
       setLoading(false); return;
     }
+
+    if (isDemoMode) {
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
 
     const canReadClients = hasFeature('clients.manage');
@@ -146,22 +173,43 @@ export function DataProvider({ children }: { children: ReactNode }) {
     setStockMovements((sm.data as StockMovement[]) ?? []);
     setExpenses((exp.data as Expense[]) ?? []);
     setLoading(false);
-  }, [authLoading, hasFeature, ownerUserId, planLoading, user]);
+  }, [authLoading, hasFeature, isDemoMode, ownerUserId, planLoading, user]);
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
 
   // --- Clients ---
   const addClient = async (name: string, phone: string) => {
+    if (isDemoMode) {
+      const client: Client = {
+        id: createId(),
+        name,
+        phone,
+        created_at: nowIso(),
+        deleted: false,
+        deleted_at: null,
+        user_id: ownerUserId!,
+      };
+      setClients(prev => [client, ...prev]);
+      return;
+    }
     const { data, error } = await db.from('clients').insert({ name, phone, user_id: ownerUserId! }).select('*').single();
     if (error) throw error;
     setClients(prev => [data as Client, ...prev]);
   };
   const updateClient = async (id: string, data: Partial<Client>) => {
+    if (isDemoMode) {
+      setClients(prev => prev.map(client => client.id === id ? { ...client, ...data } : client));
+      return;
+    }
     const { data: updated, error } = await db.from('clients').update(data).eq('id', id).select('*').single();
     if (error) throw error;
     setClients(prev => prev.map(client => client.id === id ? updated as Client : client));
   };
   const softDeleteClient = async (id: string) => {
+    if (isDemoMode) {
+      setClients(prev => prev.map(client => client.id === id ? { ...client, deleted: true, deleted_at: nowIso() } : client));
+      return;
+    }
     const { data: updated, error } = await db.from('clients').update({ deleted: true, deleted_at: new Date().toISOString() }).eq('id', id).select('*').single();
     if (error) throw error;
     setClients(prev => prev.map(client => client.id === id ? updated as Client : client));
@@ -169,6 +217,23 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
   // --- Products ---
   const addProduct = async (name: string, price: number, category: string, extra: Partial<Product> = {}) => {
+    if (isDemoMode) {
+      const product = withDisplayCode({
+        id: createId(),
+        user_id: ownerUserId!,
+        name,
+        price,
+        category,
+        cost_price: extra.cost_price ?? 0,
+        barcode: extra.barcode ?? '',
+        stock: extra.stock ?? 0,
+        min_stock: extra.min_stock ?? 0,
+        deleted: false,
+        deleted_at: null,
+      } as Product, products);
+      setProducts(prev => [...prev, product]);
+      return;
+    }
     const { data, error } = await db.from('products').insert({
       user_id: ownerUserId!,
       name,
@@ -183,11 +248,19 @@ export function DataProvider({ children }: { children: ReactNode }) {
     setProducts(prev => [...prev, withDisplayCode(data as Product, prev)]);
   };
   const updateProduct = async (id: string, data: Partial<Product>) => {
+    if (isDemoMode) {
+      setProducts(prev => prev.map(product => product.id === id ? withDisplayCode({ ...product, ...data } as Product, prev) : product));
+      return;
+    }
     const { data: updated, error } = await db.from('products').update(data).eq('id', id).select('*').single();
     if (error) throw error;
     setProducts(prev => prev.map(product => product.id === id ? withDisplayCode(updated as Product, prev) : product));
   };
   const deleteProduct = async (id: string) => {
+    if (isDemoMode) {
+      setProducts(prev => prev.map(product => product.id === id ? { ...product, deleted: true, deleted_at: nowIso() } : product));
+      return;
+    }
     const { data: updated, error } = await db.from('products').update({ deleted: true, deleted_at: new Date().toISOString() }).eq('id', id).select('*').single();
     if (error) throw error;
     setProducts(prev => prev.map(product => product.id === id ? withDisplayCode(updated as Product, prev) : product));
@@ -205,6 +278,24 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
   // --- Debt Entries ---
   const addDebtEntry = async (clientId: string, productId: string, productName: string, quantity: number, unitPrice: number, dateAdded?: string, registeredBy?: string) => {
+    if (isDemoMode) {
+      const entry: DebtEntry = {
+        id: createId(),
+        client_id: clientId,
+        product_id: productId,
+        product_name: productName,
+        quantity,
+        unit_price: unitPrice,
+        total: quantity * unitPrice,
+        date_added: dateAdded || nowIso(),
+        date_paid: null,
+        status: 'pending',
+        deleted: false,
+        registered_by: registeredBy ?? null,
+      };
+      setDebtEntries(prev => [entry, ...prev]);
+      return;
+    }
     const { data, error } = await db.from('debt_entries').insert({
       client_id: clientId, product_id: productId, product_name: productName,
       quantity, unit_price: unitPrice, total: quantity * unitPrice,
@@ -219,6 +310,25 @@ export function DataProvider({ children }: { children: ReactNode }) {
     entries: Array<{ clientId: string; productId: string; productName: string; quantity: number; unitPrice: number; dateAdded?: string; registeredBy?: string }>
   ) => {
     if (entries.length === 0) return;
+
+    if (isDemoMode) {
+      const nextEntries = entries.map(entry => ({
+        id: createId(),
+        client_id: entry.clientId,
+        product_id: entry.productId,
+        product_name: entry.productName,
+        quantity: entry.quantity,
+        unit_price: entry.unitPrice,
+        total: entry.quantity * entry.unitPrice,
+        date_added: entry.dateAdded || nowIso(),
+        date_paid: null,
+        status: 'pending',
+        deleted: false,
+        registered_by: entry.registeredBy ?? null,
+      } as DebtEntry));
+      setDebtEntries(prev => [...nextEntries, ...prev]);
+      return;
+    }
 
     const { data, error } = await db.from('debt_entries').insert(
       entries.map(entry => ({
@@ -244,16 +354,40 @@ export function DataProvider({ children }: { children: ReactNode }) {
     if ('deleted' in data) mapped.deleted = data.deleted;
     if ('date_added' in data) mapped.date_added = data.date_added;
     if ('date_paid' in data) mapped.date_paid = data.date_paid;
+    if (isDemoMode) {
+      setDebtEntries(prev => prev.map(entry => entry.id === id ? { ...entry, ...mapped } as DebtEntry : entry));
+      return;
+    }
     ensureSuccess(await db.from('debt_entries').update(mapped as any).eq('id', id));
     await fetchAll();
   };
   const deleteDebtEntry = async (id: string) => {
+    if (!isAdmin) {
+      throw new Error('Operador não pode excluir itens da caderneta.');
+    }
+
+    if (isDemoMode) {
+      setDebtEntries(prev => prev.map(entry => entry.id === id ? { ...entry, deleted: true } : entry));
+      return;
+    }
     ensureSuccess(await db.from('debt_entries').update({ deleted: true }).eq('id', id));
     await fetchAll();
   };
 
   // --- Payments ---
   const addPayment = async (clientId: string, amount: number, type: 'total' | 'partial', date?: string) => {
+    if (isDemoMode) {
+      const payment: Payment = {
+        id: createId(),
+        client_id: clientId,
+        amount,
+        type,
+        date: date || nowIso(),
+        details: null,
+      };
+      setPayments(prev => [payment, ...prev]);
+      return;
+    }
     const { data, error } = await db
       .from('payments')
       .insert({ client_id: clientId, amount, type, date: date || new Date().toISOString() })
@@ -264,6 +398,13 @@ export function DataProvider({ children }: { children: ReactNode }) {
     setPayments(prev => [data as Payment, ...prev]);
   };
   const deletePayment = async (id: string) => {
+    if (!isAdmin) {
+      throw new Error('Operador não pode excluir pagamentos da caderneta.');
+    }
+    if (isDemoMode) {
+      setPayments(prev => prev.filter(payment => payment.id !== id));
+      return;
+    }
     ensureSuccess(await db.from('payments').delete().eq('id', id));
     await fetchAll();
   };
@@ -319,6 +460,28 @@ export function DataProvider({ children }: { children: ReactNode }) {
     const paymentDate = date || new Date().toISOString();
     const pendingIds = debtEntries.filter(d => d.client_id === clientId && !d.deleted && d.status === 'pending').map(d => d.id);
 
+    if (isDemoMode) {
+      if (balance > 0) {
+        setPayments(prev => [{
+          id: createId(),
+          client_id: clientId,
+          amount: balance,
+          type: 'total',
+          date: paymentDate,
+          details: null,
+        }, ...prev]);
+      }
+
+      if (pendingIds.length > 0) {
+        setDebtEntries(prev => prev.map(entry =>
+          pendingIds.includes(entry.id)
+            ? { ...entry, status: 'paid', date_paid: paymentDate, deleted: true }
+            : entry
+        ));
+      }
+      return;
+    }
+
     if (balance > 0) {
       const { error } = await db
         .from('payments')
@@ -340,6 +503,14 @@ export function DataProvider({ children }: { children: ReactNode }) {
   };
 
   const deleteClientHistory = async (clientId: string) => {
+    if (!isAdmin) {
+      throw new Error('Operador não pode limpar histórico da caderneta.');
+    }
+
+    if (isDemoMode) {
+      setDebtEntries(prev => prev.filter(entry => entry.client_id !== clientId));
+      return;
+    }
     ensureSuccess(await db.from('debt_entries').delete().eq('client_id', clientId));
     await fetchAll();
   };
@@ -349,6 +520,46 @@ export function DataProvider({ children }: { children: ReactNode }) {
     sale: Omit<Sale, 'id' | 'created_at' | 'date'>,
     items: Omit<SaleItem, 'id' | 'sale_id'>[],
   ) => {
+    if (isDemoMode) {
+      const saleId = createId();
+      const createdAt = nowIso();
+      const saleRow: Sale = {
+        id: saleId,
+        created_at: createdAt,
+        date: createdAt,
+        ...sale,
+        user_id: ownerUserId!,
+      };
+      const saleRows = items.map(item => ({
+        ...item,
+        id: createId(),
+        sale_id: saleId,
+      })) as SaleItem[];
+      const movements = items
+        .filter(item => item.product_id)
+        .map(item => ({
+          id: createId(),
+          product_id: item.product_id!,
+          user_id: ownerUserId!,
+          type: 'saida',
+          quantity: item.quantity,
+          reason: 'Venda PDV',
+          date: createdAt,
+        } as StockMovement));
+
+      setSales(prev => [saleRow, ...prev]);
+      setSaleItems(prev => [...saleRows, ...prev]);
+      setProducts(prev => prev.map(product => {
+        const soldQuantity = items.filter(item => item.product_id === product.id).reduce((sum, item) => sum + item.quantity, 0);
+        return soldQuantity > 0 ? { ...product, stock: Math.max(0, (product.stock || 0) - soldQuantity) } : product;
+      }));
+      if (movements.length > 0) {
+        setStockMovements(prev => [...movements, ...prev]);
+      }
+
+      return { sale: saleRow, items: saleRows };
+    }
+
     const salePayload = {
       ...sale,
       user_id: ownerUserId!,
@@ -431,6 +642,27 @@ export function DataProvider({ children }: { children: ReactNode }) {
   };
 
   const cancelSale = async (saleId: string, reason: string) => {
+    if (isDemoMode) {
+      const itemsToRestore = saleItems.filter(item => item.sale_id === saleId && item.product_id);
+      const cancelledAt = nowIso();
+      setSales(prev => prev.map(item => item.id === saleId ? { ...item, status: 'cancelled', cancel_reason: reason, cancelled_at: cancelledAt } : item));
+      setProducts(prev => prev.map(product => {
+        const restoredQuantity = itemsToRestore.filter(item => item.product_id === product.id).reduce((sum, item) => sum + item.quantity, 0);
+        return restoredQuantity > 0 ? { ...product, stock: (product.stock || 0) + restoredQuantity } : product;
+      }));
+      if (itemsToRestore.length > 0) {
+        setStockMovements(prev => [...itemsToRestore.map(item => ({
+          id: createId(),
+          product_id: item.product_id!,
+          user_id: ownerUserId!,
+          type: 'entrada',
+          quantity: item.quantity,
+          reason: `Cancelamento venda: ${reason}`,
+          date: cancelledAt,
+        } as StockMovement)), ...prev]);
+      }
+      return;
+    }
     const { data: updatedSale, error } = await db
       .from('sales')
       .update({ status: 'cancelled', cancel_reason: reason, cancelled_at: new Date().toISOString() })
@@ -485,6 +717,19 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
   // --- Stock ---
   const addStockMovement = async (productId: string, type: string, quantity: number, reason: string) => {
+    if (isDemoMode) {
+      const movement: StockMovement = {
+        id: createId(),
+        product_id: productId,
+        user_id: ownerUserId!,
+        type,
+        quantity,
+        reason,
+        date: nowIso(),
+      };
+      setStockMovements(prev => [movement, ...prev]);
+      return;
+    }
     const { data, error } = await db.from('stock_movements').insert({ product_id: productId, user_id: ownerUserId!, type, quantity, reason }).select('*').single();
     if (error) throw error;
     setStockMovements(prev => [data as StockMovement, ...prev]);
@@ -493,6 +738,24 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const clearAllStock = async (reason = 'Limpeza geral de estoque') => {
     const stockedProducts = products.filter(product => !product.deleted && (product.stock || 0) > 0);
     if (stockedProducts.length === 0) return;
+
+    if (isDemoMode) {
+      const movementDate = nowIso();
+      setProducts(prev => prev.map(product => (product.deleted || (product.stock || 0) <= 0 ? product : { ...product, stock: 0 })));
+      setStockMovements(prev => [
+        ...stockedProducts.map(product => ({
+          id: createId(),
+          product_id: product.id,
+          user_id: ownerUserId!,
+          type: 'saida',
+          quantity: product.stock,
+          reason,
+          date: movementDate,
+        } as StockMovement)),
+        ...prev,
+      ]);
+      return;
+    }
 
     const stockedIds = stockedProducts.map(product => product.id);
     const { data: updatedRows, error: updateError } = await db
@@ -543,6 +806,20 @@ export function DataProvider({ children }: { children: ReactNode }) {
       date?: string;
     }
   ) => {
+    if (isDemoMode) {
+      const expense: Expense = {
+        id: createId(),
+        user_id: ownerUserId!,
+        operator_user_id: metadata?.operatorUserId ?? null,
+        cash_session_id: metadata?.cashSessionId ?? null,
+        description,
+        amount,
+        category,
+        date: metadata?.date || nowIso(),
+      };
+      setExpenses(prev => [expense, ...prev]);
+      return;
+    }
     const expensePayload = {
       user_id: ownerUserId!,
       operator_user_id: metadata?.operatorUserId ?? null,
@@ -567,22 +844,45 @@ export function DataProvider({ children }: { children: ReactNode }) {
     setExpenses(prev => [expenseData as Expense, ...prev]);
   };
   const deleteExpense = async (id: string) => {
+    if (isDemoMode) {
+      setExpenses(prev => prev.filter(expense => expense.id !== id));
+      return;
+    }
     ensureSuccess(await db.from('expenses').delete().eq('id', id));
     await fetchAll();
   };
 
   // --- Rewards ---
   const addReward = async (name: string, description: string, minimum_spending: number) => {
+    if (isDemoMode) {
+      setRewards(prev => [{
+        id: createId(),
+        name,
+        description,
+        minimum_spending,
+        created_at: nowIso(),
+        user_id: ownerUserId!,
+      }, ...prev]);
+      return;
+    }
     ensureSuccess(await db.from('rewards').insert({ user_id: ownerUserId!, name, description, minimum_spending }));
     await fetchAll();
   };
 
   const updateReward = async (id: string, data: Partial<Reward>) => {
+    if (isDemoMode) {
+      setRewards(prev => prev.map(reward => reward.id === id ? { ...reward, ...data } : reward));
+      return;
+    }
     ensureSuccess(await db.from('rewards').update(data).eq('id', id));
     await fetchAll();
   };
 
   const deleteReward = async (id: string) => {
+    if (isDemoMode) {
+      setRewards(prev => prev.filter(reward => reward.id !== id));
+      return;
+    }
     ensureSuccess(await db.from('rewards').delete().eq('id', id));
     await fetchAll();
   };
