@@ -38,8 +38,8 @@ const readBoolean = (key: string, fallback: boolean) => {
 };
 
 export const getSiteLoginPreferences = (): SiteLoginPreferences => ({
-  rememberAccount: readBoolean(storageKeys.rememberAccount, true),
-  keepConnected: readBoolean(storageKeys.keepConnected, true),
+  rememberAccount: readBoolean(storageKeys.rememberAccount, false),
+  keepConnected: readBoolean(storageKeys.keepConnected, false),
   email: readLocalStorage(storageKeys.rememberedEmail) ?? '',
 });
 

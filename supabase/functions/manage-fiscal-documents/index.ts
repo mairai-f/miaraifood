@@ -1,4 +1,5 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
+import { buildCorsHeaders, handleCorsPreflight } from '../_shared/cors.ts';
 
 type ManageFiscalRequest =
   | {
@@ -89,17 +90,13 @@ interface FiscalDocumentRow {
 const HOMOLOGATION_MESSAGE = 'EMITIDA EM AMBIENTE DE HOMOLOGACAO - SEM VALOR FISCAL';
 const SP_UF_CODE = '35';
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-};
-
-const jsonResponse = (body: Record<string, unknown>, status = 200) =>
+const jsonResponse = (request: Request, body: Record<string, unknown>, status = 200) =>
   new Response(JSON.stringify(body), {
     status,
     headers: {
-      ...corsHeaders,
+      ...Object.fromEntries(buildCorsHeaders(request, {
+        allowedMethods: ['POST', 'OPTIONS'],
+      }).headers.entries()),
       'Content-Type': 'application/json',
     },
   });
@@ -245,11 +242,13 @@ const reserveNextNumber = async (
 
 Deno.serve(async (request) => {
   if (request.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
+    return handleCorsPreflight(request, {
+      allowedMethods: ['POST', 'OPTIONS'],
+    });
   }
 
   if (request.method !== 'POST') {
-    return jsonResponse({ error: 'Metodo nao suportado.' }, 405);
+    return jsonResponse(request, { error: 'Metodo nao suportado.' }, 405);
   }
 
   const supabaseUrl = Deno.env.get('SUPABASE_URL');
@@ -258,11 +257,11 @@ Deno.serve(async (request) => {
   const accessToken = extractAccessToken(request.headers.get('Authorization'));
 
   if (!supabaseUrl || !supabaseAnonKey || !supabaseServiceRoleKey) {
-    return jsonResponse({ error: 'Configuracao do Supabase invalida.' }, 500);
+    return jsonResponse(request, { error: 'Configuracao do Supabase invalida.' }, 500);
   }
 
   if (!accessToken) {
-    return jsonResponse({ error: 'Sessao invalida. Faca login novamente.' }, 401);
+    return jsonResponse(request, { error: 'Sessao invalida. Faca login novamente.' }, 401);
   }
 
   const authClient = createClient(supabaseUrl, supabaseAnonKey, {
@@ -290,12 +289,12 @@ Deno.serve(async (request) => {
   } = await authClient.auth.getUser(accessToken);
 
   if (authError || !user) {
-    return jsonResponse({ error: 'Sessao invalida. Faca login novamente.' }, 401);
+    return jsonResponse(request, { error: 'Sessao invalida. Faca login novamente.' }, 401);
   }
 
   const body = await getBody(request);
   if (!body?.action) {
-    return jsonResponse({ error: 'Acao invalida.' }, 400);
+    return jsonResponse(request, { error: 'Acao invalida.' }, 400);
   }
 
   const { data: callerProfile, error: callerProfileError } = await serviceClient
@@ -305,13 +304,13 @@ Deno.serve(async (request) => {
     .single();
 
   if (callerProfileError || !callerProfile) {
-    return jsonResponse({ error: 'Perfil do usuario nao encontrado.' }, 403);
+    return jsonResponse(request, { error: 'Perfil do usuario nao encontrado.' }, 403);
   }
 
   const typedCallerProfile = callerProfile as CallerProfileRow;
 
   if (typedCallerProfile.role !== 'admin') {
-    return jsonResponse({ error: 'Somente administradores podem emitir documentos fiscais.' }, 403);
+    return jsonResponse(request, { error: 'Somente administradores podem emitir documentos fiscais.' }, 403);
   }
 
   const { data: hasFiscalAccess, error: fiscalAccessError } = await authClient.rpc('current_store_has_feature', {
@@ -319,7 +318,7 @@ Deno.serve(async (request) => {
   });
 
   if (fiscalAccessError || !hasFiscalAccess) {
-    return jsonResponse({ error: 'Seu plano atual nao libera documentos fiscais.' }, 403);
+    return jsonResponse(request, { error: 'Seu plano atual nao libera documentos fiscais.' }, 403);
   }
 
   const ownerUserId = typedCallerProfile.owner_user_id ?? user.id;
@@ -331,14 +330,14 @@ Deno.serve(async (request) => {
     .maybeSingle();
 
   if (settingsError) {
-    return jsonResponse({ error: 'Nao foi possivel carregar a configuracao fiscal da loja.' }, 500);
+    return jsonResponse(request, { error: 'Nao foi possivel carregar a configuracao fiscal da loja.' }, 500);
   }
 
   const settings = (settingsData ?? null) as FiscalSettingsRow | null;
   const missingItems = buildMissingItems(settings);
 
   if (body.action === 'runtime_status') {
-    return jsonResponse({
+    return jsonResponse(request, {
       success: true,
       runtime: {
         enabled: Boolean(settings?.nfce_enabled),
@@ -356,23 +355,23 @@ Deno.serve(async (request) => {
   }
 
   if (body.action !== 'issue_nfce_homologation') {
-    return jsonResponse({ error: 'Acao fiscal nao suportada.' }, 400);
+    return jsonResponse(request, { error: 'Acao fiscal nao suportada.' }, 400);
   }
 
   if (!body.saleId?.trim()) {
-    return jsonResponse({ error: 'Venda invalida para emissao da NFC-e.' }, 400);
+    return jsonResponse(request, { error: 'Venda invalida para emissao da NFC-e.' }, 400);
   }
 
   if (!settings || !settings.nfce_enabled) {
-    return jsonResponse({ error: 'A NFC-e nao esta ativada para esta loja.' }, 400);
+    return jsonResponse(request, { error: 'A NFC-e nao esta ativada para esta loja.' }, 400);
   }
 
   if (settings.nfce_environment !== 'homologacao') {
-    return jsonResponse({ error: 'Somente o fluxo inicial de homologacao esta disponivel nesta etapa.' }, 400);
+    return jsonResponse(request, { error: 'Somente o fluxo inicial de homologacao esta disponivel nesta etapa.' }, 400);
   }
 
   if (missingItems.length > 0) {
-    return jsonResponse({
+    return jsonResponse(request, {
       error: 'Complete a configuracao fiscal da loja antes de emitir a NFC-e em homologacao.',
       missingItems,
     }, 400);
@@ -387,11 +386,11 @@ Deno.serve(async (request) => {
     .maybeSingle();
 
   if (existingDocumentError) {
-    return jsonResponse({ error: 'Nao foi possivel consultar o documento fiscal existente.' }, 500);
+    return jsonResponse(request, { error: 'Nao foi possivel consultar o documento fiscal existente.' }, 500);
   }
 
   if (existingDocument) {
-    return jsonResponse({
+    return jsonResponse(request, {
       success: true,
       document: normalizeFiscalDocument(existingDocument as FiscalDocumentRow),
       reused: true,
@@ -406,13 +405,13 @@ Deno.serve(async (request) => {
     .single();
 
   if (saleError || !saleData) {
-    return jsonResponse({ error: 'Venda nao encontrada para a emissao da NFC-e.' }, 404);
+    return jsonResponse(request, { error: 'Venda nao encontrada para a emissao da NFC-e.' }, 404);
   }
 
   const sale = saleData as SaleRow;
 
   if (sale.status === 'cancelled') {
-    return jsonResponse({ error: 'Nao e possivel emitir NFC-e para venda cancelada.' }, 400);
+    return jsonResponse(request, { error: 'Nao e possivel emitir NFC-e para venda cancelada.' }, 400);
   }
 
   const { data: itemsData, error: itemsError } = await serviceClient
@@ -421,12 +420,12 @@ Deno.serve(async (request) => {
     .eq('sale_id', saleId);
 
   if (itemsError) {
-    return jsonResponse({ error: 'Nao foi possivel carregar os itens da venda.' }, 500);
+    return jsonResponse(request, { error: 'Nao foi possivel carregar os itens da venda.' }, 500);
   }
 
   const items = (itemsData as SaleItemRow[] | null) ?? [];
   if (items.length === 0) {
-    return jsonResponse({ error: 'A venda nao possui itens para emissao da NFC-e.' }, 400);
+    return jsonResponse(request, { error: 'A venda nao possui itens para emissao da NFC-e.' }, 400);
   }
 
   let client: ClientRow | null = null;
@@ -508,10 +507,10 @@ Deno.serve(async (request) => {
     .single();
 
   if (createDocumentError || !createdDocument) {
-    return jsonResponse({ error: 'Nao foi possivel registrar o documento fiscal de homologacao.' }, 500);
+    return jsonResponse(request, { error: 'Nao foi possivel registrar o documento fiscal de homologacao.' }, 500);
   }
 
-  return jsonResponse({
+  return jsonResponse(request, {
     success: true,
     document: normalizeFiscalDocument(createdDocument as FiscalDocumentRow),
     reused: false,

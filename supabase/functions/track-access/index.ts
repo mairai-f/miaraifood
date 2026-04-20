@@ -1,4 +1,5 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { buildCorsHeaders, handleCorsPreflight } from "../_shared/cors.ts";
 
 type AccessEventType = "heartbeat" | "logout";
 type AccessSource = "system" | "site";
@@ -24,17 +25,13 @@ interface AccessSessionRow {
   login_at: string;
 }
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "*",
-  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-};
-
-const jsonResponse = (body: Record<string, unknown>, status = 200) =>
+const jsonResponse = (request: Request, body: Record<string, unknown>, status = 200) =>
   new Response(JSON.stringify(body), {
     status,
     headers: {
-      ...corsHeaders,
+      ...Object.fromEntries(buildCorsHeaders(request, {
+        allowedMethods: ["POST", "OPTIONS"],
+      }).headers.entries()),
       "Content-Type": "application/json",
     },
   });
@@ -101,11 +98,13 @@ const detectOs = (userAgent: string) => {
 
 Deno.serve(async (request) => {
   if (request.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
+    return handleCorsPreflight(request, {
+      allowedMethods: ["POST", "OPTIONS"],
+    });
   }
 
   if (request.method !== "POST") {
-    return jsonResponse({ error: "Método não suportado." }, 405);
+    return jsonResponse(request, { error: "Método não suportado." }, 405);
   }
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
@@ -114,11 +113,11 @@ Deno.serve(async (request) => {
   const accessToken = extractAccessToken(request.headers.get("Authorization"));
 
   if (!supabaseUrl || !supabaseAnonKey || !supabaseServiceRoleKey) {
-    return jsonResponse({ error: "Configuração do Supabase inválida." }, 500);
+    return jsonResponse(request, { error: "Configuração do Supabase inválida." }, 500);
   }
 
   if (!accessToken) {
-    return jsonResponse({ error: "Sessão inválida. Faça login novamente." }, 401);
+    return jsonResponse(request, { error: "Sessão inválida. Faça login novamente." }, 401);
   }
 
   const authClient = createClient(supabaseUrl, supabaseAnonKey, {
@@ -146,7 +145,7 @@ Deno.serve(async (request) => {
   } = await authClient.auth.getUser();
 
   if (authError || !user) {
-    return jsonResponse({ error: "Sessão inválida. Faça login novamente." }, 401);
+    return jsonResponse(request, { error: "Sessão inválida. Faça login novamente." }, 401);
   }
 
   let body: TrackAccessRequest;
@@ -154,12 +153,12 @@ Deno.serve(async (request) => {
   try {
     body = await request.json();
   } catch {
-    return jsonResponse({ error: "Payload inválido." }, 400);
+    return jsonResponse(request, { error: "Payload inválido." }, 400);
   }
 
   const clientSessionId = body.clientSessionId?.trim();
   if (!clientSessionId) {
-    return jsonResponse({ error: "Sessão do cliente não informada." }, 400);
+    return jsonResponse(request, { error: "Sessão do cliente não informada." }, 400);
   }
 
   const eventType = normalizeEventType(body.eventType);
@@ -172,7 +171,7 @@ Deno.serve(async (request) => {
     .maybeSingle();
 
   if (profileError) {
-    return jsonResponse({ error: profileError.message || "Não foi possível identificar o usuário." }, 500);
+    return jsonResponse(request, { error: profileError.message || "Não foi possível identificar o usuário." }, 500);
   }
 
   const profile = (profileData as AccessProfileRow | null) || null;
@@ -199,14 +198,14 @@ Deno.serve(async (request) => {
     .maybeSingle();
 
   if (existingSessionError) {
-    return jsonResponse({ error: existingSessionError.message || "Não foi possível carregar a sessão de acesso." }, 500);
+    return jsonResponse(request, { error: existingSessionError.message || "Não foi possível carregar a sessão de acesso." }, 500);
   }
 
   const existingSession = (existingSessionData as AccessSessionRow | null) || null;
   const metadata = body.metadata && typeof body.metadata === "object" ? body.metadata : {};
 
   if (!existingSession && eventType === "logout") {
-    return jsonResponse({ success: true, ignored: true });
+    return jsonResponse(request, { success: true, ignored: true });
   }
 
   let accessSessionId = existingSession?.id ?? null;
@@ -237,7 +236,7 @@ Deno.serve(async (request) => {
       .single();
 
     if (insertSessionError || !insertedSession) {
-      return jsonResponse({ error: insertSessionError?.message || "Não foi possível criar a sessão de acesso." }, 500);
+      return jsonResponse(request, { error: insertSessionError?.message || "Não foi possível criar a sessão de acesso." }, 500);
     }
 
     accessSessionId = (insertedSession as { id: string }).id;
@@ -264,10 +263,10 @@ Deno.serve(async (request) => {
       });
 
     if (insertLogError) {
-      return jsonResponse({ error: insertLogError.message || "Não foi possível registrar o login." }, 500);
+      return jsonResponse(request, { error: insertLogError.message || "Não foi possível registrar o login." }, 500);
     }
 
-    return jsonResponse({ success: true, eventType: "login" });
+    return jsonResponse(request, { success: true, eventType: "login" });
   }
 
   const { error: updateSessionError } = await serviceClient
@@ -289,7 +288,7 @@ Deno.serve(async (request) => {
     .eq("id", existingSession.id);
 
   if (updateSessionError) {
-    return jsonResponse({ error: updateSessionError.message || "Não foi possível atualizar a sessão de acesso." }, 500);
+    return jsonResponse(request, { error: updateSessionError.message || "Não foi possível atualizar a sessão de acesso." }, 500);
   }
 
   if (eventType === "logout") {
@@ -315,9 +314,9 @@ Deno.serve(async (request) => {
       });
 
     if (logoutLogError) {
-      return jsonResponse({ error: logoutLogError.message || "Não foi possível registrar o logout." }, 500);
+      return jsonResponse(request, { error: logoutLogError.message || "Não foi possível registrar o logout." }, 500);
     }
   }
 
-  return jsonResponse({ success: true, eventType });
+  return jsonResponse(request, { success: true, eventType });
 });

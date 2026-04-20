@@ -1,6 +1,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 import type { AsaasWebhookPayload } from "../_shared/asaas.ts";
+import { buildCorsHeaders, handleCorsPreflight } from "../_shared/cors.ts";
 
 interface StoreSubscriptionRow {
   id: string;
@@ -21,17 +22,13 @@ interface SubscriptionPlanRow {
   duration_days: number;
 }
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "*",
-  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-};
-
-const jsonResponse = (body: Record<string, unknown>, status = 200) =>
+const jsonResponse = (request: Request, body: Record<string, unknown>, status = 200) =>
   new Response(JSON.stringify(body), {
     status,
     headers: {
-      ...corsHeaders,
+      ...Object.fromEntries(buildCorsHeaders(request, {
+        allowedMethods: ["POST", "OPTIONS"],
+      }).headers.entries()),
       "Content-Type": "application/json",
     },
   });
@@ -148,11 +145,13 @@ const activateSubscriptionFromPayment = async (
 
 Deno.serve(async (request) => {
   if (request.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
+    return handleCorsPreflight(request, {
+      allowedMethods: ["POST", "OPTIONS"],
+    });
   }
 
   if (request.method !== "POST") {
-    return jsonResponse({ error: "Método não suportado." }, 405);
+    return jsonResponse(request, { error: "Método não suportado." }, 405);
   }
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
@@ -161,15 +160,15 @@ Deno.serve(async (request) => {
   const incomingWebhookToken = request.headers.get("asaas-access-token");
 
   if (!supabaseUrl || !supabaseServiceRoleKey) {
-    return jsonResponse({ error: "Configuração do Supabase inválida." }, 500);
+    return jsonResponse(request, { error: "Configuração do Supabase inválida." }, 500);
   }
 
   if (!webhookToken) {
-    return jsonResponse({ error: "ASAAS_WEBHOOK_AUTH_TOKEN não configurado." }, 500);
+    return jsonResponse(request, { error: "ASAAS_WEBHOOK_AUTH_TOKEN não configurado." }, 500);
   }
 
   if (!incomingWebhookToken || incomingWebhookToken !== webhookToken) {
-    return jsonResponse({ error: "Webhook não autorizado." }, 401);
+    return jsonResponse(request, { error: "Webhook não autorizado." }, 401);
   }
 
   let body: AsaasWebhookPayload;
@@ -177,11 +176,11 @@ Deno.serve(async (request) => {
   try {
     body = await request.json();
   } catch {
-    return jsonResponse({ error: "Payload inválido." }, 400);
+    return jsonResponse(request, { error: "Payload inválido." }, 400);
   }
 
   if (!body?.id || !body?.event || !body?.payment?.id) {
-    return jsonResponse({ received: true });
+    return jsonResponse(request, { received: true });
   }
 
   const serviceClient = createClient(supabaseUrl, supabaseServiceRoleKey, {
@@ -201,12 +200,12 @@ Deno.serve(async (request) => {
     });
 
   if (logError && logError.code === "23505") {
-    return jsonResponse({ received: true, duplicate: true });
+    return jsonResponse(request, { received: true, duplicate: true });
   }
 
   if (logError) {
     console.error("Falha ao registrar webhook do Asaas:", logError);
-    return jsonResponse({ error: "Não foi possível registrar o evento recebido." }, 500);
+    return jsonResponse(request, { error: "Não foi possível registrar o evento recebido." }, 500);
   }
 
   const subscription = await resolveSubscription(
@@ -216,7 +215,7 @@ Deno.serve(async (request) => {
   );
 
   if (!subscription) {
-    return jsonResponse({ received: true, ignored: true });
+    return jsonResponse(request, { received: true, ignored: true });
   }
 
   try {
@@ -224,11 +223,11 @@ Deno.serve(async (request) => {
 
     if (body.event === "PAYMENT_RECEIVED") {
       if (subscription.status === "canceled" || subscription.status === "expired") {
-        return jsonResponse({ received: true, ignored: true });
+        return jsonResponse(request, { received: true, ignored: true });
       }
 
       await activateSubscriptionFromPayment(serviceClient, subscription, body);
-      return jsonResponse({ received: true, activated: true });
+      return jsonResponse(request, { received: true, activated: true });
     }
 
     if (body.event === "PAYMENT_CREATED" || body.event === "PAYMENT_UPDATED" || body.event === "PAYMENT_OVERDUE") {
@@ -246,7 +245,7 @@ Deno.serve(async (request) => {
         })
         .eq("id", subscription.id);
 
-      return jsonResponse({ received: true, updated: true });
+      return jsonResponse(request, { received: true, updated: true });
     }
 
     if (body.event === "PAYMENT_DELETED" && subscription.status === "pending") {
@@ -265,7 +264,7 @@ Deno.serve(async (request) => {
         .eq("id", subscription.id);
     }
 
-    return jsonResponse({ received: true });
+    return jsonResponse(request, { received: true });
   } catch (error) {
     await serviceClient
       .from("billing_webhook_events")
@@ -275,6 +274,7 @@ Deno.serve(async (request) => {
 
     console.error("Falha ao processar webhook do Asaas:", error);
     return jsonResponse(
+      request,
       {
         error: error instanceof Error ? error.message : "Não foi possível processar o webhook.",
       },

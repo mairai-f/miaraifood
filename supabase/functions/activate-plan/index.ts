@@ -1,4 +1,5 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { buildCorsHeaders, handleCorsPreflight } from "../_shared/cors.ts";
 
 type SupportedPaidPlan = "fiado" | "completo" | "pro";
 
@@ -18,17 +19,13 @@ interface StoreAccountRow {
   id: string;
 }
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "*",
-  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-};
-
-const jsonResponse = (body: Record<string, unknown>, status = 200) =>
+const jsonResponse = (request: Request, body: Record<string, unknown>, status = 200) =>
   new Response(JSON.stringify(body), {
     status,
     headers: {
-      ...corsHeaders,
+      ...Object.fromEntries(buildCorsHeaders(request, {
+        allowedMethods: ["POST", "OPTIONS"],
+      }).headers.entries()),
       "Content-Type": "application/json",
     },
   });
@@ -43,11 +40,13 @@ const supportedPlans = new Set<SupportedPaidPlan>(["fiado", "completo", "pro"]);
 
 Deno.serve(async (request) => {
   if (request.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
+    return handleCorsPreflight(request, {
+      allowedMethods: ["POST", "OPTIONS"],
+    });
   }
 
   if (request.method !== "POST") {
-    return jsonResponse({ error: "Método não suportado." }, 405);
+    return jsonResponse(request, { error: "Método não suportado." }, 405);
   }
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
@@ -56,11 +55,11 @@ Deno.serve(async (request) => {
   const accessToken = extractAccessToken(request.headers.get("Authorization"));
 
   if (!supabaseUrl || !supabaseAnonKey || !supabaseServiceRoleKey) {
-    return jsonResponse({ error: "Configuração do Supabase inválida." }, 500);
+    return jsonResponse(request, { error: "Configuração do Supabase inválida." }, 500);
   }
 
   if (!accessToken) {
-    return jsonResponse({ error: "Sessão inválida. Faça login novamente." }, 401);
+    return jsonResponse(request, { error: "Sessão inválida. Faça login novamente." }, 401);
   }
 
   const authClient = createClient(supabaseUrl, supabaseAnonKey, {
@@ -88,7 +87,7 @@ Deno.serve(async (request) => {
   } = await authClient.auth.getUser();
 
   if (authError || !user) {
-    return jsonResponse({ error: "Sessão inválida. Faça login novamente." }, 401);
+    return jsonResponse(request, { error: "Sessão inválida. Faça login novamente." }, 401);
   }
 
   let body: ActivatePlanRequest;
@@ -96,13 +95,13 @@ Deno.serve(async (request) => {
   try {
     body = await request.json();
   } catch {
-    return jsonResponse({ error: "Payload inválido." }, 400);
+    return jsonResponse(request, { error: "Payload inválido." }, 400);
   }
 
   const planId = body.planId;
 
   if (!planId || !supportedPlans.has(planId)) {
-    return jsonResponse({ error: "Plano inválido." }, 400);
+    return jsonResponse(request, { error: "Plano inválido." }, 400);
   }
 
   const { data: plan, error: planError } = await serviceClient
@@ -113,7 +112,7 @@ Deno.serve(async (request) => {
     .single();
 
   if (planError || !plan) {
-    return jsonResponse({ error: "Plano não encontrado." }, 404);
+    return jsonResponse(request, { error: "Plano não encontrado." }, 404);
   }
 
   const { data: storeAccount, error: storeAccountError } = await serviceClient
@@ -123,7 +122,7 @@ Deno.serve(async (request) => {
     .single();
 
   if (storeAccountError || !storeAccount) {
-    return jsonResponse({ error: "Conta da loja não encontrada." }, 404);
+    return jsonResponse(request, { error: "Conta da loja não encontrada." }, 404);
   }
 
   const now = new Date();
@@ -145,7 +144,7 @@ Deno.serve(async (request) => {
     .in("status", ["trialing", "active", "past_due"]);
 
   if (closeCurrentError) {
-    return jsonResponse({ error: "Não foi possível encerrar o plano atual." }, 500);
+    return jsonResponse(request, { error: "Não foi possível encerrar o plano atual." }, 500);
   }
 
   const { data: createdSubscription, error: insertError } = await serviceClient
@@ -172,10 +171,10 @@ Deno.serve(async (request) => {
     .single();
 
   if (insertError || !createdSubscription) {
-    return jsonResponse({ error: insertError?.message || "Não foi possível ativar o plano." }, 500);
+    return jsonResponse(request, { error: insertError?.message || "Não foi possível ativar o plano." }, 500);
   }
 
-  return jsonResponse({
+  return jsonResponse(request, {
     success: true,
     subscription: createdSubscription,
     plan: {

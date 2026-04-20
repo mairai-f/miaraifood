@@ -1,0 +1,81 @@
+type CorsOptions = {
+  allowedHeaders?: string[];
+  allowedMethods?: string[];
+  allowOriginless?: boolean;
+};
+
+const DEFAULT_ALLOWED_ORIGINS = [
+  "http://localhost:8080",
+  "http://localhost:8081",
+  "http://localhost:8082",
+  "http://localhost:4173",
+  "http://localhost:4174",
+  "https://happycash.vercel.app",
+  "https://happycashsite.vercel.app",
+];
+
+const DEFAULT_ALLOWED_HEADERS = [
+  "authorization",
+  "x-client-info",
+  "apikey",
+  "content-type",
+  "x-supabase-api-version",
+];
+
+const DEFAULT_ALLOWED_METHODS = ["POST", "OPTIONS"];
+
+const getConfiguredOrigins = () => {
+  const envValue = Deno.env.get("CORS_ALLOWED_ORIGINS") || "";
+  const configured = envValue
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+
+  return new Set([...DEFAULT_ALLOWED_ORIGINS, ...configured]);
+};
+
+const isOriginAllowed = (origin: string | null, allowOriginless: boolean) => {
+  if (!origin) return allowOriginless;
+  const allowedOrigins = getConfiguredOrigins();
+  return allowedOrigins.has(origin);
+};
+
+export const buildCorsHeaders = (request: Request, options: CorsOptions = {}) => {
+  const origin = request.headers.get("origin");
+  const allowOriginless = options.allowOriginless ?? true;
+  const allowed = isOriginAllowed(origin, allowOriginless);
+  const allowedHeaders = options.allowedHeaders ?? DEFAULT_ALLOWED_HEADERS;
+  const allowedMethods = options.allowedMethods ?? DEFAULT_ALLOWED_METHODS;
+
+  const headers = new Headers({
+    "Access-Control-Allow-Headers": allowedHeaders.join(", "),
+    "Access-Control-Allow-Methods": allowedMethods.join(", "),
+    "Access-Control-Max-Age": "86400",
+    "Vary": "Origin",
+    "X-Content-Type-Options": "nosniff",
+  });
+
+  if (origin && allowed) {
+    headers.set("Access-Control-Allow-Origin", origin);
+  } else if (!origin && allowOriginless) {
+    headers.set("Access-Control-Allow-Origin", "null");
+  }
+
+  return { headers, allowed };
+};
+
+export const handleCorsPreflight = (request: Request, options: CorsOptions = {}) => {
+  const { headers, allowed } = buildCorsHeaders(request, options);
+
+  if (!allowed) {
+    return new Response("Origin not allowed", {
+      status: 403,
+      headers,
+    });
+  }
+
+  return new Response("ok", {
+    status: 200,
+    headers,
+  });
+};

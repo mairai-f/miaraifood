@@ -8,6 +8,7 @@ import {
   getAsaasPixQrCode,
   type AsaasPayment,
 } from "../_shared/asaas.ts";
+import { buildCorsHeaders, handleCorsPreflight } from "../_shared/cors.ts";
 
 type SupportedPaidPlan = "fiado" | "completo" | "pro";
 
@@ -54,17 +55,13 @@ interface StoreSubscriptionRow {
   created_at: string;
 }
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "*",
-  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-};
-
-const jsonResponse = (body: Record<string, unknown>, status = 200) =>
+const jsonResponse = (request: Request, body: Record<string, unknown>, status = 200) =>
   new Response(JSON.stringify(body), {
     status,
     headers: {
-      ...corsHeaders,
+      ...Object.fromEntries(buildCorsHeaders(request, {
+        allowedMethods: ["POST", "OPTIONS"],
+      }).headers.entries()),
       "Content-Type": "application/json",
     },
   });
@@ -177,15 +174,17 @@ const buildCheckoutPayload = async (
 
 Deno.serve(async (request) => {
   if (request.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
+    return handleCorsPreflight(request, {
+      allowedMethods: ["POST", "OPTIONS"],
+    });
   }
 
   if (request.method !== "POST") {
-    return jsonResponse({ error: "Método não suportado." }, 405);
+    return jsonResponse(request, { error: "Método não suportado." }, 405);
   }
 
   if (!isAsaasConfigured()) {
-    return jsonResponse({ error: "ASAAS_API_KEY não configurada." }, 503);
+    return jsonResponse(request, { error: "ASAAS_API_KEY não configurada." }, 503);
   }
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
@@ -194,11 +193,11 @@ Deno.serve(async (request) => {
   const accessToken = extractAccessToken(request.headers.get("Authorization"));
 
   if (!supabaseUrl || !supabaseAnonKey || !supabaseServiceRoleKey) {
-    return jsonResponse({ error: "Configuração do Supabase inválida." }, 500);
+    return jsonResponse(request, { error: "Configuração do Supabase inválida." }, 500);
   }
 
   if (!accessToken) {
-    return jsonResponse({ error: "Sessão inválida. Faça login novamente." }, 401);
+    return jsonResponse(request, { error: "Sessão inválida. Faça login novamente." }, 401);
   }
 
   const authClient = createClient(supabaseUrl, supabaseAnonKey, {
@@ -226,7 +225,7 @@ Deno.serve(async (request) => {
   } = await authClient.auth.getUser();
 
   if (authError || !user) {
-    return jsonResponse({ error: "Sessão inválida. Faça login novamente." }, 401);
+    return jsonResponse(request, { error: "Sessão inválida. Faça login novamente." }, 401);
   }
 
   let body: CreatePlanChargeRequest;
@@ -234,13 +233,13 @@ Deno.serve(async (request) => {
   try {
     body = await request.json();
   } catch {
-    return jsonResponse({ error: "Payload inválido." }, 400);
+    return jsonResponse(request, { error: "Payload inválido." }, 400);
   }
 
   const planId = body.planId;
 
   if (!planId || !supportedPlans.has(planId)) {
-    return jsonResponse({ error: "Plano inválido." }, 400);
+    return jsonResponse(request, { error: "Plano inválido." }, 400);
   }
 
   const { data: planData, error: planError } = await serviceClient
@@ -251,7 +250,7 @@ Deno.serve(async (request) => {
     .single();
 
   if (planError || !planData) {
-    return jsonResponse({ error: "Plano não encontrado." }, 404);
+    return jsonResponse(request, { error: "Plano não encontrado." }, 404);
   }
 
   const { data: storeAccountData, error: storeAccountError } = await serviceClient

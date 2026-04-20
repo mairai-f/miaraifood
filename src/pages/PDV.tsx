@@ -112,7 +112,7 @@ const adminVerificationClient = createClient<Database>(
 const readCashSession = (): CashSession | null => {
   if (typeof window === 'undefined') return null;
   try {
-    const stored = window.localStorage.getItem(CASH_SESSION_KEY);
+    const stored = window.sessionStorage.getItem(CASH_SESSION_KEY);
     if (!stored) return null;
     const parsed = JSON.parse(stored) as CashSession;
     if (!parsed.openedAt || typeof parsed.openingAmount !== 'number') return null;
@@ -126,10 +126,10 @@ const writeCashSession = (session: CashSession | null) => {
   if (typeof window === 'undefined') return;
   try {
     if (!session) {
-      window.localStorage.removeItem(CASH_SESSION_KEY);
+      window.sessionStorage.removeItem(CASH_SESSION_KEY);
       return;
     }
-    window.localStorage.setItem(CASH_SESSION_KEY, JSON.stringify(session));
+    window.sessionStorage.setItem(CASH_SESSION_KEY, JSON.stringify(session));
   } catch {
     // Ignore localStorage write failures and keep the in-memory state.
   }
@@ -138,7 +138,7 @@ const writeCashSession = (session: CashSession | null) => {
 const readCloseCashWhatsAppPhone = () => {
   if (typeof window === 'undefined') return '';
   try {
-    return window.localStorage.getItem(CLOSE_CASH_WHATSAPP_PHONE_KEY) ?? '';
+    return window.sessionStorage.getItem(CLOSE_CASH_WHATSAPP_PHONE_KEY) ?? '';
   } catch {
     return '';
   }
@@ -2037,7 +2037,7 @@ export default function PDV() {
     }
 
     try {
-      window.localStorage.setItem(CLOSE_CASH_WHATSAPP_PHONE_KEY, normalizedPhone);
+      window.sessionStorage.setItem(CLOSE_CASH_WHATSAPP_PHONE_KEY, normalizedPhone);
     } catch {
       // Ignore localStorage persistence failures for the WhatsApp destination number.
     }

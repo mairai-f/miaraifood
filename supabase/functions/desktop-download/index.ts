@@ -1,4 +1,5 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { buildCorsHeaders, handleCorsPreflight } from "../_shared/cors.ts";
 
 type SupportedPlatform = "windows" | "linux";
 
@@ -14,17 +15,13 @@ interface StoreSubscriptionRow {
   created_at: string;
 }
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "*",
-  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-};
-
-const jsonResponse = (body: Record<string, unknown>, status = 200) =>
+const jsonResponse = (request: Request, body: Record<string, unknown>, status = 200) =>
   new Response(JSON.stringify(body), {
     status,
     headers: {
-      ...corsHeaders,
+      ...Object.fromEntries(buildCorsHeaders(request, {
+        allowedMethods: ["POST", "OPTIONS"],
+      }).headers.entries()),
       "Content-Type": "application/json",
     },
   });
@@ -64,11 +61,13 @@ const isCurrentSubscription = (subscription: StoreSubscriptionRow | null | undef
 
 Deno.serve(async (request) => {
   if (request.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
+    return handleCorsPreflight(request, {
+      allowedMethods: ["POST", "OPTIONS"],
+    });
   }
 
   if (request.method !== "POST") {
-    return jsonResponse({ error: "Método não suportado." }, 405);
+    return jsonResponse(request, { error: "Método não suportado." }, 405);
   }
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
@@ -77,11 +76,11 @@ Deno.serve(async (request) => {
   const accessToken = extractAccessToken(request.headers.get("Authorization"));
 
   if (!supabaseUrl || !supabaseAnonKey || !supabaseServiceRoleKey) {
-    return jsonResponse({ error: "Configuração do Supabase inválida." }, 500);
+    return jsonResponse(request, { error: "Configuração do Supabase inválida." }, 500);
   }
 
   if (!accessToken) {
-    return jsonResponse({ error: "Sessão inválida. Faça login novamente." }, 401);
+    return jsonResponse(request, { error: "Sessão inválida. Faça login novamente." }, 401);
   }
 
   const authClient = createClient(supabaseUrl, supabaseAnonKey, {
@@ -109,7 +108,7 @@ Deno.serve(async (request) => {
   } = await authClient.auth.getUser();
 
   if (authError || !user) {
-    return jsonResponse({ error: "Sessão inválida. Faça login novamente." }, 401);
+    return jsonResponse(request, { error: "Sessão inválida. Faça login novamente." }, 401);
   }
 
   let body: DesktopDownloadRequest;
@@ -117,13 +116,13 @@ Deno.serve(async (request) => {
   try {
     body = await request.json();
   } catch {
-    return jsonResponse({ error: "Payload inválido." }, 400);
+    return jsonResponse(request, { error: "Payload inválido." }, 400);
   }
 
   const platform = body.platform;
 
   if (!platform || !supportedPlatforms.has(platform)) {
-    return jsonResponse({ error: "Plataforma inválida." }, 400);
+    return jsonResponse(request, { error: "Plataforma inválida." }, 400);
   }
 
   const { data: subscriptions, error: subscriptionsError } = await serviceClient
@@ -133,7 +132,7 @@ Deno.serve(async (request) => {
     .order("created_at", { ascending: false });
 
   if (subscriptionsError) {
-    return jsonResponse({ error: "Não foi possível validar seu plano agora." }, 500);
+    return jsonResponse(request, { error: "Não foi possível validar seu plano agora." }, 500);
   }
 
   const currentSubscription =
@@ -143,6 +142,7 @@ Deno.serve(async (request) => {
 
   if (!currentSubscription || currentSubscription.plan_id !== "pro" || !isCurrentSubscription(currentSubscription)) {
     return jsonResponse(
+      request,
       {
         error: "Download disponível apenas para contas com plano PRO ativo.",
         code: "PRO_REQUIRED",
@@ -157,6 +157,7 @@ Deno.serve(async (request) => {
 
   if (!objectPath) {
     return jsonResponse(
+      request,
       {
         error: "O arquivo desta plataforma ainda não foi configurado.",
         code: "DOWNLOAD_NOT_CONFIGURED",
@@ -177,6 +178,7 @@ Deno.serve(async (request) => {
 
   if (signedUrlError || !signedUrlData?.signedUrl) {
     return jsonResponse(
+      request,
       {
         error: "O arquivo protegido não foi encontrado no storage.",
         code: "DOWNLOAD_FILE_MISSING",
@@ -186,7 +188,7 @@ Deno.serve(async (request) => {
     );
   }
 
-  return jsonResponse({
+  return jsonResponse(request, {
     success: true,
     downloadUrl: signedUrlData.signedUrl,
     expiresIn,

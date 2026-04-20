@@ -1,4 +1,5 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
+import { buildCorsHeaders, handleCorsPreflight } from '../_shared/cors.ts';
 
 interface CashSale {
   date: string;
@@ -31,12 +32,6 @@ interface CashCloseEmailRequest {
   receipt?: CashCloseReceipt;
   timezone?: string;
 }
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-};
 
 const paymentLabels: Record<string, string> = {
   dinheiro: 'Dinheiro',
@@ -73,11 +68,13 @@ const formatDateTime = (value: string, timezone: string) =>
     timeZone: timezone,
   }).format(new Date(value));
 
-const jsonResponse = (body: Record<string, unknown>, status = 200) =>
+const jsonResponse = (request: Request, body: Record<string, unknown>, status = 200) =>
   new Response(JSON.stringify(body), {
     status,
     headers: {
-      ...corsHeaders,
+      ...Object.fromEntries(buildCorsHeaders(request, {
+        allowedMethods: ['POST', 'OPTIONS'],
+      }).headers.entries()),
       'Content-Type': 'application/json',
     },
   });
@@ -274,11 +271,13 @@ const buildEmailContent = (receipt: CashCloseReceipt, timezone: string) => {
 
 Deno.serve(async (request) => {
   if (request.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
+    return handleCorsPreflight(request, {
+      allowedMethods: ['POST', 'OPTIONS'],
+    });
   }
 
   if (request.method !== 'POST') {
-    return jsonResponse({ error: 'Metodo nao permitido.' }, 405);
+    return jsonResponse(request, { error: 'Metodo nao permitido.' }, 405);
   }
 
   const resendApiKey = Deno.env.get('RESEND_API_KEY');
@@ -286,6 +285,7 @@ Deno.serve(async (request) => {
 
   if (!resendApiKey || !fromEmail) {
     return jsonResponse(
+      request,
       {
         error:
           'Configure os secrets RESEND_API_KEY e CASH_CLOSE_REPORT_FROM_EMAIL para enviar o relatorio por e-mail.',
@@ -297,7 +297,7 @@ Deno.serve(async (request) => {
   const authHeader = request.headers.get('Authorization');
 
   if (!authHeader) {
-    return jsonResponse({ error: 'Sessao nao encontrada para enviar o relatorio.' }, 401);
+    return jsonResponse(request, { error: 'Sessao nao encontrada para enviar o relatorio.' }, 401);
   }
 
   try {
@@ -305,7 +305,7 @@ Deno.serve(async (request) => {
     const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY');
 
     if (!supabaseUrl || !supabaseAnonKey) {
-      return jsonResponse({ error: 'Configuracao do Supabase indisponivel na funcao.' }, 500);
+      return jsonResponse(request, { error: 'Configuracao do Supabase indisponivel na funcao.' }, 500);
     }
 
     const supabase = createClient(supabaseUrl, supabaseAnonKey, {
@@ -322,7 +322,7 @@ Deno.serve(async (request) => {
     } = await supabase.auth.getUser();
 
     if (userError || !user) {
-      return jsonResponse({ error: 'Nao foi possivel validar o usuario autenticado.' }, 401);
+      return jsonResponse(request, { error: 'Nao foi possivel validar o usuario autenticado.' }, 401);
     }
 
     const { data: hasCashAccess, error: cashAccessError } = await supabase.rpc('current_store_has_feature', {
@@ -330,13 +330,13 @@ Deno.serve(async (request) => {
     });
 
     if (cashAccessError || !hasCashAccess) {
-      return jsonResponse({ error: 'Seu plano atual nao libera o fechamento de caixa.' }, 403);
+      return jsonResponse(request, { error: 'Seu plano atual nao libera o fechamento de caixa.' }, 403);
     }
 
     const { receipt, timezone }: CashCloseEmailRequest = await request.json();
 
     if (!receipt) {
-      return jsonResponse({ error: 'Dados do fechamento nao informados.' }, 400);
+      return jsonResponse(request, { error: 'Dados do fechamento nao informados.' }, 400);
     }
 
     const fallbackRecipients = parseRecipients(Deno.env.get('CASH_CLOSE_REPORT_RECIPIENTS'));
@@ -345,7 +345,7 @@ Deno.serve(async (request) => {
       : fallbackRecipients;
 
     if (recipients.length === 0) {
-      return jsonResponse({ error: 'Nenhum destinatario configurado para receber o relatorio.' }, 400);
+      return jsonResponse(request, { error: 'Nenhum destinatario configurado para receber o relatorio.' }, 400);
     }
 
     const reportTimezone = timezone?.trim() || Deno.env.get('CASH_CLOSE_REPORT_TIMEZONE') || 'America/Sao_Paulo';
@@ -373,16 +373,16 @@ Deno.serve(async (request) => {
     if (!resendResponse.ok) {
       const resendError = await resendResponse.text();
       console.error('Erro ao enviar e-mail pelo Resend:', resendError);
-      return jsonResponse({ error: 'O provedor de e-mail recusou o envio do relatorio.' }, 502);
+      return jsonResponse(request, { error: 'O provedor de e-mail recusou o envio do relatorio.' }, 502);
     }
 
-    return jsonResponse({
+    return jsonResponse(request, {
       message: 'Relatorio enviado por e-mail com sucesso.',
       recipients,
     });
   } catch (error) {
     console.error('Erro inesperado ao enviar relatorio de fechamento:', error);
     const message = error instanceof Error ? error.message : 'Erro inesperado ao enviar o relatorio.';
-    return jsonResponse({ error: message }, 500);
+    return jsonResponse(request, { error: message }, 500);
   }
 });

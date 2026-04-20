@@ -5,6 +5,7 @@ import {
   normalizeOperatorUsername,
   operatorUsernameHelpText,
 } from '../_shared/operatorCredentials.ts';
+import { buildCorsHeaders, handleCorsPreflight } from '../_shared/cors.ts';
 
 type ManageOperatorRequest =
   | {
@@ -37,17 +38,13 @@ interface OperatorLookupRow {
   username: string;
 }
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-};
-
-const jsonResponse = (body: Record<string, unknown>, status = 200) =>
+const jsonResponse = (request: Request, body: Record<string, unknown>, status = 200) =>
   new Response(JSON.stringify(body), {
     status,
     headers: {
-      ...corsHeaders,
+      ...Object.fromEntries(buildCorsHeaders(request, {
+        allowedMethods: ['POST', 'OPTIONS'],
+      }).headers.entries()),
       'Content-Type': 'application/json',
     },
   });
@@ -70,11 +67,13 @@ const normalizeEmail = (value: string) => value.trim().toLowerCase();
 
 Deno.serve(async (request) => {
   if (request.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
+    return handleCorsPreflight(request, {
+      allowedMethods: ['POST', 'OPTIONS'],
+    });
   }
 
   if (request.method !== 'POST') {
-    return jsonResponse({ error: 'Método não suportado.' }, 405);
+    return jsonResponse(request, { error: 'Método não suportado.' }, 405);
   }
 
   const supabaseUrl = Deno.env.get('SUPABASE_URL');
@@ -83,11 +82,11 @@ Deno.serve(async (request) => {
   const accessToken = extractAccessToken(request.headers.get('Authorization'));
 
   if (!supabaseUrl || !supabaseAnonKey || !supabaseServiceRoleKey) {
-    return jsonResponse({ error: 'Configuração de autenticação inválida.' }, 500);
+    return jsonResponse(request, { error: 'Configuração de autenticação inválida.' }, 500);
   }
 
   if (!accessToken) {
-    return jsonResponse({ error: 'Sessão inválida. Faça login novamente.' }, 401);
+    return jsonResponse(request, { error: 'Sessão inválida. Faça login novamente.' }, 401);
   }
 
   const authClient = createClient(supabaseUrl, supabaseAnonKey, {
@@ -115,7 +114,7 @@ Deno.serve(async (request) => {
   } = await authClient.auth.getUser(accessToken);
 
   if (authError || !user) {
-    return jsonResponse({ error: 'Sessão inválida. Faça login novamente.' }, 401);
+    return jsonResponse(request, { error: 'Sessão inválida. Faça login novamente.' }, 401);
   }
 
   const { data: callerProfile, error: profileError } = await serviceClient
@@ -125,11 +124,11 @@ Deno.serve(async (request) => {
     .single();
 
   if (profileError || !callerProfile) {
-    return jsonResponse({ error: 'Perfil do usuário não encontrado.' }, 403);
+    return jsonResponse(request, { error: 'Perfil do usuário não encontrado.' }, 403);
   }
 
   if (callerProfile.role !== 'admin') {
-    return jsonResponse({ error: 'Somente administradores podem gerenciar operadores.' }, 403);
+    return jsonResponse(request, { error: 'Somente administradores podem gerenciar operadores.' }, 403);
   }
 
   const { data: hasSettingsAccess, error: accessError } = await authClient.rpc('current_store_has_feature', {
@@ -137,14 +136,14 @@ Deno.serve(async (request) => {
   });
 
   if (accessError || !hasSettingsAccess) {
-    return jsonResponse({ error: 'Seu plano atual nao libera configuracoes da loja.' }, 403);
+    return jsonResponse(request, { error: 'Seu plano atual nao libera configuracoes da loja.' }, 403);
   }
 
   const ownerUserId = callerProfile.owner_user_id ?? user.id;
   const body = await getBody(request);
 
   if (!body?.action) {
-    return jsonResponse({ error: 'Ação inválida.' }, 400);
+    return jsonResponse(request, { error: 'Ação inválida.' }, 400);
   }
 
   if (body.action === 'create') {
@@ -152,11 +151,11 @@ Deno.serve(async (request) => {
     const password = body.password?.trim();
 
     if (!isValidOperatorUsername(normalizedUsername)) {
-      return jsonResponse({ error: operatorUsernameHelpText }, 400);
+      return jsonResponse(request, { error: operatorUsernameHelpText }, 400);
     }
 
     if (!password || password.length < 6) {
-      return jsonResponse({ error: 'A senha deve ter ao menos 6 caracteres.' }, 400);
+      return jsonResponse(request, { error: 'A senha deve ter ao menos 6 caracteres.' }, 400);
     }
 
     const { data: existingOperators, error: existingOperatorsError } = await serviceClient
@@ -165,7 +164,7 @@ Deno.serve(async (request) => {
       .eq('role', 'operator');
 
     if (existingOperatorsError) {
-      return jsonResponse({ error: 'Não foi possível validar o usuário do operador.' }, 500);
+      return jsonResponse(request, { error: 'Não foi possível validar o usuário do operador.' }, 500);
     }
 
     const usernameAlreadyExists = ((existingOperators as OperatorLookupRow[] | null) ?? []).some(
@@ -173,7 +172,7 @@ Deno.serve(async (request) => {
     );
 
     if (usernameAlreadyExists) {
-      return jsonResponse({ error: 'Esse usuário já está em uso. Escolha outro.' }, 409);
+      return jsonResponse(request, { error: 'Esse usuário já está em uso. Escolha outro.' }, 409);
     }
 
     const generatedEmail = buildOperatorEmail(normalizedUsername);
@@ -195,7 +194,7 @@ Deno.serve(async (request) => {
         ? 'Esse usuário já está em uso. Escolha outro.'
         : createError?.message || 'Não foi possível criar o operador.';
 
-      return jsonResponse({ error: errorMessage }, 400);
+      return jsonResponse(request, { error: errorMessage }, 400);
     }
 
     const { error: updateProfileError } = await serviceClient
@@ -210,10 +209,10 @@ Deno.serve(async (request) => {
       .eq('user_id', createdUser.user.id);
 
     if (updateProfileError) {
-      return jsonResponse({ error: 'Operador criado, mas o perfil não foi atualizado corretamente.' }, 500);
+      return jsonResponse(request, { error: 'Operador criado, mas o perfil não foi atualizado corretamente.' }, 500);
     }
 
-    return jsonResponse({
+    return jsonResponse(request, {
       success: true,
       operator: {
         user_id: createdUser.user.id,
@@ -228,11 +227,11 @@ Deno.serve(async (request) => {
     const password = body.password?.trim();
 
     if (!operatorUserId) {
-      return jsonResponse({ error: 'Operador inválido.' }, 400);
+      return jsonResponse(request, { error: 'Operador inválido.' }, 400);
     }
 
     if (!password || password.length < 6) {
-      return jsonResponse({ error: 'A nova senha deve ter ao menos 6 caracteres.' }, 400);
+      return jsonResponse(request, { error: 'A nova senha deve ter ao menos 6 caracteres.' }, 400);
     }
 
     const { data: targetProfile, error: targetProfileError } = await serviceClient
@@ -242,11 +241,11 @@ Deno.serve(async (request) => {
       .single();
 
     if (targetProfileError || !targetProfile) {
-      return jsonResponse({ error: 'Operador não encontrado.' }, 404);
+      return jsonResponse(request, { error: 'Operador não encontrado.' }, 404);
     }
 
     if (targetProfile.role !== 'operator' || targetProfile.owner_user_id !== ownerUserId) {
-      return jsonResponse({ error: 'Você não pode redefinir a senha deste operador.' }, 403);
+      return jsonResponse(request, { error: 'Você não pode redefinir a senha deste operador.' }, 403);
     }
 
     const { error: resetError } = await serviceClient.auth.admin.updateUserById(operatorUserId, {
@@ -254,10 +253,10 @@ Deno.serve(async (request) => {
     });
 
     if (resetError) {
-      return jsonResponse({ error: resetError.message || 'Não foi possível redefinir a senha.' }, 400);
+      return jsonResponse(request, { error: resetError.message || 'Não foi possível redefinir a senha.' }, 400);
     }
 
-    return jsonResponse({
+    return jsonResponse(request, {
       success: true,
       operator: {
         user_id: targetProfile.user_id,
@@ -274,11 +273,11 @@ Deno.serve(async (request) => {
       : Number.parseFloat(String(body.openingAmount ?? '0'));
 
     if (!operatorUserId) {
-      return jsonResponse({ error: 'Operador inválido.' }, 400);
+      return jsonResponse(request, { error: 'Operador inválido.' }, 400);
     }
 
     if (Number.isNaN(parsedOpeningAmount) || parsedOpeningAmount < 0) {
-      return jsonResponse({ error: 'Valor inicial inválido.' }, 400);
+      return jsonResponse(request, { error: 'Valor inicial inválido.' }, 400);
     }
 
     const { data: targetProfile, error: targetProfileError } = await serviceClient
@@ -288,11 +287,11 @@ Deno.serve(async (request) => {
       .single();
 
     if (targetProfileError || !targetProfile) {
-      return jsonResponse({ error: 'Operador não encontrado.' }, 404);
+      return jsonResponse(request, { error: 'Operador não encontrado.' }, 404);
     }
 
     if (targetProfile.role !== 'operator' || targetProfile.owner_user_id !== ownerUserId) {
-      return jsonResponse({ error: 'Você não pode abrir caixa para este operador.' }, 403);
+      return jsonResponse(request, { error: 'Você não pode abrir caixa para este operador.' }, 403);
     }
 
     const { data: existingOpenSession, error: existingOpenSessionError } = await serviceClient
@@ -304,11 +303,11 @@ Deno.serve(async (request) => {
       .maybeSingle();
 
     if (existingOpenSessionError) {
-      return jsonResponse({ error: 'Não foi possível validar o caixa atual do operador.' }, 500);
+      return jsonResponse(request, { error: 'Não foi possível validar o caixa atual do operador.' }, 500);
     }
 
     if (existingOpenSession?.id) {
-      return jsonResponse({ error: 'Este operador já está com caixa aberto.' }, 400);
+      return jsonResponse(request, { error: 'Este operador já está com caixa aberto.' }, 400);
     }
 
     const openedByName = callerProfile.username || callerProfile.email || user.email || 'Administrador';
@@ -326,10 +325,10 @@ Deno.serve(async (request) => {
       .single();
 
     if (createCashSessionError || !createdCashSession) {
-      return jsonResponse({ error: createCashSessionError?.message || 'Não foi possível abrir o caixa para este operador.' }, 400);
+      return jsonResponse(request, { error: createCashSessionError?.message || 'Não foi possível abrir o caixa para este operador.' }, 400);
     }
 
-    return jsonResponse({
+    return jsonResponse(request, {
       success: true,
       cashSession: {
         id: createdCashSession.id,
@@ -341,7 +340,7 @@ Deno.serve(async (request) => {
     const operatorUserId = body.operatorUserId?.trim();
 
     if (!operatorUserId) {
-      return jsonResponse({ error: 'Operador inválido.' }, 400);
+      return jsonResponse(request, { error: 'Operador inválido.' }, 400);
     }
 
     const { data: targetProfile, error: targetProfileError } = await serviceClient
@@ -351,11 +350,11 @@ Deno.serve(async (request) => {
       .single();
 
     if (targetProfileError || !targetProfile) {
-      return jsonResponse({ error: 'Operador não encontrado.' }, 404);
+      return jsonResponse(request, { error: 'Operador não encontrado.' }, 404);
     }
 
     if (targetProfile.role !== 'operator' || targetProfile.owner_user_id !== ownerUserId) {
-      return jsonResponse({ error: 'Você não pode excluir este operador.' }, 403);
+      return jsonResponse(request, { error: 'Você não pode excluir este operador.' }, 403);
     }
 
     const { data: openSession, error: openSessionError } = await serviceClient
@@ -367,16 +366,16 @@ Deno.serve(async (request) => {
       .maybeSingle();
 
     if (openSessionError) {
-      return jsonResponse({ error: 'Não foi possível validar o status do caixa deste operador.' }, 500);
+      return jsonResponse(request, { error: 'Não foi possível validar o status do caixa deste operador.' }, 500);
     }
 
     if (openSession?.id) {
-      return jsonResponse({ error: 'Feche o caixa desse operador antes de excluí-lo.' }, 400);
+      return jsonResponse(request, { error: 'Feche o caixa desse operador antes de excluí-lo.' }, 400);
     }
 
     const { error: deleteUserError } = await serviceClient.auth.admin.deleteUser(operatorUserId);
     if (deleteUserError) {
-      return jsonResponse({ error: deleteUserError.message || 'Não foi possível excluir o operador.' }, 400);
+      return jsonResponse(request, { error: deleteUserError.message || 'Não foi possível excluir o operador.' }, 400);
     }
 
     await serviceClient
@@ -384,7 +383,7 @@ Deno.serve(async (request) => {
       .delete()
       .eq('user_id', operatorUserId);
 
-    return jsonResponse({
+    return jsonResponse(request, {
       success: true,
       operator: {
         user_id: targetProfile.user_id,
@@ -398,11 +397,11 @@ Deno.serve(async (request) => {
     const adminPassword = body.adminPassword?.trim() ?? '';
 
     if (!adminEmail) {
-      return jsonResponse({ error: 'Informe o login do administrador.' }, 400);
+      return jsonResponse(request, { error: 'Informe o login do administrador.' }, 400);
     }
 
     if (!adminPassword) {
-      return jsonResponse({ error: 'Informe a senha do administrador.' }, 400);
+      return jsonResponse(request, { error: 'Informe a senha do administrador.' }, 400);
     }
 
     const verificationClient = createClient(supabaseUrl, supabaseAnonKey, {
@@ -418,7 +417,7 @@ Deno.serve(async (request) => {
     });
 
     if (verificationError || !verificationSession.user) {
-      return jsonResponse({ error: 'Login ou senha de administrador inválidos.' }, 401);
+      return jsonResponse(request, { error: 'Login ou senha de administrador inválidos.' }, 401);
     }
 
     const { data: verificationProfile, error: verificationProfileError } = await serviceClient
@@ -428,12 +427,12 @@ Deno.serve(async (request) => {
       .single();
 
     if (verificationProfileError || !verificationProfile || verificationProfile.role !== 'admin') {
-      return jsonResponse({ error: 'A conta informada não possui acesso de administrador.' }, 403);
+      return jsonResponse(request, { error: 'A conta informada não possui acesso de administrador.' }, 403);
     }
 
     const verifiedOwnerUserId = verificationProfile.owner_user_id ?? verificationProfile.user_id;
     if (verifiedOwnerUserId !== ownerUserId) {
-      return jsonResponse({ error: 'Este administrador não pertence à mesma loja.' }, 403);
+      return jsonResponse(request, { error: 'Este administrador não pertence à mesma loja.' }, 403);
     }
 
     const deleteFinancialData = async () => {
@@ -443,7 +442,7 @@ Deno.serve(async (request) => {
         .eq('user_id', ownerUserId);
 
       if (clientsError) {
-        return { errorResponse: jsonResponse({ error: 'Não foi possível preparar a limpeza dos dados financeiros.' }, 500) };
+        return { errorResponse: jsonResponse(request, { error: 'Não foi possível preparar a limpeza dos dados financeiros.' }, 500) };
       }
 
       const clientIds = (clients ?? []).map(client => client.id);
@@ -454,7 +453,7 @@ Deno.serve(async (request) => {
         .eq('user_id', ownerUserId);
 
       if (deleteExpensesError) {
-        return { errorResponse: jsonResponse({ error: 'Falha ao limpar as despesas.' }, 500) };
+        return { errorResponse: jsonResponse(request, { error: 'Falha ao limpar as despesas.' }, 500) };
       }
 
       let deletedDebtEntries = 0;
@@ -467,7 +466,7 @@ Deno.serve(async (request) => {
           .in('client_id', clientIds);
 
         if (deletePaymentsError) {
-          return { errorResponse: jsonResponse({ error: 'Falha ao limpar os pagamentos.' }, 500) };
+          return { errorResponse: jsonResponse(request, { error: 'Falha ao limpar os pagamentos.' }, 500) };
         }
 
         const { count: debtEntriesCount, error: deleteDebtEntriesError } = await serviceClient
@@ -476,7 +475,7 @@ Deno.serve(async (request) => {
           .in('client_id', clientIds);
 
         if (deleteDebtEntriesError) {
-          return { errorResponse: jsonResponse({ error: 'Falha ao limpar os fiados.' }, 500) };
+          return { errorResponse: jsonResponse(request, { error: 'Falha ao limpar os fiados.' }, 500) };
         }
 
         deletedPayments = paymentsCount ?? 0;
@@ -497,7 +496,7 @@ Deno.serve(async (request) => {
         .eq('user_id', ownerUserId);
 
       if (salesRowsError) {
-        return { errorResponse: jsonResponse({ error: 'Falha ao listar as vendas para limpar os relatórios.' }, 500) };
+        return { errorResponse: jsonResponse(request, { error: 'Falha ao listar as vendas para limpar os relatórios.' }, 500) };
       }
 
       const saleIds = (salesRows ?? []).map(row => row.id);
@@ -510,7 +509,7 @@ Deno.serve(async (request) => {
           .in('sale_id', saleIds);
 
         if (saleItemsCountError) {
-          return { errorResponse: jsonResponse({ error: 'Falha ao contar os itens de venda.' }, 500) };
+          return { errorResponse: jsonResponse(request, { error: 'Falha ao contar os itens de venda.' }, 500) };
         }
 
         deletedSaleItems = saleItemsCount ?? 0;
@@ -522,7 +521,7 @@ Deno.serve(async (request) => {
         .eq('user_id', ownerUserId);
 
       if (deleteSalesError) {
-        return { errorResponse: jsonResponse({ error: 'Falha ao limpar as vendas dos relatórios.' }, 500) };
+        return { errorResponse: jsonResponse(request, { error: 'Falha ao limpar as vendas dos relatórios.' }, 500) };
       }
 
       return {
@@ -552,7 +551,7 @@ Deno.serve(async (request) => {
     }
 
     if (body.action === 'reset_financial') {
-      return jsonResponse({
+      return jsonResponse(request, {
         success: true,
         deleted: {
           expenses: financialResult?.deletedExpenses ?? 0,
@@ -563,7 +562,7 @@ Deno.serve(async (request) => {
     }
 
     if (body.action === 'reset_reports') {
-      return jsonResponse({
+      return jsonResponse(request, {
         success: true,
         deleted: {
           sales: reportResult?.deletedSales ?? 0,
@@ -572,7 +571,7 @@ Deno.serve(async (request) => {
       });
     }
 
-    return jsonResponse({
+    return jsonResponse(request, {
       success: true,
       deleted: {
         sales: reportResult?.deletedSales ?? 0,
@@ -584,5 +583,5 @@ Deno.serve(async (request) => {
     });
   }
 
-  return jsonResponse({ error: 'Ação não suportada.' }, 400);
+  return jsonResponse(request, { error: 'Ação não suportada.' }, 400);
 });

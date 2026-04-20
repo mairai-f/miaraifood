@@ -3,6 +3,7 @@ import {
   isValidOperatorUsername,
   normalizeOperatorUsername,
 } from '../_shared/operatorCredentials.ts';
+import { buildCorsHeaders, handleCorsPreflight } from '../_shared/cors.ts';
 
 type OperatorLoginRequest = {
   username?: string;
@@ -15,17 +16,13 @@ type OperatorProfileRow = {
   username: string | null;
 };
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-};
-
-const jsonResponse = (body: Record<string, unknown>, status = 200) =>
+const jsonResponse = (request: Request, body: Record<string, unknown>, status = 200) =>
   new Response(JSON.stringify(body), {
     status,
     headers: {
-      ...corsHeaders,
+      ...Object.fromEntries(buildCorsHeaders(request, {
+        allowedMethods: ['POST', 'OPTIONS'],
+      }).headers.entries()),
       'Content-Type': 'application/json',
     },
   });
@@ -40,11 +37,13 @@ const getBody = async (request: Request): Promise<OperatorLoginRequest | null> =
 
 Deno.serve(async (request) => {
   if (request.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
+    return handleCorsPreflight(request, {
+      allowedMethods: ['POST', 'OPTIONS'],
+    });
   }
 
   if (request.method !== 'POST') {
-    return jsonResponse({ error: 'Método não suportado.' }, 405);
+    return jsonResponse(request, { error: 'Método não suportado.' }, 405);
   }
 
   const body = await getBody(request);
@@ -52,7 +51,7 @@ Deno.serve(async (request) => {
   const password = body?.password?.trim();
 
   if (!isValidOperatorUsername(normalizedUsername) || !password) {
-    return jsonResponse({ error: 'Usuário ou senha incorretos.' }, 401);
+    return jsonResponse(request, { error: 'Usuário ou senha incorretos.' }, 401);
   }
 
   const supabaseUrl = Deno.env.get('SUPABASE_URL');
@@ -60,7 +59,7 @@ Deno.serve(async (request) => {
   const supabaseServiceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 
   if (!supabaseUrl || !supabaseAnonKey || !supabaseServiceRoleKey) {
-    return jsonResponse({ error: 'Configuração de autenticação inválida.' }, 500);
+    return jsonResponse(request, { error: 'Configuração de autenticação inválida.' }, 500);
   }
 
   const serviceClient = createClient(supabaseUrl, supabaseServiceRoleKey, {
@@ -84,7 +83,7 @@ Deno.serve(async (request) => {
     .eq('username', normalizedUsername);
 
   if (profileError || !profiles || profiles.length === 0) {
-    return jsonResponse({ error: 'Usuário ou senha incorretos.' }, 401);
+    return jsonResponse(request, { error: 'Usuário ou senha incorretos.' }, 401);
   }
 
   const matchingProfiles = (profiles as OperatorProfileRow[]).filter(profile =>
@@ -92,7 +91,7 @@ Deno.serve(async (request) => {
   );
 
   if (matchingProfiles.length === 0) {
-    return jsonResponse({ error: 'Usuário ou senha incorretos.' }, 401);
+    return jsonResponse(request, { error: 'Usuário ou senha incorretos.' }, 401);
   }
 
   for (const profile of matchingProfiles) {
@@ -124,7 +123,7 @@ Deno.serve(async (request) => {
       continue;
     }
 
-    return jsonResponse({
+    return jsonResponse(request, {
       success: true,
       session: {
         access_token: sessionData.session.access_token,
@@ -133,5 +132,5 @@ Deno.serve(async (request) => {
     });
   }
 
-  return jsonResponse({ error: 'Usuário ou senha incorretos.' }, 401);
+  return jsonResponse(request, { error: 'Usuário ou senha incorretos.' }, 401);
 });

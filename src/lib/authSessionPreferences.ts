@@ -47,8 +47,8 @@ const readBoolean = (key: string, fallback: boolean) => {
 
 export const getSystemLoginPreferences = (): SystemLoginPreferences => ({
   loginMode: readLocalStorage(storageKeys.loginMode) === 'operator' ? 'operator' : 'admin',
-  rememberAccount: readBoolean(storageKeys.rememberAccount, true),
-  keepConnected: readBoolean(storageKeys.keepConnected, true),
+  rememberAccount: readBoolean(storageKeys.rememberAccount, false),
+  keepConnected: readBoolean(storageKeys.keepConnected, false),
   adminEmail: readLocalStorage(storageKeys.adminEmail) ?? '',
   operatorUsername: readLocalStorage(storageKeys.operatorUsername) ?? '',
 });

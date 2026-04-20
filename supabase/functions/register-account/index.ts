@@ -4,6 +4,7 @@ import {
   findAsaasCustomerByExternalReference,
   removeAsaasCustomer,
 } from "../_shared/asaas.ts";
+import { buildCorsHeaders, handleCorsPreflight } from "../_shared/cors.ts";
 
 interface RegisterAccountRequest {
   email?: string;
@@ -40,17 +41,13 @@ interface StoreAccountRow {
   id: string;
 }
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "*",
-  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-};
-
-const jsonResponse = (body: RegisterAccountResponse, status = 200) =>
+const jsonResponse = (request: Request, body: RegisterAccountResponse, status = 200) =>
   new Response(JSON.stringify(body), {
     status,
     headers: {
-      ...corsHeaders,
+      ...Object.fromEntries(buildCorsHeaders(request, {
+        allowedMethods: ["POST", "OPTIONS"],
+      }).headers.entries()),
       "Content-Type": "application/json",
     },
   });
@@ -113,18 +110,20 @@ const validatePayload = (payload: RegisterAccountRequest) => {
 
 Deno.serve(async (request) => {
   if (request.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
+    return handleCorsPreflight(request, {
+      allowedMethods: ["POST", "OPTIONS"],
+    });
   }
 
   if (request.method !== "POST") {
-    return jsonResponse({ success: false, error: "Método não suportado." }, 405);
+    return jsonResponse(request, { success: false, error: "Método não suportado." }, 405);
   }
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
   const supabaseServiceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 
   if (!supabaseUrl || !supabaseServiceRoleKey) {
-    return jsonResponse({ success: false, error: "Configuração do Supabase inválida." }, 500);
+    return jsonResponse(request, { success: false, error: "Configuração do Supabase inválida." }, 500);
   }
 
   let payload: RegisterAccountRequest;
@@ -132,7 +131,7 @@ Deno.serve(async (request) => {
   try {
     payload = await request.json();
   } catch {
-    return jsonResponse({ success: false, error: "Payload inválido." }, 400);
+    return jsonResponse(request, { success: false, error: "Payload inválido." }, 400);
   }
 
   try {
@@ -152,7 +151,7 @@ Deno.serve(async (request) => {
       .maybeSingle();
 
     if (existingProfile?.user_id) {
-      return jsonResponse({ success: false, error: "Já existe uma conta com esse email." }, 409);
+      return jsonResponse(request, { success: false, error: "Já existe uma conta com esse email." }, 409);
     }
 
     let createdUserId: string | null = null;
@@ -273,7 +272,7 @@ Deno.serve(async (request) => {
         throw new Error(subscriptionError.message || "Não foi possível iniciar a demo.");
       }
 
-      return jsonResponse({
+      return jsonResponse(request, {
         success: true,
         trialEndsAt: trialEndsAt.toISOString(),
       });
@@ -298,6 +297,6 @@ Deno.serve(async (request) => {
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : "Não foi possível concluir o cadastro.";
-    return jsonResponse({ success: false, error: message }, 400);
+    return jsonResponse(request, { success: false, error: message }, 400);
   }
 });
