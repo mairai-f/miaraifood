@@ -15,6 +15,9 @@ verify_jwt = false
 [functions.desktop-download]
 verify_jwt = true
 
+[functions.track-access]
+verify_jwt = false
+
 [functions.manage-operators]
 verify_jwt = false
 

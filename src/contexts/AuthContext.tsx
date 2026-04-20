@@ -3,6 +3,11 @@ import { supabase } from '@/integrations/supabase/client';
 import type { Session, User } from '@supabase/supabase-js';
 import type { UserRole } from '@/lib/access';
 import { clearSystemTemporarySessionPreference, enforceSystemSessionPreference } from '@/lib/authSessionPreferences';
+import {
+  ACCESS_HEARTBEAT_INTERVAL_MS,
+  clearSystemClientSessionId,
+  trackSystemAccessEvent,
+} from '@/lib/accessTracking';
 
 interface UserProfile {
   username: string | null;
@@ -195,6 +200,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, [clearLocalSession, resetAuthState, syncProfileState]);
 
+  useEffect(() => {
+    if (!session?.access_token || !user) return;
+
+    const sendHeartbeat = () => {
+      void trackSystemAccessEvent(session.access_token, 'heartbeat');
+    };
+
+    sendHeartbeat();
+
+    const heartbeatId = window.setInterval(sendHeartbeat, ACCESS_HEARTBEAT_INTERVAL_MS);
+
+    const handleFocus = () => sendHeartbeat();
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        sendHeartbeat();
+      }
+    };
+
+    window.addEventListener('focus', handleFocus);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      window.clearInterval(heartbeatId);
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [session?.access_token, user]);
+
   const login = async (email: string, password: string): Promise<string | true> => {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     return error ? error.message : true;
@@ -255,6 +288,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const logout = async () => {
+    if (session?.access_token) {
+      await trackSystemAccessEvent(session.access_token, 'logout');
+    }
+
+    clearSystemClientSessionId();
     clearSystemTemporarySessionPreference();
     await supabase.auth.signOut();
   };

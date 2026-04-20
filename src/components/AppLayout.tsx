@@ -1,6 +1,6 @@
 import { ReactNode, useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Home, Users, Package, Gift, Trash2, LogOut, Menu, X, UserCircle, Receipt, BarChart3, DollarSign, Boxes, ChevronDown, ChevronUp, FileText } from 'lucide-react';
+import { Home, Users, Package, Gift, Trash2, LogOut, Menu, X, UserCircle, Receipt, BarChart3, DollarSign, Boxes, ChevronDown, ChevronUp, FileText, Shield } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { usePlanAccess } from '@/contexts/PlanContext';
 import happyCashLogo from '@/assets/happycash-logo.png';
@@ -15,6 +15,7 @@ const navItems = [
   { path: '/relatorios', label: 'Relatórios', icon: BarChart3, shortcut: '6', roles: ['admin'], featureKey: 'reports.view' },
   { path: '/financeiro', label: 'Financeiro', icon: DollarSign, shortcut: '7', roles: ['admin'], featureKey: 'financial.manage' },
   { path: '/notas', label: 'Notas', icon: FileText, shortcut: '8', roles: ['admin'], featureKey: 'notes.manage' },
+  { path: '/acessos', label: 'Acessos', icon: Shield, roles: ['admin'], featureKey: 'settings.manage' },
   { path: '/recompensas', label: 'Recompensas', icon: Gift, roles: ['admin'], featureKey: 'rewards.manage' },
   { path: '/excluidos', label: 'Excluídos', icon: Trash2, roles: ['admin'], featureKey: 'deleted.view' },
 ];
