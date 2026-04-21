@@ -3,22 +3,31 @@ project_id = "ymffclntmynwfdiarlaw"
 [functions.register-account]
 verify_jwt = false
 
+# Estas funcoes validam o Bearer token manualmente com auth.getUser().
+# Mantemos verify_jwt desativado para evitar falha do gateway com JWTs
+# assinados de forma assimetrica, como ES256.
 [functions.activate-plan]
-verify_jwt = true
+verify_jwt = false
 
 [functions.create-plan-charge]
-verify_jwt = true
+verify_jwt = false
 
 [functions.asaas-webhook]
 verify_jwt = false
 
 [functions.desktop-download]
-verify_jwt = true
+verify_jwt = false
+
+[functions.finalize-site-registration]
+verify_jwt = false
 
 [functions.track-access]
 verify_jwt = false
 
 [functions.manage-operators]
+verify_jwt = false
+
+[functions.manage-fiscal-documents]
 verify_jwt = false
 
 [functions.operator-login]

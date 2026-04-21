@@ -19,6 +19,11 @@ import { isPublicPlanId, publicPlanContent } from '@/lib/subscriptionPlans';
 import logo from '@/assets/logo-happycash.png';
 import { LanguageSwitcher } from '../../../shared/locale/LanguageSwitcher';
 
+const resolveLoginErrorMessage = (message: string) =>
+  /email not confirmed/i.test(message)
+    ? 'Confirme seu email primeiro. Depois volte para entrar e liberar sua conta.'
+    : message;
+
 const Login = () => {
   const initialPreferences = getSiteLoginPreferences();
   const [email, setEmail] = useState(initialPreferences.rememberAccount ? initialPreferences.email : '');
@@ -57,7 +62,7 @@ const Login = () => {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
 
       if (error) {
-        toast({ title: 'Erro ao entrar', description: error.message, variant: 'destructive' });
+        toast({ title: 'Erro ao entrar', description: resolveLoginErrorMessage(error.message), variant: 'destructive' });
         return;
       }
 

@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import logo from '@/assets/logo-happycash.png';
+import { getPasswordPolicyError, passwordPolicyHint } from '../../../shared/security/passwordPolicy';
 
 const ResetPassword = () => {
   const [password, setPassword] = useState('');
@@ -68,10 +69,11 @@ const ResetPassword = () => {
     e.preventDefault();
     if (updatingPassword) return;
 
-    if (password.length < 6) {
+    const passwordError = getPasswordPolicyError(password);
+    if (passwordError) {
       toast({
-        title: 'Senha muito curta',
-        description: 'Use pelo menos 6 caracteres.',
+        title: 'Senha invalida',
+        description: passwordError,
         variant: 'destructive',
       });
       return;
@@ -153,7 +155,7 @@ const ResetPassword = () => {
                         type={showPassword ? 'text' : 'password'}
                         value={password}
                         onChange={e => setPassword(e.target.value)}
-                        placeholder="Minimo 6 caracteres"
+                        placeholder="Use uma senha forte"
                         className="h-10 border-border/70 bg-zinc-950/70 pr-10 sm:h-11"
                       />
                       <button
@@ -165,6 +167,7 @@ const ResetPassword = () => {
                         {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                       </button>
                     </div>
+                    <p className="text-xs text-muted-foreground">{passwordPolicyHint}</p>
                   </div>
 
                   <div className="space-y-2">

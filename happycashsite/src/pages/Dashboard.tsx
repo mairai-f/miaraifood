@@ -135,6 +135,12 @@ type CreatePlanChargeResponse = {
 
 type PixCheckoutState = NonNullable<CreatePlanChargeResponse["checkout"]>;
 
+type FinalizeSiteRegistrationResponse = {
+  success?: boolean;
+  alreadyReady?: boolean;
+  error?: string;
+};
+
 const formatDateTime = (value?: string | null) => {
   if (!value) return "Sem data";
 
@@ -177,6 +183,36 @@ const Dashboard = () => {
   })();
 
   const querySuffix = selectedPlanId ? `?plan=${selectedPlanId}` : "";
+
+  const ensureSiteRegistrationReady = async (accessToken: string) => {
+    const { data, error } = await supabase.functions.invoke<FinalizeSiteRegistrationResponse>("finalize-site-registration", {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: {},
+    });
+
+    if (error || !data?.success) {
+      let functionErrorMessage = data?.error || "Nao foi possivel finalizar sua conta agora.";
+
+      if (error && typeof error === "object" && "context" in error && error.context instanceof Response) {
+        if (error.context.status === 404) {
+          return;
+        }
+
+        try {
+          const errorPayload = await error.context.clone().json() as { error?: string; message?: string };
+          functionErrorMessage = errorPayload.error || errorPayload.message || functionErrorMessage;
+        } catch {
+          functionErrorMessage = error.context.status === 401
+            ? "Sua sessao expirou. Entre novamente para continuar."
+            : functionErrorMessage;
+        }
+      }
+
+      throw new Error(functionErrorMessage);
+    }
+  };
 
   const loadDashboard = async (userId: string) => {
     const db = supabase as unknown as DashboardQueryClient;
@@ -237,6 +273,14 @@ const Dashboard = () => {
       };
 
       setUser(authUser);
+      try {
+        await ensureSiteRegistrationReady(session.access_token);
+      } catch (error) {
+        setLoadError(error instanceof Error ? error.message : "Nao foi possivel preparar sua conta agora.");
+        setRefreshing(false);
+        setLoading(false);
+        return;
+      }
       await loadDashboard(authUser.id);
     };
 
@@ -256,7 +300,16 @@ const Dashboard = () => {
       };
 
       setUser(authUser);
-      void loadDashboard(authUser.id);
+      void (async () => {
+        try {
+          await ensureSiteRegistrationReady(session.access_token);
+          await loadDashboard(authUser.id);
+        } catch (error) {
+          setLoadError(error instanceof Error ? error.message : "Nao foi possivel preparar sua conta agora.");
+          setRefreshing(false);
+          setLoading(false);
+        }
+      })();
     });
 
     return () => {

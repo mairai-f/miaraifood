@@ -6,6 +6,7 @@ import {
   operatorUsernameHelpText,
 } from '../_shared/operatorCredentials.ts';
 import { buildCorsHeaders, handleCorsPreflight } from '../_shared/cors.ts';
+import { getPasswordPolicyError } from '../_shared/passwordPolicy.ts';
 
 type ManageOperatorRequest =
   | {
@@ -149,13 +150,14 @@ Deno.serve(async (request) => {
   if (body.action === 'create') {
     const normalizedUsername = normalizeOperatorUsername(body.username ?? '');
     const password = body.password?.trim();
+    const passwordError = getPasswordPolicyError(password || '');
 
     if (!isValidOperatorUsername(normalizedUsername)) {
       return jsonResponse(request, { error: operatorUsernameHelpText }, 400);
     }
 
-    if (!password || password.length < 6) {
-      return jsonResponse(request, { error: 'A senha deve ter ao menos 6 caracteres.' }, 400);
+    if (!password || passwordError) {
+      return jsonResponse(request, { error: passwordError || 'Informe a senha do operador.' }, 400);
     }
 
     const { data: existingOperators, error: existingOperatorsError } = await serviceClient
@@ -225,13 +227,14 @@ Deno.serve(async (request) => {
   if (body.action === 'reset_password') {
     const operatorUserId = body.operatorUserId?.trim();
     const password = body.password?.trim();
+    const passwordError = getPasswordPolicyError(password || '');
 
     if (!operatorUserId) {
       return jsonResponse(request, { error: 'Operador inválido.' }, 400);
     }
 
-    if (!password || password.length < 6) {
-      return jsonResponse(request, { error: 'A nova senha deve ter ao menos 6 caracteres.' }, 400);
+    if (!password || passwordError) {
+      return jsonResponse(request, { error: passwordError || 'Informe a nova senha.' }, 400);
     }
 
     const { data: targetProfile, error: targetProfileError } = await serviceClient

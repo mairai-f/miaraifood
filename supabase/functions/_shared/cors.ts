@@ -34,6 +34,11 @@ const getConfiguredOrigins = () => {
   return new Set([...DEFAULT_ALLOWED_ORIGINS, ...configured]);
 };
 
+export const getAllowedOrigins = () => getConfiguredOrigins();
+
+export const isAllowedOriginValue = (origin: string | null, allowOriginless = true) =>
+  isOriginAllowed(origin, allowOriginless);
+
 const isOriginAllowed = (origin: string | null, allowOriginless: boolean) => {
   if (!origin) return allowOriginless;
   const allowedOrigins = getConfiguredOrigins();

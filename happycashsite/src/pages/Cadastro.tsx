@@ -9,10 +9,12 @@ import { useToast } from "@/hooks/use-toast";
 import { isPublicPlanId, publicPlanContent } from "@/lib/subscriptionPlans";
 import logo from "@/assets/logo-happycash.png";
 import { Eye, EyeOff, Loader2, UserPlus } from "lucide-react";
+import { getPasswordPolicyError, passwordPolicyHint } from "../../../shared/security/passwordPolicy";
 
 interface RegisterAccountResponse {
   success?: boolean;
-  trialEndsAt?: string;
+  requiresEmailConfirmation?: boolean;
+  email?: string;
   error?: string;
 }
 
@@ -43,6 +45,8 @@ const Cadastro = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [website, setWebsite] = useState("");
+  const [confirmationEmail, setConfirmationEmail] = useState<string | null>(null);
 
   // Step 2 - Business
   const [nomeCliente, setNomeCliente] = useState("");
@@ -82,6 +86,17 @@ const Cadastro = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (loading) return;
+
+    const passwordError = getPasswordPolicyError(password);
+    if (passwordError) {
+      toast({
+        title: "Senha fraca",
+        description: passwordError,
+        variant: "destructive",
+      });
+      return;
+    }
+
     if (step < 3) {
       setStep(current => Math.min(3, current + 1));
       return;
@@ -106,42 +121,24 @@ const Cadastro = () => {
           bairro,
           cidade,
           estado,
+          redirectTo: `${window.location.origin}/dashboard${selectedPlanId ? `?plan=${selectedPlanId}` : ""}`,
+          website,
         },
       });
 
       if (error || !data?.success) {
-        throw new Error(data?.error || error?.message || "Não foi possível criar sua conta.");
-      }
-
-      const { error: signInError } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-
-      if (signInError) {
-        toast({
-          title: "Conta criada com sucesso!",
-          description: selectedPlanId && selectedPlanId !== "demo"
-            ? "Sua demo foi iniciada. Faça login para entrar e pagar o plano escolhido."
-            : "Sua demo foi iniciada. Faça login para continuar.",
-        });
-        navigate(selectedPlanId ? `/login?plan=${selectedPlanId}` : "/login");
-        return;
+        throw new Error(data?.error || error?.message || "Nao foi possivel criar sua conta.");
       }
 
       toast({
-        title: "Conta criada com sucesso!",
-        description: selectedPlanId && selectedPlanId !== "demo"
-          ? `${selectedPlan.name} pronto para ativacao. Sua demo vai ate ${data.trialEndsAt ? new Date(data.trialEndsAt).toLocaleString("pt-BR") : "o fim do periodo inicial"}.`
-          : data.trialEndsAt
-          ? `Sua demo gratuita vai ate ${new Date(data.trialEndsAt).toLocaleString("pt-BR")}.`
-          : "Bem-vindo ao HappyCash!",
+        title: "Confirme seu email",
+        description: "Enviamos um link de confirmacao. A conta sera liberada no primeiro acesso confirmado.",
       });
-      navigate(selectedPlanId ? `/?plan=${selectedPlanId}` : "/");
+      setConfirmationEmail(data.email || email.trim());
     } catch (error) {
       toast({
         title: "Erro ao criar conta",
-        description: error instanceof Error ? error.message : "Não foi possível concluir o cadastro.",
+        description: error instanceof Error ? error.message : "Nao foi possivel concluir o cadastro.",
         variant: "destructive",
       });
     } finally {
@@ -150,6 +147,45 @@ const Cadastro = () => {
   };
 
   const stepTitles = ["Conta", "Empresa", "Endereço"];
+
+  if (confirmationEmail) {
+    return (
+      <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4">
+        <div className="w-full max-w-lg space-y-6">
+          <div className="text-center space-y-3">
+            <img src={logo} alt="HappyCash" className="h-20 mx-auto" />
+            <h1 className="font-heading text-2xl font-bold">Confirme seu email</h1>
+            <p className="text-sm text-muted-foreground">
+              Enviamos o link de confirmacao para <span className="font-medium text-foreground">{confirmationEmail}</span>.
+            </p>
+          </div>
+
+          <div className="rounded-2xl border border-border bg-card/80 backdrop-blur-sm p-8 space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Depois de confirmar, sua conta da loja sera finalizada automaticamente e a demo sera liberada no primeiro acesso.
+            </p>
+            {selectedPlan && selectedPlanId !== "demo" && (
+              <p className="text-sm text-muted-foreground">
+                O plano <span className="font-medium text-foreground">{selectedPlan.name}</span> continuara selecionado quando voce entrar no painel.
+              </p>
+            )}
+            <div className="flex gap-3 pt-2">
+              <Button type="button" variant="outline" className="flex-1 h-12" onClick={() => setConfirmationEmail(null)}>
+                Voltar
+              </Button>
+              <Button
+                type="button"
+                className="flex-1 h-12 bg-primary text-primary-foreground font-semibold text-base"
+                onClick={() => navigate(selectedPlanId ? `/login?plan=${selectedPlanId}` : "/login")}
+              >
+                Ir para o login
+              </Button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4">
@@ -203,7 +239,7 @@ const Cadastro = () => {
               <div className="space-y-2">
                 <Label>Senha</Label>
                 <div className="relative">
-                  <Input type={showPassword ? "text" : "password"} placeholder="Mínimo 6 caracteres" value={password} onChange={e => setPassword(e.target.value)} required minLength={6} className="h-12 bg-muted/50 pr-12" />
+                  <Input type={showPassword ? "text" : "password"} placeholder="Use uma senha forte" value={password} onChange={e => setPassword(e.target.value)} required minLength={10} className="h-12 bg-muted/50 pr-12" />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
@@ -213,6 +249,7 @@ const Cadastro = () => {
                     {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                   </button>
                 </div>
+                <p className="text-xs text-muted-foreground">{passwordPolicyHint}</p>
               </div>
             </>
           )}
@@ -305,6 +342,17 @@ const Cadastro = () => {
               </div>
             </>
           )}
+
+          <div className="absolute left-[-9999px] top-auto h-px w-px overflow-hidden opacity-0" aria-hidden="true">
+            <Label htmlFor="cadastro-website">Website</Label>
+            <Input
+              id="cadastro-website"
+              tabIndex={-1}
+              autoComplete="off"
+              value={website}
+              onChange={e => setWebsite(e.target.value)}
+            />
+          </div>
 
           <div className="flex gap-3 pt-2">
             {step > 1 && (

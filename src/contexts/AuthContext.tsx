@@ -8,6 +8,7 @@ import {
   clearSystemClientSessionId,
   trackSystemAccessEvent,
 } from '@/lib/accessTracking';
+import { getPasswordPolicyError } from '../../shared/security/passwordPolicy';
 
 interface UserProfile {
   username: string | null;
@@ -265,6 +266,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const register = async (email: string, password: string, uname: string): Promise<string | true> => {
+    const passwordError = getPasswordPolicyError(password);
+    if (passwordError) return passwordError;
+
     const { count } = await supabase
       .from('profiles')
       .select('id', { count: 'exact', head: true })

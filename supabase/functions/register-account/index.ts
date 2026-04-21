@@ -1,10 +1,6 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
-import {
-  createAsaasCustomer,
-  findAsaasCustomerByExternalReference,
-  removeAsaasCustomer,
-} from "../_shared/asaas.ts";
-import { buildCorsHeaders, handleCorsPreflight } from "../_shared/cors.ts";
+import { buildCorsHeaders, handleCorsPreflight, isAllowedOriginValue } from "../_shared/cors.ts";
+import { getPasswordPolicyError } from "../_shared/passwordPolicy.ts";
 
 interface RegisterAccountRequest {
   email?: string;
@@ -22,32 +18,38 @@ interface RegisterAccountRequest {
   bairro?: string;
   cidade?: string;
   estado?: string;
+  redirectTo?: string;
+  website?: string;
+  captchaToken?: string;
 }
 
 interface RegisterAccountResponse {
   success: boolean;
-  trialEndsAt?: string;
+  requiresEmailConfirmation?: boolean;
+  email?: string;
   error?: string;
 }
 
-interface AuthUserResponse {
-  user?: {
-    id: string;
-    email?: string | null;
-  } | null;
+interface PendingRegistrationRow {
+  owner_user_id: string;
 }
 
-interface StoreAccountRow {
-  id: string;
-}
+type AttemptStatus = "blocked" | "config_error" | "created" | "failed" | "honeypot" | "invalid";
+
+const registrationCorsOptions = {
+  allowedMethods: ["POST", "OPTIONS"],
+  allowOriginless: false,
+} as const;
+
+const MAX_IP_ATTEMPTS_PER_15_MIN = 5;
+const MAX_EMAIL_ATTEMPTS_PER_HOUR = 3;
+const DEFAULT_CONFIRM_REDIRECT = "https://happycashsite.vercel.app/dashboard";
 
 const jsonResponse = (request: Request, body: RegisterAccountResponse, status = 200) =>
   new Response(JSON.stringify(body), {
     status,
     headers: {
-      ...Object.fromEntries(buildCorsHeaders(request, {
-        allowedMethods: ["POST", "OPTIONS"],
-      }).headers.entries()),
+      ...Object.fromEntries(buildCorsHeaders(request, registrationCorsOptions).headers.entries()),
       "Content-Type": "application/json",
     },
   });
@@ -58,7 +60,47 @@ const trimToNull = (value?: string) => {
   const trimmed = value?.trim();
   return trimmed ? trimmed : null;
 };
-const isAsaasConfigured = () => Boolean(Deno.env.get("ASAAS_API_KEY"));
+
+const textEncoder = new TextEncoder();
+
+const toHex = (bytes: Uint8Array) =>
+  Array.from(bytes)
+    .map((byte) => byte.toString(16).padStart(2, "0"))
+    .join("");
+
+const sha256 = async (value: string) => {
+  const digest = await crypto.subtle.digest("SHA-256", textEncoder.encode(value));
+  return toHex(new Uint8Array(digest));
+};
+
+const extractClientIp = (request: Request) => {
+  const forwardedFor = request.headers.get("x-forwarded-for");
+  if (forwardedFor) {
+    const first = forwardedFor.split(",")[0]?.trim();
+    if (first) return first;
+  }
+
+  return (
+    request.headers.get("cf-connecting-ip") ||
+    request.headers.get("x-real-ip") ||
+    request.headers.get("x-client-ip") ||
+    request.headers.get("fly-client-ip") ||
+    null
+  );
+};
+
+const resolveRedirectTo = (value?: string) => {
+  const fallback = Deno.env.get("SITE_EMAIL_CONFIRM_REDIRECT_URL")?.trim() || DEFAULT_CONFIRM_REDIRECT;
+
+  if (!value?.trim()) return fallback;
+
+  try {
+    const parsed = new URL(value);
+    return isAllowedOriginValue(parsed.origin, false) ? parsed.toString() : fallback;
+  } catch {
+    return fallback;
+  }
+};
 
 const validatePayload = (payload: RegisterAccountRequest) => {
   const email = normalizeEmail(payload.email || "");
@@ -76,15 +118,18 @@ const validatePayload = (payload: RegisterAccountRequest) => {
   const bairro = trimToNull(payload.bairro);
   const cidade = payload.cidade?.trim() || "";
   const estado = payload.estado?.trim().toUpperCase() || "";
+  const redirectTo = resolveRedirectTo(payload.redirectTo);
+  const captchaToken = payload.captchaToken?.trim() || undefined;
+  const passwordError = getPasswordPolicyError(password);
 
-  if (!email || !email.includes("@")) throw new Error("Informe um email válido.");
-  if (password.length < 6) throw new Error("A senha deve ter no mínimo 6 caracteres.");
+  if (!email || !email.includes("@")) throw new Error("Informe um email valido.");
+  if (passwordError) throw new Error(passwordError);
   if (!nomeCliente) throw new Error("Informe o nome completo.");
-  if (telefone.length < 10) throw new Error("Informe um telefone válido.");
-  if (![11, 14].includes(cpfCnpj.length)) throw new Error("Informe um CPF ou CNPJ válido.");
+  if (telefone.length < 10) throw new Error("Informe um telefone valido.");
+  if (![11, 14].includes(cpfCnpj.length)) throw new Error("Informe um CPF ou CNPJ valido.");
   if (!nomeEstabelecimento) throw new Error("Informe o nome do estabelecimento.");
   if (!tipoEstabelecimento) throw new Error("Selecione o tipo de estabelecimento.");
-  if (cep.length !== 8) throw new Error("Informe um CEP válido.");
+  if (cep.length !== 8) throw new Error("Informe um CEP valido.");
   if (!nomeRua) throw new Error("Informe a rua.");
   if (!cidade) throw new Error("Informe a cidade.");
   if (estado.length !== 2) throw new Error("Selecione o estado.");
@@ -105,44 +150,151 @@ const validatePayload = (payload: RegisterAccountRequest) => {
     bairro,
     cidade,
     estado,
+    redirectTo,
+    captchaToken,
+  };
+};
+
+const logAttempt = async (
+  serviceClient: ReturnType<typeof createClient>,
+  details: {
+    emailHash: string | null;
+    ipHash: string | null;
+    origin: string | null;
+    status: AttemptStatus;
+    userAgent: string | null;
+  },
+) => {
+  await serviceClient.from("site_registration_attempts").insert({
+    email_hash: details.emailHash,
+    ip_hash: details.ipHash,
+    origin: details.origin,
+    status: details.status,
+    user_agent: details.userAgent,
+  });
+};
+
+const getAttemptCounts = async (
+  serviceClient: ReturnType<typeof createClient>,
+  details: {
+    emailHash: string | null;
+    ipHash: string | null;
+  },
+) => {
+  const fifteenMinutesAgo = new Date(Date.now() - 15 * 60 * 1000).toISOString();
+  const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+
+  const ipCountPromise = details.ipHash
+    ? serviceClient
+        .from("site_registration_attempts")
+        .select("id", { count: "exact", head: true })
+        .eq("ip_hash", details.ipHash)
+        .gte("created_at", fifteenMinutesAgo)
+    : Promise.resolve({ count: 0, error: null });
+
+  const emailCountPromise = details.emailHash
+    ? serviceClient
+        .from("site_registration_attempts")
+        .select("id", { count: "exact", head: true })
+        .eq("email_hash", details.emailHash)
+        .gte("created_at", oneHourAgo)
+    : Promise.resolve({ count: 0, error: null });
+
+  const [{ count: ipCount, error: ipError }, { count: emailCount, error: emailError }] = await Promise.all([
+    ipCountPromise,
+    emailCountPromise,
+  ]);
+
+  if (ipError || emailError) {
+    throw new Error("Nao foi possivel validar a seguranca do cadastro agora.");
+  }
+
+  return {
+    emailCount: emailCount ?? 0,
+    ipCount: ipCount ?? 0,
   };
 };
 
 Deno.serve(async (request) => {
   if (request.method === "OPTIONS") {
-    return handleCorsPreflight(request, {
-      allowedMethods: ["POST", "OPTIONS"],
-    });
+    return handleCorsPreflight(request, registrationCorsOptions);
   }
 
   if (request.method !== "POST") {
-    return jsonResponse(request, { success: false, error: "Método não suportado." }, 405);
+    return jsonResponse(request, { success: false, error: "Metodo nao suportado." }, 405);
+  }
+
+  const corsState = buildCorsHeaders(request, registrationCorsOptions);
+  if (!corsState.allowed) {
+    return jsonResponse(request, { success: false, error: "Origem nao permitida." }, 403);
   }
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
+  const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY");
   const supabaseServiceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 
-  if (!supabaseUrl || !supabaseServiceRoleKey) {
-    return jsonResponse(request, { success: false, error: "Configuração do Supabase inválida." }, 500);
+  if (!supabaseUrl || !supabaseAnonKey || !supabaseServiceRoleKey) {
+    return jsonResponse(request, { success: false, error: "Configuracao do Supabase invalida." }, 500);
   }
+
+  const serviceClient = createClient(supabaseUrl, supabaseServiceRoleKey, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+    },
+  });
 
   let payload: RegisterAccountRequest;
 
   try {
     payload = await request.json();
   } catch {
-    return jsonResponse(request, { success: false, error: "Payload inválido." }, 400);
+    return jsonResponse(request, { success: false, error: "Payload invalido." }, 400);
+  }
+
+  const origin = request.headers.get("origin");
+  const userAgent = request.headers.get("user-agent");
+  const normalizedEmail = payload.email ? normalizeEmail(payload.email) : "";
+  const clientIp = extractClientIp(request);
+  const [emailHash, ipHash] = await Promise.all([
+    normalizedEmail ? sha256(normalizedEmail) : Promise.resolve(null),
+    clientIp ? sha256(clientIp) : Promise.resolve(null),
+  ]);
+
+  if (payload.website?.trim()) {
+    await logAttempt(serviceClient, {
+      emailHash,
+      ipHash,
+      origin,
+      status: "honeypot",
+      userAgent,
+    });
+
+    return jsonResponse(request, { success: false, error: "Nao foi possivel concluir o cadastro." }, 400);
   }
 
   try {
     const data = validatePayload(payload);
+    const attemptCounts = await getAttemptCounts(serviceClient, { emailHash, ipHash });
 
-    const serviceClient = createClient(supabaseUrl, supabaseServiceRoleKey, {
-      auth: {
-        autoRefreshToken: false,
-        persistSession: false,
-      },
-    });
+    if (attemptCounts.ipCount >= MAX_IP_ATTEMPTS_PER_15_MIN || attemptCounts.emailCount >= MAX_EMAIL_ATTEMPTS_PER_HOUR) {
+      await logAttempt(serviceClient, {
+        emailHash,
+        ipHash,
+        origin,
+        status: "blocked",
+        userAgent,
+      });
+
+      return jsonResponse(
+        request,
+        {
+          success: false,
+          error: "Muitas tentativas de cadastro. Aguarde alguns minutos e tente novamente.",
+        },
+        429,
+      );
+    }
 
     const { data: existingProfile } = await serviceClient
       .from("profiles")
@@ -151,38 +303,107 @@ Deno.serve(async (request) => {
       .maybeSingle();
 
     if (existingProfile?.user_id) {
-      return jsonResponse(request, { success: false, error: "Já existe uma conta com esse email." }, 409);
-    }
-
-    let createdUserId: string | null = null;
-    let createdAsaasCustomerId: string | null = null;
-    let createdAsaasCustomerWasNew = false;
-
-    try {
-      const { data: createdUser, error: createUserError } = await serviceClient.auth.admin.createUser({
-        email: data.email,
-        password: data.password,
-        email_confirm: true,
-        user_metadata: {
-          username: data.email,
-          role: "admin",
-        },
+      await logAttempt(serviceClient, {
+        emailHash,
+        ipHash,
+        origin,
+        status: "invalid",
+        userAgent,
       });
 
-      if (createUserError || !createdUser.user) {
-        throw new Error(createUserError?.message || "Não foi possível criar o usuário.");
-      }
+      return jsonResponse(request, { success: false, error: "Ja existe uma conta com esse email." }, 409);
+    }
 
-      createdUserId = createdUser.user.id;
+    const { data: existingPending } = await serviceClient
+      .from("site_pending_registrations")
+      .select("owner_user_id")
+      .eq("email", data.email)
+      .eq("status", "pending")
+      .maybeSingle();
 
-      const { data: storeAccount, error: storeAccountError } = await serviceClient
-        .from("store_accounts")
-        .insert({
+    if ((existingPending as PendingRegistrationRow | null)?.owner_user_id) {
+      await logAttempt(serviceClient, {
+        emailHash,
+        ipHash,
+        origin,
+        status: "invalid",
+        userAgent,
+      });
+
+      return jsonResponse(
+        request,
+        {
+          success: false,
+          error: "Ja existe um cadastro pendente para esse email. Confirme o email para continuar.",
+        },
+        409,
+      );
+    }
+
+    const anonClient = createClient(supabaseUrl, supabaseAnonKey, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+      },
+    });
+
+    const { data: signUpData, error: signUpError } = await anonClient.auth.signUp({
+      email: data.email,
+      password: data.password,
+      options: {
+        data: {
+          role: "admin",
+          username: data.email,
+        },
+        emailRedirectTo: data.redirectTo,
+        captchaToken: data.captchaToken,
+      },
+    });
+
+    if (signUpError || !signUpData.user?.id) {
+      await logAttempt(serviceClient, {
+        emailHash,
+        ipHash,
+        origin,
+        status: "failed",
+        userAgent,
+      });
+
+      const message = signUpError?.message || "Nao foi possivel criar sua conta agora.";
+      return jsonResponse(request, { success: false, error: message }, 400);
+    }
+
+    const createdUserId = signUpData.user.id;
+
+    if (signUpData.session?.access_token) {
+      await serviceClient.auth.admin.deleteUser(createdUserId);
+      await logAttempt(serviceClient, {
+        emailHash,
+        ipHash,
+        origin,
+        status: "config_error",
+        userAgent,
+      });
+
+      return jsonResponse(
+        request,
+        {
+          success: false,
+          error: "A confirmacao de email precisa estar habilitada no Supabase antes de liberar novos cadastros.",
+        },
+        503,
+      );
+    }
+
+    const { error: pendingRegistrationError } = await serviceClient
+      .from("site_pending_registrations")
+      .upsert(
+        {
           owner_user_id: createdUserId,
-          nome_cliente: data.nomeCliente,
           email: data.email,
+          nome_cliente: data.nomeCliente,
           telefone: data.telefone,
-          cnpj: data.cpfCnpj,
+          cpf_cnpj: data.cpfCnpj,
           nome_estabelecimento: data.nomeEstabelecimento,
           tipo_estabelecimento: data.tipoEstabelecimento,
           cep: data.cep,
@@ -193,110 +414,58 @@ Deno.serve(async (request) => {
           bairro: data.bairro,
           cidade: data.cidade,
           estado: data.estado,
-        })
-        .select("id")
-        .single();
+          failure_reason: null,
+          status: "pending",
+          completed_at: null,
+          store_account_id: null,
+          trial_ends_at: null,
+        },
+        { onConflict: "owner_user_id" },
+      );
 
-      if (storeAccountError || !storeAccount) {
-        throw new Error(storeAccountError?.message || "Não foi possível salvar a conta da loja.");
-      }
-
-      const storeAccountId = (storeAccount as StoreAccountRow).id;
-      let asaasCustomerId: string | null = null;
-
-      if (isAsaasConfigured()) {
-        const existingAsaasCustomer = await findAsaasCustomerByExternalReference(createdUserId);
-        const asaasCustomer = existingAsaasCustomer || await createAsaasCustomer({
-          name: data.nomeCliente,
-          email: data.email,
-          cpfCnpj: data.cpfCnpj,
-          mobilePhone: data.telefone,
-          address: data.nomeRua,
-          addressNumber: data.numero || undefined,
-          complement: data.complemento || undefined,
-          province: data.bairro || undefined,
-          postalCode: data.cep,
-          externalReference: createdUserId,
-          company: data.nomeEstabelecimento,
-          notificationDisabled: false,
-        });
-
-        createdAsaasCustomerId = asaasCustomer.id;
-        createdAsaasCustomerWasNew = !existingAsaasCustomer;
-        asaasCustomerId = asaasCustomer.id;
-
-        const { error: billingCustomerError } = await serviceClient
-          .from("billing_customers")
-          .insert({
-            store_account_id: storeAccountId,
-            owner_user_id: createdUserId,
-            provider: "asaas",
-            provider_customer_id: asaasCustomer.id,
-            email: data.email,
-            phone: data.telefone,
-            cpf_cnpj: data.cpfCnpj,
-            metadata: asaasCustomer,
-          });
-
-        if (billingCustomerError) {
-          throw new Error(billingCustomerError.message || "Não foi possível vincular o cliente do Asaas.");
-        }
-      }
-
-      const trialStartedAt = new Date();
-      const trialEndsAt = new Date(trialStartedAt.getTime() + 3 * 60 * 60 * 1000);
-
-      const { error: subscriptionError } = await serviceClient
-        .from("store_subscriptions")
-        .insert({
-          store_account_id: storeAccountId,
-          owner_user_id: createdUserId,
-          plan_id: "demo",
-          provider: "asaas",
-          status: "trialing",
-          billing_type: "PIX",
-          price: 0,
-          trial_started_at: trialStartedAt.toISOString(),
-          trial_ends_at: trialEndsAt.toISOString(),
-          current_period_starts_at: trialStartedAt.toISOString(),
-          current_period_ends_at: trialEndsAt.toISOString(),
-          external_reference: createdUserId,
-          metadata: {
-            created_via: "happycashsite",
-            asaas_customer_id: asaasCustomerId,
-            asaas_pending_setup: !isAsaasConfigured(),
-          },
-        });
-
-      if (subscriptionError) {
-        throw new Error(subscriptionError.message || "Não foi possível iniciar a demo.");
-      }
-
-      return jsonResponse(request, {
-        success: true,
-        trialEndsAt: trialEndsAt.toISOString(),
+    if (pendingRegistrationError) {
+      await serviceClient.auth.admin.deleteUser(createdUserId);
+      await logAttempt(serviceClient, {
+        emailHash,
+        ipHash,
+        origin,
+        status: "failed",
+        userAgent,
       });
-    } catch (error) {
-      if (createdAsaasCustomerId && createdAsaasCustomerWasNew) {
-        try {
-          await removeAsaasCustomer(createdAsaasCustomerId);
-        } catch (cleanupError) {
-          console.error("Falha ao remover cliente Asaas após erro no cadastro:", cleanupError);
-        }
-      }
 
-      if (createdUserId) {
-        try {
-          await serviceClient.auth.admin.deleteUser(createdUserId);
-        } catch (cleanupError) {
-          console.error("Falha ao remover usuário após erro no cadastro:", cleanupError);
-        }
-      }
-
-      throw error;
+      return jsonResponse(
+        request,
+        {
+          success: false,
+          error: pendingRegistrationError.message || "Nao foi possivel preparar seu cadastro agora.",
+        },
+        500,
+      );
     }
+
+    await logAttempt(serviceClient, {
+      emailHash,
+      ipHash,
+      origin,
+      status: "created",
+      userAgent,
+    });
+
+    return jsonResponse(request, {
+      success: true,
+      requiresEmailConfirmation: true,
+      email: data.email,
+    });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Não foi possível concluir o cadastro.";
+    await logAttempt(serviceClient, {
+      emailHash,
+      ipHash,
+      origin,
+      status: "invalid",
+      userAgent,
+    });
+
+    const message = error instanceof Error ? error.message : "Nao foi possivel concluir o cadastro.";
     return jsonResponse(request, { success: false, error: message }, 400);
   }
 });

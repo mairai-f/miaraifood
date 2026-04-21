@@ -23,6 +23,7 @@ import { toast } from 'sonner';
 import { Eye, KeyRound, Plus, Trash2, Users, Wallet } from 'lucide-react';
 import type { Expense, Sale } from '@/types';
 import { formatDateTime } from '../../shared/locale/format';
+import { getPasswordPolicyError, passwordPolicyHint } from '../../shared/security/passwordPolicy';
 
 // Generated Supabase types are behind the current schema for these admin tables.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -266,8 +267,9 @@ export function OperatorManagementPanel({
       return;
     }
 
-    if (password.trim().length < 6) {
-      toast.error('A senha precisa ter pelo menos 6 caracteres');
+    const passwordError = getPasswordPolicyError(password.trim());
+    if (passwordError) {
+      toast.error(passwordError);
       return;
     }
 
@@ -326,8 +328,9 @@ export function OperatorManagementPanel({
       toast.error('Informe a nova senha');
       return;
     }
-    if (resetPassword.trim().length < 6) {
-      toast.error('A nova senha precisa ter pelo menos 6 caracteres');
+    const passwordError = getPasswordPolicyError(resetPassword.trim());
+    if (passwordError) {
+      toast.error(passwordError);
       return;
     }
 
@@ -689,7 +692,8 @@ export function OperatorManagementPanel({
             </div>
             <div className="space-y-1">
               <Label>Senha inicial</Label>
-              <PasswordInput value={password} onChange={event => setPassword(event.target.value)} placeholder="Minimo de 6 caracteres" />
+              <PasswordInput value={password} onChange={event => setPassword(event.target.value)} placeholder="Use uma senha forte" />
+              <p className="text-xs text-muted-foreground">{passwordPolicyHint}</p>
             </div>
             <p className="text-xs text-muted-foreground">
               Use de 3 a 24 caracteres com letras, numeros, ponto, hifen ou underscore.
@@ -778,8 +782,9 @@ export function OperatorManagementPanel({
               <PasswordInput
                 value={resetPassword}
                 onChange={event => setResetPassword(event.target.value)}
-                placeholder="Informe a nova senha"
+                placeholder="Informe uma senha forte"
               />
+              <p className="text-xs text-muted-foreground">{passwordPolicyHint}</p>
             </div>
           </div>
           <DialogFooter>
