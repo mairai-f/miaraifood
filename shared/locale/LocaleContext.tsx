@@ -29,7 +29,7 @@ const shouldTranslateTextNode = (node: Text) => {
   return !["SCRIPT", "STYLE", "NOSCRIPT", "TEXTAREA"].includes(parent.tagName);
 };
 
-const applyTranslations = (root: ParentNode, locale: Locale) => {
+const applyTranslations = (root: ParentNode, locale: Locale, refreshOrigins = false) => {
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
   const textNodes: Text[] = [];
   let currentNode = walker.nextNode();
@@ -42,7 +42,19 @@ const applyTranslations = (root: ParentNode, locale: Locale) => {
   }
 
   for (const textNode of textNodes) {
-    const originalText = textNodeOrigins.get(textNode) ?? textNode.textContent ?? "";
+    const currentText = textNode.textContent ?? "";
+    const storedOriginalText = textNodeOrigins.get(textNode);
+    const translatedStoredText = storedOriginalText ? translateTextValue(storedOriginalText, locale) : null;
+
+    if (!storedOriginalText) {
+      textNodeOrigins.set(textNode, currentText);
+    } else if (refreshOrigins && currentText !== translatedStoredText) {
+      // React may update dynamic values inside an existing text node.
+      // When that happens, refresh the source text before translating it again.
+      textNodeOrigins.set(textNode, currentText);
+    }
+
+    const originalText = textNodeOrigins.get(textNode) ?? currentText;
     if (!textNodeOrigins.has(textNode)) {
       textNodeOrigins.set(textNode, originalText);
     }
@@ -72,6 +84,15 @@ const applyTranslations = (root: ParentNode, locale: Locale) => {
       const currentValue = element.getAttribute(attributeName);
       if (!currentValue) continue;
 
+      const storedOriginalValue = originalAttributes.get(attributeName);
+      const translatedStoredValue = storedOriginalValue ? translateTextValue(storedOriginalValue, locale) : null;
+
+      if (!storedOriginalValue) {
+        originalAttributes.set(attributeName, currentValue);
+      } else if (refreshOrigins && currentValue !== translatedStoredValue) {
+        originalAttributes.set(attributeName, currentValue);
+      }
+
       const originalValue = originalAttributes.get(attributeName) ?? currentValue;
       if (!originalAttributes.has(attributeName)) {
         originalAttributes.set(attributeName, originalValue);
@@ -100,10 +121,10 @@ export function LocaleProvider({ children }: { children: ReactNode }) {
 
     let frameId = 0;
 
-    const runTranslations = (root: ParentNode = document.body) => {
+    const runTranslations = (root: ParentNode = document.body, refreshOrigins = false) => {
       if (applyingRef.current) return;
       applyingRef.current = true;
-      applyTranslations(root, locale);
+      applyTranslations(root, locale, refreshOrigins);
       applyingRef.current = false;
     };
 
@@ -118,19 +139,19 @@ export function LocaleProvider({ children }: { children: ReactNode }) {
           if (mutation.type === "childList") {
             mutation.addedNodes.forEach((node) => {
               if (node instanceof HTMLElement || node instanceof DocumentFragment) {
-                runTranslations(node);
+                runTranslations(node, true);
               } else if (node instanceof Text && node.parentNode) {
-                runTranslations(node.parentNode);
+                runTranslations(node.parentNode, true);
               }
             });
           }
 
           if (mutation.type === "characterData" && mutation.target.parentNode) {
-            runTranslations(mutation.target.parentNode);
+            runTranslations(mutation.target.parentNode, true);
           }
 
           if (mutation.type === "attributes" && mutation.target instanceof HTMLElement) {
-            runTranslations(mutation.target);
+            runTranslations(mutation.target, true);
           }
         }
       });
