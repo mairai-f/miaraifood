@@ -1,5 +1,3 @@
-import { enUS, ptBR } from "date-fns/locale";
-
 import { localeStorageKey, resolveLocale, translateTextValue, type Locale } from "./localeTranslations";
 
 const readStoredLocale = (): Locale => {
@@ -14,8 +12,6 @@ const readStoredLocale = (): Locale => {
 };
 
 export const getActiveLocale = () => readStoredLocale();
-
-export const getDateFnsLocale = () => (getActiveLocale() === "en" ? enUS : ptBR);
 
 export const formatCurrency = (value: number, currency = "BRL") =>
   new Intl.NumberFormat(getActiveLocale(), {

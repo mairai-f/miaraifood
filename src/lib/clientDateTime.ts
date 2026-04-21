@@ -6,7 +6,7 @@ import {
   isValid,
   parseISO,
 } from 'date-fns';
-import { getDateFnsLocale } from '../../shared/locale/format';
+import { getDateFnsLocale } from '../../shared/locale/dateFnsLocale';
 
 const resolveDate = (value: string) => {
   const parsed = parseISO(value);

@@ -3,7 +3,7 @@ import { useData } from '@/contexts/DataContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { format } from 'date-fns';
 import { UserX } from 'lucide-react';
-import { getDateFnsLocale } from '../../shared/locale/format';
+import { getDateFnsLocale } from '../../shared/locale/dateFnsLocale';
 
 export default function DeletedClients() {
   const { clients, debtEntries, payments } = useData();
