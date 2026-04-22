@@ -20,6 +20,7 @@ import PDV from "@/pages/PDV";
 import Reports from "@/pages/Reports";
 import Financial from "@/pages/Financial";
 import Stock from "@/pages/Stock";
+import PricingManager from "@/pages/PricingManager";
 import Notes from "@/pages/Notes";
 import Settings from "@/pages/Settings";
 import AccessMonitor from "@/pages/AccessMonitor";
@@ -103,6 +104,7 @@ function AppRoutes() {
       <Route path="/estoque" element={<ProtectedRoute allowedRoles={['admin']} requiredFeature="stock.manage"><Stock /></ProtectedRoute>} />
       <Route path="/relatorios" element={<ProtectedRoute allowedRoles={['admin']} requiredFeature="reports.view"><Reports /></ProtectedRoute>} />
       <Route path="/financeiro" element={<ProtectedRoute allowedRoles={['admin']} requiredFeature="financial.manage"><Financial /></ProtectedRoute>} />
+      <Route path="/precificacao" element={<ProtectedRoute allowedRoles={['admin']} requiredFeature="pricing.manage"><PricingManager /></ProtectedRoute>} />
       <Route path="/notas" element={<ProtectedRoute allowedRoles={['admin']} requiredFeature="notes.manage"><Notes /></ProtectedRoute>} />
       <Route path="/configuracoes" element={<ProtectedRoute allowedRoles={['admin']} requiredFeature="settings.manage"><Settings /></ProtectedRoute>} />
       <Route path="/acessos" element={<ProtectedRoute allowedRoles={['admin']} requiredFeature="settings.manage"><AccessMonitor /></ProtectedRoute>} />

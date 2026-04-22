@@ -2,20 +2,26 @@ import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { useData } from '@/contexts/DataContext';
 import { useAuth } from '@/contexts/AuthContext';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Label } from '@/components/ui/label';
+import { PasswordInput } from '@/components/ui/password-input';
 import { Plus, Search, Edit, Trash2, TrendingUp } from 'lucide-react';
 import { toast } from 'sonner';
 import { Product } from '@/types';
 import { canManageProducts } from '@/lib/access';
+import { getMarginPercent, getMarkupPercent, getPriceFromMarkup, getUnitProfit } from '@/lib/pricing';
+import { verifyPricingManagerApproval } from '@/lib/pricingManagerApproval';
+
+const LOW_MARGIN_WARNING_PCT = 15;
 
 export default function Products() {
   const { products, addProduct, updateProduct, deleteProduct } = useData();
-  const { role } = useAuth();
+  const { role, session } = useAuth();
   const [search, setSearch] = useState('');
   const [open, setOpen] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
@@ -26,6 +32,12 @@ export default function Products() {
   const [barcode, setBarcode] = useState('');
   const [stock, setStock] = useState('');
   const [minStock, setMinStock] = useState('');
+  const [approvalDialogOpen, setApprovalDialogOpen] = useState(false);
+  const [approvalEmail, setApprovalEmail] = useState('');
+  const [approvalPassword, setApprovalPassword] = useState('');
+  const [approvalError, setApprovalError] = useState('');
+  const [approvalLoading, setApprovalLoading] = useState(false);
+  const [pendingSave, setPendingSave] = useState<{ id: string; data: Partial<Product> } | null>(null);
   const readOnly = !canManageProducts(role);
 
   const activeProducts = products.filter(p => !('deleted' in p && (p as any).deleted));
@@ -38,14 +50,48 @@ export default function Products() {
     );
   });
 
-  const getMargin = (sell: number, cost: number) => {
-    if (!cost || cost === 0) return 0;
-    return ((sell - cost) / cost) * 100;
+  const numericPrice = parseFloat(price) || 0;
+  const numericCostPrice = parseFloat(costPrice) || 0;
+  const previewMarkup = numericCostPrice > 0 ? getMarkupPercent(numericPrice, numericCostPrice) : 0;
+  const previewMargin = numericPrice > 0 ? getMarginPercent(numericPrice, numericCostPrice) : 0;
+  const priceBelowCost = numericPrice > 0 && numericPrice < numericCostPrice;
+  const lowMargin = !priceBelowCost && previewMargin > 0 && previewMargin < LOW_MARGIN_WARNING_PCT;
+
+  const resetApprovalState = () => {
+    setApprovalDialogOpen(false);
+    setApprovalEmail('');
+    setApprovalPassword('');
+    setApprovalError('');
+    setApprovalLoading(false);
+    setPendingSave(null);
+  };
+
+  const persistSave = async (targetEditId: string | null, data: Partial<Product>) => {
+    if (targetEditId) {
+      try {
+        await updateProduct(targetEditId, data);
+        toast.success('Produto atualizado!');
+      } catch (error) {
+        console.error('Erro ao atualizar produto:', error);
+        toast.error(typeof error === 'object' && error && 'message' in error ? String(error.message) : 'Não foi possível atualizar o produto');
+        return;
+      }
+    } else {
+      try {
+        await addProduct(data.name ?? '', data.price ?? 0, data.category ?? '', data);
+        toast.success('Produto cadastrado!');
+      } catch (error) {
+        console.error('Erro ao cadastrar produto:', error);
+        toast.error(typeof error === 'object' && error && 'message' in error ? String(error.message) : 'Não foi possível cadastrar o produto');
+        return;
+      }
+    }
+    resetForm();
   };
 
   const handleSave = async () => {
     if (!name.trim() || !price) { toast.error('Preencha nome e preço'); return; }
-    const data: any = {
+    const data: Partial<Product> = {
       name: name.trim(),
       price: parseFloat(price),
       cost_price: parseFloat(costPrice) || 0,
@@ -54,34 +100,78 @@ export default function Products() {
       stock: parseInt(stock) || 0,
       min_stock: parseInt(minStock) || 0,
     };
+
+    if ((data.price ?? 0) < (data.cost_price ?? 0)) {
+      toast.error('O preço de venda não pode ficar abaixo do custo real.');
+      return;
+    }
+
+    if (lowMargin) {
+      toast.warning(`Margem muito baixa: ${previewMargin.toFixed(1)}%. Revise antes de salvar.`);
+    }
+
     if (editId) {
-      try {
-        await updateProduct(editId, data);
-        toast.success('Produto atualizado!');
-      } catch (error) {
-        console.error('Erro ao atualizar produto:', error);
-        toast.error('Não foi possível atualizar o produto');
-        return;
-      }
-    } else {
-      try {
-        await addProduct(data.name, data.price, data.category, data);
-        toast.success('Produto cadastrado!');
-      } catch (error) {
-        console.error('Erro ao cadastrar produto:', error);
-        toast.error('Não foi possível cadastrar o produto');
+      const currentProduct = activeProducts.find(product => product.id === editId);
+      const requiresApproval = currentProduct
+        && (
+          currentProduct.price !== data.price
+          || currentProduct.cost_price !== data.cost_price
+        );
+
+      if (requiresApproval) {
+        setPendingSave({ id: editId, data });
+        setApprovalError('');
+        setApprovalDialogOpen(true);
         return;
       }
     }
-    resetForm();
+
+    await persistSave(editId, data);
   };
 
-  const resetForm = () => { setName(''); setPrice(''); setCostPrice(''); setCategory(''); setBarcode(''); setStock(''); setMinStock(''); setEditId(null); setOpen(false); };
+  const handleApprovalConfirm = async () => {
+    if (!session?.access_token) {
+      setApprovalError('Sua sessão expirou. Faça login novamente.');
+      return;
+    }
+
+    if (!pendingSave) {
+      setApprovalError('Nenhuma alteração pendente para aprovar.');
+      return;
+    }
+
+    if (!approvalEmail.trim() || !approvalPassword.trim()) {
+      setApprovalError('Informe login e senha do gerente.');
+      return;
+    }
+
+    setApprovalLoading(true);
+    setApprovalError('');
+
+    const result = await verifyPricingManagerApproval(
+      session.access_token,
+      approvalEmail,
+      approvalPassword,
+    );
+
+    setApprovalLoading(false);
+
+    if (!result.success) {
+      setApprovalError(result.error || 'Não foi possível validar a aprovação.');
+      return;
+    }
+
+    await persistSave(pendingSave.id, pendingSave.data);
+    resetApprovalState();
+  };
+
+  const resetForm = () => { setName(''); setPrice(''); setCostPrice(''); setCategory(''); setBarcode(''); setStock(''); setMinStock(''); setEditId(null); setOpen(false); resetApprovalState(); };
 
   const openEdit = (p: Product) => {
     setEditId(p.id); setName(p.name); setPrice(p.price.toString());
     setCostPrice((p.cost_price || 0).toString()); setCategory(p.category);
     setBarcode(p.barcode || ''); setStock((p.stock || 0).toString()); setMinStock((p.min_stock || 0).toString());
+    resetApprovalState();
     setOpen(true);
   };
 
@@ -101,13 +191,41 @@ export default function Products() {
                 <div className="space-y-1"><Label>Nome / Marca</Label><Input value={name} onChange={e => setName(e.target.value)} placeholder="Ex: Skol 600ml" /></div>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1"><Label>Preço Venda (R$)</Label><Input type="number" step="0.01" value={price} onChange={e => setPrice(e.target.value)} placeholder="0.00" /></div>
-                  <div className="space-y-1"><Label>Preço Custo (R$)</Label><Input type="number" step="0.01" value={costPrice} onChange={e => setCostPrice(e.target.value)} placeholder="0.00" /></div>
+                  <div className="space-y-1"><Label>Custo Real (R$)</Label><Input type="number" step="0.01" value={costPrice} onChange={e => {
+                    const nextCost = e.target.value;
+                    const previousCost = parseFloat(costPrice) || 0;
+                    const currentPrice = parseFloat(price) || 0;
+                    const preservedMarkup = previousCost > 0 && currentPrice > 0
+                      ? getMarkupPercent(currentPrice, previousCost)
+                      : 0;
+                    setCostPrice(nextCost);
+                    if (preservedMarkup > 0) {
+                      const recalculatedPrice = getPriceFromMarkup(parseFloat(nextCost) || 0, preservedMarkup);
+                      setPrice(recalculatedPrice > 0 ? recalculatedPrice.toFixed(2) : '');
+                    }
+                  }} placeholder="0.00" /></div>
                 </div>
                 {price && costPrice && parseFloat(costPrice) > 0 && (
                   <div className="flex items-center gap-2 text-xs p-2 rounded-lg bg-primary/10">
                     <TrendingUp className="h-4 w-4 text-primary" />
-                    <span>Margem de lucro: <strong>{getMargin(parseFloat(price), parseFloat(costPrice)).toFixed(1)}%</strong></span>
+                    <span>
+                      Markup: <strong>{previewMarkup.toFixed(1)}%</strong>
+                      {' • '}
+                      Margem: <strong>{previewMargin.toFixed(1)}%</strong>
+                    </span>
                   </div>
+                )}
+                {priceBelowCost && (
+                  <Alert variant="destructive">
+                    <AlertTitle>Preço abaixo do custo</AlertTitle>
+                    <AlertDescription>Esse produto não pode ser salvo com preço menor que o custo real.</AlertDescription>
+                  </Alert>
+                )}
+                {lowMargin && (
+                  <Alert>
+                    <AlertTitle>Margem muito baixa</AlertTitle>
+                    <AlertDescription>A margem estimada está em {previewMargin.toFixed(1)}%.</AlertDescription>
+                  </Alert>
                 )}
                 <div className="space-y-1"><Label>Código de Barras</Label><Input value={barcode} onChange={e => setBarcode(e.target.value)} placeholder="Ex: 7891234567890" /></div>
                 <div className="space-y-1"><Label>Categoria</Label><Input value={category} onChange={e => setCategory(e.target.value)} placeholder="Ex: Cerveja, Cigarro" /></div>
@@ -122,6 +240,48 @@ export default function Products() {
         )}
       </div>
 
+      <Dialog
+        open={approvalDialogOpen}
+        onOpenChange={openState => {
+          if (!openState) {
+            resetApprovalState();
+            return;
+          }
+          setApprovalDialogOpen(true);
+        }}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Aprovação do gerente</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Alterações de preço ou custo exigem confirmação do administrador da loja.
+            </p>
+            <div className="space-y-1">
+              <Label>Login do gerente</Label>
+              <Input type="email" value={approvalEmail} onChange={e => setApprovalEmail(e.target.value)} placeholder="admin@empresa.com" />
+            </div>
+            <div className="space-y-1">
+              <Label>Senha do gerente</Label>
+              <PasswordInput value={approvalPassword} onChange={e => setApprovalPassword(e.target.value)} placeholder="Digite a senha" />
+            </div>
+            {approvalError && (
+              <Alert variant="destructive">
+                <AlertTitle>Falha na aprovação</AlertTitle>
+                <AlertDescription>{approvalError}</AlertDescription>
+              </Alert>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={resetApprovalState} disabled={approvalLoading}>Cancelar</Button>
+            <Button onClick={() => void handleApprovalConfirm()} disabled={approvalLoading}>
+              {approvalLoading ? 'Validando...' : 'Aprovar alteração'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <div className="relative mb-4">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         <Input className="pl-10" placeholder="Buscar produto..." value={search} onChange={e => setSearch(e.target.value)} />
@@ -129,7 +289,9 @@ export default function Products() {
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
         {filtered.map(p => {
-          const margin = getMargin(p.price, p.cost_price);
+          const markup = getMarkupPercent(p.price, p.cost_price);
+          const margin = getMarginPercent(p.price, p.cost_price);
+          const unitProfit = getUnitProfit(p.price, p.cost_price);
           return (
             <motion.div key={p.id} whileHover={{ scale: 1.02 }}>
               <Card className={`border-border/50 ${p.stock <= p.min_stock && p.min_stock > 0 ? 'border-destructive/30' : ''}`}>
@@ -143,7 +305,10 @@ export default function Products() {
                   </div>
                   <div className="flex flex-wrap gap-2 text-[10px] text-muted-foreground mb-2">
                     {p.cost_price > 0 && <span>Custo: R$ {p.cost_price.toFixed(2)}</span>}
-                    {p.cost_price > 0 && <span className="text-primary font-medium">Lucro: {margin.toFixed(1)}%</span>}
+                    {p.cost_price > 0 && <span className="text-primary font-medium">Markup: {markup.toFixed(1)}%</span>}
+                    {p.cost_price > 0 && <span>Margem: {margin.toFixed(1)}%</span>}
+                    {p.cost_price > 0 && <span>Lucro un.: R$ {unitProfit.toFixed(2)}</span>}
+                    {margin > 0 && margin < LOW_MARGIN_WARNING_PCT && <span className="text-amber-600 font-medium">Margem baixa</span>}
                     <span className={p.stock <= p.min_stock && p.min_stock > 0 ? 'text-destructive font-bold' : ''}>Est: {p.stock}</span>
                   </div>
                   {!readOnly && (

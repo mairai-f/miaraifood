@@ -52,6 +52,7 @@ const plans = [
       "Frente de Caixa (PDV)",
       "Controle de estoque",
       "Cadastro de produtos",
+      "Módulo de precificação inteligente",
       "Programa de fidelidade",
       "Relatórios e financeiro",
       "Configurações da loja",
@@ -69,6 +70,7 @@ const plans = [
     features: [
       "Plano com validade de 30 dias",
       "Tudo do Plano Completo",
+      "Módulo de precificação inteligente",
       "Aplicativo desktop",
       "App mobile",
       "Fluxo preparado para offline",

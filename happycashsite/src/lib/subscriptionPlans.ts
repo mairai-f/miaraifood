@@ -58,6 +58,7 @@ export const publicPlanContent: Record<PublicPlanId, PublicPlanContent> = {
       "Tudo do Plano Fiado",
       "PDV",
       "Estoque",
+      "Modulo de precificacao inteligente",
       "Relatorios",
       "Caixa",
       "Configuracoes da loja",
@@ -74,6 +75,7 @@ export const publicPlanContent: Record<PublicPlanId, PublicPlanContent> = {
     description: "Plano com mais valor para quem quer operar no web e preparar desktop, mobile e offline.",
     features: [
       "Tudo do Plano Completo",
+      "Modulo de precificacao inteligente",
       "Aplicativo desktop",
       "App mobile",
       "Fluxo preparado para offline",

@@ -2,7 +2,8 @@ import { createContext, useContext, useState, useEffect, useCallback, ReactNode 
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './AuthContext';
 import { usePlanAccess } from './PlanContext';
-import type { Client, Product, DebtEntry, Payment, Sale, SaleItem, StockMovement, Expense } from '@/types';
+import type { Client, Product, DebtEntry, Payment, Sale, SaleItem, StockMovement, Expense, ProductCategoryPricingRule, ProductPriceHistoryEntry } from '@/types';
+import { buildSaleItemPricingMetrics, normalizeProductPricing, normalizePricingRoundingRule } from '@/lib/pricing';
 
 const db = supabase as any;
 
@@ -13,23 +14,40 @@ const ensureSuccess = <T extends { error?: unknown }>(result: T) => {
   return result;
 };
 
+const normalizeProductRow = (row: Product) => {
+  const normalized = normalizeProductPricing(row);
+
+  return {
+    ...row,
+    ...normalized,
+    rounding_rule: normalizePricingRoundingRule(normalized.rounding_rule),
+  } as Product;
+};
+
 const productsWithDisplayCodes = (rows: Product[] = []) =>
   rows.map((product, index) => ({
-    ...product,
+    ...normalizeProductRow(product),
     code: product.code ?? index + 1,
-    cost_price: product.cost_price ?? 0,
     barcode: product.barcode ?? '',
     stock: product.stock ?? 0,
     min_stock: product.min_stock ?? 0,
   }));
 
 const withDisplayCode = (product: Product, existing: Product[] = []) => ({
-  ...product,
+  ...normalizeProductRow(product),
   code: product.code ?? Math.max(0, ...existing.map(item => Number(item.code) || 0)) + 1,
-  cost_price: product.cost_price ?? 0,
   barcode: product.barcode ?? '',
   stock: product.stock ?? 0,
   min_stock: product.min_stock ?? 0,
+});
+
+const normalizePricingRuleRow = (rule: ProductCategoryPricingRule): ProductCategoryPricingRule => ({
+  ...rule,
+  default_markup_pct: Number(rule.default_markup_pct ?? 0) || 0,
+  minimum_markup_pct: Number(rule.minimum_markup_pct ?? 0) || 0,
+  minimum_price: Number(rule.minimum_price ?? 0) || 0,
+  rounding_rule: normalizePricingRoundingRule(rule.rounding_rule),
+  notes: rule.notes ?? '',
 });
 
 const nowIso = () => new Date().toISOString();
@@ -44,6 +62,7 @@ const isVisiblePendingDebtEntry = (entry: DebtEntry) => isVisibleDebtEntry(entry
 interface DataContextType {
   clients: Client[]; products: Product[]; debtEntries: DebtEntry[]; payments: Payment[]; rewards: Reward[];
   sales: Sale[]; saleItems: SaleItem[]; stockMovements: StockMovement[]; expenses: Expense[];
+  pricingRules: ProductCategoryPricingRule[]; priceHistory: ProductPriceHistoryEntry[];
   loading: boolean;
   addClient: (name: string, phone: string) => Promise<void>;
   updateClient: (id: string, data: Partial<Client>) => Promise<void>;
@@ -51,6 +70,9 @@ interface DataContextType {
   addProduct: (name: string, price: number, category: string, extra?: Partial<Product>) => Promise<void>;
   updateProduct: (id: string, data: Partial<Product>) => Promise<void>;
   deleteProduct: (id: string) => Promise<void>;
+  addPricingRule: (rule: Omit<ProductCategoryPricingRule, 'id' | 'created_at' | 'updated_at' | 'owner_user_id'> & { owner_user_id?: string }) => Promise<void>;
+  updatePricingRule: (id: string, data: Partial<ProductCategoryPricingRule>) => Promise<void>;
+  deletePricingRule: (id: string) => Promise<void>;
   searchProducts: (q: string) => Product[];
   addDebtEntry: (clientId: string, productId: string, productName: string, quantity: number, unitPrice: number, dateAdded?: string, registeredBy?: string) => Promise<void>;
   addDebtEntries: (entries: Array<{ clientId: string; productId: string; productName: string; quantity: number; unitPrice: number; dateAdded?: string; registeredBy?: string }>) => Promise<void>;
@@ -100,6 +122,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [saleItems, setSaleItems] = useState<SaleItem[]>([]);
   const [stockMovements, setStockMovements] = useState<StockMovement[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
+  const [pricingRules, setPricingRules] = useState<ProductCategoryPricingRule[]>([]);
+  const [priceHistory, setPriceHistory] = useState<ProductPriceHistoryEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const isDemoMode = planId === 'demo';
 
@@ -115,6 +139,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
     setSaleItems([]);
     setStockMovements([]);
     setExpenses([]);
+    setPricingRules([]);
+    setPriceHistory([]);
     setLoading(false);
   }, [isDemoMode, ownerUserId, user]);
 
@@ -126,7 +152,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
     if (!user || !ownerUserId) {
       setClients([]); setProducts([]); setDebtEntries([]); setPayments([]); setRewards([]);
-      setSales([]); setSaleItems([]); setStockMovements([]); setExpenses([]);
+      setSales([]); setSaleItems([]); setStockMovements([]); setExpenses([]); setPricingRules([]); setPriceHistory([]);
       setLoading(false); return;
     }
 
@@ -144,6 +170,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     const canReadSales = hasFeature('pdv.use');
     const canReadStock = hasFeature('stock.manage');
     const canReadExpenses = hasFeature('financial.manage');
+    const canReadPricing = hasFeature('pricing.manage');
 
     const emptyResult = Promise.resolve({ data: [], error: null });
 
@@ -156,7 +183,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         : productsByCode;
     }
 
-    const [c, p, d, pay, r, s, si, sm, exp] = await Promise.all([
+    const [c, p, d, pay, r, s, si, sm, exp, pr, ph] = await Promise.all([
       canReadClients ? db.from('clients').select('*').order('created_at', { ascending: false }) : emptyResult,
       Promise.resolve(productsResponse),
       canReadFiado ? db.from('debt_entries').select('*').order('date_added', { ascending: false }) : emptyResult,
@@ -166,6 +193,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
       canReadSales ? db.from('sale_items').select('*') : emptyResult,
       canReadStock ? db.from('stock_movements').select('*').order('date', { ascending: false }) : emptyResult,
       canReadExpenses ? db.from('expenses').select('*').order('date', { ascending: false }) : emptyResult,
+      canReadPricing ? db.from('product_category_pricing_rules').select('*').order('category', { ascending: true }) : emptyResult,
+      canReadPricing ? db.from('product_price_history').select('*').order('created_at', { ascending: false }) : emptyResult,
     ]);
     setClients((c.data as Client[]) ?? []);
     setProducts(productsWithDisplayCodes((p.data as Product[]) ?? []));
@@ -176,6 +205,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
     setSaleItems((si.data as SaleItem[]) ?? []);
     setStockMovements((sm.data as StockMovement[]) ?? []);
     setExpenses((exp.data as Expense[]) ?? []);
+    setPricingRules((((pr.data as ProductCategoryPricingRule[]) ?? []).map(normalizePricingRuleRow)));
+    setPriceHistory((ph.data as ProductPriceHistoryEntry[]) ?? []);
     setLoading(false);
   }, [authLoading, hasFeature, isDemoMode, ownerUserId, planLoading, user]);
 
@@ -220,18 +251,51 @@ export function DataProvider({ children }: { children: ReactNode }) {
   };
 
   // --- Products ---
+  const prepareProductPayload = useCallback((payload: Partial<Product>) => {
+    const normalized = normalizeProductPricing(payload);
+
+    return {
+      ...payload,
+      ...normalized,
+      name: payload.name?.trim() ?? '',
+      category: payload.category?.trim() ?? '',
+      barcode: payload.barcode?.trim() ?? '',
+    } as Partial<Product>;
+  }, []);
+
   const addProduct = async (name: string, price: number, category: string, extra: Partial<Product> = {}) => {
+    const productPayload = prepareProductPayload({
+      ...extra,
+      name,
+      price,
+      category,
+    });
+
     if (isDemoMode) {
       const product = withDisplayCode({
         id: createId(),
         user_id: ownerUserId!,
-        name,
-        price,
-        category,
-        cost_price: extra.cost_price ?? 0,
-        barcode: extra.barcode ?? '',
-        stock: extra.stock ?? 0,
-        min_stock: extra.min_stock ?? 0,
+        name: productPayload.name ?? name,
+        price: productPayload.price ?? price,
+        category: productPayload.category ?? category,
+        cost_price: productPayload.cost_price ?? 0,
+        purchase_cost: productPayload.purchase_cost ?? 0,
+        freight_cost: productPayload.freight_cost ?? 0,
+        tax_cost: productPayload.tax_cost ?? 0,
+        commission_cost: productPayload.commission_cost ?? 0,
+        card_fee_cost: productPayload.card_fee_cost ?? 0,
+        packaging_cost: productPayload.packaging_cost ?? 0,
+        operational_cost: productPayload.operational_cost ?? 0,
+        other_extra_cost: productPayload.other_extra_cost ?? 0,
+        supplier_name: productPayload.supplier_name ?? '',
+        target_markup_pct: productPayload.target_markup_pct ?? 0,
+        minimum_markup_pct: productPayload.minimum_markup_pct ?? 0,
+        minimum_price: productPayload.minimum_price ?? 0,
+        rounding_rule: productPayload.rounding_rule,
+        pricing_notes: productPayload.pricing_notes ?? '',
+        barcode: productPayload.barcode ?? '',
+        stock: productPayload.stock ?? 0,
+        min_stock: productPayload.min_stock ?? 0,
         deleted: false,
         deleted_at: null,
       } as Product, products);
@@ -240,23 +304,20 @@ export function DataProvider({ children }: { children: ReactNode }) {
     }
     const { data, error } = await db.from('products').insert({
       user_id: ownerUserId!,
-      name,
-      price,
-      category,
-      cost_price: extra.cost_price ?? 0,
-      barcode: extra.barcode ?? '',
-      stock: extra.stock ?? 0,
-      min_stock: extra.min_stock ?? 0,
+      ...productPayload,
     } as any).select('*').single();
     if (error) throw error;
     setProducts(prev => [...prev, withDisplayCode(data as Product, prev)]);
   };
   const updateProduct = async (id: string, data: Partial<Product>) => {
+    const nextProduct = products.find(product => product.id === id);
+    const productPayload = prepareProductPayload({ ...nextProduct, ...data });
+
     if (isDemoMode) {
-      setProducts(prev => prev.map(product => product.id === id ? withDisplayCode({ ...product, ...data } as Product, prev) : product));
+      setProducts(prev => prev.map(product => product.id === id ? withDisplayCode({ ...product, ...productPayload } as Product, prev) : product));
       return;
     }
-    const { data: updated, error } = await db.from('products').update(data).eq('id', id).select('*').single();
+    const { data: updated, error } = await db.from('products').update(productPayload).eq('id', id).select('*').single();
     if (error) throw error;
     setProducts(prev => prev.map(product => product.id === id ? withDisplayCode(updated as Product, prev) : product));
   };
@@ -268,6 +329,64 @@ export function DataProvider({ children }: { children: ReactNode }) {
     const { data: updated, error } = await db.from('products').update({ deleted: true, deleted_at: new Date().toISOString() }).eq('id', id).select('*').single();
     if (error) throw error;
     setProducts(prev => prev.map(product => product.id === id ? withDisplayCode(updated as Product, prev) : product));
+  };
+  const addPricingRule = async (rule: Omit<ProductCategoryPricingRule, 'id' | 'created_at' | 'updated_at' | 'owner_user_id'> & { owner_user_id?: string }) => {
+    const normalizedRule = {
+      owner_user_id: rule.owner_user_id || ownerUserId!,
+      category: rule.category.trim(),
+      default_markup_pct: Number(rule.default_markup_pct ?? 0) || 0,
+      minimum_markup_pct: Number(rule.minimum_markup_pct ?? 0) || 0,
+      minimum_price: Number(rule.minimum_price ?? 0) || 0,
+      rounding_rule: normalizePricingRoundingRule(rule.rounding_rule),
+      notes: rule.notes?.trim() ?? '',
+    };
+
+    if (isDemoMode) {
+      setPricingRules(prev => [...prev, normalizePricingRuleRow({
+        id: createId(),
+        created_at: nowIso(),
+        updated_at: nowIso(),
+        ...normalizedRule,
+      } as ProductCategoryPricingRule)]);
+      return;
+    }
+
+    const { data, error } = await db.from('product_category_pricing_rules').insert(normalizedRule).select('*').single();
+    if (error) throw error;
+    setPricingRules(prev => [...prev, normalizePricingRuleRow(data as ProductCategoryPricingRule)].sort((a, b) => a.category.localeCompare(b.category)));
+  };
+  const updatePricingRule = async (id: string, data: Partial<ProductCategoryPricingRule>) => {
+    const currentRule = pricingRules.find(rule => rule.id === id);
+    const payload = {
+      owner_user_id: data.owner_user_id || currentRule?.owner_user_id || ownerUserId!,
+      category: (data.category ?? currentRule?.category ?? '').trim(),
+      default_markup_pct: Number(data.default_markup_pct ?? currentRule?.default_markup_pct ?? 0) || 0,
+      minimum_markup_pct: Number(data.minimum_markup_pct ?? currentRule?.minimum_markup_pct ?? 0) || 0,
+      minimum_price: Number(data.minimum_price ?? currentRule?.minimum_price ?? 0) || 0,
+      rounding_rule: normalizePricingRoundingRule(data.rounding_rule ?? currentRule?.rounding_rule),
+      notes: (data.notes ?? currentRule?.notes ?? '').trim(),
+    };
+
+    if (isDemoMode) {
+      setPricingRules(prev => prev.map(rule => rule.id === id ? normalizePricingRuleRow({ ...rule, ...payload, updated_at: nowIso() }) : rule));
+      return;
+    }
+
+    const { data: updated, error } = await db.from('product_category_pricing_rules').update(payload).eq('id', id).select('*').single();
+    if (error) throw error;
+    setPricingRules(prev =>
+      prev
+        .map(rule => rule.id === id ? normalizePricingRuleRow(updated as ProductCategoryPricingRule) : rule)
+        .sort((a, b) => a.category.localeCompare(b.category))
+    );
+  };
+  const deletePricingRule = async (id: string) => {
+    if (isDemoMode) {
+      setPricingRules(prev => prev.filter(rule => rule.id !== id));
+      return;
+    }
+    ensureSuccess(await db.from('product_category_pricing_rules').delete().eq('id', id));
+    setPricingRules(prev => prev.filter(rule => rule.id !== id));
   };
   const searchProducts = (q: string) => {
     const activeProducts = products.filter(p => !p.deleted);
@@ -544,6 +663,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
     sale: Omit<Sale, 'id' | 'created_at' | 'date'>,
     items: Omit<SaleItem, 'id' | 'sale_id'>[],
   ) => {
+    const itemsWithMetrics = buildSaleItemPricingMetrics(items, sale.discount ?? 0);
+
     if (isDemoMode) {
       const saleId = createId();
       const createdAt = nowIso();
@@ -554,12 +675,12 @@ export function DataProvider({ children }: { children: ReactNode }) {
         ...sale,
         user_id: ownerUserId!,
       };
-      const saleRows = items.map(item => ({
+      const saleRows = itemsWithMetrics.map(item => ({
         ...item,
         id: createId(),
         sale_id: saleId,
       })) as SaleItem[];
-      const movements = items
+      const movements = itemsWithMetrics
         .filter(item => item.product_id)
         .map(item => ({
           id: createId(),
@@ -574,7 +695,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       setSales(prev => [saleRow, ...prev]);
       setSaleItems(prev => [...saleRows, ...prev]);
       setProducts(prev => prev.map(product => {
-        const soldQuantity = items.filter(item => item.product_id === product.id).reduce((sum, item) => sum + item.quantity, 0);
+        const soldQuantity = itemsWithMetrics.filter(item => item.product_id === product.id).reduce((sum, item) => sum + item.quantity, 0);
         return soldQuantity > 0 ? { ...product, stock: Math.max(0, (product.stock || 0) - soldQuantity) } : product;
       }));
       if (movements.length > 0) {
@@ -614,11 +735,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
     if (saleError || !saleData) throw saleError;
     const saleId = saleData.id;
-    const itemsWithSaleId = items.map(i => ({ ...i, sale_id: saleId }));
+    const itemsWithSaleId = itemsWithMetrics.map(i => ({ ...i, sale_id: saleId }));
     const { data: insertedItems, error: saleItemsError } = await db.from('sale_items').insert(itemsWithSaleId).select('*');
     if (saleItemsError) throw saleItemsError;
 
-    const stockUpdates = items
+    const stockUpdates = itemsWithMetrics
       .filter(item => item.product_id)
       .map(item => {
         const product = products.find(p => p.id === item.product_id);
@@ -628,7 +749,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       })
       .filter(Boolean);
 
-    const stockMovementsToInsert = items
+    const stockMovementsToInsert = itemsWithMetrics
       .filter(item => item.product_id)
       .map(item => ({
         product_id: item.product_id,
@@ -649,7 +770,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     setSales(prev => [saleData as Sale, ...prev]);
     setSaleItems(prev => [...((insertedItems as SaleItem[]) ?? []), ...prev]);
     setProducts(prev => prev.map(product => {
-      const soldQuantity = items
+      const soldQuantity = itemsWithMetrics
         .filter(item => item.product_id === product.id)
         .reduce((sum, item) => sum + item.quantity, 0);
       if (soldQuantity === 0) return product;
@@ -913,9 +1034,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
   return (
     <DataContext.Provider value={{
-      clients, products, debtEntries, payments, rewards, sales, saleItems, stockMovements, expenses, loading,
+      clients, products, debtEntries, payments, rewards, sales, saleItems, stockMovements, expenses, pricingRules, priceHistory, loading,
       addClient, updateClient, softDeleteClient,
       addProduct, updateProduct, deleteProduct, searchProducts,
+      addPricingRule, updatePricingRule, deletePricingRule,
       addDebtEntry, addDebtEntries, updateDebtEntry, deleteDebtEntry,
       addPayment, deletePayment, getClientBalance, getClientTotalSpending, closeAllDebt, deleteClientHistory,
       createSale, cancelSale, addStockMovement, clearAllStock, addExpense, deleteExpense,

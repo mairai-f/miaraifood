@@ -24,6 +24,7 @@ import { supabase } from '@/integrations/supabase/client';
 import type { Database } from '@/integrations/supabase/types';
 import happyCashLogo from '@/assets/happycash-logo.png';
 import { roleLabel } from '@/lib/access';
+import { getMarginPercent } from '@/lib/pricing';
 import {
   type FiscalDocumentRecord,
   type FiscalRuntimeStatus,
@@ -617,11 +618,15 @@ export default function PDV() {
   }, [filtered.length, search]);
 
   const subtotal = cart.reduce((s, i) => s + getCartItemTotal(i), 0);
+  const cartRealCost = cart.reduce((sum, item) => sum + (item.product.cost_price || 0) * item.quantity, 0);
   const cartUnits = cart.reduce((sum, item) => sum + item.quantity, 0);
   const discount = discountType === 'percent'
     ? subtotal * (parseFloat(discountInput) || 0) / 100
     : parseFloat(discountInput) || 0;
   const total = Math.max(0, subtotal - discount);
+  const estimatedProfit = total - cartRealCost;
+  const estimatedMargin = getMarginPercent(total, cartRealCost);
+  const discountKillsProfit = discount > 0 && estimatedProfit <= 0;
   const change = paymentMethod === 'dinheiro' ? Math.max(0, (parseFloat(cashReceived) || 0) - total) : 0;
   const canFinalizeCheckout = Boolean(paymentMethod)
     && (paymentMethod !== 'dinheiro' || (parseFloat(cashReceived) || 0) >= total)
@@ -2709,7 +2714,18 @@ export default function PDV() {
                 <div className="flex justify-between text-sm"><span>Subtotal</span><span>R$ {subtotal.toFixed(2)}</span></div>
                 {discount > 0 && <div className="flex justify-between text-sm text-destructive"><span>Desconto</span><span>-R$ {discount.toFixed(2)}</span></div>}
                 <div className="flex justify-between text-lg font-bold"><span>Total</span><span className="text-primary">R$ {total.toFixed(2)}</span></div>
+                <div className="flex justify-between text-xs text-muted-foreground"><span>Custo real estimado</span><span>R$ {cartRealCost.toFixed(2)}</span></div>
+                <div className="flex justify-between text-xs text-muted-foreground"><span>Lucro estimado</span><span>R$ {estimatedProfit.toFixed(2)} • {estimatedMargin.toFixed(1)}%</span></div>
               </div>
+
+              {discountKillsProfit && (
+                <Alert variant="destructive">
+                  <AlertTitle>Desconto sem lucro</AlertTitle>
+                  <AlertDescription>
+                    Com esse desconto, a venda fica com lucro estimado de R$ {estimatedProfit.toFixed(2)}.
+                  </AlertDescription>
+                </Alert>
+              )}
             </div>
 
             <div className="space-y-3 rounded-lg border border-border bg-background p-3 lg:rounded-none lg:border-0 lg:bg-transparent lg:p-0">

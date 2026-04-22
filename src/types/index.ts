@@ -8,6 +8,16 @@ export interface Client {
   user_id: string;
 }
 
+export type PricingRoundingRule =
+  | 'none'
+  | '0.01'
+  | '0.05'
+  | '0.10'
+  | '0.50'
+  | '1.00'
+  | 'whole_90'
+  | 'whole_99';
+
 export interface Product {
   id: string;
   user_id: string;
@@ -19,6 +29,20 @@ export interface Product {
   barcode: string;
   stock: number;
   min_stock: number;
+  purchase_cost?: number;
+  freight_cost?: number;
+  tax_cost?: number;
+  commission_cost?: number;
+  card_fee_cost?: number;
+  packaging_cost?: number;
+  operational_cost?: number;
+  other_extra_cost?: number;
+  supplier_name?: string;
+  target_markup_pct?: number;
+  minimum_markup_pct?: number;
+  minimum_price?: number;
+  rounding_rule?: PricingRoundingRule;
+  pricing_notes?: string;
   deleted?: boolean;
   deleted_at?: string | null;
 }
@@ -80,6 +104,42 @@ export interface SaleItem {
   unit_price: number;
   cost_price: number;
   total: number;
+  discount_amount?: number;
+  net_total?: number;
+  unit_profit?: number;
+  total_profit?: number;
+  markup_pct?: number;
+  margin_pct?: number;
+}
+
+export interface ProductCategoryPricingRule {
+  id: string;
+  owner_user_id: string;
+  category: string;
+  default_markup_pct: number;
+  minimum_markup_pct: number;
+  minimum_price: number;
+  rounding_rule: PricingRoundingRule;
+  notes: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ProductPriceHistoryEntry {
+  id: string;
+  owner_user_id: string;
+  product_id: string;
+  changed_by_user_id?: string | null;
+  product_name: string;
+  previous_price: number;
+  new_price: number;
+  previous_cost_price: number;
+  new_cost_price: number;
+  previous_markup_pct: number;
+  new_markup_pct: number;
+  previous_margin_pct: number;
+  new_margin_pct: number;
+  created_at: string;
 }
 
 export interface StockMovement {

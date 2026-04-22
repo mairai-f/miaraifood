@@ -32,3 +32,6 @@ verify_jwt = false
 
 [functions.operator-login]
 verify_jwt = false
+
+[functions.authorize-pricing-manager]
+verify_jwt = false
