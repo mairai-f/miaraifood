@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useData } from '@/contexts/DataContext';
 import { useAuth } from '@/contexts/AuthContext';
+import { useCompanyDisplayName } from '@/hooks/use-company-display-name';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -27,6 +28,7 @@ import {
 } from '@/lib/clientDateTime';
 import { getPaymentLabel, groupPaymentSnapshotItems, parsePaymentType } from '@/lib/payment';
 import { openExternalUrl } from '@/lib/openExternalUrl';
+import { DEFAULT_COMPANY_NAME, fetchCompanyDisplayName } from '@/lib/company';
 import { buildWhatsAppUrl, buildItemWhatsAppUrl, buildPaymentWhatsAppUrl } from '@/lib/whatsapp';
 import { normalizePhone } from '@/lib/phone';
 
@@ -52,7 +54,8 @@ export default function ClientDetail() {
   const { clientRef } = useParams<{ clientRef: string }>();
   const navigate = useNavigate();
   const data = useData();
-  const { username, isAdmin, profileEmail, user } = useAuth();
+  const { username, isAdmin, ownerUserId, profileEmail, user } = useAuth();
+  const companyDisplayName = useCompanyDisplayName();
 
   const [productSearch, setProductSearch] = useState('');
   const [selectedProduct, setSelectedProduct] = useState<{ id: string; name: string; price: number } | null>(null);
@@ -314,6 +317,9 @@ export default function ClientDetail() {
     toast.success(`${cart.length} item(s) adicionado(s)${sendWhatsApp ? ' e notificado!' : ' (sem notificar)!'}`);
 
     if (sendWhatsApp && client.phone) {
+      const storeName = companyDisplayName !== DEFAULT_COMPANY_NAME || !ownerUserId
+        ? companyDisplayName
+        : await fetchCompanyDisplayName(ownerUserId);
       const cartTotal = cart.reduce((s, c) => s + c.quantity * c.price, 0);
       const newBalance = balance + cartTotal;
       const cartEntries = cart.map(c => ({
@@ -322,7 +328,7 @@ export default function ClientDetail() {
         date_added: dateAdded, status: 'pending', deleted: false,
         date_paid: null, registered_by: username,
       }));
-      const url = buildItemWhatsAppUrl(client.phone, client.name, cartEntries, newBalance);
+      const url = buildItemWhatsAppUrl(client.phone, client.name, cartEntries, newBalance, storeName);
       if (!openExternalUrl(url)) {
         toast.error('Não foi possível abrir o WhatsApp.');
       }
@@ -352,10 +358,13 @@ export default function ClientDetail() {
     }
 
     if (client.phone) {
+      const storeName = companyDisplayName !== DEFAULT_COMPANY_NAME || !ownerUserId
+        ? companyDisplayName
+        : await fetchCompanyDisplayName(ownerUserId);
       const isFullPayment = amount >= balance;
       const newBalance = balance - amount;
       const remainingEntries = isFullPayment ? [] : entries.filter(e => e.status === 'pending');
-      const url = buildPaymentWhatsAppUrl(client.phone, client.name, amount, remainingEntries, Math.max(0, newBalance));
+      const url = buildPaymentWhatsAppUrl(client.phone, client.name, amount, remainingEntries, Math.max(0, newBalance), storeName);
       if (!openExternalUrl(url)) {
         toast.error('Não foi possível abrir o WhatsApp.');
       }
@@ -363,10 +372,13 @@ export default function ClientDetail() {
     setPayAmount(''); setPayOpen(false);
   };
 
-  const handleWhatsApp = () => {
+  const handleWhatsApp = async () => {
     if (!client.phone) { toast.error('Cliente sem telefone cadastrado'); return; }
+    const storeName = companyDisplayName !== DEFAULT_COMPANY_NAME || !ownerUserId
+      ? companyDisplayName
+      : await fetchCompanyDisplayName(ownerUserId);
     const allEntries = data.debtEntries.filter(d => d.client_id === id && !d.deleted);
-    const url = buildWhatsAppUrl(client.phone, client.name, allEntries, clientPayments, balance);
+    const url = buildWhatsAppUrl(client.phone, client.name, allEntries, clientPayments, balance, storeName);
     if (!openExternalUrl(url)) {
       toast.error('Não foi possível abrir o WhatsApp.');
     }

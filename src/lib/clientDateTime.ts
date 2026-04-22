@@ -6,13 +6,16 @@ import {
   isValid,
   parseISO,
 } from 'date-fns';
+import { fromZonedTime, toZonedTime } from 'date-fns-tz';
 import { getDateFnsLocale } from '../../shared/locale/dateFnsLocale';
+
+const CLIENT_TIME_ZONE = 'America/Sao_Paulo';
 
 const resolveDate = (value: string) => {
   const parsed = parseISO(value);
-  if (isValid(parsed)) return parsed;
+  if (isValid(parsed)) return toZonedTime(parsed, CLIENT_TIME_ZONE);
 
-  return new Date(value);
+  return toZonedTime(new Date(value), CLIENT_TIME_ZONE);
 };
 
 export const parseClientDate = (value: string) => resolveDate(value);
@@ -24,8 +27,11 @@ export const toClientDateTimeInputValue = (value: string) =>
   format(resolveDate(value), "yyyy-MM-dd'T'HH:mm");
 
 export const toUtcIsoString = (value: string | Date) => {
-  const resolved = value instanceof Date ? value : new Date(value);
-  return resolved.toISOString();
+  if (value instanceof Date) {
+    return value.toISOString();
+  }
+
+  return fromZonedTime(value, CLIENT_TIME_ZONE).toISOString();
 };
 
 export const isClientDateToday = (value: string) => isToday(resolveDate(value));

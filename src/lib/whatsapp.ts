@@ -1,4 +1,5 @@
 import type { DebtEntry, Payment } from '@/types';
+import { resolveCompanyDisplayName } from './company';
 import { normalizePhone } from './phone';
 
 interface GroupedItem {
@@ -40,8 +41,10 @@ export function buildWhatsAppUrl(
   clientName: string,
   entries: DebtEntry[],
   payments: Payment[],
-  balance: number
+  balance: number,
+  companyName?: string,
 ): string {
+  const storeName = resolveCompanyDisplayName(companyName);
   const grouped = groupEntries(entries);
   const items = grouped
     .map(g => `• ${g.name} (${g.quantity}x) — R$ ${g.total.toFixed(2)}`)
@@ -50,7 +53,7 @@ export function buildWhatsAppUrl(
   const totalConsumed = entries.reduce((s, e) => s + e.total, 0);
   const totalPaid = payments.reduce((s, p) => s + p.amount, 0);
 
-  const msg = `Olá ${clientName}! 📋\n\n*AdegaGS - Resumo:*\n\n${items}\n\n📊 Total: R$ ${totalConsumed.toFixed(2)}\n💸 Pago: R$ ${totalPaid.toFixed(2)}\n💰 *Saldo devedor: R$ ${balance.toFixed(2)}*\n\nPor favor, entre em contato para pagamento. Obrigado!`;
+  const msg = `Olá ${clientName}! 📋\n\n*${storeName} - Resumo:*\n\n${items}\n\n📊 Total: R$ ${totalConsumed.toFixed(2)}\n💸 Pago: R$ ${totalPaid.toFixed(2)}\n💰 *Saldo devedor: R$ ${balance.toFixed(2)}*\n\nPor favor, entre em contato para pagamento. Obrigado!`;
 
   return `https://wa.me/${normalizePhone(phone)}?text=${encodeWhatsAppMessage(msg)}`;
 }
@@ -59,14 +62,16 @@ export function buildItemWhatsAppUrl(
   phone: string,
   clientName: string,
   entries: DebtEntry[],
-  balance: number
+  balance: number,
+  companyName?: string,
 ): string {
+  const storeName = resolveCompanyDisplayName(companyName);
   const grouped = groupEntries(entries.filter(e => !e.deleted && !e.manual_deleted && e.status === 'pending'));
   const items = grouped
     .map(g => `• ${g.name} (${g.quantity}x) — R$ ${g.total.toFixed(2)}`)
     .join('\n');
 
-  const msg = `Olá ${clientName}! 📋\n\nNovo registro na *AdegaGS*:\n\n${items}\n\n💰 *Saldo atual: R$ ${balance.toFixed(2)}*`;
+  const msg = `Olá ${clientName}! 📋\n\nNovo registro na *${storeName}*:\n\n${items}\n\n💰 *Saldo atual: R$ ${balance.toFixed(2)}*`;
 
   return `https://wa.me/${normalizePhone(phone)}?text=${encodeWhatsAppMessage(msg)}`;
 }
@@ -78,10 +83,12 @@ export function buildSingleItemWhatsAppUrl(
   quantity: number,
   unitPrice: number,
   previousBalance: number,
-  newBalance: number
+  newBalance: number,
+  companyName?: string,
 ): string {
+  const storeName = resolveCompanyDisplayName(companyName);
   const addedValue = quantity * unitPrice;
-  const msg = `Olá ${clientName}! 📋\n\n*AdegaGS - Novo Item:*\n\n• ${productName} (${quantity}x) — R$ ${addedValue.toFixed(2)}\n\n💰 Dívida anterior: R$ ${previousBalance.toFixed(2)}\n➕ Valor adicionado: R$ ${addedValue.toFixed(2)}\n💰 *Novo saldo: R$ ${newBalance.toFixed(2)}*`;
+  const msg = `Olá ${clientName}! 📋\n\n*${storeName} - Novo Item:*\n\n• ${productName} (${quantity}x) — R$ ${addedValue.toFixed(2)}\n\n💰 Dívida anterior: R$ ${previousBalance.toFixed(2)}\n➕ Valor adicionado: R$ ${addedValue.toFixed(2)}\n💰 *Novo saldo: R$ ${newBalance.toFixed(2)}*`;
 
   return `https://wa.me/${normalizePhone(phone)}?text=${encodeWhatsAppMessage(msg)}`;
 }
@@ -91,20 +98,22 @@ export function buildPaymentWhatsAppUrl(
   clientName: string,
   paidAmount: number,
   remainingEntries: DebtEntry[],
-  newBalance: number
+  newBalance: number,
+  companyName?: string,
 ): string {
+  const storeName = resolveCompanyDisplayName(companyName);
   const grouped = groupEntries(remainingEntries.filter(e => !e.deleted && !e.manual_deleted && e.status === 'pending'));
   const isFullyPaid = grouped.length === 0 && newBalance <= 0;
 
   let msg: string;
   if (isFullyPaid) {
-    msg = `Olá ${clientName}! 🎉\n\n*🏆 PARABÉNS! VOCÊ QUITOU SUA DÍVIDA! 🏆*\n\n✅ Valor pago: R$ ${paidAmount.toFixed(2)}\n\n🎊 *Todas as dívidas foram pagas!* 🎊\n💯 Você está em dia com o AdegaGS!\n\nObrigado pela confiança! 🙏`;
+    msg = `Olá ${clientName}! 🎉\n\n*🏆 PARABÉNS! VOCÊ QUITOU SUA DÍVIDA! 🏆*\n\n✅ Valor pago: R$ ${paidAmount.toFixed(2)}\n\n🎊 *Todas as dívidas foram pagas!* 🎊\n💯 Você está em dia com ${storeName}!\n\nObrigado pela confiança! 🙏`;
   } else {
     const items = grouped
       .map(g => `• ${g.name} (${g.quantity}x) — R$ ${g.total.toFixed(2)}`)
       .join('\n');
 
-    msg = `Olá ${clientName}! 💰\n\n*AdegaGS - Pagamento Registrado:*\n\n✅ Valor pago: R$ ${paidAmount.toFixed(2)}\n\n${grouped.length > 0 ? `Dívidas restantes:\n${items}\n\n💰 *Saldo restante: R$ ${newBalance.toFixed(2)}*` : '🎉 Todas as dívidas foram pagas!'}`;
+    msg = `Olá ${clientName}! 💰\n\n*${storeName} - Pagamento Registrado:*\n\n✅ Valor pago: R$ ${paidAmount.toFixed(2)}\n\n${grouped.length > 0 ? `Dívidas restantes:\n${items}\n\n💰 *Saldo restante: R$ ${newBalance.toFixed(2)}*` : '🎉 Todas as dívidas foram pagas!'}`;
   }
 
   return `https://wa.me/${normalizePhone(phone)}?text=${encodeWhatsAppMessage(msg)}`;
