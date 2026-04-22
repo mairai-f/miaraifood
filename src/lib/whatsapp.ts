@@ -61,14 +61,12 @@ export function buildItemWhatsAppUrl(
   entries: DebtEntry[],
   balance: number
 ): string {
-  const pendingEntries = entries.filter(e => !e.deleted && !e.manual_deleted && e.status === 'pending');
-  const grouped = groupEntries(pendingEntries);
+  const grouped = groupEntries(entries.filter(e => !e.deleted && !e.manual_deleted && e.status === 'pending'));
   const items = grouped
     .map(g => `• ${g.name} (${g.quantity}x) — R$ ${g.total.toFixed(2)}`)
     .join('\n');
-  const addedTotal = pendingEntries.reduce((sum, entry) => sum + entry.total, 0);
 
-  const msg = `Olá ${clientName}! 📋\n\nNovo registro na *AdegaGS*:\n\n${items}\n\n📊 Total adicionado: R$ ${addedTotal.toFixed(2)}\n💰 *Saldo atual: R$ ${balance.toFixed(2)}*`;
+  const msg = `Olá ${clientName}! 📋\n\nNovo registro na *AdegaGS*:\n\n${items}\n\n💰 *Saldo atual: R$ ${balance.toFixed(2)}*`;
 
   return `https://wa.me/${normalizePhone(phone)}?text=${encodeWhatsAppMessage(msg)}`;
 }
