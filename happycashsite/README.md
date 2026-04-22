@@ -14,19 +14,22 @@ Pontos importantes:
 - `DESKTOP_WINDOWS_OBJECT_PATH`
 - `DESKTOP_LINUX_OBJECT_PATH`
 - `DESKTOP_DOWNLOAD_SIGNED_URL_TTL`
-- O fluxo de assinatura Pix com Asaas agora usa:
-- `create-plan-charge` para gerar cobranca Pix e QR Code
-- `asaas-webhook` para ativar o plano automaticamente quando o pagamento cair
+- O fluxo de assinatura com Asaas agora usa:
+- `finalize-site-registration` para preparar a conta e abrir o dashboard autenticado
+- `create-plan-charge` para gerar cobranca Pix com QR Code ou abrir a fatura de debito / credito
+- `asaas-webhook` para ativar o plano automaticamente quando o pagamento for confirmado
 - Variáveis obrigatórias no Supabase:
 - `ASAAS_ENVIRONMENT`
 - `ASAAS_API_KEY`
 - `ASAAS_WEBHOOK_AUTH_TOKEN`
+- `SITE_EMAIL_CONFIRM_REDIRECT_URL` quando o link de confirmacao precisar voltar para o site publicado
 - Para o webhook no Asaas, a URL do projeto deve apontar para:
 - `https://<project-ref>.supabase.co/functions/v1/asaas-webhook`
 - Eventos recomendados no Asaas:
 - `PAYMENT_CREATED`
 - `PAYMENT_UPDATED`
 - `PAYMENT_OVERDUE`
+- `PAYMENT_CONFIRMED`
 - `PAYMENT_RECEIVED`
 - `PAYMENT_DELETED`
 
@@ -34,3 +37,6 @@ Comandos oficiais:
 - `npm run dev:site`
 - `npm run build:site`
 - `npm run preview:site`
+
+Observacao operacional:
+- Se `finalize-site-registration` nao estiver publicada, o navegador pode mostrar erro de CORS em `localhost`, mas a causa real costuma ser `404 Requested function was not found` no preflight do Supabase.

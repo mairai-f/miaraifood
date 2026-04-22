@@ -65,6 +65,35 @@ Comportamento:
 - O fechamento do caixa continua normalmente mesmo se o envio falhar, e o status aparece no recibo de fechamento.
 
 __________________________________________________________________________________
+🌐 HappyCash Site e pagamentos do plano :
+
+O painel autenticado do site depende destas edge functions publicadas no Supabase:
+
+```bash
+supabase functions deploy finalize-site-registration
+supabase functions deploy create-plan-charge
+supabase functions deploy asaas-webhook
+```
+
+Secrets obrigatórios para o fluxo de assinatura via Pix e cartao:
+
+```bash
+supabase secrets set ASAAS_ENVIRONMENT="production"
+supabase secrets set ASAAS_API_KEY="sua-chave-asaas"
+supabase secrets set ASAAS_WEBHOOK_AUTH_TOKEN="seu-token-webhook"
+```
+
+Secret recomendado para o fluxo de confirmação por email:
+
+```bash
+supabase secrets set SITE_EMAIL_CONFIRM_REDIRECT_URL="https://happycashsite.vercel.app/dashboard"
+```
+
+Observação:
+
+- Se `finalize-site-registration` não estiver publicada, o navegador pode acusar erro de CORS no `localhost`, mas a causa real tende a ser `Requested function was not found` no preflight do Supabase.
+
+__________________________________________________________________________________
 🖥️ Versão Desktop (Electron) :
 
 O projeto agora está preparado para rodar e empacotar como aplicativo desktop.

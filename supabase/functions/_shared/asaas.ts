@@ -79,7 +79,7 @@ export interface CreateAsaasCustomerInput {
 
 export interface CreateAsaasPaymentInput {
   customer: string;
-  billingType: "PIX";
+  billingType: "PIX" | "CREDIT_CARD";
   value: number;
   dueDate: string;
   description?: string;

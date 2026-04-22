@@ -43,8 +43,8 @@ export const getSubscriptionCountdown = (subscription: SubscriptionTimingLike | 
     return {
       endAt: null,
       endAtLabel: null,
-      remainingLabel: "Aguardando pagamento do Pix para liberar o plano.",
-      markerLabel: "Pix pendente",
+      remainingLabel: "Aguardando confirmacao do pagamento para liberar o plano.",
+      markerLabel: "Pagamento pendente",
       badgeVariant: "secondary" as const,
       isExpired: false,
       isExpiringSoon: false,

@@ -17,6 +17,7 @@ type SiteLoginPreferences = {
 };
 
 const storageKeys = {
+  auth: 'happycash:site:auth',
   rememberAccount: 'happycash:site:remember-account',
   keepConnected: 'happycash:site:keep-connected',
   rememberedEmail: 'happycash:site:remembered-email',
@@ -80,6 +81,27 @@ export const clearSiteTemporarySessionPreference = () => {
 
   window.localStorage.removeItem(storageKeys.temporarySession);
   window.sessionStorage.removeItem(storageKeys.temporarySessionActive);
+};
+
+export const clearSiteStoredAuth = () => {
+  if (!isBrowser()) return;
+
+  window.localStorage.removeItem(storageKeys.auth);
+  window.sessionStorage.removeItem(storageKeys.auth);
+  clearSiteTemporarySessionPreference();
+};
+
+export const clearSiteLocalSession = async (client?: ScopedSignOutClient) => {
+  clearSiteStoredAuth();
+
+  if (!client) return;
+
+  try {
+    await client.auth.signOut({ scope: 'local' });
+  } catch {
+    // Ignore sign-out errors because the local storage cleanup is enough
+    // to prevent stale sessions from looping in the dashboard.
+  }
 };
 
 export const enforceSiteSessionPreference = async (client: ScopedSignOutClient) => {

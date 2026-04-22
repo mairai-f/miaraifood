@@ -11,9 +11,12 @@ import {
 import { buildCorsHeaders, handleCorsPreflight } from "../_shared/cors.ts";
 
 type SupportedPaidPlan = "fiado" | "completo" | "pro";
+type CheckoutPaymentMethod = "pix" | "card";
+type SupportedBillingType = "PIX" | "CREDIT_CARD";
 
 interface CreatePlanChargeRequest {
   planId?: SupportedPaidPlan;
+  paymentMethod?: CheckoutPaymentMethod;
 }
 
 interface SubscriptionPlanRow {
@@ -50,6 +53,7 @@ interface StoreSubscriptionRow {
   owner_user_id: string;
   plan_id: SupportedPaidPlan;
   status: string;
+  billing_type: SupportedBillingType | null;
   provider_payment_id: string | null;
   metadata: Record<string, unknown> | null;
   created_at: string;
@@ -73,7 +77,8 @@ const extractAccessToken = (authorization: string | null) => {
 };
 
 const supportedPlans = new Set<SupportedPaidPlan>(["fiado", "completo", "pro"]);
-const awaitingPaymentStatuses = new Set(["PENDING", "OVERDUE"]);
+const supportedPaymentMethods = new Set<CheckoutPaymentMethod>(["pix", "card"]);
+const awaitingPaymentStatuses = new Set(["PENDING", "OVERDUE", "AWAITING_RISK_ANALYSIS"]);
 const receivedPaymentStatuses = new Set(["RECEIVED", "CONFIRMED", "RECEIVED_IN_CASH"]);
 
 const isAsaasConfigured = () => Boolean(Deno.env.get("ASAAS_API_KEY"));
@@ -83,6 +88,12 @@ const todayAsaasDate = () =>
   }).format(new Date());
 
 const normalizeDigits = (value?: string | null) => (value || "").replace(/\D/g, "");
+const resolvePaymentMethod = (value?: string | null): CheckoutPaymentMethod =>
+  value === "card" ? "card" : "pix";
+const resolveBillingType = (paymentMethod: CheckoutPaymentMethod): SupportedBillingType =>
+  paymentMethod === "card" ? "CREDIT_CARD" : "PIX";
+const resolvePaymentMethodFromBillingType = (billingType?: string | null): CheckoutPaymentMethod =>
+  billingType === "CREDIT_CARD" ? "card" : "pix";
 
 const updateSubscriptionMetadata = (
   currentMetadata: Record<string, unknown> | null | undefined,
@@ -154,18 +165,44 @@ const ensureBillingCustomer = async (
 const buildCheckoutPayload = async (
   subscriptionId: string,
   planId: SupportedPaidPlan,
+  paymentMethod: CheckoutPaymentMethod,
   payment: AsaasPayment,
-) => {
-  const pixQrCode = await getAsaasPixQrCode(payment.id);
-
-  return {
+): Promise<{
+  subscriptionId: string;
+  planId: SupportedPaidPlan;
+  paymentMethod: CheckoutPaymentMethod;
+  paymentId: string;
+  paymentStatus: string;
+  value: number;
+  dueDate: string;
+  invoiceUrl: string | null;
+  copyPasteCode?: string;
+  qrCodeBase64?: string;
+  qrCodeExpirationDate?: string;
+}> => {
+  const baseCheckout = {
     subscriptionId,
     planId,
+    paymentMethod,
     paymentId: payment.id,
     paymentStatus: payment.status || "PENDING",
     value: Number(payment.value || 0),
     dueDate: payment.dueDate,
     invoiceUrl: payment.invoiceUrl || null,
+  };
+
+  if (paymentMethod === "card") {
+    if (!payment.invoiceUrl) {
+      throw new Error("A fatura do cartao nao foi gerada pelo Asaas.");
+    }
+
+    return baseCheckout;
+  }
+
+  const pixQrCode = await getAsaasPixQrCode(payment.id);
+
+  return {
+    ...baseCheckout,
     copyPasteCode: pixQrCode.payload,
     qrCodeBase64: pixQrCode.encodedImage,
     qrCodeExpirationDate: pixQrCode.expirationDate,
@@ -237,9 +274,14 @@ Deno.serve(async (request) => {
   }
 
   const planId = body.planId;
+  const paymentMethod = resolvePaymentMethod(body.paymentMethod);
 
   if (!planId || !supportedPlans.has(planId)) {
     return jsonResponse(request, { error: "Plano inválido." }, 400);
+  }
+
+  if (body.paymentMethod && !supportedPaymentMethods.has(body.paymentMethod)) {
+    return jsonResponse(request, { error: "Forma de pagamento inválida." }, 400);
   }
 
   const { data: planData, error: planError } = await serviceClient
@@ -265,13 +307,14 @@ Deno.serve(async (request) => {
 
   const plan = planData as SubscriptionPlanRow;
   const storeAccount = storeAccountData as StoreAccountRow;
+  const billingType = resolveBillingType(paymentMethod);
 
   try {
     const asaasCustomerId = await ensureBillingCustomer(serviceClient, user.id, storeAccount);
 
     const { data: pendingSubscriptionsData, error: pendingSubscriptionsError } = await serviceClient
       .from("store_subscriptions")
-      .select("id, store_account_id, owner_user_id, plan_id, status, provider_payment_id, metadata, created_at")
+      .select("id, store_account_id, owner_user_id, plan_id, status, billing_type, provider_payment_id, metadata, created_at")
       .eq("owner_user_id", user.id)
       .eq("status", "pending")
       .order("created_at", { ascending: false });
@@ -281,42 +324,49 @@ Deno.serve(async (request) => {
     }
 
     const pendingSubscriptions = (pendingSubscriptionsData as StoreSubscriptionRow[] | null) || [];
-    const pendingForSamePlan = pendingSubscriptions.find(subscription => subscription.plan_id === planId) || null;
 
-    if (pendingForSamePlan?.provider_payment_id) {
-      const currentPayment = await getAsaasPayment(pendingForSamePlan.provider_payment_id);
+    for (const pendingSubscription of pendingSubscriptions) {
+      if (!pendingSubscription.provider_payment_id || pendingSubscription.plan_id !== planId) {
+        continue;
+      }
+
+      const currentPayment = await getAsaasPayment(pendingSubscription.provider_payment_id);
       const paymentStatus = (currentPayment.status || "PENDING").toUpperCase();
+      const pendingPaymentMethod = resolvePaymentMethodFromBillingType(pendingSubscription.billing_type);
 
-      if (awaitingPaymentStatuses.has(paymentStatus)) {
-        const checkout = await buildCheckoutPayload(pendingForSamePlan.id, planId, currentPayment);
+      if (receivedPaymentStatuses.has(paymentStatus)) {
+        return jsonResponse(
+          request,
+          {
+            error: "O pagamento deste plano ja foi recebido. Aguarde alguns instantes para a liberacao automatica.",
+            code: "PAYMENT_ALREADY_RECEIVED",
+          },
+          409,
+        );
+      }
+
+      if (pendingPaymentMethod === paymentMethod && awaitingPaymentStatuses.has(paymentStatus)) {
+        const checkout = await buildCheckoutPayload(pendingSubscription.id, planId, paymentMethod, currentPayment);
 
         await serviceClient
           .from("store_subscriptions")
           .update({
-            metadata: updateSubscriptionMetadata(pendingForSamePlan.metadata, {
+            metadata: updateSubscriptionMetadata(pendingSubscription.metadata, {
               asaas_payment_status: paymentStatus,
+              asaas_invoice_url: currentPayment.invoiceUrl || null,
+              checkout_payment_method: paymentMethod,
+              checkout_billing_type: billingType,
               last_checkout_requested_at: new Date().toISOString(),
               reused_pending_checkout: true,
             }),
           })
-          .eq("id", pendingForSamePlan.id);
+          .eq("id", pendingSubscription.id);
 
         return jsonResponse(request, {
           success: true,
           reusedPending: true,
           checkout,
         });
-      }
-
-      if (receivedPaymentStatuses.has(paymentStatus)) {
-        return jsonResponse(
-          request,
-          {
-            error: "O pagamento deste plano já foi recebido. Aguarde alguns instantes para a liberação automática.",
-            code: "PAYMENT_ALREADY_RECEIVED",
-          },
-          409,
-        );
       }
     }
 
@@ -325,13 +375,15 @@ Deno.serve(async (request) => {
         try {
           await deleteAsaasPayment(pendingSubscription.provider_payment_id);
         } catch (error) {
-          console.error("Falha ao remover cobrança Pix anterior do Asaas:", error);
+          console.error("Falha ao remover cobranca anterior do Asaas:", error);
         }
       }
 
       const cancelledMetadata = updateSubscriptionMetadata(pendingSubscription.metadata, {
         checkout_cancelled_at: new Date().toISOString(),
         checkout_cancelled_by_plan: planId,
+        checkout_cancelled_by_payment_method: paymentMethod,
+        checkout_cancelled_by_billing_type: billingType,
       });
 
       await serviceClient
@@ -344,9 +396,11 @@ Deno.serve(async (request) => {
     }
 
     const pendingMetadata = {
-      source: "asaas_pix_checkout",
+      source: paymentMethod === "pix" ? "asaas_pix_checkout" : "asaas_card_checkout",
       checkout_started_at: new Date().toISOString(),
       checkout_plan_name: plan.name,
+      checkout_payment_method: paymentMethod,
+      checkout_billing_type: billingType,
     };
 
     const { data: createdSubscriptionData, error: createSubscriptionError } = await serviceClient
@@ -357,13 +411,13 @@ Deno.serve(async (request) => {
         plan_id: planId,
         provider: "asaas",
         status: "pending",
-        billing_type: "PIX",
+        billing_type: billingType,
         price: plan.price,
         currency: plan.currency,
         external_reference: user.id,
         metadata: pendingMetadata,
       })
-      .select("id, store_account_id, owner_user_id, plan_id, status, provider_payment_id, metadata, created_at")
+      .select("id, store_account_id, owner_user_id, plan_id, status, billing_type, provider_payment_id, metadata, created_at")
       .single();
 
     if (createSubscriptionError || !createdSubscriptionData) {
@@ -375,26 +429,33 @@ Deno.serve(async (request) => {
     try {
       const payment = await createAsaasPayment({
         customer: asaasCustomerId,
-        billingType: "PIX",
+        billingType,
         value: Number(plan.price),
         dueDate: todayAsaasDate(),
         description: `HappyCash - ${plan.name} - 30 dias`,
         externalReference: createdSubscription.id,
       });
 
-      const checkout = await buildCheckoutPayload(createdSubscription.id, planId, payment);
+      const checkout = await buildCheckoutPayload(createdSubscription.id, planId, paymentMethod, payment);
+      const paymentMetadata = {
+        asaas_payment_status: payment.status || "PENDING",
+        asaas_due_date: payment.dueDate,
+        asaas_invoice_url: payment.invoiceUrl || null,
+        asaas_billing_type: payment.billingType || billingType,
+        checkout_payment_method: paymentMethod,
+        checkout_billing_type: billingType,
+        last_checkout_requested_at: new Date().toISOString(),
+      } as Record<string, unknown>;
+
+      if (checkout.paymentMethod === "pix" && checkout.qrCodeExpirationDate) {
+        paymentMetadata.pix_qr_code_expiration_date = checkout.qrCodeExpirationDate;
+      }
 
       await serviceClient
         .from("store_subscriptions")
         .update({
           provider_payment_id: payment.id,
-          metadata: updateSubscriptionMetadata(createdSubscription.metadata, {
-            asaas_payment_status: payment.status || "PENDING",
-            asaas_due_date: payment.dueDate,
-            asaas_invoice_url: payment.invoiceUrl || null,
-            pix_qr_code_expiration_date: checkout.qrCodeExpirationDate,
-            last_checkout_requested_at: new Date().toISOString(),
-          }),
+          metadata: updateSubscriptionMetadata(createdSubscription.metadata, paymentMetadata),
         })
         .eq("id", createdSubscription.id);
 
@@ -415,7 +476,7 @@ Deno.serve(async (request) => {
     return jsonResponse(
       request,
       {
-        error: error instanceof Error ? error.message : "Não foi possível gerar a cobrança Pix.",
+        error: error instanceof Error ? error.message : "Nao foi possivel gerar a cobranca do plano.",
       },
       400,
     );

@@ -1,3 +1,4 @@
+import { FunctionsFetchError, FunctionsHttpError, FunctionsRelayError } from "@supabase/supabase-js";
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import {
@@ -5,8 +6,10 @@ import {
   Check,
   Clock3,
   Copy,
+  CreditCard,
   Crown,
   Download,
+  ExternalLink,
   Loader2,
   LogOut,
   QrCode,
@@ -14,7 +17,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { clearSiteTemporarySessionPreference, enforceSiteSessionPreference } from "@/lib/authSessionPreferences";
+import { clearSiteLocalSession, enforceSiteSessionPreference } from "@/lib/authSessionPreferences";
 import { desktopDownloads } from "@/lib/desktopDownloads";
 import { getFreshSiteSession } from "@/lib/siteSession";
 import { getSubscriptionCountdown, getSubscriptionEndAt, getSubscriptionStatusLabel, isCurrentSubscription } from "@/lib/subscriptionStatus";
@@ -53,6 +56,7 @@ type StoreSubscriptionRow = {
   id: string;
   plan_id: PublicPlanId;
   status: string;
+  billing_type: "PIX" | "CREDIT_CARD" | null;
   provider: string | null;
   provider_payment_id: string | null;
   current_period_starts_at: string | null;
@@ -121,6 +125,7 @@ type CreatePlanChargeResponse = {
   error?: string;
   code?: string;
   checkout?: {
+    paymentMethod: "pix" | "card";
     subscriptionId: string;
     planId: PaidPlanId;
     paymentId: string;
@@ -128,19 +133,26 @@ type CreatePlanChargeResponse = {
     value: number;
     dueDate: string;
     invoiceUrl?: string | null;
-    copyPasteCode: string;
-    qrCodeBase64: string;
-    qrCodeExpirationDate: string;
+    copyPasteCode?: string;
+    qrCodeBase64?: string;
+    qrCodeExpirationDate?: string;
   };
 };
 
-type PixCheckoutState = NonNullable<CreatePlanChargeResponse["checkout"]>;
+type CheckoutPaymentMethod = NonNullable<NonNullable<CreatePlanChargeResponse["checkout"]>["paymentMethod"]>;
+type PlanCheckoutState = NonNullable<CreatePlanChargeResponse["checkout"]>;
 
 type FinalizeSiteRegistrationResponse = {
   success?: boolean;
   alreadyReady?: boolean;
   error?: string;
 };
+
+const SITE_SESSION_EXPIRED_MESSAGE = "Sua sessao expirou. Entre novamente para continuar.";
+const SITE_REGISTRATION_FUNCTION_MISSING_MESSAGE =
+  "A funcao finalize-site-registration nao esta publicada ou acessivel neste projeto do Supabase. Publique a function para abrir o dashboard.";
+const SITE_REGISTRATION_FETCH_MESSAGE =
+  "Nao foi possivel conectar ao bootstrap da conta. Se o navegador mostrar CORS em localhost, confira se a function finalize-site-registration foi publicada no projeto.";
 
 const formatDateTime = (value?: string | null) => {
   if (!value) return "Sem data";
@@ -161,6 +173,15 @@ const formatCurrency = (value?: number | null) =>
     currency: "BRL",
   }).format(Number(value || 0));
 
+const resolveSubscriptionPaymentMethod = (billingType?: StoreSubscriptionRow["billing_type"]): CheckoutPaymentMethod =>
+  billingType === "CREDIT_CARD" ? "card" : "pix";
+
+const getPaymentMethodLabel = (paymentMethod: CheckoutPaymentMethod) =>
+  paymentMethod === "card" ? "Debito / Credito" : "Pix";
+
+const getPlanChargeActionKey = (planId: PaidPlanId, paymentMethod: CheckoutPaymentMethod) =>
+  `${planId}:${paymentMethod}`;
+
 const Dashboard = () => {
   const [searchParams] = useSearchParams();
   const [user, setUser] = useState<AuthUser | null>(null);
@@ -170,11 +191,11 @@ const Dashboard = () => {
   const [billingCustomer, setBillingCustomer] = useState<BillingCustomerRow | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [activatingPlan, setActivatingPlan] = useState<PaidPlanId | null>(null);
+  const [activatingCheckout, setActivatingCheckout] = useState<string | null>(null);
   const [loggingOut, setLoggingOut] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [pixDialogOpen, setPixDialogOpen] = useState(false);
-  const [pixCheckout, setPixCheckout] = useState<PixCheckoutState | null>(null);
+  const [checkoutDialogOpen, setCheckoutDialogOpen] = useState(false);
+  const [planCheckout, setPlanCheckout] = useState<PlanCheckoutState | null>(null);
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -184,6 +205,17 @@ const Dashboard = () => {
   })();
 
   const querySuffix = selectedPlanId ? `?plan=${selectedPlanId}` : "";
+
+  const clearInvalidSiteSession = async () => {
+    await clearSiteLocalSession(supabase);
+    setUser(null);
+    setStoreAccount(null);
+    setPlans([]);
+    setSubscriptions([]);
+    setBillingCustomer(null);
+    setPlanCheckout(null);
+    setCheckoutDialogOpen(false);
+  };
 
   const ensureSiteRegistrationReady = async (accessToken: string) => {
     const { data, error } = await supabase.functions.invoke<FinalizeSiteRegistrationResponse>("finalize-site-registration", {
@@ -196,19 +228,24 @@ const Dashboard = () => {
     if (error || !data?.success) {
       let functionErrorMessage = data?.error || "Nao foi possivel finalizar sua conta agora.";
 
-      if (error && typeof error === "object" && "context" in error && error.context instanceof Response) {
+      if (error instanceof FunctionsHttpError) {
         if (error.context.status === 404) {
-          return;
+          functionErrorMessage = SITE_REGISTRATION_FUNCTION_MISSING_MESSAGE;
+        } else if (error.context.status === 401) {
+          functionErrorMessage = SITE_SESSION_EXPIRED_MESSAGE;
         }
-
         try {
           const errorPayload = await error.context.clone().json() as { error?: string; message?: string };
           functionErrorMessage = errorPayload.error || errorPayload.message || functionErrorMessage;
         } catch {
-          functionErrorMessage = error.context.status === 401
-            ? "Sua sessao expirou. Entre novamente para continuar."
-            : functionErrorMessage;
+          // Keep the status-based fallback defined above.
         }
+      } else if (error instanceof FunctionsFetchError) {
+        functionErrorMessage = SITE_REGISTRATION_FETCH_MESSAGE;
+      } else if (error instanceof FunctionsRelayError) {
+        functionErrorMessage = "Nao foi possivel encaminhar a solicitacao de bootstrap da conta.";
+      } else if (error instanceof Error && error.message.trim()) {
+        functionErrorMessage = error.message;
       }
 
       throw new Error(functionErrorMessage);
@@ -228,7 +265,7 @@ const Dashboard = () => {
     ] = await Promise.all([
       db.from("store_accounts").select("id, nome_cliente, nome_estabelecimento, email").eq("owner_user_id", userId).maybeSingle(),
       db.from("subscription_plans").select("id, name, description, price, duration_days, sort_order").eq("is_public", true).eq("is_active", true).order("sort_order", { ascending: true }),
-      db.from("store_subscriptions").select("id, plan_id, status, provider, provider_payment_id, current_period_starts_at, current_period_ends_at, trial_started_at, trial_ends_at, metadata, created_at").eq("owner_user_id", userId).order("created_at", { ascending: false }),
+      db.from("store_subscriptions").select("id, plan_id, status, billing_type, provider, provider_payment_id, current_period_starts_at, current_period_ends_at, trial_started_at, trial_ends_at, metadata, created_at").eq("owner_user_id", userId).order("created_at", { ascending: false }),
       db.from("billing_customers").select("provider, provider_customer_id").eq("owner_user_id", userId).maybeSingle(),
     ]);
 
@@ -264,6 +301,8 @@ const Dashboard = () => {
       if (!mounted) return;
 
       if (!session?.user) {
+        await clearInvalidSiteSession();
+        if (!mounted) return;
         navigate(`/login${querySuffix}`, { replace: true });
         return;
       }
@@ -277,6 +316,12 @@ const Dashboard = () => {
       try {
         await ensureSiteRegistrationReady(session.access_token);
       } catch (error) {
+        if (error instanceof Error && error.message === SITE_SESSION_EXPIRED_MESSAGE) {
+          await clearInvalidSiteSession();
+          if (!mounted) return;
+          navigate(`/login${querySuffix}`, { replace: true });
+          return;
+        }
         setLoadError(error instanceof Error ? error.message : "Nao foi possivel preparar sua conta agora.");
         setRefreshing(false);
         setLoading(false);
@@ -291,7 +336,10 @@ const Dashboard = () => {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
       if (!session?.user) {
-        navigate(`/login${querySuffix}`, { replace: true });
+        void (async () => {
+          await clearInvalidSiteSession();
+          navigate(`/login${querySuffix}`, { replace: true });
+        })();
         return;
       }
 
@@ -306,6 +354,11 @@ const Dashboard = () => {
           await ensureSiteRegistrationReady(session.access_token);
           await loadDashboard(authUser.id);
         } catch (error) {
+          if (error instanceof Error && error.message === SITE_SESSION_EXPIRED_MESSAGE) {
+            await clearInvalidSiteSession();
+            navigate(`/login${querySuffix}`, { replace: true });
+            return;
+          }
           setLoadError(error instanceof Error ? error.message : "Nao foi possivel preparar sua conta agora.");
           setRefreshing(false);
           setLoading(false);
@@ -328,6 +381,9 @@ const Dashboard = () => {
   const pendingSubscription = subscriptions.find(subscription => subscription.status === "pending") || null;
   const pendingPlanId = pendingSubscription && isPaidPlanId(pendingSubscription.plan_id) ? pendingSubscription.plan_id : null;
   const pendingPlanContent = pendingPlanId ? publicPlanContent[pendingPlanId] : null;
+  const pendingPaymentMethod = pendingSubscription
+    ? resolveSubscriptionPaymentMethod(pendingSubscription.billing_type)
+    : null;
 
   const sortedPlans = publicPlanList.map((fallbackPlan) => {
     const dbPlan = plans.find((plan) => plan.id === fallbackPlan.id);
@@ -345,8 +401,7 @@ const Dashboard = () => {
 
     setLoggingOut(true);
     try {
-      clearSiteTemporarySessionPreference();
-      await supabase.auth.signOut();
+      await clearSiteLocalSession(supabase);
       navigate(`/login${querySuffix}`, { replace: true });
     } finally {
       setLoggingOut(false);
@@ -354,7 +409,7 @@ const Dashboard = () => {
   };
 
   useEffect(() => {
-    if (!pixDialogOpen || !pixCheckout || !user?.id) return;
+    if (!checkoutDialogOpen || !planCheckout || !user?.id) return;
 
     const intervalId = window.setInterval(() => {
       void loadDashboard(user.id);
@@ -363,82 +418,99 @@ const Dashboard = () => {
     return () => {
       window.clearInterval(intervalId);
     };
-  }, [pixCheckout, pixDialogOpen, user?.id]);
+  }, [checkoutDialogOpen, planCheckout, user?.id]);
 
   useEffect(() => {
-    if (!pixDialogOpen || !pixCheckout) return;
+    if (!checkoutDialogOpen || !planCheckout) return;
 
-    if (currentSubscription?.plan_id === pixCheckout.planId && isCurrentSubscription(currentSubscription)) {
-      setPixDialogOpen(false);
-      setPixCheckout(null);
+    if (currentSubscription?.plan_id === planCheckout.planId && isCurrentSubscription(currentSubscription)) {
+      setCheckoutDialogOpen(false);
+      setPlanCheckout(null);
       toast({
-        title: `${publicPlanContent[pixCheckout.planId].name} liberado`,
-        description: "Pagamento confirmado. Seu plano já está ativo por 30 dias.",
+        title: `${publicPlanContent[planCheckout.planId].name} liberado`,
+        description: "Pagamento confirmado. Seu plano ja esta ativo por 30 dias.",
       });
     }
-  }, [currentSubscription, pixCheckout, pixDialogOpen, toast]);
+  }, [checkoutDialogOpen, currentSubscription, planCheckout, toast]);
 
-  const handleCreatePlanCharge = async (planId: PaidPlanId) => {
-    setActivatingPlan(planId);
+  const handleCreatePlanCharge = async (planId: PaidPlanId, paymentMethod: CheckoutPaymentMethod) => {
+    const actionKey = getPlanChargeActionKey(planId, paymentMethod);
+    const paymentMethodLabel = getPaymentMethodLabel(paymentMethod);
+    setActivatingCheckout(actionKey);
 
     try {
       const session = await getFreshSiteSession();
 
       if (!session?.access_token) {
+        await clearInvalidSiteSession();
         navigate(`/login?plan=${planId}`, { replace: true });
         return;
       }
 
       const { data, error } = await supabase.functions.invoke<CreatePlanChargeResponse>("create-plan-charge", {
-        body: { planId },
+        body: { planId, paymentMethod },
         headers: {
           Authorization: `Bearer ${session.access_token}`,
         },
       });
 
       if (error || !data?.success || !data.checkout) {
-        let functionErrorMessage = data?.error || "Nao foi possivel gerar a cobranca Pix.";
+        let functionErrorMessage = data?.error || `Nao foi possivel gerar a cobranca de ${paymentMethodLabel}.`;
 
-        if (error && typeof error === "object" && "context" in error && error.context instanceof Response) {
+        if (error instanceof FunctionsHttpError) {
           try {
             const errorPayload = await error.context.clone().json() as { error?: string; message?: string };
             functionErrorMessage = errorPayload.error || errorPayload.message || functionErrorMessage;
           } catch {
             functionErrorMessage = error.context.status === 401
-              ? "Sua sessao expirou. Entre novamente para continuar."
+              ? SITE_SESSION_EXPIRED_MESSAGE
               : functionErrorMessage;
           }
+        } else if (error instanceof FunctionsFetchError) {
+          functionErrorMessage = `Nao foi possivel conectar ao servico de cobranca de ${paymentMethodLabel}.`;
+        } else if (error instanceof FunctionsRelayError) {
+          functionErrorMessage = `Nao foi possivel encaminhar a solicitacao de cobranca de ${paymentMethodLabel}.`;
+        } else if (error instanceof Error && error.message.trim()) {
+          functionErrorMessage = error.message;
         }
 
         throw new Error(functionErrorMessage);
       }
 
       await loadDashboard(session.user.id);
-      setPixCheckout(data.checkout);
-      setPixDialogOpen(true);
+      setPlanCheckout(data.checkout);
+      setCheckoutDialogOpen(true);
       navigate(`/dashboard?plan=${planId}`, { replace: true });
       toast({
-        title: data.reusedPending ? "Pix pendente reaberto" : "Pix gerado com sucesso",
-        description: data.reusedPending
-          ? "Use o mesmo QR Code ou copie o codigo Pix para concluir o pagamento."
-          : "Pague o Pix para liberar o plano automaticamente.",
+        title: data.reusedPending ? `${paymentMethodLabel} pendente reaberto` : `${paymentMethodLabel} preparado com sucesso`,
+        description: paymentMethod === "pix"
+          ? data.reusedPending
+            ? "Use o mesmo QR Code ou copie o codigo Pix para concluir o pagamento."
+            : "Pague o Pix para liberar o plano automaticamente."
+          : data.reusedPending
+          ? "Abra novamente a fatura para concluir no debito ou credito."
+          : "Abra a fatura do Asaas para concluir no debito ou credito.",
       });
     } catch (error) {
       toast({
-        title: "Erro ao gerar cobranca Pix",
+        title: `Erro ao gerar cobranca de ${paymentMethodLabel}`,
         description: error instanceof Error ? error.message : "Nao foi possivel preparar o pagamento agora.",
         variant: "destructive",
       });
+      if (error instanceof Error && error.message === SITE_SESSION_EXPIRED_MESSAGE) {
+        await clearInvalidSiteSession();
+        navigate(`/login?plan=${planId}`, { replace: true });
+      }
     } finally {
-      setActivatingPlan(null);
+      setActivatingCheckout(null);
     }
   };
 
   const handleCopyPixCode = async () => {
-    if (!pixCheckout?.copyPasteCode) return;
+    if (!planCheckout?.copyPasteCode) return;
 
     try {
-      await navigator.clipboard.writeText(pixCheckout.copyPasteCode);
+      await navigator.clipboard.writeText(planCheckout.copyPasteCode);
       toast({
         title: "Codigo Pix copiado",
         description: "Agora voce pode colar o codigo no app do banco.",
@@ -500,7 +572,7 @@ const Dashboard = () => {
             <AlertDescription>
               {selectedPlanId === "demo"
                 ? "Sua demo de 3 horas ja comeca no cadastro."
-                : `Esse plano fica liberado por 30 dias. Gere o Pix quando quiser logo abaixo.`}
+                : "Esse plano fica liberado por 30 dias. Escolha Pix ou debito / credito logo abaixo."}
             </AlertDescription>
           </Alert>
         )}
@@ -515,34 +587,38 @@ const Dashboard = () => {
         {!billingCustomer?.provider_customer_id && (
           <Alert className="border-secondary/40 bg-secondary/10">
             <ShieldCheck className="h-4 w-4" />
-            <AlertTitle>Cliente de cobranca sera criado no primeiro Pix</AlertTitle>
+            <AlertTitle>Cliente de cobranca sera criado na primeira cobranca</AlertTitle>
             <AlertDescription>
-              Se esta conta foi criada antes da configuracao do Asaas, o cliente de cobranca sera vinculado automaticamente quando voce gerar o primeiro Pix.
+              Se esta conta foi criada antes da configuracao do Asaas, o cliente de cobranca sera vinculado automaticamente quando voce gerar a primeira cobranca do plano.
             </AlertDescription>
           </Alert>
         )}
 
-        {pendingSubscription && pendingPlanContent && (
+        {pendingSubscription && pendingPlanContent && pendingPaymentMethod && (
           <Alert className="border-primary/30 bg-primary/5">
-            <QrCode className="h-4 w-4" />
-            <AlertTitle>Existe um Pix pendente para {pendingPlanContent.name}</AlertTitle>
+            {pendingPaymentMethod === "pix" ? <QrCode className="h-4 w-4" /> : <CreditCard className="h-4 w-4" />}
+            <AlertTitle>
+              Existe uma cobranca de {pendingPaymentMethod === "pix" ? "Pix" : "debito / credito"} pendente para {pendingPlanContent.name}
+            </AlertTitle>
             <AlertDescription className="space-y-3">
               <p>
-                Abra novamente a cobranca para copiar o codigo Pix, exibir o QR Code ou acompanhar a liberacao automatica do plano.
+                {pendingPaymentMethod === "pix"
+                  ? "Abra novamente a cobranca para copiar o codigo Pix, exibir o QR Code ou acompanhar a liberacao automatica do plano."
+                  : "Abra novamente a fatura do Asaas para pagar no debito ou credito e acompanhar a liberacao automatica do plano."}
               </p>
               <div>
                 <Button
                   className="h-10"
-                  onClick={() => handleCreatePlanCharge(pendingPlanId!)}
-                  disabled={activatingPlan === pendingPlanId}
+                  onClick={() => handleCreatePlanCharge(pendingPlanId!, pendingPaymentMethod)}
+                  disabled={activatingCheckout === getPlanChargeActionKey(pendingPlanId!, pendingPaymentMethod)}
                 >
-                  {activatingPlan === pendingPlanId ? (
+                  {activatingCheckout === getPlanChargeActionKey(pendingPlanId!, pendingPaymentMethod) ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Abrindo Pix...
+                      {pendingPaymentMethod === "pix" ? "Abrindo Pix..." : "Abrindo fatura..."}
                     </>
                   ) : (
-                    "Abrir cobranca Pix"
+                    pendingPaymentMethod === "pix" ? "Abrir cobranca Pix" : "Abrir fatura do cartao"
                   )}
                 </Button>
               </div>
@@ -626,7 +702,7 @@ const Dashboard = () => {
             <CardHeader>
               <CardTitle className="text-2xl">Proximo passo</CardTitle>
               <CardDescription>
-                Crie a conta, volte ao site quando quiser e escolha o plano certo no momento da ativacao.
+                Crie a conta, volte ao site quando quiser e escolha o plano e a forma de pagamento no momento da ativacao.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -635,8 +711,8 @@ const Dashboard = () => {
                 <ul className="mt-3 space-y-2 text-sm text-muted-foreground">
                   <li>1. O cadastro cria sua conta unica no HappyCash.</li>
                   <li>2. A demo libera tudo por 3 horas.</li>
-                  <li>3. Os planos pagos sao cobrados por Pix e valem 30 dias.</li>
-                  <li>4. Assim que o pagamento cair no Asaas, o plano ativa automaticamente.</li>
+                  <li>3. Os planos pagos podem ser cobrados por Pix ou debito / credito e valem 30 dias.</li>
+                  <li>4. Assim que o pagamento for confirmado no Asaas, o plano ativa automaticamente.</li>
                 </ul>
               </div>
 
@@ -698,10 +774,10 @@ const Dashboard = () => {
             <div>
               <h2 className="font-heading text-2xl font-bold">Escolha seu plano</h2>
               <p className="text-sm text-muted-foreground">
-                Todos os planos pagos ficam ativos por 30 dias. Gere o Pix e o plano libera sozinho quando o pagamento cair.
+                Todos os planos pagos ficam ativos por 30 dias. Gere o Pix ou abra a fatura de debito / credito e o plano libera sozinho quando o pagamento for confirmado.
               </p>
             </div>
-            <Badge variant="outline">Pagamento via Pix</Badge>
+            <Badge variant="outline">Pix e debito / credito</Badge>
           </div>
 
           <div className="grid gap-5 xl:grid-cols-4">
@@ -711,8 +787,13 @@ const Dashboard = () => {
                 currentSubscription?.plan_id === plan.id &&
                 isCurrentSubscription(currentSubscription) &&
                 isPaidPlanId(plan.id);
-              const isPaidPlan = isPaidPlanId(plan.id);
               const content = publicPlanContent[plan.id];
+              const isPaidPlan = isPaidPlanId(plan.id);
+              const pixActionKey = isPaidPlan ? getPlanChargeActionKey(plan.id, "pix") : null;
+              const cardActionKey = isPaidPlan ? getPlanChargeActionKey(plan.id, "card") : null;
+              const isPixLoading = pixActionKey === activatingCheckout;
+              const isCardLoading = cardActionKey === activatingCheckout;
+              const isPlanActivating = isPaidPlan && Boolean(activatingCheckout?.startsWith(`${plan.id}:`));
 
               return (
                 <Card
@@ -762,24 +843,43 @@ const Dashboard = () => {
                         {currentSubscription?.status === "trialing" ? "Demo ativa agora" : "Plano inicial do cadastro"}
                       </Button>
                     ) : (
-                      <Button
-                        className="h-12 w-full font-semibold"
-                        disabled={isCurrentPaidPlan || activatingPlan === plan.id}
-                        onClick={() => handleCreatePlanCharge(plan.id)}
-                      >
-                        {activatingPlan === plan.id ? (
-                          <>
-                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            Gerando Pix...
-                          </>
-                        ) : isCurrentPaidPlan ? (
-                          "Plano atual"
-                        ) : pendingPlanId === plan.id ? (
-                          "Abrir Pix"
-                        ) : (
-                          `Pagar com Pix`
-                        )}
-                      </Button>
+                      <div className="grid gap-3">
+                        <Button
+                          className="h-12 w-full font-semibold"
+                          disabled={isCurrentPaidPlan || isPlanActivating}
+                          onClick={() => handleCreatePlanCharge(plan.id, "pix")}
+                        >
+                          {isPixLoading ? (
+                            <>
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                              Gerando Pix...
+                            </>
+                          ) : isCurrentPaidPlan ? (
+                            "Plano atual"
+                          ) : pendingPlanId === plan.id && pendingPaymentMethod === "pix" ? (
+                            "Abrir Pix"
+                          ) : (
+                            "Pagar com Pix"
+                          )}
+                        </Button>
+                        <Button
+                          variant="outline"
+                          className="h-12 w-full font-semibold"
+                          disabled={isCurrentPaidPlan || isPlanActivating}
+                          onClick={() => handleCreatePlanCharge(plan.id, "card")}
+                        >
+                          {isCardLoading ? (
+                            <>
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                              Abrindo fatura...
+                            </>
+                          ) : pendingPlanId === plan.id && pendingPaymentMethod === "card" ? (
+                            "Abrir debito / credito"
+                          ) : (
+                            "Debito / Credito"
+                          )}
+                        </Button>
+                      </div>
                     )}
                   </CardContent>
                 </Card>
@@ -788,76 +888,164 @@ const Dashboard = () => {
           </div>
         </div>
 
-        <Dialog open={pixDialogOpen} onOpenChange={setPixDialogOpen}>
-          <DialogContent className="max-w-xl">
+        <Dialog open={checkoutDialogOpen} onOpenChange={setCheckoutDialogOpen}>
+          <DialogContent className={planCheckout?.paymentMethod === "pix" ? "max-w-2xl" : "max-w-xl"}>
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
-                <QrCode className="h-5 w-5" />
-                Pagamento via Pix
+                {planCheckout?.paymentMethod === "card" ? <CreditCard className="h-5 w-5" /> : <QrCode className="h-5 w-5" />}
+                Pagamento da assinatura
               </DialogTitle>
             </DialogHeader>
 
-            {pixCheckout && (
-              <div className="space-y-5">
-                <div className="rounded-2xl border border-primary/20 bg-primary/5 p-4">
-                  <p className="text-sm font-semibold">
-                    {publicPlanContent[pixCheckout.planId].name}
-                  </p>
-                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                    <div>
-                      <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Valor</p>
-                      <p className="mt-1 font-semibold">{formatCurrency(pixCheckout.value)}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Vencimento</p>
-                      <p className="mt-1 font-semibold">{formatDateTime(pixCheckout.dueDate)}</p>
-                    </div>
-                  </div>
-                  <p className="mt-3 text-sm text-muted-foreground">
-                    Depois do pagamento, o plano ativa automaticamente e o painel atualiza sozinho.
-                  </p>
-                </div>
+            {planCheckout && (
+              planCheckout.paymentMethod === "pix" ? (
+                planCheckout.qrCodeBase64 && planCheckout.copyPasteCode ? (
+                  <div className="space-y-4">
+                    <div className="grid gap-4 md:grid-cols-[240px_minmax(0,1fr)] md:items-start">
+                      <div className="flex justify-center">
+                        <div className="space-y-3 rounded-3xl border border-border bg-white p-3 shadow-sm">
+                          <img
+                            src={`data:image/png;base64,${planCheckout.qrCodeBase64}`}
+                            alt="QR Code Pix do plano"
+                            className="h-44 w-44 rounded-2xl object-contain sm:h-48 sm:w-48"
+                          />
+                          <p className="text-center text-xs font-medium uppercase tracking-[0.18em] text-slate-600">
+                            Escaneie no banco
+                          </p>
+                        </div>
+                      </div>
 
-                <div className="flex justify-center">
-                  <div className="rounded-3xl border border-border bg-white p-4 shadow-sm">
-                    <img
-                      src={`data:image/png;base64,${pixCheckout.qrCodeBase64}`}
-                      alt="QR Code Pix do plano"
-                      className="h-56 w-56 rounded-2xl object-contain"
-                    />
-                  </div>
-                </div>
+                      <div className="space-y-4">
+                        <div className="rounded-2xl border border-primary/20 bg-primary/5 p-4">
+                          <p className="text-sm font-semibold">
+                            {publicPlanContent[planCheckout.planId].name}
+                          </p>
+                          <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                            <div>
+                              <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Valor</p>
+                              <p className="mt-1 font-semibold">{formatCurrency(planCheckout.value)}</p>
+                            </div>
+                            <div>
+                              <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Forma</p>
+                              <p className="mt-1 font-semibold">{getPaymentMethodLabel(planCheckout.paymentMethod)}</p>
+                            </div>
+                            <div>
+                              <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Vencimento</p>
+                              <p className="mt-1 font-semibold">{formatDateTime(planCheckout.dueDate)}</p>
+                            </div>
+                            <div>
+                              <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Status</p>
+                              <p className="mt-1 font-semibold">{planCheckout.paymentStatus}</p>
+                            </div>
+                          </div>
+                          <p className="mt-3 text-sm text-muted-foreground">
+                            Depois do pagamento, o plano ativa automaticamente e o painel atualiza sozinho.
+                          </p>
+                        </div>
 
-                <div className="space-y-2">
-                  <p className="text-sm font-medium">Codigo Pix copia e cola</p>
-                  <Textarea
-                    value={pixCheckout.copyPasteCode}
-                    readOnly
-                    className="min-h-[110px] resize-none bg-muted/30 font-mono text-xs"
-                  />
-                  <div className="flex flex-col gap-2 sm:flex-row">
-                    <Button className="h-11 flex-1 font-semibold" onClick={handleCopyPixCode}>
-                      <Copy className="mr-2 h-4 w-4" />
-                      Copiar codigo Pix
-                    </Button>
-                    {pixCheckout.invoiceUrl && (
-                      <Button asChild variant="outline" className="h-11 flex-1 font-semibold">
-                        <a href={pixCheckout.invoiceUrl} target="_blank" rel="noreferrer">
-                          Abrir fatura
+                        <div className="space-y-2">
+                          <p className="text-sm font-medium">Codigo Pix copia e cola</p>
+                          <Textarea
+                            value={planCheckout.copyPasteCode}
+                            readOnly
+                            className="min-h-[104px] resize-none bg-muted/30 font-mono text-xs"
+                          />
+                          <div className="flex flex-col gap-2 sm:flex-row">
+                            <Button className="h-11 flex-1 font-semibold" onClick={handleCopyPixCode}>
+                              <Copy className="mr-2 h-4 w-4" />
+                              Copiar codigo Pix
+                            </Button>
+                            {planCheckout.invoiceUrl && (
+                              <Button asChild variant="outline" className="h-11 flex-1 font-semibold">
+                                <a href={planCheckout.invoiceUrl} target="_blank" rel="noreferrer">
+                                  Abrir fatura
+                                </a>
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <Alert className="border-secondary/40 bg-secondary/10">
+                      <Clock3 className="h-4 w-4" />
+                      <AlertTitle>Pagamento monitorado automaticamente</AlertTitle>
+                      <AlertDescription>
+                        Enquanto este modal estiver aberto, a conta sera atualizada periodicamente para liberar o plano assim que o pagamento for confirmado.
+                      </AlertDescription>
+                    </Alert>
+                  </div>
+                ) : (
+                  <Alert variant="destructive">
+                    <AlertTitle>QR Code indisponivel</AlertTitle>
+                    <AlertDescription>
+                      O Asaas nao devolveu os dados do Pix. Gere a cobranca novamente em alguns instantes.
+                    </AlertDescription>
+                  </Alert>
+                )
+              ) : (
+                <div className="space-y-5">
+                  <div className="rounded-2xl border border-primary/20 bg-primary/5 p-4">
+                    <p className="text-sm font-semibold">
+                      {publicPlanContent[planCheckout.planId].name}
+                    </p>
+                    <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                      <div>
+                        <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Valor</p>
+                        <p className="mt-1 font-semibold">{formatCurrency(planCheckout.value)}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Forma</p>
+                        <p className="mt-1 font-semibold">{getPaymentMethodLabel(planCheckout.paymentMethod)}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Vencimento</p>
+                        <p className="mt-1 font-semibold">{formatDateTime(planCheckout.dueDate)}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Status</p>
+                        <p className="mt-1 font-semibold">{planCheckout.paymentStatus}</p>
+                      </div>
+                    </div>
+                    <p className="mt-3 text-sm text-muted-foreground">
+                      Abra a fatura do Asaas para concluir no debito ou credito. Depois da confirmacao, o plano ativa automaticamente.
+                    </p>
+                  </div>
+
+                  <div className="space-y-4 rounded-2xl border border-border bg-background/70 p-4">
+                    <div className="space-y-2">
+                      <p className="text-sm font-semibold">Fatura hospedada do Asaas</p>
+                      <p className="text-sm text-muted-foreground">
+                        A fatura abre em ambiente seguro do Asaas e permite concluir a cobranca no credito ou no debito.
+                      </p>
+                    </div>
+
+                    {planCheckout.invoiceUrl ? (
+                      <Button asChild className="h-11 w-full font-semibold">
+                        <a href={planCheckout.invoiceUrl} target="_blank" rel="noreferrer">
+                          <ExternalLink className="mr-2 h-4 w-4" />
+                          Abrir fatura do cartao
                         </a>
                       </Button>
+                    ) : (
+                      <Alert variant="destructive">
+                        <AlertTitle>Fatura indisponivel</AlertTitle>
+                        <AlertDescription>
+                          O Asaas nao devolveu a URL da fatura. Gere a cobranca novamente em alguns instantes.
+                        </AlertDescription>
+                      </Alert>
                     )}
                   </div>
-                </div>
 
-                <Alert className="border-secondary/40 bg-secondary/10">
-                  <Clock3 className="h-4 w-4" />
-                  <AlertTitle>Pagamento monitorado automaticamente</AlertTitle>
-                  <AlertDescription>
-                    Enquanto este modal estiver aberto, a conta sera atualizada periodicamente para liberar o plano assim que o Pix for recebido.
-                  </AlertDescription>
-                </Alert>
-              </div>
+                  <Alert className="border-secondary/40 bg-secondary/10">
+                    <Clock3 className="h-4 w-4" />
+                    <AlertTitle>Pagamento monitorado automaticamente</AlertTitle>
+                    <AlertDescription>
+                      Enquanto este modal estiver aberto, a conta sera atualizada periodicamente para liberar o plano assim que o pagamento for confirmado.
+                    </AlertDescription>
+                  </Alert>
+                </div>
+              )
             )}
           </DialogContent>
         </Dialog>

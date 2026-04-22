@@ -36,7 +36,7 @@ const plans = [
       "Produtos",
       "Excluídos",
       "Fiado e cobranças",
-      "Pagamento da assinatura via Pix",
+      "Pagamento da assinatura via Pix ou débito / crédito",
     ],
   },
   {
@@ -56,7 +56,7 @@ const plans = [
       "Relatórios e financeiro",
       "Configurações da loja",
       "Notas e fiscal",
-      "Pagamento da assinatura via Pix",
+      "Pagamento da assinatura via Pix ou débito / crédito",
     ],
   },
   {
@@ -73,7 +73,7 @@ const plans = [
       "App mobile",
       "Fluxo preparado para offline",
       "Impressão Bematech",
-      "Pagamento da assinatura via Pix",
+      "Pagamento da assinatura via Pix ou débito / crédito",
     ],
   },
 ];
@@ -113,7 +113,7 @@ const Pricing = () => {
             <span className="text-primary">seu negócio</span>
           </h2>
           <p className="text-muted-foreground max-w-xl mx-auto text-lg">
-            Demo gratuita por 3 horas. Planos pagos com renovacao a cada 30 dias e cancelamento quando quiser.
+            Demo gratuita por 3 horas. Planos pagos com renovacao a cada 30 dias, Pix ou debito / credito e cancelamento quando quiser.
           </p>
         </div>
 
@@ -199,7 +199,7 @@ const Pricing = () => {
                       {isAuthenticated ? (
                         <Link to={`/dashboard?plan=${plan.id}`}>Abrir no Painel</Link>
                       ) : (
-                        <Link to={`/cadastro?plan=${plan.id}`}>Assinar com Pix</Link>
+                        <Link to={`/cadastro?plan=${plan.id}`}>Assinar agora</Link>
                       )}
                     </Button>
                     <Button asChild variant="outline" className="w-full font-semibold h-12 text-base" size="lg">

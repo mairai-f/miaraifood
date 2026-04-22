@@ -43,7 +43,7 @@ export const publicPlanContent: Record<PublicPlanId, PublicPlanContent> = {
       "Excluidos",
       "Fiado e cobrancas",
       "Sem acesso as configuracoes",
-      "Pagamento via Pix",
+      "Pagamento via Pix e debito / credito",
     ],
   },
   completo: {
@@ -61,7 +61,7 @@ export const publicPlanContent: Record<PublicPlanId, PublicPlanContent> = {
       "Relatorios",
       "Caixa",
       "Configuracoes da loja",
-      "Pagamento via Pix",
+      "Pagamento via Pix e debito / credito",
     ],
   },
   pro: {
@@ -79,7 +79,7 @@ export const publicPlanContent: Record<PublicPlanId, PublicPlanContent> = {
       "Fluxo preparado para offline",
       "Impressao Bematech",
       "Mais desempenho no caixa",
-      "Pagamento via Pix",
+      "Pagamento via Pix e debito / credito",
     ],
   },
 };

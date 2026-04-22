@@ -221,7 +221,7 @@ Deno.serve(async (request) => {
   try {
     const paymentStatus = (body.payment.status || "").toUpperCase();
 
-    if (body.event === "PAYMENT_RECEIVED") {
+    if (body.event === "PAYMENT_RECEIVED" || body.event === "PAYMENT_CONFIRMED") {
       if (subscription.status === "canceled" || subscription.status === "expired") {
         return jsonResponse(request, { received: true, ignored: true });
       }
@@ -230,7 +230,15 @@ Deno.serve(async (request) => {
       return jsonResponse(request, { received: true, activated: true });
     }
 
-    if (body.event === "PAYMENT_CREATED" || body.event === "PAYMENT_UPDATED" || body.event === "PAYMENT_OVERDUE") {
+    if (
+      body.event === "PAYMENT_CREATED" ||
+      body.event === "PAYMENT_UPDATED" ||
+      body.event === "PAYMENT_OVERDUE" ||
+      body.event === "PAYMENT_AWAITING_RISK_ANALYSIS" ||
+      body.event === "PAYMENT_APPROVED_BY_RISK_ANALYSIS" ||
+      body.event === "PAYMENT_REPROVED_BY_RISK_ANALYSIS" ||
+      body.event === "PAYMENT_CREDIT_CARD_CAPTURE_REFUSED"
+    ) {
       await serviceClient
         .from("store_subscriptions")
         .update({

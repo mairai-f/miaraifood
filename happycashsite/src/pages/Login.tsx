@@ -3,6 +3,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { Eye, EyeOff, Loader2 } from 'lucide-react';
 
 import { supabase } from '@/integrations/supabase/client';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -24,6 +25,8 @@ const resolveLoginErrorMessage = (message: string) =>
     ? 'Confirme seu email primeiro. Depois volte para entrar e liberar sua conta.'
     : message;
 
+const normalizeEmail = (value: string) => value.trim().toLowerCase();
+
 const Login = () => {
   const initialPreferences = getSiteLoginPreferences();
   const [email, setEmail] = useState(initialPreferences.rememberAccount ? initialPreferences.email : '');
@@ -32,6 +35,7 @@ const Login = () => {
   const [rememberAccount, setRememberAccount] = useState(initialPreferences.rememberAccount);
   const [keepConnected, setKeepConnected] = useState(initialPreferences.keepConnected);
   const [loading, setLoading] = useState(false);
+  const [loginError, setLoginError] = useState<string | null>(null);
   const [resetOpen, setResetOpen] = useState(false);
   const [resetEmail, setResetEmail] = useState('');
   const [resettingPassword, setResettingPassword] = useState(false);
@@ -49,23 +53,31 @@ const Login = () => {
   const handleLogin = async (e: FormEvent) => {
     e.preventDefault();
     if (loading) return;
+    const normalizedEmail = normalizeEmail(email);
 
     saveSiteLoginPreferences({
       rememberAccount,
       keepConnected,
-      email,
+      email: normalizedEmail,
     });
 
     setLoading(true);
+    setLoginError(null);
 
     try {
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      const { error } = await supabase.auth.signInWithPassword({
+        email: normalizedEmail,
+        password,
+      });
 
       if (error) {
-        toast({ title: 'Erro ao entrar', description: resolveLoginErrorMessage(error.message), variant: 'destructive' });
+        const resolvedError = resolveLoginErrorMessage(error.message);
+        setLoginError(resolvedError);
+        toast({ title: 'Erro ao entrar', description: resolvedError, variant: 'destructive' });
         return;
       }
 
+      setEmail(normalizedEmail);
       applySiteSessionPreference(keepConnected);
       toast({ title: 'Bem-vindo de volta!' });
       navigate(selectedPlanId ? `/dashboard?plan=${selectedPlanId}` : '/dashboard');
@@ -85,7 +97,8 @@ const Login = () => {
     setResettingPassword(true);
 
     try {
-      const { error } = await supabase.auth.resetPasswordForEmail(resetEmail.trim(), {
+      const normalizedResetEmail = normalizeEmail(resetEmail);
+      const { error } = await supabase.auth.resetPasswordForEmail(normalizedResetEmail, {
         redirectTo: `${window.location.origin}/reset-password`,
       });
 
@@ -103,7 +116,7 @@ const Login = () => {
         description: 'Enviamos o link para redefinir sua senha.',
       });
       setResetOpen(false);
-      setResetEmail('');
+      setResetEmail(normalizedResetEmail);
     } finally {
       setResettingPassword(false);
     }
@@ -142,6 +155,13 @@ const Login = () => {
             </CardHeader>
             <CardContent className="px-4 pb-3 sm:px-5 sm:pb-4">
               <form onSubmit={handleLogin} className="space-y-2.5 sm:space-y-3">
+                {loginError && (
+                  <Alert variant="destructive">
+                    <AlertTitle>Falha no Supabase Auth</AlertTitle>
+                    <AlertDescription>{loginError}</AlertDescription>
+                  </Alert>
+                )}
+
                 <div className="space-y-2">
                   <Label htmlFor="email">Email</Label>
                   <Input
@@ -149,7 +169,10 @@ const Login = () => {
                     type="email"
                     placeholder="usuario@happycash.com"
                     value={email}
-                    onChange={e => setEmail(e.target.value)}
+                    onChange={e => {
+                      setEmail(e.target.value);
+                      if (loginError) setLoginError(null);
+                    }}
                     required
                     className="h-10 border-border/70 bg-zinc-950/70 sm:h-11"
                   />
@@ -161,7 +184,7 @@ const Login = () => {
                     <button
                       type="button"
                       onClick={() => {
-                        setResetEmail(email.trim() || initialPreferences.email);
+                        setResetEmail(normalizeEmail(email) || normalizeEmail(initialPreferences.email));
                         setResetOpen(true);
                       }}
                       className="shrink-0 text-xs text-muted-foreground transition-colors hover:text-yellow-300"
@@ -175,7 +198,10 @@ const Login = () => {
                       type={showPassword ? 'text' : 'password'}
                       placeholder="••••••••"
                       value={password}
-                      onChange={e => setPassword(e.target.value)}
+                      onChange={e => {
+                        setPassword(e.target.value);
+                        if (loginError) setLoginError(null);
+                      }}
                       required
                       className="h-10 border-border/70 bg-zinc-950/70 pr-10 sm:h-11"
                     />
