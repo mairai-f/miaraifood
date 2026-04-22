@@ -260,7 +260,7 @@ Deno.serve(async (request) => {
     .single();
 
   if (storeAccountError || !storeAccountData) {
-    return jsonResponse({ error: "Conta da loja não encontrada." }, 404);
+    return jsonResponse(request, { error: "Conta da loja não encontrada." }, 404);
   }
 
   const plan = planData as SubscriptionPlanRow;
@@ -301,7 +301,7 @@ Deno.serve(async (request) => {
           })
           .eq("id", pendingForSamePlan.id);
 
-        return jsonResponse({
+        return jsonResponse(request, {
           success: true,
           reusedPending: true,
           checkout,
@@ -310,6 +310,7 @@ Deno.serve(async (request) => {
 
       if (receivedPaymentStatuses.has(paymentStatus)) {
         return jsonResponse(
+          request,
           {
             error: "O pagamento deste plano já foi recebido. Aguarde alguns instantes para a liberação automática.",
             code: "PAYMENT_ALREADY_RECEIVED",
@@ -397,7 +398,7 @@ Deno.serve(async (request) => {
         })
         .eq("id", createdSubscription.id);
 
-      return jsonResponse({
+      return jsonResponse(request, {
         success: true,
         reusedPending: false,
         checkout,
@@ -412,6 +413,7 @@ Deno.serve(async (request) => {
     }
   } catch (error) {
     return jsonResponse(
+      request,
       {
         error: error instanceof Error ? error.message : "Não foi possível gerar a cobrança Pix.",
       },

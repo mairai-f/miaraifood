@@ -16,6 +16,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { clearSiteTemporarySessionPreference, enforceSiteSessionPreference } from "@/lib/authSessionPreferences";
 import { desktopDownloads } from "@/lib/desktopDownloads";
+import { getFreshSiteSession } from "@/lib/siteSession";
 import { getSubscriptionCountdown, getSubscriptionEndAt, getSubscriptionStatusLabel, isCurrentSubscription } from "@/lib/subscriptionStatus";
 import { publicPlanContent, publicPlanList, isPaidPlanId, isPublicPlanId, type PaidPlanId, type PublicPlanId } from "@/lib/subscriptionPlans";
 import { Badge } from "@/components/ui/badge";
@@ -258,7 +259,7 @@ const Dashboard = () => {
 
     const bootstrap = async () => {
       await enforceSiteSessionPreference(supabase);
-      const { data: { session } } = await supabase.auth.getSession();
+      const session = await getFreshSiteSession();
 
       if (!mounted) return;
 
@@ -381,7 +382,7 @@ const Dashboard = () => {
     setActivatingPlan(planId);
 
     try {
-      const { data: { session } } = await supabase.auth.getSession();
+      const session = await getFreshSiteSession();
 
       if (!session?.access_token) {
         navigate(`/login?plan=${planId}`, { replace: true });

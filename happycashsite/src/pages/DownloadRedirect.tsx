@@ -6,6 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { desktopDownloads, isDesktopDownloadPlatform } from "@/lib/desktopDownloads";
+import { getFreshSiteSession } from "@/lib/siteSession";
 
 type DesktopDownloadResponse = {
   success?: boolean;
@@ -39,9 +40,7 @@ const DownloadRedirect = () => {
       setErrorMessage(null);
       setRequiredEnv([]);
 
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
+      const session = await getFreshSiteSession();
 
       if (!active) return;
 
