@@ -115,7 +115,7 @@ const Pricing = () => {
             <span className="text-primary">seu negócio</span>
           </h2>
           <p className="text-muted-foreground max-w-xl mx-auto text-lg">
-            Demo gratuita por 3 horas. Planos pagos com renovacao a cada 30 dias, Pix ou debito / credito e cancelamento quando quiser.
+            Teste grátis por 3 horas e depois escolha o plano que mais combina com sua operação. Fiado, PDV, estoque e relatórios em um só lugar.
           </p>
         </div>
 
@@ -190,7 +190,7 @@ const Pricing = () => {
                     {isAuthenticated ? (
                       <Link to={`/dashboard?plan=${plan.id}`}>Abrir Demo no Painel</Link>
                     ) : (
-                      <Link to={`/cadastro?plan=${plan.id}`}>Testar Demo Grátis</Link>
+                      <Link to={`/cadastro?plan=${plan.id}`}>Testar grátis agora</Link>
                     )}
                   </Button>
                 ) : (
@@ -201,7 +201,7 @@ const Pricing = () => {
                       {isAuthenticated ? (
                         <Link to={`/dashboard?plan=${plan.id}`}>Abrir no Painel</Link>
                       ) : (
-                        <Link to={`/cadastro?plan=${plan.id}`}>Assinar agora</Link>
+                        <Link to={`/cadastro?plan=${plan.id}`}>Criar conta e assinar</Link>
                       )}
                     </Button>
                     <Button asChild variant="outline" className="w-full font-semibold h-12 text-base" size="lg">

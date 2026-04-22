@@ -10,6 +10,9 @@ import Cadastro from "./pages/Cadastro.tsx";
 import Dashboard from "./pages/Dashboard.tsx";
 import DownloadRedirect from "./pages/DownloadRedirect.tsx";
 import ResetPassword from "./pages/ResetPassword.tsx";
+import FiadoDigital from "./pages/FiadoDigital.tsx";
+import SistemaPdv from "./pages/SistemaPdv.tsx";
+import ControleEstoque from "./pages/ControleEstoque.tsx";
 import NotFound from "./pages/NotFound.tsx";
 import { LocaleProvider } from "../../shared/locale/LocaleContext";
 
@@ -29,6 +32,9 @@ const App = () => (
             <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/cadastro" element={<Cadastro />} />
             <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/caderneta-de-fiado-digital" element={<FiadoDigital />} />
+            <Route path="/sistema-pdv" element={<SistemaPdv />} />
+            <Route path="/controle-de-estoque" element={<ControleEstoque />} />
             <Route path="/downloads/:platform" element={<DownloadRedirect />} />
             <Route path="*" element={<NotFound />} />
           </Routes>

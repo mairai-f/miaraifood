@@ -20,6 +20,8 @@ const CTA = () => {
     return isPublicPlanId(value) ? value : null;
   })();
   const dashboardHref = selectedPlanId ? `/dashboard?plan=${selectedPlanId}` : "/dashboard";
+  const signupHref = selectedPlanId ? `/cadastro?plan=${selectedPlanId}` : "/cadastro";
+  const demoHref = "/cadastro?plan=demo";
 
   useEffect(() => {
     const ctx = gsap.context(() => {
@@ -49,24 +51,29 @@ const CTA = () => {
             <div className="absolute -inset-4 bg-gradient-to-r from-primary/20 via-secondary/10 to-primary/20 rounded-3xl blur-2xl" />
             <div className="relative bg-card/80 backdrop-blur-xl border border-border/50 rounded-3xl p-12 md:p-16 shadow-2xl">
               <h2 className="font-heading text-3xl md:text-4xl lg:text-5xl font-bold mb-6">
-                Pronto para transformar seu{" "}
+                Pronto para sair do caderno e controlar melhor seu{" "}
                 <span className="text-primary">negócio</span>?
               </h2>
               <p className="text-muted-foreground text-lg mb-10 max-w-lg mx-auto leading-relaxed">
-                Comece agora mesmo e tenha controle total das suas vendas, estoque e cobranças.
+                Crie sua conta, teste grátis e veja na prática como fiado, PDV, estoque e cobranças podem trabalhar no mesmo lugar.
               </p>
-              <div className="flex flex-col sm:flex-row gap-4 justify-center">
+              <div className="flex flex-col gap-4 justify-center sm:flex-row sm:flex-wrap">
                 <Button asChild size="lg" className="bg-primary text-primary-foreground font-semibold h-14 px-8 text-base animate-glow-pulse hover:scale-105 transition-transform">
                   {isAuthenticated ? (
                     <Link to={dashboardHref}>
                       Abrir painel <ArrowRight className="ml-2 h-5 w-5" />
                     </Link>
                   ) : (
-                    <a href="#planos">
-                      Começar Agora <ArrowRight className="ml-2 h-5 w-5" />
-                    </a>
+                    <Link to={demoHref}>
+                      Testar grátis <ArrowRight className="ml-2 h-5 w-5" />
+                    </Link>
                   )}
                 </Button>
+                {!isAuthenticated ? (
+                  <Button asChild variant="outline" size="lg" className="h-14 px-8 text-base border-border hover:bg-muted hover:scale-105 transition-all">
+                    <Link to={signupHref}>Criar conta</Link>
+                  </Button>
+                ) : null}
                 <Button asChild variant="outline" size="lg" className="h-14 px-8 text-base border-border hover:bg-muted hover:scale-105 transition-all">
                   <a href={`https://wa.me/${WHATSAPP_NUMBER}`} target="_blank" rel="noopener noreferrer">
                     <MessageCircle className="mr-2 h-5 w-5 text-primary" />

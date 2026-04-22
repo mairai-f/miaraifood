@@ -11,14 +11,14 @@ import {
 gsap.registerPlugin(ScrollTrigger);
 
 const faqs = [
-  { q: "Preciso instalar algum programa?", a: "Não! O HappyCash funciona 100% online, direto no navegador do celular ou computador. Basta acessar e começar a usar." },
-  { q: "Como funciona a caderneta de fiado digital?", a: "Você cadastra o cliente, registra as vendas fiadas e o sistema controla tudo automaticamente. Quando chegar a hora de cobrar, você envia a mensagem direto pelo WhatsApp com um clique." },
+  { q: "Preciso instalar algum programa para usar o HappyCash?", a: "Não. O HappyCash funciona online, direto no navegador do celular ou computador, então você consegue começar sem instalação complicada." },
+  { q: "Como funciona a caderneta de fiado digital?", a: "Você cadastra o cliente, registra as vendas fiadas e o sistema atualiza o saldo automaticamente. Quando for cobrar, a mensagem pode ser aberta direto no WhatsApp." },
   { q: "Posso usar no celular?", a: "Sim! O sistema é totalmente responsivo e funciona perfeitamente em celulares, tablets e computadores." },
   { q: "Tem contrato de fidelidade?", a: "Não! Você pode cancelar quando quiser, sem multa ou taxa de cancelamento." },
   { q: "Qual a duração dos planos pagos?", a: "Todos os planos pagos do HappyCash têm duração de 30 dias por ciclo. A demo gratuita continua com duração de 3 horas." },
-  { q: "Como funciona o envio de cobranças via WhatsApp?", a: "O sistema gera mensagens prontas de cobrança personalizadas com o nome do cliente e valor. Basta clicar para abrir o WhatsApp e enviar." },
+  { q: "Como funciona o envio de cobranças via WhatsApp?", a: "O sistema gera mensagens prontas de cobrança com nome do cliente, itens e saldo. Você clica, abre o WhatsApp e envia." },
   { q: "Quantos produtos e clientes posso cadastrar?", a: "Ilimitado! Não há limite de cadastros de produtos ou clientes em nenhum dos planos." },
-  { q: "O sistema emite nota fiscal?", a: "No momento o HappyCash não emite nota fiscal, mas estamos trabalhando para implementar essa funcionalidade em breve." },
+  { q: "O sistema ajuda no controle de estoque?", a: "Sim. Você consegue acompanhar cadastro de produtos, movimentações e estoque mínimo para ter mais clareza sobre a operação." },
   { q: "Posso migrar do Plano Fiado para o Completo?", a: "Sim! Você pode fazer upgrade a qualquer momento e seguir no novo plano no seu ciclo atual de 30 dias." },
 ];
 

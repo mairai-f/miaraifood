@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Loader2, Menu, X } from "lucide-react";
-import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
@@ -14,6 +14,7 @@ const Header = () => {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
+  const location = useLocation();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { user, isAuthenticated } = useAuthSession();
@@ -25,12 +26,16 @@ const Header = () => {
   const loginHref = selectedPlanId ? `/login?plan=${selectedPlanId}` : "/login";
   const dashboardHref = selectedPlanId ? `/dashboard?plan=${selectedPlanId}` : "/dashboard";
   const homeHref = selectedPlanId ? `/?plan=${selectedPlanId}` : "/";
+  const signupHref = selectedPlanId ? `/cadastro?plan=${selectedPlanId}` : "/cadastro";
+  const demoHref = "/cadastro?plan=demo";
   const currentPlanName = subscription?.plan_id && isPublicPlanId(subscription.plan_id)
     ? publicPlanContent[subscription.plan_id].name
     : null;
   const subscriptionMarker = currentPlanName && countdown.markerLabel
     ? `${currentPlanName} • ${countdown.markerLabel}`
     : currentPlanName;
+  const isHomePage = location.pathname === "/";
+  const buildHomeSectionHref = (id: string) => (isHomePage ? `#${id}` : `/#${id}`);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 50);
@@ -53,10 +58,11 @@ const Header = () => {
   };
 
   const links = [
-    { label: "Funcionalidades", href: "#funcionalidades" },
-    { label: "Planos", href: "#planos" },
-    { label: "Screenshots", href: "#screenshots" },
-    { label: "FAQ", href: "#faq" },
+    { label: "Fiado Digital", href: "/caderneta-de-fiado-digital" },
+    { label: "Sistema PDV", href: "/sistema-pdv" },
+    { label: "Estoque", href: "/controle-de-estoque" },
+    { label: "Planos", href: buildHomeSectionHref("planos") },
+    { label: "FAQ", href: buildHomeSectionHref("faq") },
   ];
 
   return (
@@ -114,7 +120,7 @@ const Header = () => {
                 <Link to={loginHref}>Entrar</Link>
               </Button>
               <Button asChild className="bg-primary text-primary-foreground font-semibold hover:bg-primary/90 transition-all duration-300 hover:shadow-lg hover:shadow-primary/30 hover:scale-105">
-                <a href="#planos">Começar Agora</a>
+                <Link to={demoHref}>Testar grátis</Link>
               </Button>
             </>
           )}
@@ -164,8 +170,11 @@ const Header = () => {
                 <Button asChild variant="outline" className="w-full">
                   <Link to={loginHref} onClick={() => setMobileOpen(false)}>Entrar</Link>
                 </Button>
+                <Button asChild variant="outline" className="w-full font-semibold">
+                  <Link to={signupHref} onClick={() => setMobileOpen(false)}>Criar conta</Link>
+                </Button>
                 <Button asChild className="w-full bg-primary text-primary-foreground font-semibold">
-                  <a href="#planos" onClick={() => setMobileOpen(false)}>Começar Agora</a>
+                  <Link to={demoHref} onClick={() => setMobileOpen(false)}>Testar grátis</Link>
                 </Button>
               </>
             )}

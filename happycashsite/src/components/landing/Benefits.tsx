@@ -7,10 +7,10 @@ import screenshot2 from "@/assets/screenshot-2.png";
 gsap.registerPlugin(ScrollTrigger);
 
 const benefits = [
-  { icon: Zap, title: "Soluções Personalizadas", desc: "Nossa plataforma se adapta às necessidades específicas do seu negócio, oferecendo funcionalidades sob medida." },
-  { icon: Shield, title: "Segurança Garantida", desc: "Seus dados protegidos com criptografia de ponta e backups automáticos diários." },
-  { icon: Smartphone, title: "Acesse de Qualquer Lugar", desc: "Sistema 100% online. Funciona no celular, tablet ou computador, sem instalação." },
-  { icon: Headphones, title: "Suporte Dedicado", desc: "Equipe de especialistas sempre disponível para auxiliar via WhatsApp." },
+  { icon: Zap, title: "Menos atrito na rotina", desc: "Cadastre cliente, venda, acompanhe saldo e cobre sem ficar alternando entre caderno, planilha e WhatsApp." },
+  { icon: Shield, title: "Controle mais confiável", desc: "Histórico organizado para você saber o que foi vendido, pago, cancelado ou ainda está pendente." },
+  { icon: Smartphone, title: "Acesse de qualquer lugar", desc: "Use no celular, tablet ou computador. O foco é manter o controle perto de você durante a operação." },
+  { icon: Headphones, title: "Atendimento próximo", desc: "Suporte via WhatsApp para destravar dúvidas mais rápido e sem complicar a implantação." },
 ];
 
 const Benefits = () => {
@@ -60,11 +60,11 @@ const Benefits = () => {
           <div>
             <span className="inline-block text-sm font-semibold text-secondary tracking-widest uppercase mb-4">Por que escolher</span>
             <h2 className="font-heading text-3xl md:text-4xl lg:text-5xl font-bold mb-6">
-              Automação e controle para seu{" "}
+              Mais clareza para vender, cobrar e decidir no seu{" "}
               <span className="text-primary">negócio</span>
             </h2>
             <p className="text-muted-foreground text-lg mb-10 leading-relaxed">
-              Gerencie vendas, estoque e finanças com facilidade. Nosso sistema combina praticidade com tecnologia de ponta.
+              O HappyCash junta controle de fiado, PDV, estoque e relatórios para você parar de apagar incêndio e começar a enxergar a operação.
             </p>
 
             <div className="benefits-list space-y-6">

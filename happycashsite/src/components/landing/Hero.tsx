@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from "react";
+import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { ArrowRight, Play } from "lucide-react";
 import gsap from "gsap";
 import screenshot1 from "@/assets/screenshot-1.png";
 import mascot from "@/assets/happycoin.png";
 
-const rotatingWords = ["Mercearias", "Padarias", "Lojas", "Bares", "Restaurantes"];
+const rotatingWords = ["mercearia", "padaria", "adega", "bar", "loja"];
 
 const Hero = () => {
   const sectionRef = useRef<HTMLElement>(null);
@@ -81,46 +82,50 @@ const Hero = () => {
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
               </span>
-              Sistema de Gestão 2.0
+              Fiado, PDV e estoque no mesmo sistema
             </div>
 
             <h1 className="hero-title font-heading text-4xl md:text-5xl lg:text-6xl xl:text-7xl font-bold leading-[1.1]">
-              Sistema flexível para{" "}
-              <span ref={wordRef} className="text-primary inline-block">
+              Pare de usar caderno para controlar sua{" "}
+              <span ref={wordRef} className="text-primary inline-block capitalize">
                 {rotatingWords[wordIndex]}
               </span>
             </h1>
 
             <p className="hero-subtitle text-lg md:text-xl text-muted-foreground max-w-lg leading-relaxed">
-              PDV completo + caderneta de fiado digital. Gerencie vendas, estoque, clientes e cobranças via WhatsApp em um só lugar.
+              Controle seus clientes no fiado em segundos, veja quem te deve em tempo real e acompanhe PDV, estoque e cobranças via WhatsApp em um só lugar.
             </p>
 
             <div className="hero-buttons flex flex-col sm:flex-row gap-4">
               <Button asChild size="lg" className="bg-primary text-primary-foreground font-semibold text-base h-14 px-8 animate-glow-pulse hover:scale-105 transition-transform">
-                <a href="#planos">
-                  Começar Agora <ArrowRight className="ml-2 h-5 w-5" />
-                </a>
+                <Link to="/cadastro?plan=demo">
+                  Testar grátis agora <ArrowRight className="ml-2 h-5 w-5" />
+                </Link>
               </Button>
               <Button asChild variant="outline" size="lg" className="text-base border-border hover:bg-muted h-14 px-8 hover:scale-105 transition-transform group">
-                <a href="#funcionalidades">
+                <Link to="/cadastro">
                   <Play className="mr-2 h-4 w-4 text-primary group-hover:scale-110 transition-transform" />
-                  Ver Funcionalidades
-                </a>
+                  Criar conta
+                </Link>
               </Button>
             </div>
+
+            <a href="#planos" className="inline-flex items-center gap-2 text-sm font-semibold text-muted-foreground transition-colors hover:text-primary">
+              Ver planos e funcionalidades
+            </a>
 
             <div className="hero-trust flex flex-wrap items-center gap-6 pt-2 text-sm text-muted-foreground">
               <span className="flex items-center gap-2">
                 <span className="h-5 w-5 rounded-full bg-primary/20 flex items-center justify-center text-primary text-xs">✓</span>
-                Sem taxa de adesão
+                Demo grátis sem cartão
               </span>
               <span className="flex items-center gap-2">
                 <span className="h-5 w-5 rounded-full bg-primary/20 flex items-center justify-center text-primary text-xs">✓</span>
-                Suporte 24/7
+                Cobrança pronta no WhatsApp
               </span>
               <span className="flex items-center gap-2">
                 <span className="h-5 w-5 rounded-full bg-primary/20 flex items-center justify-center text-primary text-xs">✓</span>
-                Cancele quando quiser
+                Funciona no celular e no computador
               </span>
             </div>
           </div>
