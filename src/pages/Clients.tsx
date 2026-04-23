@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Plus, Search, Phone, DollarSign } from 'lucide-react';
 import { toast } from 'sonner';
 import { getClientUniqueSlug } from '@/lib/clientSlug';
+import { sortClientsByDebt } from '@/lib/clientSorting';
 
 export default function Clients() {
   const { clients, addClient, getClientBalance, getClientTotalSpending } = useData();
@@ -20,13 +21,11 @@ export default function Clients() {
   const navigate = useNavigate();
 
   const active = clients.filter(c => !c.deleted);
-  const filtered = active
-    .filter(c => c.name.toLowerCase().includes(search.toLowerCase()))
-    .sort((a, b) => {
-      const balanceDiff = getClientBalance(b.id) - getClientBalance(a.id);
-      if (balanceDiff !== 0) return balanceDiff;
-      return getClientTotalSpending(b.id) - getClientTotalSpending(a.id);
-    });
+  const filtered = sortClientsByDebt(
+    active.filter(c => c.name.toLowerCase().includes(search.toLowerCase())),
+    getClientBalance,
+    getClientTotalSpending,
+  );
 
   const normalizeWhatsappPhone = (value: string) => {
     const digits = value.replace(/\D/g, '');

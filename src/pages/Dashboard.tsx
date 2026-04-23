@@ -6,6 +6,7 @@ import { useData } from '@/contexts/DataContext';
 import { Users, AlertTriangle, DollarSign, TrendingUp, Clock } from 'lucide-react';
 import { formatClientDateTime, isClientDateToday } from '@/lib/clientDateTime';
 import { getClientUniqueSlug } from '@/lib/clientSlug';
+import { sortClientsByDebt } from '@/lib/clientSorting';
 import { getPaymentLabel } from '@/lib/payment';
 import { useState } from 'react';
 
@@ -26,19 +27,11 @@ export default function Dashboard() {
 
   const todayTotal = todayPayments.reduce((s, p) => s + p.amount, 0);
 
-  // Clientes a mostrar: em "Todos", devedores primeiro e quitados por ultimo.
-  const clientsToShow = [...(showDebtorsOnly ? debtors : active)].sort((a, b) => {
-    if (!showDebtorsOnly) {
-      const aHasDebt = getClientBalance(a.id) > 0;
-      const bHasDebt = getClientBalance(b.id) > 0;
-
-      if (aHasDebt !== bHasDebt) {
-        return aHasDebt ? -1 : 1;
-      }
-    }
-
-    return getClientTotalSpending(b.id) - getClientTotalSpending(a.id);
-  });
+  const clientsToShow = sortClientsByDebt(
+    showDebtorsOnly ? debtors : active,
+    getClientBalance,
+    getClientTotalSpending,
+  );
 
   const stats = [
     { 
