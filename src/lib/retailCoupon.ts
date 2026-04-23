@@ -28,6 +28,7 @@ export interface RetailCouponPrintPayload {
 
 interface RetailCouponPrintOptions {
   preferSilentPrint?: boolean;
+  automaticPrint?: boolean;
 }
 
 const escapeHtml = (value: string) =>
@@ -43,6 +44,62 @@ const formatMoney = (value: number) => formatCurrency(value);
 const formatSaleCode = (saleId: string) => {
   const normalized = saleId.replaceAll('-', '').toUpperCase();
   return normalized.slice(0, 8) || 'SEM-CODIGO';
+};
+
+const printRetailCouponWithIframe = (html: string) => {
+  if (typeof window === 'undefined' || typeof document === 'undefined') {
+    return Promise.resolve(false);
+  }
+
+  return new Promise<boolean>((resolve) => {
+    const iframe = document.createElement('iframe');
+    let settled = false;
+
+    const finalize = (printed: boolean) => {
+      if (settled) return;
+      settled = true;
+
+      window.setTimeout(() => {
+        iframe.remove();
+      }, 1000);
+
+      resolve(printed);
+    };
+
+    iframe.setAttribute('aria-hidden', 'true');
+    iframe.style.position = 'fixed';
+    iframe.style.right = '0';
+    iframe.style.bottom = '0';
+    iframe.style.width = '0';
+    iframe.style.height = '0';
+    iframe.style.border = '0';
+    iframe.style.opacity = '0';
+    iframe.style.pointerEvents = 'none';
+
+    iframe.onload = () => {
+      const frameWindow = iframe.contentWindow;
+
+      if (!frameWindow) {
+        finalize(false);
+        return;
+      }
+
+      frameWindow.onafterprint = () => finalize(true);
+
+      window.setTimeout(() => {
+        try {
+          frameWindow.focus();
+          frameWindow.print();
+          window.setTimeout(() => finalize(true), 1500);
+        } catch {
+          finalize(false);
+        }
+      }, 120);
+    };
+
+    document.body.appendChild(iframe);
+    iframe.srcdoc = html;
+  });
 };
 
 const buildRetailCouponHtml = (
@@ -77,7 +134,7 @@ const buildRetailCouponHtml = (
       <head>
         <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <title>Cupom fiscal</title>
+        <title>Cupom nao fiscal</title>
         <style>
           :root {
             color-scheme: light;
@@ -116,8 +173,16 @@ const buildRetailCouponHtml = (
             text-align: center;
           }
 
+          .brand-name {
+            font-size: 18px;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.18em;
+          }
+
           .store-name {
-            font-size: 16px;
+            margin-top: 8px;
+            font-size: 15px;
             font-weight: 700;
             text-transform: uppercase;
             letter-spacing: 0.04em;
@@ -270,9 +335,10 @@ const buildRetailCouponHtml = (
         <main class="page">
           <article class="coupon">
             <header class="center">
-              <div class="store-name">${escapeHtml(payload.storeName)}</div>
+              <div class="brand-name">HappyCash</div>
               <div class="system-brand">${escapeHtml(systemBrandLabel)}</div>
-              <div class="title">Cupom fiscal</div>
+              <div class="store-name">${escapeHtml(payload.storeName)}</div>
+              <div class="title">Cupom nao fiscal</div>
               <div class="subtitle">Documento de venda rapida de varejo ao consumidor final</div>
               ${copyLabel ? `<div class="copy-label">${escapeHtml(copyLabel)}</div>` : ''}
             </header>
@@ -379,12 +445,21 @@ export const openRetailCouponPrintWindow = async (
   if (typeof window === 'undefined') return false;
 
   const preferSilentPrint = options?.preferSilentPrint === true;
+  const automaticPrint = options?.automaticPrint === true;
   const html = buildRetailCouponHtml(payload, {
-    attachBrowserPrintScript: !preferSilentPrint,
+    attachBrowserPrintScript: !preferSilentPrint && !automaticPrint,
   });
 
   if (preferSilentPrint && typeof window.electronAPI?.printHtml === 'function') {
     const printed = await window.electronAPI.printHtml(html);
+
+    if (printed) {
+      return true;
+    }
+  }
+
+  if (automaticPrint) {
+    const printed = await printRetailCouponWithIframe(html);
 
     if (printed) {
       return true;

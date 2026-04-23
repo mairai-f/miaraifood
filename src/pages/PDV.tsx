@@ -24,6 +24,8 @@ import { supabase } from '@/integrations/supabase/client';
 import type { Database } from '@/integrations/supabase/types';
 import happyCashLogo from '@/assets/happycash-logo.png';
 import { roleLabel } from '@/lib/access';
+import { useCompanyDisplayName } from '@/hooks/use-company-display-name';
+import { DEFAULT_COMPANY_NAME, resolveCompanyDisplayName } from '@/lib/company';
 import { getMarginPercent } from '@/lib/pricing';
 import {
   type FiscalDocumentRecord,
@@ -318,6 +320,7 @@ export default function PDV() {
   const lastEscToClearCartAtRef = useRef(0);
   const ignoreCartClearOnEscRef = useRef(false);
   const fiscalIssuanceSaleIdRef = useRef<string | null>(null);
+  const companyDisplayName = useCompanyDisplayName();
 
   const activeProducts = products.filter(p => !('deleted' in p && (p as any).deleted));
   const activeClients = clients.filter(c => !c.deleted);
@@ -330,10 +333,13 @@ export default function PDV() {
   const formatSaleDate = (value: string) => formatDateTime(value);
   const formatPaymentMethod = (value: string) => getPaymentMethodLabel(value);
   const closeCashEmailDestination = user?.email?.trim() || '';
-  const retailCouponStoreName = fiscalRuntime?.issuerName
-    || lastFiscalDocument?.payload?.issuer?.tradeName
-    || lastFiscalDocument?.payload?.issuer?.legalName
-    || 'HappyCash';
+  const retailCouponStoreName = resolveCompanyDisplayName(
+    companyDisplayName !== DEFAULT_COMPANY_NAME ? companyDisplayName : null,
+    fiscalRuntime?.issuerName,
+    lastFiscalDocument?.payload?.issuer?.tradeName,
+    lastFiscalDocument?.payload?.issuer?.legalName,
+    DEFAULT_COMPANY_NAME,
+  );
 
   const buildCloseCashWhatsAppMessage = (receipt: CashCloseReceipt) => {
     const paymentLines = getPaymentBreakdown(receipt.sales).map(item =>
@@ -1799,10 +1805,19 @@ export default function PDV() {
       if (canSilentPrintRetailCoupon) {
         const printed = await printSaleCouponFromData(finalizedSaleData, {
           preferSilentPrint: true,
+          automaticPrint: true,
         });
 
         if (!printed) {
           silentToast.error('Nao foi possivel imprimir o cupom automaticamente.');
+        }
+      } else {
+        const printed = await printSaleCouponFromData(finalizedSaleData, {
+          automaticPrint: true,
+        });
+
+        if (!printed) {
+          silentToast.error('Nao foi possivel abrir a impressao automatica do cupom.');
         }
       }
 
@@ -1834,6 +1849,7 @@ export default function PDV() {
     options?: {
       copyLabel?: string;
       preferSilentPrint?: boolean;
+      automaticPrint?: boolean;
     },
   ) => {
     const client = saleReceiptData.clientId
@@ -1864,6 +1880,7 @@ export default function PDV() {
       footerMessage: 'Cupom emitido pelo PDV HappyCash.',
     }, {
       preferSilentPrint: options?.preferSilentPrint,
+      automaticPrint: options?.automaticPrint,
     });
   };
 

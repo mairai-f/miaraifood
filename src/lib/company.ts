@@ -30,8 +30,8 @@ export const fetchCompanyDisplayName = async (ownerUserId: string | null | undef
     }
 
     return resolveCompanyDisplayName(
-      fiscalSettingsData?.issuer_trade_name,
       storeAccountData?.nome_estabelecimento,
+      fiscalSettingsData?.issuer_trade_name,
       fiscalSettingsData?.issuer_legal_name,
     );
   } catch {
