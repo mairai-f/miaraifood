@@ -5,6 +5,7 @@ import { useDesktopRuntime } from './DesktopRuntimeContext';
 import { usePlanAccess } from './PlanContext';
 import type { Client, Product, DebtEntry, Payment, Sale, SaleItem, StockMovement, Expense, ProductCategoryPricingRule, ProductPriceHistoryEntry, Reward } from '@/types';
 import {
+  cleanupOfflineData,
   enqueueOfflineOperation,
   getOfflineSnapshot,
   isOfflineConcentratorAvailable,
@@ -21,6 +22,7 @@ import {
   type OfflineSaleCreatePayload,
   type OfflineSnapshot,
 } from '@/lib/offlineConcentrator';
+import { shouldUseOfflineSnapshotFallback } from '@/lib/offlineSnapshotPolicy';
 import { buildSaleItemPricingMetrics, normalizeProductPricing, normalizePricingRoundingRule } from '@/lib/pricing';
 
 // Generated Supabase types are behind the current schema for these operational tables.
@@ -264,13 +266,22 @@ export function DataProvider({ children }: { children: ReactNode }) {
       canReadPricing ? db.from('product_price_history').select('*').order('created_at', { ascending: false }) : emptyResult,
     ]);
 
-    const hasRemoteError = [c, p, d, pay, r, s, si, sm, exp, pr, ph].some(result => Boolean(result.error));
+    const remoteErrors = [c, p, d, pay, r, s, si, sm, exp, pr, ph]
+      .map(result => result.error)
+      .filter(Boolean);
+    const hasRemoteError = remoteErrors.length > 0;
 
     if (hasRemoteError) {
-      const restoredOfflineSnapshot = await loadOfflineSnapshotFallback();
-      if (restoredOfflineSnapshot) {
-        return;
+      if (shouldUseOfflineSnapshotFallback(remoteErrors)) {
+        const restoredOfflineSnapshot = await loadOfflineSnapshotFallback();
+        if (restoredOfflineSnapshot) {
+          return;
+        }
       }
+
+      console.error('Falha ao atualizar os dados remotos; mantendo o ultimo estado em memoria.', remoteErrors);
+      setLoading(false);
+      return;
     }
 
     setClients((c.data as Client[]) ?? []);
@@ -595,6 +606,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       }
 
       await fetchAll();
+      await cleanupOfflineData(ownerUserId);
     } finally {
       offlineSyncInFlightRef.current = false;
     }
@@ -620,8 +632,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
       void syncOfflineQueue();
     };
 
+    void cleanupOfflineData(ownerUserId);
+
     const intervalId = window.setInterval(() => {
       void syncOfflineQueue();
+      void cleanupOfflineData(ownerUserId);
     }, 20_000);
 
     window.addEventListener('online', handleOnline);

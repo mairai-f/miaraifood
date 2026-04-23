@@ -10,6 +10,9 @@ let autoUpdatesConfigured = false;
 const APP_USER_MODEL_ID = 'com.happycash.desktop';
 const VALID_UPDATE_CHANNELS = new Set(['latest', 'beta', 'alpha']);
 const OFFLINE_DB_FILENAME = 'happycash-concentrator.sqlite';
+const OFFLINE_DB_SCHEMA_VERSION = 2;
+const OFFLINE_SYNC_RETENTION_DAYS = Number.parseInt(process.env.HAPPYCASH_OFFLINE_SYNC_RETENTION_DAYS || '30', 10);
+const OFFLINE_CONFLICT_RETENTION_DAYS = Number.parseInt(process.env.HAPPYCASH_OFFLINE_CONFLICT_RETENTION_DAYS || '30', 10);
 let offlineDb = null;
 let updateState = {
   status: isDevelopment ? 'disabled' : 'idle',
@@ -45,6 +48,10 @@ const getWindowIconPath = () => {
 
 const nowIso = () => new Date().toISOString();
 
+const clampPositiveInteger = (value, fallback) => (
+  Number.isInteger(value) && value > 0 ? value : fallback
+);
+
 const parseJson = (value, fallback = null) => {
   if (!value) return fallback;
 
@@ -70,12 +77,12 @@ const setUpdateState = (patch) => {
 
 const getOfflineDbPath = () => path.join(app.getPath('userData'), OFFLINE_DB_FILENAME);
 
-const getOfflineDb = () => {
-  if (offlineDb) {
-    return offlineDb;
-  }
+const getPragmaNumber = (db, pragmaName) => {
+  const pragmaRow = db.prepare(`PRAGMA ${pragmaName}`).get();
+  return Number(pragmaRow?.[pragmaName] || 0);
+};
 
-  const db = new DatabaseSync(getOfflineDbPath());
+const applyOfflineDbMigrations = (db) => {
   db.exec(`
     PRAGMA journal_mode = WAL;
     PRAGMA foreign_keys = ON;
@@ -102,6 +109,9 @@ const getOfflineDb = () => {
     CREATE INDEX IF NOT EXISTS offline_sync_queue_owner_status_idx
       ON offline_sync_queue (owner_user_id, status, created_at);
 
+    CREATE INDEX IF NOT EXISTS offline_sync_queue_owner_synced_at_idx
+      ON offline_sync_queue (owner_user_id, status, synced_at DESC);
+
     CREATE TABLE IF NOT EXISTS offline_sync_conflicts (
       id TEXT PRIMARY KEY,
       owner_user_id TEXT NOT NULL,
@@ -115,7 +125,56 @@ const getOfflineDb = () => {
 
     CREATE INDEX IF NOT EXISTS offline_sync_conflicts_owner_created_idx
       ON offline_sync_conflicts (owner_user_id, created_at DESC);
+
+    CREATE INDEX IF NOT EXISTS offline_sync_conflicts_owner_operation_idx
+      ON offline_sync_conflicts (owner_user_id, operation_id, resolved_at, created_at DESC);
   `);
+
+  const currentVersion = getPragmaNumber(db, 'user_version');
+  if (currentVersion < OFFLINE_DB_SCHEMA_VERSION) {
+    db.exec(`PRAGMA user_version = ${OFFLINE_DB_SCHEMA_VERSION}`);
+  }
+};
+
+const cleanupOfflineDataWithDb = (db, { ownerUserId } = {}) => {
+  if (ownerUserId != null && (!ownerUserId || typeof ownerUserId !== 'string')) {
+    throw new Error('ownerUserId invalido para limpeza do concentrador offline.');
+  }
+
+  const syncedRetentionDays = clampPositiveInteger(OFFLINE_SYNC_RETENTION_DAYS, 30);
+  const conflictRetentionDays = clampPositiveInteger(OFFLINE_CONFLICT_RETENTION_DAYS, 30);
+  const syncedCutoff = new Date(Date.now() - syncedRetentionDays * 24 * 60 * 60 * 1000).toISOString();
+  const conflictCutoff = new Date(Date.now() - conflictRetentionDays * 24 * 60 * 60 * 1000).toISOString();
+  const ownerScopeSql = ownerUserId ? ' AND owner_user_id = ?' : '';
+  const ownerParams = ownerUserId ? [ownerUserId] : [];
+
+  const deletedSyncedQueueItems = db.prepare(`
+    DELETE FROM offline_sync_queue
+    WHERE status = 'synced'
+      AND synced_at IS NOT NULL
+      AND synced_at < ?${ownerScopeSql}
+  `).run(syncedCutoff, ...ownerParams).changes || 0;
+
+  const deletedResolvedConflicts = db.prepare(`
+    DELETE FROM offline_sync_conflicts
+    WHERE resolved_at IS NOT NULL
+      AND resolved_at < ?${ownerScopeSql}
+  `).run(conflictCutoff, ...ownerParams).changes || 0;
+
+  return {
+    deletedSyncedQueueItems: Number(deletedSyncedQueueItems),
+    deletedResolvedConflicts: Number(deletedResolvedConflicts),
+  };
+};
+
+const getOfflineDb = () => {
+  if (offlineDb) {
+    return offlineDb;
+  }
+
+  const db = new DatabaseSync(getOfflineDbPath());
+  applyOfflineDbMigrations(db);
+  cleanupOfflineDataWithDb(db);
 
   offlineDb = db;
   return db;
@@ -286,8 +345,38 @@ const recordOfflineConflict = ({ ownerUserId, operationId, operationType, messag
   }
 
   const db = getOfflineDb();
-  const id = globalThis.crypto?.randomUUID?.() || `conflict-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
   const createdAt = nowIso();
+  const payloadJson = JSON.stringify(payload ?? null);
+  const existingConflict = db.prepare(`
+    SELECT *
+    FROM offline_sync_conflicts
+    WHERE owner_user_id = ?
+      AND operation_id = ?
+      AND resolved_at IS NULL
+    ORDER BY created_at DESC
+    LIMIT 1
+  `).get(ownerUserId, operationId);
+
+  if (existingConflict) {
+    db.prepare(`
+      UPDATE offline_sync_conflicts
+      SET operation_type = ?,
+          message = ?,
+          payload_json = ?,
+          created_at = ?
+      WHERE id = ?
+    `).run(operationType, message, payloadJson, createdAt, existingConflict.id);
+
+    const updatedConflict = db.prepare(`
+      SELECT *
+      FROM offline_sync_conflicts
+      WHERE id = ?
+    `).get(existingConflict.id);
+
+    return updatedConflict ? mapConflictRow(updatedConflict) : null;
+  }
+
+  const id = globalThis.crypto?.randomUUID?.() || `conflict-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 
   db.prepare(`
     INSERT INTO offline_sync_conflicts (
@@ -306,7 +395,7 @@ const recordOfflineConflict = ({ ownerUserId, operationId, operationType, messag
     operationId,
     operationType,
     message,
-    JSON.stringify(payload ?? null),
+    payloadJson,
     createdAt,
   );
 
@@ -357,12 +446,62 @@ const resolveOfflineConflict = ({ id, resolved = true }) => {
   return row ? mapConflictRow(row) : null;
 };
 
+const retryOfflineOperation = ({ operationId, resolveConflicts = true }) => {
+  if (!operationId || typeof operationId !== 'string') {
+    throw new Error('operationId invalido para reenfileirar operacao offline.');
+  }
+
+  const db = getOfflineDb();
+  const retriedAt = nowIso();
+
+  db.prepare(`
+    UPDATE offline_sync_queue
+    SET status = 'pending',
+        last_error = NULL,
+        synced_at = NULL,
+        updated_at = ?
+    WHERE id = ?
+  `).run(retriedAt, operationId);
+
+  if (resolveConflicts) {
+    db.prepare(`
+      UPDATE offline_sync_conflicts
+      SET resolved_at = COALESCE(resolved_at, ?)
+      WHERE operation_id = ?
+        AND resolved_at IS NULL
+    `).run(retriedAt, operationId);
+  }
+
+  const queueRow = db.prepare(`
+    SELECT *
+    FROM offline_sync_queue
+    WHERE id = ?
+  `).get(operationId);
+  const conflictRows = db.prepare(`
+    SELECT *
+    FROM offline_sync_conflicts
+    WHERE operation_id = ?
+    ORDER BY created_at DESC
+  `).all(operationId);
+
+  return {
+    queueItem: queueRow ? mapQueueRow(queueRow) : null,
+    conflicts: conflictRows.map(mapConflictRow),
+  };
+};
+
+const cleanupOfflineData = ({ ownerUserId } = {}) => {
+  const db = getOfflineDb();
+  return cleanupOfflineDataWithDb(db, { ownerUserId });
+};
+
 const getOfflineStatus = ({ ownerUserId }) => {
   if (!ownerUserId || typeof ownerUserId !== 'string') {
     throw new Error('ownerUserId invalido para leitura do status offline.');
   }
 
   const db = getOfflineDb();
+  cleanupOfflineDataWithDb(db, { ownerUserId });
   const queueCounts = db.prepare(`
     SELECT status, count(*) AS total
     FROM offline_sync_queue
@@ -756,6 +895,14 @@ ipcMain.handle('offline:list-conflicts', (_event, payload) => {
 
 ipcMain.handle('offline:resolve-conflict', (_event, payload) => {
   return resolveOfflineConflict(payload || {});
+});
+
+ipcMain.handle('offline:retry-operation', (_event, payload) => {
+  return retryOfflineOperation(payload || {});
+});
+
+ipcMain.handle('offline:cleanup-data', (_event, payload) => {
+  return cleanupOfflineData(payload || {});
 });
 
 ipcMain.handle('offline:get-status', (_event, payload) => {

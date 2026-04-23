@@ -105,6 +105,16 @@ export interface OfflineConflictRecord {
   resolvedAt: string | null;
 }
 
+export interface OfflineRetryResult {
+  queueItem: OfflineQueueItem | null;
+  conflicts: OfflineConflictRecord[];
+}
+
+export interface OfflineCleanupResult {
+  deletedSyncedQueueItems: number;
+  deletedResolvedConflicts: number;
+}
+
 export interface DesktopRuntimeInfo {
   appVersion: string;
   isPackaged: boolean;
@@ -131,7 +141,7 @@ type OfflineQueueUpdateInput = {
   incrementAttempt?: boolean;
 };
 
-type OfflineStatus = {
+export type OfflineStatus = {
   pendingCount: number;
   processingCount: number;
   syncedCount: number;
@@ -233,6 +243,19 @@ export const listOfflineConflicts = async (ownerUserId: string) => {
 export const resolveOfflineConflict = async (id: string, resolved = true) => {
   if (!window.electronAPI?.offline) return null;
   return window.electronAPI.offline.resolveConflict({ id, resolved }) as Promise<OfflineConflictRecord | null>;
+};
+
+export const retryOfflineOperation = async (
+  operationId: string,
+  resolveConflicts = true,
+): Promise<OfflineRetryResult | null> => {
+  if (!window.electronAPI?.offline) return null;
+  return window.electronAPI.offline.retryOperation({ operationId, resolveConflicts }) as Promise<OfflineRetryResult | null>;
+};
+
+export const cleanupOfflineData = async (ownerUserId: string): Promise<OfflineCleanupResult | null> => {
+  if (!window.electronAPI?.offline) return null;
+  return window.electronAPI.offline.cleanupData({ ownerUserId }) as Promise<OfflineCleanupResult | null>;
 };
 
 export const getOfflineStatus = async (ownerUserId: string): Promise<OfflineStatus | null> => {

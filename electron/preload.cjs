@@ -20,6 +20,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     recordConflict: (payload) => ipcRenderer.invoke('offline:record-conflict', payload),
     listConflicts: (payload) => ipcRenderer.invoke('offline:list-conflicts', payload),
     resolveConflict: (payload) => ipcRenderer.invoke('offline:resolve-conflict', payload),
+    retryOperation: (payload) => ipcRenderer.invoke('offline:retry-operation', payload),
+    cleanupData: (payload) => ipcRenderer.invoke('offline:cleanup-data', payload),
     getStatus: (payload) => ipcRenderer.invoke('offline:get-status', payload),
   },
 });

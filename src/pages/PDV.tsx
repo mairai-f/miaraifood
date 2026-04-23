@@ -29,6 +29,7 @@ import { useCompanyDisplayName } from '@/hooks/use-company-display-name';
 import { DEFAULT_COMPANY_NAME, resolveCompanyDisplayName } from '@/lib/company';
 import { getMarginPercent } from '@/lib/pricing';
 import { enqueueOfflineOperation, isOfflineConcentratorAvailable } from '@/lib/offlineConcentrator';
+import { readScopedCashSession, writeScopedCashSession, type ScopedCashSession } from '@/lib/cashSessionStorage';
 import {
   type FiscalDocumentRecord,
   type FiscalRuntimeStatus,
@@ -51,12 +52,7 @@ interface CartItem {
   unitPrice: number;
 }
 
-interface CashSession {
-  id?: string;
-  openedAt: string;
-  openingAmount: number;
-  openedBy: string;
-}
+type CashSession = ScopedCashSession;
 
 interface CashCloseReceipt {
   openedAt: string;
@@ -101,7 +97,6 @@ type PaymentBreakdownItem = {
   sales: Sale[];
 };
 
-const CASH_SESSION_KEY = 'happycash-pdv-cash-session';
 const CLOSE_CASH_WHATSAPP_PHONE_KEY = 'happycash-close-cash-whatsapp-phone';
 const adminVerificationClient = createClient<Database>(
   import.meta.env.VITE_SUPABASE_URL,
@@ -115,40 +110,6 @@ const adminVerificationClient = createClient<Database>(
     },
   }
 );
-
-const getCashSessionStorage = () => {
-  if (typeof window === 'undefined') return null;
-  return window.electronAPI ? window.localStorage : window.sessionStorage;
-};
-
-const readCashSession = (): CashSession | null => {
-  if (typeof window === 'undefined') return null;
-  try {
-    const storage = getCashSessionStorage();
-    const stored = storage?.getItem(CASH_SESSION_KEY);
-    if (!stored) return null;
-    const parsed = JSON.parse(stored) as CashSession;
-    if (!parsed.openedAt || typeof parsed.openingAmount !== 'number') return null;
-    return parsed;
-  } catch {
-    return null;
-  }
-};
-
-const writeCashSession = (session: CashSession | null) => {
-  if (typeof window === 'undefined') return;
-  try {
-    const storage = getCashSessionStorage();
-    if (!storage) return;
-    if (!session) {
-      storage.removeItem(CASH_SESSION_KEY);
-      return;
-    }
-    storage.setItem(CASH_SESSION_KEY, JSON.stringify(session));
-  } catch {
-    // Ignore localStorage write failures and keep the in-memory state.
-  }
-};
 
 const readCloseCashWhatsAppPhone = () => {
   if (typeof window === 'undefined') return '';
@@ -306,7 +267,7 @@ export default function PDV() {
   const [cashOutReason, setCashOutReason] = useState('');
   const [creditInstallments, setCreditInstallments] = useState<number | null>(null);
   const [pendingCreditInstallments, setPendingCreditInstallments] = useState(1);
-  const [cashSession, setCashSession] = useState<CashSession | null>(() => readCashSession());
+  const [cashSession, setCashSession] = useState<CashSession | null>(null);
   const [cashSessionLoading, setCashSessionLoading] = useState(true);
   const [openingAmount, setOpeningAmount] = useState('');
   const [showCloseCashReceipt, setShowCloseCashReceipt] = useState(false);
@@ -547,13 +508,13 @@ export default function PDV() {
     const syncCashSession = async () => {
       if (!user || !ownerUserId) {
         if (active) {
-          setCashSession(readCashSession());
+          setCashSession(null);
           setCashSessionLoading(false);
         }
         return;
       }
 
-      const storedSession = readCashSession();
+      const storedSession = readScopedCashSession(ownerUserId, user.id);
       if (storedSession && active) {
         setCashSession(storedSession);
       }
@@ -589,7 +550,7 @@ export default function PDV() {
 
       if (!data) {
         setCashSession(null);
-        writeCashSession(null);
+        writeScopedCashSession(ownerUserId, user.id, null);
         setCashSessionLoading(false);
         return;
       }
@@ -599,10 +560,12 @@ export default function PDV() {
         openedAt: data.opened_at,
         openingAmount: Number(data.opening_amount || 0),
         openedBy: data.opened_by_name,
+        ownerUserId,
+        operatorUserId: user.id,
       };
 
       setCashSession(nextSession);
-      writeCashSession(nextSession);
+      writeScopedCashSession(ownerUserId, user.id, nextSession);
       setCashSessionLoading(false);
     };
 
@@ -1986,9 +1949,11 @@ export default function PDV() {
         openedAt,
         openingAmount: amount,
         openedBy: sellerName,
+        ownerUserId,
+        operatorUserId: user.id,
       };
 
-      writeCashSession(session);
+      writeScopedCashSession(ownerUserId, user.id, session);
       setCashSession(session);
       setOpeningAmount('');
       setSaleSearch('');
@@ -2020,9 +1985,11 @@ export default function PDV() {
       openedAt: data.opened_at,
       openingAmount: Number(data.opening_amount || 0),
       openedBy: data.opened_by_name,
+      ownerUserId,
+      operatorUserId: user.id,
     };
 
-    writeCashSession(session);
+    writeScopedCashSession(ownerUserId, user.id, session);
     setCashSession(session);
     setOpeningAmount('');
     setSaleSearch('');
@@ -2085,7 +2052,9 @@ export default function PDV() {
     setCloseCashEmailRecipients([]);
     setCloseCashLastSentChannel(null);
     setShowCloseCashSendDialog(false);
-    writeCashSession(null);
+    if (cashSession.ownerUserId && cashSession.operatorUserId) {
+      writeScopedCashSession(cashSession.ownerUserId, cashSession.operatorUserId, null);
+    }
     setCashSession(null);
     setCashSessionLoading(false);
     setShowSalesSearch(false);

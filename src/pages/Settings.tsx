@@ -13,6 +13,7 @@ import {
   getOfflineStatus,
   listOfflineConflicts,
   readDesktopUpdateStatus,
+  retryOfflineOperation,
   resolveOfflineConflict,
   type DesktopUpdateStatus,
   type OfflineConflictRecord,
@@ -264,6 +265,17 @@ export default function Settings() {
     }
   }, [loadOfflineRuntime]);
 
+  const handleRetryOfflineOperation = useCallback(async (operationId: string) => {
+    try {
+      await retryOfflineOperation(operationId, true);
+      await loadOfflineRuntime();
+      await refetch();
+      toast.success('Operacao reenfileirada para nova sincronizacao.');
+    } catch {
+      toast.error('Nao foi possivel reenfileirar a operacao offline.');
+    }
+  }, [loadOfflineRuntime, refetch]);
+
   const handleCheckDesktopUpdates = useCallback(async () => {
     setCheckingDesktopUpdate(true);
 
@@ -441,7 +453,15 @@ export default function Settings() {
                         {conflict.resolvedAt ? ` • resolvido em ${new Date(conflict.resolvedAt).toLocaleString('pt-BR')}` : ''}
                       </p>
                       {!conflict.resolvedAt && (
-                        <div className="mt-3">
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          <Button
+                            type="button"
+                            variant="default"
+                            size="sm"
+                            onClick={() => void handleRetryOfflineOperation(conflict.operationId)}
+                          >
+                            Tentar novamente
+                          </Button>
                           <Button
                             type="button"
                             variant="outline"

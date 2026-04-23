@@ -24,6 +24,8 @@ interface Window {
       recordConflict: (payload: unknown) => Promise<unknown>;
       listConflicts: (payload: unknown) => Promise<unknown>;
       resolveConflict: (payload: unknown) => Promise<unknown>;
+      retryOperation: (payload: unknown) => Promise<unknown>;
+      cleanupData: (payload: unknown) => Promise<unknown>;
       getStatus: (payload: unknown) => Promise<unknown>;
     };
   };
