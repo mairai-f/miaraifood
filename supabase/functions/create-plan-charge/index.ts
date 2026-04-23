@@ -4,6 +4,7 @@ import {
   createAsaasCustomer,
   createAsaasPayment,
   deleteAsaasPayment,
+  findAsaasCustomerByExternalReference,
   getAsaasPayment,
   getAsaasPixQrCode,
   type AsaasPayment,
@@ -178,9 +179,33 @@ const ensureBillingCustomer = async (
   }
 
   const billingCustomer = (billingCustomerData as BillingCustomerRow | null) || null;
+  const existingAsaasCustomer = await findAsaasCustomerByExternalReference(ownerUserId);
 
-  if (billingCustomer?.provider_customer_id && !billingCustomer.provider_customer_deleted) {
-    return billingCustomer.provider_customer_id;
+  if (existingAsaasCustomer?.id) {
+    if (
+      billingCustomer?.provider_customer_id !== existingAsaasCustomer.id ||
+      billingCustomer?.provider_customer_deleted
+    ) {
+      const { error: syncBillingCustomerError } = await serviceClient
+        .from("billing_customers")
+        .upsert({
+          store_account_id: storeAccount.id,
+          owner_user_id: ownerUserId,
+          provider: "asaas",
+          provider_customer_id: existingAsaasCustomer.id,
+          provider_customer_deleted: false,
+          email: storeAccount.email,
+          phone: normalizeDigits(storeAccount.telefone),
+          cpf_cnpj: normalizeDigits(storeAccount.cnpj),
+          metadata: existingAsaasCustomer,
+        }, { onConflict: "owner_user_id" });
+
+      if (syncBillingCustomerError) {
+        throw new Error(syncBillingCustomerError.message || "Não foi possível sincronizar o cliente de cobrança.");
+      }
+    }
+
+    return existingAsaasCustomer.id;
   }
 
   const asaasCustomer = await createAsaasCustomer({
@@ -389,7 +414,19 @@ Deno.serve(async (request) => {
         continue;
       }
 
-      const currentPayment = await getAsaasPayment(pendingSubscription.provider_payment_id);
+      let currentPayment: AsaasPayment;
+
+      try {
+        currentPayment = await getAsaasPayment(pendingSubscription.provider_payment_id);
+      } catch (error) {
+        console.warn("Cobranca pendente nao encontrada no ambiente atual do Asaas. Cancelando registro local antigo.", {
+          subscriptionId: pendingSubscription.id,
+          providerPaymentId: pendingSubscription.provider_payment_id,
+          error,
+        });
+        continue;
+      }
+
       const paymentStatus = (currentPayment.status || "PENDING").toUpperCase();
       const pendingPaymentMethod = resolvePaymentMethodFromBillingType(pendingSubscription.billing_type);
 
