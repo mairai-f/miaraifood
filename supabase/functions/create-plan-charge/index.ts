@@ -161,6 +161,17 @@ const normalizeCheckoutError = (error: unknown, paymentMethod: CheckoutPaymentMe
   }
 
   if (
+    normalizedMessage.includes("chave de api informada nao pertence a este ambiente") ||
+    normalizedMessage.includes("api key informada nao pertence a este ambiente")
+  ) {
+    return {
+      code: "ASAAS_ENVIRONMENT_MISMATCH",
+      message:
+        "A chave do Asaas nao pertence ao ambiente configurado nesta function. Alinhe ASAAS_ENVIRONMENT com a chave correta: sandbox com chave sandbox, ou production com chave production.",
+    };
+  }
+
+  if (
     paymentMethod === "pix" &&
     normalizedMessage.includes("pix nao esta disponivel") &&
     normalizedMessage.includes("conta precisa estar aprovada")

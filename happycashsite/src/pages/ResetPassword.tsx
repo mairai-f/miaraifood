@@ -107,6 +107,10 @@ const ResetPassword = () => {
         description: 'Agora voce ja pode entrar com a nova senha.',
       });
 
+      setPassword('');
+      setConfirmPassword('');
+      setShowPassword(false);
+      setShowConfirmPassword(false);
       await supabase.auth.signOut({ scope: 'local' });
       navigate('/login', { replace: true });
     } finally {
@@ -153,6 +157,7 @@ const ResetPassword = () => {
                       <Input
                         id="new-password"
                         type={showPassword ? 'text' : 'password'}
+                        autoComplete="new-password"
                         value={password}
                         onChange={e => setPassword(e.target.value)}
                         placeholder="Use uma senha forte"
@@ -176,6 +181,7 @@ const ResetPassword = () => {
                       <Input
                         id="confirm-password"
                         type={showConfirmPassword ? 'text' : 'password'}
+                        autoComplete="new-password"
                         value={confirmPassword}
                         onChange={e => setConfirmPassword(e.target.value)}
                         placeholder="Repita sua nova senha"

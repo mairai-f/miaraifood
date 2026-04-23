@@ -134,6 +134,8 @@ const Cadastro = () => {
         title: "Confirme seu email",
         description: "Enviamos um link de confirmacao. A conta sera liberada no primeiro acesso confirmado.",
       });
+      setPassword("");
+      setShowPassword(false);
       setConfirmationEmail(data.email || email.trim());
     } catch (error) {
       toast({
@@ -234,12 +236,12 @@ const Cadastro = () => {
             <>
               <div className="space-y-2">
                 <Label>Email</Label>
-                <Input type="email" placeholder="seu@email.com" value={email} onChange={e => setEmail(e.target.value)} required className="h-12 bg-muted/50" />
+                <Input type="email" autoComplete="email" placeholder="seu@email.com" value={email} onChange={e => setEmail(e.target.value)} required className="h-12 bg-muted/50" />
               </div>
               <div className="space-y-2">
                 <Label>Senha</Label>
                 <div className="relative">
-                  <Input type={showPassword ? "text" : "password"} placeholder="Use uma senha forte" value={password} onChange={e => setPassword(e.target.value)} required minLength={10} className="h-12 bg-muted/50 pr-12" />
+                  <Input type={showPassword ? "text" : "password"} autoComplete="new-password" placeholder="Use uma senha forte" value={password} onChange={e => setPassword(e.target.value)} required minLength={10} className="h-12 bg-muted/50 pr-12" />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}

@@ -43,6 +43,11 @@ const Login = () => {
   const [searchParams] = useSearchParams();
   const { toast } = useToast();
 
+  const clearPasswordState = () => {
+    setPassword('');
+    setShowPassword(false);
+  };
+
   const selectedPlanId = (() => {
     const value = searchParams.get('plan');
     return isPublicPlanId(value) ? value : null;
@@ -72,12 +77,14 @@ const Login = () => {
 
       if (error) {
         const resolvedError = resolveLoginErrorMessage(error.message);
+        clearPasswordState();
         setLoginError(resolvedError);
         toast({ title: 'Erro ao entrar', description: resolvedError, variant: 'destructive' });
         return;
       }
 
       setEmail(normalizedEmail);
+      clearPasswordState();
       applySiteSessionPreference(keepConnected);
       toast({ title: 'Bem-vindo de volta!' });
       navigate(selectedPlanId ? `/dashboard?plan=${selectedPlanId}` : '/dashboard');
@@ -167,6 +174,7 @@ const Login = () => {
                   <Input
                     id="email"
                     type="email"
+                    autoComplete="email"
                     placeholder="usuario@happycash.com"
                     value={email}
                     onChange={e => {
@@ -196,6 +204,7 @@ const Login = () => {
                     <Input
                       id="password"
                       type={showPassword ? 'text' : 'password'}
+                      autoComplete="current-password"
                       placeholder="••••••••"
                       value={password}
                       onChange={e => {
@@ -296,6 +305,7 @@ const Login = () => {
               <Input
                 id="reset-email"
                 type="email"
+                autoComplete="email"
                 value={resetEmail}
                 onChange={e => setResetEmail(e.target.value)}
                 placeholder="usuario@happycash.com"
