@@ -1,18 +1,46 @@
-import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback, useRef, type ReactNode } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './AuthContext';
+import { useDesktopRuntime } from './DesktopRuntimeContext';
 import { usePlanAccess } from './PlanContext';
-import type { Client, Product, DebtEntry, Payment, Sale, SaleItem, StockMovement, Expense, ProductCategoryPricingRule, ProductPriceHistoryEntry } from '@/types';
+import type { Client, Product, DebtEntry, Payment, Sale, SaleItem, StockMovement, Expense, ProductCategoryPricingRule, ProductPriceHistoryEntry, Reward } from '@/types';
+import {
+  enqueueOfflineOperation,
+  getOfflineSnapshot,
+  isOfflineConcentratorAvailable,
+  isProbablyOfflineError,
+  listOfflineQueue,
+  recordOfflineConflict,
+  replaceOfflineSnapshot,
+  updateOfflineQueueItem,
+  type OfflineDebtEntriesPayload,
+  type OfflineCashSessionClosePayload,
+  type OfflineCashSessionOpenPayload,
+  type OfflineExpensePayload,
+  type OfflineOperationType,
+  type OfflineSaleCreatePayload,
+  type OfflineSnapshot,
+} from '@/lib/offlineConcentrator';
 import { buildSaleItemPricingMetrics, normalizeProductPricing, normalizePricingRoundingRule } from '@/lib/pricing';
 
+// Generated Supabase types are behind the current schema for these operational tables.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
-
-interface Reward { id: string; name: string; description: string; minimum_spending: number; created_at: string; user_id: string; }
 
 const ensureSuccess = <T extends { error?: unknown }>(result: T) => {
   if (result.error) throw result.error;
   return result;
 };
+
+class OfflineSyncConflictError extends Error {
+  readonly operationType: OfflineOperationType;
+
+  constructor(operationType: OfflineOperationType, message: string) {
+    super(message);
+    this.name = 'OfflineSyncConflictError';
+    this.operationType = operationType;
+  }
+}
 
 const normalizeProductRow = (row: Product) => {
   const normalized = normalizeProductPricing(row);
@@ -54,6 +82,10 @@ const nowIso = () => new Date().toISOString();
 const createId = () => (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
   ? crypto.randomUUID()
   : `temp-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`);
+const stripSyncFields = <T extends { sync_status?: unknown; sync_error?: unknown }>(row: T) => {
+  const { sync_status: _syncStatus, sync_error: _syncError, ...rest } = row;
+  return rest;
+};
 const isManualDeletedDebtEntry = (entry: DebtEntry) => entry.manual_deleted === true;
 const isLegacyDeletedDebtEntry = (entry: DebtEntry) => entry.deleted === true && entry.status !== 'paid' && !isManualDeletedDebtEntry(entry);
 const isVisibleDebtEntry = (entry: DebtEntry) => !isManualDeletedDebtEntry(entry) && !isLegacyDeletedDebtEntry(entry);
@@ -112,6 +144,7 @@ const DataContext = createContext<DataContextType | null>(null);
 
 export function DataProvider({ children }: { children: ReactNode }) {
   const { user, ownerUserId, loading: authLoading, isAdmin } = useAuth();
+  const { isDesktop, offlineEnabled } = useDesktopRuntime();
   const { hasFeature, loading: planLoading, planId } = usePlanAccess();
   const [clients, setClients] = useState<Client[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
@@ -126,6 +159,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [priceHistory, setPriceHistory] = useState<ProductPriceHistoryEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const isDemoMode = planId === 'demo';
+  const canUseOfflineConcentrator = isDesktop && offlineEnabled && isOfflineConcentratorAvailable();
+  const offlineSyncInFlightRef = useRef(false);
 
   useEffect(() => {
     if (!user || !ownerUserId || !isDemoMode) return;
@@ -144,6 +179,31 @@ export function DataProvider({ children }: { children: ReactNode }) {
     setLoading(false);
   }, [isDemoMode, ownerUserId, user]);
 
+  const applyOfflineSnapshot = useCallback((snapshot: OfflineSnapshot) => {
+    setClients(snapshot.clients ?? []);
+    setProducts(productsWithDisplayCodes(snapshot.products ?? []));
+    setDebtEntries(snapshot.debtEntries ?? []);
+    setPayments(snapshot.payments ?? []);
+    setRewards(snapshot.rewards ?? []);
+    setSales(snapshot.sales ?? []);
+    setSaleItems(snapshot.saleItems ?? []);
+    setStockMovements(snapshot.stockMovements ?? []);
+    setExpenses(snapshot.expenses ?? []);
+    setPricingRules((snapshot.pricingRules ?? []).map(normalizePricingRuleRow));
+    setPriceHistory(snapshot.priceHistory ?? []);
+  }, []);
+
+  const loadOfflineSnapshotFallback = useCallback(async () => {
+    if (!canUseOfflineConcentrator || !ownerUserId) return false;
+
+    const offlineSnapshotResult = await getOfflineSnapshot(ownerUserId);
+    if (!offlineSnapshotResult.snapshot) return false;
+
+    applyOfflineSnapshot(offlineSnapshotResult.snapshot);
+    setLoading(false);
+    return true;
+  }, [applyOfflineSnapshot, canUseOfflineConcentrator, ownerUserId]);
+
   const fetchAll = useCallback(async () => {
     if (authLoading || planLoading) {
       setLoading(true);
@@ -159,6 +219,13 @@ export function DataProvider({ children }: { children: ReactNode }) {
     if (isDemoMode) {
       setLoading(false);
       return;
+    }
+
+    if (canUseOfflineConcentrator && typeof navigator !== 'undefined' && navigator.onLine === false) {
+      const restoredOfflineSnapshot = await loadOfflineSnapshotFallback();
+      if (restoredOfflineSnapshot) {
+        return;
+      }
     }
 
     setLoading(true);
@@ -196,6 +263,16 @@ export function DataProvider({ children }: { children: ReactNode }) {
       canReadPricing ? db.from('product_category_pricing_rules').select('*').order('category', { ascending: true }) : emptyResult,
       canReadPricing ? db.from('product_price_history').select('*').order('created_at', { ascending: false }) : emptyResult,
     ]);
+
+    const hasRemoteError = [c, p, d, pay, r, s, si, sm, exp, pr, ph].some(result => Boolean(result.error));
+
+    if (hasRemoteError) {
+      const restoredOfflineSnapshot = await loadOfflineSnapshotFallback();
+      if (restoredOfflineSnapshot) {
+        return;
+      }
+    }
+
     setClients((c.data as Client[]) ?? []);
     setProducts(productsWithDisplayCodes((p.data as Product[]) ?? []));
     setDebtEntries((d.data as DebtEntry[]) ?? []);
@@ -208,9 +285,353 @@ export function DataProvider({ children }: { children: ReactNode }) {
     setPricingRules((((pr.data as ProductCategoryPricingRule[]) ?? []).map(normalizePricingRuleRow)));
     setPriceHistory((ph.data as ProductPriceHistoryEntry[]) ?? []);
     setLoading(false);
-  }, [authLoading, hasFeature, isDemoMode, ownerUserId, planLoading, user]);
+  }, [authLoading, canUseOfflineConcentrator, hasFeature, isDemoMode, loadOfflineSnapshotFallback, ownerUserId, planLoading, user]);
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
+
+  useEffect(() => {
+    if (!canUseOfflineConcentrator || !ownerUserId || loading || !user || isDemoMode) {
+      return;
+    }
+
+    const snapshot: OfflineSnapshot = {
+      clients,
+      products,
+      debtEntries,
+      payments,
+      rewards,
+      sales,
+      saleItems,
+      stockMovements,
+      expenses,
+      pricingRules,
+      priceHistory,
+      savedAt: nowIso(),
+    };
+
+    void replaceOfflineSnapshot(ownerUserId, snapshot);
+  }, [
+    canUseOfflineConcentrator,
+    clients,
+    debtEntries,
+    expenses,
+    isDemoMode,
+    loading,
+    ownerUserId,
+    payments,
+    priceHistory,
+    pricingRules,
+    products,
+    rewards,
+    saleItems,
+    sales,
+    stockMovements,
+    user,
+  ]);
+
+  const syncQueuedCashSessionOpenOperation = useCallback(async (payload: OfflineCashSessionOpenPayload) => {
+    const { session } = payload;
+
+    const { data: existingSession, error: existingSessionError } = await db
+      .from('cash_sessions')
+      .select('id')
+      .eq('id', session.id)
+      .maybeSingle();
+
+    if (existingSessionError) {
+      throw existingSessionError;
+    }
+
+    if (!existingSession) {
+      ensureSuccess(await db.from('cash_sessions').insert(session));
+    }
+  }, []);
+
+  const syncQueuedCashSessionCloseOperation = useCallback(async (payload: OfflineCashSessionClosePayload) => {
+    const { data: existingSession, error: existingSessionError } = await db
+      .from('cash_sessions')
+      .select('id')
+      .eq('id', payload.sessionId)
+      .maybeSingle();
+
+    if (existingSessionError) {
+      throw existingSessionError;
+    }
+
+    if (!existingSession) {
+      throw new OfflineSyncConflictError(
+        'cash_session.close',
+        'A sessao de caixa offline ainda nao existe no banco remoto para ser fechada.',
+      );
+    }
+
+    ensureSuccess(await db
+      .from('cash_sessions')
+      .update({
+        status: 'closed',
+        closed_at: payload.closedAt,
+        closed_by_user_id: payload.closedByUserId,
+        closed_by_name: payload.closedByName,
+        closing_balance: payload.closingBalance,
+      })
+      .eq('id', payload.sessionId));
+  }, []);
+
+  const syncQueuedSaleOperation = useCallback(async (payload: OfflineSaleCreatePayload) => {
+    const { sale, items, stockMovements } = payload;
+    const remoteSalePayload = {
+      ...stripSyncFields(sale),
+      user_id: ownerUserId!,
+    };
+
+    const { data: existingSale, error: existingSaleError } = await db
+      .from('sales')
+      .select('id')
+      .eq('id', sale.id)
+      .maybeSingle();
+
+    if (existingSaleError) {
+      throw existingSaleError;
+    }
+
+    if (!existingSale) {
+      const { error: insertSaleError } = await db.from('sales').insert(remoteSalePayload);
+      if (insertSaleError) throw insertSaleError;
+    }
+
+    if (items.length > 0) {
+      const { data: existingItems, error: existingItemsError } = await db
+        .from('sale_items')
+        .select('id')
+        .in('id', items.map(item => item.id));
+
+      if (existingItemsError) {
+        throw existingItemsError;
+      }
+
+      const existingItemIds = new Set(((existingItems as Array<{ id: string }> | null) ?? []).map(item => item.id));
+      const missingItems = items
+        .filter(item => !existingItemIds.has(item.id))
+        .map(item => stripSyncFields(item));
+
+      if (missingItems.length > 0) {
+        const { error: insertItemsError } = await db.from('sale_items').insert(missingItems);
+        if (insertItemsError) throw insertItemsError;
+      }
+    }
+
+    if (stockMovements.length === 0) {
+      return;
+    }
+
+    const { data: existingMovements, error: existingMovementsError } = await db
+      .from('stock_movements')
+      .select('id')
+      .in('id', stockMovements.map(movement => movement.id));
+
+    if (existingMovementsError) {
+      throw existingMovementsError;
+    }
+
+    const existingMovementIds = new Set(
+      ((existingMovements as Array<{ id: string }> | null) ?? []).map(movement => movement.id),
+    );
+
+    for (const movement of stockMovements) {
+      if (existingMovementIds.has(movement.id)) {
+        continue;
+      }
+
+      const { data: productData, error: productError } = await db
+        .from('products')
+        .select('id, stock, name')
+        .eq('id', movement.product_id)
+        .maybeSingle();
+
+      if (productError) {
+        throw productError;
+      }
+
+      const product = (productData as { id: string; stock: number; name?: string | null } | null) ?? null;
+
+      if (!product) {
+        throw new OfflineSyncConflictError(
+          'sale.create',
+          `O produto ${movement.product_id} nao existe mais no banco remoto para sincronizar a venda offline.`,
+        );
+      }
+
+      const currentStock = Number(product.stock || 0);
+      if (movement.type === 'saida' && currentStock < movement.quantity) {
+        throw new OfflineSyncConflictError(
+          'sale.create',
+          `Estoque remoto insuficiente para sincronizar ${product.name || movement.product_id}. Ajuste o estoque e tente novamente.`,
+        );
+      }
+
+      const nextStock = movement.type === 'saida'
+        ? currentStock - movement.quantity
+        : currentStock + movement.quantity;
+
+      ensureSuccess(await db.from('products').update({ stock: nextStock }).eq('id', movement.product_id));
+      ensureSuccess(await db.from('stock_movements').insert(stripSyncFields(movement)));
+    }
+  }, [ownerUserId]);
+
+  const syncQueuedDebtEntriesOperation = useCallback(async (payload: OfflineDebtEntriesPayload) => {
+    if (payload.entries.length === 0) {
+      return;
+    }
+
+    const { data: existingEntries, error: existingEntriesError } = await db
+      .from('debt_entries')
+      .select('id')
+      .in('id', payload.entries.map(entry => entry.id));
+
+    if (existingEntriesError) {
+      throw existingEntriesError;
+    }
+
+    const existingEntryIds = new Set(
+      ((existingEntries as Array<{ id: string }> | null) ?? []).map(entry => entry.id),
+    );
+    const missingEntries = payload.entries
+      .filter(entry => !existingEntryIds.has(entry.id))
+      .map(entry => stripSyncFields(entry));
+
+    if (missingEntries.length > 0) {
+      ensureSuccess(await db.from('debt_entries').insert(missingEntries));
+    }
+  }, []);
+
+  const syncQueuedExpenseOperation = useCallback(async (payload: OfflineExpensePayload) => {
+    const { expense } = payload;
+
+    const { data: existingExpense, error: existingExpenseError } = await db
+      .from('expenses')
+      .select('id')
+      .eq('id', expense.id)
+      .maybeSingle();
+
+    if (existingExpenseError) {
+      throw existingExpenseError;
+    }
+
+    if (!existingExpense) {
+      const expensePayload = stripSyncFields(expense);
+      const { error: insertExpenseError } = await db.from('expenses').insert(expensePayload);
+      if (insertExpenseError) throw insertExpenseError;
+    }
+  }, []);
+
+  const syncOfflineQueue = useCallback(async () => {
+    if (
+      offlineSyncInFlightRef.current
+      || !canUseOfflineConcentrator
+      || !ownerUserId
+      || !user
+      || isDemoMode
+      || typeof navigator === 'undefined'
+      || navigator.onLine === false
+    ) {
+      return;
+    }
+
+    offlineSyncInFlightRef.current = true;
+
+    try {
+      const pendingItems = await listOfflineQueue(ownerUserId, ['pending', 'processing']);
+
+      for (const queueItem of pendingItems) {
+        await updateOfflineQueueItem({
+          id: queueItem.id,
+          status: 'processing',
+          lastError: null,
+          incrementAttempt: queueItem.status !== 'processing',
+        });
+
+        try {
+          if (queueItem.operationType === 'cash_session.open' && queueItem.payload) {
+            await syncQueuedCashSessionOpenOperation(queueItem.payload as OfflineCashSessionOpenPayload);
+          } else if (queueItem.operationType === 'cash_session.close' && queueItem.payload) {
+            await syncQueuedCashSessionCloseOperation(queueItem.payload as OfflineCashSessionClosePayload);
+          } else if (queueItem.operationType === 'sale.create' && queueItem.payload) {
+            await syncQueuedSaleOperation(queueItem.payload as OfflineSaleCreatePayload);
+          } else if (queueItem.operationType === 'debt_entries.add_many' && queueItem.payload) {
+            await syncQueuedDebtEntriesOperation(queueItem.payload as OfflineDebtEntriesPayload);
+          } else if (queueItem.operationType === 'expense.create' && queueItem.payload) {
+            await syncQueuedExpenseOperation(queueItem.payload as OfflineExpensePayload);
+          }
+
+          await updateOfflineQueueItem({
+            id: queueItem.id,
+            status: 'synced',
+            lastError: null,
+            syncedAt: nowIso(),
+          });
+        } catch (error) {
+          if (error instanceof OfflineSyncConflictError) {
+            await updateOfflineQueueItem({
+              id: queueItem.id,
+              status: 'conflict',
+              lastError: error.message,
+            });
+            await recordOfflineConflict(
+              ownerUserId,
+              queueItem.id,
+              queueItem.operationType,
+              error.message,
+              (queueItem.payload ?? null) as OfflineCashSessionOpenPayload | OfflineCashSessionClosePayload | OfflineSaleCreatePayload | OfflineDebtEntriesPayload | OfflineExpensePayload,
+            );
+            continue;
+          }
+
+          await updateOfflineQueueItem({
+            id: queueItem.id,
+            status: 'pending',
+            lastError: error instanceof Error ? error.message : 'Falha ao sincronizar a fila offline.',
+          });
+        }
+      }
+
+      await fetchAll();
+    } finally {
+      offlineSyncInFlightRef.current = false;
+    }
+  }, [
+    canUseOfflineConcentrator,
+    fetchAll,
+    isDemoMode,
+    ownerUserId,
+    syncQueuedCashSessionCloseOperation,
+    syncQueuedCashSessionOpenOperation,
+    syncQueuedDebtEntriesOperation,
+    syncQueuedExpenseOperation,
+    syncQueuedSaleOperation,
+    user,
+  ]);
+
+  useEffect(() => {
+    if (!canUseOfflineConcentrator || !ownerUserId || isDemoMode) {
+      return;
+    }
+
+    const handleOnline = () => {
+      void syncOfflineQueue();
+    };
+
+    const intervalId = window.setInterval(() => {
+      void syncOfflineQueue();
+    }, 20_000);
+
+    window.addEventListener('online', handleOnline);
+    void syncOfflineQueue();
+
+    return () => {
+      window.clearInterval(intervalId);
+      window.removeEventListener('online', handleOnline);
+    };
+  }, [canUseOfflineConcentrator, isDemoMode, ownerUserId, syncOfflineQueue]);
 
   // --- Clients ---
   const addClient = async (name: string, phone: string) => {
@@ -305,7 +726,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     const { data, error } = await db.from('products').insert({
       user_id: ownerUserId!,
       ...productPayload,
-    } as any).select('*').single();
+    } as Record<string, unknown>).select('*').single();
     if (error) throw error;
     setProducts(prev => [...prev, withDisplayCode(data as Product, prev)]);
   };
@@ -455,21 +876,65 @@ export function DataProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    const { data, error } = await db.from('debt_entries').insert(
-      entries.map(entry => ({
+    const addOfflineDebtEntries = async () => {
+      const nextEntries = entries.map(entry => ({
+        id: createId(),
         client_id: entry.clientId,
         product_id: entry.productId,
         product_name: entry.productName,
         quantity: entry.quantity,
         unit_price: entry.unitPrice,
         total: entry.quantity * entry.unitPrice,
-        date_added: entry.dateAdded || new Date().toISOString(),
-        registered_by: entry.registeredBy,
-      }))
-    ).select('*');
+        date_added: entry.dateAdded || nowIso(),
+        date_paid: null,
+        status: 'pending',
+        deleted: false,
+        manual_deleted: false,
+        registered_by: entry.registeredBy ?? null,
+        sync_status: 'queued',
+        sync_error: null,
+      } as DebtEntry));
 
-    if (error) throw error;
-    setDebtEntries(prev => [...((data as DebtEntry[]) ?? []), ...prev]);
+      const queued = await enqueueOfflineOperation(ownerUserId!, 'debt_entries.add_many', {
+        entries: nextEntries,
+      });
+
+      if (!queued) {
+        throw new Error('Nao foi possivel registrar os fiados na fila offline.');
+      }
+
+      setDebtEntries(prev => [...nextEntries, ...prev]);
+    };
+
+    if (canUseOfflineConcentrator && typeof navigator !== 'undefined' && navigator.onLine === false) {
+      await addOfflineDebtEntries();
+      return;
+    }
+
+    try {
+      const { data, error } = await db.from('debt_entries').insert(
+        entries.map(entry => ({
+          client_id: entry.clientId,
+          product_id: entry.productId,
+          product_name: entry.productName,
+          quantity: entry.quantity,
+          unit_price: entry.unitPrice,
+          total: entry.quantity * entry.unitPrice,
+          date_added: entry.dateAdded || new Date().toISOString(),
+          registered_by: entry.registeredBy,
+        }))
+      ).select('*');
+
+      if (error) throw error;
+      setDebtEntries(prev => [...((data as DebtEntry[]) ?? []), ...prev]);
+    } catch (error) {
+      if (canUseOfflineConcentrator && isProbablyOfflineError(error)) {
+        await addOfflineDebtEntries();
+        return;
+      }
+
+      throw error;
+    }
   };
   const updateDebtEntry = async (id: string, data: Record<string, unknown>) => {
     const mapped: Record<string, unknown> = {};
@@ -483,7 +948,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       setDebtEntries(prev => prev.map(entry => entry.id === id ? { ...entry, ...mapped } as DebtEntry : entry));
       return;
     }
-    ensureSuccess(await db.from('debt_entries').update(mapped as any).eq('id', id));
+    ensureSuccess(await db.from('debt_entries').update(mapped as Record<string, unknown>).eq('id', id));
     await fetchAll();
   };
   const deleteDebtEntry = async (id: string, reason: string) => {
@@ -705,85 +1170,165 @@ export function DataProvider({ children }: { children: ReactNode }) {
       return { sale: saleRow, items: saleRows };
     }
 
-    const salePayload = {
-      ...sale,
-      user_id: ownerUserId!,
-    } as any;
-    const { data, error } = await db.from('sales').insert(salePayload).select('*').single();
-    let saleData = data;
-    let saleError = error;
-
-    if (
-      saleError?.message
-      && ['seller_name', 'is_delivery', 'status', 'cancel_reason', 'cancelled_at', 'operator_user_id', 'cash_session_id']
-        .some(column => saleError.message.includes(column))
-    ) {
-      const {
-        seller_name,
-        is_delivery,
-        status,
-        cancel_reason,
-        cancelled_at,
-        operator_user_id,
-        cash_session_id,
-        ...baseSalePayload
-      } = salePayload;
-      const retry = await db.from('sales').insert(baseSalePayload).select('*').single();
-      saleData = retry.data;
-      saleError = retry.error;
-    }
-
-    if (saleError || !saleData) throw saleError;
-    const saleId = saleData.id;
-    const itemsWithSaleId = itemsWithMetrics.map(i => ({ ...i, sale_id: saleId }));
-    const { data: insertedItems, error: saleItemsError } = await db.from('sale_items').insert(itemsWithSaleId).select('*');
-    if (saleItemsError) throw saleItemsError;
-
-    const stockUpdates = itemsWithMetrics
-      .filter(item => item.product_id)
-      .map(item => {
-        const product = products.find(p => p.id === item.product_id);
-        if (!product || product.stock <= 0) return null;
-        const newStock = Math.max(0, product.stock - item.quantity);
-        return db.from('products').update({ stock: newStock }).eq('id', item.product_id);
-      })
-      .filter(Boolean);
-
-    const stockMovementsToInsert = itemsWithMetrics
-      .filter(item => item.product_id)
-      .map(item => ({
-        product_id: item.product_id,
+    const createOfflineSale = async () => {
+      const saleId = createId();
+      const createdAt = nowIso();
+      const saleRow: Sale = {
+        id: saleId,
+        created_at: createdAt,
+        date: createdAt,
+        ...sale,
         user_id: ownerUserId!,
-        type: 'saida',
-        quantity: item.quantity,
-        reason: 'Venda PDV',
+        sync_status: 'queued',
+        sync_error: null,
+      };
+      const saleRows = itemsWithMetrics.map(item => ({
+        ...item,
+        id: createId(),
+        sale_id: saleId,
+        sync_status: 'queued',
+        sync_error: null,
+      })) as SaleItem[];
+      const movements = itemsWithMetrics
+        .filter(item => item.product_id)
+        .map(item => ({
+          id: createId(),
+          product_id: item.product_id!,
+          user_id: ownerUserId!,
+          type: 'saida',
+          quantity: item.quantity,
+          reason: 'Venda PDV',
+          date: createdAt,
+          sync_status: 'queued',
+          sync_error: null,
+        } as StockMovement));
+
+      const queued = await enqueueOfflineOperation(ownerUserId!, 'sale.create', {
+        sale: saleRow,
+        items: saleRows,
+        stockMovements: movements,
+        stockAdjustments: saleRows
+          .filter(item => item.product_id)
+          .map(item => ({
+            productId: item.product_id!,
+            quantity: item.quantity,
+          })),
+      });
+
+      if (!queued) {
+        throw new Error('Nao foi possivel registrar a venda na fila offline.');
+      }
+
+      setSales(prev => [saleRow, ...prev]);
+      setSaleItems(prev => [...saleRows, ...prev]);
+      setProducts(prev => prev.map(product => {
+        const soldQuantity = itemsWithMetrics
+          .filter(item => item.product_id === product.id)
+          .reduce((sum, item) => sum + item.quantity, 0);
+        if (soldQuantity === 0) return product;
+        return { ...product, stock: Math.max(0, (product.stock || 0) - soldQuantity) };
       }));
+      if (movements.length > 0) {
+        setStockMovements(prev => [...movements, ...prev]);
+      }
 
-    await Promise.all(stockUpdates.map(async update => ensureSuccess(await update)));
-    let insertedStockMovements: StockMovement[] = [];
-    if (stockMovementsToInsert.length > 0) {
-      const { data: movementRows, error: movementError } = await db.from('stock_movements').insert(stockMovementsToInsert).select('*');
-      if (movementError) throw movementError;
-      insertedStockMovements = (movementRows as StockMovement[]) ?? [];
-    }
-
-    setSales(prev => [saleData as Sale, ...prev]);
-    setSaleItems(prev => [...((insertedItems as SaleItem[]) ?? []), ...prev]);
-    setProducts(prev => prev.map(product => {
-      const soldQuantity = itemsWithMetrics
-        .filter(item => item.product_id === product.id)
-        .reduce((sum, item) => sum + item.quantity, 0);
-      if (soldQuantity === 0) return product;
-      return { ...product, stock: Math.max(0, (product.stock || 0) - soldQuantity) };
-    }));
-    if (insertedStockMovements.length > 0) {
-      setStockMovements(prev => [...insertedStockMovements, ...prev]);
-    }
-
-    return {
-      sale: saleData as Sale,
-      items: (insertedItems as SaleItem[]) ?? [],
+      return {
+        sale: saleRow,
+        items: saleRows,
+      };
     };
+
+    if (canUseOfflineConcentrator && typeof navigator !== 'undefined' && navigator.onLine === false) {
+      return createOfflineSale();
+    }
+
+    try {
+      const salePayload = {
+        ...sale,
+        user_id: ownerUserId!,
+      } as Record<string, unknown>;
+      const { data, error } = await db.from('sales').insert(salePayload).select('*').single();
+      let saleData = data;
+      let saleError = error;
+
+      if (
+        saleError?.message
+        && ['seller_name', 'is_delivery', 'status', 'cancel_reason', 'cancelled_at', 'operator_user_id', 'cash_session_id']
+          .some(column => saleError.message.includes(column))
+      ) {
+        const {
+          seller_name,
+          is_delivery,
+          status,
+          cancel_reason,
+          cancelled_at,
+          operator_user_id,
+          cash_session_id,
+          ...baseSalePayload
+        } = salePayload;
+        const retry = await db.from('sales').insert(baseSalePayload).select('*').single();
+        saleData = retry.data;
+        saleError = retry.error;
+      }
+
+      if (saleError || !saleData) throw saleError;
+      const saleId = saleData.id;
+      const itemsWithSaleId = itemsWithMetrics.map(i => ({ ...i, sale_id: saleId }));
+      const { data: insertedItems, error: saleItemsError } = await db.from('sale_items').insert(itemsWithSaleId).select('*');
+      if (saleItemsError) throw saleItemsError;
+
+      const stockUpdates = itemsWithMetrics
+        .filter(item => item.product_id)
+        .map(item => {
+          const product = products.find(p => p.id === item.product_id);
+          if (!product || product.stock <= 0) return null;
+          const newStock = Math.max(0, product.stock - item.quantity);
+          return db.from('products').update({ stock: newStock }).eq('id', item.product_id);
+        })
+        .filter(Boolean);
+
+      const stockMovementsToInsert = itemsWithMetrics
+        .filter(item => item.product_id)
+        .map(item => ({
+          product_id: item.product_id,
+          user_id: ownerUserId!,
+          type: 'saida',
+          quantity: item.quantity,
+          reason: 'Venda PDV',
+        }));
+
+      await Promise.all(stockUpdates.map(async update => ensureSuccess(await update)));
+      let insertedStockMovements: StockMovement[] = [];
+      if (stockMovementsToInsert.length > 0) {
+        const { data: movementRows, error: movementError } = await db.from('stock_movements').insert(stockMovementsToInsert).select('*');
+        if (movementError) throw movementError;
+        insertedStockMovements = (movementRows as StockMovement[]) ?? [];
+      }
+
+      setSales(prev => [saleData as Sale, ...prev]);
+      setSaleItems(prev => [...((insertedItems as SaleItem[]) ?? []), ...prev]);
+      setProducts(prev => prev.map(product => {
+        const soldQuantity = itemsWithMetrics
+          .filter(item => item.product_id === product.id)
+          .reduce((sum, item) => sum + item.quantity, 0);
+        if (soldQuantity === 0) return product;
+        return { ...product, stock: Math.max(0, (product.stock || 0) - soldQuantity) };
+      }));
+      if (insertedStockMovements.length > 0) {
+        setStockMovements(prev => [...insertedStockMovements, ...prev]);
+      }
+
+      return {
+        sale: saleData as Sale,
+        items: (insertedItems as SaleItem[]) ?? [],
+      };
+    } catch (error) {
+      if (canUseOfflineConcentrator && isProbablyOfflineError(error)) {
+        return createOfflineSale();
+      }
+
+      throw error;
+    }
   };
 
   const cancelSale = async (saleId: string, reason: string) => {
@@ -965,28 +1510,68 @@ export function DataProvider({ children }: { children: ReactNode }) {
       setExpenses(prev => [expense, ...prev]);
       return;
     }
-    const expensePayload = {
-      user_id: ownerUserId!,
-      operator_user_id: metadata?.operatorUserId ?? null,
-      cash_session_id: metadata?.cashSessionId ?? null,
-      description,
-      amount,
-      category,
-      date: metadata?.date || new Date().toISOString(),
-    };
-    const { data, error } = await db.from('expenses').insert(expensePayload).select('*').single();
-    let expenseData = data;
-    let expenseError = error;
 
-    if (expenseError?.message && ['operator_user_id', 'cash_session_id'].some(column => expenseError.message.includes(column))) {
-      const { operator_user_id, cash_session_id, ...baseExpensePayload } = expensePayload;
-      const retry = await db.from('expenses').insert(baseExpensePayload).select('*').single();
-      expenseData = retry.data;
-      expenseError = retry.error;
+    const addOfflineExpense = async () => {
+      const expense: Expense = {
+        id: createId(),
+        user_id: ownerUserId!,
+        operator_user_id: metadata?.operatorUserId ?? null,
+        cash_session_id: metadata?.cashSessionId ?? null,
+        description,
+        amount,
+        category,
+        date: metadata?.date || nowIso(),
+        sync_status: 'queued',
+        sync_error: null,
+      };
+
+      const queued = await enqueueOfflineOperation(ownerUserId!, 'expense.create', {
+        expense,
+      });
+
+      if (!queued) {
+        throw new Error('Nao foi possivel registrar a despesa na fila offline.');
+      }
+
+      setExpenses(prev => [expense, ...prev]);
+    };
+
+    if (canUseOfflineConcentrator && typeof navigator !== 'undefined' && navigator.onLine === false) {
+      await addOfflineExpense();
+      return;
     }
 
-    if (expenseError) throw expenseError;
-    setExpenses(prev => [expenseData as Expense, ...prev]);
+    try {
+      const expensePayload = {
+        user_id: ownerUserId!,
+        operator_user_id: metadata?.operatorUserId ?? null,
+        cash_session_id: metadata?.cashSessionId ?? null,
+        description,
+        amount,
+        category,
+        date: metadata?.date || new Date().toISOString(),
+      };
+      const { data, error } = await db.from('expenses').insert(expensePayload).select('*').single();
+      let expenseData = data;
+      let expenseError = error;
+
+      if (expenseError?.message && ['operator_user_id', 'cash_session_id'].some(column => expenseError.message.includes(column))) {
+        const { operator_user_id, cash_session_id, ...baseExpensePayload } = expensePayload;
+        const retry = await db.from('expenses').insert(baseExpensePayload).select('*').single();
+        expenseData = retry.data;
+        expenseError = retry.error;
+      }
+
+      if (expenseError) throw expenseError;
+      setExpenses(prev => [expenseData as Expense, ...prev]);
+    } catch (error) {
+      if (canUseOfflineConcentrator && isProbablyOfflineError(error)) {
+        await addOfflineExpense();
+        return;
+      }
+
+      throw error;
+    }
   };
   const deleteExpense = async (id: string) => {
     if (isDemoMode) {

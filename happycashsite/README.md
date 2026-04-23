@@ -14,6 +14,13 @@ Pontos importantes:
 - `DESKTOP_WINDOWS_OBJECT_PATH`
 - `DESKTOP_LINUX_OBJECT_PATH`
 - `DESKTOP_DOWNLOAD_SIGNED_URL_TTL`
+- O fluxo comercial do desktop agora tambem pode usar assets do GitHub Release, com estas variáveis opcionais:
+- `DESKTOP_RELEASE_PROVIDER=github`
+- `GITHUB_DESKTOP_RELEASE_OWNER`
+- `GITHUB_DESKTOP_RELEASE_REPO`
+- `GITHUB_DESKTOP_RELEASE_CHANNEL`
+- `GITHUB_DESKTOP_RELEASE_TOKEN` opcional para reduzir rate limit da API do GitHub
+- A validação de licenca desktop usa a function `desktop-license`, e o app Electron so libera uso com plano `PRO` ativo.
 - O fluxo de assinatura com Asaas agora usa:
 - `finalize-site-registration` para preparar a conta e abrir o dashboard autenticado
 - `create-plan-charge` para gerar cobranca Pix com QR Code ou abrir a fatura de debito / credito

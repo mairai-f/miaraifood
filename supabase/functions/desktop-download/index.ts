@@ -1,18 +1,10 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { buildCorsHeaders, handleCorsPreflight } from "../_shared/cors.ts";
-
-type SupportedPlatform = "windows" | "linux";
+import { validateDesktopLicense, type SupportedDesktopPlatform } from "../_shared/desktopAccess.ts";
+import { fetchLatestDesktopReleaseAsset } from "../_shared/githubRelease.ts";
 
 interface DesktopDownloadRequest {
-  platform?: SupportedPlatform;
-}
-
-interface StoreSubscriptionRow {
-  plan_id: string;
-  status: string;
-  current_period_ends_at: string | null;
-  trial_ends_at: string | null;
-  created_at: string;
+  platform?: SupportedDesktopPlatform;
 }
 
 const jsonResponse = (request: Request, body: Record<string, unknown>, status = 200) =>
@@ -26,37 +18,18 @@ const jsonResponse = (request: Request, body: Record<string, unknown>, status = 
     },
   });
 
-const supportedPlatforms = new Set<SupportedPlatform>(["windows", "linux"]);
-const activeSubscriptionStatuses = new Set(["trialing", "active", "past_due"]);
+const supportedPlatforms = new Set<SupportedDesktopPlatform>(["windows", "linux"]);
 const bucketEnvKey = "DESKTOP_DOWNLOAD_BUCKET";
-const platformEnvKeys: Record<SupportedPlatform, string> = {
+const platformEnvKeys: Record<SupportedDesktopPlatform, string> = {
   windows: "DESKTOP_WINDOWS_OBJECT_PATH",
   linux: "DESKTOP_LINUX_OBJECT_PATH",
 };
+const releaseProvider = () => (Deno.env.get("DESKTOP_RELEASE_PROVIDER") || "github").trim().toLowerCase();
 
 const extractAccessToken = (authorization: string | null) => {
   if (!authorization) return null;
   const matchedToken = authorization.match(/^Bearer\s+(.+)$/i);
   return matchedToken?.[1]?.trim() || null;
-};
-
-const getSubscriptionEndAt = (subscription: StoreSubscriptionRow | null | undefined) => {
-  if (!subscription) return null;
-
-  if (subscription.status === "trialing") {
-    return subscription.trial_ends_at ?? subscription.current_period_ends_at ?? null;
-  }
-
-  return subscription.current_period_ends_at ?? subscription.trial_ends_at ?? null;
-};
-
-const isCurrentSubscription = (subscription: StoreSubscriptionRow | null | undefined) => {
-  if (!subscription || !activeSubscriptionStatuses.has(subscription.status)) return false;
-
-  const endAt = getSubscriptionEndAt(subscription);
-  if (!endAt) return true;
-
-  return new Date(endAt).getTime() > Date.now();
 };
 
 Deno.serve(async (request) => {
@@ -125,41 +98,52 @@ Deno.serve(async (request) => {
     return jsonResponse(request, { error: "Plataforma inválida." }, 400);
   }
 
-  const { data: subscriptions, error: subscriptionsError } = await serviceClient
-    .from("store_subscriptions")
-    .select("plan_id, status, current_period_ends_at, trial_ends_at, created_at")
-    .eq("owner_user_id", user.id)
-    .order("created_at", { ascending: false });
+  const license = await validateDesktopLicense(serviceClient, user.id);
 
-  if (subscriptionsError) {
-    return jsonResponse(request, { error: "Não foi possível validar seu plano agora." }, 500);
-  }
-
-  const currentSubscription =
-    ((subscriptions as StoreSubscriptionRow[] | null) ?? []).find(isCurrentSubscription) ||
-    ((subscriptions as StoreSubscriptionRow[] | null) ?? [])[0] ||
-    null;
-
-  if (!currentSubscription || currentSubscription.plan_id !== "pro" || !isCurrentSubscription(currentSubscription)) {
+  if (!license.ok) {
     return jsonResponse(
       request,
       {
-        error: "Download disponível apenas para contas com plano PRO ativo.",
-        code: "PRO_REQUIRED",
+        error: license.message,
+        code: license.code,
+        planId: license.planId,
+        validUntil: license.validUntil,
+        offlineEnabled: license.offlineEnabled,
       },
       403,
     );
   }
 
+  if (releaseProvider() === "github") {
+    try {
+      const release = await fetchLatestDesktopReleaseAsset(platform);
+
+      return jsonResponse(request, {
+        success: true,
+        provider: "github",
+        downloadUrl: release.downloadUrl,
+        assetName: release.assetName,
+        releaseTag: release.tag,
+        releaseVersion: release.version,
+        releasePageUrl: release.htmlUrl,
+        publishedAt: release.publishedAt,
+        size: release.size,
+        offlineEnabled: license.offlineEnabled,
+        validUntil: license.validUntil,
+      });
+    } catch (error) {
+      console.error("GitHub desktop release lookup failed:", error);
+    }
+  }
+
   const bucketName = Deno.env.get(bucketEnvKey)?.trim() || "desktop-downloads";
   const objectPathKey = platformEnvKeys[platform];
   const objectPath = Deno.env.get(objectPathKey)?.trim();
-
   if (!objectPath) {
     return jsonResponse(
       request,
       {
-        error: "O arquivo desta plataforma ainda não foi configurado.",
+        error: "O release desta plataforma ainda nao foi configurado.",
         code: "DOWNLOAD_NOT_CONFIGURED",
         requiredEnv: [bucketEnvKey, objectPathKey],
       },
@@ -190,7 +174,10 @@ Deno.serve(async (request) => {
 
   return jsonResponse(request, {
     success: true,
+    provider: "storage",
     downloadUrl: signedUrlData.signedUrl,
     expiresIn,
+    offlineEnabled: license.offlineEnabled,
+    validUntil: license.validUntil,
   });
 });

@@ -262,7 +262,7 @@ export default function Reports() {
           <CardContent>
             {(() => {
               const soldIds = new Set(saleItems.map(i => i.product_id));
-              const stale = products.filter(p => !soldIds.has(p.id) && !('deleted' in p && (p as any).deleted));
+              const stale = products.filter(p => !soldIds.has(p.id) && !p.deleted);
               return stale.length === 0
                 ? <p className="text-xs text-muted-foreground">Todos os produtos foram vendidos</p>
                 : <div className="space-y-1">{stale.slice(0, 10).map(p => <p key={p.id} className="text-xs">{p.name} — R$ {p.price.toFixed(2)}</p>)}</div>;

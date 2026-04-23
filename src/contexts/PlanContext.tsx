@@ -12,6 +12,8 @@ interface PlanContextValue {
 }
 
 const PlanContext = createContext<PlanContextValue | null>(null);
+// Generated Supabase types are behind the current billing schema.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
 
 export function PlanProvider({ children }: { children: ReactNode }) {

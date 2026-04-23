@@ -23,7 +23,7 @@ export default function Stock() {
   const [reason, setReason] = useState('');
   const [clearingStock, setClearingStock] = useState(false);
 
-  const activeProducts = products.filter(p => !('deleted' in p && (p as any).deleted));
+  const activeProducts = products.filter(p => !p.deleted);
   const filtered = activeProducts.filter(p => p.name.toLowerCase().includes(search.toLowerCase()));
   const lowStock = activeProducts.filter(p => p.stock <= p.min_stock && p.min_stock > 0);
   const hasStockToClear = activeProducts.some(product => product.stock > 0);
@@ -39,7 +39,7 @@ export default function Stock() {
 
     // Update product stock
     const newStock = movType === 'entrada' ? product.stock + quantity : Math.max(0, product.stock - quantity);
-    await updateProduct(selectedProduct, { stock: newStock } as any);
+    await updateProduct(selectedProduct, { stock: newStock });
 
     setSelectedProduct(''); setQty(''); setReason(''); setOpen(false);
     toast.success(`Estoque ${movType === 'entrada' ? 'adicionado' : 'removido'}!`);

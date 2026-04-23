@@ -1,4 +1,5 @@
 const path = require('path');
+const { DatabaseSync } = require('node:sqlite');
 const { app, BrowserWindow, dialog, ipcMain, shell } = require('electron');
 const { autoUpdater } = require('electron-updater');
 
@@ -8,6 +9,17 @@ const isDevelopment = Boolean(process.env.VITE_DEV_SERVER_URL) || !app.isPackage
 let autoUpdatesConfigured = false;
 const APP_USER_MODEL_ID = 'com.happycash.desktop';
 const VALID_UPDATE_CHANNELS = new Set(['latest', 'beta', 'alpha']);
+const OFFLINE_DB_FILENAME = 'happycash-concentrator.sqlite';
+let offlineDb = null;
+let updateState = {
+  status: isDevelopment ? 'disabled' : 'idle',
+  channel: null,
+  currentVersion: app.getVersion(),
+  availableVersion: null,
+  downloadedVersion: null,
+  checkedAt: null,
+  error: null,
+};
 
 const isHttpUrl = (value) => {
   try {
@@ -31,6 +43,364 @@ const getWindowIconPath = () => {
   return path.join(__dirname, '..', 'build', iconFilename);
 };
 
+const nowIso = () => new Date().toISOString();
+
+const parseJson = (value, fallback = null) => {
+  if (!value) return fallback;
+
+  try {
+    return JSON.parse(value);
+  } catch {
+    return fallback;
+  }
+};
+
+const getUpdateState = () => ({
+  ...updateState,
+});
+
+const setUpdateState = (patch) => {
+  updateState = {
+    ...updateState,
+    ...patch,
+  };
+
+  return getUpdateState();
+};
+
+const getOfflineDbPath = () => path.join(app.getPath('userData'), OFFLINE_DB_FILENAME);
+
+const getOfflineDb = () => {
+  if (offlineDb) {
+    return offlineDb;
+  }
+
+  const db = new DatabaseSync(getOfflineDbPath());
+  db.exec(`
+    PRAGMA journal_mode = WAL;
+    PRAGMA foreign_keys = ON;
+
+    CREATE TABLE IF NOT EXISTS store_snapshots (
+      owner_user_id TEXT PRIMARY KEY,
+      snapshot_json TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS offline_sync_queue (
+      id TEXT PRIMARY KEY,
+      owner_user_id TEXT NOT NULL,
+      operation_type TEXT NOT NULL,
+      payload_json TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'processing', 'synced', 'conflict')),
+      last_error TEXT,
+      attempt_count INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      synced_at TEXT
+    );
+
+    CREATE INDEX IF NOT EXISTS offline_sync_queue_owner_status_idx
+      ON offline_sync_queue (owner_user_id, status, created_at);
+
+    CREATE TABLE IF NOT EXISTS offline_sync_conflicts (
+      id TEXT PRIMARY KEY,
+      owner_user_id TEXT NOT NULL,
+      operation_id TEXT NOT NULL,
+      operation_type TEXT NOT NULL,
+      message TEXT NOT NULL,
+      payload_json TEXT,
+      created_at TEXT NOT NULL,
+      resolved_at TEXT
+    );
+
+    CREATE INDEX IF NOT EXISTS offline_sync_conflicts_owner_created_idx
+      ON offline_sync_conflicts (owner_user_id, created_at DESC);
+  `);
+
+  offlineDb = db;
+  return db;
+};
+
+const mapQueueRow = (row) => ({
+  id: row.id,
+  ownerUserId: row.owner_user_id,
+  operationType: row.operation_type,
+  payload: parseJson(row.payload_json, null),
+  status: row.status,
+  lastError: row.last_error,
+  attemptCount: Number(row.attempt_count || 0),
+  createdAt: row.created_at,
+  updatedAt: row.updated_at,
+  syncedAt: row.synced_at || null,
+});
+
+const mapConflictRow = (row) => ({
+  id: row.id,
+  ownerUserId: row.owner_user_id,
+  operationId: row.operation_id,
+  operationType: row.operation_type,
+  message: row.message,
+  payload: parseJson(row.payload_json, null),
+  createdAt: row.created_at,
+  resolvedAt: row.resolved_at || null,
+});
+
+const replaceOfflineSnapshot = ({ ownerUserId, snapshot }) => {
+  if (!ownerUserId || typeof ownerUserId !== 'string') {
+    throw new Error('ownerUserId invalido para snapshot offline.');
+  }
+
+  const db = getOfflineDb();
+  const updatedAt = nowIso();
+  db.prepare(`
+    INSERT INTO store_snapshots (owner_user_id, snapshot_json, updated_at)
+    VALUES (?, ?, ?)
+    ON CONFLICT(owner_user_id) DO UPDATE
+    SET snapshot_json = excluded.snapshot_json,
+        updated_at = excluded.updated_at
+  `).run(ownerUserId, JSON.stringify(snapshot ?? null), updatedAt);
+
+  return {
+    success: true,
+    updatedAt,
+  };
+};
+
+const getOfflineSnapshot = ({ ownerUserId }) => {
+  if (!ownerUserId || typeof ownerUserId !== 'string') {
+    throw new Error('ownerUserId invalido para leitura do snapshot offline.');
+  }
+
+  const db = getOfflineDb();
+  const row = db.prepare(`
+    SELECT snapshot_json, updated_at
+    FROM store_snapshots
+    WHERE owner_user_id = ?
+  `).get(ownerUserId);
+
+  return {
+    snapshot: row ? parseJson(row.snapshot_json, null) : null,
+    updatedAt: row?.updated_at || null,
+  };
+};
+
+const enqueueOfflineOperation = ({ ownerUserId, operationType, payload }) => {
+  if (!ownerUserId || typeof ownerUserId !== 'string') {
+    throw new Error('ownerUserId invalido para fila offline.');
+  }
+
+  if (!operationType || typeof operationType !== 'string') {
+    throw new Error('operationType invalido para fila offline.');
+  }
+
+  const db = getOfflineDb();
+  const id = globalThis.crypto?.randomUUID?.() || `offline-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+  const createdAt = nowIso();
+
+  db.prepare(`
+    INSERT INTO offline_sync_queue (
+      id,
+      owner_user_id,
+      operation_type,
+      payload_json,
+      status,
+      created_at,
+      updated_at
+    )
+    VALUES (?, ?, ?, ?, 'pending', ?, ?)
+  `).run(id, ownerUserId, operationType, JSON.stringify(payload ?? null), createdAt, createdAt);
+
+  const row = db.prepare(`
+    SELECT *
+    FROM offline_sync_queue
+    WHERE id = ?
+  `).get(id);
+
+  return row ? mapQueueRow(row) : null;
+};
+
+const listOfflineQueue = ({ ownerUserId, statuses }) => {
+  if (!ownerUserId || typeof ownerUserId !== 'string') {
+    throw new Error('ownerUserId invalido para leitura da fila offline.');
+  }
+
+  const db = getOfflineDb();
+  const nextStatuses = Array.isArray(statuses) ? statuses.filter((value) => typeof value === 'string' && value) : [];
+
+  if (nextStatuses.length === 0) {
+    const rows = db.prepare(`
+      SELECT *
+      FROM offline_sync_queue
+      WHERE owner_user_id = ?
+      ORDER BY created_at ASC
+    `).all(ownerUserId);
+
+    return rows.map(mapQueueRow);
+  }
+
+  const placeholders = nextStatuses.map(() => '?').join(', ');
+  const rows = db.prepare(`
+    SELECT *
+    FROM offline_sync_queue
+    WHERE owner_user_id = ?
+      AND status IN (${placeholders})
+    ORDER BY created_at ASC
+  `).all(ownerUserId, ...nextStatuses);
+
+  return rows.map(mapQueueRow);
+};
+
+const updateOfflineQueueItem = ({ id, status, lastError = null, syncedAt = null, incrementAttempt = false }) => {
+  if (!id || typeof id !== 'string') {
+    throw new Error('id invalido para atualizar a fila offline.');
+  }
+
+  const db = getOfflineDb();
+  const updatedAt = nowIso();
+  db.prepare(`
+    UPDATE offline_sync_queue
+    SET status = COALESCE(?, status),
+        last_error = ?,
+        synced_at = ?,
+        attempt_count = attempt_count + CASE WHEN ? THEN 1 ELSE 0 END,
+        updated_at = ?
+    WHERE id = ?
+  `).run(status ?? null, lastError, syncedAt, incrementAttempt ? 1 : 0, updatedAt, id);
+
+  const row = db.prepare(`
+    SELECT *
+    FROM offline_sync_queue
+    WHERE id = ?
+  `).get(id);
+
+  return row ? mapQueueRow(row) : null;
+};
+
+const recordOfflineConflict = ({ ownerUserId, operationId, operationType, message, payload }) => {
+  if (!ownerUserId || typeof ownerUserId !== 'string') {
+    throw new Error('ownerUserId invalido para conflito offline.');
+  }
+
+  if (!operationId || typeof operationId !== 'string') {
+    throw new Error('operationId invalido para conflito offline.');
+  }
+
+  const db = getOfflineDb();
+  const id = globalThis.crypto?.randomUUID?.() || `conflict-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+  const createdAt = nowIso();
+
+  db.prepare(`
+    INSERT INTO offline_sync_conflicts (
+      id,
+      owner_user_id,
+      operation_id,
+      operation_type,
+      message,
+      payload_json,
+      created_at
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    id,
+    ownerUserId,
+    operationId,
+    operationType,
+    message,
+    JSON.stringify(payload ?? null),
+    createdAt,
+  );
+
+  const row = db.prepare(`
+    SELECT *
+    FROM offline_sync_conflicts
+    WHERE id = ?
+  `).get(id);
+
+  return row ? mapConflictRow(row) : null;
+};
+
+const listOfflineConflicts = ({ ownerUserId }) => {
+  if (!ownerUserId || typeof ownerUserId !== 'string') {
+    throw new Error('ownerUserId invalido para leitura dos conflitos offline.');
+  }
+
+  const db = getOfflineDb();
+  const rows = db.prepare(`
+    SELECT *
+    FROM offline_sync_conflicts
+    WHERE owner_user_id = ?
+    ORDER BY created_at DESC
+  `).all(ownerUserId);
+
+  return rows.map(mapConflictRow);
+};
+
+const resolveOfflineConflict = ({ id, resolved = true }) => {
+  if (!id || typeof id !== 'string') {
+    throw new Error('id invalido para atualizar conflito offline.');
+  }
+
+  const db = getOfflineDb();
+  const resolvedAt = resolved ? nowIso() : null;
+  db.prepare(`
+    UPDATE offline_sync_conflicts
+    SET resolved_at = ?
+    WHERE id = ?
+  `).run(resolvedAt, id);
+
+  const row = db.prepare(`
+    SELECT *
+    FROM offline_sync_conflicts
+    WHERE id = ?
+  `).get(id);
+
+  return row ? mapConflictRow(row) : null;
+};
+
+const getOfflineStatus = ({ ownerUserId }) => {
+  if (!ownerUserId || typeof ownerUserId !== 'string') {
+    throw new Error('ownerUserId invalido para leitura do status offline.');
+  }
+
+  const db = getOfflineDb();
+  const queueCounts = db.prepare(`
+    SELECT status, count(*) AS total
+    FROM offline_sync_queue
+    WHERE owner_user_id = ?
+    GROUP BY status
+  `).all(ownerUserId);
+  const conflictsRow = db.prepare(`
+    SELECT count(*) AS total
+    FROM offline_sync_conflicts
+    WHERE owner_user_id = ?
+  `).get(ownerUserId);
+  const snapshotRow = db.prepare(`
+    SELECT updated_at
+    FROM store_snapshots
+    WHERE owner_user_id = ?
+  `).get(ownerUserId);
+
+  const counts = Object.fromEntries(
+    queueCounts.map((row) => [row.status, Number(row.total || 0)]),
+  );
+
+  return {
+    pendingCount: counts.pending || 0,
+    processingCount: counts.processing || 0,
+    syncedCount: counts.synced || 0,
+    conflictCount: counts.conflict || 0,
+    recordedConflictCount: Number(conflictsRow?.total || 0),
+    snapshotUpdatedAt: snapshotRow?.updated_at || null,
+    runtime: {
+      appVersion: app.getVersion(),
+      isPackaged: app.isPackaged,
+      platform: process.platform,
+      databasePath: getOfflineDbPath(),
+      updateChannel: getUpdateChannel(),
+    },
+  };
+};
+
 const printHtml = async (html) => {
   if (!html || typeof html !== 'string') {
     return {
@@ -44,7 +414,7 @@ const printHtml = async (html) => {
     autoHideMenuBar: true,
     backgroundColor: '#ffffff',
     webPreferences: {
-      sandbox: false,
+      sandbox: true,
     },
   });
 
@@ -116,43 +486,111 @@ if (process.platform === 'win32') {
 }
 
 const checkForUpdates = async () => {
+  if (isDevelopment) {
+    return setUpdateState({
+      status: 'disabled',
+      channel: getUpdateChannel(),
+      checkedAt: nowIso(),
+      error: null,
+    });
+  }
+
+  setUpdateState({
+    status: 'checking',
+    channel: getUpdateChannel(),
+    checkedAt: nowIso(),
+    error: null,
+  });
+
   try {
     await autoUpdater.checkForUpdates();
+    return getUpdateState();
   } catch (error) {
     console.error('Erro ao procurar atualizacoes automáticas:', error);
+    return setUpdateState({
+      status: 'error',
+      checkedAt: nowIso(),
+      error: error instanceof Error ? error.message : 'Falha ao procurar atualizacoes.',
+    });
   }
 };
 
 const setupAutoUpdates = (mainWindow) => {
-  if (isDevelopment || autoUpdatesConfigured) return;
-  autoUpdatesConfigured = true;
   const updateChannel = getUpdateChannel();
+
+  if (isDevelopment) {
+    setUpdateState({
+      status: 'disabled',
+      channel: updateChannel,
+      error: null,
+    });
+    return;
+  }
+
+  if (autoUpdatesConfigured) return;
+  autoUpdatesConfigured = true;
 
   autoUpdater.autoDownload = true;
   autoUpdater.autoInstallOnAppQuit = true;
   autoUpdater.channel = updateChannel;
   autoUpdater.allowPrerelease = updateChannel !== 'latest';
   autoUpdater.allowDowngrade = updateChannel !== 'latest';
+  setUpdateState({
+    status: 'idle',
+    channel: updateChannel,
+    error: null,
+  });
 
   console.log(`Canal de atualizacao configurado: ${updateChannel}`);
 
   autoUpdater.on('checking-for-update', () => {
     console.log('Verificando atualizacoes do HappyCash...');
+    setUpdateState({
+      status: 'checking',
+      checkedAt: nowIso(),
+      error: null,
+    });
   });
 
   autoUpdater.on('update-available', (info) => {
     console.log(`Atualizacao ${info?.version || ''} encontrada. Baixando em segundo plano...`);
+    setUpdateState({
+      status: 'downloading',
+      availableVersion: info?.version || null,
+      checkedAt: nowIso(),
+      error: null,
+    });
   });
 
   autoUpdater.on('update-not-available', () => {
     console.log('Nenhuma atualizacao nova encontrada.');
+    setUpdateState({
+      status: 'idle',
+      availableVersion: null,
+      downloadedVersion: null,
+      checkedAt: nowIso(),
+      error: null,
+    });
   });
 
   autoUpdater.on('error', (error) => {
     console.error('Falha no auto-update:', error);
+    setUpdateState({
+      status: 'error',
+      checkedAt: nowIso(),
+      error: error instanceof Error ? error.message : 'Falha no auto-update.',
+    });
   });
 
   autoUpdater.on('update-downloaded', async (info) => {
+    setUpdateState({
+      status: 'downloaded',
+      availableVersion: info?.version || null,
+      downloadedVersion: info?.version || null,
+      checkedAt: nowIso(),
+      error: null,
+    });
+
     const targetWindow = BrowserWindow.getFocusedWindow() || mainWindow;
 
     if (!targetWindow || targetWindow.isDestroyed()) {
@@ -205,7 +643,7 @@ const createMainWindow = async () => {
       preload: path.join(__dirname, 'preload.cjs'),
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: false,
+      sandbox: true,
     },
   });
 
@@ -272,7 +710,65 @@ ipcMain.handle('print-html', async (_event, html) => {
   return printHtml(html);
 });
 
+ipcMain.handle('app:get-runtime-info', () => ({
+  appVersion: app.getVersion(),
+  isPackaged: app.isPackaged,
+  platform: process.platform,
+  databasePath: getOfflineDbPath(),
+  updateChannel: getUpdateChannel(),
+}));
+
+ipcMain.handle('app:get-update-status', () => {
+  return getUpdateState();
+});
+
+ipcMain.handle('app:check-for-updates', async () => {
+  return checkForUpdates();
+});
+
+ipcMain.handle('offline:replace-snapshot', (_event, payload) => {
+  return replaceOfflineSnapshot(payload || {});
+});
+
+ipcMain.handle('offline:get-snapshot', (_event, payload) => {
+  return getOfflineSnapshot(payload || {});
+});
+
+ipcMain.handle('offline:enqueue', (_event, payload) => {
+  return enqueueOfflineOperation(payload || {});
+});
+
+ipcMain.handle('offline:list-queue', (_event, payload) => {
+  return listOfflineQueue(payload || {});
+});
+
+ipcMain.handle('offline:update-queue-item', (_event, payload) => {
+  return updateOfflineQueueItem(payload || {});
+});
+
+ipcMain.handle('offline:record-conflict', (_event, payload) => {
+  return recordOfflineConflict(payload || {});
+});
+
+ipcMain.handle('offline:list-conflicts', (_event, payload) => {
+  return listOfflineConflicts(payload || {});
+});
+
+ipcMain.handle('offline:resolve-conflict', (_event, payload) => {
+  return resolveOfflineConflict(payload || {});
+});
+
+ipcMain.handle('offline:get-status', (_event, payload) => {
+  return getOfflineStatus(payload || {});
+});
+
 app.whenReady().then(() => {
+  try {
+    getOfflineDb();
+  } catch (error) {
+    console.error('Erro ao iniciar banco offline do desktop:', error);
+  }
+
   createMainWindow()
     .then((mainWindow) => {
       setupAutoUpdates(mainWindow);

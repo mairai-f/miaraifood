@@ -21,6 +21,8 @@ import {
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 
+// Generated Supabase types are behind the current schema for these fiscal tables.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
 
 type NfceEnvironment = 'homologacao' | 'producao';

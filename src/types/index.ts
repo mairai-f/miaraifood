@@ -64,6 +64,8 @@ export interface DebtEntry {
   deleted_at?: string | null;
   deleted_reason?: string | null;
   deleted_by?: string | null;
+  sync_status?: 'synced' | 'queued' | 'conflict';
+  sync_error?: string | null;
 }
 
 export interface Payment {
@@ -93,6 +95,8 @@ export interface Sale {
   change_amount: number;
   date: string;
   created_at: string;
+  sync_status?: 'synced' | 'queued' | 'conflict';
+  sync_error?: string | null;
 }
 
 export interface SaleItem {
@@ -110,6 +114,8 @@ export interface SaleItem {
   total_profit?: number;
   markup_pct?: number;
   margin_pct?: number;
+  sync_status?: 'synced' | 'queued' | 'conflict';
+  sync_error?: string | null;
 }
 
 export interface ProductCategoryPricingRule {
@@ -142,6 +148,15 @@ export interface ProductPriceHistoryEntry {
   created_at: string;
 }
 
+export interface Reward {
+  id: string;
+  name: string;
+  description: string;
+  minimum_spending: number;
+  created_at: string;
+  user_id: string;
+}
+
 export interface StockMovement {
   id: string;
   product_id: string;
@@ -150,6 +165,8 @@ export interface StockMovement {
   quantity: number;
   reason: string;
   date: string;
+  sync_status?: 'synced' | 'queued' | 'conflict';
+  sync_error?: string | null;
 }
 
 export interface Expense {
@@ -161,4 +178,6 @@ export interface Expense {
   amount: number;
   category: string;
   date: string;
+  sync_status?: 'synced' | 'queued' | 'conflict';
+  sync_error?: string | null;
 }

@@ -76,6 +76,8 @@ export function CompanyProfileCard() {
     }
 
     let active = true;
+    // Generated Supabase types are behind the current schema for these tables.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const db = supabase as any;
 
     const loadCompany = async () => {
@@ -163,6 +165,8 @@ export function CompanyProfileCard() {
       return;
     }
 
+    // Generated Supabase types are behind the current schema for these tables.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const db = supabase as any;
     const businessName = form.tradeName.trim() || form.legalName.trim();
 

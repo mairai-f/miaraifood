@@ -73,6 +73,8 @@ O painel autenticado do site depende destas edge functions publicadas no Supabas
 supabase functions deploy finalize-site-registration
 supabase functions deploy create-plan-charge
 supabase functions deploy asaas-webhook
+supabase functions deploy desktop-download
+supabase functions deploy desktop-license
 ```
 
 Secrets obrigatórios para o fluxo de assinatura via Pix e cartao:
@@ -89,9 +91,19 @@ Secret recomendado para o fluxo de confirmação por email:
 supabase secrets set SITE_EMAIL_CONFIRM_REDIRECT_URL="https://happycashsite.vercel.app/dashboard"
 ```
 
+Secrets opcionais para liberar download via GitHub Release no plano PRO:
+
+```bash
+supabase secrets set DESKTOP_RELEASE_PROVIDER="github"
+supabase secrets set GITHUB_DESKTOP_RELEASE_OWNER="celioantonio7"
+supabase secrets set GITHUB_DESKTOP_RELEASE_REPO="HappyCash"
+supabase secrets set GITHUB_DESKTOP_RELEASE_CHANNEL="latest"
+```
+
 Observação:
 
 - Se `finalize-site-registration` não estiver publicada, o navegador pode acusar erro de CORS no `localhost`, mas a causa real tende a ser `Requested function was not found` no preflight do Supabase.
+- Se quiser fallback para storage privado em vez de GitHub Release, mantenha `desktop-download` configurada com `DESKTOP_DOWNLOAD_BUCKET`, `DESKTOP_WINDOWS_OBJECT_PATH`, `DESKTOP_LINUX_OBJECT_PATH` e `DESKTOP_DOWNLOAD_SIGNED_URL_TTL`.
 
 __________________________________________________________________________________
 🖥️ Versão Desktop (Electron) :
@@ -107,6 +119,16 @@ npm run electron:build
 ```
 
 O arquivo final será gerado na pasta `release/`.
+
+Publicação comercial via GitHub Release:
+
+```bash
+# a tag precisa bater com a versão do package.json
+git tag v0.1.1
+git push origin v0.1.1
+```
+
+O workflow `Desktop Release` agora valida versão, roda `lint`, `test` e `build:all` antes de publicar os assets de Windows e Linux.
 
 __________________________________________________________________________________
 📱 Versão Mobile (Expo) :

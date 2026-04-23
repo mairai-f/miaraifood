@@ -5,9 +5,11 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
+import { DesktopRuntimeProvider, useDesktopRuntime } from "@/contexts/DesktopRuntimeContext";
 import { PlanProvider, usePlanAccess } from "@/contexts/PlanContext";
 import { DataProvider } from "@/contexts/DataContext";
 import { AppLayout } from "@/components/AppLayout";
+import { DesktopLicenseBlocked } from "@/components/DesktopLicenseBlocked";
 import { FeatureLocked } from "@/components/FeatureLocked";
 import Login from "@/pages/Login";
 import Dashboard from "@/pages/Dashboard";
@@ -41,9 +43,11 @@ function ProtectedRoute({
   requiredFeature?: string;
 }) {
   const { isAuthenticated, loading, role } = useAuth();
+  const { isDesktop, checking: checkingDesktopLicense, licensed } = useDesktopRuntime();
   const { loading: planLoading, hasFeature } = usePlanAccess();
-  if (loading || planLoading) return <SplashScreen progress={100} />;
+  if (loading || planLoading || checkingDesktopLicense) return <SplashScreen progress={100} />;
   if (!isAuthenticated) return <Navigate to="/login" />;
+  if (isDesktop && !licensed) return <DesktopLicenseBlocked />;
   if (allowedRoles && !allowedRoles.includes(role)) return <Navigate to="/" replace />;
   if (requiredFeature && !hasFeature(requiredFeature)) return <AppLayout><FeatureLocked /></AppLayout>;
   return <AppLayout>{children}</AppLayout>;
@@ -123,13 +127,15 @@ const App = () => (
         <Toaster />
         <Sonner />
         <AuthProvider>
-          <PlanProvider>
-            <DataProvider>
-              <Router>
-                <AppRoutes />
-              </Router>
-            </DataProvider>
-          </PlanProvider>
+          <DesktopRuntimeProvider>
+            <PlanProvider>
+              <DataProvider>
+                <Router>
+                  <AppRoutes />
+                </Router>
+              </DataProvider>
+            </PlanProvider>
+          </DesktopRuntimeProvider>
         </AuthProvider>
       </TooltipProvider>
     </QueryClientProvider>

@@ -40,7 +40,7 @@ export default function Products() {
   const [pendingSave, setPendingSave] = useState<{ id: string; data: Partial<Product> } | null>(null);
   const readOnly = !canManageProducts(role);
 
-  const activeProducts = products.filter(p => !('deleted' in p && (p as any).deleted));
+  const activeProducts = products.filter(p => !p.deleted);
   const filtered = activeProducts.filter(p => {
     const q = search.trim().toLowerCase();
     return (

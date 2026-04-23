@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import { createClient, FunctionsFetchError, FunctionsHttpError, FunctionsRelayError } from '@supabase/supabase-js';
 import { useData } from '@/contexts/DataContext';
 import { useAuth } from '@/contexts/AuthContext';
+import { useDesktopRuntime } from '@/contexts/DesktopRuntimeContext';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -27,6 +28,7 @@ import { roleLabel } from '@/lib/access';
 import { useCompanyDisplayName } from '@/hooks/use-company-display-name';
 import { DEFAULT_COMPANY_NAME, resolveCompanyDisplayName } from '@/lib/company';
 import { getMarginPercent } from '@/lib/pricing';
+import { enqueueOfflineOperation, isOfflineConcentratorAvailable } from '@/lib/offlineConcentrator';
 import {
   type FiscalDocumentRecord,
   type FiscalRuntimeStatus,
@@ -39,6 +41,8 @@ import {
 } from '@/lib/fiscal';
 import { formatCurrency, formatDateTime, formatPercent, getActiveLocale, translateCurrentText } from '../../shared/locale/format';
 
+// Generated Supabase types are behind the current PDV schema.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
 
 interface CartItem {
@@ -112,10 +116,16 @@ const adminVerificationClient = createClient<Database>(
   }
 );
 
+const getCashSessionStorage = () => {
+  if (typeof window === 'undefined') return null;
+  return window.electronAPI ? window.localStorage : window.sessionStorage;
+};
+
 const readCashSession = (): CashSession | null => {
   if (typeof window === 'undefined') return null;
   try {
-    const stored = window.sessionStorage.getItem(CASH_SESSION_KEY);
+    const storage = getCashSessionStorage();
+    const stored = storage?.getItem(CASH_SESSION_KEY);
     if (!stored) return null;
     const parsed = JSON.parse(stored) as CashSession;
     if (!parsed.openedAt || typeof parsed.openingAmount !== 'number') return null;
@@ -128,11 +138,13 @@ const readCashSession = (): CashSession | null => {
 const writeCashSession = (session: CashSession | null) => {
   if (typeof window === 'undefined') return;
   try {
+    const storage = getCashSessionStorage();
+    if (!storage) return;
     if (!session) {
-      window.sessionStorage.removeItem(CASH_SESSION_KEY);
+      storage.removeItem(CASH_SESSION_KEY);
       return;
     }
-    window.sessionStorage.setItem(CASH_SESSION_KEY, JSON.stringify(session));
+    storage.setItem(CASH_SESSION_KEY, JSON.stringify(session));
   } catch {
     // Ignore localStorage write failures and keep the in-memory state.
   }
@@ -258,7 +270,9 @@ const CREDIT_INSTALLMENT_OPTIONS = Array.from({ length: 12 }, (_, index) => inde
 export default function PDV() {
   const { products, clients, sales, saleItems, expenses, createSale, addDebtEntries, addExpense, cancelSale } = useData();
   const { user, username, session, role, ownerUserId, isAdmin } = useAuth();
+  const { isDesktop, offlineEnabled } = useDesktopRuntime();
   const navigate = useNavigate();
+  const canUseDesktopOffline = isDesktop && offlineEnabled && isOfflineConcentratorAvailable();
   const searchInputRef = useRef<HTMLInputElement>(null);
   const cashReceivedInputRef = useRef<HTMLInputElement>(null);
   const finalizeLockRef = useRef(false);
@@ -322,7 +336,7 @@ export default function PDV() {
   const fiscalIssuanceSaleIdRef = useRef<string | null>(null);
   const companyDisplayName = useCompanyDisplayName();
 
-  const activeProducts = products.filter(p => !('deleted' in p && (p as any).deleted));
+  const activeProducts = products.filter(p => !p.deleted);
   const activeClients = clients.filter(c => !c.deleted);
   const sellerName = username || user?.email || translateCurrentText('Vendedor');
   const roleName = roleLabel[role];
@@ -544,6 +558,14 @@ export default function PDV() {
         setCashSession(storedSession);
       }
 
+      if (canUseDesktopOffline && typeof navigator !== 'undefined' && navigator.onLine === false) {
+        if (active) {
+          setCashSession(storedSession);
+          setCashSessionLoading(false);
+        }
+        return;
+      }
+
       const { data, error } = await db
         .from('cash_sessions')
         .select('id, opened_at, opening_amount, opened_by_name')
@@ -558,6 +580,9 @@ export default function PDV() {
 
       if (error) {
         console.error('Erro ao sincronizar caixa aberto:', error);
+        if (storedSession) {
+          setCashSession(storedSession);
+        }
         setCashSessionLoading(false);
         return;
       }
@@ -586,7 +611,7 @@ export default function PDV() {
     return () => {
       active = false;
     };
-  }, [ownerUserId, user]);
+  }, [canUseDesktopOffline, ownerUserId, user]);
 
   useEffect(() => {
     if (closeCashWhatsappPhone.trim()) return;
@@ -1933,6 +1958,45 @@ export default function PDV() {
     const amount = parseFloat(openingAmount) || 0;
     if (amount < 0) { silentToast.error('Valor de abertura inválido'); return; }
 
+    if (canUseDesktopOffline && typeof navigator !== 'undefined' && navigator.onLine === false) {
+      const offlineSessionId = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+        ? crypto.randomUUID()
+        : `cash-${Date.now()}`;
+      const openedAt = new Date().toISOString();
+      const queued = await enqueueOfflineOperation(ownerUserId, 'cash_session.open', {
+        session: {
+          id: offlineSessionId,
+          owner_user_id: ownerUserId,
+          operator_user_id: user.id,
+          operator_name: sellerName,
+          opened_by_name: sellerName,
+          opening_amount: amount,
+          opened_at: openedAt,
+          status: 'open',
+        },
+      });
+
+      if (!queued) {
+        silentToast.error('Não foi possível abrir o caixa offline');
+        return;
+      }
+
+      const session: CashSession = {
+        id: offlineSessionId,
+        openedAt,
+        openingAmount: amount,
+        openedBy: sellerName,
+      };
+
+      writeCashSession(session);
+      setCashSession(session);
+      setOpeningAmount('');
+      setSaleSearch('');
+      setSaleLimit(25);
+      silentToast.success('Caixa aberto em modo offline!');
+      return;
+    }
+
     const { data, error } = await db
       .from('cash_sessions')
       .insert({
@@ -1983,7 +2047,20 @@ export default function PDV() {
       sales: cashSessionSales,
     };
 
-    if (cashSession.id) {
+    if (cashSession.id && canUseDesktopOffline && typeof navigator !== 'undefined' && navigator.onLine === false) {
+      const queued = await enqueueOfflineOperation(ownerUserId!, 'cash_session.close', {
+        sessionId: cashSession.id,
+        closedAt: receipt.closedAt,
+        closedByUserId: user?.id ?? null,
+        closedByName: sellerName,
+        closingBalance: currentCashBalance,
+      });
+
+      if (!queued) {
+        silentToast.error('Não foi possível fechar o caixa offline');
+        return;
+      }
+    } else if (cashSession.id) {
       const { error } = await cashClient
         .from('cash_sessions')
         .update({
@@ -2016,7 +2093,11 @@ export default function PDV() {
     setSaleSearch('');
     setSaleLimit(25);
     setShowCloseCashReceipt(true);
-    silentToast.success('Caixa fechado!');
+    silentToast.success(
+      canUseDesktopOffline && typeof navigator !== 'undefined' && navigator.onLine === false
+        ? 'Caixa fechado em modo offline!'
+        : 'Caixa fechado!',
+    );
   };
 
   const sendCloseCashReportEmail = async (receipt: CashCloseReceipt) => {
@@ -2147,6 +2228,8 @@ export default function PDV() {
         return;
       }
 
+      // Generated Supabase types are behind the current profiles schema.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const adminDb = adminVerificationClient as any;
       const { data: adminProfile, error: adminProfileError } = await adminDb
         .from('profiles')
