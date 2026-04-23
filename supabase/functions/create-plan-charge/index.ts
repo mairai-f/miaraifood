@@ -94,6 +94,7 @@ const resolveBillingType = (paymentMethod: CheckoutPaymentMethod): SupportedBill
   paymentMethod === "card" ? "CREDIT_CARD" : "PIX";
 const resolvePaymentMethodFromBillingType = (billingType?: string | null): CheckoutPaymentMethod =>
   billingType === "CREDIT_CARD" ? "card" : "pix";
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const normalizeProviderError = (error: unknown, paymentMethod: CheckoutPaymentMethod) => {
   const fallbackMessage = "Nao foi possivel gerar a cobranca do plano.";
@@ -118,6 +119,39 @@ const normalizeProviderError = (error: unknown, paymentMethod: CheckoutPaymentMe
     code: undefined,
     message: rawMessage,
   };
+};
+
+const isTransientPixQrCodeError = (error: unknown) => {
+  const rawMessage = error instanceof Error && error.message.trim() ? error.message.trim() : "";
+  const normalizedMessage = rawMessage
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+
+  return normalizedMessage.includes("esta cobranca nao permite pagamentos via pix");
+};
+
+const getPixQrCodeWithRetry = async (paymentId: string) => {
+  const delays = [0, 800, 1800];
+  let lastError: unknown = null;
+
+  for (const delay of delays) {
+    if (delay > 0) {
+      await sleep(delay);
+    }
+
+    try {
+      return await getAsaasPixQrCode(paymentId);
+    } catch (error) {
+      lastError = error;
+
+      if (!isTransientPixQrCodeError(error) || delay === delays[delays.length - 1]) {
+        throw error;
+      }
+    }
+  }
+
+  throw lastError instanceof Error ? lastError : new Error("Nao foi possivel obter o QR Code Pix.");
 };
 
 const updateSubscriptionMetadata = (
@@ -224,7 +258,7 @@ const buildCheckoutPayload = async (
     return baseCheckout;
   }
 
-  const pixQrCode = await getAsaasPixQrCode(payment.id);
+  const pixQrCode = await getPixQrCodeWithRetry(payment.id);
 
   return {
     ...baseCheckout,
