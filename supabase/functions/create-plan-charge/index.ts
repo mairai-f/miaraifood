@@ -95,6 +95,31 @@ const resolveBillingType = (paymentMethod: CheckoutPaymentMethod): SupportedBill
 const resolvePaymentMethodFromBillingType = (billingType?: string | null): CheckoutPaymentMethod =>
   billingType === "CREDIT_CARD" ? "card" : "pix";
 
+const normalizeProviderError = (error: unknown, paymentMethod: CheckoutPaymentMethod) => {
+  const fallbackMessage = "Nao foi possivel gerar a cobranca do plano.";
+  const rawMessage = error instanceof Error && error.message.trim() ? error.message.trim() : fallbackMessage;
+  const normalizedMessage = rawMessage
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+
+  if (
+    paymentMethod === "pix" &&
+    normalizedMessage.includes("pix nao esta disponivel") &&
+    normalizedMessage.includes("conta precisa estar aprovada")
+  ) {
+    return {
+      code: "ASAAS_PIX_PENDING_APPROVAL",
+      message: "O Pix do Asaas ainda nao foi liberado nesta conta. Finalize a aprovacao da conta no painel do Asaas ou use debito / credito por enquanto.",
+    };
+  }
+
+  return {
+    code: undefined,
+    message: rawMessage,
+  };
+};
+
 const updateSubscriptionMetadata = (
   currentMetadata: Record<string, unknown> | null | undefined,
   nextMetadata: Record<string, unknown>,
@@ -473,12 +498,15 @@ Deno.serve(async (request) => {
       throw error;
     }
   } catch (error) {
+    const providerError = normalizeProviderError(error, paymentMethod);
+
     return jsonResponse(
       request,
       {
-        error: error instanceof Error ? error.message : "Nao foi possivel gerar a cobranca do plano.",
+        error: providerError.message,
+        ...(providerError.code ? { code: providerError.code } : {}),
       },
-      400,
+      providerError.code ? 409 : 400,
     );
   }
 });
