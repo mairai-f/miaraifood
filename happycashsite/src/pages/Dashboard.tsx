@@ -460,17 +460,31 @@ const Dashboard = () => {
         if (error instanceof FunctionsHttpError) {
           try {
             const errorPayload = await error.context.clone().json() as { error?: string; message?: string };
+            console.error("create-plan-charge returned HTTP error", {
+              status: error.context.status,
+              errorPayload,
+              planId,
+              paymentMethod,
+            });
             functionErrorMessage = errorPayload.error || errorPayload.message || functionErrorMessage;
           } catch {
+            console.error("create-plan-charge returned HTTP error without JSON payload", {
+              status: error.context.status,
+              planId,
+              paymentMethod,
+            });
             functionErrorMessage = error.context.status === 401
               ? SITE_SESSION_EXPIRED_MESSAGE
               : functionErrorMessage;
           }
         } else if (error instanceof FunctionsFetchError) {
+          console.error("create-plan-charge fetch error", { error, planId, paymentMethod });
           functionErrorMessage = `Nao foi possivel conectar ao servico de cobranca de ${paymentMethodLabel}.`;
         } else if (error instanceof FunctionsRelayError) {
+          console.error("create-plan-charge relay error", { error, planId, paymentMethod });
           functionErrorMessage = `Nao foi possivel encaminhar a solicitacao de cobranca de ${paymentMethodLabel}.`;
         } else if (error instanceof Error && error.message.trim()) {
+          console.error("create-plan-charge generic error", { error, planId, paymentMethod });
           functionErrorMessage = error.message;
         }
 

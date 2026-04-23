@@ -5,6 +5,7 @@ import {
   createAsaasPayment,
   deleteAsaasPayment,
   findAsaasCustomerByExternalReference,
+  getAsaasCustomer,
   getAsaasPayment,
   getAsaasPixQrCode,
   type AsaasPayment,
@@ -235,7 +236,19 @@ const ensureBillingCustomer = async (
   const billingCustomer = (billingCustomerData as BillingCustomerRow | null) || null;
 
   if (billingCustomer?.provider_customer_id && !billingCustomer.provider_customer_deleted) {
-    return billingCustomer.provider_customer_id;
+    try {
+      const verifiedCustomer = await getAsaasCustomer(billingCustomer.provider_customer_id);
+
+      if (verifiedCustomer?.id) {
+        return verifiedCustomer.id;
+      }
+    } catch (error) {
+      console.warn("Cliente local de cobranca nao existe mais no ambiente atual do Asaas. Tentando ressincronizar.", {
+        ownerUserId,
+        providerCustomerId: billingCustomer.provider_customer_id,
+        error,
+      });
+    }
   }
 
   const existingAsaasCustomer = await findAsaasCustomerByExternalReference(ownerUserId);

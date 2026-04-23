@@ -146,6 +146,12 @@ export async function createAsaasCustomer(input: CreateAsaasCustomerInput) {
   });
 }
 
+export async function getAsaasCustomer(customerId: string) {
+  return requestAsaas<AsaasCustomer>(`/customers/${customerId}`, {
+    method: "GET",
+  });
+}
+
 export async function removeAsaasCustomer(customerId: string) {
   await requestAsaas(`/customers/${customerId}`, {
     method: "DELETE",
