@@ -8,6 +8,7 @@ import {
   getAsaasPayment,
   getAsaasPixQrCode,
   type AsaasPayment,
+  type CreateAsaasCustomerInput,
 } from "../_shared/asaas.ts";
 import { buildCorsHeaders, handleCorsPreflight } from "../_shared/cors.ts";
 
@@ -89,6 +90,10 @@ const todayAsaasDate = () =>
   }).format(new Date());
 
 const normalizeDigits = (value?: string | null) => (value || "").replace(/\D/g, "");
+const trimToUndefined = (value?: string | null) => {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : undefined;
+};
 const resolvePaymentMethod = (value?: string | null): CheckoutPaymentMethod =>
   value === "card" ? "card" : "pix";
 const resolveBillingType = (paymentMethod: CheckoutPaymentMethod): SupportedBillingType =>
@@ -97,13 +102,62 @@ const resolvePaymentMethodFromBillingType = (billingType?: string | null): Check
   billingType === "CREDIT_CARD" ? "card" : "pix";
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-const normalizeProviderError = (error: unknown, paymentMethod: CheckoutPaymentMethod) => {
+const buildAsaasCustomerPayload = (
+  ownerUserId: string,
+  storeAccount: StoreAccountRow,
+): CreateAsaasCustomerInput => {
+  const customerName = trimToUndefined(storeAccount.nome_cliente);
+  const cpfCnpj = normalizeDigits(storeAccount.cnpj);
+  const mobilePhone = normalizeDigits(storeAccount.telefone);
+  const postalCode = normalizeDigits(storeAccount.cep);
+
+  if (!customerName) {
+    throw new Error("O cadastro da loja precisa do nome do responsavel para gerar a cobranca.");
+  }
+
+  if (![11, 14].includes(cpfCnpj.length)) {
+    throw new Error("O cadastro da loja precisa de um CPF ou CNPJ valido para gerar a cobranca.");
+  }
+
+  return {
+    name: customerName,
+    email: trimToUndefined(storeAccount.email),
+    cpfCnpj,
+    mobilePhone: mobilePhone.length >= 10 ? mobilePhone : undefined,
+    address: trimToUndefined(storeAccount.nome_rua),
+    addressNumber: trimToUndefined(storeAccount.numero),
+    complement: trimToUndefined(storeAccount.complemento),
+    province: trimToUndefined(storeAccount.bairro),
+    postalCode: postalCode.length === 8 ? postalCode : undefined,
+    externalReference: ownerUserId,
+    company: trimToUndefined(storeAccount.nome_estabelecimento),
+    notificationDisabled: false,
+  };
+};
+
+const normalizeCheckoutError = (error: unknown, paymentMethod: CheckoutPaymentMethod) => {
   const fallbackMessage = "Nao foi possivel gerar a cobranca do plano.";
   const rawMessage = error instanceof Error && error.message.trim() ? error.message.trim() : fallbackMessage;
   const normalizedMessage = rawMessage
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase();
+
+  if (normalizedMessage.includes("store_subscriptions_status_check")) {
+    return {
+      code: "BILLING_PENDING_MIGRATION_REQUIRED",
+      message:
+        "O banco deste projeto ainda nao recebeu a migracao de 19/04/2026 que libera assinaturas pendentes. Aplique as migracoes do Supabase e tente novamente.",
+    };
+  }
+
+  if (normalizedMessage.includes("store_subscriptions_billing_type_check")) {
+    return {
+      code: "BILLING_CARD_MIGRATION_REQUIRED",
+      message:
+        "O banco deste projeto ainda nao recebeu a migracao de 22/04/2026 que libera cobranca por debito / credito. Aplique as migracoes do Supabase e tente novamente.",
+    };
+  }
 
   if (
     paymentMethod === "pix" &&
@@ -179,9 +233,17 @@ const ensureBillingCustomer = async (
   }
 
   const billingCustomer = (billingCustomerData as BillingCustomerRow | null) || null;
+
+  if (billingCustomer?.provider_customer_id && !billingCustomer.provider_customer_deleted) {
+    return billingCustomer.provider_customer_id;
+  }
+
   const existingAsaasCustomer = await findAsaasCustomerByExternalReference(ownerUserId);
 
   if (existingAsaasCustomer?.id) {
+    const normalizedPhone = normalizeDigits(storeAccount.telefone);
+    const normalizedCpfCnpj = normalizeDigits(storeAccount.cnpj);
+
     if (
       billingCustomer?.provider_customer_id !== existingAsaasCustomer.id ||
       billingCustomer?.provider_customer_deleted
@@ -194,9 +256,9 @@ const ensureBillingCustomer = async (
           provider: "asaas",
           provider_customer_id: existingAsaasCustomer.id,
           provider_customer_deleted: false,
-          email: storeAccount.email,
-          phone: normalizeDigits(storeAccount.telefone),
-          cpf_cnpj: normalizeDigits(storeAccount.cnpj),
+          email: trimToUndefined(storeAccount.email) || storeAccount.email,
+          phone: normalizedPhone.length >= 10 ? normalizedPhone : null,
+          cpf_cnpj: [11, 14].includes(normalizedCpfCnpj.length) ? normalizedCpfCnpj : null,
           metadata: existingAsaasCustomer,
         }, { onConflict: "owner_user_id" });
 
@@ -208,20 +270,8 @@ const ensureBillingCustomer = async (
     return existingAsaasCustomer.id;
   }
 
-  const asaasCustomer = await createAsaasCustomer({
-    name: storeAccount.nome_cliente,
-    email: storeAccount.email,
-    cpfCnpj: normalizeDigits(storeAccount.cnpj),
-    mobilePhone: normalizeDigits(storeAccount.telefone),
-    address: storeAccount.nome_rua,
-    addressNumber: storeAccount.numero || undefined,
-    complement: storeAccount.complemento || undefined,
-    province: storeAccount.bairro || undefined,
-    postalCode: normalizeDigits(storeAccount.cep),
-    externalReference: ownerUserId,
-    company: storeAccount.nome_estabelecimento,
-    notificationDisabled: false,
-  });
+  const customerPayload = buildAsaasCustomerPayload(ownerUserId, storeAccount);
+  const asaasCustomer = await createAsaasCustomer(customerPayload);
 
   const upsertPayload = {
     store_account_id: storeAccount.id,
@@ -229,9 +279,9 @@ const ensureBillingCustomer = async (
     provider: "asaas",
     provider_customer_id: asaasCustomer.id,
     provider_customer_deleted: false,
-    email: storeAccount.email,
-    phone: normalizeDigits(storeAccount.telefone),
-    cpf_cnpj: normalizeDigits(storeAccount.cnpj),
+    email: customerPayload.email || storeAccount.email,
+    phone: customerPayload.mobilePhone || null,
+    cpf_cnpj: customerPayload.cpfCnpj,
     metadata: asaasCustomer,
   };
 
@@ -569,7 +619,14 @@ Deno.serve(async (request) => {
       throw error;
     }
   } catch (error) {
-    const providerError = normalizeProviderError(error, paymentMethod);
+    console.error("create-plan-charge failed", {
+      userId: user.id,
+      planId,
+      paymentMethod,
+      error: error instanceof Error ? error.message : String(error),
+    });
+
+    const providerError = normalizeCheckoutError(error, paymentMethod);
 
     return jsonResponse(
       request,

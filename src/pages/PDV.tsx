@@ -1796,6 +1796,16 @@ export default function PDV() {
       setIsDelivery(false);
       silentToast.success(translateCurrentText('Venda finalizada!'));
 
+      if (canSilentPrintRetailCoupon) {
+        const printed = await printSaleCouponFromData(finalizedSaleData, {
+          preferSilentPrint: true,
+        });
+
+        if (!printed) {
+          silentToast.error('Nao foi possivel imprimir o cupom automaticamente.');
+        }
+      }
+
       if (canIssueFiscalDocumentInHomologation) {
         void issueFiscalDocumentInHomologation(sale.id);
       }
@@ -1816,36 +1826,50 @@ export default function PDV() {
     openExternalUrl(`https://wa.me/${normalizePhone(client.phone)}?text=${encodeURIComponent(msg)}`);
   };
 
-  const printLastSaleCoupon = (copyLabel?: string) => {
-    if (!lastSaleData) return;
+  const canSilentPrintRetailCoupon = typeof window !== 'undefined'
+    && typeof window.electronAPI?.printHtml === 'function';
 
-    const client = lastSaleData.clientId
-      ? activeClients.find(item => item.id === lastSaleData.clientId)
+  const printSaleCouponFromData = async (
+    saleReceiptData: LastSaleReceiptData,
+    options?: {
+      copyLabel?: string;
+      preferSilentPrint?: boolean;
+    },
+  ) => {
+    const client = saleReceiptData.clientId
+      ? activeClients.find(item => item.id === saleReceiptData.clientId)
       : null;
-    const subtotalValue = lastSaleData.items.reduce((sum, item) => sum + getCartItemTotal(item), 0);
+    const subtotalValue = saleReceiptData.items.reduce((sum, item) => sum + getCartItemTotal(item), 0);
 
-    openRetailCouponPrintWindow({
+    return openRetailCouponPrintWindow({
       storeName: retailCouponStoreName,
-      saleId: lastSaleData.saleId,
-      saleDate: lastSaleData.saleDate,
-      operatorName: lastSaleData.sellerName,
+      saleId: saleReceiptData.saleId,
+      saleDate: saleReceiptData.saleDate,
+      operatorName: saleReceiptData.sellerName,
       customerName: client?.name || null,
-      paymentMethod: lastSaleData.method,
-      total: lastSaleData.total,
+      paymentMethod: saleReceiptData.method,
+      total: saleReceiptData.total,
       subtotal: subtotalValue,
-      discount: lastSaleData.discount,
-      changeAmount: lastSaleData.change,
-      cashReceived: lastSaleData.cashReceived,
-      isDelivery: lastSaleData.isDelivery,
-      items: lastSaleData.items.map(item => ({
+      discount: saleReceiptData.discount,
+      changeAmount: saleReceiptData.change,
+      cashReceived: saleReceiptData.cashReceived,
+      isDelivery: saleReceiptData.isDelivery,
+      items: saleReceiptData.items.map(item => ({
         productName: item.product.name,
         quantity: item.quantity,
         unitPrice: item.unitPrice,
         total: getCartItemTotal(item),
       })),
-      copyLabel,
+      copyLabel: options?.copyLabel,
       footerMessage: 'Cupom emitido pelo PDV HappyCash.',
+    }, {
+      preferSilentPrint: options?.preferSilentPrint,
     });
+  };
+
+  const printLastSaleCoupon = (copyLabel?: string) => {
+    if (!lastSaleData) return;
+    void printSaleCouponFromData(lastSaleData, { copyLabel });
   };
 
   const printSaleCouponCopy = (sale: Sale) => {

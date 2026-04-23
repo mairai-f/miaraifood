@@ -31,6 +31,64 @@ const getWindowIconPath = () => {
   return path.join(__dirname, '..', 'build', iconFilename);
 };
 
+const printHtml = async (html) => {
+  if (!html || typeof html !== 'string') {
+    return {
+      success: false,
+      error: 'Conteudo de impressao invalido.',
+    };
+  }
+
+  const printWindow = new BrowserWindow({
+    show: false,
+    autoHideMenuBar: true,
+    backgroundColor: '#ffffff',
+    webPreferences: {
+      sandbox: false,
+    },
+  });
+
+  const cleanup = () => {
+    if (!printWindow.isDestroyed()) {
+      printWindow.close();
+    }
+  };
+
+  try {
+    await new Promise((resolve, reject) => {
+      printWindow.webContents.once('did-finish-load', resolve);
+      printWindow.webContents.once('did-fail-load', (_event, errorCode, errorDescription) => {
+        reject(new Error(errorDescription || `Falha ao carregar o cupom (${errorCode}).`));
+      });
+      void printWindow.loadURL(`data:text/html;base64,${Buffer.from(html, 'utf8').toString('base64')}`);
+    });
+
+    const result = await new Promise((resolve) => {
+      printWindow.webContents.print(
+        {
+          silent: true,
+          printBackground: true,
+        },
+        (success, failureReason) => {
+          resolve({
+            success,
+            error: success ? null : (failureReason || 'Nao foi possivel enviar o cupom para a impressora padrao.'),
+          });
+        },
+      );
+    });
+
+    cleanup();
+    return result;
+  } catch (error) {
+    cleanup();
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Nao foi possivel preparar o cupom para impressao.',
+    };
+  }
+};
+
 const getUpdateChannel = () => {
   const configuredChannel = process.env.HAPPYCASH_UPDATE_CHANNEL?.trim().toLowerCase();
 
@@ -208,6 +266,10 @@ ipcMain.on('open-external-url', (event, url) => {
 
   shell.openExternal(url);
   event.returnValue = true;
+});
+
+ipcMain.handle('print-html', async (_event, html) => {
+  return printHtml(html);
 });
 
 app.whenReady().then(() => {

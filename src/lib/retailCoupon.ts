@@ -26,6 +26,10 @@ export interface RetailCouponPrintPayload {
   footerMessage?: string | null;
 }
 
+interface RetailCouponPrintOptions {
+  preferSilentPrint?: boolean;
+}
+
 const escapeHtml = (value: string) =>
   value
     .replaceAll('&', '&amp;')
@@ -41,12 +45,12 @@ const formatSaleCode = (saleId: string) => {
   return normalized.slice(0, 8) || 'SEM-CODIGO';
 };
 
-export const openRetailCouponPrintWindow = (payload: RetailCouponPrintPayload) => {
-  if (typeof window === 'undefined') return;
-
-  const printWindow = window.open('', '_blank', 'width=420,height=900');
-  if (!printWindow) return;
-
+const buildRetailCouponHtml = (
+  payload: RetailCouponPrintPayload,
+  options?: {
+    attachBrowserPrintScript?: boolean;
+  },
+) => {
   const itemsHtml = payload.items.length > 0
     ? payload.items.map(item => `
         <div class="item">
@@ -65,8 +69,9 @@ export const openRetailCouponPrintWindow = (payload: RetailCouponPrintPayload) =
   const copyLabel = payload.copyLabel?.trim();
   const footerMessage = payload.footerMessage?.trim() || translateCurrentText('Obrigado pela preferencia.');
   const systemBrandLabel = payload.systemBrandLabel?.trim() || translateCurrentText('Sistema HappyCash');
+  const attachBrowserPrintScript = options?.attachBrowserPrintScript !== false;
 
-  const html = `
+  return `
     <!doctype html>
     <html lang="${escapeHtml(getActiveLocale())}">
       <head>
@@ -354,17 +359,43 @@ export const openRetailCouponPrintWindow = (payload: RetailCouponPrintPayload) =
         </main>
 
         <script>
-          window.onload = () => {
-            window.focus();
-            window.print();
-          };
-          window.onafterprint = () => window.close();
+          ${attachBrowserPrintScript ? `
+            window.onload = () => {
+              window.focus();
+              window.print();
+            };
+            window.onafterprint = () => window.close();
+          ` : ''}
         </script>
       </body>
     </html>
   `;
+};
+
+export const openRetailCouponPrintWindow = async (
+  payload: RetailCouponPrintPayload,
+  options?: RetailCouponPrintOptions,
+) => {
+  if (typeof window === 'undefined') return false;
+
+  const preferSilentPrint = options?.preferSilentPrint === true;
+  const html = buildRetailCouponHtml(payload, {
+    attachBrowserPrintScript: !preferSilentPrint,
+  });
+
+  if (preferSilentPrint && typeof window.electronAPI?.printHtml === 'function') {
+    const printed = await window.electronAPI.printHtml(html);
+
+    if (printed) {
+      return true;
+    }
+  }
+
+  const printWindow = window.open('', '_blank', 'width=420,height=900');
+  if (!printWindow) return false;
 
   printWindow.document.open();
   printWindow.document.write(html);
   printWindow.document.close();
+  return true;
 };
