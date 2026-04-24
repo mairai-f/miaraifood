@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, HashRouter, Route, Routes, Navigate } from "react-router-dom";
+import { Loader2 } from "lucide-react";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -32,6 +33,28 @@ import { LocaleProvider } from "../shared/locale/LocaleContext";
 
 const queryClient = new QueryClient();
 const Router = typeof window !== "undefined" && window.location.protocol === "file:" ? HashRouter : BrowserRouter;
+const APP_SPLASH_SEEN_KEY = "happycash:system:app-splash-seen";
+
+const hasSeenAppSplash = () => {
+  if (typeof window === "undefined") return false;
+  return window.sessionStorage.getItem(APP_SPLASH_SEEN_KEY) === "1";
+};
+
+const markAppSplashSeen = () => {
+  if (typeof window === "undefined") return;
+  window.sessionStorage.setItem(APP_SPLASH_SEEN_KEY, "1");
+};
+
+function FullScreenLoader() {
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-background px-6">
+      <div className="flex items-center gap-3 text-sm text-muted-foreground">
+        <Loader2 className="h-4 w-4 animate-spin" />
+        <span>Carregando...</span>
+      </div>
+    </div>
+  );
+}
 
 function ProtectedRoute({
   children,
@@ -45,7 +68,25 @@ function ProtectedRoute({
   const { isAuthenticated, loading, role } = useAuth();
   const { isDesktop, checking: checkingDesktopLicense, licensed } = useDesktopRuntime();
   const { loading: planLoading, hasFeature } = usePlanAccess();
-  if (loading || planLoading || checkingDesktopLicense) return <SplashScreen progress={100} />;
+  const [hasResolvedAccess, setHasResolvedAccess] = useState(false);
+  const shouldBlockAccess = loading || planLoading || checkingDesktopLicense;
+  const shouldShowSplash = !hasSeenAppSplash() && !isAuthenticated;
+
+  useEffect(() => {
+    if (!shouldBlockAccess) {
+      setHasResolvedAccess(true);
+      markAppSplashSeen();
+    }
+  }, [shouldBlockAccess]);
+
+  if (!hasResolvedAccess && shouldBlockAccess) {
+    if (shouldShowSplash) {
+      return <SplashScreen progress={100} />;
+    }
+
+    return <FullScreenLoader />;
+  }
+
   if (!isAuthenticated) return <Navigate to="/login" />;
   if (isDesktop && !licensed) return <DesktopLicenseBlocked />;
   if (allowedRoles && !allowedRoles.includes(role)) return <Navigate to="/" replace />;
@@ -56,10 +97,15 @@ function ProtectedRoute({
 function AppRoutes() {
   const { isAuthenticated, loading } = useAuth();
   const [progress, setProgress] = useState(0);
-  const [minimumSplashDone, setMinimumSplashDone] = useState(false);
-  const [showSplash, setShowSplash] = useState(true);
+  const [minimumSplashDone, setMinimumSplashDone] = useState(hasSeenAppSplash());
+  const [showSplash, setShowSplash] = useState(!hasSeenAppSplash());
 
   useEffect(() => {
+    if (hasSeenAppSplash()) {
+      setProgress(100);
+      return;
+    }
+
     const stepValues = [25, 50, 75];
     const stepDelay = 420;
     const timerIds: number[] = [];
@@ -89,12 +135,15 @@ function AppRoutes() {
 
   useEffect(() => {
     if (!loading && minimumSplashDone) {
-      const hideTimer = window.setTimeout(() => setShowSplash(false), 260);
+      const hideTimer = window.setTimeout(() => {
+        markAppSplashSeen();
+        setShowSplash(false);
+      }, 260);
       return () => window.clearTimeout(hideTimer);
     }
   }, [loading, minimumSplashDone]);
 
-  if (showSplash) {
+  if (showSplash && !isAuthenticated) {
     return <SplashScreen progress={progress} />;
   }
 

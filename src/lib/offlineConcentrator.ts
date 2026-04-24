@@ -16,8 +16,17 @@ export type OfflineOperationStatus = 'pending' | 'processing' | 'synced' | 'conf
 export type OfflineOperationType =
   | 'cash_session.open'
   | 'cash_session.close'
+  | 'client.create'
+  | 'client.update'
+  | 'client.soft_delete'
+  | 'product.create'
+  | 'product.update'
+  | 'product.soft_delete'
   | 'sale.create'
   | 'debt_entries.add_many'
+  | 'debt_entries.close_all'
+  | 'debt_entries.clear_history'
+  | 'payment.create'
   | 'expense.create';
 
 export interface OfflineSnapshot {
@@ -49,6 +58,40 @@ export interface OfflineDebtEntriesPayload {
   entries: DebtEntry[];
 }
 
+export interface OfflineClientPayload {
+  client: Client;
+}
+
+export interface OfflineClientMutationPayload {
+  clientId: string;
+  changes: Partial<Client>;
+}
+
+export interface OfflineProductPayload {
+  product: Product;
+}
+
+export interface OfflineProductMutationPayload {
+  productId: string;
+  changes: Partial<Product>;
+}
+
+export interface OfflinePaymentPayload {
+  payment: Payment;
+}
+
+export interface OfflineCloseAllDebtPayload {
+  clientId: string;
+  payment: Payment | null;
+  entryIds: string[];
+  paymentDate: string;
+}
+
+export interface OfflineClearHistoryPayload {
+  clientId: string;
+  entryIds: string[];
+}
+
 export interface OfflineExpensePayload {
   expense: Expense;
 }
@@ -77,8 +120,15 @@ export interface OfflineCashSessionClosePayload {
 export type OfflineOperationPayload =
   | OfflineCashSessionOpenPayload
   | OfflineCashSessionClosePayload
+  | OfflineClientPayload
+  | OfflineClientMutationPayload
+  | OfflineProductPayload
+  | OfflineProductMutationPayload
   | OfflineSaleCreatePayload
   | OfflineDebtEntriesPayload
+  | OfflineCloseAllDebtPayload
+  | OfflineClearHistoryPayload
+  | OfflinePaymentPayload
   | OfflineExpensePayload;
 
 export interface OfflineQueueItem {

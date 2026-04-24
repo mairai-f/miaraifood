@@ -6,6 +6,8 @@ export interface Client {
   deleted: boolean;
   deleted_at?: string | null;
   user_id: string;
+  sync_status?: 'synced' | 'queued' | 'conflict';
+  sync_error?: string | null;
 }
 
 export type PricingRoundingRule =
@@ -45,6 +47,8 @@ export interface Product {
   pricing_notes?: string;
   deleted?: boolean;
   deleted_at?: string | null;
+  sync_status?: 'synced' | 'queued' | 'conflict';
+  sync_error?: string | null;
 }
 
 export interface DebtEntry {
@@ -75,6 +79,8 @@ export interface Payment {
   date: string;
   type: string;
   details?: string | null;
+  sync_status?: 'synced' | 'queued' | 'conflict';
+  sync_error?: string | null;
 }
 
 export interface Sale {

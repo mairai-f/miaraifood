@@ -11,16 +11,16 @@ const plans = [
 
 const Pix = () => {
   return (
-    <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4">
+    <div className="flex min-h-screen flex-col items-center justify-center bg-background p-4 sm:p-6">
       <div className="w-full max-w-2xl">
         <Link to="/" className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-primary mb-6 transition-colors">
           <ArrowLeft size={16} /> Voltar
         </Link>
-        <div className="rounded-2xl border border-border bg-card p-8 space-y-8">
-          <img src={logo} alt="HappyCash" className="h-16 mx-auto" />
+        <div className="space-y-6 rounded-2xl border border-border bg-card p-5 sm:space-y-8 sm:p-8">
+          <img src={logo} alt="HappyCash" className="mx-auto h-12 sm:h-16" />
           <div className="text-center space-y-3">
-            <h1 className="font-heading text-3xl font-bold">Assinatura via Pix e cartao</h1>
-            <p className="text-muted-foreground text-sm max-w-xl mx-auto">
+            <h1 className="font-heading text-2xl font-bold sm:text-3xl">Assinatura via Pix e cartao</h1>
+            <p className="mx-auto max-w-xl text-sm text-muted-foreground">
               O HappyCash gera a cobranca do plano pelo Asaas. No painel voce escolhe entre Pix ou debito / credito,
               acompanha a cobranca e o plano libera automaticamente assim que o pagamento for confirmado. Os planos pagos
               tem duracao de 30 dias por ciclo.

@@ -14,11 +14,19 @@ import {
   recordOfflineConflict,
   replaceOfflineSnapshot,
   updateOfflineQueueItem,
+  type OfflineClearHistoryPayload,
   type OfflineDebtEntriesPayload,
   type OfflineCashSessionClosePayload,
   type OfflineCashSessionOpenPayload,
+  type OfflineClientMutationPayload,
+  type OfflineClientPayload,
+  type OfflineCloseAllDebtPayload,
   type OfflineExpensePayload,
+  type OfflineOperationPayload,
   type OfflineOperationType,
+  type OfflinePaymentPayload,
+  type OfflineProductMutationPayload,
+  type OfflineProductPayload,
   type OfflineSaleCreatePayload,
   type OfflineSnapshot,
 } from '@/lib/offlineConcentrator';
@@ -87,6 +95,34 @@ const createId = () => (typeof crypto !== 'undefined' && typeof crypto.randomUUI
 const stripSyncFields = <T extends { sync_status?: unknown; sync_error?: unknown }>(row: T) => {
   const { sync_status: _syncStatus, sync_error: _syncError, ...rest } = row;
   return rest;
+};
+const compactObject = (value: Record<string, unknown>) => Object.fromEntries(
+  Object.entries(value).filter(([, entryValue]) => entryValue !== undefined),
+);
+const sortByIsoDesc = <T,>(rows: T[], selectIso: (row: T) => string | null | undefined) => (
+  [...rows].sort((left, right) => new Date(selectIso(right) ?? 0).getTime() - new Date(selectIso(left) ?? 0).getTime())
+);
+const sortClientsByCreatedAt = (rows: Client[]) => sortByIsoDesc(rows, row => row.created_at);
+const sortDebtEntriesByDateAdded = (rows: DebtEntry[]) => sortByIsoDesc(rows, row => row.date_added);
+const sortPaymentsByDate = (rows: Payment[]) => sortByIsoDesc(rows, row => row.date);
+const samePaymentMoment = (left?: string | null, right?: string | null) => {
+  if (!left || !right) return false;
+  return Math.abs(new Date(left).getTime() - new Date(right).getTime()) < 1000;
+};
+const buildRemoteClientRecord = (client: Partial<Client>, includeId = false) => {
+  const { id, sync_status: _syncStatus, sync_error: _syncError, ...rest } = client;
+  const payload = compactObject(rest as Record<string, unknown>);
+  return includeId ? compactObject({ id, ...payload }) : payload;
+};
+const buildRemoteProductRecord = (product: Partial<Product>, includeId = false) => {
+  const { id, code: _code, sync_status: _syncStatus, sync_error: _syncError, ...rest } = product;
+  const payload = compactObject(rest as Record<string, unknown>);
+  return includeId ? compactObject({ id, ...payload }) : payload;
+};
+const buildRemotePaymentRecord = (payment: Partial<Payment>, includeId = false) => {
+  const { id, sync_status: _syncStatus, sync_error: _syncError, ...rest } = payment;
+  const payload = compactObject(rest as Record<string, unknown>);
+  return includeId ? compactObject({ id, ...payload }) : payload;
 };
 const isManualDeletedDebtEntry = (entry: DebtEntry) => entry.manual_deleted === true;
 const isLegacyDeletedDebtEntry = (entry: DebtEntry) => entry.deleted === true && entry.status !== 'paid' && !isManualDeletedDebtEntry(entry);
@@ -182,10 +218,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
   }, [isDemoMode, ownerUserId, user]);
 
   const applyOfflineSnapshot = useCallback((snapshot: OfflineSnapshot) => {
-    setClients(snapshot.clients ?? []);
+    setClients(sortClientsByCreatedAt(snapshot.clients ?? []));
     setProducts(productsWithDisplayCodes(snapshot.products ?? []));
-    setDebtEntries(snapshot.debtEntries ?? []);
-    setPayments(snapshot.payments ?? []);
+    setDebtEntries(sortDebtEntriesByDateAdded(snapshot.debtEntries ?? []));
+    setPayments(sortPaymentsByDate(snapshot.payments ?? []));
     setRewards(snapshot.rewards ?? []);
     setSales(snapshot.sales ?? []);
     setSaleItems(snapshot.saleItems ?? []);
@@ -388,6 +424,125 @@ export function DataProvider({ children }: { children: ReactNode }) {
       .eq('id', payload.sessionId));
   }, []);
 
+  const syncQueuedClientCreateOperation = useCallback(async (payload: OfflineClientPayload) => {
+    const remoteClientPayload = buildRemoteClientRecord(payload.client, true);
+
+    const { data: existingClient, error: existingClientError } = await db
+      .from('clients')
+      .select('id')
+      .eq('id', payload.client.id)
+      .maybeSingle();
+
+    if (existingClientError) {
+      throw existingClientError;
+    }
+
+    if (existingClient) {
+      ensureSuccess(await db.from('clients').update(buildRemoteClientRecord(payload.client)).eq('id', payload.client.id));
+      return;
+    }
+
+    ensureSuccess(await db.from('clients').insert(remoteClientPayload));
+  }, []);
+
+  const syncQueuedClientMutationOperation = useCallback(async (
+    operationType: 'client.update' | 'client.soft_delete',
+    payload: OfflineClientMutationPayload,
+  ) => {
+    const remoteClientPayload = buildRemoteClientRecord(payload.changes);
+
+    const { data: existingClient, error: existingClientError } = await db
+      .from('clients')
+      .select('id')
+      .eq('id', payload.clientId)
+      .maybeSingle();
+
+    if (existingClientError) {
+      throw existingClientError;
+    }
+
+    if (!existingClient) {
+      if (
+        typeof payload.changes.name !== 'string'
+        || typeof payload.changes.phone !== 'string'
+        || typeof payload.changes.user_id !== 'string'
+      ) {
+        throw new OfflineSyncConflictError(
+          operationType,
+          'O cliente offline nao possui dados suficientes para ser recriado no banco remoto.',
+        );
+      }
+
+      ensureSuccess(await db.from('clients').insert(buildRemoteClientRecord({
+        id: payload.clientId,
+        ...payload.changes,
+      }, true)));
+      return;
+    }
+
+    ensureSuccess(await db.from('clients').update(remoteClientPayload).eq('id', payload.clientId));
+  }, []);
+
+  const syncQueuedProductCreateOperation = useCallback(async (payload: OfflineProductPayload) => {
+    const remoteProductPayload = buildRemoteProductRecord(payload.product, true);
+
+    const { data: existingProduct, error: existingProductError } = await db
+      .from('products')
+      .select('id')
+      .eq('id', payload.product.id)
+      .maybeSingle();
+
+    if (existingProductError) {
+      throw existingProductError;
+    }
+
+    if (existingProduct) {
+      ensureSuccess(await db.from('products').update(buildRemoteProductRecord(payload.product)).eq('id', payload.product.id));
+      return;
+    }
+
+    ensureSuccess(await db.from('products').insert(remoteProductPayload));
+  }, []);
+
+  const syncQueuedProductMutationOperation = useCallback(async (
+    operationType: 'product.update' | 'product.soft_delete',
+    payload: OfflineProductMutationPayload,
+  ) => {
+    const remoteProductPayload = buildRemoteProductRecord(payload.changes);
+
+    const { data: existingProduct, error: existingProductError } = await db
+      .from('products')
+      .select('id')
+      .eq('id', payload.productId)
+      .maybeSingle();
+
+    if (existingProductError) {
+      throw existingProductError;
+    }
+
+    if (!existingProduct) {
+      if (
+        typeof payload.changes.name !== 'string'
+        || typeof payload.changes.category !== 'string'
+        || typeof payload.changes.user_id !== 'string'
+        || typeof payload.changes.price !== 'number'
+      ) {
+        throw new OfflineSyncConflictError(
+          operationType,
+          'O produto offline nao possui dados suficientes para ser recriado no banco remoto.',
+        );
+      }
+
+      ensureSuccess(await db.from('products').insert(buildRemoteProductRecord({
+        id: payload.productId,
+        ...payload.changes,
+      }, true)));
+      return;
+    }
+
+    ensureSuccess(await db.from('products').update(remoteProductPayload).eq('id', payload.productId));
+  }, []);
+
   const syncQueuedSaleOperation = useCallback(async (payload: OfflineSaleCreatePayload) => {
     const { sale, items, stockMovements } = payload;
     const remoteSalePayload = {
@@ -515,6 +670,132 @@ export function DataProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  const syncQueuedPaymentOperation = useCallback(async (payload: OfflinePaymentPayload) => {
+    const { payment } = payload;
+
+    const { data: existingClient, error: existingClientError } = await db
+      .from('clients')
+      .select('id')
+      .eq('id', payment.client_id)
+      .maybeSingle();
+
+    if (existingClientError) {
+      throw existingClientError;
+    }
+
+    if (!existingClient) {
+      throw new OfflineSyncConflictError(
+        'payment.create',
+        'O cliente do pagamento offline nao existe mais no banco remoto.',
+      );
+    }
+
+    const { data: existingPayment, error: existingPaymentError } = await db
+      .from('payments')
+      .select('id')
+      .eq('id', payment.id)
+      .maybeSingle();
+
+    if (existingPaymentError) {
+      throw existingPaymentError;
+    }
+
+    if (!existingPayment) {
+      ensureSuccess(await db.from('payments').insert(buildRemotePaymentRecord(payment, true)));
+    }
+  }, []);
+
+  const syncQueuedCloseAllDebtOperation = useCallback(async (payload: OfflineCloseAllDebtPayload) => {
+    if (payload.entryIds.length === 0) {
+      if (payload.payment) {
+        await syncQueuedPaymentOperation({ payment: payload.payment });
+      }
+      return;
+    }
+
+    const { data: remoteEntries, error: remoteEntriesError } = await db
+      .from('debt_entries')
+      .select('id, client_id, status, date_paid')
+      .in('id', payload.entryIds);
+
+    if (remoteEntriesError) {
+      throw remoteEntriesError;
+    }
+
+    const entries = (remoteEntries as Array<{
+      id: string;
+      client_id: string;
+      status: string;
+      date_paid?: string | null;
+    }> | null) ?? [];
+    const entryIds = new Set(entries.map(entry => entry.id));
+    const missingEntryIds = payload.entryIds.filter(entryId => !entryIds.has(entryId));
+
+    if (missingEntryIds.length > 0) {
+      throw new OfflineSyncConflictError(
+        'debt_entries.close_all',
+        'Alguns itens quitados offline nao existem mais no banco remoto.',
+      );
+    }
+
+    const wrongClientEntry = entries.find(entry => entry.client_id !== payload.clientId);
+    if (wrongClientEntry) {
+      throw new OfflineSyncConflictError(
+        'debt_entries.close_all',
+        'Os itens da quitacao offline nao pertencem mais ao mesmo cliente no banco remoto.',
+      );
+    }
+
+    const conflictingEntry = entries.find(entry => entry.status !== 'pending' && !samePaymentMoment(entry.date_paid, payload.paymentDate));
+    if (conflictingEntry) {
+      throw new OfflineSyncConflictError(
+        'debt_entries.close_all',
+        'Uma ou mais dividas ja foram alteradas remotamente e precisam de revisao antes de sincronizar.',
+      );
+    }
+
+    const pendingEntryIds = entries
+      .filter(entry => entry.status === 'pending')
+      .map(entry => entry.id);
+
+    if (pendingEntryIds.length > 0) {
+      ensureSuccess(await db
+        .from('debt_entries')
+        .update({ status: 'paid', date_paid: payload.paymentDate, deleted: true, manual_deleted: false })
+        .in('id', pendingEntryIds));
+    }
+
+    if (payload.payment) {
+      await syncQueuedPaymentOperation({ payment: payload.payment });
+    }
+  }, [syncQueuedPaymentOperation]);
+
+  const syncQueuedClearHistoryOperation = useCallback(async (payload: OfflineClearHistoryPayload) => {
+    if (payload.entryIds.length === 0) {
+      return;
+    }
+
+    const { data: remoteEntries, error: remoteEntriesError } = await db
+      .from('debt_entries')
+      .select('id, client_id')
+      .in('id', payload.entryIds);
+
+    if (remoteEntriesError) {
+      throw remoteEntriesError;
+    }
+
+    const entries = (remoteEntries as Array<{ id: string; client_id: string }> | null) ?? [];
+    const deletableEntryIds = entries
+      .filter(entry => entry.client_id === payload.clientId)
+      .map(entry => entry.id);
+
+    if (deletableEntryIds.length === 0) {
+      return;
+    }
+
+    ensureSuccess(await db.from('debt_entries').delete().in('id', deletableEntryIds));
+  }, []);
+
   const syncQueuedExpenseOperation = useCallback(async (payload: OfflineExpensePayload) => {
     const { expense } = payload;
 
@@ -566,10 +847,28 @@ export function DataProvider({ children }: { children: ReactNode }) {
             await syncQueuedCashSessionOpenOperation(queueItem.payload as OfflineCashSessionOpenPayload);
           } else if (queueItem.operationType === 'cash_session.close' && queueItem.payload) {
             await syncQueuedCashSessionCloseOperation(queueItem.payload as OfflineCashSessionClosePayload);
+          } else if (queueItem.operationType === 'client.create' && queueItem.payload) {
+            await syncQueuedClientCreateOperation(queueItem.payload as OfflineClientPayload);
+          } else if (queueItem.operationType === 'client.update' && queueItem.payload) {
+            await syncQueuedClientMutationOperation('client.update', queueItem.payload as OfflineClientMutationPayload);
+          } else if (queueItem.operationType === 'client.soft_delete' && queueItem.payload) {
+            await syncQueuedClientMutationOperation('client.soft_delete', queueItem.payload as OfflineClientMutationPayload);
+          } else if (queueItem.operationType === 'product.create' && queueItem.payload) {
+            await syncQueuedProductCreateOperation(queueItem.payload as OfflineProductPayload);
+          } else if (queueItem.operationType === 'product.update' && queueItem.payload) {
+            await syncQueuedProductMutationOperation('product.update', queueItem.payload as OfflineProductMutationPayload);
+          } else if (queueItem.operationType === 'product.soft_delete' && queueItem.payload) {
+            await syncQueuedProductMutationOperation('product.soft_delete', queueItem.payload as OfflineProductMutationPayload);
           } else if (queueItem.operationType === 'sale.create' && queueItem.payload) {
             await syncQueuedSaleOperation(queueItem.payload as OfflineSaleCreatePayload);
           } else if (queueItem.operationType === 'debt_entries.add_many' && queueItem.payload) {
             await syncQueuedDebtEntriesOperation(queueItem.payload as OfflineDebtEntriesPayload);
+          } else if (queueItem.operationType === 'debt_entries.close_all' && queueItem.payload) {
+            await syncQueuedCloseAllDebtOperation(queueItem.payload as OfflineCloseAllDebtPayload);
+          } else if (queueItem.operationType === 'debt_entries.clear_history' && queueItem.payload) {
+            await syncQueuedClearHistoryOperation(queueItem.payload as OfflineClearHistoryPayload);
+          } else if (queueItem.operationType === 'payment.create' && queueItem.payload) {
+            await syncQueuedPaymentOperation(queueItem.payload as OfflinePaymentPayload);
           } else if (queueItem.operationType === 'expense.create' && queueItem.payload) {
             await syncQueuedExpenseOperation(queueItem.payload as OfflineExpensePayload);
           }
@@ -592,7 +891,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
               queueItem.id,
               queueItem.operationType,
               error.message,
-              (queueItem.payload ?? null) as OfflineCashSessionOpenPayload | OfflineCashSessionClosePayload | OfflineSaleCreatePayload | OfflineDebtEntriesPayload | OfflineExpensePayload,
+              (queueItem.payload ?? null) as OfflineOperationPayload,
             );
             continue;
           }
@@ -617,8 +916,15 @@ export function DataProvider({ children }: { children: ReactNode }) {
     ownerUserId,
     syncQueuedCashSessionCloseOperation,
     syncQueuedCashSessionOpenOperation,
+    syncQueuedClearHistoryOperation,
+    syncQueuedClientCreateOperation,
+    syncQueuedClientMutationOperation,
+    syncQueuedCloseAllDebtOperation,
     syncQueuedDebtEntriesOperation,
     syncQueuedExpenseOperation,
+    syncQueuedPaymentOperation,
+    syncQueuedProductCreateOperation,
+    syncQueuedProductMutationOperation,
     syncQueuedSaleOperation,
     user,
   ]);
@@ -660,30 +966,153 @@ export function DataProvider({ children }: { children: ReactNode }) {
         deleted_at: null,
         user_id: ownerUserId!,
       };
-      setClients(prev => [client, ...prev]);
+      setClients(prev => sortClientsByCreatedAt([client, ...prev]));
       return;
     }
-    const { data, error } = await db.from('clients').insert({ name, phone, user_id: ownerUserId! }).select('*').single();
-    if (error) throw error;
-    setClients(prev => [data as Client, ...prev]);
+
+    const addOfflineClient = async () => {
+      const client: Client = {
+        id: createId(),
+        name,
+        phone,
+        created_at: nowIso(),
+        deleted: false,
+        deleted_at: null,
+        user_id: ownerUserId!,
+        sync_status: 'queued',
+        sync_error: null,
+      };
+
+      const queued = await enqueueOfflineOperation(ownerUserId!, 'client.create', {
+        client,
+      });
+
+      if (!queued) {
+        throw new Error('Nao foi possivel registrar o cliente na fila offline.');
+      }
+
+      setClients(prev => sortClientsByCreatedAt([client, ...prev]));
+    };
+
+    if (canUseOfflineConcentrator && typeof navigator !== 'undefined' && navigator.onLine === false) {
+      await addOfflineClient();
+      return;
+    }
+
+    try {
+      const { data, error } = await db.from('clients').insert({ name, phone, user_id: ownerUserId! }).select('*').single();
+      if (error) throw error;
+      setClients(prev => sortClientsByCreatedAt([data as Client, ...prev.filter(client => client.id !== data.id)]));
+    } catch (error) {
+      if (canUseOfflineConcentrator && isProbablyOfflineError(error)) {
+        await addOfflineClient();
+        return;
+      }
+
+      throw error;
+    }
   };
   const updateClient = async (id: string, data: Partial<Client>) => {
+    const currentClient = clients.find(client => client.id === id);
+
+    if (!currentClient) {
+      throw new Error('Cliente nao encontrado para atualizacao.');
+    }
+
     if (isDemoMode) {
-      setClients(prev => prev.map(client => client.id === id ? { ...client, ...data } : client));
+      setClients(prev => sortClientsByCreatedAt(prev.map(client => client.id === id ? { ...client, ...data } : client)));
       return;
     }
-    const { data: updated, error } = await db.from('clients').update(data).eq('id', id).select('*').single();
-    if (error) throw error;
-    setClients(prev => prev.map(client => client.id === id ? updated as Client : client));
+
+    const updateOfflineClient = async () => {
+      const nextClient: Client = {
+        ...currentClient,
+        ...data,
+        sync_status: 'queued',
+        sync_error: null,
+      };
+
+      const queued = await enqueueOfflineOperation(ownerUserId!, 'client.update', {
+        clientId: id,
+        changes: nextClient,
+      });
+
+      if (!queued) {
+        throw new Error('Nao foi possivel registrar a atualizacao do cliente na fila offline.');
+      }
+
+      setClients(prev => sortClientsByCreatedAt(prev.map(client => client.id === id ? nextClient : client)));
+    };
+
+    if (canUseOfflineConcentrator && typeof navigator !== 'undefined' && navigator.onLine === false) {
+      await updateOfflineClient();
+      return;
+    }
+
+    try {
+      const { data: updated, error } = await db.from('clients').update(data).eq('id', id).select('*').single();
+      if (error) throw error;
+      setClients(prev => sortClientsByCreatedAt(prev.map(client => client.id === id ? updated as Client : client)));
+    } catch (error) {
+      if (canUseOfflineConcentrator && isProbablyOfflineError(error)) {
+        await updateOfflineClient();
+        return;
+      }
+
+      throw error;
+    }
   };
   const softDeleteClient = async (id: string) => {
+    const currentClient = clients.find(client => client.id === id);
+
+    if (!currentClient) {
+      throw new Error('Cliente nao encontrado para exclusao.');
+    }
+
     if (isDemoMode) {
-      setClients(prev => prev.map(client => client.id === id ? { ...client, deleted: true, deleted_at: nowIso() } : client));
+      setClients(prev => sortClientsByCreatedAt(prev.map(client => client.id === id ? { ...client, deleted: true, deleted_at: nowIso() } : client)));
       return;
     }
-    const { data: updated, error } = await db.from('clients').update({ deleted: true, deleted_at: new Date().toISOString() }).eq('id', id).select('*').single();
-    if (error) throw error;
-    setClients(prev => prev.map(client => client.id === id ? updated as Client : client));
+
+    const softDeleteOfflineClient = async () => {
+      const deletedAt = nowIso();
+      const nextClient: Client = {
+        ...currentClient,
+        deleted: true,
+        deleted_at: deletedAt,
+        sync_status: 'queued',
+        sync_error: null,
+      };
+
+      const queued = await enqueueOfflineOperation(ownerUserId!, 'client.soft_delete', {
+        clientId: id,
+        changes: nextClient,
+      });
+
+      if (!queued) {
+        throw new Error('Nao foi possivel registrar a exclusao do cliente na fila offline.');
+      }
+
+      setClients(prev => sortClientsByCreatedAt(prev.map(client => client.id === id ? nextClient : client)));
+    };
+
+    if (canUseOfflineConcentrator && typeof navigator !== 'undefined' && navigator.onLine === false) {
+      await softDeleteOfflineClient();
+      return;
+    }
+
+    try {
+      const { data: updated, error } = await db.from('clients').update({ deleted: true, deleted_at: new Date().toISOString() }).eq('id', id).select('*').single();
+      if (error) throw error;
+      setClients(prev => sortClientsByCreatedAt(prev.map(client => client.id === id ? updated as Client : client)));
+    } catch (error) {
+      if (canUseOfflineConcentrator && isProbablyOfflineError(error)) {
+        await softDeleteOfflineClient();
+        return;
+      }
+
+      throw error;
+    }
   };
 
   // --- Products ---
@@ -738,33 +1167,178 @@ export function DataProvider({ children }: { children: ReactNode }) {
       setProducts(prev => [...prev, product]);
       return;
     }
-    const { data, error } = await db.from('products').insert({
-      user_id: ownerUserId!,
-      ...productPayload,
-    } as Record<string, unknown>).select('*').single();
-    if (error) throw error;
-    setProducts(prev => [...prev, withDisplayCode(data as Product, prev)]);
+
+    const addOfflineProduct = async () => {
+      const product = withDisplayCode({
+        id: createId(),
+        user_id: ownerUserId!,
+        name: productPayload.name ?? name,
+        price: productPayload.price ?? price,
+        category: productPayload.category ?? category,
+        cost_price: productPayload.cost_price ?? 0,
+        purchase_cost: productPayload.purchase_cost ?? 0,
+        freight_cost: productPayload.freight_cost ?? 0,
+        tax_cost: productPayload.tax_cost ?? 0,
+        commission_cost: productPayload.commission_cost ?? 0,
+        card_fee_cost: productPayload.card_fee_cost ?? 0,
+        packaging_cost: productPayload.packaging_cost ?? 0,
+        operational_cost: productPayload.operational_cost ?? 0,
+        other_extra_cost: productPayload.other_extra_cost ?? 0,
+        supplier_name: productPayload.supplier_name ?? '',
+        target_markup_pct: productPayload.target_markup_pct ?? 0,
+        minimum_markup_pct: productPayload.minimum_markup_pct ?? 0,
+        minimum_price: productPayload.minimum_price ?? 0,
+        rounding_rule: productPayload.rounding_rule,
+        pricing_notes: productPayload.pricing_notes ?? '',
+        barcode: productPayload.barcode ?? '',
+        stock: productPayload.stock ?? 0,
+        min_stock: productPayload.min_stock ?? 0,
+        deleted: false,
+        deleted_at: null,
+        sync_status: 'queued',
+        sync_error: null,
+      } as Product, products);
+
+      const queued = await enqueueOfflineOperation(ownerUserId!, 'product.create', {
+        product,
+      });
+
+      if (!queued) {
+        throw new Error('Nao foi possivel registrar o produto na fila offline.');
+      }
+
+      setProducts(prev => [...prev, product]);
+    };
+
+    if (canUseOfflineConcentrator && typeof navigator !== 'undefined' && navigator.onLine === false) {
+      await addOfflineProduct();
+      return;
+    }
+
+    try {
+      const { data, error } = await db.from('products').insert({
+        user_id: ownerUserId!,
+        ...buildRemoteProductRecord(productPayload),
+      } as Record<string, unknown>).select('*').single();
+      if (error) throw error;
+      setProducts(prev => [...prev, withDisplayCode(data as Product, prev)]);
+    } catch (error) {
+      if (canUseOfflineConcentrator && isProbablyOfflineError(error)) {
+        await addOfflineProduct();
+        return;
+      }
+
+      throw error;
+    }
   };
   const updateProduct = async (id: string, data: Partial<Product>) => {
-    const nextProduct = products.find(product => product.id === id);
-    const productPayload = prepareProductPayload({ ...nextProduct, ...data });
+    const currentProduct = products.find(product => product.id === id);
+
+    if (!currentProduct) {
+      throw new Error('Produto nao encontrado para atualizacao.');
+    }
+
+    const productPayload = prepareProductPayload({ ...currentProduct, ...data });
 
     if (isDemoMode) {
       setProducts(prev => prev.map(product => product.id === id ? withDisplayCode({ ...product, ...productPayload } as Product, prev) : product));
       return;
     }
-    const { data: updated, error } = await db.from('products').update(productPayload).eq('id', id).select('*').single();
-    if (error) throw error;
-    setProducts(prev => prev.map(product => product.id === id ? withDisplayCode(updated as Product, prev) : product));
+
+    const updateOfflineProduct = async () => {
+      const nextProduct = withDisplayCode({
+        ...currentProduct,
+        ...productPayload,
+        sync_status: 'queued',
+        sync_error: null,
+      } as Product, products);
+
+      const queued = await enqueueOfflineOperation(ownerUserId!, 'product.update', {
+        productId: id,
+        changes: nextProduct,
+      });
+
+      if (!queued) {
+        throw new Error('Nao foi possivel registrar a atualizacao do produto na fila offline.');
+      }
+
+      setProducts(prev => prev.map(product => product.id === id ? withDisplayCode(nextProduct, prev) : product));
+    };
+
+    if (canUseOfflineConcentrator && typeof navigator !== 'undefined' && navigator.onLine === false) {
+      await updateOfflineProduct();
+      return;
+    }
+
+    try {
+      const { data: updated, error } = await db
+        .from('products')
+        .update(buildRemoteProductRecord(productPayload))
+        .eq('id', id)
+        .select('*')
+        .single();
+      if (error) throw error;
+      setProducts(prev => prev.map(product => product.id === id ? withDisplayCode(updated as Product, prev) : product));
+    } catch (error) {
+      if (canUseOfflineConcentrator && isProbablyOfflineError(error)) {
+        await updateOfflineProduct();
+        return;
+      }
+
+      throw error;
+    }
   };
   const deleteProduct = async (id: string) => {
+    const currentProduct = products.find(product => product.id === id);
+
+    if (!currentProduct) {
+      throw new Error('Produto nao encontrado para exclusao.');
+    }
+
     if (isDemoMode) {
       setProducts(prev => prev.map(product => product.id === id ? { ...product, deleted: true, deleted_at: nowIso() } : product));
       return;
     }
-    const { data: updated, error } = await db.from('products').update({ deleted: true, deleted_at: new Date().toISOString() }).eq('id', id).select('*').single();
-    if (error) throw error;
-    setProducts(prev => prev.map(product => product.id === id ? withDisplayCode(updated as Product, prev) : product));
+
+    const deleteOfflineProduct = async () => {
+      const deletedAt = nowIso();
+      const nextProduct = withDisplayCode({
+        ...currentProduct,
+        deleted: true,
+        deleted_at: deletedAt,
+        sync_status: 'queued',
+        sync_error: null,
+      } as Product, products);
+
+      const queued = await enqueueOfflineOperation(ownerUserId!, 'product.soft_delete', {
+        productId: id,
+        changes: nextProduct,
+      });
+
+      if (!queued) {
+        throw new Error('Nao foi possivel registrar a exclusao do produto na fila offline.');
+      }
+
+      setProducts(prev => prev.map(product => product.id === id ? withDisplayCode(nextProduct, prev) : product));
+    };
+
+    if (canUseOfflineConcentrator && typeof navigator !== 'undefined' && navigator.onLine === false) {
+      await deleteOfflineProduct();
+      return;
+    }
+
+    try {
+      const { data: updated, error } = await db.from('products').update({ deleted: true, deleted_at: new Date().toISOString() }).eq('id', id).select('*').single();
+      if (error) throw error;
+      setProducts(prev => prev.map(product => product.id === id ? withDisplayCode(updated as Product, prev) : product));
+    } catch (error) {
+      if (canUseOfflineConcentrator && isProbablyOfflineError(error)) {
+        await deleteOfflineProduct();
+        return;
+      }
+
+      throw error;
+    }
   };
   const addPricingRule = async (rule: Omit<ProductCategoryPricingRule, 'id' | 'created_at' | 'updated_at' | 'owner_user_id'> & { owner_user_id?: string }) => {
     const normalizedRule = {
@@ -837,33 +1411,17 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
   // --- Debt Entries ---
   const addDebtEntry = async (clientId: string, productId: string, productName: string, quantity: number, unitPrice: number, dateAdded?: string, registeredBy?: string) => {
-    if (isDemoMode) {
-      const entry: DebtEntry = {
-        id: createId(),
-        client_id: clientId,
-        product_id: productId,
-        product_name: productName,
+    await addDebtEntries([
+      {
+        clientId,
+        productId,
+        productName,
         quantity,
-        unit_price: unitPrice,
-        total: quantity * unitPrice,
-        date_added: dateAdded || nowIso(),
-        date_paid: null,
-        status: 'pending',
-        deleted: false,
-        manual_deleted: false,
-        registered_by: registeredBy ?? null,
-      };
-      setDebtEntries(prev => [entry, ...prev]);
-      return;
-    }
-    const { data, error } = await db.from('debt_entries').insert({
-      client_id: clientId, product_id: productId, product_name: productName,
-      quantity, unit_price: unitPrice, total: quantity * unitPrice,
-      date_added: dateAdded || new Date().toISOString(),
-      registered_by: registeredBy,
-    }).select('*').single();
-    if (error) throw error;
-    setDebtEntries(prev => [data as DebtEntry, ...prev]);
+        unitPrice,
+        dateAdded,
+        registeredBy,
+      },
+    ]);
   };
 
   const addDebtEntries = async (
@@ -887,7 +1445,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         manual_deleted: false,
         registered_by: entry.registeredBy ?? null,
       } as DebtEntry));
-      setDebtEntries(prev => [...nextEntries, ...prev]);
+      setDebtEntries(prev => sortDebtEntriesByDateAdded([...nextEntries, ...prev]));
       return;
     }
 
@@ -918,7 +1476,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         throw new Error('Nao foi possivel registrar os fiados na fila offline.');
       }
 
-      setDebtEntries(prev => [...nextEntries, ...prev]);
+      setDebtEntries(prev => sortDebtEntriesByDateAdded([...nextEntries, ...prev]));
     };
 
     if (canUseOfflineConcentrator && typeof navigator !== 'undefined' && navigator.onLine === false) {
@@ -941,7 +1499,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       ).select('*');
 
       if (error) throw error;
-      setDebtEntries(prev => [...((data as DebtEntry[]) ?? []), ...prev]);
+      setDebtEntries(prev => sortDebtEntriesByDateAdded([...((data as DebtEntry[]) ?? []), ...prev]));
     } catch (error) {
       if (canUseOfflineConcentrator && isProbablyOfflineError(error)) {
         await addOfflineDebtEntries();
@@ -1008,17 +1566,55 @@ export function DataProvider({ children }: { children: ReactNode }) {
         date: date || nowIso(),
         details: null,
       };
-      setPayments(prev => [payment, ...prev]);
+      setPayments(prev => sortPaymentsByDate([payment, ...prev]));
       return;
     }
-    const { data, error } = await db
-      .from('payments')
-      .insert({ client_id: clientId, amount, type, date: date || new Date().toISOString() })
-      .select('*')
-      .single();
 
-    if (error) throw error;
-    setPayments(prev => [data as Payment, ...prev]);
+    const addOfflinePayment = async () => {
+      const payment: Payment = {
+        id: createId(),
+        client_id: clientId,
+        amount,
+        type,
+        date: date || nowIso(),
+        details: null,
+        sync_status: 'queued',
+        sync_error: null,
+      };
+
+      const queued = await enqueueOfflineOperation(ownerUserId!, 'payment.create', {
+        payment,
+      });
+
+      if (!queued) {
+        throw new Error('Nao foi possivel registrar o pagamento na fila offline.');
+      }
+
+      setPayments(prev => sortPaymentsByDate([payment, ...prev]));
+    };
+
+    if (canUseOfflineConcentrator && typeof navigator !== 'undefined' && navigator.onLine === false) {
+      await addOfflinePayment();
+      return;
+    }
+
+    try {
+      const { data, error } = await db
+        .from('payments')
+        .insert({ client_id: clientId, amount, type, date: date || new Date().toISOString() })
+        .select('*')
+        .single();
+
+      if (error) throw error;
+      setPayments(prev => sortPaymentsByDate([data as Payment, ...prev]));
+    } catch (error) {
+      if (canUseOfflineConcentrator && isProbablyOfflineError(error)) {
+        await addOfflinePayment();
+        return;
+      }
+
+      throw error;
+    }
   };
   const deletePayment = async (id: string) => {
     if (!isAdmin) {
@@ -1083,16 +1679,20 @@ export function DataProvider({ children }: { children: ReactNode }) {
     const paymentDate = date || new Date().toISOString();
     const pendingIds = debtEntries.filter(d => d.client_id === clientId && isVisiblePendingDebtEntry(d)).map(d => d.id);
 
+    if (balance <= 0 && pendingIds.length === 0) {
+      return;
+    }
+
     if (isDemoMode) {
       if (balance > 0) {
-        setPayments(prev => [{
+        setPayments(prev => sortPaymentsByDate([{
           id: createId(),
           client_id: clientId,
           amount: balance,
           type: 'total',
           date: paymentDate,
           details: null,
-        }, ...prev]);
+        }, ...prev]));
       }
 
       if (pendingIds.length > 0) {
@@ -1105,24 +1705,84 @@ export function DataProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    if (balance > 0) {
-      const { error } = await db
-        .from('payments')
-        .insert({ client_id: clientId, amount: balance, type: 'total', date: paymentDate });
+    const closeAllDebtOffline = async () => {
+      const payment = balance > 0
+        ? {
+            id: createId(),
+            client_id: clientId,
+            amount: balance,
+            type: 'total',
+            date: paymentDate,
+            details: null,
+            sync_status: 'queued',
+            sync_error: null,
+          } as Payment
+        : null;
 
-      if (error) throw error;
+      const queued = await enqueueOfflineOperation(ownerUserId!, 'debt_entries.close_all', {
+        clientId,
+        payment,
+        entryIds: pendingIds,
+        paymentDate,
+      });
+
+      if (!queued) {
+        throw new Error('Nao foi possivel registrar a quitacao na fila offline.');
+      }
+
+      if (payment) {
+        setPayments(prev => sortPaymentsByDate([payment, ...prev]));
+      }
+
+      if (pendingIds.length > 0) {
+        setDebtEntries(prev => prev.map(entry =>
+          pendingIds.includes(entry.id)
+            ? {
+                ...entry,
+                status: 'paid',
+                date_paid: paymentDate,
+                deleted: true,
+                manual_deleted: false,
+                sync_status: 'queued',
+                sync_error: null,
+              }
+            : entry
+        ));
+      }
+    };
+
+    if (canUseOfflineConcentrator && typeof navigator !== 'undefined' && navigator.onLine === false) {
+      await closeAllDebtOffline();
+      return;
     }
 
-    if (pendingIds.length > 0) {
-      const { error } = await db
-        .from('debt_entries')
-        .update({ status: 'paid', date_paid: paymentDate, deleted: true, manual_deleted: false })
-        .in('id', pendingIds);
+    try {
+      if (balance > 0) {
+        const { error } = await db
+          .from('payments')
+          .insert({ client_id: clientId, amount: balance, type: 'total', date: paymentDate });
 
-      if (error) throw error;
+        if (error) throw error;
+      }
+
+      if (pendingIds.length > 0) {
+        const { error } = await db
+          .from('debt_entries')
+          .update({ status: 'paid', date_paid: paymentDate, deleted: true, manual_deleted: false })
+          .in('id', pendingIds);
+
+        if (error) throw error;
+      }
+
+      await fetchAll();
+    } catch (error) {
+      if (canUseOfflineConcentrator && isProbablyOfflineError(error)) {
+        await closeAllDebtOffline();
+        return;
+      }
+
+      throw error;
     }
-
-    await fetchAll();
   };
 
   const deleteClientHistory = async (clientId: string) => {
@@ -1130,12 +1790,44 @@ export function DataProvider({ children }: { children: ReactNode }) {
       throw new Error('Operador não pode limpar histórico da caderneta.');
     }
 
+    const entryIds = debtEntries
+      .filter(entry => entry.client_id === clientId)
+      .map(entry => entry.id);
+
     if (isDemoMode) {
       setDebtEntries(prev => prev.filter(entry => entry.client_id !== clientId));
       return;
     }
-    ensureSuccess(await db.from('debt_entries').delete().eq('client_id', clientId));
-    await fetchAll();
+
+    const deleteOfflineClientHistory = async () => {
+      const queued = await enqueueOfflineOperation(ownerUserId!, 'debt_entries.clear_history', {
+        clientId,
+        entryIds,
+      });
+
+      if (!queued) {
+        throw new Error('Nao foi possivel registrar a limpeza do historico na fila offline.');
+      }
+
+      setDebtEntries(prev => prev.filter(entry => !entryIds.includes(entry.id)));
+    };
+
+    if (canUseOfflineConcentrator && typeof navigator !== 'undefined' && navigator.onLine === false) {
+      await deleteOfflineClientHistory();
+      return;
+    }
+
+    try {
+      ensureSuccess(await db.from('debt_entries').delete().eq('client_id', clientId));
+      await fetchAll();
+    } catch (error) {
+      if (canUseOfflineConcentrator && isProbablyOfflineError(error)) {
+        await deleteOfflineClientHistory();
+        return;
+      }
+
+      throw error;
+    }
   };
 
   // --- Sales (PDV) ---

@@ -61,7 +61,7 @@ const Screenshots = () => {
           </p>
         </div>
 
-        <div className="screenshots-carousel max-w-5xl mx-auto px-12">
+        <div className="screenshots-carousel mx-auto max-w-5xl px-4 sm:px-10 md:px-12">
           <Carousel opts={{ loop: true }}>
             <CarouselContent>
               {screenshots.map((s, i) => (
@@ -80,8 +80,8 @@ const Screenshots = () => {
                 </CarouselItem>
               ))}
             </CarouselContent>
-            <CarouselPrevious className="border-border hover:bg-primary hover:text-primary-foreground hover:border-primary transition-all" />
-            <CarouselNext className="border-border hover:bg-primary hover:text-primary-foreground hover:border-primary transition-all" />
+            <CarouselPrevious className="hidden border-border transition-all hover:border-primary hover:bg-primary hover:text-primary-foreground sm:flex" />
+            <CarouselNext className="hidden border-border transition-all hover:border-primary hover:bg-primary hover:text-primary-foreground sm:flex" />
           </Carousel>
         </div>
       </div>

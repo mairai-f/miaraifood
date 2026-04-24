@@ -26,8 +26,10 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from "@/components/ui/drawer";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Textarea } from "@/components/ui/textarea";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { useToast } from "@/hooks/use-toast";
 import logo from "@/assets/logo-happycash.png";
 
@@ -198,6 +200,7 @@ const Dashboard = () => {
   const [planCheckout, setPlanCheckout] = useState<PlanCheckoutState | null>(null);
   const navigate = useNavigate();
   const { toast } = useToast();
+  const isMobile = useIsMobile();
 
   const selectedPlanId = (() => {
     const value = searchParams.get("plan");
@@ -538,6 +541,157 @@ const Dashboard = () => {
     }
   };
 
+  const checkoutContent = planCheckout ? (
+    planCheckout.paymentMethod === "pix" ? (
+      planCheckout.qrCodeBase64 && planCheckout.copyPasteCode ? (
+        <div className="space-y-4 sm:space-y-5">
+          <div className="grid gap-4 lg:grid-cols-[minmax(0,260px)_minmax(0,1fr)] lg:items-start">
+            <div className="flex justify-center">
+              <div className="w-full max-w-[18rem] space-y-3 rounded-3xl border border-border bg-white p-3 shadow-sm">
+                <img
+                  src={`data:image/png;base64,${planCheckout.qrCodeBase64}`}
+                  alt="QR Code Pix do plano"
+                  className="mx-auto aspect-square w-full max-w-[14rem] rounded-2xl object-contain sm:max-w-[15rem]"
+                />
+                <p className="text-center text-[11px] font-medium uppercase tracking-[0.18em] text-slate-600 sm:text-xs">
+                  Escaneie no banco
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <div className="rounded-2xl border border-primary/20 bg-primary/5 p-4 sm:p-5">
+                <p className="text-sm font-semibold">
+                  {publicPlanContent[planCheckout.planId].name}
+                </p>
+                <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                  <div>
+                    <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground sm:text-xs">Valor</p>
+                    <p className="mt-1 font-semibold">{formatCurrency(planCheckout.value)}</p>
+                  </div>
+                  <div>
+                    <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground sm:text-xs">Forma</p>
+                    <p className="mt-1 font-semibold">{getPaymentMethodLabel(planCheckout.paymentMethod)}</p>
+                  </div>
+                  <div>
+                    <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground sm:text-xs">Vencimento</p>
+                    <p className="mt-1 font-semibold leading-snug">{formatDateTime(planCheckout.dueDate)}</p>
+                  </div>
+                  <div>
+                    <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground sm:text-xs">Status</p>
+                    <p className="mt-1 font-semibold">{planCheckout.paymentStatus}</p>
+                  </div>
+                </div>
+                <p className="mt-3 text-sm text-muted-foreground">
+                  Depois do pagamento, o plano ativa automaticamente e o painel atualiza sozinho.
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <p className="text-sm font-medium">Codigo Pix copia e cola</p>
+                <Textarea
+                  value={planCheckout.copyPasteCode}
+                  readOnly
+                  className="min-h-[120px] resize-none break-all bg-muted/30 font-mono text-[11px] sm:text-xs"
+                />
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  <Button className="h-11 flex-1 font-semibold" onClick={handleCopyPixCode}>
+                    <Copy className="mr-2 h-4 w-4" />
+                    Copiar codigo Pix
+                  </Button>
+                  {planCheckout.invoiceUrl && (
+                    <Button asChild variant="outline" className="h-11 flex-1 font-semibold">
+                      <a href={planCheckout.invoiceUrl} target="_blank" rel="noreferrer">
+                        Abrir fatura
+                      </a>
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <Alert className="border-secondary/40 bg-secondary/10">
+            <Clock3 className="h-4 w-4" />
+            <AlertTitle>Pagamento monitorado automaticamente</AlertTitle>
+            <AlertDescription>
+              Enquanto este modal estiver aberto, a conta sera atualizada periodicamente para liberar o plano assim que o pagamento for confirmado.
+            </AlertDescription>
+          </Alert>
+        </div>
+      ) : (
+        <Alert variant="destructive">
+          <AlertTitle>QR Code indisponivel</AlertTitle>
+          <AlertDescription>
+            O Asaas nao devolveu os dados do Pix. Gere a cobranca novamente em alguns instantes.
+          </AlertDescription>
+        </Alert>
+      )
+    ) : (
+      <div className="space-y-5">
+        <div className="rounded-2xl border border-primary/20 bg-primary/5 p-4 sm:p-5">
+          <p className="text-sm font-semibold">
+            {publicPlanContent[planCheckout.planId].name}
+          </p>
+          <div className="mt-3 grid gap-3 sm:grid-cols-2">
+            <div>
+              <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground sm:text-xs">Valor</p>
+              <p className="mt-1 font-semibold">{formatCurrency(planCheckout.value)}</p>
+            </div>
+            <div>
+              <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground sm:text-xs">Forma</p>
+              <p className="mt-1 font-semibold">{getPaymentMethodLabel(planCheckout.paymentMethod)}</p>
+            </div>
+            <div>
+              <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground sm:text-xs">Vencimento</p>
+              <p className="mt-1 font-semibold leading-snug">{formatDateTime(planCheckout.dueDate)}</p>
+            </div>
+            <div>
+              <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground sm:text-xs">Status</p>
+              <p className="mt-1 font-semibold">{planCheckout.paymentStatus}</p>
+            </div>
+          </div>
+          <p className="mt-3 text-sm text-muted-foreground">
+            Abra a fatura do Asaas para concluir no debito ou credito. Depois da confirmacao, o plano ativa automaticamente.
+          </p>
+        </div>
+
+        <div className="space-y-4 rounded-2xl border border-border bg-background/70 p-4">
+          <div className="space-y-2">
+            <p className="text-sm font-semibold">Fatura hospedada do Asaas</p>
+            <p className="text-sm text-muted-foreground">
+              A fatura abre em ambiente seguro do Asaas e permite concluir a cobranca no credito ou no debito.
+            </p>
+          </div>
+
+          {planCheckout.invoiceUrl ? (
+            <Button asChild className="h-11 w-full font-semibold">
+              <a href={planCheckout.invoiceUrl} target="_blank" rel="noreferrer">
+                <ExternalLink className="mr-2 h-4 w-4" />
+                Abrir fatura do cartao
+              </a>
+            </Button>
+          ) : (
+            <Alert variant="destructive">
+              <AlertTitle>Fatura indisponivel</AlertTitle>
+              <AlertDescription>
+                O Asaas nao devolveu a URL da fatura. Gere a cobranca novamente em alguns instantes.
+              </AlertDescription>
+            </Alert>
+          )}
+        </div>
+
+        <Alert className="border-secondary/40 bg-secondary/10">
+          <Clock3 className="h-4 w-4" />
+          <AlertTitle>Pagamento monitorado automaticamente</AlertTitle>
+          <AlertDescription>
+            Enquanto este modal estiver aberto, a conta sera atualizada periodicamente para liberar o plano assim que o pagamento for confirmado.
+          </AlertDescription>
+        </Alert>
+      </div>
+    )
+  ) : null;
+
   if (loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-6">
@@ -661,7 +815,7 @@ const Dashboard = () => {
               </div>
             </CardHeader>
             <CardContent className="space-y-5">
-              <div className="grid gap-4 md:grid-cols-3">
+              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
                 <div className="rounded-2xl border border-border bg-background/70 p-4">
                   <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Responsavel</p>
                   <p className="mt-2 font-semibold">{storeAccount?.nome_cliente || "Nao informado"}</p>
@@ -731,7 +885,7 @@ const Dashboard = () => {
               </div>
 
               <div className="rounded-2xl border border-border bg-background/70 p-4">
-                <div className="flex items-center justify-between gap-3">
+                <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div>
                     <p className="text-sm font-semibold">Downloads do desktop</p>
                     <p className="mt-1 text-sm text-muted-foreground">
@@ -794,7 +948,7 @@ const Dashboard = () => {
             <Badge variant="outline">Pix e debito / credito</Badge>
           </div>
 
-          <div className="grid gap-5 xl:grid-cols-4">
+          <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
             {sortedPlans.map((plan) => {
               const isSelected = selectedPlanId === plan.id;
               const isCurrentPaidPlan =
@@ -821,7 +975,7 @@ const Dashboard = () => {
                   }`}
                 >
                   <CardHeader className="space-y-4">
-                    <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-start justify-between gap-3">
                       <Badge variant={plan.id === "demo" ? "secondary" : plan.id === "pro" ? "default" : "outline"}>
                         {plan.id === "demo" ? "Demo" : plan.id === "pro" ? "Mais valor" : "30 dias"}
                       </Badge>
@@ -902,167 +1056,36 @@ const Dashboard = () => {
           </div>
         </div>
 
-        <Dialog open={checkoutDialogOpen} onOpenChange={setCheckoutDialogOpen}>
-          <DialogContent className={planCheckout?.paymentMethod === "pix" ? "max-w-2xl" : "max-w-xl"}>
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2">
-                {planCheckout?.paymentMethod === "card" ? <CreditCard className="h-5 w-5" /> : <QrCode className="h-5 w-5" />}
-                Pagamento da assinatura
-              </DialogTitle>
-            </DialogHeader>
+        {isMobile ? (
+          <Drawer open={checkoutDialogOpen} onOpenChange={setCheckoutDialogOpen}>
+            <DrawerContent>
+              <DrawerHeader className="border-b border-border px-4 pb-4 pt-2 text-left">
+                <DrawerTitle className="flex items-center gap-2 pr-8">
+                  {planCheckout?.paymentMethod === "card" ? <CreditCard className="h-5 w-5" /> : <QrCode className="h-5 w-5" />}
+                  Pagamento da assinatura
+                </DrawerTitle>
+              </DrawerHeader>
+              <div className="overflow-y-auto px-4 pb-6 pt-3">
+                {checkoutContent}
+              </div>
+            </DrawerContent>
+          </Drawer>
+        ) : (
+          <Dialog open={checkoutDialogOpen} onOpenChange={setCheckoutDialogOpen}>
+            <DialogContent className={`${planCheckout?.paymentMethod === "pix" ? "sm:max-w-2xl" : "sm:max-w-xl"} overflow-hidden p-0`}>
+              <DialogHeader className="border-b border-border px-6 pb-4 pt-6">
+                <DialogTitle className="flex items-center gap-2 pr-8">
+                  {planCheckout?.paymentMethod === "card" ? <CreditCard className="h-5 w-5" /> : <QrCode className="h-5 w-5" />}
+                  Pagamento da assinatura
+                </DialogTitle>
+              </DialogHeader>
 
-            {planCheckout && (
-              planCheckout.paymentMethod === "pix" ? (
-                planCheckout.qrCodeBase64 && planCheckout.copyPasteCode ? (
-                  <div className="space-y-4">
-                    <div className="grid gap-4 md:grid-cols-[240px_minmax(0,1fr)] md:items-start">
-                      <div className="flex justify-center">
-                        <div className="space-y-3 rounded-3xl border border-border bg-white p-3 shadow-sm">
-                          <img
-                            src={`data:image/png;base64,${planCheckout.qrCodeBase64}`}
-                            alt="QR Code Pix do plano"
-                            className="h-44 w-44 rounded-2xl object-contain sm:h-48 sm:w-48"
-                          />
-                          <p className="text-center text-xs font-medium uppercase tracking-[0.18em] text-slate-600">
-                            Escaneie no banco
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="space-y-4">
-                        <div className="rounded-2xl border border-primary/20 bg-primary/5 p-4">
-                          <p className="text-sm font-semibold">
-                            {publicPlanContent[planCheckout.planId].name}
-                          </p>
-                          <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                            <div>
-                              <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Valor</p>
-                              <p className="mt-1 font-semibold">{formatCurrency(planCheckout.value)}</p>
-                            </div>
-                            <div>
-                              <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Forma</p>
-                              <p className="mt-1 font-semibold">{getPaymentMethodLabel(planCheckout.paymentMethod)}</p>
-                            </div>
-                            <div>
-                              <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Vencimento</p>
-                              <p className="mt-1 font-semibold">{formatDateTime(planCheckout.dueDate)}</p>
-                            </div>
-                            <div>
-                              <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Status</p>
-                              <p className="mt-1 font-semibold">{planCheckout.paymentStatus}</p>
-                            </div>
-                          </div>
-                          <p className="mt-3 text-sm text-muted-foreground">
-                            Depois do pagamento, o plano ativa automaticamente e o painel atualiza sozinho.
-                          </p>
-                        </div>
-
-                        <div className="space-y-2">
-                          <p className="text-sm font-medium">Codigo Pix copia e cola</p>
-                          <Textarea
-                            value={planCheckout.copyPasteCode}
-                            readOnly
-                            className="min-h-[104px] resize-none bg-muted/30 font-mono text-xs"
-                          />
-                          <div className="flex flex-col gap-2 sm:flex-row">
-                            <Button className="h-11 flex-1 font-semibold" onClick={handleCopyPixCode}>
-                              <Copy className="mr-2 h-4 w-4" />
-                              Copiar codigo Pix
-                            </Button>
-                            {planCheckout.invoiceUrl && (
-                              <Button asChild variant="outline" className="h-11 flex-1 font-semibold">
-                                <a href={planCheckout.invoiceUrl} target="_blank" rel="noreferrer">
-                                  Abrir fatura
-                                </a>
-                              </Button>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    <Alert className="border-secondary/40 bg-secondary/10">
-                      <Clock3 className="h-4 w-4" />
-                      <AlertTitle>Pagamento monitorado automaticamente</AlertTitle>
-                      <AlertDescription>
-                        Enquanto este modal estiver aberto, a conta sera atualizada periodicamente para liberar o plano assim que o pagamento for confirmado.
-                      </AlertDescription>
-                    </Alert>
-                  </div>
-                ) : (
-                  <Alert variant="destructive">
-                    <AlertTitle>QR Code indisponivel</AlertTitle>
-                    <AlertDescription>
-                      O Asaas nao devolveu os dados do Pix. Gere a cobranca novamente em alguns instantes.
-                    </AlertDescription>
-                  </Alert>
-                )
-              ) : (
-                <div className="space-y-5">
-                  <div className="rounded-2xl border border-primary/20 bg-primary/5 p-4">
-                    <p className="text-sm font-semibold">
-                      {publicPlanContent[planCheckout.planId].name}
-                    </p>
-                    <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                      <div>
-                        <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Valor</p>
-                        <p className="mt-1 font-semibold">{formatCurrency(planCheckout.value)}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Forma</p>
-                        <p className="mt-1 font-semibold">{getPaymentMethodLabel(planCheckout.paymentMethod)}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Vencimento</p>
-                        <p className="mt-1 font-semibold">{formatDateTime(planCheckout.dueDate)}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Status</p>
-                        <p className="mt-1 font-semibold">{planCheckout.paymentStatus}</p>
-                      </div>
-                    </div>
-                    <p className="mt-3 text-sm text-muted-foreground">
-                      Abra a fatura do Asaas para concluir no debito ou credito. Depois da confirmacao, o plano ativa automaticamente.
-                    </p>
-                  </div>
-
-                  <div className="space-y-4 rounded-2xl border border-border bg-background/70 p-4">
-                    <div className="space-y-2">
-                      <p className="text-sm font-semibold">Fatura hospedada do Asaas</p>
-                      <p className="text-sm text-muted-foreground">
-                        A fatura abre em ambiente seguro do Asaas e permite concluir a cobranca no credito ou no debito.
-                      </p>
-                    </div>
-
-                    {planCheckout.invoiceUrl ? (
-                      <Button asChild className="h-11 w-full font-semibold">
-                        <a href={planCheckout.invoiceUrl} target="_blank" rel="noreferrer">
-                          <ExternalLink className="mr-2 h-4 w-4" />
-                          Abrir fatura do cartao
-                        </a>
-                      </Button>
-                    ) : (
-                      <Alert variant="destructive">
-                        <AlertTitle>Fatura indisponivel</AlertTitle>
-                        <AlertDescription>
-                          O Asaas nao devolveu a URL da fatura. Gere a cobranca novamente em alguns instantes.
-                        </AlertDescription>
-                      </Alert>
-                    )}
-                  </div>
-
-                  <Alert className="border-secondary/40 bg-secondary/10">
-                    <Clock3 className="h-4 w-4" />
-                    <AlertTitle>Pagamento monitorado automaticamente</AlertTitle>
-                    <AlertDescription>
-                      Enquanto este modal estiver aberto, a conta sera atualizada periodicamente para liberar o plano assim que o pagamento for confirmado.
-                    </AlertDescription>
-                  </Alert>
-                </div>
-              )
-            )}
-          </DialogContent>
-        </Dialog>
+              <div className="max-h-[calc(100svh-12rem)] overflow-y-auto px-6 pb-6 pt-3">
+                {checkoutContent}
+              </div>
+            </DialogContent>
+          </Dialog>
+        )}
       </div>
     </div>
   );
