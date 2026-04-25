@@ -160,6 +160,7 @@ type DeleteAccountResponse = {
 
 const SITE_SESSION_EXPIRED_MESSAGE = "Sua sessao expirou. Entre novamente para continuar.";
 const DELETE_ACCOUNT_CONFIRM_TEXT = "APAGAR";
+const SYSTEM_APP_URL = "https://happycash.vercel.app/";
 const SITE_REGISTRATION_FUNCTION_MISSING_MESSAGE =
   "A funcao finalize-site-registration nao esta publicada ou acessivel neste projeto do Supabase. Publique a function para abrir o dashboard.";
 const SITE_REGISTRATION_FETCH_MESSAGE =
@@ -829,6 +830,12 @@ const Dashboard = () => {
           </div>
 
           <div className="flex flex-wrap gap-3">
+            <Button asChild className="gap-2">
+              <a href={SYSTEM_APP_URL} target="_blank" rel="noreferrer">
+                <ExternalLink className="h-4 w-4" />
+                Abrir sistema HappyCash
+              </a>
+            </Button>
             <Button asChild variant="outline" className="gap-2">
               <Link to="/">
                 <ArrowLeft className="h-4 w-4" />
@@ -1028,6 +1035,12 @@ const Dashboard = () => {
               </div>
 
               <div className="grid gap-3">
+                <Button asChild className="h-12 text-base font-semibold">
+                  <a href={SYSTEM_APP_URL} target="_blank" rel="noreferrer">
+                    <ExternalLink className="mr-2 h-4 w-4" />
+                    Abrir sistema HappyCash
+                  </a>
+                </Button>
                 <Button asChild className="h-12 text-base font-semibold">
                   <a href="/#planos">Ver planos no site</a>
                 </Button>

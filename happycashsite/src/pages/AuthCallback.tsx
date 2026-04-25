@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
-import { ArrowLeft, Loader2, PlayCircle } from "lucide-react";
+import { Link, useNavigate } from "react-router-dom";
+import { ArrowLeft, ExternalLink, Loader2 } from "lucide-react";
 
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -8,7 +8,7 @@ import logo from "@/assets/logo-happycash.png";
 
 const AuthCallback = () => {
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
-  const demoHref = "/dashboard?plan=demo";
+  const navigate = useNavigate();
 
   useEffect(() => {
     const finishAuth = async () => {
@@ -28,12 +28,19 @@ const AuthCallback = () => {
         }
       }
 
-      window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}`);
+      const nextSearch = window.location.search || "?plan=demo";
+      window.history.replaceState(null, "", `${window.location.pathname}${nextSearch}`);
+
+      if (accessToken && refreshToken) {
+        navigate(`/dashboard${nextSearch}`, { replace: true });
+        return;
+      }
+
       setStatus("ready");
     };
 
     void finishAuth();
-  }, []);
+  }, [navigate]);
 
   return (
     <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4">
@@ -57,7 +64,7 @@ const AuthCallback = () => {
                 </h1>
                 <p className="text-sm text-muted-foreground">
                   {status === "ready"
-                    ? "Sua conta esta pronta. Escolha como deseja continuar."
+                    ? "Sua conta esta pronta. Se o redirecionamento automatico nao acontecer, escolha como deseja continuar."
                     : "Nao foi possivel iniciar a sessao automaticamente, mas voce ainda pode voltar ao site ou acessar a demo."}
                 </p>
               </div>
@@ -70,9 +77,9 @@ const AuthCallback = () => {
                   </Link>
                 </Button>
                 <Button asChild className="h-12 bg-primary text-primary-foreground font-semibold">
-                  <Link to={demoHref}>
-                    <PlayCircle size={18} className="mr-2" />
-                    Testar demo de 3 horas
+                  <Link to={`/dashboard${window.location.search || "?plan=demo"}`}>
+                    <ExternalLink size={18} className="mr-2" />
+                    Abrir central da conta
                   </Link>
                 </Button>
               </div>
