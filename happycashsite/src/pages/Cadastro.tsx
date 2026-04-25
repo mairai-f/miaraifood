@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import { isPublicPlanId, publicPlanContent } from "@/lib/subscriptionPlans";
 import logo from "@/assets/logo-happycash.png";
-import { Eye, EyeOff, Loader2, UserPlus } from "lucide-react";
+import { Eye, EyeOff, Loader2, PlayCircle, UserPlus } from "lucide-react";
 import { getPasswordPolicyError, passwordPolicyHint } from "../../../shared/security/passwordPolicy";
 
 interface RegisterAccountResponse {
@@ -40,6 +40,8 @@ const Cadastro = () => {
     return isPublicPlanId(value) ? value : null;
   })();
   const selectedPlan = selectedPlanId ? publicPlanContent[selectedPlanId] : null;
+  const demoDashboardPath = "/dashboard?plan=demo";
+  const emailConfirmPath = `/auth/callback?plan=${selectedPlanId || "demo"}`;
 
   // Step 1 - Account
   const [email, setEmail] = useState("");
@@ -121,7 +123,7 @@ const Cadastro = () => {
           bairro,
           cidade,
           estado,
-          redirectTo: `${window.location.origin}/dashboard${selectedPlanId ? `?plan=${selectedPlanId}` : ""}`,
+          redirectTo: `${window.location.origin}${emailConfirmPath}`,
           website,
         },
       });
@@ -171,13 +173,22 @@ const Cadastro = () => {
                 O plano <span className="font-medium text-foreground">{selectedPlan.name}</span> continuara selecionado quando voce entrar no painel.
               </p>
             )}
-            <div className="flex gap-3 pt-2">
+            <div className="grid gap-3 pt-2 sm:grid-cols-2">
               <Button type="button" variant="outline" className="flex-1 h-12" onClick={() => setConfirmationEmail(null)}>
                 Voltar
               </Button>
               <Button
                 type="button"
                 className="flex-1 h-12 bg-primary text-primary-foreground font-semibold text-base"
+                onClick={() => navigate(demoDashboardPath)}
+              >
+                <PlayCircle size={18} className="mr-2" />
+                Abrir demo do sistema
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                className="h-11 sm:col-span-2"
                 onClick={() => navigate(selectedPlanId ? `/login?plan=${selectedPlanId}` : "/login")}
               >
                 Ir para o login

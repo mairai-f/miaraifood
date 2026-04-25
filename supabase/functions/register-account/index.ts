@@ -43,7 +43,7 @@ const registrationCorsOptions = {
 
 const MAX_IP_ATTEMPTS_PER_15_MIN = 5;
 const MAX_EMAIL_ATTEMPTS_PER_HOUR = 3;
-const DEFAULT_CONFIRM_REDIRECT = "https://happycashsite.vercel.app/dashboard";
+const DEFAULT_CONFIRM_REDIRECT = "https://happycashsite.vercel.app/auth/callback?plan=demo";
 
 const jsonResponse = (request: Request, body: RegisterAccountResponse, status = 200) =>
   new Response(JSON.stringify(body), {
