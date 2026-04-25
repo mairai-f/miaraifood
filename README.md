@@ -128,7 +128,14 @@ git tag v0.1.1
 git push origin v0.1.1
 ```
 
-O workflow `Desktop Release` agora valida versão, roda `lint`, `test` e `build:all` antes de publicar os assets de Windows e Linux.
+Também é possível publicar manualmente pelo GitHub:
+
+1. Abra `Actions` no repositório.
+2. Selecione `Desktop Release`.
+3. Clique em `Run workflow`.
+4. Deixe a versão vazia para usar a versão do `package.json`, ou informe a mesma versão sem o `v`.
+
+O workflow `Desktop Release` valida versão, roda `lint`, `test` e `build:all` antes de publicar os assets de Windows e Linux.
 
 __________________________________________________________________________________
 📱 Versão Mobile (Expo) :

@@ -4,6 +4,12 @@ on:
   push:
     tags:
       - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Versao para publicar. Deixe vazio para usar a versao do package.json.'
+        required: false
+        type: string
 
 permissions:
   contents: write
@@ -30,12 +36,20 @@ jobs:
         run: npm ci
 
       - name: Validate tag matches package version
+        env:
+          REQUESTED_VERSION: ${{ github.event_name == 'workflow_dispatch' && inputs.version || github.ref_name }}
         run: |
           PACKAGE_VERSION=$(node -p "require('./package.json').version")
-          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          RELEASE_VERSION="${REQUESTED_VERSION#v}"
 
-          if [ "$PACKAGE_VERSION" != "$TAG_VERSION" ]; then
-            echo "package.json version ($PACKAGE_VERSION) precisa bater com a tag (${GITHUB_REF_NAME})."
+          if [ -z "$RELEASE_VERSION" ]; then
+            RELEASE_VERSION="$PACKAGE_VERSION"
+          elif [ "$GITHUB_REF_TYPE" = "branch" ] && [ "$RELEASE_VERSION" = "$GITHUB_REF_NAME" ]; then
+            RELEASE_VERSION="$PACKAGE_VERSION"
+          fi
+
+          if [ "$PACKAGE_VERSION" != "$RELEASE_VERSION" ]; then
+            echo "package.json version ($PACKAGE_VERSION) precisa bater com a versao solicitada (${RELEASE_VERSION})."
             exit 1
           fi
 
