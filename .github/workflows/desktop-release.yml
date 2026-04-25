@@ -81,7 +81,7 @@ jobs:
 
       - name: Publish Linux AppImage
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.DESKTOP_RELEASE_GH_TOKEN || secrets.GITHUB_TOKEN }}
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
         run: npm run electron:publish:linux
 
@@ -104,7 +104,7 @@ jobs:
 
       - name: Publish Windows installer
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.DESKTOP_RELEASE_GH_TOKEN || secrets.GITHUB_TOKEN }}
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
           CSC_LINK: ${{ secrets.WINDOWS_CSC_LINK }}
           CSC_KEY_PASSWORD: ${{ secrets.WINDOWS_CSC_KEY_PASSWORD }}

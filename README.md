@@ -96,7 +96,7 @@ Secrets opcionais para liberar download via GitHub Release no plano PRO:
 ```bash
 supabase secrets set DESKTOP_RELEASE_PROVIDER="github"
 supabase secrets set GITHUB_DESKTOP_RELEASE_OWNER="celioantonio7"
-supabase secrets set GITHUB_DESKTOP_RELEASE_REPO="HappyCash"
+supabase secrets set GITHUB_DESKTOP_RELEASE_REPO="HappyCash-Releases"
 supabase secrets set GITHUB_DESKTOP_RELEASE_CHANNEL="latest"
 ```
 

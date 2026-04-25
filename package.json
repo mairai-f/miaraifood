@@ -141,7 +141,7 @@
       {
         "provider": "github",
         "owner": "celioantonio7",
-        "repo": "HappyCash",
+        "repo": "HappyCash-Releases",
         "channel": "latest",
         "releaseType": "release"
       }
