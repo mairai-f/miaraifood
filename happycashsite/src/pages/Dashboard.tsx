@@ -15,6 +15,7 @@ import {
   QrCode,
   ShieldCheck,
   Sparkles,
+  Trash2,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { clearSiteLocalSession, enforceSiteSessionPreference } from "@/lib/authSessionPreferences";
@@ -25,10 +26,12 @@ import { publicPlanContent, publicPlanList, isPaidPlanId, isPublicPlanId, type P
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from "@/components/ui/drawer";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useToast } from "@/hooks/use-toast";
 import logo from "@/assets/logo-happycash.png";
@@ -150,7 +153,13 @@ type FinalizeSiteRegistrationResponse = {
   error?: string;
 };
 
+type DeleteAccountResponse = {
+  success?: boolean;
+  error?: string;
+};
+
 const SITE_SESSION_EXPIRED_MESSAGE = "Sua sessao expirou. Entre novamente para continuar.";
+const DELETE_ACCOUNT_CONFIRM_TEXT = "APAGAR";
 const SITE_REGISTRATION_FUNCTION_MISSING_MESSAGE =
   "A funcao finalize-site-registration nao esta publicada ou acessivel neste projeto do Supabase. Publique a function para abrir o dashboard.";
 const SITE_REGISTRATION_FETCH_MESSAGE =
@@ -198,6 +207,12 @@ const Dashboard = () => {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [checkoutDialogOpen, setCheckoutDialogOpen] = useState(false);
   const [planCheckout, setPlanCheckout] = useState<PlanCheckoutState | null>(null);
+  const [deleteAccountDialogOpen, setDeleteAccountDialogOpen] = useState(false);
+  const [deleteAccountEmail, setDeleteAccountEmail] = useState("");
+  const [deleteAccountPassword, setDeleteAccountPassword] = useState("");
+  const [deleteAccountConfirmation, setDeleteAccountConfirmation] = useState("");
+  const [deleteAccountError, setDeleteAccountError] = useState("");
+  const [deletingAccount, setDeletingAccount] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
   const isMobile = useIsMobile();
@@ -408,6 +423,100 @@ const Dashboard = () => {
       navigate(`/login${querySuffix}`, { replace: true });
     } finally {
       setLoggingOut(false);
+    }
+  };
+
+  const handleDeleteAccountDialogOpenChange = (open: boolean) => {
+    setDeleteAccountDialogOpen(open);
+
+    if (open) {
+      setDeleteAccountEmail((user?.email || storeAccount?.email || "").trim());
+      setDeleteAccountPassword("");
+      setDeleteAccountConfirmation("");
+      setDeleteAccountError("");
+    } else {
+      setDeleteAccountEmail("");
+      setDeleteAccountPassword("");
+      setDeleteAccountConfirmation("");
+      setDeleteAccountError("");
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    if (deletingAccount) return;
+
+    if (!deleteAccountEmail.trim() || !deleteAccountPassword.trim()) {
+      setDeleteAccountError("Informe email e senha da sua conta.");
+      return;
+    }
+
+    if (deleteAccountConfirmation.trim().toUpperCase() !== DELETE_ACCOUNT_CONFIRM_TEXT) {
+      setDeleteAccountError("Digite APAGAR para confirmar a exclusao da conta.");
+      return;
+    }
+
+    setDeletingAccount(true);
+    setDeleteAccountError("");
+
+    try {
+      const session = await getFreshSiteSession();
+
+      if (!session?.access_token) {
+        await clearInvalidSiteSession();
+        navigate(`/login${querySuffix}`, { replace: true });
+        return;
+      }
+
+      const { data, error } = await supabase.functions.invoke<DeleteAccountResponse>("manage-operators", {
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: {
+          action: "delete_account",
+          adminEmail: deleteAccountEmail.trim(),
+          adminPassword: deleteAccountPassword.trim(),
+        },
+      });
+
+      if (error || !data?.success) {
+        let functionErrorMessage = data?.error || "Nao foi possivel apagar sua conta.";
+
+        if (error instanceof FunctionsHttpError) {
+          try {
+            const errorPayload = await error.context.clone().json() as { error?: string; message?: string };
+            functionErrorMessage = errorPayload.error || errorPayload.message || functionErrorMessage;
+          } catch {
+            functionErrorMessage = error.context.status === 401
+              ? SITE_SESSION_EXPIRED_MESSAGE
+              : functionErrorMessage;
+          }
+        } else if (error instanceof FunctionsFetchError) {
+          functionErrorMessage = "Nao foi possivel conectar ao servico de exclusao da conta.";
+        } else if (error instanceof FunctionsRelayError) {
+          functionErrorMessage = "Nao foi possivel encaminhar a solicitacao de exclusao da conta.";
+        } else if (error instanceof Error && error.message.trim()) {
+          functionErrorMessage = error.message;
+        }
+
+        throw new Error(functionErrorMessage);
+      }
+
+      toast({
+        title: "Cadastro apagado",
+        description: "Sua conta HappyCash foi removida com sucesso.",
+      });
+      await clearInvalidSiteSession();
+      navigate("/", { replace: true });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Nao foi possivel apagar sua conta agora.";
+      setDeleteAccountError(message);
+      toast({
+        title: "Erro ao apagar cadastro",
+        description: message,
+        variant: "destructive",
+      });
+    } finally {
+      setDeletingAccount(false);
     }
   };
 
@@ -937,6 +1046,24 @@ const Dashboard = () => {
           </Card>
         </div>
 
+        <Card className="rounded-3xl border-destructive/30 bg-destructive/5">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-xl text-destructive">
+              <Trash2 className="h-5 w-5" />
+              Zona de risco
+            </CardTitle>
+            <CardDescription>
+              Apague seu cadastro do site e os dados vinculados a esta conta HappyCash.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button variant="destructive" className="gap-2" onClick={() => handleDeleteAccountDialogOpenChange(true)}>
+              <Trash2 className="h-4 w-4" />
+              Apagar meu cadastro
+            </Button>
+          </CardContent>
+        </Card>
+
         <div className="space-y-4">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
             <div>
@@ -1086,6 +1213,86 @@ const Dashboard = () => {
             </DialogContent>
           </Dialog>
         )}
+
+        <Dialog open={deleteAccountDialogOpen} onOpenChange={handleDeleteAccountDialogOpenChange}>
+          <DialogContent className="sm:max-w-lg">
+            <DialogHeader>
+              <DialogTitle>Apagar meu cadastro</DialogTitle>
+            </DialogHeader>
+
+            <div className="space-y-4">
+              <Alert variant="destructive">
+                <Trash2 className="h-4 w-4" />
+                <AlertTitle>Acao irreversivel</AlertTitle>
+                <AlertDescription>
+                  Seu cadastro, operadores e dados da loja vinculados a esta conta serao apagados. Confirme com o email e a senha da conta logada.
+                </AlertDescription>
+              </Alert>
+
+              <div className="space-y-2">
+                <Label htmlFor="delete-account-email">Email da conta</Label>
+                <Input
+                  id="delete-account-email"
+                  type="email"
+                  value={deleteAccountEmail}
+                  onChange={event => setDeleteAccountEmail(event.target.value)}
+                  autoComplete="username"
+                  placeholder="seu@email.com"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="delete-account-password">Senha da conta</Label>
+                <Input
+                  id="delete-account-password"
+                  type="password"
+                  value={deleteAccountPassword}
+                  onChange={event => setDeleteAccountPassword(event.target.value)}
+                  autoComplete="current-password"
+                  placeholder="Digite sua senha"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="delete-account-confirmation">Confirmacao final</Label>
+                <Input
+                  id="delete-account-confirmation"
+                  value={deleteAccountConfirmation}
+                  onChange={event => setDeleteAccountConfirmation(event.target.value)}
+                  placeholder='Digite "APAGAR" para confirmar'
+                />
+              </div>
+
+              {deleteAccountError && (
+                <p className="text-sm font-medium text-destructive">{deleteAccountError}</p>
+              )}
+            </div>
+
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => handleDeleteAccountDialogOpenChange(false)}
+                disabled={deletingAccount}
+              >
+                Cancelar
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={() => void handleDeleteAccount()}
+                disabled={deletingAccount}
+              >
+                {deletingAccount ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Apagando...
+                  </>
+                ) : (
+                  "Confirmar e apagar"
+                )}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );
