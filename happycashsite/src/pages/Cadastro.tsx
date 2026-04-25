@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { FunctionsHttpError } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -28,6 +29,21 @@ const estados = [
   "AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS","MG","PA",
   "PB","PR","PE","PI","RJ","RN","RS","RO","RR","SC","SP","SE","TO",
 ];
+
+const resolveFunctionErrorMessage = async (error: unknown, fallbackMessage: string) => {
+  if (error instanceof FunctionsHttpError) {
+    try {
+      const errorPayload = await error.context.clone().json() as { error?: string; message?: string };
+      return errorPayload.error || errorPayload.message || fallbackMessage;
+    } catch {
+      return error.context.status === 404
+        ? "A funcao de cadastro nao esta publicada neste projeto do Supabase."
+        : fallbackMessage;
+    }
+  }
+
+  return error instanceof Error && error.message.trim() ? error.message : fallbackMessage;
+};
 
 const Cadastro = () => {
   const [step, setStep] = useState(1);
@@ -129,7 +145,7 @@ const Cadastro = () => {
       });
 
       if (error || !data?.success) {
-        throw new Error(data?.error || error?.message || "Nao foi possivel criar sua conta.");
+        throw new Error(data?.error || await resolveFunctionErrorMessage(error, "Nao foi possivel criar sua conta."));
       }
 
       toast({

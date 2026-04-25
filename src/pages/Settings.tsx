@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Clock3, Settings as SettingsIcon, ShieldAlert } from 'lucide-react';
+import { Clock3, Settings as SettingsIcon, ShieldAlert, Trash2 } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import { CompanyProfileCard } from '@/components/CompanyProfileCard';
 import { OperatorManagementPanel } from '@/components/OperatorManagementPanel';
@@ -37,6 +37,7 @@ import { toast } from 'sonner';
 
 const CREATE_OPERATOR_MODAL = 'cadastrar-operador';
 const RESET_CONFIRM_TEXT = 'ZERAR';
+const DELETE_ACCOUNT_CONFIRM_TEXT = 'APAGAR';
 type ResetTarget = 'financial' | 'reports';
 
 interface ResetActionResponse {
@@ -59,7 +60,7 @@ const planLabels: Record<string, string> = {
 };
 
 export default function Settings() {
-  const { session, ownerUserId } = useAuth();
+  const { session, ownerUserId, user, profileEmail, isAdmin, logout } = useAuth();
   const { isDesktop, offlineEnabled, validUntil: desktopValidUntil, refresh: refreshDesktopLicense } = useDesktopRuntime();
   const { refetch } = useData();
   const { subscription, countdown, statusLabel, loading: loadingSubscription } = useCurrentSubscription();
@@ -72,6 +73,12 @@ export default function Settings() {
   const [confirmationText, setConfirmationText] = useState('');
   const [resetError, setResetError] = useState('');
   const [resettingData, setResettingData] = useState(false);
+  const [deleteAccountDialogOpen, setDeleteAccountDialogOpen] = useState(false);
+  const [deleteAccountEmail, setDeleteAccountEmail] = useState('');
+  const [deleteAccountPassword, setDeleteAccountPassword] = useState('');
+  const [deleteAccountConfirmationText, setDeleteAccountConfirmationText] = useState('');
+  const [deleteAccountError, setDeleteAccountError] = useState('');
+  const [deletingAccount, setDeletingAccount] = useState(false);
   const [offlineRuntime, setOfflineRuntime] = useState<Awaited<ReturnType<typeof getOfflineStatus>> | null>(null);
   const [offlineConflictCount, setOfflineConflictCount] = useState(0);
   const [offlineConflicts, setOfflineConflicts] = useState<OfflineConflictRecord[]>([]);
@@ -179,6 +186,26 @@ export default function Settings() {
     }
   }, [resetResetDialogState]);
 
+  const resetDeleteAccountDialogState = useCallback(() => {
+    setDeleteAccountEmail('');
+    setDeleteAccountPassword('');
+    setDeleteAccountConfirmationText('');
+    setDeleteAccountError('');
+  }, []);
+
+  const handleDeleteAccountDialogOpenChange = useCallback((open: boolean) => {
+    setDeleteAccountDialogOpen(open);
+
+    if (open) {
+      setDeleteAccountEmail((profileEmail || user?.email || '').trim());
+      setDeleteAccountPassword('');
+      setDeleteAccountConfirmationText('');
+      setDeleteAccountError('');
+    } else {
+      resetDeleteAccountDialogState();
+    }
+  }, [profileEmail, resetDeleteAccountDialogState, user?.email]);
+
   const handleResetFinancialAndReports = async () => {
     if (!resetTarget) {
       setResetError('Selecione o tipo de limpeza que deseja executar.');
@@ -254,6 +281,61 @@ export default function Settings() {
     setResetError('');
     setResetDialogOpen(true);
   }, []);
+
+  const handleDeleteAccount = async () => {
+    if (!session?.access_token) {
+      setDeleteAccountError('Sua sessão expirou. Faça login novamente.');
+      return;
+    }
+
+    if (!isAdmin) {
+      setDeleteAccountError('Somente uma conta administradora cadastrada pode apagar a própria conta.');
+      return;
+    }
+
+    if (!deleteAccountEmail.trim() || !deleteAccountPassword.trim()) {
+      setDeleteAccountError('Informe email e senha da sua conta.');
+      return;
+    }
+
+    if (deleteAccountConfirmationText.trim().toUpperCase() !== DELETE_ACCOUNT_CONFIRM_TEXT) {
+      setDeleteAccountError('Digite APAGAR para confirmar a exclusão da conta.');
+      return;
+    }
+
+    setDeleteAccountError('');
+    setDeletingAccount(true);
+
+    try {
+      const { data, error } = await supabase.functions.invoke<ResetActionResponse>('manage-operators', {
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: {
+          action: 'delete_account',
+          adminEmail: deleteAccountEmail.trim(),
+          adminPassword: deleteAccountPassword.trim(),
+        },
+      });
+
+      if (error || !data?.success) {
+        const message = await resolveFunctionErrorMessage(error, 'Não foi possível apagar sua conta.', data);
+        setDeleteAccountError(message);
+        toast.error(message);
+        return;
+      }
+
+      toast.success('Conta apagada com sucesso.');
+      handleDeleteAccountDialogOpenChange(false);
+      await logout();
+    } catch {
+      const fallbackMessage = 'Não foi possível apagar sua conta agora. Tente novamente.';
+      setDeleteAccountError(fallbackMessage);
+      toast.error(fallbackMessage);
+    } finally {
+      setDeletingAccount(false);
+    }
+  };
 
   const handleResolveOfflineConflict = useCallback(async (conflictId: string) => {
     try {
@@ -500,7 +582,7 @@ export default function Settings() {
         </CardHeader>
         <CardContent className="space-y-3">
           <p className="text-sm text-muted-foreground">
-            Os clientes, produtos e operadores continuam cadastrados.
+            Ao zerar financeiro ou relatórios, clientes, produtos e operadores continuam cadastrados. Ao apagar sua conta, os dados vinculados a ela serão removidos.
           </p>
 
           <Dialog open={resetDialogOpen} onOpenChange={handleResetDialogOpenChange}>
@@ -579,6 +661,79 @@ export default function Settings() {
               </DialogFooter>
             </DialogContent>
           </Dialog>
+
+          {isAdmin && (
+            <Dialog open={deleteAccountDialogOpen} onOpenChange={handleDeleteAccountDialogOpenChange}>
+              <DialogTrigger asChild>
+                <Button variant="destructive" className="gap-2">
+                  <Trash2 className="h-4 w-4" />
+                  Apagar minha conta
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Apagar minha conta</DialogTitle>
+                </DialogHeader>
+
+                <div className="space-y-3">
+                  <div className="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
+                    Ação irreversível: sua conta cadastrada, operadores e dados da loja vinculados a ela serão apagados. Para continuar, confirme com email e senha da conta logada.
+                  </div>
+
+                  <div className="space-y-1">
+                    <Label>Email da conta</Label>
+                    <Input
+                      type="email"
+                      value={deleteAccountEmail}
+                      onChange={event => setDeleteAccountEmail(event.target.value)}
+                      placeholder="seu@email.com"
+                      autoComplete="username"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <Label>Senha da conta</Label>
+                    <PasswordInput
+                      value={deleteAccountPassword}
+                      onChange={event => setDeleteAccountPassword(event.target.value)}
+                      placeholder="Digite sua senha"
+                      autoComplete="current-password"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <Label>Confirmação final</Label>
+                    <Input
+                      value={deleteAccountConfirmationText}
+                      onChange={event => setDeleteAccountConfirmationText(event.target.value)}
+                      placeholder='Digite "APAGAR" para confirmar'
+                    />
+                  </div>
+
+                  {deleteAccountError && (
+                    <p className="text-sm font-medium text-destructive">{deleteAccountError}</p>
+                  )}
+                </div>
+
+                <DialogFooter>
+                  <Button
+                    variant="outline"
+                    onClick={() => handleDeleteAccountDialogOpenChange(false)}
+                    disabled={deletingAccount}
+                  >
+                    Cancelar
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    onClick={() => void handleDeleteAccount()}
+                    disabled={deletingAccount}
+                  >
+                    {deletingAccount ? 'Apagando...' : 'Confirmar e apagar'}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          )}
         </CardContent>
       </Card>
     </div>

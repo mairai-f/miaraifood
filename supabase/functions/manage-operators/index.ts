@@ -32,6 +32,11 @@ type ManageOperatorRequest =
       action: 'reset_financial' | 'reset_reports' | 'reset_financial_reports';
       adminEmail?: string;
       adminPassword?: string;
+    }
+  | {
+      action: 'delete_account';
+      adminEmail?: string;
+      adminPassword?: string;
     };
 
 interface OperatorLookupRow {
@@ -132,19 +137,21 @@ Deno.serve(async (request) => {
     return jsonResponse(request, { error: 'Somente administradores podem gerenciar operadores.' }, 403);
   }
 
-  const { data: hasSettingsAccess, error: accessError } = await authClient.rpc('current_store_has_feature', {
-    target_feature: 'settings.manage',
-  });
-
-  if (accessError || !hasSettingsAccess) {
-    return jsonResponse(request, { error: 'Seu plano atual nao libera configuracoes da loja.' }, 403);
-  }
-
   const ownerUserId = callerProfile.owner_user_id ?? user.id;
   const body = await getBody(request);
 
   if (!body?.action) {
     return jsonResponse(request, { error: 'Ação inválida.' }, 400);
+  }
+
+  if (body.action !== 'delete_account') {
+    const { data: hasSettingsAccess, error: accessError } = await authClient.rpc('current_store_has_feature', {
+      target_feature: 'settings.manage',
+    });
+
+    if (accessError || !hasSettingsAccess) {
+      return jsonResponse(request, { error: 'Seu plano atual nao libera configuracoes da loja.' }, 403);
+    }
   }
 
   if (body.action === 'create') {
@@ -401,6 +408,86 @@ Deno.serve(async (request) => {
         user_id: targetProfile.user_id,
         username: targetProfile.username,
       },
+    });
+  }
+
+  if (body.action === 'delete_account') {
+    const adminEmail = normalizeEmail(body.adminEmail ?? '');
+    const adminPassword = body.adminPassword?.trim() ?? '';
+
+    if (!adminEmail) {
+      return jsonResponse(request, { error: 'Informe o email da sua conta.' }, 400);
+    }
+
+    if (!adminPassword) {
+      return jsonResponse(request, { error: 'Informe a senha da sua conta.' }, 400);
+    }
+
+    const verificationClient = createClient(supabaseUrl, supabaseAnonKey, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+      },
+    });
+
+    const { data: verificationSession, error: verificationError } = await verificationClient.auth.signInWithPassword({
+      email: adminEmail,
+      password: adminPassword,
+    });
+
+    if (verificationError || !verificationSession.user) {
+      return jsonResponse(request, { error: 'Email ou senha inválidos.' }, 401);
+    }
+
+    if (verificationSession.user.id !== user.id) {
+      return jsonResponse(request, { error: 'Você só pode apagar a própria conta logada.' }, 403);
+    }
+
+    const { data: verificationProfile, error: verificationProfileError } = await serviceClient
+      .from('profiles')
+      .select('user_id, role, owner_user_id')
+      .eq('user_id', verificationSession.user.id)
+      .single();
+
+    if (verificationProfileError || !verificationProfile) {
+      return jsonResponse(request, { error: 'Cadastro da conta não encontrado.' }, 403);
+    }
+
+    if (verificationProfile.role !== 'admin') {
+      return jsonResponse(request, { error: 'Somente a conta administradora cadastrada pode apagar a própria conta.' }, 403);
+    }
+
+    const verifiedOwnerUserId = verificationProfile.owner_user_id ?? verificationProfile.user_id;
+    if (verifiedOwnerUserId !== ownerUserId || ownerUserId !== user.id) {
+      return jsonResponse(request, { error: 'Somente o proprietário da loja pode apagar esta conta.' }, 403);
+    }
+
+    const { data: operatorProfiles, error: operatorProfilesError } = await serviceClient
+      .from('profiles')
+      .select('user_id')
+      .eq('owner_user_id', ownerUserId)
+      .eq('role', 'operator');
+
+    if (operatorProfilesError) {
+      return jsonResponse(request, { error: 'Não foi possível preparar a exclusão dos operadores.' }, 500);
+    }
+
+    for (const operatorProfile of operatorProfiles ?? []) {
+      if (operatorProfile.user_id === user.id) continue;
+
+      const { error: deleteOperatorError } = await serviceClient.auth.admin.deleteUser(operatorProfile.user_id);
+      if (deleteOperatorError) {
+        return jsonResponse(request, { error: deleteOperatorError.message || 'Não foi possível excluir os operadores desta conta.' }, 400);
+      }
+    }
+
+    const { error: deleteUserError } = await serviceClient.auth.admin.deleteUser(user.id);
+    if (deleteUserError) {
+      return jsonResponse(request, { error: deleteUserError.message || 'Não foi possível apagar sua conta.' }, 400);
+    }
+
+    return jsonResponse(request, {
+      success: true,
     });
   }
 
