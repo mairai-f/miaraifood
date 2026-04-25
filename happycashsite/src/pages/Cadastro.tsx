@@ -30,6 +30,21 @@ const estados = [
   "PB","PR","PE","PI","RJ","RN","RS","RO","RR","SC","SP","SE","TO",
 ];
 
+const getPasswordStrength = (value: string) => {
+  const score = [
+    value.length >= 10,
+    /[A-Z]/.test(value),
+    /[a-z]/.test(value),
+    /\d/.test(value),
+    /[^A-Za-z0-9]/.test(value),
+  ].filter(Boolean).length;
+
+  if (!value) return { className: "bg-transparent", percent: 0 };
+  if (score <= 2) return { className: "bg-red-500", percent: 33 };
+  if (score <= 4) return { className: "bg-orange-500", percent: 66 };
+  return { className: "bg-green-500", percent: 100 };
+};
+
 const resolveFunctionErrorMessage = async (error: unknown, fallbackMessage: string) => {
   if (error instanceof FunctionsHttpError) {
     try {
@@ -62,7 +77,9 @@ const Cadastro = () => {
   // Step 1 - Account
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [website, setWebsite] = useState("");
   const [confirmationEmail, setConfirmationEmail] = useState<string | null>(null);
 
@@ -82,6 +99,7 @@ const Cadastro = () => {
   const [bairro, setBairro] = useState("");
   const [cidade, setCidade] = useState("");
   const [estado, setEstado] = useState("");
+  const passwordStrength = getPasswordStrength(password);
 
   const fetchCep = async (value: string) => {
     setCep(value);
@@ -110,6 +128,15 @@ const Cadastro = () => {
       toast({
         title: "Senha fraca",
         description: passwordError,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      toast({
+        title: "Confirme sua senha",
+        description: "As senhas digitadas nao conferem.",
         variant: "destructive",
       });
       return;
@@ -153,7 +180,9 @@ const Cadastro = () => {
         description: "Enviamos um link de confirmacao. A conta sera liberada no primeiro acesso confirmado.",
       });
       setPassword("");
+      setConfirmPassword("");
       setShowPassword(false);
+      setShowConfirmPassword(false);
       setConfirmationEmail(data.email || email.trim());
     } catch (error) {
       toast({
@@ -278,7 +307,36 @@ const Cadastro = () => {
                     {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                   </button>
                 </div>
+                <div className="h-1.5 overflow-hidden rounded-full bg-muted" aria-label="Nivel de seguranca da senha">
+                  <div
+                    className={`h-full rounded-full transition-all ${passwordStrength.className}`}
+                    style={{ width: `${passwordStrength.percent}%` }}
+                  />
+                </div>
                 <p className="text-xs text-muted-foreground">{passwordPolicyHint}</p>
+              </div>
+              <div className="space-y-2">
+                <Label>Confirmar senha</Label>
+                <div className="relative">
+                  <Input
+                    type={showConfirmPassword ? "text" : "password"}
+                    autoComplete="new-password"
+                    placeholder="Digite a senha novamente"
+                    value={confirmPassword}
+                    onChange={e => setConfirmPassword(e.target.value)}
+                    required
+                    minLength={10}
+                    className="h-12 bg-muted/50 pr-12"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+                    aria-label={showConfirmPassword ? "Ocultar confirmacao de senha" : "Mostrar confirmacao de senha"}
+                  >
+                    {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
               </div>
             </>
           )}

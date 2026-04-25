@@ -34,6 +34,10 @@ interface PendingRegistrationRow {
   owner_user_id: string;
 }
 
+interface StoreAccountRow {
+  id: string;
+}
+
 type AttemptStatus = "blocked" | "config_error" | "created" | "failed" | "honeypot" | "invalid";
 
 const registrationCorsOptions = {
@@ -296,11 +300,16 @@ Deno.serve(async (request) => {
       );
     }
 
-    const { data: existingProfile } = await serviceClient
+    const { data: existingProfile, error: existingProfileError } = await serviceClient
       .from("profiles")
       .select("user_id")
-      .eq("email", data.email)
+      .ilike("email", data.email)
+      .limit(1)
       .maybeSingle();
+
+    if (existingProfileError) {
+      throw new Error("Nao foi possivel verificar se esse email ja esta em uso.");
+    }
 
     if (existingProfile?.user_id) {
       await logAttempt(serviceClient, {
@@ -314,12 +323,63 @@ Deno.serve(async (request) => {
       return jsonResponse(request, { success: false, error: "Ja existe uma conta com esse email." }, 409);
     }
 
-    const { data: existingPending } = await serviceClient
+    const { data: existingStoreAccountByEmail, error: existingStoreAccountEmailError } = await serviceClient
+      .from("store_accounts")
+      .select("id")
+      .ilike("email", data.email)
+      .limit(1)
+      .maybeSingle();
+
+    if (existingStoreAccountEmailError) {
+      throw new Error("Nao foi possivel verificar se esse email ja esta em uso.");
+    }
+
+    if ((existingStoreAccountByEmail as StoreAccountRow | null)?.id) {
+      await logAttempt(serviceClient, {
+        emailHash,
+        ipHash,
+        origin,
+        status: "invalid",
+        userAgent,
+      });
+
+      return jsonResponse(request, { success: false, error: "Ja existe uma conta com esse email." }, 409);
+    }
+
+    const { data: existingStoreAccountByDocument, error: existingStoreAccountDocumentError } = await serviceClient
+      .from("store_accounts")
+      .select("id")
+      .eq("cnpj", data.cpfCnpj)
+      .limit(1)
+      .maybeSingle();
+
+    if (existingStoreAccountDocumentError) {
+      throw new Error("Nao foi possivel verificar se esse CPF ou CNPJ ja esta em uso.");
+    }
+
+    if ((existingStoreAccountByDocument as StoreAccountRow | null)?.id) {
+      await logAttempt(serviceClient, {
+        emailHash,
+        ipHash,
+        origin,
+        status: "invalid",
+        userAgent,
+      });
+
+      return jsonResponse(request, { success: false, error: "Ja existe uma conta com esse CPF ou CNPJ." }, 409);
+    }
+
+    const { data: existingPending, error: existingPendingError } = await serviceClient
       .from("site_pending_registrations")
       .select("owner_user_id")
-      .eq("email", data.email)
+      .ilike("email", data.email)
       .eq("status", "pending")
+      .limit(1)
       .maybeSingle();
+
+    if (existingPendingError) {
+      throw new Error("Nao foi possivel verificar se esse email ja esta em uso.");
+    }
 
     if ((existingPending as PendingRegistrationRow | null)?.owner_user_id) {
       await logAttempt(serviceClient, {
@@ -335,6 +395,37 @@ Deno.serve(async (request) => {
         {
           success: false,
           error: "Ja existe um cadastro pendente para esse email. Confirme o email para continuar.",
+        },
+        409,
+      );
+    }
+
+    const { data: existingPendingDocument, error: existingPendingDocumentError } = await serviceClient
+      .from("site_pending_registrations")
+      .select("owner_user_id")
+      .eq("cpf_cnpj", data.cpfCnpj)
+      .eq("status", "pending")
+      .limit(1)
+      .maybeSingle();
+
+    if (existingPendingDocumentError) {
+      throw new Error("Nao foi possivel verificar se esse CPF ou CNPJ ja esta em uso.");
+    }
+
+    if ((existingPendingDocument as PendingRegistrationRow | null)?.owner_user_id) {
+      await logAttempt(serviceClient, {
+        emailHash,
+        ipHash,
+        origin,
+        status: "invalid",
+        userAgent,
+      });
+
+      return jsonResponse(
+        request,
+        {
+          success: false,
+          error: "Ja existe um cadastro pendente para esse CPF ou CNPJ.",
         },
         409,
       );

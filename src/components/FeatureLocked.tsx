@@ -12,6 +12,8 @@ const planLabels: Record<string, string> = {
   pro: 'Plano PRO - 30 dias',
 };
 
+const HAPPY_CASH_SITE_PAYMENT_URL = 'https://happycashsite.vercel.app/dashboard';
+
 export function FeatureLocked() {
   const { planId } = usePlanAccess();
   const { subscription } = useCurrentSubscription();
@@ -49,9 +51,22 @@ export function FeatureLocked() {
             </>
           )}
           <div className="flex flex-col gap-3 sm:flex-row">
-            <Button asChild className="sm:flex-1">
-              <Link to={demoExpired ? '/configuracoes' : '/'}>{demoExpired ? 'Ver situação da conta' : 'Voltar ao painel'}</Link>
-            </Button>
+            {demoExpired ? (
+              <>
+                <Button asChild className="sm:flex-1">
+                  <a href={HAPPY_CASH_SITE_PAYMENT_URL} target="_blank" rel="noreferrer">
+                    Ativar plano no site
+                  </a>
+                </Button>
+                <Button asChild variant="outline" className="sm:flex-1">
+                  <Link to="/configuracoes">Ver situação da conta</Link>
+                </Button>
+              </>
+            ) : (
+              <Button asChild className="sm:flex-1">
+                <Link to="/">Voltar ao painel</Link>
+              </Button>
+            )}
           </div>
         </CardContent>
       </Card>
