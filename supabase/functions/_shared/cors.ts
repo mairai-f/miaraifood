@@ -19,6 +19,10 @@ const DEFAULT_ALLOWED_HEADERS = [
   "x-client-info",
   "apikey",
   "content-type",
+  "accept-profile",
+  "content-profile",
+  "prefer",
+  "x-region",
   "x-supabase-api-version",
 ];
 

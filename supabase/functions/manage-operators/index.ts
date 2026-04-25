@@ -201,16 +201,17 @@ Deno.serve(async (request) => {
 
     const { error: updateProfileError } = await serviceClient
       .from('profiles')
-      .update({
+      .upsert({
+        user_id: createdUser.user.id,
         username: normalizedUsername,
         email: generatedEmail,
         role: 'operator',
         owner_user_id: ownerUserId,
         created_by_user_id: user.id,
-      })
-      .eq('user_id', createdUser.user.id);
+      }, { onConflict: 'user_id' });
 
     if (updateProfileError) {
+      await serviceClient.auth.admin.deleteUser(createdUser.user.id);
       return jsonResponse(request, { error: 'Operador criado, mas o perfil não foi atualizado corretamente.' }, 500);
     }
 
@@ -376,15 +377,23 @@ Deno.serve(async (request) => {
       return jsonResponse(request, { error: 'Feche o caixa desse operador antes de excluí-lo.' }, 400);
     }
 
-    const { error: deleteUserError } = await serviceClient.auth.admin.deleteUser(operatorUserId);
-    if (deleteUserError) {
-      return jsonResponse(request, { error: deleteUserError.message || 'Não foi possível excluir o operador.' }, 400);
-    }
-
-    await serviceClient
+    const { error: deleteProfileError } = await serviceClient
       .from('profiles')
       .delete()
       .eq('user_id', operatorUserId);
+
+    if (deleteProfileError) {
+      return jsonResponse(request, { error: deleteProfileError.message || 'Não foi possível remover o perfil do operador.' }, 400);
+    }
+
+    const { error: deleteUserError } = await serviceClient.auth.admin.deleteUser(operatorUserId);
+    if (deleteUserError) {
+      await serviceClient
+        .from('profiles')
+        .upsert(targetProfile, { onConflict: 'user_id' });
+
+      return jsonResponse(request, { error: deleteUserError.message || 'Não foi possível excluir o acesso do operador.' }, 400);
+    }
 
     return jsonResponse(request, {
       success: true,
