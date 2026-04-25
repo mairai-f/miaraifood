@@ -9,6 +9,7 @@ import {
   trackSystemAccessEvent,
 } from '@/lib/accessTracking';
 import { getPasswordPolicyError } from '../../shared/security/passwordPolicy';
+import { retryAsync } from '../../shared/network/retry';
 
 interface UserProfile {
   username: string | null;
@@ -137,7 +138,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           return;
         }
 
-        const { data, error } = await supabase.auth.getUser(nextSession.access_token);
+        const { data, error } = await retryAsync(
+          async () => {
+            const response = await supabase.auth.getUser(nextSession.access_token);
+            if (response.error) throw response.error;
+            return response;
+          },
+          { attempts: 3, delayMs: 700 },
+        ).catch((error) => ({ data: { user: null }, error }));
 
         if (!isMounted || currentRequestId !== syncRequestId) return;
 
@@ -174,7 +182,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     void (async () => {
       try {
         await enforceSystemSessionPreference(supabase);
-        const { data: { session: nextSession }, error } = await supabase.auth.getSession();
+        const { data: { session: nextSession }, error } = await retryAsync(
+          async () => {
+            const response = await supabase.auth.getSession();
+            if (response.error) throw response.error;
+            return response;
+          },
+          { attempts: 3, delayMs: 700 },
+        ).catch((error) => ({ data: { session: null }, error }));
         if (!isMounted) return;
 
         if (error) {

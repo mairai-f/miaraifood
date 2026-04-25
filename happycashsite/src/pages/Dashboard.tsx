@@ -23,6 +23,7 @@ import { desktopDownloads } from "@/lib/desktopDownloads";
 import { getFreshSiteSession } from "@/lib/siteSession";
 import { getSubscriptionCountdown, getSubscriptionEndAt, getSubscriptionStatusLabel, isCurrentSubscription } from "@/lib/subscriptionStatus";
 import { publicPlanContent, publicPlanList, isPaidPlanId, isPublicPlanId, type PaidPlanId, type PublicPlanId } from "@/lib/subscriptionPlans";
+import { retryAsync } from "../../../shared/network/retry";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -237,12 +238,21 @@ const Dashboard = () => {
   };
 
   const ensureSiteRegistrationReady = async (accessToken: string) => {
-    const { data, error } = await supabase.functions.invoke<FinalizeSiteRegistrationResponse>("finalize-site-registration", {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
+    const { data, error } = await retryAsync(
+      async () => {
+        const response = await supabase.functions.invoke<FinalizeSiteRegistrationResponse>("finalize-site-registration", {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+          body: {},
+        });
+
+        if (response.error) throw response.error;
+        if (!response.data?.success) throw new Error(response.data?.error || "Nao foi possivel finalizar sua conta agora.");
+        return response;
       },
-      body: {},
-    });
+      { attempts: 3, delayMs: 800 },
+    ).catch((error) => ({ data: null, error }));
 
     if (error || !data?.success) {
       let functionErrorMessage = data?.error || "Nao foi possivel finalizar sua conta agora.";
@@ -281,12 +291,26 @@ const Dashboard = () => {
       { data: plansData, error: plansError },
       { data: subscriptionsData, error: subscriptionsError },
       { data: billingCustomerData, error: billingCustomerError },
-    ] = await Promise.all([
-      db.from("store_accounts").select("id, nome_cliente, nome_estabelecimento, email").eq("owner_user_id", userId).maybeSingle(),
-      db.from("subscription_plans").select("id, name, description, price, duration_days, sort_order").eq("is_public", true).eq("is_active", true).order("sort_order", { ascending: true }),
-      db.from("store_subscriptions").select("id, plan_id, status, billing_type, provider, provider_payment_id, current_period_starts_at, current_period_ends_at, trial_started_at, trial_ends_at, metadata, created_at").eq("owner_user_id", userId).order("created_at", { ascending: false }),
-      db.from("billing_customers").select("provider, provider_customer_id").eq("owner_user_id", userId).maybeSingle(),
-    ]);
+    ] = await retryAsync(
+      async () => {
+        const responses = await Promise.all([
+          db.from("store_accounts").select("id, nome_cliente, nome_estabelecimento, email").eq("owner_user_id", userId).maybeSingle(),
+          db.from("subscription_plans").select("id, name, description, price, duration_days, sort_order").eq("is_public", true).eq("is_active", true).order("sort_order", { ascending: true }),
+          db.from("store_subscriptions").select("id, plan_id, status, billing_type, provider, provider_payment_id, current_period_starts_at, current_period_ends_at, trial_started_at, trial_ends_at, metadata, created_at").eq("owner_user_id", userId).order("created_at", { ascending: false }),
+          db.from("billing_customers").select("provider, provider_customer_id").eq("owner_user_id", userId).maybeSingle(),
+        ] as const);
+
+        const queryError = responses.find((response) => response.error)?.error;
+        if (queryError) throw new Error(queryError.message);
+        return responses;
+      },
+      { attempts: 3, delayMs: 800 },
+    ).catch((error) => [
+      { data: null, error },
+      { data: null, error: null },
+      { data: null, error: null },
+      { data: null, error: null },
+    ] as const);
 
     if (storeAccountError || plansError || subscriptionsError || billingCustomerError) {
       const message =
