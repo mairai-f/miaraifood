@@ -12,7 +12,8 @@ Pontos importantes:
 - O download do plano `PRO` agora usa a função `desktop-download` no Supabase, com bucket privado `desktop-downloads` e estas variáveis:
 - `DESKTOP_DOWNLOAD_BUCKET`
 - `DESKTOP_WINDOWS_OBJECT_PATH`
-- `DESKTOP_LINUX_OBJECT_PATH`
+- `DESKTOP_LINUX_DEB_OBJECT_PATH`
+- `DESKTOP_LINUX_APPIMAGE_OBJECT_PATH`
 - `DESKTOP_DOWNLOAD_SIGNED_URL_TTL`
 - O fluxo comercial do desktop agora tambem pode usar assets do GitHub Release, com estas variáveis opcionais:
 - `DESKTOP_RELEASE_PROVIDER=github`

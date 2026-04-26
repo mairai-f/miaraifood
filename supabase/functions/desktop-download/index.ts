@@ -18,11 +18,13 @@ const jsonResponse = (request: Request, body: Record<string, unknown>, status = 
     },
   });
 
-const supportedPlatforms = new Set<SupportedDesktopPlatform>(["windows", "linux"]);
+const supportedPlatforms = new Set<SupportedDesktopPlatform>(["windows", "linux", "linux-deb", "linux-appimage"]);
 const bucketEnvKey = "DESKTOP_DOWNLOAD_BUCKET";
 const platformEnvKeys: Record<SupportedDesktopPlatform, string> = {
   windows: "DESKTOP_WINDOWS_OBJECT_PATH",
-  linux: "DESKTOP_LINUX_OBJECT_PATH",
+  linux: "DESKTOP_LINUX_DEB_OBJECT_PATH",
+  "linux-deb": "DESKTOP_LINUX_DEB_OBJECT_PATH",
+  "linux-appimage": "DESKTOP_LINUX_APPIMAGE_OBJECT_PATH",
 };
 const releaseProvider = () => (Deno.env.get("DESKTOP_RELEASE_PROVIDER") || "github").trim().toLowerCase();
 
@@ -120,12 +122,10 @@ Deno.serve(async (request) => {
 
       return jsonResponse(request, {
         success: true,
-        provider: "github",
         downloadUrl: release.downloadUrl,
         assetName: release.assetName,
         releaseTag: release.tag,
         releaseVersion: release.version,
-        releasePageUrl: release.htmlUrl,
         publishedAt: release.publishedAt,
         size: release.size,
         offlineEnabled: license.offlineEnabled,
@@ -174,7 +174,6 @@ Deno.serve(async (request) => {
 
   return jsonResponse(request, {
     success: true,
-    provider: "storage",
     downloadUrl: signedUrlData.signedUrl,
     expiresIn,
     offlineEnabled: license.offlineEnabled,

@@ -1,6 +1,6 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 
-export type SupportedDesktopPlatform = "windows" | "linux";
+export type SupportedDesktopPlatform = "windows" | "linux" | "linux-deb" | "linux-appimage";
 
 interface StoreSubscriptionRow {
   plan_id: string;

@@ -26,7 +26,7 @@ export interface GitHubDesktopReleaseAsset {
 }
 
 const DEFAULT_OWNER = "celioantonio7";
-const DEFAULT_REPO = "HappyCash";
+const DEFAULT_REPO = "HappyCash-Releases";
 const DEFAULT_CHANNEL = "latest";
 
 const readReleaseConfig = () => ({
@@ -79,6 +79,13 @@ const findPlatformAsset = (assets: GitHubReleaseAsset[], platform: SupportedDesk
       /\.exe$/i.test(asset.name)
       && /setup/i.test(asset.name)
       && !/portable/i.test(asset.name)
+      && !/\.blockmap$/i.test(asset.name),
+    ) || null;
+  }
+
+  if (platform === "linux" || platform === "linux-deb") {
+    return assets.find((asset) =>
+      /\.deb$/i.test(asset.name)
       && !/\.blockmap$/i.test(asset.name),
     ) || null;
   }

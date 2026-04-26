@@ -1051,12 +1051,17 @@ const Dashboard = () => {
                     <Button asChild className="h-11 font-semibold">
                       <Link to={desktopDownloads.windows.route}>
                         <Download className="mr-2 h-4 w-4" />
-                        Baixar executavel Windows
+                        Baixar instalador Windows
                       </Link>
                     </Button>
                     <Button asChild variant="outline" className="h-11 font-semibold">
-                      <Link to={desktopDownloads.linux.route}>
-                        Baixar AppImage Linux
+                      <Link to={desktopDownloads["linux-deb"].route}>
+                        Baixar instalador Linux
+                      </Link>
+                    </Button>
+                    <Button asChild variant="outline" className="h-11 font-semibold">
+                      <Link to={desktopDownloads["linux-appimage"].route}>
+                        Baixar Linux portátil
                       </Link>
                     </Button>
                   </div>

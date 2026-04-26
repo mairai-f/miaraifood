@@ -12,11 +12,9 @@ type DesktopDownloadResponse = {
   success?: boolean;
   downloadUrl?: string;
   expiresIn?: number;
-  provider?: "github" | "storage";
   assetName?: string;
   releaseTag?: string;
   releaseVersion?: string;
-  releasePageUrl?: string;
   publishedAt?: string | null;
   offlineEnabled?: boolean;
   validUntil?: string | null;
@@ -177,9 +175,8 @@ const DownloadRedirect = () => {
                 </p>
                 {downloadMeta?.releaseTag && (
                   <div className="mt-4 rounded-xl border border-border/70 bg-background/70 p-4 text-sm text-muted-foreground">
-                    <p>Release: <span className="font-medium text-foreground">{downloadMeta.releaseTag}</span></p>
+                    <p>Versao: <span className="font-medium text-foreground">{downloadMeta.releaseVersion || downloadMeta.releaseTag.replace(/^v/i, "")}</span></p>
                     {downloadMeta.assetName && <p>Arquivo: <span className="font-medium text-foreground">{downloadMeta.assetName}</span></p>}
-                    {downloadMeta.provider && <p>Origem: <span className="font-medium text-foreground">{downloadMeta.provider === "github" ? "GitHub Release" : "Storage protegido"}</span></p>}
                     {downloadMeta.publishedAt && <p>Publicado em: <span className="font-medium text-foreground">{new Date(downloadMeta.publishedAt).toLocaleString("pt-BR")}</span></p>}
                   </div>
                 )}
@@ -189,13 +186,6 @@ const DownloadRedirect = () => {
                     Baixar agora
                   </a>
                 </Button>
-                {downloadMeta?.releasePageUrl && (
-                  <Button asChild variant="outline" className="mt-3">
-                    <a href={downloadMeta.releasePageUrl} target="_blank" rel="noreferrer">
-                      Ver release no GitHub
-                    </a>
-                  </Button>
-                )}
               </div>
             )}
 
