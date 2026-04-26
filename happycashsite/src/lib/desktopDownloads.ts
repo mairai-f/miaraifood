@@ -1,4 +1,10 @@
-export type DesktopDownloadPlatform = "windows" | "linux" | "linux-deb" | "linux-appimage";
+export type DownloadPlatform =
+  | "windows"
+  | "linux"
+  | "linux-deb"
+  | "linux-appimage"
+  | "android"
+  | "ios";
 
 export const desktopDownloadConfigKeys = {
   bucket: "DESKTOP_DOWNLOAD_BUCKET",
@@ -6,9 +12,10 @@ export const desktopDownloadConfigKeys = {
   windowsObjectPath: "DESKTOP_WINDOWS_OBJECT_PATH",
   linuxDebObjectPath: "DESKTOP_LINUX_DEB_OBJECT_PATH",
   linuxAppImageObjectPath: "DESKTOP_LINUX_APPIMAGE_OBJECT_PATH",
+  androidApkObjectPath: "ANDROID_APK_OBJECT_PATH",
 } as const;
 
-export const desktopDownloads = {
+export const downloads = {
   windows: {
     label: "Windows (.exe)",
     route: "/downloads/windows",
@@ -29,7 +36,22 @@ export const desktopDownloads = {
     route: "/downloads/linux-appimage",
     requiredEnv: [desktopDownloadConfigKeys.bucket, desktopDownloadConfigKeys.linuxAppImageObjectPath],
   },
+  android: {
+    label: "Android APK",
+    route: "/downloads/android",
+    requiredEnv: [desktopDownloadConfigKeys.bucket, desktopDownloadConfigKeys.androidApkObjectPath],
+  },
+  ios: {
+    label: "iOS TestFlight",
+    route: "/downloads/ios",
+    requiredEnv: ["IOS_TESTFLIGHT_URL"],
+  },
 };
 
-export const isDesktopDownloadPlatform = (value: string | null | undefined): value is DesktopDownloadPlatform =>
-  value === "windows" || value === "linux" || value === "linux-deb" || value === "linux-appimage";
+export const isDownloadPlatform = (value: string | null | undefined): value is DownloadPlatform =>
+  value === "windows" ||
+  value === "linux" ||
+  value === "linux-deb" ||
+  value === "linux-appimage" ||
+  value === "android" ||
+  value === "ios";

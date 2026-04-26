@@ -49,7 +49,42 @@ EXPO_PUBLIC_HAPPYCASH_WEB_URL="https://seu-endereco-publico"
 EXPO_PUBLIC_HAPPYCASH_DEV_URL="http://SEU-IP:8080"
 ```
 
+## Build Android e iOS com EAS
+
+Este app já tem suporte a builds nativos via EAS, com configurações em `mobile/eas.json`.
+
+### Android APK
+1. No diretório `mobile`, instale as dependências:
+   - `npm install`
+2. Verifique o `EXPO_PUBLIC_HAPPYCASH_WEB_URL` no `mobile/eas.json` ou via env.
+3. Faça login no Expo/EAS:
+   - `npx expo login`
+   - `npx eas login`
+4. Faça o build de preview:
+   - `npm run build:android:apk`
+5. Baixe o APK no painel do Expo e instale em um dispositivo Android para testar.
+
+### Android para loja / AAB
+1. Use o perfil de produção:
+   - `npm run build:android:store`
+2. Faça upload do AAB no Google Play Console para faixa de teste interna ou alfa.
+
+### iOS / TestFlight
+1. Confirme que o app está cadastrado no App Store Connect com `com.happycash.mobile`.
+2. Configure a conta Apple Developer e as credenciais no EAS:
+   - `npx eas credentials`
+3. Faça o build de produção:
+   - `npm run build:ios:store`
+4. Envie o app para TestFlight:
+   - `npx eas submit --platform ios --profile production`
+5. No App Store Connect, crie uma build de TestFlight e convide testadores.
+
+### Observações sobre TestFlight
+- O `bundleIdentifier` já está definido como `com.happycash.mobile`.
+- Para usar TestFlight, você precisa cadastrar o app no App Store Connect e adicionar certificados/perfis de provisionamento.
+- Se preferir, use `eas submit --platform ios --profile production` após o build.
+
 ## Observações
 
 - Para iPhone via Expo Go, use um projeto compatível com Expo Go em dispositivo físico.
-- Se depois quisermos gerar APK/AAB e build iOS nativo, o próximo passo será adicionar EAS Build.
+- O mobile já está preparado para gerar APK e builds iOS nativos, mas precisa do fluxo Apple/credentials para TestFlight.

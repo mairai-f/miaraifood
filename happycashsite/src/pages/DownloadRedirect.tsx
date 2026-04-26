@@ -5,7 +5,7 @@ import { Download, HardDriveDownload, Loader2, ShieldCheck } from "lucide-react"
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { desktopDownloads, isDesktopDownloadPlatform } from "@/lib/desktopDownloads";
+import { downloads, isDownloadPlatform } from "@/lib/desktopDownloads";
 import { getFreshSiteSession } from "@/lib/siteSession";
 
 type DesktopDownloadResponse = {
@@ -26,8 +26,8 @@ type DesktopDownloadResponse = {
 const DownloadRedirect = () => {
   const { platform } = useParams();
   const navigate = useNavigate();
-  const selectedPlatform = isDesktopDownloadPlatform(platform) ? platform : null;
-  const download = selectedPlatform ? desktopDownloads[selectedPlatform] : null;
+  const selectedPlatform = isDownloadPlatform(platform) ? platform : null;
+  const download = selectedPlatform ? downloads[selectedPlatform] : null;
   const [loading, setLoading] = useState(Boolean(download));
   const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
   const [downloadMeta, setDownloadMeta] = useState<DesktopDownloadResponse | null>(null);
@@ -57,7 +57,11 @@ const DownloadRedirect = () => {
         return;
       }
 
-      const { data, error } = await supabase.functions.invoke<DesktopDownloadResponse>("desktop-download", {
+      const functionName = selectedPlatform === "android" || selectedPlatform === "ios"
+        ? "mobile-download"
+        : "desktop-download";
+
+      const { data, error } = await supabase.functions.invoke<DesktopDownloadResponse>(functionName, {
         body: { platform: selectedPlatform },
         headers: {
           Authorization: `Bearer ${session.access_token}`,
@@ -128,7 +132,7 @@ const DownloadRedirect = () => {
           <CardHeader className="space-y-4">
             <div className="flex items-center gap-3 text-primary">
               <HardDriveDownload className="h-5 w-5" />
-              <CardTitle className="text-2xl">Download do app desktop</CardTitle>
+              <CardTitle className="text-2xl">Download de {download.label}</CardTitle>
             </div>
             <CardDescription>
               {loading

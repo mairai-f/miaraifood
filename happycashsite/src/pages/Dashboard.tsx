@@ -19,7 +19,7 @@ import {
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { clearSiteLocalSession, enforceSiteSessionPreference } from "@/lib/authSessionPreferences";
-import { desktopDownloads } from "@/lib/desktopDownloads";
+import { downloads } from "@/lib/desktopDownloads";
 import { getFreshSiteSession } from "@/lib/siteSession";
 import { getSubscriptionCountdown, getSubscriptionEndAt, getSubscriptionStatusLabel, isCurrentSubscription } from "@/lib/subscriptionStatus";
 import { publicPlanContent, publicPlanList, isPaidPlanId, isPublicPlanId, type PaidPlanId, type PublicPlanId } from "@/lib/subscriptionPlans";
@@ -1049,18 +1049,18 @@ const Dashboard = () => {
                 {isCurrentProPlan ? (
                   <div className="mt-4 grid gap-3">
                     <Button asChild className="h-11 font-semibold">
-                      <Link to={desktopDownloads.windows.route}>
+                      <Link to={downloads.windows.route}>
                         <Download className="mr-2 h-4 w-4" />
                         Baixar instalador Windows
                       </Link>
                     </Button>
                     <Button asChild variant="outline" className="h-11 font-semibold">
-                      <Link to={desktopDownloads["linux-deb"].route}>
+                      <Link to={downloads["linux-deb"].route}>
                         Baixar instalador Linux
                       </Link>
                     </Button>
                     <Button asChild variant="outline" className="h-11 font-semibold">
-                      <Link to={desktopDownloads["linux-appimage"].route}>
+                      <Link to={downloads["linux-appimage"].route}>
                         Baixar Linux portátil
                       </Link>
                     </Button>
@@ -1068,6 +1068,40 @@ const Dashboard = () => {
                 ) : (
                   <p className="mt-4 text-sm text-muted-foreground">
                     Quando o plano PRO estiver ativo, esta area libera o download do app desktop para Windows e Linux.
+                  </p>
+                )}
+              </div>
+
+              <div className="mt-6 rounded-3xl border border-border bg-background/70 p-4">
+                <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <p className="text-sm font-semibold">Downloads do mobile</p>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      O app mobile fica liberado apenas para contas com plano PRO ativo.
+                    </p>
+                  </div>
+                  <Badge variant={isCurrentProPlan ? "default" : "outline"}>
+                    {isCurrentProPlan ? "PRO liberado" : "Somente PRO"}
+                  </Badge>
+                </div>
+
+                {isCurrentProPlan ? (
+                  <div className="mt-4 grid gap-3">
+                    <Button asChild className="h-11 font-semibold">
+                      <Link to={downloads.android.route}>
+                        <Download className="mr-2 h-4 w-4" />
+                        Baixar APK Android
+                      </Link>
+                    </Button>
+                    <Button asChild variant="outline" className="h-11 font-semibold">
+                      <Link to={downloads.ios.route}>
+                        Acessar TestFlight iOS
+                      </Link>
+                    </Button>
+                  </div>
+                ) : (
+                  <p className="mt-4 text-sm text-muted-foreground">
+                    Quando o plano PRO estiver ativo, esta area libera o download do app mobile Android e o acesso ao TestFlight iOS.
                   </p>
                 )}
               </div>

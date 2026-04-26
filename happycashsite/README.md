@@ -15,6 +15,14 @@ Pontos importantes:
 - `DESKTOP_LINUX_DEB_OBJECT_PATH`
 - `DESKTOP_LINUX_APPIMAGE_OBJECT_PATH`
 - `DESKTOP_DOWNLOAD_SIGNED_URL_TTL`
+- O download do app mobile PRO usa a função `mobile-download` no Supabase e pode ser configurado com:
+- `MOBILE_DOWNLOAD_BUCKET`
+- `ANDROID_APK_OBJECT_PATH`
+- `IOS_TESTFLIGHT_URL`
+- `MOBILE_DOWNLOAD_SIGNED_URL_TTL`
+- Rotas de download protegidas:
+  - `/downloads/android` para APK Android
+  - `/downloads/ios` para TestFlight iOS
 - O fluxo comercial do desktop agora tambem pode usar assets do GitHub Release, com estas variáveis opcionais:
 - `DESKTOP_RELEASE_PROVIDER=github`
 - `GITHUB_DESKTOP_RELEASE_OWNER`
