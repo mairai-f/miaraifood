@@ -21,6 +21,7 @@ type SupportedMobilePlatform = "android" | "ios";
 
 const supportedPlatforms = new Set<SupportedMobilePlatform>(["android", "ios"]);
 const bucketEnvKey = "MOBILE_DOWNLOAD_BUCKET";
+const androidApkUrlKey = "ANDROID_APK_URL";
 const platformEnvKeys: Record<SupportedMobilePlatform, string> = {
   android: "ANDROID_APK_OBJECT_PATH",
   ios: "IOS_TESTFLIGHT_URL",
@@ -149,7 +150,18 @@ Deno.serve(async (request) => {
     });
   }
 
-  const bucketName = Deno.env.get(bucketEnvKey)?.trim() || "mobile-downloads";
+  const apkUrl = Deno.env.get(androidApkUrlKey)?.trim();
+  if (apkUrl) {
+    const downloadUrl = `${apkUrl}?download=HappyCash-Mobile.apk`;
+    return jsonResponse(request, {
+      success: true,
+      downloadUrl,
+      assetName: "HappyCash-Mobile.apk",
+      validUntil: license.validUntil,
+    });
+  }
+
+  const bucketName = Deno.env.get(bucketEnvKey)?.trim() || Deno.env.get("DESKTOP_DOWNLOAD_BUCKET")?.trim() || "mobile-downloads";
   const objectPathKey = platformEnvKeys[platform];
   const objectPath = Deno.env.get(objectPathKey)?.trim();
 
@@ -159,7 +171,7 @@ Deno.serve(async (request) => {
       {
         error: "O release desta plataforma ainda não foi configurado.",
         code: "DOWNLOAD_NOT_CONFIGURED",
-        requiredEnv: [bucketEnvKey, objectPathKey],
+        requiredEnv: [bucketEnvKey, objectPathKey, androidApkUrlKey],
       },
       503,
     );
