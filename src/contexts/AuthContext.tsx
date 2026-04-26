@@ -8,6 +8,7 @@ import {
   clearSystemClientSessionId,
   trackSystemAccessEvent,
 } from '@/lib/accessTracking';
+import { isDesktopRuntime, isProbablyOfflineError } from '@/lib/offlineConcentrator';
 import { getPasswordPolicyError } from '../../shared/security/passwordPolicy';
 import { retryAsync } from '../../shared/network/retry';
 
@@ -53,6 +54,29 @@ interface OperatorLoginResponse {
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
+const profileCacheKey = (userId: string) => `happycash:system:profile:${userId}`;
+
+const readCachedProfile = (userId: string): UserProfile | null => {
+  if (typeof window === 'undefined') return null;
+
+  try {
+    const stored = window.localStorage.getItem(profileCacheKey(userId));
+    if (!stored) return null;
+    return JSON.parse(stored) as UserProfile;
+  } catch {
+    return null;
+  }
+};
+
+const writeCachedProfile = (userId: string, profile: UserProfile) => {
+  if (typeof window === 'undefined') return;
+
+  try {
+    window.localStorage.setItem(profileCacheKey(userId), JSON.stringify(profile));
+  } catch {
+    // Keep auth usable even when localStorage is unavailable.
+  }
+};
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
@@ -93,14 +117,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       const profile = (data ?? null) as ProfileQueryRow | null;
 
-      return {
+      const resolvedProfile = {
         username: profile?.username ?? null,
         email: profile?.email ?? currentUser.email ?? null,
         role: profile?.role === 'operator' ? 'operator' : 'admin',
         owner_user_id: profile?.owner_user_id ?? currentUser.id,
       };
+
+      writeCachedProfile(currentUser.id, resolvedProfile);
+      return resolvedProfile;
     } catch (error) {
       console.error('Erro inesperado ao carregar perfil do usuário:', error);
+
+      const cachedProfile = readCachedProfile(currentUser.id);
+      if (cachedProfile && isDesktopRuntime() && isProbablyOfflineError(error)) {
+        return cachedProfile;
+      }
 
       return {
         username: null,
@@ -150,6 +182,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (!isMounted || currentRequestId !== syncRequestId) return;
 
         if (error || !data.user) {
+          if (isDesktopRuntime() && isProbablyOfflineError(error) && nextSession.user) {
+            setSession(nextSession);
+            setUser(nextSession.user);
+            await syncProfileState(nextSession.user);
+            return;
+          }
+
           console.error('Erro ao validar sessão do Supabase:', error);
           resetAuthState();
           clearLocalSession();
