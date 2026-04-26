@@ -1,6 +1,6 @@
 import { FunctionsFetchError, FunctionsHttpError, FunctionsRelayError } from "@supabase/supabase-js";
 import { useEffect, useState } from "react";
-import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import {
   ArrowLeft,
   Check,
@@ -196,6 +196,7 @@ const getPlanChargeActionKey = (planId: PaidPlanId, paymentMethod: CheckoutPayme
   `${planId}:${paymentMethod}`;
 
 const Dashboard = () => {
+  const location = useLocation();
   const [searchParams] = useSearchParams();
   const [user, setUser] = useState<AuthUser | null>(null);
   const [storeAccount, setStoreAccount] = useState<StoreAccountRow | null>(null);
@@ -225,6 +226,14 @@ const Dashboard = () => {
   })();
 
   const querySuffix = selectedPlanId ? `?plan=${selectedPlanId}` : "";
+
+  useEffect(() => {
+    if (loading || location.hash !== "#planos") return;
+
+    window.requestAnimationFrame(() => {
+      document.getElementById("planos")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  }, [loading, location.hash]);
 
   const clearInvalidSiteSession = async () => {
     await clearSiteLocalSession(supabase);
@@ -1101,7 +1110,7 @@ const Dashboard = () => {
           </CardContent>
         </Card>
 
-        <div className="space-y-4">
+        <div id="planos" className="space-y-4">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <h2 className="font-heading text-2xl font-bold">Escolha seu plano</h2>

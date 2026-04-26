@@ -5,6 +5,7 @@ import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Check, Star, Zap, Monitor, Smartphone, Download } from "lucide-react";
 import { useAuthSession } from "@/hooks/use-auth-session";
+import { useLandingAccountActions } from "@/hooks/use-landing-account-actions";
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -85,6 +86,7 @@ const WHATSAPP_NUMBER = "5512988918792";
 const Pricing = () => {
   const ref = useRef<HTMLElement>(null);
   const { isAuthenticated } = useAuthSession();
+  const { showTestButton, testHref } = useLandingAccountActions();
 
   useEffect(() => {
     const ctx = gsap.context(() => {
@@ -186,13 +188,11 @@ const Pricing = () => {
 
               <div className="flex flex-col gap-3">
                 {plan.highlight === "demo" ? (
-                  <Button asChild className="w-full font-semibold h-12 text-base bg-secondary text-secondary-foreground hover:bg-secondary/90" size="lg">
-                    {isAuthenticated ? (
-                      <Link to={`/dashboard?plan=${plan.id}`}>Abrir Demo no Painel</Link>
-                    ) : (
-                      <Link to={`/cadastro?plan=${plan.id}`}>Testar grátis agora</Link>
-                    )}
-                  </Button>
+                  showTestButton ? (
+                    <Button asChild className="w-full font-semibold h-12 text-base bg-secondary text-secondary-foreground hover:bg-secondary/90" size="lg">
+                      <Link to={isAuthenticated ? testHref : `/cadastro?plan=${plan.id}`}>Testar grátis agora</Link>
+                    </Button>
+                  ) : null
                 ) : (
                   <>
                     <Button asChild className={`w-full font-semibold h-12 text-base transition-all duration-300 hover:scale-[1.02] hover:shadow-lg ${

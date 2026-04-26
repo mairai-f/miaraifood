@@ -4,7 +4,7 @@ import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { Link, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { ArrowRight, MessageCircle } from "lucide-react";
-import { useAuthSession } from "@/hooks/use-auth-session";
+import { useLandingAccountActions } from "@/hooks/use-landing-account-actions";
 import { isPublicPlanId } from "@/lib/subscriptionPlans";
 
 gsap.registerPlugin(ScrollTrigger);
@@ -14,14 +14,13 @@ const WHATSAPP_NUMBER = "5512988918792";
 const CTA = () => {
   const ref = useRef<HTMLElement>(null);
   const [searchParams] = useSearchParams();
-  const { isAuthenticated } = useAuthSession();
+  const { showCreateAccount, showTestButton, testHref } = useLandingAccountActions();
   const selectedPlanId = (() => {
     const value = searchParams.get("plan");
     return isPublicPlanId(value) ? value : null;
   })();
   const dashboardHref = selectedPlanId ? `/dashboard?plan=${selectedPlanId}` : "/dashboard";
   const signupHref = selectedPlanId ? `/cadastro?plan=${selectedPlanId}` : "/cadastro";
-  const demoHref = "/cadastro?plan=demo";
 
   useEffect(() => {
     const ctx = gsap.context(() => {
@@ -58,18 +57,20 @@ const CTA = () => {
                 Crie sua conta, teste grátis e veja na prática como fiado, PDV, estoque e cobranças podem trabalhar no mesmo lugar.
               </p>
               <div className="flex flex-col gap-4 justify-center sm:flex-row sm:flex-wrap">
-                <Button asChild size="lg" className="bg-primary text-primary-foreground font-semibold h-14 px-8 text-base animate-glow-pulse hover:scale-105 transition-transform">
-                  {isAuthenticated ? (
+                {showTestButton ? (
+                  <Button asChild size="lg" className="bg-primary text-primary-foreground font-semibold h-14 px-8 text-base animate-glow-pulse hover:scale-105 transition-transform">
+                    <Link to={testHref}>
+                      Testar grátis <ArrowRight className="ml-2 h-5 w-5" />
+                    </Link>
+                  </Button>
+                ) : (
+                  <Button asChild size="lg" className="bg-primary text-primary-foreground font-semibold h-14 px-8 text-base hover:scale-105 transition-transform">
                     <Link to={dashboardHref}>
                       Abrir painel <ArrowRight className="ml-2 h-5 w-5" />
                     </Link>
-                  ) : (
-                    <Link to={demoHref}>
-                      Testar grátis <ArrowRight className="ml-2 h-5 w-5" />
-                    </Link>
-                  )}
-                </Button>
-                {!isAuthenticated ? (
+                  </Button>
+                )}
+                {showCreateAccount ? (
                   <Button asChild variant="outline" size="lg" className="h-14 px-8 text-base border-border hover:bg-muted hover:scale-105 transition-all">
                     <Link to={signupHref}>Criar conta</Link>
                   </Button>

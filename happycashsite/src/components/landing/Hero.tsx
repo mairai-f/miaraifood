@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { ArrowRight, Play } from "lucide-react";
 import gsap from "gsap";
+import { useLandingAccountActions } from "@/hooks/use-landing-account-actions";
 import screenshot1 from "@/assets/screenshot-1.png";
 import mascot from "@/assets/happycoin.png";
 
@@ -13,6 +14,7 @@ const Hero = () => {
   const imageRef = useRef<HTMLDivElement>(null);
   const [wordIndex, setWordIndex] = useState(0);
   const wordRef = useRef<HTMLSpanElement>(null);
+  const { showCreateAccount, showTestButton, testHref, createAccountHref } = useLandingAccountActions();
 
   useEffect(() => {
     const ctx = gsap.context(() => {
@@ -97,17 +99,21 @@ const Hero = () => {
             </p>
 
             <div className="hero-buttons flex flex-col sm:flex-row gap-4">
-              <Button asChild size="lg" className="bg-primary text-primary-foreground font-semibold text-base h-14 px-8 animate-glow-pulse hover:scale-105 transition-transform">
-                <Link to="/cadastro?plan=demo">
-                  Testar grátis agora <ArrowRight className="ml-2 h-5 w-5" />
-                </Link>
-              </Button>
-              <Button asChild variant="outline" size="lg" className="text-base border-border hover:bg-muted h-14 px-8 hover:scale-105 transition-transform group">
-                <Link to="/cadastro">
-                  <Play className="mr-2 h-4 w-4 text-primary group-hover:scale-110 transition-transform" />
-                  Criar conta
-                </Link>
-              </Button>
+              {showTestButton && (
+                <Button asChild size="lg" className="bg-primary text-primary-foreground font-semibold text-base h-14 px-8 animate-glow-pulse hover:scale-105 transition-transform">
+                  <Link to={testHref}>
+                    Testar grátis agora <ArrowRight className="ml-2 h-5 w-5" />
+                  </Link>
+                </Button>
+              )}
+              {showCreateAccount && (
+                <Button asChild variant="outline" size="lg" className="text-base border-border hover:bg-muted h-14 px-8 hover:scale-105 transition-transform group">
+                  <Link to={createAccountHref}>
+                    <Play className="mr-2 h-4 w-4 text-primary group-hover:scale-110 transition-transform" />
+                    Criar conta
+                  </Link>
+                </Button>
+              )}
             </div>
 
             <a href="#planos" className="inline-flex items-center gap-2 text-sm font-semibold text-muted-foreground transition-colors hover:text-primary">

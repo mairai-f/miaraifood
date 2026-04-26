@@ -6,6 +6,7 @@ import Header from "@/components/landing/Header";
 import SiteSeo from "@/components/seo/SiteSeo";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Button } from "@/components/ui/button";
+import { useLandingAccountActions } from "@/hooks/use-landing-account-actions";
 import type { SiteSeoConfig } from "@/lib/siteSeo";
 
 const WHATSAPP_NUMBER = "5512988918792";
@@ -59,6 +60,8 @@ const SolutionPage = ({
   featureCards,
   faqs,
 }: SolutionPageProps) => {
+  const { showCreateAccount, showTestButton, testHref, createAccountHref } = useLandingAccountActions();
+
   return (
     <div className="min-h-screen overflow-x-hidden bg-background">
       <SiteSeo {...seo} />
@@ -82,14 +85,18 @@ const SolutionPage = ({
               </p>
 
               <div className="mt-8 flex flex-col gap-4 sm:flex-row">
-                <Button asChild size="lg" className="h-14 px-8 text-base font-semibold">
-                  <Link to="/cadastro?plan=demo">
-                    Testar grátis agora <ArrowRight className="ml-2 h-5 w-5" />
-                  </Link>
-                </Button>
-                <Button asChild variant="outline" size="lg" className="h-14 px-8 text-base font-semibold">
-                  <Link to="/cadastro">Criar conta</Link>
-                </Button>
+                {showTestButton && (
+                  <Button asChild size="lg" className="h-14 px-8 text-base font-semibold">
+                    <Link to={testHref}>
+                      Testar grátis agora <ArrowRight className="ml-2 h-5 w-5" />
+                    </Link>
+                  </Button>
+                )}
+                {showCreateAccount && (
+                  <Button asChild variant="outline" size="lg" className="h-14 px-8 text-base font-semibold">
+                    <Link to={createAccountHref}>Criar conta</Link>
+                  </Button>
+                )}
               </div>
 
               <a
@@ -246,9 +253,11 @@ const SolutionPage = ({
                 </div>
 
                 <div className="flex flex-col gap-3 sm:flex-row">
-                  <Button asChild size="lg" className="h-14 px-8 text-base font-semibold">
-                    <Link to="/cadastro?plan=demo">Testar grátis</Link>
-                  </Button>
+                  {showTestButton && (
+                    <Button asChild size="lg" className="h-14 px-8 text-base font-semibold">
+                      <Link to={testHref}>Testar grátis</Link>
+                    </Button>
+                  )}
                   <Button asChild variant="outline" size="lg" className="h-14 px-8 text-base font-semibold">
                     <a href={`https://wa.me/${WHATSAPP_NUMBER}`} target="_blank" rel="noopener noreferrer">
                       Falar no WhatsApp

@@ -7,6 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuthSession } from "@/hooks/use-auth-session";
 import { clearSiteTemporarySessionPreference } from "@/lib/authSessionPreferences";
 import { useCurrentSubscription } from "@/hooks/use-current-subscription";
+import { isCurrentSubscription } from "@/lib/subscriptionStatus";
 import { isPublicPlanId, publicPlanContent } from "@/lib/subscriptionPlans";
 import logo from "@/assets/logo-happycash.png";
 
@@ -27,7 +28,13 @@ const Header = () => {
   const dashboardHref = selectedPlanId ? `/dashboard?plan=${selectedPlanId}` : "/dashboard";
   const homeHref = selectedPlanId ? `/?plan=${selectedPlanId}` : "/";
   const signupHref = selectedPlanId ? `/cadastro?plan=${selectedPlanId}` : "/cadastro";
-  const demoHref = "/cadastro?plan=demo";
+  const hasActivePaidPlan = Boolean(
+    subscription &&
+      subscription.plan_id !== "demo" &&
+      isCurrentSubscription(subscription),
+  );
+  const showTestButton = !isAuthenticated || (!loadingSubscription && !hasActivePaidPlan);
+  const demoHref = isAuthenticated ? "/dashboard#planos" : "/cadastro?plan=demo";
   const currentPlanName = subscription?.plan_id && isPublicPlanId(subscription.plan_id)
     ? publicPlanContent[subscription.plan_id].name
     : null;
@@ -102,6 +109,11 @@ const Header = () => {
               <Button asChild variant="outline" size="sm">
                 <Link to={dashboardHref}>Minha conta</Link>
               </Button>
+              {showTestButton && (
+                <Button asChild className="bg-primary text-primary-foreground font-semibold hover:bg-primary/90 transition-all duration-300 hover:shadow-lg hover:shadow-primary/30 hover:scale-105">
+                  <Link to={demoHref}>Testar grátis</Link>
+                </Button>
+              )}
               <Button
                 type="button"
                 variant="ghost"
@@ -119,9 +131,11 @@ const Header = () => {
               <Button asChild variant="outline" size="sm">
                 <Link to={loginHref}>Entrar</Link>
               </Button>
-              <Button asChild className="bg-primary text-primary-foreground font-semibold hover:bg-primary/90 transition-all duration-300 hover:shadow-lg hover:shadow-primary/30 hover:scale-105">
-                <Link to={demoHref}>Testar grátis</Link>
-              </Button>
+              {showTestButton && (
+                <Button asChild className="bg-primary text-primary-foreground font-semibold hover:bg-primary/90 transition-all duration-300 hover:shadow-lg hover:shadow-primary/30 hover:scale-105">
+                  <Link to={demoHref}>Testar grátis</Link>
+                </Button>
+              )}
             </>
           )}
         </div>
@@ -154,6 +168,11 @@ const Header = () => {
                 <Button asChild variant="outline" className="w-full">
                   <Link to={dashboardHref} onClick={() => setMobileOpen(false)}>Minha conta</Link>
                 </Button>
+                {showTestButton && (
+                  <Button asChild className="w-full bg-primary text-primary-foreground font-semibold">
+                    <Link to={demoHref} onClick={() => setMobileOpen(false)}>Testar grátis</Link>
+                  </Button>
+                )}
                 <Button
                   type="button"
                   variant="ghost"
@@ -173,9 +192,11 @@ const Header = () => {
                 <Button asChild variant="outline" className="w-full font-semibold">
                   <Link to={signupHref} onClick={() => setMobileOpen(false)}>Criar conta</Link>
                 </Button>
-                <Button asChild className="w-full bg-primary text-primary-foreground font-semibold">
-                  <Link to={demoHref} onClick={() => setMobileOpen(false)}>Testar grátis</Link>
-                </Button>
+                {showTestButton && (
+                  <Button asChild className="w-full bg-primary text-primary-foreground font-semibold">
+                    <Link to={demoHref} onClick={() => setMobileOpen(false)}>Testar grátis</Link>
+                  </Button>
+                )}
               </>
             )}
           </nav>
