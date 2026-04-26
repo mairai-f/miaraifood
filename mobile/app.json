@@ -6,6 +6,12 @@
     "orientation": "portrait",
     "scheme": "happycash",
     "userInterfaceStyle": "dark",
+    "icon": "./assets/icon.png",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#1a1a1a"
+    },
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.happycash.mobile",
@@ -15,7 +21,11 @@
     },
     "android": {
       "package": "com.happycash.mobile",
-      "edgeToEdgeEnabled": true
+      "edgeToEdgeEnabled": true,
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#1a1a1a"
+      }
     },
     "extra": {
       "eas": {

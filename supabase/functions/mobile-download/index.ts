@@ -152,10 +152,9 @@ Deno.serve(async (request) => {
 
   const apkUrl = Deno.env.get(androidApkUrlKey)?.trim();
   if (apkUrl) {
-    const downloadUrl = `${apkUrl}?download=HappyCash-Mobile.apk`;
     return jsonResponse(request, {
       success: true,
-      downloadUrl,
+      downloadUrl: apkUrl,
       assetName: "HappyCash-Mobile.apk",
       validUntil: license.validUntil,
     });

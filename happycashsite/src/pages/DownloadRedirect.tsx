@@ -184,11 +184,22 @@ const DownloadRedirect = () => {
                     {downloadMeta.publishedAt && <p>Publicado em: <span className="font-medium text-foreground">{new Date(downloadMeta.publishedAt).toLocaleString("pt-BR")}</span></p>}
                   </div>
                 )}
-                <Button asChild className="mt-4">
-                  <a href={downloadUrl || "#"}>
-                    <Download className="mr-2 h-4 w-4" />
-                    Baixar agora
-                  </a>
+                <Button
+                  className="mt-4"
+                  onClick={() => {
+                    if (downloadUrl && downloadMeta?.assetName) {
+                      const link = document.createElement('a');
+                      link.href = downloadUrl;
+                      link.download = downloadMeta.assetName;
+                      link.style.display = 'none';
+                      document.body.appendChild(link);
+                      link.click();
+                      document.body.removeChild(link);
+                    }
+                  }}
+                >
+                  <Download className="mr-2 h-4 w-4" />
+                  Baixar agora
                 </Button>
               </div>
             )}
