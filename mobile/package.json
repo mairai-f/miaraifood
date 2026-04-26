@@ -9,7 +9,10 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
-    "doctor": "npx expo-doctor"
+    "doctor": "npx expo-doctor",
+    "build:android:apk": "eas build -p android --profile preview",
+    "build:android:store": "eas build -p android --profile production",
+    "build:ios:store": "eas build -p ios --profile production"
   },
   "dependencies": {
     "expo": "~54.0.33",

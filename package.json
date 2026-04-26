@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.1.1",
   "description": "HappyCash POS e gestao com desktop comercial e concentrador offline.",
-  "author": "Celio Antonio",
+  "author": "Celio Antonio <celioantonio7@users.noreply.github.com>",
   "main": "electron/main.cjs",
   "type": "module",
   "scripts": {
@@ -23,11 +23,13 @@
     "electron:build": "npm run build && electron-builder --publish never",
     "electron:build:dir": "npm run build && electron-builder --dir",
     "electron:build:win": "npm run build && electron-builder --win nsis --x64 --publish never",
-    "electron:build:linux": "npm run build && electron-builder --linux AppImage --x64 --publish never",
+    "electron:build:linux": "npm run build && electron-builder --linux AppImage deb --x64 --publish never",
+    "electron:build:linux:appimage": "npm run build && electron-builder --linux AppImage --x64 --publish never",
+    "electron:build:linux:deb": "npm run build && electron-builder --linux deb --x64 --publish never",
     "electron:publish:win": "npm run build && electron-builder --win nsis --x64 --publish always -c.publish.channel=latest -c.publish.releaseType=release",
-    "electron:publish:linux": "npm run build && electron-builder --linux AppImage --x64 --publish always -c.publish.channel=latest -c.publish.releaseType=release",
+    "electron:publish:linux": "npm run build && electron-builder --linux AppImage deb --x64 --publish always -c.publish.channel=latest -c.publish.releaseType=release",
     "electron:publish:win:beta": "npm run build && electron-builder --win nsis --x64 --publish always -c.publish.channel=beta -c.publish.releaseType=prerelease",
-    "electron:publish:linux:beta": "npm run build && electron-builder --linux AppImage --x64 --publish always -c.publish.channel=beta -c.publish.releaseType=prerelease",
+    "electron:publish:linux:beta": "npm run build && electron-builder --linux AppImage deb --x64 --publish always -c.publish.channel=beta -c.publish.releaseType=prerelease",
     "lint": "eslint .",
     "preview": "vite preview",
     "preview:site": "vite preview --config happycashsite/vite.config.ts --port 4174",
@@ -162,7 +164,8 @@
       "icon": "build/icon.png",
       "artifactName": "HappyCash-${version}.${ext}",
       "target": [
-        "AppImage"
+        "AppImage",
+        "deb"
       ],
       "category": "Office"
     }

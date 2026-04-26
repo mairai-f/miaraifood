@@ -8,11 +8,19 @@
     "userInterfaceStyle": "dark",
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.happycash.mobile"
+      "bundleIdentifier": "com.happycash.mobile",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "package": "com.happycash.mobile",
       "edgeToEdgeEnabled": true
+    },
+    "extra": {
+      "eas": {
+        "projectId": "644bdd5c-af8c-4e44-a395-36a71e68f57e"
+      }
     }
   }
 }
