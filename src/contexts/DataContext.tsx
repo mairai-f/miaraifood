@@ -133,6 +133,11 @@ const buildRemotePaymentRecord = (payment: Partial<Payment>, includeId = false) 
   const payload = compactObject(rest as Record<string, unknown>);
   return includeId ? compactObject({ id, ...payload }) : payload;
 };
+const buildRemoteRewardRecord = (reward: Partial<Reward>, includeId = false) => {
+  const { id, ...rest } = reward;
+  const payload = compactObject(rest as Record<string, unknown>);
+  return includeId ? compactObject({ id, ...payload }) : payload;
+};
 const isManualDeletedDebtEntry = (entry: DebtEntry) => entry.manual_deleted === true;
 const isLegacyDeletedDebtEntry = (entry: DebtEntry) => entry.deleted === true && entry.status !== 'paid' && !isManualDeletedDebtEntry(entry);
 const isVisibleDebtEntry = (entry: DebtEntry) => !isManualDeletedDebtEntry(entry) && !isLegacyDeletedDebtEntry(entry);
@@ -181,7 +186,7 @@ interface DataContextType {
     }
   ) => Promise<void>;
   deleteExpense: (id: string) => Promise<void>;
-  addReward: (name: string, description: string, minimum_spending: number) => Promise<void>;
+  addReward: (name: string, description: string, minimum_spending: number, options?: Partial<Reward>) => Promise<void>;
   updateReward: (id: string, data: Partial<Reward>) => Promise<void>;
   deleteReward: (id: string) => Promise<void>;
   refetch: () => Promise<void>;
@@ -929,7 +934,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const syncQueuedRewardCreateOperation = useCallback(async (payload: OfflineRewardPayload) => {
-    ensureSuccess(await db.from('rewards').upsert(stripSyncFields(payload.reward), { onConflict: 'id' }));
+    ensureSuccess(await db.from('rewards').upsert(buildRemoteRewardRecord(payload.reward, true), { onConflict: 'id' }));
   }, []);
 
   const syncQueuedRewardMutationOperation = useCallback(async (
@@ -942,7 +947,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     }
 
     const mutationPayload = payload as OfflineRewardMutationPayload;
-    ensureSuccess(await db.from('rewards').update(stripSyncFields(mutationPayload.changes)).eq('id', mutationPayload.rewardId));
+    ensureSuccess(await db.from('rewards').update(buildRemoteRewardRecord(mutationPayload.changes)).eq('id', mutationPayload.rewardId));
   }, []);
 
   const syncOfflineQueue = useCallback(async () => {
@@ -2764,15 +2769,27 @@ export function DataProvider({ children }: { children: ReactNode }) {
   };
 
   // --- Rewards ---
-  const addReward = async (name: string, description: string, minimum_spending: number) => {
+  const addReward = async (name: string, description: string, minimum_spending: number, options: Partial<Reward> = {}) => {
+    const rewardPayload: Omit<Reward, 'id' | 'created_at' | 'user_id'> = {
+      name,
+      description,
+      minimum_spending,
+      enabled: options.enabled ?? true,
+      reward_type: options.reward_type ?? 'gift',
+      reward_value: Number(options.reward_value ?? 0) || 0,
+      points_cost: Number(options.points_cost ?? 0) || 0,
+      validity_days: Number(options.validity_days ?? 30) || 30,
+      allow_pdv_redemption: options.allow_pdv_redemption ?? true,
+      auto_apply: options.auto_apply ?? false,
+      notes: options.notes ?? '',
+    };
+
     if (isDemoMode) {
       setRewards(prev => [{
         id: createId(),
-        name,
-        description,
-        minimum_spending,
         created_at: nowIso(),
         user_id: ownerUserId!,
+        ...rewardPayload,
       }, ...prev]);
       return;
     }
@@ -2780,11 +2797,12 @@ export function DataProvider({ children }: { children: ReactNode }) {
     const addOfflineReward = async () => {
       const reward: Reward = {
         id: createId(),
+        created_at: nowIso(),
+        user_id: ownerUserId!,
+        ...rewardPayload,
         name,
         description,
         minimum_spending,
-        created_at: nowIso(),
-        user_id: ownerUserId!,
       };
       const queued = await enqueueOfflineOperation(ownerUserId!, 'reward.create', { reward });
       if (!queued) throw new Error('Nao foi possivel registrar a recompensa na fila offline.');
@@ -2797,7 +2815,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     }
 
     try {
-      ensureSuccess(await db.from('rewards').insert({ user_id: ownerUserId!, name, description, minimum_spending }));
+      ensureSuccess(await db.from('rewards').insert(buildRemoteRewardRecord({ user_id: ownerUserId!, ...rewardPayload })));
       await fetchAll();
     } catch (error) {
       if (canUseOfflineConcentrator && isProbablyOfflineError(error)) {
@@ -2830,7 +2848,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     }
 
     try {
-      ensureSuccess(await db.from('rewards').update(data).eq('id', id));
+      ensureSuccess(await db.from('rewards').update(buildRemoteRewardRecord(data)).eq('id', id));
       await fetchAll();
     } catch (error) {
       if (canUseOfflineConcentrator && isProbablyOfflineError(error)) {

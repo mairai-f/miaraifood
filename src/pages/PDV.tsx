@@ -17,7 +17,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Ban, FileText, History, Loader2, Minus, Plus, Printer, Receipt, Search, ShoppingCart, Wallet, X } from 'lucide-react';
-import type { Expense, Product, Sale } from '@/types';
+import type { Expense, Product, Reward, Sale } from '@/types';
 import { openExternalUrl } from '@/lib/openExternalUrl';
 import { normalizePhone } from '@/lib/phone';
 import { openRetailCouponPrintWindow } from '@/lib/retailCoupon';
@@ -228,8 +228,17 @@ const getPaymentMethodPrintStyle = (paymentMethod: string) => {
 
 const CREDIT_INSTALLMENT_OPTIONS = Array.from({ length: 12 }, (_, index) => index + 1);
 
+const getPdvRewardLabel = (reward: Reward) => {
+  const value = Number(reward.reward_value || 0);
+  if (reward.reward_type === 'discount_percent') {
+    return `${reward.name} (${value.toFixed(2)}%)`;
+  }
+
+  return `${reward.name} (${formatCurrency(value)})`;
+};
+
 export default function PDV() {
-  const { products, clients, sales, saleItems, expenses, createSale, addDebtEntries, addExpense, cancelSale } = useData();
+  const { products, clients, rewards, sales, saleItems, expenses, createSale, addDebtEntries, addExpense, cancelSale, getClientTotalSpending } = useData();
   const { user, username, session, role, ownerUserId, isAdmin } = useAuth();
   const { isDesktop, offlineEnabled } = useDesktopRuntime();
   const navigate = useNavigate();
@@ -251,6 +260,7 @@ export default function PDV() {
   const [paymentMethod, setPaymentMethod] = useState('');
   const [cashReceived, setCashReceived] = useState('');
   const [selectedClientId, setSelectedClientId] = useState<string>('');
+  const [selectedRewardId, setSelectedRewardId] = useState<string>('');
   const [isDelivery, setIsDelivery] = useState(false);
   const [showCheckout, setShowCheckout] = useState(false);
   const [showFinalizeConfirm, setShowFinalizeConfirm] = useState(false);
@@ -614,9 +624,30 @@ export default function PDV() {
   const subtotal = cart.reduce((s, i) => s + getCartItemTotal(i), 0);
   const cartRealCost = cart.reduce((sum, item) => sum + (item.product.cost_price || 0) * item.quantity, 0);
   const cartUnits = cart.reduce((sum, item) => sum + item.quantity, 0);
-  const discount = discountType === 'percent'
+  const manualDiscount = discountType === 'percent'
     ? subtotal * (parseFloat(discountInput) || 0) / 100
     : parseFloat(discountInput) || 0;
+  const selectedClientSpending = selectedClientId ? getClientTotalSpending(selectedClientId) : 0;
+  const pdvEligibleRewards = useMemo(() => {
+    if (!selectedClientId) return [];
+
+    return rewards.filter(reward => {
+      const type = reward.reward_type ?? 'gift';
+      return reward.enabled !== false
+        && reward.allow_pdv_redemption !== false
+        && (type === 'discount_amount' || type === 'discount_percent')
+        && selectedClientSpending >= Number(reward.minimum_spending || 0);
+    });
+  }, [rewards, selectedClientId, selectedClientSpending]);
+  const selectedReward = pdvEligibleRewards.find(reward => reward.id === selectedRewardId) ?? null;
+  const rewardDiscount = selectedReward
+    ? selectedReward.reward_type === 'discount_percent'
+      ? subtotal * (Number(selectedReward.reward_value || 0) / 100)
+      : Number(selectedReward.reward_value || 0)
+    : 0;
+  const appliedManualDiscount = Math.min(subtotal, Math.max(0, manualDiscount));
+  const appliedRewardDiscount = Math.min(Math.max(0, subtotal - appliedManualDiscount), Math.max(0, rewardDiscount));
+  const discount = appliedManualDiscount + appliedRewardDiscount;
   const total = Math.max(0, subtotal - discount);
   const estimatedProfit = total - cartRealCost;
   const estimatedMargin = getMarginPercent(total, cartRealCost);
@@ -651,6 +682,12 @@ export default function PDV() {
         : fiscalRuntime.ready
           ? 'Pronta'
           : 'Pendente';
+
+  useEffect(() => {
+    if (!selectedRewardId) return;
+    if (pdvEligibleRewards.some(reward => reward.id === selectedRewardId)) return;
+    setSelectedRewardId('');
+  }, [pdvEligibleRewards, selectedRewardId]);
 
   const saleSearchTerm = saleSearch.trim().toLowerCase();
   const isInCurrentCashSession = (value: string) => {
@@ -1688,6 +1725,7 @@ export default function PDV() {
     setPendingCreditInstallments(1);
     setCashReceived('');
     setSelectedClientId('');
+    setSelectedRewardId('');
     setShowFinalizeConfirm(false);
     setShowCheckout(true);
   };
@@ -1787,6 +1825,7 @@ export default function PDV() {
       setPendingCreditInstallments(1);
       setCashReceived('');
       setSelectedClientId('');
+      setSelectedRewardId('');
       setIsDelivery(false);
       silentToast.success(translateCurrentText('Venda finalizada!'));
 
@@ -2805,7 +2844,18 @@ export default function PDV() {
 
               <div className="rounded-lg border border-border bg-background p-3 space-y-1 lg:bg-transparent">
                 <div className="flex justify-between text-sm"><span>Subtotal</span><span>R$ {subtotal.toFixed(2)}</span></div>
-                {discount > 0 && <div className="flex justify-between text-sm text-destructive"><span>Desconto</span><span>-R$ {discount.toFixed(2)}</span></div>}
+                {manualDiscount > 0 && (
+                  <div className="flex justify-between text-sm text-destructive">
+                    <span>Desconto manual</span>
+                    <span>-R$ {appliedManualDiscount.toFixed(2)}</span>
+                  </div>
+                )}
+                {rewardDiscount > 0 && (
+                  <div className="flex justify-between gap-3 text-sm text-destructive">
+                    <span className="min-w-0 truncate">Recompensa{selectedReward ? `: ${selectedReward.name}` : ''}</span>
+                    <span className="whitespace-nowrap">-R$ {appliedRewardDiscount.toFixed(2)}</span>
+                  </div>
+                )}
                 <div className="flex justify-between text-lg font-bold"><span>Total</span><span className="text-primary">R$ {total.toFixed(2)}</span></div>
                 <div className="flex justify-between text-xs text-muted-foreground"><span>Custo real estimado</span><span>R$ {cartRealCost.toFixed(2)}</span></div>
                 <div className="flex justify-between text-xs text-muted-foreground"><span>Lucro estimado</span><span>R$ {estimatedProfit.toFixed(2)} • {estimatedMargin.toFixed(1)}%</span></div>
@@ -2903,15 +2953,52 @@ export default function PDV() {
                 {isDelivery ? 'Delivery ativo' : 'Balcão / Retirada'}
               </Button>
 
-              {paymentMethod === 'fiado' && (
-                <div className="space-y-1">
-                  <Label className="text-sm">Cliente</Label>
-                  <Select value={selectedClientId} onValueChange={setSelectedClientId}>
-                    <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Selecione..." /></SelectTrigger>
-                    <SelectContent>
-                      {activeClients.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
+              <div className="space-y-1">
+                <div className="flex items-center justify-between gap-2">
+                  <Label className="text-sm">Cliente {paymentMethod === 'fiado' ? '(obrigatório)' : '(opcional)'}</Label>
+                  {selectedClientId && (
+                    <Button type="button" variant="ghost" size="sm" className="h-7 px-2" onClick={() => setSelectedClientId('')}>
+                      Limpar
+                    </Button>
+                  )}
+                </div>
+                <Select value={selectedClientId} onValueChange={setSelectedClientId}>
+                  <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Selecione..." /></SelectTrigger>
+                  <SelectContent>
+                    {activeClients.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {selectedClientId && (
+                <div className="space-y-1 rounded-lg border border-border bg-card p-3 lg:bg-transparent">
+                  <div className="flex items-center justify-between gap-2">
+                    <div>
+                      <Label className="text-sm">Recompensa</Label>
+                      <p className="text-xs text-muted-foreground">
+                        Consumo acumulado: {formatMoney(selectedClientSpending)}
+                      </p>
+                    </div>
+                    {selectedRewardId && (
+                      <Button type="button" variant="ghost" size="sm" className="h-7 px-2" onClick={() => setSelectedRewardId('')}>
+                        Remover
+                      </Button>
+                    )}
+                  </div>
+                  {pdvEligibleRewards.length > 0 ? (
+                    <Select value={selectedRewardId} onValueChange={setSelectedRewardId}>
+                      <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Escolha uma recompensa..." /></SelectTrigger>
+                      <SelectContent>
+                        {pdvEligibleRewards.map(reward => (
+                          <SelectItem key={reward.id} value={reward.id}>{getPdvRewardLabel(reward)}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">
+                      Nenhuma recompensa liberada para este cliente no PDV.
+                    </p>
+                  )}
                 </div>
               )}
 

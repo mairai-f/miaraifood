@@ -161,6 +161,14 @@ export interface Reward {
   minimum_spending: number;
   created_at: string;
   user_id: string;
+  enabled?: boolean;
+  reward_type?: 'gift' | 'discount_amount' | 'discount_percent' | 'cashback_amount' | 'cashback_percent' | 'points';
+  reward_value?: number;
+  points_cost?: number;
+  validity_days?: number;
+  allow_pdv_redemption?: boolean;
+  auto_apply?: boolean;
+  notes?: string;
 }
 
 export interface StockMovement {
