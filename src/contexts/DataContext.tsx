@@ -16,19 +16,28 @@ import {
   updateOfflineQueueItem,
   type OfflineClearHistoryPayload,
   type OfflineDebtEntriesPayload,
+  type OfflineDebtEntryMutationPayload,
   type OfflineCashSessionClosePayload,
   type OfflineCashSessionOpenPayload,
+  type OfflineClearAllStockPayload,
   type OfflineClientMutationPayload,
   type OfflineClientPayload,
   type OfflineCloseAllDebtPayload,
+  type OfflineDeletePayload,
   type OfflineExpensePayload,
   type OfflineOperationPayload,
   type OfflineOperationType,
   type OfflinePaymentPayload,
+  type OfflinePricingRuleMutationPayload,
+  type OfflinePricingRulePayload,
   type OfflineProductMutationPayload,
   type OfflineProductPayload,
+  type OfflineRewardMutationPayload,
+  type OfflineRewardPayload,
   type OfflineSaleCreatePayload,
+  type OfflineSaleCancelPayload,
   type OfflineSnapshot,
+  type OfflineStockMovementPayload,
 } from '@/lib/offlineConcentrator';
 import { shouldUseOfflineSnapshotFallback } from '@/lib/offlineSnapshotPolicy';
 import { buildSaleItemPricingMetrics, normalizeProductPricing, normalizePricingRoundingRule } from '@/lib/pricing';
@@ -543,6 +552,26 @@ export function DataProvider({ children }: { children: ReactNode }) {
     ensureSuccess(await db.from('products').update(remoteProductPayload).eq('id', payload.productId));
   }, []);
 
+  const syncQueuedPricingRuleCreateOperation = useCallback(async (payload: OfflinePricingRulePayload) => {
+    ensureSuccess(await db.from('product_category_pricing_rules').upsert(stripSyncFields(payload.rule), { onConflict: 'id' }));
+  }, []);
+
+  const syncQueuedPricingRuleMutationOperation = useCallback(async (
+    operationType: 'pricing_rule.update' | 'pricing_rule.delete',
+    payload: OfflinePricingRuleMutationPayload | OfflineDeletePayload,
+  ) => {
+    if (operationType === 'pricing_rule.delete') {
+      ensureSuccess(await db.from('product_category_pricing_rules').delete().eq('id', (payload as OfflineDeletePayload).id));
+      return;
+    }
+
+    const mutationPayload = payload as OfflinePricingRuleMutationPayload;
+    ensureSuccess(await db
+      .from('product_category_pricing_rules')
+      .update(stripSyncFields(mutationPayload.changes))
+      .eq('id', mutationPayload.ruleId));
+  }, []);
+
   const syncQueuedSaleOperation = useCallback(async (payload: OfflineSaleCreatePayload) => {
     const { sale, items, stockMovements } = payload;
     const remoteSalePayload = {
@@ -644,6 +673,37 @@ export function DataProvider({ children }: { children: ReactNode }) {
     }
   }, [ownerUserId]);
 
+  const syncQueuedSaleCancelOperation = useCallback(async (payload: OfflineSaleCancelPayload) => {
+    ensureSuccess(await db.from('sales').update(stripSyncFields(payload.changes)).eq('id', payload.saleId));
+
+    for (const stockRestore of payload.stockRestores) {
+      const { data: productData, error: productError } = await db
+        .from('products')
+        .select('id, stock')
+        .eq('id', stockRestore.productId)
+        .maybeSingle();
+
+      if (productError) throw productError;
+      const product = productData as { id: string; stock: number } | null;
+
+      if (!product) {
+        throw new OfflineSyncConflictError(
+          'sale.cancel',
+          `O produto ${stockRestore.productId} nao existe mais no banco remoto para restaurar o estoque.`,
+        );
+      }
+
+      ensureSuccess(await db
+        .from('products')
+        .update({ stock: Number(product.stock || 0) + stockRestore.quantity })
+        .eq('id', stockRestore.productId));
+    }
+
+    if (payload.stockMovements.length > 0) {
+      ensureSuccess(await db.from('stock_movements').insert(payload.stockMovements.map(stripSyncFields)));
+    }
+  }, []);
+
   const syncQueuedDebtEntriesOperation = useCallback(async (payload: OfflineDebtEntriesPayload) => {
     if (payload.entries.length === 0) {
       return;
@@ -668,6 +728,13 @@ export function DataProvider({ children }: { children: ReactNode }) {
     if (missingEntries.length > 0) {
       ensureSuccess(await db.from('debt_entries').insert(missingEntries));
     }
+  }, []);
+
+  const syncQueuedDebtEntryMutationOperation = useCallback(async (payload: OfflineDebtEntryMutationPayload) => {
+    ensureSuccess(await db
+      .from('debt_entries')
+      .update(stripSyncFields(payload.changes))
+      .eq('id', payload.entryId));
   }, []);
 
   const syncQueuedPaymentOperation = useCallback(async (payload: OfflinePaymentPayload) => {
@@ -703,6 +770,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
     if (!existingPayment) {
       ensureSuccess(await db.from('payments').insert(buildRemotePaymentRecord(payment, true)));
     }
+  }, []);
+
+  const syncQueuedPaymentDeleteOperation = useCallback(async (payload: OfflineDeletePayload) => {
+    ensureSuccess(await db.from('payments').delete().eq('id', payload.id));
   }, []);
 
   const syncQueuedCloseAllDebtOperation = useCallback(async (payload: OfflineCloseAllDebtPayload) => {
@@ -816,6 +887,64 @@ export function DataProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  const syncQueuedStockMovementOperation = useCallback(async (payload: OfflineStockMovementPayload) => {
+    if (payload.stockAdjustment) {
+      const { data: productData, error: productError } = await db
+        .from('products')
+        .select('id, stock')
+        .eq('id', payload.stockAdjustment.productId)
+        .maybeSingle();
+
+      if (productError) throw productError;
+      const product = productData as { id: string; stock: number } | null;
+
+      if (!product) {
+        throw new OfflineSyncConflictError(
+          'stock_movement.create',
+          `O produto ${payload.stockAdjustment.productId} nao existe mais no banco remoto para sincronizar o estoque.`,
+        );
+      }
+
+      ensureSuccess(await db
+        .from('products')
+        .update({ stock: Math.max(0, Number(product.stock || 0) + payload.stockAdjustment.delta) })
+        .eq('id', payload.stockAdjustment.productId));
+    }
+
+    ensureSuccess(await db.from('stock_movements').insert(stripSyncFields(payload.movement)));
+  }, []);
+
+  const syncQueuedClearAllStockOperation = useCallback(async (payload: OfflineClearAllStockPayload) => {
+    for (const update of payload.productUpdates) {
+      ensureSuccess(await db.from('products').update({ stock: update.stock }).eq('id', update.productId));
+    }
+
+    if (payload.stockMovements.length > 0) {
+      ensureSuccess(await db.from('stock_movements').insert(payload.stockMovements.map(stripSyncFields)));
+    }
+  }, []);
+
+  const syncQueuedExpenseDeleteOperation = useCallback(async (payload: OfflineDeletePayload) => {
+    ensureSuccess(await db.from('expenses').delete().eq('id', payload.id));
+  }, []);
+
+  const syncQueuedRewardCreateOperation = useCallback(async (payload: OfflineRewardPayload) => {
+    ensureSuccess(await db.from('rewards').upsert(stripSyncFields(payload.reward), { onConflict: 'id' }));
+  }, []);
+
+  const syncQueuedRewardMutationOperation = useCallback(async (
+    operationType: 'reward.update' | 'reward.delete',
+    payload: OfflineRewardMutationPayload | OfflineDeletePayload,
+  ) => {
+    if (operationType === 'reward.delete') {
+      ensureSuccess(await db.from('rewards').delete().eq('id', (payload as OfflineDeletePayload).id));
+      return;
+    }
+
+    const mutationPayload = payload as OfflineRewardMutationPayload;
+    ensureSuccess(await db.from('rewards').update(stripSyncFields(mutationPayload.changes)).eq('id', mutationPayload.rewardId));
+  }, []);
+
   const syncOfflineQueue = useCallback(async () => {
     if (
       offlineSyncInFlightRef.current
@@ -859,18 +988,44 @@ export function DataProvider({ children }: { children: ReactNode }) {
             await syncQueuedProductMutationOperation('product.update', queueItem.payload as OfflineProductMutationPayload);
           } else if (queueItem.operationType === 'product.soft_delete' && queueItem.payload) {
             await syncQueuedProductMutationOperation('product.soft_delete', queueItem.payload as OfflineProductMutationPayload);
+          } else if (queueItem.operationType === 'pricing_rule.create' && queueItem.payload) {
+            await syncQueuedPricingRuleCreateOperation(queueItem.payload as OfflinePricingRulePayload);
+          } else if (queueItem.operationType === 'pricing_rule.update' && queueItem.payload) {
+            await syncQueuedPricingRuleMutationOperation('pricing_rule.update', queueItem.payload as OfflinePricingRuleMutationPayload);
+          } else if (queueItem.operationType === 'pricing_rule.delete' && queueItem.payload) {
+            await syncQueuedPricingRuleMutationOperation('pricing_rule.delete', queueItem.payload as OfflineDeletePayload);
           } else if (queueItem.operationType === 'sale.create' && queueItem.payload) {
             await syncQueuedSaleOperation(queueItem.payload as OfflineSaleCreatePayload);
+          } else if (queueItem.operationType === 'sale.cancel' && queueItem.payload) {
+            await syncQueuedSaleCancelOperation(queueItem.payload as OfflineSaleCancelPayload);
           } else if (queueItem.operationType === 'debt_entries.add_many' && queueItem.payload) {
             await syncQueuedDebtEntriesOperation(queueItem.payload as OfflineDebtEntriesPayload);
+          } else if (queueItem.operationType === 'debt_entry.update' && queueItem.payload) {
+            await syncQueuedDebtEntryMutationOperation(queueItem.payload as OfflineDebtEntryMutationPayload);
+          } else if (queueItem.operationType === 'debt_entry.delete' && queueItem.payload) {
+            await syncQueuedDebtEntryMutationOperation(queueItem.payload as OfflineDebtEntryMutationPayload);
           } else if (queueItem.operationType === 'debt_entries.close_all' && queueItem.payload) {
             await syncQueuedCloseAllDebtOperation(queueItem.payload as OfflineCloseAllDebtPayload);
           } else if (queueItem.operationType === 'debt_entries.clear_history' && queueItem.payload) {
             await syncQueuedClearHistoryOperation(queueItem.payload as OfflineClearHistoryPayload);
           } else if (queueItem.operationType === 'payment.create' && queueItem.payload) {
             await syncQueuedPaymentOperation(queueItem.payload as OfflinePaymentPayload);
+          } else if (queueItem.operationType === 'payment.delete' && queueItem.payload) {
+            await syncQueuedPaymentDeleteOperation(queueItem.payload as OfflineDeletePayload);
+          } else if (queueItem.operationType === 'stock_movement.create' && queueItem.payload) {
+            await syncQueuedStockMovementOperation(queueItem.payload as OfflineStockMovementPayload);
+          } else if (queueItem.operationType === 'stock.clear_all' && queueItem.payload) {
+            await syncQueuedClearAllStockOperation(queueItem.payload as OfflineClearAllStockPayload);
           } else if (queueItem.operationType === 'expense.create' && queueItem.payload) {
             await syncQueuedExpenseOperation(queueItem.payload as OfflineExpensePayload);
+          } else if (queueItem.operationType === 'expense.delete' && queueItem.payload) {
+            await syncQueuedExpenseDeleteOperation(queueItem.payload as OfflineDeletePayload);
+          } else if (queueItem.operationType === 'reward.create' && queueItem.payload) {
+            await syncQueuedRewardCreateOperation(queueItem.payload as OfflineRewardPayload);
+          } else if (queueItem.operationType === 'reward.update' && queueItem.payload) {
+            await syncQueuedRewardMutationOperation('reward.update', queueItem.payload as OfflineRewardMutationPayload);
+          } else if (queueItem.operationType === 'reward.delete' && queueItem.payload) {
+            await syncQueuedRewardMutationOperation('reward.delete', queueItem.payload as OfflineDeletePayload);
           }
 
           await updateOfflineQueueItem({
@@ -920,12 +1075,22 @@ export function DataProvider({ children }: { children: ReactNode }) {
     syncQueuedClientCreateOperation,
     syncQueuedClientMutationOperation,
     syncQueuedCloseAllDebtOperation,
+    syncQueuedClearAllStockOperation,
     syncQueuedDebtEntriesOperation,
+    syncQueuedDebtEntryMutationOperation,
+    syncQueuedExpenseDeleteOperation,
     syncQueuedExpenseOperation,
+    syncQueuedPaymentDeleteOperation,
     syncQueuedPaymentOperation,
+    syncQueuedPricingRuleCreateOperation,
+    syncQueuedPricingRuleMutationOperation,
     syncQueuedProductCreateOperation,
     syncQueuedProductMutationOperation,
+    syncQueuedRewardCreateOperation,
+    syncQueuedRewardMutationOperation,
+    syncQueuedSaleCancelOperation,
     syncQueuedSaleOperation,
+    syncQueuedStockMovementOperation,
     user,
   ]);
 
@@ -1361,9 +1526,38 @@ export function DataProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    const { data, error } = await db.from('product_category_pricing_rules').insert(normalizedRule).select('*').single();
-    if (error) throw error;
-    setPricingRules(prev => [...prev, normalizePricingRuleRow(data as ProductCategoryPricingRule)].sort((a, b) => a.category.localeCompare(b.category)));
+    const addOfflinePricingRule = async () => {
+      const createdAt = nowIso();
+      const rule = normalizePricingRuleRow({
+        id: createId(),
+        created_at: createdAt,
+        updated_at: createdAt,
+        ...normalizedRule,
+      } as ProductCategoryPricingRule);
+
+      const queued = await enqueueOfflineOperation(ownerUserId!, 'pricing_rule.create', { rule });
+      if (!queued) throw new Error('Nao foi possivel registrar a regra de precificacao na fila offline.');
+
+      setPricingRules(prev => [...prev, rule].sort((a, b) => a.category.localeCompare(b.category)));
+    };
+
+    if (canUseOfflineConcentrator && typeof navigator !== 'undefined' && navigator.onLine === false) {
+      await addOfflinePricingRule();
+      return;
+    }
+
+    try {
+      const { data, error } = await db.from('product_category_pricing_rules').insert(normalizedRule).select('*').single();
+      if (error) throw error;
+      setPricingRules(prev => [...prev, normalizePricingRuleRow(data as ProductCategoryPricingRule)].sort((a, b) => a.category.localeCompare(b.category)));
+    } catch (error) {
+      if (canUseOfflineConcentrator && isProbablyOfflineError(error)) {
+        await addOfflinePricingRule();
+        return;
+      }
+
+      throw error;
+    }
   };
   const updatePricingRule = async (id: string, data: Partial<ProductCategoryPricingRule>) => {
     const currentRule = pricingRules.find(rule => rule.id === id);
@@ -1382,21 +1576,68 @@ export function DataProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    const { data: updated, error } = await db.from('product_category_pricing_rules').update(payload).eq('id', id).select('*').single();
-    if (error) throw error;
-    setPricingRules(prev =>
-      prev
-        .map(rule => rule.id === id ? normalizePricingRuleRow(updated as ProductCategoryPricingRule) : rule)
-        .sort((a, b) => a.category.localeCompare(b.category))
-    );
+    const updateOfflinePricingRule = async () => {
+      const changes = { ...payload, updated_at: nowIso() };
+      const queued = await enqueueOfflineOperation(ownerUserId!, 'pricing_rule.update', { ruleId: id, changes });
+      if (!queued) throw new Error('Nao foi possivel registrar a regra de precificacao na fila offline.');
+
+      setPricingRules(prev =>
+        prev
+          .map(rule => rule.id === id ? normalizePricingRuleRow({ ...rule, ...changes }) : rule)
+          .sort((a, b) => a.category.localeCompare(b.category))
+      );
+    };
+
+    if (canUseOfflineConcentrator && typeof navigator !== 'undefined' && navigator.onLine === false) {
+      await updateOfflinePricingRule();
+      return;
+    }
+
+    try {
+      const { data: updated, error } = await db.from('product_category_pricing_rules').update(payload).eq('id', id).select('*').single();
+      if (error) throw error;
+      setPricingRules(prev =>
+        prev
+          .map(rule => rule.id === id ? normalizePricingRuleRow(updated as ProductCategoryPricingRule) : rule)
+          .sort((a, b) => a.category.localeCompare(b.category))
+      );
+    } catch (error) {
+      if (canUseOfflineConcentrator && isProbablyOfflineError(error)) {
+        await updateOfflinePricingRule();
+        return;
+      }
+
+      throw error;
+    }
   };
   const deletePricingRule = async (id: string) => {
     if (isDemoMode) {
       setPricingRules(prev => prev.filter(rule => rule.id !== id));
       return;
     }
-    ensureSuccess(await db.from('product_category_pricing_rules').delete().eq('id', id));
-    setPricingRules(prev => prev.filter(rule => rule.id !== id));
+
+    const deleteOfflinePricingRule = async () => {
+      const queued = await enqueueOfflineOperation(ownerUserId!, 'pricing_rule.delete', { id });
+      if (!queued) throw new Error('Nao foi possivel registrar a exclusao da regra de precificacao na fila offline.');
+      setPricingRules(prev => prev.filter(rule => rule.id !== id));
+    };
+
+    if (canUseOfflineConcentrator && typeof navigator !== 'undefined' && navigator.onLine === false) {
+      await deleteOfflinePricingRule();
+      return;
+    }
+
+    try {
+      ensureSuccess(await db.from('product_category_pricing_rules').delete().eq('id', id));
+      setPricingRules(prev => prev.filter(rule => rule.id !== id));
+    } catch (error) {
+      if (canUseOfflineConcentrator && isProbablyOfflineError(error)) {
+        await deleteOfflinePricingRule();
+        return;
+      }
+
+      throw error;
+    }
   };
   const searchProducts = (q: string) => {
     const activeProducts = products.filter(p => !p.deleted);
@@ -1521,8 +1762,37 @@ export function DataProvider({ children }: { children: ReactNode }) {
       setDebtEntries(prev => prev.map(entry => entry.id === id ? { ...entry, ...mapped } as DebtEntry : entry));
       return;
     }
-    ensureSuccess(await db.from('debt_entries').update(mapped as Record<string, unknown>).eq('id', id));
-    await fetchAll();
+
+    const updateOfflineDebtEntry = async () => {
+      const changes = {
+        ...mapped,
+        sync_status: 'queued',
+        sync_error: null,
+      };
+      const queued = await enqueueOfflineOperation(ownerUserId!, 'debt_entry.update', {
+        entryId: id,
+        changes,
+      });
+      if (!queued) throw new Error('Nao foi possivel registrar a atualizacao do fiado na fila offline.');
+      setDebtEntries(prev => prev.map(entry => entry.id === id ? { ...entry, ...changes } as DebtEntry : entry));
+    };
+
+    if (canUseOfflineConcentrator && typeof navigator !== 'undefined' && navigator.onLine === false) {
+      await updateOfflineDebtEntry();
+      return;
+    }
+
+    try {
+      ensureSuccess(await db.from('debt_entries').update(mapped as Record<string, unknown>).eq('id', id));
+      await fetchAll();
+    } catch (error) {
+      if (canUseOfflineConcentrator && isProbablyOfflineError(error)) {
+        await updateOfflineDebtEntry();
+        return;
+      }
+
+      throw error;
+    }
   };
   const deleteDebtEntry = async (id: string, reason: string) => {
     if (!isAdmin) {
@@ -1545,14 +1815,44 @@ export function DataProvider({ children }: { children: ReactNode }) {
       } : entry));
       return;
     }
-    ensureSuccess(await db.from('debt_entries').update({
+
+    const changes = {
       deleted: true,
       manual_deleted: true,
       deleted_at: nowIso(),
       deleted_reason: trimmedReason,
       deleted_by: user?.email ?? 'Administrador',
-    }).eq('id', id));
-    await fetchAll();
+    };
+
+    const deleteOfflineDebtEntry = async () => {
+      const queued = await enqueueOfflineOperation(ownerUserId!, 'debt_entry.delete', {
+        entryId: id,
+        changes: {
+          ...changes,
+          sync_status: 'queued',
+          sync_error: null,
+        },
+      });
+      if (!queued) throw new Error('Nao foi possivel registrar a exclusao do fiado na fila offline.');
+      setDebtEntries(prev => prev.map(entry => entry.id === id ? { ...entry, ...changes, sync_status: 'queued', sync_error: null } : entry));
+    };
+
+    if (canUseOfflineConcentrator && typeof navigator !== 'undefined' && navigator.onLine === false) {
+      await deleteOfflineDebtEntry();
+      return;
+    }
+
+    try {
+      ensureSuccess(await db.from('debt_entries').update(changes).eq('id', id));
+      await fetchAll();
+    } catch (error) {
+      if (canUseOfflineConcentrator && isProbablyOfflineError(error)) {
+        await deleteOfflineDebtEntry();
+        return;
+      }
+
+      throw error;
+    }
   };
 
   // --- Payments ---
@@ -1624,8 +1924,29 @@ export function DataProvider({ children }: { children: ReactNode }) {
       setPayments(prev => prev.filter(payment => payment.id !== id));
       return;
     }
-    ensureSuccess(await db.from('payments').delete().eq('id', id));
-    await fetchAll();
+
+    const deleteOfflinePayment = async () => {
+      const queued = await enqueueOfflineOperation(ownerUserId!, 'payment.delete', { id });
+      if (!queued) throw new Error('Nao foi possivel registrar a exclusao do pagamento na fila offline.');
+      setPayments(prev => prev.filter(payment => payment.id !== id));
+    };
+
+    if (canUseOfflineConcentrator && typeof navigator !== 'undefined' && navigator.onLine === false) {
+      await deleteOfflinePayment();
+      return;
+    }
+
+    try {
+      ensureSuccess(await db.from('payments').delete().eq('id', id));
+      await fetchAll();
+    } catch (error) {
+      if (canUseOfflineConcentrator && isProbablyOfflineError(error)) {
+        await deleteOfflinePayment();
+        return;
+      }
+
+      throw error;
+    }
   };
   const getClientBalance = (clientId: string) => {
     const clientPayments = payments.filter(p => p.client_id === clientId);
@@ -2039,76 +2360,134 @@ export function DataProvider({ children }: { children: ReactNode }) {
   };
 
   const cancelSale = async (saleId: string, reason: string) => {
-    if (isDemoMode) {
+    const buildCancelSaleState = () => {
       const itemsToRestore = saleItems.filter(item => item.sale_id === saleId && item.product_id);
       const cancelledAt = nowIso();
-      setSales(prev => prev.map(item => item.id === saleId ? { ...item, status: 'cancelled', cancel_reason: reason, cancelled_at: cancelledAt } : item));
-      setProducts(prev => prev.map(product => {
-        const restoredQuantity = itemsToRestore.filter(item => item.product_id === product.id).reduce((sum, item) => sum + item.quantity, 0);
-        return restoredQuantity > 0 ? { ...product, stock: (product.stock || 0) + restoredQuantity } : product;
-      }));
-      if (itemsToRestore.length > 0) {
-        setStockMovements(prev => [...itemsToRestore.map(item => ({
-          id: createId(),
-          product_id: item.product_id!,
-          user_id: ownerUserId!,
-          type: 'entrada',
-          quantity: item.quantity,
-          reason: `Cancelamento venda: ${reason}`,
-          date: cancelledAt,
-        } as StockMovement)), ...prev]);
-      }
-      return;
-    }
-    const { data: updatedSale, error } = await db
-      .from('sales')
-      .update({ status: 'cancelled', cancel_reason: reason, cancelled_at: new Date().toISOString() })
-      .eq('id', saleId)
-      .select('*')
-      .single();
-
-    if (error) {
-      const message = error.message || '';
-      if (['status', 'cancel_reason', 'cancelled_at'].some(column => message.includes(column))) {
-        throw new Error('A migration de cancelamento de vendas ainda não foi aplicada no banco.');
-      }
-      throw error;
-    }
-
-    const itemsToRestore = saleItems.filter(item => item.sale_id === saleId && item.product_id);
-    const stockUpdates = itemsToRestore.map(item => {
-      const product = products.find(p => p.id === item.product_id);
-      if (!product) return null;
-      return db
-        .from('products')
-        .update({ stock: (product.stock || 0) + item.quantity })
-        .eq('id', item.product_id);
-    }).filter(Boolean);
-
-    await Promise.all(stockUpdates.map(async update => ensureSuccess(await update)));
-
-    let insertedStockMovements: StockMovement[] = [];
-    if (itemsToRestore.length > 0) {
-      const { data: movementRows, error: movementError } = await db.from('stock_movements').insert(itemsToRestore.map(item => ({
-        product_id: item.product_id,
+      const changes = {
+        status: 'cancelled',
+        cancel_reason: reason,
+        cancelled_at: cancelledAt,
+      };
+      const stockMovements = itemsToRestore.map(item => ({
+        id: createId(),
+        product_id: item.product_id!,
         user_id: ownerUserId!,
         type: 'entrada',
         quantity: item.quantity,
         reason: `Cancelamento venda: ${reason}`,
-      }))).select('*');
-      if (movementError) throw movementError;
-      insertedStockMovements = (movementRows as StockMovement[]) ?? [];
+        date: cancelledAt,
+      } as StockMovement));
+      const stockRestores = itemsToRestore.map(item => ({
+        productId: item.product_id!,
+        quantity: item.quantity,
+      }));
+
+      return { itemsToRestore, changes, stockMovements, stockRestores };
+    };
+
+    const applyCancelSaleState = (
+      changes: Partial<Sale>,
+      stockMovements: StockMovement[],
+      itemsToRestore: SaleItem[],
+    ) => {
+      setSales(prev => prev.map(item => item.id === saleId ? { ...item, ...changes } : item));
+      setProducts(prev => prev.map(product => {
+        const restoredQuantity = itemsToRestore
+          .filter(item => item.product_id === product.id)
+          .reduce((sum, item) => sum + item.quantity, 0);
+        if (restoredQuantity === 0) return product;
+        return { ...product, stock: (product.stock || 0) + restoredQuantity };
+      }));
+      if (stockMovements.length > 0) {
+        setStockMovements(prev => [...stockMovements, ...prev]);
+      }
+    };
+
+    if (isDemoMode) {
+      const { changes, stockMovements, itemsToRestore } = buildCancelSaleState();
+      applyCancelSaleState(changes, stockMovements, itemsToRestore);
+      return;
     }
-    setSales(prev => prev.map(item => item.id === saleId ? updatedSale as Sale : item));
-    setProducts(prev => prev.map(product => {
-      const restoredQuantity = itemsToRestore
-        .filter(item => item.product_id === product.id)
-        .reduce((sum, item) => sum + item.quantity, 0);
-      if (restoredQuantity === 0) return product;
-      return { ...product, stock: (product.stock || 0) + restoredQuantity };
-    }));
-    if (insertedStockMovements.length > 0) {
-      setStockMovements(prev => [...insertedStockMovements, ...prev]);
+
+    const cancelOfflineSale = async () => {
+      const { changes, stockMovements, stockRestores, itemsToRestore } = buildCancelSaleState();
+      const queued = await enqueueOfflineOperation(ownerUserId!, 'sale.cancel', {
+        saleId,
+        changes: {
+          ...changes,
+          sync_status: 'queued',
+          sync_error: null,
+        },
+        stockMovements: stockMovements.map(movement => ({ ...movement, sync_status: 'queued', sync_error: null })),
+        stockRestores,
+      });
+      if (!queued) throw new Error('Nao foi possivel registrar o cancelamento da venda na fila offline.');
+      applyCancelSaleState({ ...changes, sync_status: 'queued', sync_error: null }, stockMovements, itemsToRestore);
+    };
+
+    if (canUseOfflineConcentrator && typeof navigator !== 'undefined' && navigator.onLine === false) {
+      await cancelOfflineSale();
+      return;
+    }
+
+    try {
+      const { data: updatedSale, error } = await db
+        .from('sales')
+        .update({ status: 'cancelled', cancel_reason: reason, cancelled_at: new Date().toISOString() })
+        .eq('id', saleId)
+        .select('*')
+        .single();
+
+      if (error) {
+        const message = error.message || '';
+        if (['status', 'cancel_reason', 'cancelled_at'].some(column => message.includes(column))) {
+          throw new Error('A migration de cancelamento de vendas ainda não foi aplicada no banco.');
+        }
+        throw error;
+      }
+
+      const itemsToRestore = saleItems.filter(item => item.sale_id === saleId && item.product_id);
+      const stockUpdates = itemsToRestore.map(item => {
+        const product = products.find(p => p.id === item.product_id);
+        if (!product) return null;
+        return db
+          .from('products')
+          .update({ stock: (product.stock || 0) + item.quantity })
+          .eq('id', item.product_id);
+      }).filter(Boolean);
+
+      await Promise.all(stockUpdates.map(async update => ensureSuccess(await update)));
+
+      let insertedStockMovements: StockMovement[] = [];
+      if (itemsToRestore.length > 0) {
+        const { data: movementRows, error: movementError } = await db.from('stock_movements').insert(itemsToRestore.map(item => ({
+          product_id: item.product_id,
+          user_id: ownerUserId!,
+          type: 'entrada',
+          quantity: item.quantity,
+          reason: `Cancelamento venda: ${reason}`,
+        }))).select('*');
+        if (movementError) throw movementError;
+        insertedStockMovements = (movementRows as StockMovement[]) ?? [];
+      }
+      setSales(prev => prev.map(item => item.id === saleId ? updatedSale as Sale : item));
+      setProducts(prev => prev.map(product => {
+        const restoredQuantity = itemsToRestore
+          .filter(item => item.product_id === product.id)
+          .reduce((sum, item) => sum + item.quantity, 0);
+        if (restoredQuantity === 0) return product;
+        return { ...product, stock: (product.stock || 0) + restoredQuantity };
+      }));
+      if (insertedStockMovements.length > 0) {
+        setStockMovements(prev => [...insertedStockMovements, ...prev]);
+      }
+    } catch (error) {
+      if (canUseOfflineConcentrator && isProbablyOfflineError(error)) {
+        await cancelOfflineSale();
+        return;
+      }
+
+      throw error;
     }
   };
 
@@ -2127,9 +2506,41 @@ export function DataProvider({ children }: { children: ReactNode }) {
       setStockMovements(prev => [movement, ...prev]);
       return;
     }
-    const { data, error } = await db.from('stock_movements').insert({ product_id: productId, user_id: ownerUserId!, type, quantity, reason }).select('*').single();
-    if (error) throw error;
-    setStockMovements(prev => [data as StockMovement, ...prev]);
+
+    const addOfflineStockMovement = async () => {
+      const movement: StockMovement = {
+        id: createId(),
+        product_id: productId,
+        user_id: ownerUserId!,
+        type,
+        quantity,
+        reason,
+        date: nowIso(),
+        sync_status: 'queued',
+        sync_error: null,
+      };
+      const queued = await enqueueOfflineOperation(ownerUserId!, 'stock_movement.create', { movement });
+      if (!queued) throw new Error('Nao foi possivel registrar a movimentacao de estoque na fila offline.');
+      setStockMovements(prev => [movement, ...prev]);
+    };
+
+    if (canUseOfflineConcentrator && typeof navigator !== 'undefined' && navigator.onLine === false) {
+      await addOfflineStockMovement();
+      return;
+    }
+
+    try {
+      const { data, error } = await db.from('stock_movements').insert({ product_id: productId, user_id: ownerUserId!, type, quantity, reason }).select('*').single();
+      if (error) throw error;
+      setStockMovements(prev => [data as StockMovement, ...prev]);
+    } catch (error) {
+      if (canUseOfflineConcentrator && isProbablyOfflineError(error)) {
+        await addOfflineStockMovement();
+        return;
+      }
+
+      throw error;
+    }
   };
 
   const clearAllStock = async (reason = 'Limpeza geral de estoque') => {
@@ -2154,42 +2565,84 @@ export function DataProvider({ children }: { children: ReactNode }) {
       return;
     }
 
+    const clearOfflineStock = async () => {
+      const movementDate = nowIso();
+      const stockMovements = stockedProducts.map(product => ({
+        id: createId(),
+        product_id: product.id,
+        user_id: ownerUserId!,
+        type: 'saida',
+        quantity: product.stock,
+        reason,
+        date: movementDate,
+        sync_status: 'queued',
+        sync_error: null,
+      } as StockMovement));
+      const productUpdates = stockedProducts.map(product => ({
+        productId: product.id,
+        stock: 0,
+      }));
+
+      const queued = await enqueueOfflineOperation(ownerUserId!, 'stock.clear_all', {
+        productUpdates,
+        stockMovements,
+      });
+      if (!queued) throw new Error('Nao foi possivel registrar a limpeza de estoque na fila offline.');
+
+      setProducts(prev => prev.map(product => (product.deleted || (product.stock || 0) <= 0 ? product : { ...product, stock: 0, sync_status: 'queued', sync_error: null })));
+      setStockMovements(prev => [...stockMovements, ...prev]);
+    };
+
+    if (canUseOfflineConcentrator && typeof navigator !== 'undefined' && navigator.onLine === false) {
+      await clearOfflineStock();
+      return;
+    }
+
     const stockedIds = stockedProducts.map(product => product.id);
-    const { data: updatedRows, error: updateError } = await db
-      .from('products')
-      .update({ stock: 0 })
-      .in('id', stockedIds)
-      .select('*');
+    try {
+      const { data: updatedRows, error: updateError } = await db
+        .from('products')
+        .update({ stock: 0 })
+        .in('id', stockedIds)
+        .select('*');
 
-    if (updateError) throw updateError;
+      if (updateError) throw updateError;
 
-    const movementsPayload = stockedProducts.map(product => ({
-      product_id: product.id,
-      user_id: ownerUserId!,
-      type: 'saida',
-      quantity: product.stock,
-      reason,
-    }));
+      const movementsPayload = stockedProducts.map(product => ({
+        product_id: product.id,
+        user_id: ownerUserId!,
+        type: 'saida',
+        quantity: product.stock,
+        reason,
+      }));
 
-    const { data: movementRows, error: movementError } = await db
-      .from('stock_movements')
-      .insert(movementsPayload)
-      .select('*');
+      const { data: movementRows, error: movementError } = await db
+        .from('stock_movements')
+        .insert(movementsPayload)
+        .select('*');
 
-    if (movementError) throw movementError;
+      if (movementError) throw movementError;
 
-    const updatedMap = new Map(
-      ((updatedRows as Product[]) ?? []).map(product => [product.id, product])
-    );
+      const updatedMap = new Map(
+        ((updatedRows as Product[]) ?? []).map(product => [product.id, product])
+      );
 
-    setProducts(prev =>
-      prev.map(product =>
-        updatedMap.has(product.id)
-          ? withDisplayCode(updatedMap.get(product.id)! as Product, prev)
-          : product
-      )
-    );
-    setStockMovements(prev => [...((movementRows as StockMovement[]) ?? []), ...prev]);
+      setProducts(prev =>
+        prev.map(product =>
+          updatedMap.has(product.id)
+            ? withDisplayCode(updatedMap.get(product.id)! as Product, prev)
+            : product
+        )
+      );
+      setStockMovements(prev => [...((movementRows as StockMovement[]) ?? []), ...prev]);
+    } catch (error) {
+      if (canUseOfflineConcentrator && isProbablyOfflineError(error)) {
+        await clearOfflineStock();
+        return;
+      }
+
+      throw error;
+    }
   };
 
   // --- Expenses ---
@@ -2285,8 +2738,29 @@ export function DataProvider({ children }: { children: ReactNode }) {
       setExpenses(prev => prev.filter(expense => expense.id !== id));
       return;
     }
-    ensureSuccess(await db.from('expenses').delete().eq('id', id));
-    await fetchAll();
+
+    const deleteOfflineExpense = async () => {
+      const queued = await enqueueOfflineOperation(ownerUserId!, 'expense.delete', { id });
+      if (!queued) throw new Error('Nao foi possivel registrar a exclusao da despesa na fila offline.');
+      setExpenses(prev => prev.filter(expense => expense.id !== id));
+    };
+
+    if (canUseOfflineConcentrator && typeof navigator !== 'undefined' && navigator.onLine === false) {
+      await deleteOfflineExpense();
+      return;
+    }
+
+    try {
+      ensureSuccess(await db.from('expenses').delete().eq('id', id));
+      await fetchAll();
+    } catch (error) {
+      if (canUseOfflineConcentrator && isProbablyOfflineError(error)) {
+        await deleteOfflineExpense();
+        return;
+      }
+
+      throw error;
+    }
   };
 
   // --- Rewards ---
@@ -2302,8 +2776,37 @@ export function DataProvider({ children }: { children: ReactNode }) {
       }, ...prev]);
       return;
     }
-    ensureSuccess(await db.from('rewards').insert({ user_id: ownerUserId!, name, description, minimum_spending }));
-    await fetchAll();
+
+    const addOfflineReward = async () => {
+      const reward: Reward = {
+        id: createId(),
+        name,
+        description,
+        minimum_spending,
+        created_at: nowIso(),
+        user_id: ownerUserId!,
+      };
+      const queued = await enqueueOfflineOperation(ownerUserId!, 'reward.create', { reward });
+      if (!queued) throw new Error('Nao foi possivel registrar a recompensa na fila offline.');
+      setRewards(prev => [reward, ...prev]);
+    };
+
+    if (canUseOfflineConcentrator && typeof navigator !== 'undefined' && navigator.onLine === false) {
+      await addOfflineReward();
+      return;
+    }
+
+    try {
+      ensureSuccess(await db.from('rewards').insert({ user_id: ownerUserId!, name, description, minimum_spending }));
+      await fetchAll();
+    } catch (error) {
+      if (canUseOfflineConcentrator && isProbablyOfflineError(error)) {
+        await addOfflineReward();
+        return;
+      }
+
+      throw error;
+    }
   };
 
   const updateReward = async (id: string, data: Partial<Reward>) => {
@@ -2311,8 +2814,32 @@ export function DataProvider({ children }: { children: ReactNode }) {
       setRewards(prev => prev.map(reward => reward.id === id ? { ...reward, ...data } : reward));
       return;
     }
-    ensureSuccess(await db.from('rewards').update(data).eq('id', id));
-    await fetchAll();
+
+    const updateOfflineReward = async () => {
+      const queued = await enqueueOfflineOperation(ownerUserId!, 'reward.update', {
+        rewardId: id,
+        changes: data,
+      });
+      if (!queued) throw new Error('Nao foi possivel registrar a atualizacao da recompensa na fila offline.');
+      setRewards(prev => prev.map(reward => reward.id === id ? { ...reward, ...data } : reward));
+    };
+
+    if (canUseOfflineConcentrator && typeof navigator !== 'undefined' && navigator.onLine === false) {
+      await updateOfflineReward();
+      return;
+    }
+
+    try {
+      ensureSuccess(await db.from('rewards').update(data).eq('id', id));
+      await fetchAll();
+    } catch (error) {
+      if (canUseOfflineConcentrator && isProbablyOfflineError(error)) {
+        await updateOfflineReward();
+        return;
+      }
+
+      throw error;
+    }
   };
 
   const deleteReward = async (id: string) => {
@@ -2320,8 +2847,29 @@ export function DataProvider({ children }: { children: ReactNode }) {
       setRewards(prev => prev.filter(reward => reward.id !== id));
       return;
     }
-    ensureSuccess(await db.from('rewards').delete().eq('id', id));
-    await fetchAll();
+
+    const deleteOfflineReward = async () => {
+      const queued = await enqueueOfflineOperation(ownerUserId!, 'reward.delete', { id });
+      if (!queued) throw new Error('Nao foi possivel registrar a exclusao da recompensa na fila offline.');
+      setRewards(prev => prev.filter(reward => reward.id !== id));
+    };
+
+    if (canUseOfflineConcentrator && typeof navigator !== 'undefined' && navigator.onLine === false) {
+      await deleteOfflineReward();
+      return;
+    }
+
+    try {
+      ensureSuccess(await db.from('rewards').delete().eq('id', id));
+      await fetchAll();
+    } catch (error) {
+      if (canUseOfflineConcentrator && isProbablyOfflineError(error)) {
+        await deleteOfflineReward();
+        return;
+      }
+
+      throw error;
+    }
   };
 
   return (

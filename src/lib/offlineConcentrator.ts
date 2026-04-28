@@ -22,12 +22,25 @@ export type OfflineOperationType =
   | 'product.create'
   | 'product.update'
   | 'product.soft_delete'
+  | 'pricing_rule.create'
+  | 'pricing_rule.update'
+  | 'pricing_rule.delete'
   | 'sale.create'
+  | 'sale.cancel'
   | 'debt_entries.add_many'
+  | 'debt_entry.update'
+  | 'debt_entry.delete'
   | 'debt_entries.close_all'
   | 'debt_entries.clear_history'
   | 'payment.create'
-  | 'expense.create';
+  | 'payment.delete'
+  | 'stock_movement.create'
+  | 'stock.clear_all'
+  | 'expense.create'
+  | 'expense.delete'
+  | 'reward.create'
+  | 'reward.update'
+  | 'reward.delete';
 
 export interface OfflineSnapshot {
   clients: Client[];
@@ -76,8 +89,36 @@ export interface OfflineProductMutationPayload {
   changes: Partial<Product>;
 }
 
+export interface OfflinePricingRulePayload {
+  rule: ProductCategoryPricingRule;
+}
+
+export interface OfflinePricingRuleMutationPayload {
+  ruleId: string;
+  changes: Partial<ProductCategoryPricingRule>;
+}
+
+export interface OfflineDeletePayload {
+  id: string;
+}
+
 export interface OfflinePaymentPayload {
   payment: Payment;
+}
+
+export interface OfflineDebtEntryMutationPayload {
+  entryId: string;
+  changes: Partial<DebtEntry>;
+}
+
+export interface OfflineSaleCancelPayload {
+  saleId: string;
+  changes: Partial<Sale>;
+  stockMovements: StockMovement[];
+  stockRestores: Array<{
+    productId: string;
+    quantity: number;
+  }>;
 }
 
 export interface OfflineCloseAllDebtPayload {
@@ -94,6 +135,31 @@ export interface OfflineClearHistoryPayload {
 
 export interface OfflineExpensePayload {
   expense: Expense;
+}
+
+export interface OfflineStockMovementPayload {
+  movement: StockMovement;
+  stockAdjustment?: {
+    productId: string;
+    delta: number;
+  } | null;
+}
+
+export interface OfflineClearAllStockPayload {
+  productUpdates: Array<{
+    productId: string;
+    stock: number;
+  }>;
+  stockMovements: StockMovement[];
+}
+
+export interface OfflineRewardPayload {
+  reward: Reward;
+}
+
+export interface OfflineRewardMutationPayload {
+  rewardId: string;
+  changes: Partial<Reward>;
 }
 
 export interface OfflineCashSessionOpenPayload {
@@ -124,12 +190,21 @@ export type OfflineOperationPayload =
   | OfflineClientMutationPayload
   | OfflineProductPayload
   | OfflineProductMutationPayload
+  | OfflinePricingRulePayload
+  | OfflinePricingRuleMutationPayload
+  | OfflineDeletePayload
   | OfflineSaleCreatePayload
+  | OfflineSaleCancelPayload
   | OfflineDebtEntriesPayload
+  | OfflineDebtEntryMutationPayload
   | OfflineCloseAllDebtPayload
   | OfflineClearHistoryPayload
   | OfflinePaymentPayload
-  | OfflineExpensePayload;
+  | OfflineExpensePayload
+  | OfflineStockMovementPayload
+  | OfflineClearAllStockPayload
+  | OfflineRewardPayload
+  | OfflineRewardMutationPayload;
 
 export interface OfflineQueueItem {
   id: string;
