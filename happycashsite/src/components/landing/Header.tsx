@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuthSession } from "@/hooks/use-auth-session";
-import { clearSiteTemporarySessionPreference } from "@/lib/authSessionPreferences";
+import { clearSiteLocalSession } from "@/lib/authSessionPreferences";
 import { useCurrentSubscription } from "@/hooks/use-current-subscription";
 import { isCurrentSubscription } from "@/lib/subscriptionStatus";
 import { isPublicPlanId, publicPlanContent } from "@/lib/subscriptionPlans";
@@ -55,8 +55,7 @@ const Header = () => {
 
     setLoggingOut(true);
     try {
-      clearSiteTemporarySessionPreference();
-      await supabase.auth.signOut();
+      await clearSiteLocalSession(supabase);
       setMobileOpen(false);
       navigate(homeHref, { replace: true });
     } finally {
