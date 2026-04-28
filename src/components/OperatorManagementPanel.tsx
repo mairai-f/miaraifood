@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useData } from '@/contexts/DataContext';
 import { supabase } from '@/integrations/supabase/client';
+import { createClient } from '@supabase/supabase-js';
+import type { Database } from '@/integrations/supabase/types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -28,6 +30,18 @@ import { getPasswordPolicyError, passwordPolicyHint } from '../../shared/securit
 // Generated Supabase types are behind the current schema for these admin tables.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
+const adminVerificationClient = createClient<Database>(
+  import.meta.env.VITE_SUPABASE_URL,
+  import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+  {
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+      detectSessionInUrl: false,
+      storageKey: 'happycash-admin-settings-cash-verification',
+    },
+  },
+);
 
 interface OperatorProfile {
   user_id: string;
@@ -95,6 +109,7 @@ export function OperatorManagementPanel({
   const [creating, setCreating] = useState(false);
   const [resetting, setResetting] = useState(false);
   const [openingCash, setOpeningCash] = useState(false);
+  const [closingCash, setClosingCash] = useState(false);
   const [deletingOperatorId, setDeletingOperatorId] = useState<string | null>(null);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -103,7 +118,15 @@ export function OperatorManagementPanel({
   const [resetDialogOpen, setResetDialogOpen] = useState(false);
   const [resetPassword, setResetPassword] = useState('');
   const [operatorToOpenCash, setOperatorToOpenCash] = useState<OperatorProfile | null>(null);
+  const [cashSessionToClose, setCashSessionToClose] = useState<{
+    operator: OperatorProfile;
+    session: OpenCashSession;
+    summary: OpenCashSummary | null;
+  } | null>(null);
   const [selectedOperator, setSelectedOperator] = useState<OperatorProfile | null>(null);
+  const [closeCashAdminEmail, setCloseCashAdminEmail] = useState('');
+  const [closeCashAdminPassword, setCloseCashAdminPassword] = useState('');
+  const [closeCashError, setCloseCashError] = useState('');
   const [latestCredential, setLatestCredential] = useState<{
     username: string;
     temporaryPassword: string;
@@ -420,6 +443,95 @@ export function OperatorManagementPanel({
     await loadData();
     setOpeningCash(false);
   };
+
+  const resetCloseCashState = () => {
+    setCashSessionToClose(null);
+    setCloseCashAdminEmail('');
+    setCloseCashAdminPassword('');
+    setCloseCashError('');
+  };
+
+  const handleCloseCashWithAdmin = async () => {
+    if (!cashSessionToClose) return;
+
+    const normalizedAdminEmail = closeCashAdminEmail.trim().toLowerCase();
+    const adminPassword = closeCashAdminPassword.trim();
+
+    if (!normalizedAdminEmail) {
+      setCloseCashError('Digite o email do administrador.');
+      return;
+    }
+
+    if (!adminPassword) {
+      setCloseCashError('Digite a senha do administrador.');
+      return;
+    }
+
+    setClosingCash(true);
+    setCloseCashError('');
+
+    try {
+      const { data: authData, error: authError } = await adminVerificationClient.auth.signInWithPassword({
+        email: normalizedAdminEmail,
+        password: adminPassword,
+      });
+
+      if (authError || !authData.user?.id) {
+        setCloseCashError('Email ou senha de administrador incorretos.');
+        return;
+      }
+
+      const adminDb = adminVerificationClient as unknown as typeof db;
+      const { data: adminProfile, error: adminProfileError } = await adminDb
+        .from('profiles')
+        .select('role, owner_user_id, username')
+        .eq('user_id', authData.user.id)
+        .maybeSingle();
+
+      if (adminProfileError || !adminProfile || adminProfile.role !== 'admin') {
+        setCloseCashError('A conta informada não é de administrador.');
+        return;
+      }
+
+      const adminOwnerUserId = adminProfile.owner_user_id ?? authData.user.id;
+      if (ownerUserId && adminOwnerUserId !== ownerUserId) {
+        setCloseCashError('Administrador não pertence a esta loja.');
+        return;
+      }
+
+      const closedAt = new Date().toISOString();
+      const closingBalance = cashSessionToClose.summary?.currentBalance
+        ?? Number(cashSessionToClose.session.opening_amount || 0);
+
+      const { error: closeError } = await adminDb
+        .from('cash_sessions')
+        .update({
+          status: 'closed',
+          closed_at: closedAt,
+          closed_by_user_id: authData.user.id,
+          closed_by_name: adminProfile.username || authData.user.email || normalizedAdminEmail,
+          closing_balance: Number(closingBalance.toFixed(2)),
+        })
+        .eq('id', cashSessionToClose.session.id);
+
+      if (closeError) {
+        console.error('Erro ao fechar caixa pelas configurações:', closeError);
+        setCloseCashError('Não foi possível registrar o fechamento do caixa.');
+        return;
+      }
+
+      toast.success(`Caixa de ${cashSessionToClose.operator.username} fechado`);
+      resetCloseCashState();
+      await loadData();
+    } catch (error) {
+      console.error('Erro ao validar administrador para fechar caixa:', error);
+      setCloseCashError('Não foi possível validar o administrador.');
+    } finally {
+      await adminVerificationClient.auth.signOut();
+      setClosingCash(false);
+    }
+  };
+
   const handleDeleteOperator = async (operator: OperatorProfile) => {
     if (!session?.access_token) {
       toast.error('Sua sessão expirou. Entre novamente para excluir operadores.');
@@ -637,6 +749,26 @@ export function OperatorManagementPanel({
                               Abrir caixa
                             </Button>
                           )}
+                          {openSession && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="flex-1"
+                              onClick={() => {
+                                setCashSessionToClose({
+                                  operator,
+                                  session: openSession,
+                                  summary: openCashSummary ?? null,
+                                });
+                                setCloseCashAdminEmail('');
+                                setCloseCashAdminPassword('');
+                                setCloseCashError('');
+                              }}
+                            >
+                              <Wallet className="mr-2 h-4 w-4" />
+                              Fechar caixa
+                            </Button>
+                          )}
 
                           <AlertDialog>
                             <AlertDialogTrigger asChild>
@@ -706,6 +838,66 @@ export function OperatorManagementPanel({
             </Button>
             <Button onClick={() => void handleCreateOperator()} disabled={creating}>
               {creating ? 'Criando...' : 'Criar operador'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={Boolean(cashSessionToClose)}
+        onOpenChange={open => {
+          if (!open) {
+            resetCloseCashState();
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Fechar caixa do operador</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-3">
+            <div className="rounded-md border border-border bg-secondary/30 p-3 text-sm">
+              <p className="text-muted-foreground">Operador</p>
+              <p className="font-semibold">{cashSessionToClose?.operator.username || '-'}</p>
+              <p className="mt-2 text-muted-foreground">Total atual</p>
+              <p className="font-semibold">
+                {formatMoney(cashSessionToClose?.summary?.currentBalance ?? Number(cashSessionToClose?.session.opening_amount || 0))}
+              </p>
+            </div>
+
+            <div className="space-y-1">
+              <Label>Login do administrador (email)</Label>
+              <Input
+                type="email"
+                value={closeCashAdminEmail}
+                onChange={event => setCloseCashAdminEmail(event.target.value)}
+                placeholder="admin@empresa.com"
+                autoComplete="username"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <Label>Senha do administrador</Label>
+              <PasswordInput
+                value={closeCashAdminPassword}
+                onChange={event => setCloseCashAdminPassword(event.target.value)}
+                placeholder="Digite a senha"
+                autoComplete="current-password"
+              />
+            </div>
+
+            {closeCashError && (
+              <p className="text-sm font-medium text-destructive">{closeCashError}</p>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={resetCloseCashState} disabled={closingCash}>
+              Cancelar
+            </Button>
+            <Button onClick={() => void handleCloseCashWithAdmin()} disabled={closingCash}>
+              {closingCash ? 'Validando...' : 'Confirmar fechamento'}
             </Button>
           </DialogFooter>
         </DialogContent>

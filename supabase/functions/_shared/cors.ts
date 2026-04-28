@@ -46,6 +46,17 @@ export const isAllowedOriginValue = (origin: string | null, allowOriginless = tr
 
 const isOriginAllowed = (origin: string | null, allowOriginless: boolean) => {
   if (!origin) return allowOriginless;
+  try {
+    const parsed = new URL(origin);
+    const isLocalDevelopmentOrigin =
+      ["localhost", "127.0.0.1", "[::1]"].includes(parsed.hostname) &&
+      ["http:", "https:"].includes(parsed.protocol);
+
+    if (isLocalDevelopmentOrigin) return true;
+  } catch {
+    return false;
+  }
+
   const allowedOrigins = getConfiguredOrigins();
   return allowedOrigins.has(origin);
 };
