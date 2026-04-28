@@ -98,6 +98,7 @@ type PaymentBreakdownItem = {
 };
 
 const CLOSE_CASH_WHATSAPP_PHONE_KEY = 'happycash-close-cash-whatsapp-phone';
+const CLOSE_CASH_EMAIL_RECIPIENTS_KEY = 'happycash-close-cash-email-recipients';
 const adminVerificationClient = createClient<Database>(
   import.meta.env.VITE_SUPABASE_URL,
   import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
@@ -119,6 +120,26 @@ const readCloseCashWhatsAppPhone = () => {
     return '';
   }
 };
+
+const readCloseCashEmailRecipients = () => {
+  if (typeof window === 'undefined') return '';
+  try {
+    return window.localStorage.getItem(CLOSE_CASH_EMAIL_RECIPIENTS_KEY) ?? '';
+  } catch {
+    return '';
+  }
+};
+
+const parseEmailRecipients = (value: string) =>
+  Array.from(new Set(
+    value
+      .split(/[,\n;]/)
+      .map(item => item.trim())
+      .filter(Boolean)
+  ));
+
+const isValidEmailRecipient = (value: string) =>
+  /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 
 const silentToast = {
   success: (_message?: string) => undefined,
@@ -289,6 +310,7 @@ export default function PDV() {
   const [closeCashEmailStatus, setCloseCashEmailStatus] = useState<CloseCashEmailStatus>('idle');
   const [closeCashEmailMessage, setCloseCashEmailMessage] = useState('');
   const [closeCashEmailRecipients, setCloseCashEmailRecipients] = useState<string[]>([]);
+  const [closeCashEmailRecipientInput, setCloseCashEmailRecipientInput] = useState(() => readCloseCashEmailRecipients());
   const [closeCashSendChannel, setCloseCashSendChannel] = useState<CloseCashSendChannel>('email');
   const [closeCashLastSentChannel, setCloseCashLastSentChannel] = useState<CloseCashSendChannel | null>(null);
   const [closeCashWhatsappPhone, setCloseCashWhatsappPhone] = useState(() => readCloseCashWhatsAppPhone());
@@ -2109,10 +2131,29 @@ export default function PDV() {
   };
 
   const sendCloseCashReportEmail = async (receipt: CashCloseReceipt) => {
-    if (!user || !closeCashEmailDestination || !session?.access_token) {
+    if (!user || !session?.access_token) {
       setCloseCashLastSentChannel('email');
       setCloseCashEmailStatus('error');
       setCloseCashEmailMessage('Faça login novamente para enviar o relatório por e-mail.');
+      setCloseCashEmailRecipients([]);
+      return;
+    }
+
+    const recipients = parseEmailRecipients(closeCashEmailRecipientInput || closeCashEmailDestination);
+    const invalidRecipients = recipients.filter(recipient => !isValidEmailRecipient(recipient));
+
+    if (recipients.length === 0) {
+      setCloseCashLastSentChannel('email');
+      setCloseCashEmailStatus('error');
+      setCloseCashEmailMessage('Informe pelo menos um e-mail de destino.');
+      setCloseCashEmailRecipients([]);
+      return;
+    }
+
+    if (invalidRecipients.length > 0) {
+      setCloseCashLastSentChannel('email');
+      setCloseCashEmailStatus('error');
+      setCloseCashEmailMessage(`E-mail inválido: ${invalidRecipients.join(', ')}`);
       setCloseCashEmailRecipients([]);
       return;
     }
@@ -2127,6 +2168,7 @@ export default function PDV() {
       const { data, error } = await supabase.functions.invoke<CashCloseEmailResponse>('send-cash-close-report', {
         body: {
           receipt,
+          recipients,
           timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
         },
         headers: {
@@ -2141,6 +2183,11 @@ export default function PDV() {
       setCloseCashEmailStatus('sent');
       setCloseCashEmailMessage(data?.message || 'Relatório enviado por e-mail com sucesso.');
       setCloseCashEmailRecipients(data?.recipients ?? []);
+      try {
+        window.localStorage.setItem(CLOSE_CASH_EMAIL_RECIPIENTS_KEY, recipients.join(', '));
+      } catch {
+        // Ignore localStorage persistence failures for email recipients.
+      }
     } catch (error) {
       console.error('Erro ao enviar relatório de fechamento por e-mail:', error);
       setCloseCashEmailStatus('error');
@@ -2186,6 +2233,7 @@ export default function PDV() {
 
   const openCloseCashSendDialog = () => {
     setCloseCashSendChannel(closeCashEmailDestination ? 'email' : 'whatsapp');
+    setCloseCashEmailRecipientInput(currentValue => currentValue || closeCashEmailDestination);
     setShowCloseCashSendDialog(true);
   };
 
@@ -3550,8 +3598,16 @@ export default function PDV() {
 
             {closeCashSendChannel === 'email' ? (
               <div className="space-y-1">
-                <Label>Destino do e-mail</Label>
-                <Input value={closeCashEmailDestination || 'Usuário logado sem e-mail'} readOnly />
+                <Label>Destinatários do e-mail</Label>
+                <Textarea
+                  value={closeCashEmailRecipientInput}
+                  onChange={event => setCloseCashEmailRecipientInput(event.target.value)}
+                  placeholder={closeCashEmailDestination || 'dono@empresa.com, contador@empresa.com'}
+                  rows={4}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Separe vários e-mails por vírgula, ponto e vírgula ou linha.
+                </p>
               </div>
             ) : (
               <div className="space-y-1">
@@ -3578,7 +3634,7 @@ export default function PDV() {
                 }
                 sendCloseCashReportWhatsApp(lastCloseReceipt);
               }}
-              disabled={closeCashSendChannel === 'email' && !closeCashEmailDestination}
+              disabled={closeCashSendChannel === 'email' && !closeCashEmailRecipientInput.trim() && !closeCashEmailDestination}
             >
               {closeCashSendChannel === 'email' ? 'Enviar por e-mail' : 'Abrir no WhatsApp'}
             </Button>

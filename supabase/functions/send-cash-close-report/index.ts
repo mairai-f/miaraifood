@@ -30,6 +30,7 @@ interface CashCloseReceipt {
 
 interface CashCloseEmailRequest {
   receipt?: CashCloseReceipt;
+  recipients?: string[];
   timezone?: string;
 }
 
@@ -46,6 +47,20 @@ const parseRecipients = (rawValue: string | undefined) =>
     .split(/[,\n;]/)
     .map((value) => value.trim())
     .filter(Boolean);
+
+const normalizeRecipients = (values: unknown) => {
+  if (!Array.isArray(values)) return [];
+
+  return Array.from(new Set(
+    values
+      .filter((value): value is string => typeof value === 'string')
+      .map((value) => value.trim())
+      .filter(Boolean),
+  ));
+};
+
+const isValidEmailRecipient = (value: string) =>
+  /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 
 const escapeHtml = (value: string) =>
   value
@@ -333,14 +348,23 @@ Deno.serve(async (request) => {
       return jsonResponse(request, { error: 'Seu plano atual nao libera o fechamento de caixa.' }, 403);
     }
 
-    const { receipt, timezone }: CashCloseEmailRequest = await request.json();
+    const { receipt, recipients: requestedRecipients, timezone }: CashCloseEmailRequest = await request.json();
 
     if (!receipt) {
       return jsonResponse(request, { error: 'Dados do fechamento nao informados.' }, 400);
     }
 
+    const customRecipients = normalizeRecipients(requestedRecipients);
+    const invalidRecipients = customRecipients.filter((recipient) => !isValidEmailRecipient(recipient));
+
+    if (invalidRecipients.length > 0) {
+      return jsonResponse(request, { error: `Destinatario invalido: ${invalidRecipients.join(', ')}` }, 400);
+    }
+
     const fallbackRecipients = parseRecipients(Deno.env.get('CASH_CLOSE_REPORT_RECIPIENTS'));
-    const recipients = user.email
+    const recipients = customRecipients.length > 0
+      ? customRecipients
+      : user.email
       ? [user.email]
       : fallbackRecipients;
 
