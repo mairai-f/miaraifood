@@ -1,5 +1,6 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import {
+  buildOperatorEmail,
   isValidOperatorUsername,
   normalizeOperatorUsername,
 } from '../_shared/operatorCredentials.ts';
@@ -240,8 +241,7 @@ Deno.serve(async (request) => {
   const { data: profiles, error: profileError } = await serviceClient
     .from('profiles')
     .select('user_id, email, username')
-    .eq('role', 'operator')
-    .eq('username', normalizedUsername);
+    .eq('role', 'operator');
 
   if (profileError || !profiles || profiles.length === 0) {
     await logAttempt(serviceClient, {
@@ -270,49 +270,51 @@ Deno.serve(async (request) => {
   }
 
   for (const profile of matchingProfiles) {
-    let operatorEmail = profile.email;
+    const operatorEmails = new Set<string>();
+    const profileEmail = profile.email?.trim();
+    if (profileEmail) operatorEmails.add(profileEmail);
 
-    if (!operatorEmail) {
-      const { data: authUserData, error: authUserError } = await serviceClient.auth.admin.getUserById(profile.user_id);
+    const { data: authUserData, error: authUserError } = await serviceClient.auth.admin.getUserById(profile.user_id);
+    const authEmail = authUserData.user?.email?.trim();
+    if (!authUserError && authEmail) {
+      operatorEmails.add(authEmail);
 
-      if (!authUserError && authUserData.user?.email) {
-        operatorEmail = authUserData.user.email;
-
+      if (profileEmail !== authEmail) {
         await serviceClient
           .from('profiles')
-          .update({ email: operatorEmail })
+          .update({ email: authEmail })
           .eq('user_id', profile.user_id);
       }
     }
 
-    if (!operatorEmail) {
-      continue;
+    operatorEmails.add(buildOperatorEmail(normalizedUsername));
+
+    for (const operatorEmail of operatorEmails) {
+      const { data: sessionData, error: loginError } = await authClient.auth.signInWithPassword({
+        email: operatorEmail,
+        password,
+      });
+
+      if (loginError || !sessionData.session) {
+        continue;
+      }
+
+      await logAttempt(serviceClient, {
+        usernameHash,
+        ipHash,
+        origin,
+        status: 'success',
+        userAgent,
+      });
+
+      return jsonResponse(request, {
+        success: true,
+        session: {
+          access_token: sessionData.session.access_token,
+          refresh_token: sessionData.session.refresh_token,
+        },
+      });
     }
-
-    const { data: sessionData, error: loginError } = await authClient.auth.signInWithPassword({
-      email: operatorEmail,
-      password,
-    });
-
-    if (loginError || !sessionData.session) {
-      continue;
-    }
-
-    await logAttempt(serviceClient, {
-      usernameHash,
-      ipHash,
-      origin,
-      status: 'success',
-      userAgent,
-    });
-
-    return jsonResponse(request, {
-      success: true,
-      session: {
-        access_token: sessionData.session.access_token,
-        refresh_token: sessionData.session.refresh_token,
-      },
-    });
   }
 
   await logAttempt(serviceClient, {

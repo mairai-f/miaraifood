@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
 import { useData } from '@/contexts/DataContext';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -87,9 +86,13 @@ export default function Clients() {
         {filtered.map(c => {
           const balance = getClientBalance(c.id);
           return (
-            <motion.div key={c.id} whileHover={{ scale: 1.02, boxShadow: '0 0 25px hsl(217 91% 60% / 0.15)' }} className="cursor-pointer" onClick={() => navigate(`/cliente/${encodeURIComponent(getClientUniqueSlug(c, active))}`)}>
+            <div
+              key={c.id}
+              className="cursor-pointer transition-colors hover:[&_.client-card]:border-primary/40 hover:[&_.client-card]:bg-accent/30"
+              onClick={() => navigate(`/cliente/${encodeURIComponent(getClientUniqueSlug(c, active))}`)}
+            >
               <Card className="border-border/50 h-full">
-                <CardContent className="card-tight">
+                <CardContent className="client-card card-tight h-full rounded-lg border border-transparent transition-colors">
                   <h3 className="mb-2 break-words text-lg font-semibold leading-tight">{c.name}</h3>
                   {c.phone && <p className="meta-text flex items-center gap-1"><Phone className="h-3 w-3 shrink-0" /><span className="truncate">{c.phone}</span></p>}
                   <div className="mt-3 flex items-center gap-1">
@@ -98,7 +101,7 @@ export default function Clients() {
                   </div>
                 </CardContent>
               </Card>
-            </motion.div>
+            </div>
           );
         })}
       </div>
