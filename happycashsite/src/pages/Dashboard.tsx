@@ -857,7 +857,7 @@ const Dashboard = () => {
             <div>
               <h1 className="font-heading text-2xl font-bold sm:text-3xl">Central da conta HappyCash</h1>
               <p className="text-sm text-muted-foreground">
-                A mesma conta serve no site e no sistema HappyCash. Demo com 3 horas e planos pagos com ciclo de 30 dias.
+                A mesma conta serve no site e no sistema HappyCash. Demo com 12 horas e planos pagos com ciclo de 30 dias.
               </p>
             </div>
           </div>
@@ -888,7 +888,7 @@ const Dashboard = () => {
             <AlertTitle>{publicPlanContent[selectedPlanId].name} selecionado</AlertTitle>
             <AlertDescription>
               {selectedPlanId === "demo"
-                ? "Sua demo de 3 horas ja comeca no cadastro."
+                ? "Sua demo de 12 horas ja comeca no cadastro."
                 : "Esse plano fica liberado por 30 dias. Escolha Pix ou debito / credito logo abaixo."}
             </AlertDescription>
           </Alert>
@@ -977,7 +977,7 @@ const Dashboard = () => {
                   <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Validade</p>
                   <p className="mt-2 font-semibold">
                     {currentSubscription?.status === "trialing"
-                      ? "3 horas"
+                      ? "12 horas"
                       : currentPlanContent?.id
                       ? "30 dias"
                       : "Sem ciclo"}
@@ -1027,7 +1027,7 @@ const Dashboard = () => {
                 <p className="text-sm font-semibold">Como esta funcionando agora</p>
                 <ul className="mt-3 space-y-2 text-sm text-muted-foreground">
                   <li>1. O cadastro cria sua conta unica no HappyCash.</li>
-                  <li>2. A demo libera tudo por 3 horas.</li>
+                  <li>2. A demo libera tudo por 12 horas.</li>
                   <li>3. Os planos pagos podem ser cobrados por Pix ou debito / credito e valem 30 dias.</li>
                   <li>4. Assim que o pagamento for confirmado no Asaas, o plano ativa automaticamente.</li>
                 </ul>
@@ -1202,7 +1202,7 @@ const Dashboard = () => {
                         {plan.id === "demo" ? "Gratis" : formatCurrency(plan.price)}
                       </span>
                       <span className="ml-2 text-sm text-muted-foreground">
-                        {plan.id === "demo" ? "/3 horas" : "/30 dias"}
+                        {plan.id === "demo" ? "/12 horas" : "/30 dias"}
                       </span>
                     </div>
                   </CardHeader>

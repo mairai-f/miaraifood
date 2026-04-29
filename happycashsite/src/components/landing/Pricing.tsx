@@ -14,11 +14,11 @@ const plans = [
     id: "demo",
     name: "Demo Grátis",
     price: "0",
-    description: "Teste o sistema completo por 3 horas",
+    description: "Teste o sistema completo por 12 horas",
     popular: false,
     highlight: "demo",
     features: [
-      "Acesso completo por 3 horas",
+      "Acesso completo por 12 horas",
       "Todas as funcionalidades",
       "Sem cartão de crédito",
       "Suporte via WhatsApp",
@@ -117,7 +117,7 @@ const Pricing = () => {
             <span className="text-primary">seu negócio</span>
           </h2>
           <p className="text-muted-foreground max-w-xl mx-auto text-lg">
-            Teste grátis por 3 horas e depois escolha o plano que mais combina com sua operação. Fiado, PDV, estoque e relatórios em um só lugar.
+            Teste grátis por 12 horas e depois escolha o plano que mais combina com sua operação. Fiado, PDV, estoque e relatórios em um só lugar.
           </p>
         </div>
 

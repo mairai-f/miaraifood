@@ -52,7 +52,7 @@ interface ResetActionResponse {
 }
 
 const planLabels: Record<string, string> = {
-  demo: 'Demo 3 Horas',
+  demo: 'Demo 12 Horas',
   fiado: 'Plano Fiado',
   completo: 'Plano Completo',
   pro: 'Plano PRO',

@@ -228,7 +228,7 @@ INSERT INTO public.subscription_plans (
   sort_order
 )
 VALUES
-  ('demo', 'Demo 3 Horas', 'Acesso inicial liberado por 3 horas.', 0, 'trial', 0, 3, 0),
+  ('demo', 'Demo 12 Horas', 'Acesso inicial liberado por 12 horas.', 0, 'trial', 0, 12, 0),
   ('fiado', 'Plano Fiado', 'Fiado com painel, clientes, produtos e histórico básico por 30 dias.', 100, 'monthly', 30, 0, 1),
   ('completo', 'Plano Completo', 'Gestão completa do HappyCash no web por 30 dias.', 230, 'monthly', 30, 0, 2),
   ('pro', 'Plano PRO', 'Completo + desktop, mobile e recursos premium por 30 dias.', 347, 'monthly', 30, 0, 3)

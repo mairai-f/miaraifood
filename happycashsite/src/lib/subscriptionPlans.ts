@@ -15,14 +15,14 @@ export interface PublicPlanContent {
 export const publicPlanContent: Record<PublicPlanId, PublicPlanContent> = {
   demo: {
     id: "demo",
-    name: "Demo 3 Horas",
+    name: "Demo 12 Horas",
     price: 0,
     priceLabel: "Grátis",
-    durationLabel: "3 horas",
-    summary: "Teste o sistema completo por 3 horas antes de escolher um plano pago.",
-    description: "A demo libera tudo por 3 horas e depois o usuario pode seguir no plano que quiser.",
+    durationLabel: "12 horas",
+    summary: "Teste o sistema completo por 12 horas antes de escolher um plano pago.",
+    description: "A demo libera tudo por 12 horas e depois o usuario pode seguir no plano que quiser.",
     features: [
-      "Acesso completo por 3 horas",
+      "Acesso completo por 12 horas",
       "Todas as funcionalidades liberadas",
       "Sem cartao de credito",
       "Depois escolha um plano de 30 dias",

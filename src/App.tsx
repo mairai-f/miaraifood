@@ -12,6 +12,7 @@ import { DataProvider } from "@/contexts/DataContext";
 import { AppLayout } from "@/components/AppLayout";
 import { DesktopLicenseBlocked } from "@/components/DesktopLicenseBlocked";
 import { FeatureLocked } from "@/components/FeatureLocked";
+import { LowStockNotifier } from "@/components/LowStockNotifier";
 import Login from "@/pages/Login";
 import Dashboard from "@/pages/Dashboard";
 import Clients from "@/pages/Clients";
@@ -179,6 +180,7 @@ const App = () => (
           <DesktopRuntimeProvider>
             <PlanProvider>
               <DataProvider>
+                <LowStockNotifier />
                 <Router>
                   <AppRoutes />
                 </Router>

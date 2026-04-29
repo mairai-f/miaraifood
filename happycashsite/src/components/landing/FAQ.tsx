@@ -15,7 +15,7 @@ const faqs = [
   { q: "Como funciona a caderneta de fiado digital?", a: "Você cadastra o cliente, registra as vendas fiadas e o sistema atualiza o saldo automaticamente. Quando for cobrar, a mensagem pode ser aberta direto no WhatsApp." },
   { q: "Posso usar no celular?", a: "Sim! O sistema é totalmente responsivo e funciona perfeitamente em celulares, tablets e computadores." },
   { q: "Tem contrato de fidelidade?", a: "Não! Você pode cancelar quando quiser, sem multa ou taxa de cancelamento." },
-  { q: "Qual a duração dos planos pagos?", a: "Todos os planos pagos do HappyCash têm duração de 30 dias por ciclo. A demo gratuita continua com duração de 3 horas." },
+  { q: "Qual a duração dos planos pagos?", a: "Todos os planos pagos do HappyCash têm duração de 30 dias por ciclo. A demo gratuita continua com duração de 12 horas." },
   { q: "Como funciona o envio de cobranças via WhatsApp?", a: "O sistema gera mensagens prontas de cobrança com nome do cliente, itens e saldo. Você clica, abre o WhatsApp e envia." },
   { q: "Quantos produtos e clientes posso cadastrar?", a: "Ilimitado! Não há limite de cadastros de produtos ou clientes em nenhum dos planos." },
   { q: "O sistema ajuda no controle de estoque?", a: "Sim. Você consegue acompanhar cadastro de produtos, movimentações e estoque mínimo para ter mais clareza sobre a operação." },

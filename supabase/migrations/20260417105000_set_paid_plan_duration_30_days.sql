@@ -8,7 +8,7 @@ SET
     ELSE 30
   END,
   description = CASE
-    WHEN id = 'demo' THEN 'Acesso inicial liberado por 3 horas.'
+    WHEN id = 'demo' THEN 'Acesso inicial liberado por 12 horas.'
     WHEN id = 'fiado' THEN 'Fiado com painel, clientes, produtos e histórico básico por 30 dias.'
     WHEN id = 'completo' THEN 'Gestão completa do HappyCash no web por 30 dias.'
     WHEN id = 'pro' THEN 'Completo + desktop, mobile e recursos premium por 30 dias.'

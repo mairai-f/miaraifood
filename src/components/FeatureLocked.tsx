@@ -6,7 +6,7 @@ import { usePlanAccess } from '@/contexts/PlanContext';
 import { useCurrentSubscription } from '@/hooks/use-current-subscription';
 
 const planLabels: Record<string, string> = {
-  demo: 'Demo 3 Horas',
+  demo: 'Demo 12 Horas',
   fiado: 'Plano Fiado - 30 dias',
   completo: 'Plano Completo - 30 dias',
   pro: 'Plano PRO - 30 dias',
@@ -33,7 +33,7 @@ export function FeatureLocked() {
           {demoExpired ? (
             <>
               <p className="text-sm text-muted-foreground">
-                O período de teste gratuito de 3 horas foi encerrado. Para continuar usando o sistema, agora é preciso ativar um plano pago.
+                O período de teste gratuito de 12 horas foi encerrado. Para continuar usando o sistema, agora é preciso ativar um plano pago.
               </p>
               <p className="text-sm text-muted-foreground">
                 Entre no site da sua conta, escolha um plano e volte ao sistema depois da ativação.
