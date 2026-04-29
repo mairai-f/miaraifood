@@ -180,11 +180,11 @@ interface DataContextType {
   addDebtEntries: (entries: DebtEntryInput[], options?: AddDebtEntriesOptions) => Promise<void>;
   updateDebtEntry: (id: string, data: Record<string, unknown>) => Promise<void>;
   deleteDebtEntry: (id: string, reason: string) => Promise<void>;
-  addPayment: (clientId: string, amount: number, type: 'total' | 'partial', date?: string) => Promise<void>;
+  addPayment: (clientId: string, amount: number, type: 'total' | 'partial', date?: string, details?: unknown) => Promise<void>;
   deletePayment: (id: string) => Promise<void>;
   getClientBalance: (clientId: string) => number;
   getClientTotalSpending: (clientId: string) => number;
-  closeAllDebt: (clientId: string, date?: string) => Promise<void>;
+  closeAllDebt: (clientId: string, date?: string, details?: unknown) => Promise<void>;
   deleteClientHistory: (clientId: string) => Promise<void>;
   createSale: (
     sale: Omit<Sale, 'id' | 'created_at' | 'date'>,
@@ -2189,7 +2189,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   };
 
   // --- Payments ---
-  const addPayment = async (clientId: string, amount: number, type: 'total' | 'partial', date?: string) => {
+  const addPayment = async (clientId: string, amount: number, type: 'total' | 'partial', date?: string, details: unknown = null) => {
     if (isDemoMode) {
       const payment: Payment = {
         id: createId(),
@@ -2197,7 +2197,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         amount,
         type,
         date: date || nowIso(),
-        details: null,
+        details,
       };
       setPayments(prev => sortPaymentsByDate([payment, ...prev]));
       return;
@@ -2210,7 +2210,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         amount,
         type,
         date: date || nowIso(),
-        details: null,
+        details,
         sync_status: 'queued',
         sync_error: null,
       };
@@ -2234,7 +2234,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     try {
       const { data, error } = await db
         .from('payments')
-        .insert({ client_id: clientId, amount, type, date: date || new Date().toISOString() })
+        .insert({ client_id: clientId, amount, type, date: date || new Date().toISOString(), details })
         .select('*')
         .single();
 
@@ -2328,7 +2328,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     return lines.join('\n');
   };
 
-  const closeAllDebt = async (clientId: string, date?: string) => {
+  const closeAllDebt = async (clientId: string, date?: string, details: unknown = null) => {
     const balance = getClientBalance(clientId);
     const paymentDate = date || new Date().toISOString();
     const pendingIds = debtEntries.filter(d => d.client_id === clientId && isVisiblePendingDebtEntry(d)).map(d => d.id);
@@ -2345,7 +2345,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
           amount: balance,
           type: 'total',
           date: paymentDate,
-          details: null,
+          details,
         }, ...prev]));
       }
 
@@ -2367,7 +2367,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
             amount: balance,
             type: 'total',
             date: paymentDate,
-            details: null,
+            details,
             sync_status: 'queued',
             sync_error: null,
           } as Payment
@@ -2414,7 +2414,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       if (balance > 0) {
         const { error } = await db
           .from('payments')
-          .insert({ client_id: clientId, amount: balance, type: 'total', date: paymentDate });
+          .insert({ client_id: clientId, amount: balance, type: 'total', date: paymentDate, details });
 
         if (error) throw error;
       }

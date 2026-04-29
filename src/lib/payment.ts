@@ -6,6 +6,14 @@ export interface PaymentSnapshotItem {
   registered_by?: string | null;
 }
 
+export interface PaymentAdjustmentDetails {
+  paidAmount: number;
+  discountAmount: number;
+  discountType: 'amount' | 'percent' | null;
+  discountValue: number;
+  creditedAmount: number;
+}
+
 interface ParsedPaymentType {
   kind: 'total' | 'partial';
 }
@@ -18,10 +26,19 @@ export const parsePaymentType = (rawType?: string | null): ParsedPaymentType => 
 export const getPaymentLabel = (rawType?: string | null) =>
   parsePaymentType(rawType).kind === 'total' ? 'Pagamento Total' : 'Pagamento Parcial';
 
-export const parsePaymentDetails = (rawDetails: unknown): PaymentSnapshotItem[] => {
-  if (!Array.isArray(rawDetails)) return [];
+const getDetailsItems = (rawDetails: unknown): unknown => {
+  if (Array.isArray(rawDetails)) return rawDetails;
+  if (rawDetails && typeof rawDetails === 'object' && 'items' in rawDetails) {
+    return (rawDetails as { items?: unknown }).items;
+  }
+  return [];
+};
 
-  return rawDetails
+export const parsePaymentDetails = (rawDetails: unknown): PaymentSnapshotItem[] => {
+  const items = getDetailsItems(rawDetails);
+  if (!Array.isArray(items)) return [];
+
+  return items
     .filter((item): item is PaymentSnapshotItem =>
       !!item &&
       typeof item === 'object' &&
@@ -37,6 +54,25 @@ export const parsePaymentDetails = (rawDetails: unknown): PaymentSnapshotItem[] 
       date_added: String(item.date_added),
       registered_by: item.registered_by ? String(item.registered_by) : null,
     }));
+};
+
+export const parsePaymentAdjustmentDetails = (rawDetails: unknown): PaymentAdjustmentDetails | null => {
+  if (!rawDetails || typeof rawDetails !== 'object' || !('payment' in rawDetails)) return null;
+
+  const payment = (rawDetails as { payment?: Record<string, unknown> }).payment;
+  if (!payment || typeof payment !== 'object') return null;
+
+  const discountType = payment.discount_type === 'amount' || payment.discount_type === 'percent'
+    ? payment.discount_type
+    : null;
+
+  return {
+    paidAmount: Number(payment.paid_amount) || 0,
+    discountAmount: Number(payment.discount_amount) || 0,
+    discountType,
+    discountValue: Number(payment.discount_value) || 0,
+    creditedAmount: Number(payment.credited_amount) || 0,
+  };
 };
 
 export const groupPaymentSnapshotItems = (items: PaymentSnapshotItem[]) => {

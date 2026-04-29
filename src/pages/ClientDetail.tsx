@@ -13,7 +13,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { ArrowLeft, Plus, DollarSign, MessageCircle, Trash2, CheckCircle, Edit, X, User, ChevronDown, ChevronRight, Calendar } from 'lucide-react';
+import { ArrowLeft, Plus, DollarSign, MessageCircle, Trash2, CheckCircle, Edit, X, User, ChevronDown, ChevronRight, Calendar, Percent } from 'lucide-react';
 import { toast } from 'sonner';
 import { isWithinInterval, startOfDay, endOfDay } from 'date-fns';
 import { findClientByRef, getClientUniqueSlug } from '@/lib/clientSlug';
@@ -26,7 +26,7 @@ import {
   toClientDateTimeInputValue,
   toUtcIsoString,
 } from '@/lib/clientDateTime';
-import { getPaymentLabel, groupPaymentSnapshotItems, parsePaymentType } from '@/lib/payment';
+import { getPaymentLabel, groupPaymentSnapshotItems, parsePaymentAdjustmentDetails, parsePaymentType } from '@/lib/payment';
 import { openExternalUrl } from '@/lib/openExternalUrl';
 import { DEFAULT_COMPANY_NAME, fetchCompanyDisplayName } from '@/lib/company';
 import { buildWhatsAppUrl, buildItemWhatsAppUrl, buildPaymentWhatsAppUrl } from '@/lib/whatsapp';
@@ -65,6 +65,9 @@ export default function ClientDetail() {
 
   const [payOpen, setPayOpen] = useState(false);
   const [payAmount, setPayAmount] = useState('');
+  const [discountOpen, setDiscountOpen] = useState(false);
+  const [discountType, setDiscountType] = useState<'amount' | 'percent'>('amount');
+  const [discountValue, setDiscountValue] = useState('');
   const [editEntry, setEditEntry] = useState<string | null>(null);
   const [editDateAdded, setEditDateAdded] = useState('');
   const [editDatePaid, setEditDatePaid] = useState('');
@@ -112,11 +115,21 @@ export default function ClientDetail() {
               )
             : [];
 
-        return { ...payment, parsedType, snapshot };
+        return { ...payment, parsedType, snapshot, adjustment: parsePaymentAdjustmentDetails(payment.details) };
       }),
     [allClientEntries, clientPayments]
   );
   const balance = id ? data.getClientBalance(id) : 0;
+  const rawPaymentAmount = Number.parseFloat(payAmount) || 0;
+  const rawDiscountValue = Number.parseFloat(discountValue) || 0;
+  const calculatedDiscountAmount = discountOpen
+    ? Math.min(
+        balance,
+        Math.max(0, discountType === 'percent' ? balance * Math.min(rawDiscountValue, 100) / 100 : rawDiscountValue)
+      )
+    : 0;
+  const creditedPaymentAmount = Math.min(balance, rawPaymentAmount + calculatedDiscountAmount);
+  const remainingAfterPayment = Math.max(0, balance - creditedPaymentAmount);
   const matched = data.searchProducts(productSearch);
   const getCartQuantityForProduct = (productId: string) =>
     cart
@@ -370,14 +383,33 @@ export default function ClientDetail() {
   };
 
   const handlePayment = async () => {
-    const amount = parseFloat(payAmount);
-    if (!amount || amount <= 0) { toast.error('Valor inválido'); return; }
+    const amount = Number.parseFloat(payAmount) || 0;
+    const discountAmount = Number(calculatedDiscountAmount.toFixed(2));
+    const creditedAmount = Number(Math.min(balance, amount + discountAmount).toFixed(2));
+    if (amount < 0 || creditedAmount <= 0) { toast.error('Valor inválido'); return; }
+    if (discountAmount > 0 && creditedAmount < balance) {
+      toast.error('Desconto só pode ser usado para pagamento total.');
+      return;
+    }
     const paymentDate = new Date().toISOString();
+    const paymentDetails = discountAmount > 0
+      ? {
+          payment: {
+            paid_amount: Number(amount.toFixed(2)),
+            discount_amount: discountAmount,
+            discount_type: discountType,
+            discount_value: Number(rawDiscountValue.toFixed(2)),
+            credited_amount: creditedAmount,
+          },
+        }
+      : null;
 
     try {
-      if (amount >= balance) {
-        await data.closeAllDebt(id, paymentDate);
-        toast.success('🎉 PARABÉNS! Você quitou sua dívida! 🏆 Todas as pendências foram resolvidas! 💯');
+      if (creditedAmount >= balance) {
+        await data.closeAllDebt(id, paymentDate, paymentDetails);
+        toast.success(discountAmount > 0
+          ? `Dívida quitada com R$ ${discountAmount.toFixed(2)} de desconto!`
+          : '🎉 PARABÉNS! Você quitou sua dívida! 🏆 Todas as pendências foram resolvidas! 💯');
       } else {
         await data.addPayment(id, amount, 'partial', paymentDate);
         toast.success(`Pagamento de R$ ${amount.toFixed(2)} registrado!`);
@@ -393,15 +425,18 @@ export default function ClientDetail() {
       const storeName = companyDisplayName !== DEFAULT_COMPANY_NAME || !ownerUserId
         ? companyDisplayName
         : await fetchCompanyDisplayName(ownerUserId);
-      const isFullPayment = amount >= balance;
-      const newBalance = balance - amount;
+      const isFullPayment = creditedAmount >= balance;
+      const newBalance = balance - creditedAmount;
       const remainingEntries = isFullPayment ? [] : entries.filter(e => e.status === 'pending');
       const url = buildPaymentWhatsAppUrl(client.phone, client.name, amount, remainingEntries, Math.max(0, newBalance), storeName);
       if (!openExternalUrl(url)) {
         toast.error('Não foi possível abrir o WhatsApp.');
       }
     }
-    setPayAmount(''); setPayOpen(false);
+    setPayAmount('');
+    setDiscountValue('');
+    setDiscountOpen(false);
+    setPayOpen(false);
   };
 
   const handleWhatsApp = async () => {
@@ -865,15 +900,32 @@ export default function ClientDetail() {
                                 )}
                               </div>
                             </div>
-                            <span className="text-success font-medium text-sm whitespace-nowrap">
-                              + R$ {p.amount.toFixed(2)}
-                            </span>
+                            <div className="text-right">
+                              <span className="text-success font-medium text-sm whitespace-nowrap">
+                                + R$ {p.amount.toFixed(2)}
+                              </span>
+                              {p.adjustment?.discountAmount ? (
+                                <p className="text-xs text-muted-foreground whitespace-nowrap">
+                                  Pago R$ {p.adjustment.paidAmount.toFixed(2)} + desc. R$ {p.adjustment.discountAmount.toFixed(2)}
+                                </p>
+                              ) : null}
+                            </div>
                           </div>
                         </CardContent>
                       </CollapsibleTrigger>
 
                       <CollapsibleContent>
                         <div className="border-t border-border mx-3">
+                          {p.adjustment?.discountAmount ? (
+                            <div className="border-b border-border/50 py-3 text-xs text-muted-foreground">
+                              <p>Valor pago: <span className="font-medium text-foreground">R$ {p.adjustment.paidAmount.toFixed(2)}</span></p>
+                              <p>
+                                Desconto: <span className="font-medium text-foreground">R$ {p.adjustment.discountAmount.toFixed(2)}</span>
+                                {p.adjustment.discountType === 'percent' ? ` (${p.adjustment.discountValue.toFixed(2)}%)` : ''}
+                              </p>
+                              <p>Total abatido: <span className="font-medium text-foreground">R$ {p.adjustment.creditedAmount.toFixed(2)}</span></p>
+                            </div>
+                          ) : null}
                           {p.groupedItems.length > 0 ? (
                             p.groupedItems.map(group => (
                               group.items.length > 1 ? (
@@ -943,15 +995,81 @@ export default function ClientDetail() {
       </Tabs>
 
       {/* Payment Dialog */}
-      <Dialog open={payOpen} onOpenChange={setPayOpen}>
+      <Dialog
+        open={payOpen}
+        onOpenChange={(open) => {
+          setPayOpen(open);
+          if (!open) {
+            setPayAmount('');
+            setDiscountValue('');
+            setDiscountOpen(false);
+          }
+        }}
+      >
         <DialogContent className="max-w-md">
           <DialogHeader><DialogTitle>Registrar Pagamento</DialogTitle></DialogHeader>
           <div className="space-y-4">
             <p className="text-sm text-muted-foreground">Saldo: <span className="text-destructive font-bold">R$ {balance.toFixed(2)}</span></p>
             <div className="space-y-2"><Label>Valor (R$)</Label><Input type="number" step="0.01" value={payAmount} onChange={e => setPayAmount(e.target.value)} placeholder="0.00" /></div>
+            <div className="space-y-3 rounded-lg border border-border/70 bg-background/70 p-3">
+              <Button
+                type="button"
+                variant={discountOpen ? 'default' : 'outline'}
+                className="w-full"
+                onClick={() => setDiscountOpen(open => !open)}
+              >
+                <Percent className="mr-2 h-4 w-4" />
+                {discountOpen ? 'Remover desconto' : 'Adicionar desconto'}
+              </Button>
+
+              {discountOpen && (
+                <div className="space-y-3">
+                  <p className="text-xs text-muted-foreground">Desconto permitido somente em pagamento total.</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Button
+                      type="button"
+                      variant={discountType === 'amount' ? 'default' : 'outline'}
+                      onClick={() => setDiscountType('amount')}
+                    >
+                      R$
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={discountType === 'percent' ? 'default' : 'outline'}
+                      onClick={() => setDiscountType('percent')}
+                    >
+                      %
+                    </Button>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>{discountType === 'amount' ? 'Desconto (R$)' : 'Desconto (%)'}</Label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      max={discountType === 'percent' ? 100 : undefined}
+                      value={discountValue}
+                      onChange={e => setDiscountValue(e.target.value)}
+                      placeholder={discountType === 'amount' ? '0.00' : '0'}
+                    />
+                  </div>
+                  <div className="rounded-md bg-muted/50 p-3 text-xs text-muted-foreground">
+                    <p>Desconto aplicado: <span className="font-semibold text-foreground">R$ {calculatedDiscountAmount.toFixed(2)}</span></p>
+                    <p>Total abatido no saldo: <span className="font-semibold text-foreground">R$ {creditedPaymentAmount.toFixed(2)}</span></p>
+                    <p>Restante após confirmar: <span className="font-semibold text-foreground">R$ {remainingAfterPayment.toFixed(2)}</span></p>
+                  </div>
+                </div>
+              )}
+            </div>
             <div className="flex flex-col sm:flex-row gap-2">
               <Button className="flex-1" onClick={handlePayment}>Confirmar</Button>
-              <Button variant="outline" className="flex-1" onClick={() => setPayAmount(balance.toFixed(2))}>Pagar Tudo</Button>
+              <Button
+                variant="outline"
+                className="flex-1"
+                onClick={() => setPayAmount(Math.max(0, balance - calculatedDiscountAmount).toFixed(2))}
+              >
+                Pagar Tudo
+              </Button>
             </div>
           </div>
         </DialogContent>

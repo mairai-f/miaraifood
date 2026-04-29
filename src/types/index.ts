@@ -78,7 +78,7 @@ export interface Payment {
   amount: number;
   date: string;
   type: string;
-  details?: string | null;
+  details?: unknown;
   sync_status?: 'synced' | 'queued' | 'conflict';
   sync_error?: string | null;
 }
