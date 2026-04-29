@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Clock3, Settings as SettingsIcon, ShieldAlert } from 'lucide-react';
+import { Clock3, Download, Settings as SettingsIcon, ShieldAlert } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import { CompanyProfileCard } from '@/components/CompanyProfileCard';
 import { OperatorManagementPanel } from '@/components/OperatorManagementPanel';
@@ -19,6 +19,7 @@ import {
   type OfflineConflictRecord,
 } from '@/lib/offlineConcentrator';
 import { getSubscriptionEndAt } from '@/lib/subscriptionStatus';
+import { buildBackupPayload, downloadJsonBackup } from '@/lib/backupExport';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -61,7 +62,8 @@ const planLabels: Record<string, string> = {
 export default function Settings() {
   const { session, ownerUserId } = useAuth();
   const { isDesktop, offlineEnabled, validUntil: desktopValidUntil, refresh: refreshDesktopLicense } = useDesktopRuntime();
-  const { refetch } = useData();
+  const data = useData();
+  const { refetch } = data;
   const { subscription, countdown, statusLabel, loading: loadingSubscription } = useCurrentSubscription();
   const [searchParams, setSearchParams] = useSearchParams();
   const isCreateOperatorModalOpen = searchParams.get('modal') === CREATE_OPERATOR_MODAL;
@@ -301,6 +303,23 @@ export default function Settings() {
     }
   }, []);
 
+  const handleExportBackup = useCallback(() => {
+    downloadJsonBackup(buildBackupPayload({
+      clients: data.clients,
+      products: data.products,
+      debtEntries: data.debtEntries,
+      payments: data.payments,
+      rewards: data.rewards,
+      sales: data.sales,
+      saleItems: data.saleItems,
+      stockMovements: data.stockMovements,
+      expenses: data.expenses,
+      pricingRules: data.pricingRules,
+      priceHistory: data.priceHistory,
+    }));
+    toast.success('Backup exportado com sucesso.');
+  }, [data]);
+
   const resetTitle = resetTarget === 'financial'
     ? 'Confirmar limpeza de financeiro'
     : 'Confirmar limpeza de relatórios';
@@ -482,6 +501,37 @@ export default function Settings() {
       )}
 
       <CompanyProfileCard />
+
+      <Card>
+        <CardHeader className="space-y-2">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Download className="h-4 w-4 text-primary" />
+            Backup e exportação
+          </CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Baixe uma cópia local dos dados da loja para segurança, conferência ou migração manual.
+          </p>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="grid gap-3 text-sm md:grid-cols-3">
+            <div className="rounded-lg border border-border/70 bg-background/70 p-3">
+              <p className="text-xs text-muted-foreground">Clientes</p>
+              <p className="font-semibold">{data.clients.length}</p>
+            </div>
+            <div className="rounded-lg border border-border/70 bg-background/70 p-3">
+              <p className="text-xs text-muted-foreground">Produtos</p>
+              <p className="font-semibold">{data.products.length}</p>
+            </div>
+            <div className="rounded-lg border border-border/70 bg-background/70 p-3">
+              <p className="text-xs text-muted-foreground">Vendas e fiados</p>
+              <p className="font-semibold">{data.sales.length + data.debtEntries.length}</p>
+            </div>
+          </div>
+          <Button type="button" variant="outline" onClick={handleExportBackup}>
+            <Download className="mr-2 h-4 w-4" />Baixar backup JSON
+          </Button>
+        </CardContent>
+      </Card>
 
       <OperatorManagementPanel
         createDialogOpen={isCreateOperatorModalOpen}
