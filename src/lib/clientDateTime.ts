@@ -1,10 +1,13 @@
 import {
+  endOfDay,
   format,
   isThisMonth,
-  isThisWeek,
   isToday,
   isValid,
+  isWithinInterval,
   parseISO,
+  startOfDay,
+  subDays,
 } from 'date-fns';
 import { fromZonedTime, toZonedTime } from 'date-fns-tz';
 import { getDateFnsLocale } from '../../shared/locale/dateFnsLocale';
@@ -36,10 +39,13 @@ export const toUtcIsoString = (value: string | Date) => {
 
 export const isClientDateToday = (value: string) => isToday(resolveDate(value));
 
-export const isClientDateThisWeek = (value: string) =>
-  isThisWeek(resolveDate(value), {
-    locale: getDateFnsLocale(),
-    weekStartsOn: 1,
+export const isClientDateInLastSevenDays = (value: string) => {
+  const now = toZonedTime(new Date(), CLIENT_TIME_ZONE);
+
+  return isWithinInterval(resolveDate(value), {
+    start: startOfDay(subDays(now, 6)),
+    end: endOfDay(now),
   });
+};
 
 export const isClientDateThisMonth = (value: string) => isThisMonth(resolveDate(value));

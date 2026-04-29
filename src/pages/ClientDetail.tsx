@@ -19,8 +19,8 @@ import { isWithinInterval, startOfDay, endOfDay } from 'date-fns';
 import { findClientByRef, getClientUniqueSlug } from '@/lib/clientSlug';
 import {
   formatClientDateTime,
+  isClientDateInLastSevenDays,
   isClientDateThisMonth,
-  isClientDateThisWeek,
   isClientDateToday,
   parseClientDate,
   toClientDateTimeInputValue,
@@ -205,7 +205,7 @@ export default function ClientDetail() {
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
     if (historyFilter === 'daily') return all.filter(i => isClientDateToday(i.date));
-    if (historyFilter === 'weekly') return all.filter(i => isClientDateThisWeek(i.date));
+    if (historyFilter === 'weekly') return all.filter(i => isClientDateInLastSevenDays(i.date));
     if (historyFilter === 'monthly') return all.filter(i => isClientDateThisMonth(i.date));
 
     if (historyFilter === 'custom') {
@@ -262,9 +262,7 @@ export default function ClientDetail() {
     [parsedPayments]
   );
 
-  const groupedCustomHistory = useMemo(() => {
-    if (historyFilter !== 'custom') return [];
-
+  const groupedHistory = useMemo(() => {
     const groups = new Map<string, HistoryItem[]>();
     for (const item of filteredHistory) {
       const key = item.productName.trim().toLowerCase();
@@ -279,7 +277,7 @@ export default function ClientDetail() {
       totalValue: items.reduce((sum, item) => sum + item.total, 0),
       items: items.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()),
     }));
-  }, [filteredHistory, historyFilter]);
+  }, [filteredHistory]);
 
   const emptyHistoryMessage =
     historyFilter === 'custom'
@@ -733,7 +731,7 @@ export default function ClientDetail() {
             <div className="flex gap-1.5 flex-wrap items-center">
               {(['all', 'daily', 'weekly', 'monthly', 'custom'] as const).map(f => (
                 <Button key={f} variant={historyFilter === f ? 'default' : 'outline'} size="sm" className="text-xs px-2.5" onClick={() => setHistoryFilter(f)}>
-                  {{ all: 'Tudo', daily: 'Hoje', weekly: 'Semana', monthly: 'Mês', custom: 'Personalizado' }[f]}
+                  {{ all: 'Tudo', daily: 'Hoje', weekly: '7 dias', monthly: 'Mês', custom: 'Personalizado' }[f]}
                 </Button>
               ))}
               {isAdmin && (
@@ -765,71 +763,47 @@ export default function ClientDetail() {
           </div>
 
           <div className="space-y-1.5">
-            {historyFilter === 'custom'
-              ? groupedCustomHistory.map(group => (
-                  <Card key={group.key} className="border-border/50">
-                    {group.items.length > 1 ? (
-                      <Collapsible open={openHistoryItems.has(group.key)} onOpenChange={() => toggleHistoryItemGroup(group.key)}>
-                        <CollapsibleTrigger asChild>
-                          <CardContent className="p-3 cursor-pointer hover:bg-accent/30 transition-colors">
-                            <div className="flex items-center justify-between gap-2">
-                              <div className="flex items-center gap-2 min-w-0 flex-1">
-                                {openHistoryItems.has(group.key)
-                                  ? <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
-                                  : <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />}
-                                <div className="min-w-0">
-                                  <p className="text-sm font-medium truncate">{group.name}</p>
-                                  <p className="text-xs text-muted-foreground">
-                                    {group.totalQty}x - {group.items.length} registro{group.items.length > 1 ? 's' : ''}
-                                  </p>
-                                </div>
-                              </div>
-                              <span className="text-destructive font-medium text-sm whitespace-nowrap">- R$ {group.totalValue.toFixed(2)}</span>
-                            </div>
-                          </CardContent>
-                        </CollapsibleTrigger>
-
-                        <CollapsibleContent>
-                          <div className="border-t border-border mx-3">
-                            {group.items.map((item, index) => (
-                              <div key={`${group.key}-${index}`} className="py-2 border-b border-border/50 last:border-0">
-                                <div className="flex items-start justify-between gap-2 px-1">
-                                  <div className="min-w-0">
-                                    <p className="text-sm font-medium truncate">{item.productName} x{item.quantity}</p>
-                                    <p className="text-xs text-muted-foreground">{formatClientDateTime(item.date)}</p>
-                                    {item.registered_by && <p className="text-xs text-muted-foreground">Por: {item.registered_by}</p>}
-                                  </div>
-                                  <span className="text-destructive font-medium text-sm whitespace-nowrap">- R$ {item.total.toFixed(2)}</span>
-                                </div>
-                              </div>
-                            ))}
+            {groupedHistory.map(group => (
+              <Card key={group.key} className="border-border/50">
+                <Collapsible open={openHistoryItems.has(group.key)} onOpenChange={() => toggleHistoryItemGroup(group.key)}>
+                  <CollapsibleTrigger asChild>
+                    <CardContent className="p-3 cursor-pointer hover:bg-accent/30 transition-colors">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2 min-w-0 flex-1">
+                          {openHistoryItems.has(group.key)
+                            ? <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
+                            : <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />}
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium truncate">{group.name}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {group.totalQty}x — {group.items.length} registro{group.items.length > 1 ? 's' : ''}
+                            </p>
                           </div>
-                        </CollapsibleContent>
-                      </Collapsible>
-                    ) : (
-                      <CardContent className="p-3 flex items-center justify-between gap-2">
-                        <div className="min-w-0">
-                          <p className="text-sm font-medium truncate">{group.items[0].productName} x{group.items[0].quantity}</p>
-                          <p className="text-xs text-muted-foreground">{formatClientDateTime(group.items[0].date)}</p>
-                          {group.items[0].registered_by && <p className="text-xs text-muted-foreground">Por: {group.items[0].registered_by}</p>}
                         </div>
-                        <span className="text-destructive font-medium text-sm whitespace-nowrap">- R$ {group.items[0].total.toFixed(2)}</span>
-                      </CardContent>
-                    )}
-                  </Card>
-                ))
-              : filteredHistory.map((item, i) => (
-                  <Card key={i} className="border-border/50">
-                    <CardContent className="p-3 flex items-center justify-between gap-2">
-                      <div className="min-w-0">
-                        <p className="text-sm font-medium truncate">{item.productName} x{item.quantity}</p>
-                        <p className="text-xs text-muted-foreground">{formatClientDateTime(item.date)}</p>
-                        {item.registered_by && <p className="text-xs text-muted-foreground">Por: {item.registered_by}</p>}
+                        <span className="text-destructive font-medium text-sm whitespace-nowrap">- R$ {group.totalValue.toFixed(2)}</span>
                       </div>
-                      <span className="text-destructive font-medium text-sm whitespace-nowrap">- R$ {item.total.toFixed(2)}</span>
                     </CardContent>
-                  </Card>
-                ))}
+                  </CollapsibleTrigger>
+
+                  <CollapsibleContent>
+                    <div className="border-t border-border mx-3">
+                      {group.items.map((item, index) => (
+                        <div key={`${group.key}-${item.date}-${index}`} className="py-2 border-b border-border/50 last:border-0">
+                          <div className="flex items-start justify-between gap-2 px-1">
+                            <div className="min-w-0">
+                              <p className="text-sm font-medium truncate">{item.productName} x{item.quantity}</p>
+                              <p className="text-xs text-muted-foreground">{formatClientDateTime(item.date)}</p>
+                              {item.registered_by && <p className="text-xs text-muted-foreground">Por: {item.registered_by}</p>}
+                            </div>
+                            <span className="text-destructive font-medium text-sm whitespace-nowrap">- R$ {item.total.toFixed(2)}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </CollapsibleContent>
+                </Collapsible>
+              </Card>
+            ))}
             {filteredHistory.length === 0 && <p className="text-center text-muted-foreground py-4 text-sm">{emptyHistoryMessage}</p>}
           </div>
         </TabsContent>
