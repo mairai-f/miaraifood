@@ -71,7 +71,7 @@ const AuthCallback = () => {
 
               <div className="grid gap-3 sm:grid-cols-2">
                 <Button asChild variant="outline" className="h-12">
-                  <Link to="/index">
+                  <Link to="/paginainicial">
                     <ArrowLeft size={18} className="mr-2" />
                     Voltar para o site
                   </Link>

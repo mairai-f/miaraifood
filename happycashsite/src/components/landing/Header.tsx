@@ -26,7 +26,8 @@ const Header = () => {
   })();
   const loginHref = selectedPlanId ? `/login?plan=${selectedPlanId}` : "/login";
   const dashboardHref = selectedPlanId ? `/dashboard?plan=${selectedPlanId}` : "/dashboard";
-  const homeHref = selectedPlanId ? `/index?plan=${selectedPlanId}` : "/index";
+  const homeHref = selectedPlanId ? `/paginainicial?plan=${selectedPlanId}` : "/paginainicial";
+  const logoutHref = selectedPlanId ? `/saindo?plan=${selectedPlanId}` : "/saindo";
   const signupHref = selectedPlanId ? `/cadastro?plan=${selectedPlanId}` : "/cadastro";
   const hasActivePaidPlan = Boolean(
     subscription &&
@@ -41,8 +42,8 @@ const Header = () => {
   const subscriptionMarker = currentPlanName && countdown.markerLabel
     ? `${currentPlanName} • ${countdown.markerLabel}`
     : currentPlanName;
-  const isHomePage = location.pathname === "/" || location.pathname === "/index";
-  const buildHomeSectionHref = (id: string) => (isHomePage ? `#${id}` : `/index#${id}`);
+  const isHomePage = location.pathname === "/" || location.pathname === "/index" || location.pathname === "/paginainicial";
+  const buildHomeSectionHref = (id: string) => (isHomePage ? `#${id}` : `/paginainicial#${id}`);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 50);
@@ -54,13 +55,9 @@ const Header = () => {
     if (loggingOut) return;
 
     setLoggingOut(true);
-    try {
-      await clearSiteLocalSession(supabase);
-      setMobileOpen(false);
-      navigate(homeHref, { replace: true });
-    } finally {
-      setLoggingOut(false);
-    }
+    setMobileOpen(false);
+    void clearSiteLocalSession(supabase);
+    navigate(logoutHref, { replace: true });
   };
 
   const links = [

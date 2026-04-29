@@ -468,7 +468,7 @@ const Cadastro = () => {
             Já tem conta?{" "}
             <Link to={selectedPlanId ? `/login?plan=${selectedPlanId}` : "/login"} className="text-primary hover:underline font-medium">Entrar</Link>
             {" · "}
-            <Link to="/index" className="text-muted-foreground hover:text-primary text-xs">Voltar ao site</Link>
+            <Link to="/paginainicial" className="text-muted-foreground hover:text-primary text-xs">Voltar ao site</Link>
           </p>
         </form>
       </div>

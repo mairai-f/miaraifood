@@ -209,7 +209,7 @@ const DownloadRedirect = () => {
                 <Link to="/dashboard">Voltar ao painel</Link>
               </Button>
               <Button asChild variant="outline">
-                <Link to="/index">Voltar ao site</Link>
+                <Link to="/paginainicial">Voltar ao site</Link>
               </Button>
             </div>
           </CardContent>

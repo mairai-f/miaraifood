@@ -10,6 +10,7 @@ import Cadastro from "./pages/Cadastro.tsx";
 import AuthCallback from "./pages/AuthCallback.tsx";
 import Dashboard from "./pages/Dashboard.tsx";
 import DownloadRedirect from "./pages/DownloadRedirect.tsx";
+import LogoutSplash from "./pages/LogoutSplash.tsx";
 import ResetPassword from "./pages/ResetPassword.tsx";
 import FiadoDigital from "./pages/FiadoDigital.tsx";
 import SistemaPdv from "./pages/SistemaPdv.tsx";
@@ -27,10 +28,12 @@ const App = () => (
         <Sonner />
         <BrowserRouter>
           <Routes>
-            <Route path="/" element={<Navigate to="/index" replace />} />
-            <Route path="/index" element={<Index />} />
+            <Route path="/" element={<Navigate to="/paginainicial" replace />} />
+            <Route path="/index" element={<Navigate to="/paginainicial" replace />} />
+            <Route path="/paginainicial" element={<Index />} />
             <Route path="/pix" element={<Pix />} />
             <Route path="/login" element={<Login />} />
+            <Route path="/saindo" element={<LogoutSplash />} />
             <Route path="/auth/callback" element={<AuthCallback />} />
             <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/cadastro" element={<Cadastro />} />

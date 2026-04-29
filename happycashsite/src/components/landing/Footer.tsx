@@ -6,8 +6,8 @@ const WHATSAPP_NUMBER = "5512988918792";
 
 const Footer = () => {
   const location = useLocation();
-  const isHomePage = location.pathname === "/" || location.pathname === "/index";
-  const buildHomeSectionHref = (id: string) => (isHomePage ? `#${id}` : `/index#${id}`);
+  const isHomePage = location.pathname === "/" || location.pathname === "/index" || location.pathname === "/paginainicial";
+  const buildHomeSectionHref = (id: string) => (isHomePage ? `#${id}` : `/paginainicial#${id}`);
 
   return (
     <footer className="relative border-t border-border bg-card/30 backdrop-blur-sm">

@@ -41,7 +41,7 @@ const Index = () => {
       <SiteSeo
         title="HappyCash | Controle fiado, PDV e estoque sem caderno"
         description="Pare de usar caderno para controlar fiado. Com o HappyCash você registra clientes, cobra pelo WhatsApp, acompanha PDV, estoque e relatórios em tempo real."
-        path="/index"
+        path="/paginainicial"
         image={heroScreenshot}
         keywords={[
           "controle de fiado",

@@ -13,7 +13,7 @@ const Pix = () => {
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-background p-4 sm:p-6">
       <div className="w-full max-w-2xl">
-        <Link to="/index" className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-primary mb-6 transition-colors">
+        <Link to="/paginainicial" className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-primary mb-6 transition-colors">
           <ArrowLeft size={16} /> Voltar
         </Link>
         <div className="space-y-6 rounded-2xl border border-border bg-card p-5 sm:space-y-8 sm:p-8">
