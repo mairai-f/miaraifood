@@ -3,24 +3,32 @@ import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { Carousel, CarouselContent, CarouselItem, CarouselPrevious, CarouselNext } from "@/components/ui/carousel";
 
-import s1 from "@/assets/screenshot-1.png";
-import s2 from "@/assets/screenshot-2.png";
-import s3 from "@/assets/screenshot-3.png";
-import s4 from "@/assets/screenshot-4.png";
-import s5 from "@/assets/screenshot-5.png";
-import s6 from "@/assets/screenshot-6.png";
-import s7 from "@/assets/screenshot-7.png";
+import estoqueMovimentacaoModal from "@/assets/estoque-movimentacao-modal.png";
+import estoquePainel from "@/assets/estoque-painel.png";
+import fiadoClientes from "@/assets/fiado-digital-clientes.png";
+import fiadoDividasAgrupadas from "@/assets/fiado-digital-dividas-agrupadas.png";
+import fiadoHistoricoAgrupado from "@/assets/fiado-digital-historico-agrupado.png";
+import pdvBuscarVendas from "@/assets/pdv-buscar-vendas.png";
+import pdvCaixaFechadoAbertura from "@/assets/pdv-caixa-fechado-abertura.png";
+import pdvFinalizarVendaFiado from "@/assets/pdv-finalizar-venda-fiado.png";
+import pdvFinalizarVendaPagamento from "@/assets/pdv-finalizar-venda-pagamento.png";
+import pdvPrincipalCarrinho from "@/assets/pdv-principal-carrinho.png";
+import pdvSaidaDeCaixa from "@/assets/pdv-saida-de-caixa.png";
 
 gsap.registerPlugin(ScrollTrigger);
 
 const screenshots = [
-  { src: s1, alt: "Tela principal do sistema" },
-  { src: s2, alt: "Caderneta de fiado" },
-  { src: s3, alt: "Controle de estoque" },
-  { src: s4, alt: "Frente de caixa" },
-  { src: s5, alt: "Relatórios financeiros" },
-  { src: s6, alt: "Cadastro de clientes" },
-  { src: s7, alt: "Programa de fidelidade" },
+  { src: pdvPrincipalCarrinho, alt: "PDV com carrinho de venda" },
+  { src: pdvFinalizarVendaPagamento, alt: "Finalizacao de venda com pagamento" },
+  { src: pdvFinalizarVendaFiado, alt: "Finalizacao de venda no fiado" },
+  { src: pdvBuscarVendas, alt: "Busca de vendas no PDV" },
+  { src: pdvCaixaFechadoAbertura, alt: "Abertura de caixa no PDV" },
+  { src: pdvSaidaDeCaixa, alt: "Saida de caixa no PDV" },
+  { src: fiadoClientes, alt: "Clientes do fiado digital" },
+  { src: fiadoDividasAgrupadas, alt: "Dividas agrupadas por cliente" },
+  { src: fiadoHistoricoAgrupado, alt: "Historico agrupado do fiado digital" },
+  { src: estoquePainel, alt: "Painel de controle de estoque" },
+  { src: estoqueMovimentacaoModal, alt: "Movimentacao de estoque" },
 ];
 
 const Screenshots = () => {

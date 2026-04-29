@@ -777,6 +777,7 @@ const createMainWindow = async () => {
     fullscreen: true,
     autoHideMenuBar: true,
     backgroundColor: '#050505',
+    paintWhenInitiallyHidden: true,
     icon: getWindowIconPath(),
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
@@ -819,9 +820,8 @@ const createMainWindow = async () => {
     }
   });
 
-  mainWindow.once('ready-to-show', () => {
+  mainWindow.webContents.once('did-finish-load', () => {
     if (mainWindow.isDestroyed()) return;
-    mainWindow.setFullScreen(true);
     mainWindow.show();
   });
 

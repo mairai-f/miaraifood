@@ -26,7 +26,7 @@ const Header = () => {
   })();
   const loginHref = selectedPlanId ? `/login?plan=${selectedPlanId}` : "/login";
   const dashboardHref = selectedPlanId ? `/dashboard?plan=${selectedPlanId}` : "/dashboard";
-  const homeHref = selectedPlanId ? `/?plan=${selectedPlanId}` : "/";
+  const homeHref = selectedPlanId ? `/index?plan=${selectedPlanId}` : "/index";
   const signupHref = selectedPlanId ? `/cadastro?plan=${selectedPlanId}` : "/cadastro";
   const hasActivePaidPlan = Boolean(
     subscription &&
@@ -41,8 +41,8 @@ const Header = () => {
   const subscriptionMarker = currentPlanName && countdown.markerLabel
     ? `${currentPlanName} • ${countdown.markerLabel}`
     : currentPlanName;
-  const isHomePage = location.pathname === "/";
-  const buildHomeSectionHref = (id: string) => (isHomePage ? `#${id}` : `/#${id}`);
+  const isHomePage = location.pathname === "/" || location.pathname === "/index";
+  const buildHomeSectionHref = (id: string) => (isHomePage ? `#${id}` : `/index#${id}`);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 50);

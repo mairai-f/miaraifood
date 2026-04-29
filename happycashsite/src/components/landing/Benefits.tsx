@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { Zap, Shield, Smartphone, Headphones } from "lucide-react";
-import screenshot2 from "@/assets/screenshot-2.png";
+import screenshot2 from "@/assets/fiado-digital-clientes.png";
 
 gsap.registerPlugin(ScrollTrigger);
 

@@ -1,4 +1,4 @@
-import screenshotFiado from "@/assets/screenshot-2.png";
+import screenshotFiado from "@/assets/fiado-digital-clientes.png";
 import SolutionPage from "@/components/landing/SolutionPage";
 
 const FiadoDigital = () => {

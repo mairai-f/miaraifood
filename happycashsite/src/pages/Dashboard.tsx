@@ -1,5 +1,5 @@
 import { FunctionsFetchError, FunctionsHttpError, FunctionsRelayError } from "@supabase/supabase-js";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import {
   ArrowLeft,
@@ -219,6 +219,7 @@ const Dashboard = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const isMobile = useIsMobile();
+  const intentionalLogoutRef = useRef(false);
 
   const selectedPlanId = (() => {
     const value = searchParams.get("plan");
@@ -226,6 +227,7 @@ const Dashboard = () => {
   })();
 
   const querySuffix = selectedPlanId ? `?plan=${selectedPlanId}` : "";
+  const homeHref = selectedPlanId ? `/index?plan=${selectedPlanId}` : "/index";
 
   useEffect(() => {
     if (loading || location.hash !== "#planos") return;
@@ -390,7 +392,7 @@ const Dashboard = () => {
       if (!session?.user) {
         void (async () => {
           await clearInvalidSiteSession();
-          navigate(`/login${querySuffix}`, { replace: true });
+          navigate(intentionalLogoutRef.current ? homeHref : `/login${querySuffix}`, { replace: true });
         })();
         return;
       }
@@ -422,7 +424,7 @@ const Dashboard = () => {
       mounted = false;
       subscription.unsubscribe();
     };
-  }, [navigate, querySuffix]);
+  }, [homeHref, navigate, querySuffix]);
 
   const currentSubscription = subscriptions.find(isCurrentSubscription) || subscriptions[0] || null;
   const currentPlanId = currentSubscription?.plan_id || null;
@@ -452,9 +454,10 @@ const Dashboard = () => {
     if (loggingOut) return;
 
     setLoggingOut(true);
+    intentionalLogoutRef.current = true;
     try {
       await clearSiteLocalSession(supabase);
-      navigate(`/login${querySuffix}`, { replace: true });
+      navigate(homeHref, { replace: true });
     } finally {
       setLoggingOut(false);
     }
@@ -540,7 +543,7 @@ const Dashboard = () => {
         description: "Sua conta HappyCash foi removida com sucesso.",
       });
       await clearInvalidSiteSession();
-      navigate("/", { replace: true });
+      navigate("/index", { replace: true });
     } catch (error) {
       const message = error instanceof Error ? error.message : "Nao foi possivel apagar sua conta agora.";
       setDeleteAccountError(message);
@@ -870,7 +873,7 @@ const Dashboard = () => {
               </a>
             </Button>
             <Button asChild variant="outline" className="gap-2">
-              <Link to="/">
+              <Link to="/index">
                 <ArrowLeft className="h-4 w-4" />
                 Voltar ao site
               </Link>
@@ -1114,7 +1117,7 @@ const Dashboard = () => {
                   </a>
                 </Button>
                 <Button asChild className="h-12 text-base font-semibold">
-                  <a href="/#planos">Ver planos no site</a>
+                  <a href="/index#planos">Ver planos no site</a>
                 </Button>
                 <Button asChild variant="outline" className="h-12 text-base font-semibold">
                   <a href="/login">Entrar novamente com este mesmo email</a>

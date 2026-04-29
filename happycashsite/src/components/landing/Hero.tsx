@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { ArrowRight, Play } from "lucide-react";
 import gsap from "gsap";
 import { useLandingAccountActions } from "@/hooks/use-landing-account-actions";
-import screenshot1 from "@/assets/screenshot-1.png";
+import screenshot1 from "@/assets/pdv-principal-carrinho.png";
 import mascot from "@/assets/happycoin.png";
 
 const rotatingWords = ["mercearia", "padaria", "adega", "bar", "loja"];

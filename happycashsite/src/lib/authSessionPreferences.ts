@@ -25,7 +25,24 @@ const storageKeys = {
   temporarySessionActive: 'happycash:site:temporary-session-active',
 } as const;
 
+const SIGN_OUT_TIMEOUT_MS = 1800;
+
 const isBrowser = () => typeof window !== 'undefined';
+
+const withTimeout = async <T,>(promise: Promise<T>, timeoutMs: number): Promise<T | null> => {
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<null>((resolve) => {
+        timeoutId = setTimeout(() => resolve(null), timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId);
+  }
+};
 
 const readLocalStorage = (key: string) => {
   if (!isBrowser()) return null;
@@ -97,7 +114,7 @@ export const clearSiteLocalSession = async (client?: ScopedSignOutClient) => {
   if (!client) return;
 
   try {
-    await client.auth.signOut({ scope: 'local' });
+    await withTimeout(client.auth.signOut({ scope: 'local' }), SIGN_OUT_TIMEOUT_MS);
   } catch {
     // Ignore sign-out errors because the local storage cleanup is enough
     // to prevent stale sessions from looping in the dashboard.

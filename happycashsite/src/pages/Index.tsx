@@ -13,7 +13,7 @@ import FAQ from "@/components/landing/FAQ";
 import CTA from "@/components/landing/CTA";
 import Footer from "@/components/landing/Footer";
 import SiteSeo from "@/components/seo/SiteSeo";
-import heroScreenshot from "@/assets/screenshot-1.png";
+import heroScreenshot from "@/assets/pdv-principal-carrinho.png";
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -41,7 +41,7 @@ const Index = () => {
       <SiteSeo
         title="HappyCash | Controle fiado, PDV e estoque sem caderno"
         description="Pare de usar caderno para controlar fiado. Com o HappyCash você registra clientes, cobra pelo WhatsApp, acompanha PDV, estoque e relatórios em tempo real."
-        path="/"
+        path="/index"
         image={heroScreenshot}
         keywords={[
           "controle de fiado",

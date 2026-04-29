@@ -282,7 +282,7 @@ const Login = () => {
                     Criar conta
                   </Link>
                 </p>
-                <Link to="/" className="text-muted-foreground transition-colors hover:text-yellow-300">
+                <Link to="/index" className="text-muted-foreground transition-colors hover:text-yellow-300">
                   Voltar ao site
                 </Link>
               </div>

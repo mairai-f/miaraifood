@@ -1,4 +1,4 @@
-import screenshotPdv from "@/assets/screenshot-4.png";
+import screenshotPdv from "@/assets/pdv-principal-carrinho.png";
 import SolutionPage from "@/components/landing/SolutionPage";
 
 const SistemaPdv = () => {
