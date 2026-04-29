@@ -142,6 +142,19 @@ const isManualDeletedDebtEntry = (entry: DebtEntry) => entry.manual_deleted === 
 const isLegacyDeletedDebtEntry = (entry: DebtEntry) => entry.deleted === true && entry.status !== 'paid' && !isManualDeletedDebtEntry(entry);
 const isVisibleDebtEntry = (entry: DebtEntry) => !isManualDeletedDebtEntry(entry) && !isLegacyDeletedDebtEntry(entry);
 const isVisiblePendingDebtEntry = (entry: DebtEntry) => isVisibleDebtEntry(entry) && entry.status === 'pending' && !entry.deleted;
+type DebtEntryInput = {
+  clientId: string;
+  productId: string;
+  productName: string;
+  quantity: number;
+  unitPrice: number;
+  dateAdded?: string;
+  registeredBy?: string;
+};
+type AddDebtEntriesOptions = {
+  adjustStock?: boolean;
+  stockReason?: string;
+};
 
 interface DataContextType {
   clients: Client[]; products: Product[]; debtEntries: DebtEntry[]; payments: Payment[]; rewards: Reward[];
@@ -159,7 +172,7 @@ interface DataContextType {
   deletePricingRule: (id: string) => Promise<void>;
   searchProducts: (q: string) => Product[];
   addDebtEntry: (clientId: string, productId: string, productName: string, quantity: number, unitPrice: number, dateAdded?: string, registeredBy?: string) => Promise<void>;
-  addDebtEntries: (entries: Array<{ clientId: string; productId: string; productName: string; quantity: number; unitPrice: number; dateAdded?: string; registeredBy?: string }>) => Promise<void>;
+  addDebtEntries: (entries: DebtEntryInput[], options?: AddDebtEntriesOptions) => Promise<void>;
   updateDebtEntry: (id: string, data: Record<string, unknown>) => Promise<void>;
   deleteDebtEntry: (id: string, reason: string) => Promise<void>;
   addPayment: (clientId: string, amount: number, type: 'total' | 'partial', date?: string) => Promise<void>;
@@ -732,6 +745,63 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
     if (missingEntries.length > 0) {
       ensureSuccess(await db.from('debt_entries').insert(missingEntries));
+    }
+
+    const stockMovements = payload.stockMovements ?? [];
+    if (stockMovements.length === 0) {
+      return;
+    }
+
+    const { data: existingMovements, error: existingMovementsError } = await db
+      .from('stock_movements')
+      .select('id')
+      .in('id', stockMovements.map(movement => movement.id));
+
+    if (existingMovementsError) {
+      throw existingMovementsError;
+    }
+
+    const existingMovementIds = new Set(
+      ((existingMovements as Array<{ id: string }> | null) ?? []).map(movement => movement.id),
+    );
+
+    for (const movement of stockMovements) {
+      if (existingMovementIds.has(movement.id)) {
+        continue;
+      }
+
+      const { data: productData, error: productError } = await db
+        .from('products')
+        .select('id, stock, name')
+        .eq('id', movement.product_id)
+        .maybeSingle();
+
+      if (productError) {
+        throw productError;
+      }
+
+      const product = (productData as { id: string; stock: number; name?: string | null } | null) ?? null;
+      if (!product) {
+        throw new OfflineSyncConflictError(
+          'debt_entries.add_many',
+          `O produto ${movement.product_id} nao existe mais no banco remoto para sincronizar o fiado offline.`,
+        );
+      }
+
+      const currentStock = Number(product.stock || 0);
+      if (movement.type === 'saida' && currentStock < movement.quantity) {
+        throw new OfflineSyncConflictError(
+          'debt_entries.add_many',
+          `Estoque remoto insuficiente para sincronizar ${product.name || movement.product_id}. Ajuste o estoque e tente novamente.`,
+        );
+      }
+
+      const nextStock = movement.type === 'saida'
+        ? currentStock - movement.quantity
+        : currentStock + movement.quantity;
+
+      ensureSuccess(await db.from('products').update({ stock: nextStock }).eq('id', movement.product_id));
+      ensureSuccess(await db.from('stock_movements').insert(stripSyncFields(movement)));
     }
   }, []);
 
@@ -1671,11 +1741,39 @@ export function DataProvider({ children }: { children: ReactNode }) {
   };
 
   const addDebtEntries = async (
-    entries: Array<{ clientId: string; productId: string; productName: string; quantity: number; unitPrice: number; dateAdded?: string; registeredBy?: string }>
+    entries: DebtEntryInput[],
+    options: AddDebtEntriesOptions = {},
   ) => {
     if (entries.length === 0) return;
 
+    const shouldAdjustStock = options.adjustStock !== false;
+    const stockReason = options.stockReason ?? 'Fiado';
+    const buildStockMovements = (date = nowIso(), queued = false) => entries
+      .filter(entry => entry.productId && entry.quantity > 0)
+      .map(entry => ({
+        id: createId(),
+        product_id: entry.productId,
+        user_id: ownerUserId!,
+        type: 'saida',
+        quantity: entry.quantity,
+        reason: stockReason,
+        date,
+        ...(queued ? { sync_status: 'queued', sync_error: null } : {}),
+      } as StockMovement));
+    const applyLocalStockAdjustment = (stockMovements: StockMovement[]) => {
+      if (!shouldAdjustStock || stockMovements.length === 0) return;
+      setProducts(prev => prev.map(product => {
+        const soldQuantity = stockMovements
+          .filter(movement => movement.product_id === product.id)
+          .reduce((sum, movement) => sum + movement.quantity, 0);
+        if (soldQuantity === 0) return product;
+        return { ...product, stock: Math.max(0, (product.stock || 0) - soldQuantity) };
+      }));
+      setStockMovements(prev => [...stockMovements, ...prev]);
+    };
+
     if (isDemoMode) {
+      const movementDate = nowIso();
       const nextEntries = entries.map(entry => ({
         id: createId(),
         client_id: entry.clientId,
@@ -1691,11 +1789,14 @@ export function DataProvider({ children }: { children: ReactNode }) {
         manual_deleted: false,
         registered_by: entry.registeredBy ?? null,
       } as DebtEntry));
+      const stockMovements = shouldAdjustStock ? buildStockMovements(movementDate) : [];
       setDebtEntries(prev => sortDebtEntriesByDateAdded([...nextEntries, ...prev]));
+      applyLocalStockAdjustment(stockMovements);
       return;
     }
 
     const addOfflineDebtEntries = async () => {
+      const movementDate = nowIso();
       const nextEntries = entries.map(entry => ({
         id: createId(),
         client_id: entry.clientId,
@@ -1713,9 +1814,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
         sync_status: 'queued',
         sync_error: null,
       } as DebtEntry));
+      const stockMovements = shouldAdjustStock ? buildStockMovements(movementDate, true) : [];
 
       const queued = await enqueueOfflineOperation(ownerUserId!, 'debt_entries.add_many', {
         entries: nextEntries,
+        stockMovements,
       });
 
       if (!queued) {
@@ -1723,6 +1826,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       }
 
       setDebtEntries(prev => sortDebtEntriesByDateAdded([...nextEntries, ...prev]));
+      applyLocalStockAdjustment(stockMovements);
     };
 
     if (canUseOfflineConcentrator && typeof navigator !== 'undefined' && navigator.onLine === false) {
@@ -1745,7 +1849,44 @@ export function DataProvider({ children }: { children: ReactNode }) {
       ).select('*');
 
       if (error) throw error;
+
+      let insertedStockMovements: StockMovement[] = [];
+      if (shouldAdjustStock) {
+        const productQuantities = entries
+          .filter(entry => entry.productId && entry.quantity > 0)
+          .reduce((map, entry) => {
+            map.set(entry.productId, (map.get(entry.productId) || 0) + entry.quantity);
+            return map;
+          }, new Map<string, number>());
+        const stockUpdates = Array.from(productQuantities.entries())
+          .map(([productId, quantity]) => {
+            const product = products.find(p => p.id === productId);
+            if (!product || product.stock <= 0) return null;
+            const newStock = Math.max(0, product.stock - quantity);
+            return db.from('products').update({ stock: newStock }).eq('id', productId);
+          })
+          .filter(Boolean);
+        await Promise.all(stockUpdates.map(async update => ensureSuccess(await update)));
+
+        const stockMovementsPayload = entries
+          .filter(entry => entry.productId && entry.quantity > 0)
+          .map(entry => ({
+            product_id: entry.productId,
+            user_id: ownerUserId!,
+            type: 'saida',
+            quantity: entry.quantity,
+            reason: stockReason,
+          }));
+
+        if (stockMovementsPayload.length > 0) {
+          const { data: movementRows, error: movementError } = await db.from('stock_movements').insert(stockMovementsPayload).select('*');
+          if (movementError) throw movementError;
+          insertedStockMovements = (movementRows as StockMovement[]) ?? [];
+        }
+      }
+
       setDebtEntries(prev => sortDebtEntriesByDateAdded([...((data as DebtEntry[]) ?? []), ...prev]));
+      applyLocalStockAdjustment(insertedStockMovements);
     } catch (error) {
       if (canUseOfflineConcentrator && isProbablyOfflineError(error)) {
         await addOfflineDebtEntries();

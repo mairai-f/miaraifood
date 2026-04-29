@@ -69,6 +69,7 @@ export interface OfflineSaleCreatePayload {
 
 export interface OfflineDebtEntriesPayload {
   entries: DebtEntry[];
+  stockMovements?: StockMovement[];
 }
 
 export interface OfflineClientPayload {

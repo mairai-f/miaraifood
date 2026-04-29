@@ -62,6 +62,15 @@ const normalizeRecipients = (values: unknown) => {
 const isValidEmailRecipient = (value: string) =>
   /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 
+interface CallerProfile {
+  owner_user_id: string | null;
+  email: string | null;
+}
+
+interface StoreAccount {
+  email: string | null;
+}
+
 const escapeHtml = (value: string) =>
   value
     .replaceAll('&', '&amp;')
@@ -318,8 +327,9 @@ Deno.serve(async (request) => {
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL');
     const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY');
+    const supabaseServiceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 
-    if (!supabaseUrl || !supabaseAnonKey) {
+    if (!supabaseUrl || !supabaseAnonKey || !supabaseServiceRoleKey) {
       return jsonResponse(request, { error: 'Configuracao do Supabase indisponivel na funcao.' }, 500);
     }
 
@@ -328,6 +338,12 @@ Deno.serve(async (request) => {
         headers: {
           Authorization: authHeader,
         },
+      },
+    });
+    const serviceClient = createClient(supabaseUrl, supabaseServiceRoleKey, {
+      auth: {
+        persistSession: false,
+        autoRefreshToken: false,
       },
     });
 
@@ -339,6 +355,24 @@ Deno.serve(async (request) => {
     if (userError || !user) {
       return jsonResponse(request, { error: 'Nao foi possivel validar o usuario autenticado.' }, 401);
     }
+
+    const { data: callerProfile } = await serviceClient
+      .from('profiles')
+      .select('owner_user_id, email')
+      .eq('user_id', user.id)
+      .maybeSingle();
+
+    const typedCallerProfile = (callerProfile ?? null) as CallerProfile | null;
+    const ownerUserId = typedCallerProfile?.owner_user_id ?? user.id;
+
+    const { data: storeAccount } = await serviceClient
+      .from('store_accounts')
+      .select('email')
+      .eq('owner_user_id', ownerUserId)
+      .maybeSingle();
+
+    const typedStoreAccount = (storeAccount ?? null) as StoreAccount | null;
+    const registeredStoreEmail = typedStoreAccount?.email?.trim() || typedCallerProfile?.email?.trim() || user.email?.trim() || '';
 
     const { data: hasCashAccess, error: cashAccessError } = await supabase.rpc('current_store_has_feature', {
       target_feature: 'cash.manage',
@@ -364,8 +398,8 @@ Deno.serve(async (request) => {
     const fallbackRecipients = parseRecipients(Deno.env.get('CASH_CLOSE_REPORT_RECIPIENTS'));
     const recipients = customRecipients.length > 0
       ? customRecipients
-      : user.email
-      ? [user.email]
+      : registeredStoreEmail
+      ? [registeredStoreEmail]
       : fallbackRecipients;
 
     if (recipients.length === 0) {

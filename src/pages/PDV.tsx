@@ -1804,14 +1804,17 @@ export default function PDV() {
 
       // If fiado, create debt entries
       if (paymentMethod === 'fiado' && selectedClientId) {
-        await addDebtEntries(items.map(i => ({
-          clientId: selectedClientId,
-          productId: i.product_id,
-          productName: i.product_name,
-          quantity: i.quantity,
-          unitPrice: i.unit_price,
-          registeredBy: username || user?.email,
-        })));
+        await addDebtEntries(
+          items.map(i => ({
+            clientId: selectedClientId,
+            productId: i.product_id,
+            productName: i.product_name,
+            quantity: i.quantity,
+            unitPrice: i.unit_price,
+            registeredBy: username || user?.email,
+          })),
+          { adjustStock: false },
+        );
       }
 
       const finalizedPaymentMethod = paymentMethod === 'cartao_credito' && creditInstallments
@@ -2139,16 +2142,8 @@ export default function PDV() {
       return;
     }
 
-    const recipients = parseEmailRecipients(closeCashEmailRecipientInput || closeCashEmailDestination);
+    const recipients = parseEmailRecipients(closeCashEmailRecipientInput);
     const invalidRecipients = recipients.filter(recipient => !isValidEmailRecipient(recipient));
-
-    if (recipients.length === 0) {
-      setCloseCashLastSentChannel('email');
-      setCloseCashEmailStatus('error');
-      setCloseCashEmailMessage('Informe pelo menos um e-mail de destino.');
-      setCloseCashEmailRecipients([]);
-      return;
-    }
 
     if (invalidRecipients.length > 0) {
       setCloseCashLastSentChannel('email');
@@ -2232,8 +2227,7 @@ export default function PDV() {
   };
 
   const openCloseCashSendDialog = () => {
-    setCloseCashSendChannel(closeCashEmailDestination ? 'email' : 'whatsapp');
-    setCloseCashEmailRecipientInput(currentValue => currentValue || closeCashEmailDestination);
+    setCloseCashSendChannel('email');
     setShowCloseCashSendDialog(true);
   };
 
@@ -3602,11 +3596,11 @@ export default function PDV() {
                 <Textarea
                   value={closeCashEmailRecipientInput}
                   onChange={event => setCloseCashEmailRecipientInput(event.target.value)}
-                  placeholder={closeCashEmailDestination || 'dono@empresa.com, contador@empresa.com'}
+                  placeholder="Em branco usa o e-mail cadastrado no happycashsite"
                   rows={4}
                 />
                 <p className="text-xs text-muted-foreground">
-                  Separe vários e-mails por vírgula, ponto e vírgula ou linha.
+                  Deixe em branco para usar o e-mail da conta da loja. Separe vários e-mails por vírgula, ponto e vírgula ou linha.
                 </p>
               </div>
             ) : (
@@ -3634,7 +3628,7 @@ export default function PDV() {
                 }
                 sendCloseCashReportWhatsApp(lastCloseReceipt);
               }}
-              disabled={closeCashSendChannel === 'email' && !closeCashEmailRecipientInput.trim() && !closeCashEmailDestination}
+              disabled={false}
             >
               {closeCashSendChannel === 'email' ? 'Enviar por e-mail' : 'Abrir no WhatsApp'}
             </Button>
