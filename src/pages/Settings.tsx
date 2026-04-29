@@ -11,7 +11,9 @@ import { supabase } from '@/integrations/supabase/client';
 import {
   checkDesktopUpdates,
   getOfflineStatus,
+  installDesktopUpdate,
   listOfflineConflicts,
+  onDesktopUpdateStatus,
   readDesktopUpdateStatus,
   retryOfflineOperation,
   resolveOfflineConflict,
@@ -26,6 +28,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { PasswordInput } from '@/components/ui/password-input';
+import { Progress } from '@/components/ui/progress';
 import {
   Dialog,
   DialogContent,
@@ -58,6 +61,20 @@ const planLabels: Record<string, string> = {
   fiado: 'Plano Fiado',
   completo: 'Plano Completo',
   pro: 'Plano PRO',
+};
+
+const formatBytes = (value: number | null | undefined) => {
+  if (!value || value <= 0) return '0 MB';
+  const units = ['B', 'KB', 'MB', 'GB'];
+  let nextValue = value;
+  let unitIndex = 0;
+
+  while (nextValue >= 1024 && unitIndex < units.length - 1) {
+    nextValue /= 1024;
+    unitIndex += 1;
+  }
+
+  return `${nextValue.toFixed(unitIndex === 0 ? 0 : 1)} ${units[unitIndex]}`;
 };
 
 export default function Settings() {
@@ -141,6 +158,11 @@ export default function Settings() {
       window.clearInterval(intervalId);
     };
   }, [isDesktop, loadDesktopUpdateRuntime, loadOfflineRuntime, ownerUserId]);
+
+  useEffect(() => {
+    if (!isDesktop) return;
+    return onDesktopUpdateStatus(setDesktopUpdateStatus);
+  }, [isDesktop]);
 
   const handleCreateDialogOpenChange = (open: boolean) => {
     const nextSearchParams = new URLSearchParams(searchParams);
@@ -297,7 +319,7 @@ export default function Settings() {
       if (status?.status === 'downloaded') {
         toast.success(`Atualizacao ${status.downloadedVersion || ''} pronta para instalar.`);
       } else if (status?.status === 'downloading') {
-        toast.success(`Atualizacao ${status.availableVersion || ''} encontrada. Download iniciado em segundo plano.`);
+        toast.success(`Atualizacao ${status.availableVersion || ''} encontrada. Acompanhe o download nesta tela.`);
       } else if (status?.status === 'idle') {
         toast.success('Aplicativo desktop ja esta na versao mais recente.');
       } else if (status?.status === 'disabled') {
@@ -309,6 +331,18 @@ export default function Settings() {
       toast.error('Nao foi possivel verificar atualizacoes do desktop agora.');
     } finally {
       setCheckingDesktopUpdate(false);
+    }
+  }, []);
+
+  const handleInstallDesktopUpdate = useCallback(async () => {
+    try {
+      const result = await installDesktopUpdate();
+
+      if (!result?.success) {
+        toast.error(result?.error || 'Nenhuma atualizacao pronta para instalar.');
+      }
+    } catch {
+      toast.error('Nao foi possivel iniciar a instalacao da atualizacao.');
     }
   }, []);
 
@@ -513,6 +547,9 @@ export default function Settings() {
     : 'Serão removidas vendas e itens vendidos usados nos relatórios.';
   const currentPlanLabel = subscription?.plan_id ? planLabels[subscription.plan_id] || subscription.plan_id : 'Sem plano ativo';
   const currentDeadline = getSubscriptionEndAt(subscription);
+  const updateProgress = Math.max(0, Math.min(100, desktopUpdateStatus?.progress ?? 0));
+  const updateIsDownloading = desktopUpdateStatus?.status === 'downloading';
+  const updateIsDownloaded = desktopUpdateStatus?.status === 'downloaded';
 
   return (
     <div className="space-y-6">
@@ -624,6 +661,38 @@ export default function Settings() {
                 {desktopUpdateStatus?.availableVersion ? ` • nova versao ${desktopUpdateStatus.availableVersion}` : ''}
               </p>
             </div>
+
+            {(updateIsDownloading || updateIsDownloaded) && (
+              <div className="space-y-3 rounded-lg border border-primary/25 bg-primary/5 p-4">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-foreground">
+                      {updateIsDownloaded ? 'Atualizacao baixada' : 'Baixando atualizacao'}
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      {updateIsDownloaded
+                        ? `Versao ${desktopUpdateStatus?.downloadedVersion || desktopUpdateStatus?.availableVersion || 'mais recente'} pronta para instalar.`
+                        : `Versao ${desktopUpdateStatus?.availableVersion || 'mais recente'} em download dentro do HappyCash.`}
+                    </p>
+                  </div>
+                  <span className="text-sm font-semibold text-primary">{Math.round(updateProgress)}%</span>
+                </div>
+                <Progress value={updateIsDownloaded ? 100 : updateProgress} className="h-2.5" />
+                <div className="flex flex-col gap-2 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
+                  <span>
+                    {formatBytes(desktopUpdateStatus?.transferred)} de {formatBytes(desktopUpdateStatus?.total)}
+                  </span>
+                  {desktopUpdateStatus?.bytesPerSecond ? (
+                    <span>{formatBytes(desktopUpdateStatus.bytesPerSecond)}/s</span>
+                  ) : null}
+                </div>
+                {updateIsDownloaded && (
+                  <Button type="button" onClick={() => void handleInstallDesktopUpdate()}>
+                    Reiniciar e instalar
+                  </Button>
+                )}
+              </div>
+            )}
 
             <div className="flex flex-wrap gap-3">
               <Button type="button" variant="outline" onClick={() => void loadOfflineRuntime()} disabled={loadingOfflineStatus}>

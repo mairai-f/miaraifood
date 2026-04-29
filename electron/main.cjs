@@ -1,6 +1,6 @@
 const path = require('path');
 const { DatabaseSync } = require('node:sqlite');
-const { app, BrowserWindow, dialog, ipcMain, shell } = require('electron');
+const { app, BrowserWindow, ipcMain, shell } = require('electron');
 const { autoUpdater } = require('electron-updater');
 
 const UPDATE_CHECK_DELAY_MS = 15_000;
@@ -20,6 +20,10 @@ let updateState = {
   currentVersion: app.getVersion(),
   availableVersion: null,
   downloadedVersion: null,
+  progress: null,
+  bytesPerSecond: null,
+  transferred: null,
+  total: null,
   checkedAt: null,
   error: null,
 };
@@ -72,7 +76,14 @@ const setUpdateState = (patch) => {
     ...patch,
   };
 
-  return getUpdateState();
+  const nextState = getUpdateState();
+  BrowserWindow.getAllWindows().forEach((window) => {
+    if (!window.isDestroyed()) {
+      window.webContents.send('app:update-status-changed', nextState);
+    }
+  });
+
+  return nextState;
 };
 
 const getOfflineDbPath = () => path.join(app.getPath('userData'), OFFLINE_DB_FILENAME);
@@ -686,6 +697,10 @@ const setupAutoUpdates = (mainWindow) => {
     console.log('Verificando atualizacoes do HappyCash...');
     setUpdateState({
       status: 'checking',
+      progress: null,
+      bytesPerSecond: null,
+      transferred: null,
+      total: null,
       checkedAt: nowIso(),
       error: null,
     });
@@ -696,6 +711,22 @@ const setupAutoUpdates = (mainWindow) => {
     setUpdateState({
       status: 'downloading',
       availableVersion: info?.version || null,
+      progress: 0,
+      bytesPerSecond: null,
+      transferred: null,
+      total: null,
+      checkedAt: nowIso(),
+      error: null,
+    });
+  });
+
+  autoUpdater.on('download-progress', (progress) => {
+    setUpdateState({
+      status: 'downloading',
+      progress: Number.isFinite(progress?.percent) ? Math.max(0, Math.min(100, progress.percent)) : null,
+      bytesPerSecond: Number.isFinite(progress?.bytesPerSecond) ? progress.bytesPerSecond : null,
+      transferred: Number.isFinite(progress?.transferred) ? progress.transferred : null,
+      total: Number.isFinite(progress?.total) ? progress.total : null,
       checkedAt: nowIso(),
       error: null,
     });
@@ -707,6 +738,10 @@ const setupAutoUpdates = (mainWindow) => {
       status: 'idle',
       availableVersion: null,
       downloadedVersion: null,
+      progress: null,
+      bytesPerSecond: null,
+      transferred: null,
+      total: null,
       checkedAt: nowIso(),
       error: null,
     });
@@ -726,31 +761,13 @@ const setupAutoUpdates = (mainWindow) => {
       status: 'downloaded',
       availableVersion: info?.version || null,
       downloadedVersion: info?.version || null,
+      progress: 100,
+      bytesPerSecond: null,
+      transferred: null,
+      total: null,
       checkedAt: nowIso(),
       error: null,
     });
-
-    const targetWindow = BrowserWindow.getFocusedWindow() || mainWindow;
-
-    if (!targetWindow || targetWindow.isDestroyed()) {
-      setImmediate(() => autoUpdater.quitAndInstall(false, true));
-      return;
-    }
-
-    const { response } = await dialog.showMessageBox(targetWindow, {
-      type: 'info',
-      buttons: ['Reiniciar agora', 'Depois'],
-      defaultId: 0,
-      cancelId: 1,
-      title: 'Atualizacao pronta',
-      message: 'Uma nova versao do HappyCash foi baixada.',
-      detail: `A versao ${info?.version || 'mais recente'} ja esta pronta para instalar. Reinicie agora para concluir a atualizacao.`,
-      noLink: true,
-    });
-
-    if (response === 0) {
-      setImmediate(() => autoUpdater.quitAndInstall(false, true));
-    }
   });
 
   const initialTimer = setTimeout(() => {
@@ -863,6 +880,16 @@ ipcMain.handle('app:get-update-status', () => {
 
 ipcMain.handle('app:check-for-updates', async () => {
   return checkForUpdates();
+});
+
+ipcMain.handle('app:install-update', () => {
+  const state = getUpdateState();
+  if (state.status !== 'downloaded') {
+    return { success: false, error: 'Nenhuma atualizacao baixada para instalar.' };
+  }
+
+  setImmediate(() => autoUpdater.quitAndInstall(false, true));
+  return { success: true };
 });
 
 ipcMain.handle('offline:replace-snapshot', (_event, payload) => {

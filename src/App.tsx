@@ -39,12 +39,11 @@ const APP_SPLASH_SEEN_KEY = "happycash:system:app-splash-seen";
 
 const hasSeenAppSplash = () => {
   if (typeof window === "undefined") return false;
-  return window.localStorage.getItem(APP_SPLASH_SEEN_KEY) === "1" || window.sessionStorage.getItem(APP_SPLASH_SEEN_KEY) === "1";
+  return window.sessionStorage.getItem(APP_SPLASH_SEEN_KEY) === "1";
 };
 
 const markAppSplashSeen = () => {
   if (typeof window === "undefined") return;
-  window.localStorage.setItem(APP_SPLASH_SEEN_KEY, "1");
   window.sessionStorage.setItem(APP_SPLASH_SEEN_KEY, "1");
 };
 

@@ -14,6 +14,8 @@ interface Window {
       }>;
       getUpdateStatus: () => Promise<unknown>;
       checkForUpdates: () => Promise<unknown>;
+      installUpdate: () => Promise<unknown>;
+      onUpdateStatus: (callback: (status: unknown) => void) => () => void;
     };
     offline?: {
       replaceSnapshot: (payload: unknown) => Promise<unknown>;
