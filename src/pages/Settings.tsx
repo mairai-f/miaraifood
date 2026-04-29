@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, type ChangeEvent } from 'react';
 import { Clock3, Download, Settings as SettingsIcon, ShieldAlert } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import { CompanyProfileCard } from '@/components/CompanyProfileCard';
@@ -19,7 +19,7 @@ import {
   type OfflineConflictRecord,
 } from '@/lib/offlineConcentrator';
 import { getSubscriptionEndAt } from '@/lib/subscriptionStatus';
-import { buildBackupPayload, downloadJsonBackup } from '@/lib/backupExport';
+import { buildBackupPayload, downloadJsonBackup, type BackupPayload } from '@/lib/backupExport';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -38,6 +38,7 @@ import { toast } from 'sonner';
 
 const CREATE_OPERATOR_MODAL = 'cadastrar-operador';
 const RESET_CONFIRM_TEXT = 'ZERAR';
+const RESTORE_CONFIRM_TEXT = 'RESTAURAR';
 type ResetTarget = 'financial' | 'reports';
 
 interface ResetActionResponse {
@@ -60,7 +61,7 @@ const planLabels: Record<string, string> = {
 };
 
 export default function Settings() {
-  const { session, ownerUserId } = useAuth();
+  const { session, ownerUserId, user } = useAuth();
   const { isDesktop, offlineEnabled, validUntil: desktopValidUntil, refresh: refreshDesktopLicense } = useDesktopRuntime();
   const data = useData();
   const { refetch } = data;
@@ -80,6 +81,14 @@ export default function Settings() {
   const [loadingOfflineStatus, setLoadingOfflineStatus] = useState(false);
   const [desktopUpdateStatus, setDesktopUpdateStatus] = useState<DesktopUpdateStatus | null>(null);
   const [checkingDesktopUpdate, setCheckingDesktopUpdate] = useState(false);
+  const [restoreDialogOpen, setRestoreDialogOpen] = useState(false);
+  const [restoreBackup, setRestoreBackup] = useState<BackupPayload | null>(null);
+  const [restoreFileName, setRestoreFileName] = useState('');
+  const [restoreAdminEmail, setRestoreAdminEmail] = useState('');
+  const [restoreAdminPassword, setRestoreAdminPassword] = useState('');
+  const [restoreConfirmationText, setRestoreConfirmationText] = useState('');
+  const [restoreError, setRestoreError] = useState('');
+  const [restoringBackup, setRestoringBackup] = useState(false);
 
   const loadOfflineRuntime = useCallback(async () => {
     if (!isDesktop || !ownerUserId) {
@@ -320,6 +329,181 @@ export default function Settings() {
     toast.success('Backup exportado com sucesso.');
   }, [data]);
 
+  const resetRestoreDialogState = useCallback(() => {
+    setRestoreBackup(null);
+    setRestoreFileName('');
+    setRestoreAdminEmail(user?.email || '');
+    setRestoreAdminPassword('');
+    setRestoreConfirmationText('');
+    setRestoreError('');
+    setRestoringBackup(false);
+  }, [user?.email]);
+
+  const handleRestoreDialogOpenChange = useCallback((open: boolean) => {
+    setRestoreDialogOpen(open);
+    if (open) {
+      setRestoreAdminEmail(current => current || user?.email || '');
+      return;
+    }
+
+    resetRestoreDialogState();
+  }, [resetRestoreDialogState, user?.email]);
+
+  const isBackupPayload = (value: unknown): value is BackupPayload => {
+    if (!value || typeof value !== 'object') return false;
+    const candidate = value as Partial<BackupPayload>;
+    const backupData = candidate.data;
+    if (candidate.source !== 'happycash' || !backupData || typeof backupData !== 'object') return false;
+
+    return [
+      'clients',
+      'products',
+      'debtEntries',
+      'payments',
+      'rewards',
+      'sales',
+      'saleItems',
+      'stockMovements',
+      'expenses',
+      'pricingRules',
+      'priceHistory',
+    ].every(key => Array.isArray((backupData as Record<string, unknown>)[key]));
+  };
+
+  const handleRestoreFileChange = useCallback(async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+
+    try {
+      const parsed = JSON.parse(await file.text()) as unknown;
+      if (!isBackupPayload(parsed)) {
+        setRestoreBackup(null);
+        setRestoreFileName('');
+        setRestoreError('Arquivo inválido. Selecione um backup JSON gerado pelo HappyCash.');
+        return;
+      }
+
+      setRestoreBackup(parsed);
+      setRestoreFileName(file.name);
+      setRestoreError('');
+    } catch {
+      setRestoreBackup(null);
+      setRestoreFileName('');
+      setRestoreError('Não foi possível ler o arquivo JSON.');
+    }
+  }, []);
+
+  const stripLocalFields = (row: Record<string, unknown>) => {
+    const {
+      sync_status: _syncStatus,
+      sync_error: _syncError,
+      code: _code,
+      ...rest
+    } = row;
+    return rest;
+  };
+
+  const upsertBackupRows = async (table: string, rows: Array<Record<string, unknown>>) => {
+    if (rows.length === 0) return;
+    const { error } = await (supabase as any)
+      .from(table)
+      .upsert(rows, { onConflict: 'id' });
+    if (error) throw error;
+  };
+
+  const handleRestoreBackup = useCallback(async () => {
+    if (!restoreBackup) {
+      setRestoreError('Selecione um arquivo de backup antes de restaurar.');
+      return;
+    }
+
+    if (!ownerUserId) {
+      setRestoreError('Não foi possível identificar a loja atual.');
+      return;
+    }
+
+    if (!restoreAdminEmail.trim() || !restoreAdminPassword.trim()) {
+      setRestoreError('Informe login e senha do administrador.');
+      return;
+    }
+
+    if (restoreConfirmationText.trim().toUpperCase() !== RESTORE_CONFIRM_TEXT) {
+      setRestoreError('Digite RESTAURAR para confirmar a importação.');
+      return;
+    }
+
+    setRestoringBackup(true);
+    setRestoreError('');
+
+    try {
+      const { error: authError } = await supabase.auth.signInWithPassword({
+        email: restoreAdminEmail.trim(),
+        password: restoreAdminPassword,
+      });
+
+      if (authError) {
+        setRestoreError('Email ou senha inválidos.');
+        return;
+      }
+
+      const backupData = restoreBackup.data;
+      await upsertBackupRows('clients', backupData.clients.map(row => ({
+        ...stripLocalFields(row as unknown as Record<string, unknown>),
+        user_id: ownerUserId,
+      })));
+      await upsertBackupRows('products', backupData.products.map(row => ({
+        ...stripLocalFields(row as unknown as Record<string, unknown>),
+        user_id: ownerUserId,
+      })));
+      await upsertBackupRows('rewards', backupData.rewards.map(row => ({
+        ...stripLocalFields(row as unknown as Record<string, unknown>),
+        user_id: ownerUserId,
+      })));
+      await upsertBackupRows('product_category_pricing_rules', backupData.pricingRules.map(row => ({
+        ...stripLocalFields(row as unknown as Record<string, unknown>),
+        owner_user_id: ownerUserId,
+      })));
+      await upsertBackupRows('product_price_history', backupData.priceHistory.map(row => ({
+        ...stripLocalFields(row as unknown as Record<string, unknown>),
+        owner_user_id: ownerUserId,
+      })));
+      await upsertBackupRows('sales', backupData.sales.map(row => ({
+        ...stripLocalFields(row as unknown as Record<string, unknown>),
+        user_id: ownerUserId,
+      })));
+      await upsertBackupRows('sale_items', backupData.saleItems.map(row => stripLocalFields(row as unknown as Record<string, unknown>)));
+      await upsertBackupRows('debt_entries', backupData.debtEntries.map(row => stripLocalFields(row as unknown as Record<string, unknown>)));
+      await upsertBackupRows('payments', backupData.payments.map(row => stripLocalFields(row as unknown as Record<string, unknown>)));
+      await upsertBackupRows('stock_movements', backupData.stockMovements.map(row => ({
+        ...stripLocalFields(row as unknown as Record<string, unknown>),
+        user_id: ownerUserId,
+      })));
+      await upsertBackupRows('expenses', backupData.expenses.map(row => ({
+        ...stripLocalFields(row as unknown as Record<string, unknown>),
+        user_id: ownerUserId,
+      })));
+
+      await refetch();
+      toast.success('Backup restaurado com sucesso.');
+      handleRestoreDialogOpenChange(false);
+    } catch (error) {
+      console.error('Erro ao restaurar backup:', error);
+      setRestoreError(error instanceof Error ? error.message : 'Não foi possível restaurar o backup.');
+      toast.error('Não foi possível restaurar o backup.');
+    } finally {
+      setRestoringBackup(false);
+    }
+  }, [
+    handleRestoreDialogOpenChange,
+    ownerUserId,
+    refetch,
+    restoreAdminEmail,
+    restoreAdminPassword,
+    restoreBackup,
+    restoreConfirmationText,
+  ]);
+
   const resetTitle = resetTarget === 'financial'
     ? 'Confirmar limpeza de financeiro'
     : 'Confirmar limpeza de relatórios';
@@ -527,9 +711,96 @@ export default function Settings() {
               <p className="font-semibold">{data.sales.length + data.debtEntries.length}</p>
             </div>
           </div>
-          <Button type="button" variant="outline" onClick={handleExportBackup}>
-            <Download className="mr-2 h-4 w-4" />Baixar backup JSON
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" variant="outline" onClick={handleExportBackup}>
+              <Download className="mr-2 h-4 w-4" />Baixar backup JSON
+            </Button>
+
+            <Dialog open={restoreDialogOpen} onOpenChange={handleRestoreDialogOpenChange}>
+              <DialogTrigger asChild>
+                <Button type="button" variant="outline">
+                  Restaurar backup JSON
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Restaurar backup JSON</DialogTitle>
+                </DialogHeader>
+
+                <div className="space-y-4">
+                  <div className="rounded-md border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-700 dark:text-amber-300">
+                    A restauração atualiza ou recria registros pelo ID do backup. Revise o arquivo antes de confirmar.
+                  </div>
+
+                  <div className="space-y-1">
+                    <Label>Arquivo de backup</Label>
+                    <Input type="file" accept="application/json,.json" onChange={event => void handleRestoreFileChange(event)} />
+                    {restoreFileName && <p className="text-xs text-muted-foreground">Selecionado: {restoreFileName}</p>}
+                  </div>
+
+                  {restoreBackup && (
+                    <div className="grid gap-2 rounded-lg border border-border/70 bg-background/70 p-3 text-sm sm:grid-cols-3">
+                      <div>
+                        <p className="text-xs text-muted-foreground">Clientes</p>
+                        <p className="font-semibold">{restoreBackup.data.clients.length}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground">Produtos</p>
+                        <p className="font-semibold">{restoreBackup.data.products.length}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground">Vendas/fiados</p>
+                        <p className="font-semibold">{restoreBackup.data.sales.length + restoreBackup.data.debtEntries.length}</p>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="space-y-1">
+                    <Label>Login do administrador</Label>
+                    <Input
+                      type="email"
+                      value={restoreAdminEmail}
+                      onChange={event => setRestoreAdminEmail(event.target.value)}
+                      placeholder="admin@empresa.com"
+                      autoComplete="username"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <Label>Senha do administrador</Label>
+                    <PasswordInput
+                      value={restoreAdminPassword}
+                      onChange={event => setRestoreAdminPassword(event.target.value)}
+                      placeholder="Digite a senha"
+                      autoComplete="current-password"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <Label>Confirmação final</Label>
+                    <Input
+                      value={restoreConfirmationText}
+                      onChange={event => setRestoreConfirmationText(event.target.value)}
+                      placeholder='Digite "RESTAURAR" para confirmar'
+                    />
+                  </div>
+
+                  {restoreError && (
+                    <p className="text-sm font-medium text-destructive">{restoreError}</p>
+                  )}
+                </div>
+
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => handleRestoreDialogOpenChange(false)} disabled={restoringBackup}>
+                    Cancelar
+                  </Button>
+                  <Button onClick={() => void handleRestoreBackup()} disabled={restoringBackup || !restoreBackup}>
+                    {restoringBackup ? 'Restaurando...' : 'Confirmar restauração'}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          </div>
         </CardContent>
       </Card>
 
