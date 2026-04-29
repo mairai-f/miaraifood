@@ -14,6 +14,7 @@ import {
   installDesktopUpdate,
   listOfflineConflicts,
   onDesktopUpdateStatus,
+  openDesktopUpdateDownload,
   readDesktopUpdateStatus,
   retryOfflineOperation,
   resolveOfflineConflict,
@@ -346,6 +347,21 @@ export default function Settings() {
     }
   }, []);
 
+  const handleOpenDesktopUpdateDownload = useCallback(async () => {
+    try {
+      const result = await openDesktopUpdateDownload();
+
+      if (result?.success) {
+        toast.success('Pagina de download da atualizacao aberta.');
+        return;
+      }
+
+      toast.error(result?.error || 'Nao foi possivel abrir o download manual.');
+    } catch {
+      toast.error('Nao foi possivel abrir o download manual.');
+    }
+  }, []);
+
   const handleExportBackup = useCallback(() => {
     downloadJsonBackup(buildBackupPayload({
       clients: data.clients,
@@ -550,6 +566,7 @@ export default function Settings() {
   const updateProgress = Math.max(0, Math.min(100, desktopUpdateStatus?.progress ?? 0));
   const updateIsDownloading = desktopUpdateStatus?.status === 'downloading';
   const updateIsDownloaded = desktopUpdateStatus?.status === 'downloaded';
+  const updateHasError = desktopUpdateStatus?.status === 'error';
 
   return (
     <div className="space-y-6">
@@ -691,6 +708,25 @@ export default function Settings() {
                     Reiniciar e instalar
                   </Button>
                 )}
+              </div>
+            )}
+
+            {updateHasError && (
+              <div className="space-y-3 rounded-lg border border-destructive/30 bg-destructive/5 p-4">
+                <div>
+                  <p className="text-sm font-medium text-foreground">Atualizacao nao concluiu automaticamente</p>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    {desktopUpdateStatus?.error || 'O HappyCash nao conseguiu finalizar a instalacao automaticamente.'}
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-3">
+                  <Button type="button" variant="outline" onClick={() => void handleCheckDesktopUpdates()} disabled={checkingDesktopUpdate}>
+                    Tentar novamente
+                  </Button>
+                  <Button type="button" onClick={() => void handleOpenDesktopUpdateDownload()}>
+                    Abrir download manual
+                  </Button>
+                </div>
               </div>
             )}
 

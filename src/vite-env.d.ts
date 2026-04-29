@@ -15,6 +15,7 @@ interface Window {
       getUpdateStatus: () => Promise<unknown>;
       checkForUpdates: () => Promise<unknown>;
       installUpdate: () => Promise<unknown>;
+      openUpdateDownload: () => Promise<unknown>;
       onUpdateStatus: (callback: (status: unknown) => void) => () => void;
     };
     offline?: {

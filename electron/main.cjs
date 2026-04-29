@@ -9,6 +9,7 @@ const isDevelopment = Boolean(process.env.VITE_DEV_SERVER_URL) || !app.isPackage
 let autoUpdatesConfigured = false;
 const APP_USER_MODEL_ID = 'com.happycash.desktop';
 const VALID_UPDATE_CHANNELS = new Set(['latest', 'beta', 'alpha']);
+const UPDATE_RELEASE_REPO = 'celioantonio7/HappyCash-Releases';
 const OFFLINE_DB_FILENAME = 'happycash-concentrator.sqlite';
 const OFFLINE_DB_SCHEMA_VERSION = 2;
 const OFFLINE_SYNC_RETENTION_DAYS = Number.parseInt(process.env.HAPPYCASH_OFFLINE_SYNC_RETENTION_DAYS || '30', 10);
@@ -20,6 +21,8 @@ let updateState = {
   currentVersion: app.getVersion(),
   availableVersion: null,
   downloadedVersion: null,
+  downloadedFile: null,
+  manualDownloadUrl: null,
   progress: null,
   bytesPerSecond: null,
   transferred: null,
@@ -69,6 +72,14 @@ const parseJson = (value, fallback = null) => {
 const getUpdateState = () => ({
   ...updateState,
 });
+
+const getManualUpdateUrl = (version) => {
+  if (version) {
+    return `https://github.com/${UPDATE_RELEASE_REPO}/releases/tag/v${version}`;
+  }
+
+  return `https://github.com/${UPDATE_RELEASE_REPO}/releases/latest`;
+};
 
 const setUpdateState = (patch) => {
   updateState = {
@@ -640,6 +651,10 @@ const checkForUpdates = async () => {
     return setUpdateState({
       status: 'disabled',
       channel: getUpdateChannel(),
+      availableVersion: null,
+      downloadedVersion: null,
+      downloadedFile: null,
+      manualDownloadUrl: null,
       checkedAt: nowIso(),
       error: null,
     });
@@ -648,6 +663,14 @@ const checkForUpdates = async () => {
   setUpdateState({
     status: 'checking',
     channel: getUpdateChannel(),
+    availableVersion: null,
+    downloadedVersion: null,
+    downloadedFile: null,
+    manualDownloadUrl: getManualUpdateUrl(null),
+    progress: null,
+    bytesPerSecond: null,
+    transferred: null,
+    total: null,
     checkedAt: nowIso(),
     error: null,
   });
@@ -659,6 +682,7 @@ const checkForUpdates = async () => {
     console.error('Erro ao procurar atualizacoes automáticas:', error);
     return setUpdateState({
       status: 'error',
+      manualDownloadUrl: getManualUpdateUrl(updateState.availableVersion),
       checkedAt: nowIso(),
       error: error instanceof Error ? error.message : 'Falha ao procurar atualizacoes.',
     });
@@ -672,6 +696,10 @@ const setupAutoUpdates = (mainWindow) => {
     setUpdateState({
       status: 'disabled',
       channel: updateChannel,
+      availableVersion: null,
+      downloadedVersion: null,
+      downloadedFile: null,
+      manualDownloadUrl: null,
       error: null,
     });
     return;
@@ -681,13 +709,14 @@ const setupAutoUpdates = (mainWindow) => {
   autoUpdatesConfigured = true;
 
   autoUpdater.autoDownload = true;
-  autoUpdater.autoInstallOnAppQuit = true;
+  autoUpdater.autoInstallOnAppQuit = false;
   autoUpdater.channel = updateChannel;
   autoUpdater.allowPrerelease = updateChannel !== 'latest';
   autoUpdater.allowDowngrade = updateChannel !== 'latest';
   setUpdateState({
     status: 'idle',
     channel: updateChannel,
+    manualDownloadUrl: getManualUpdateUrl(null),
     error: null,
   });
 
@@ -697,6 +726,10 @@ const setupAutoUpdates = (mainWindow) => {
     console.log('Verificando atualizacoes do HappyCash...');
     setUpdateState({
       status: 'checking',
+      availableVersion: null,
+      downloadedVersion: null,
+      downloadedFile: null,
+      manualDownloadUrl: getManualUpdateUrl(null),
       progress: null,
       bytesPerSecond: null,
       transferred: null,
@@ -711,6 +744,9 @@ const setupAutoUpdates = (mainWindow) => {
     setUpdateState({
       status: 'downloading',
       availableVersion: info?.version || null,
+      downloadedVersion: null,
+      downloadedFile: null,
+      manualDownloadUrl: getManualUpdateUrl(info?.version || null),
       progress: 0,
       bytesPerSecond: null,
       transferred: null,
@@ -738,6 +774,8 @@ const setupAutoUpdates = (mainWindow) => {
       status: 'idle',
       availableVersion: null,
       downloadedVersion: null,
+      downloadedFile: null,
+      manualDownloadUrl: getManualUpdateUrl(null),
       progress: null,
       bytesPerSecond: null,
       transferred: null,
@@ -749,18 +787,35 @@ const setupAutoUpdates = (mainWindow) => {
 
   autoUpdater.on('error', (error) => {
     console.error('Falha no auto-update:', error);
+    const currentState = getUpdateState();
+    const errorMessage = error instanceof Error ? error.message : 'Falha no auto-update.';
+
+    if (currentState.status === 'downloaded') {
+      setUpdateState({
+        checkedAt: nowIso(),
+        error: errorMessage,
+      });
+      return;
+    }
+
     setUpdateState({
       status: 'error',
+      downloadedVersion: null,
+      downloadedFile: null,
+      manualDownloadUrl: getManualUpdateUrl(currentState.availableVersion),
       checkedAt: nowIso(),
-      error: error instanceof Error ? error.message : 'Falha no auto-update.',
+      error: errorMessage,
     });
   });
 
   autoUpdater.on('update-downloaded', async (info) => {
+    const downloadedVersion = info?.version || updateState.availableVersion || null;
     setUpdateState({
       status: 'downloaded',
-      availableVersion: info?.version || null,
-      downloadedVersion: info?.version || null,
+      availableVersion: downloadedVersion,
+      downloadedVersion,
+      downloadedFile: info?.downloadedFile || null,
+      manualDownloadUrl: getManualUpdateUrl(downloadedVersion),
       progress: 100,
       bytesPerSecond: null,
       transferred: null,
@@ -888,8 +943,34 @@ ipcMain.handle('app:install-update', () => {
     return { success: false, error: 'Nenhuma atualizacao baixada para instalar.' };
   }
 
-  setImmediate(() => autoUpdater.quitAndInstall(false, true));
-  return { success: true };
+  try {
+    setImmediate(() => {
+      try {
+        autoUpdater.quitAndInstall(false, true);
+      } catch (error) {
+        console.error('Falha ao iniciar instalacao da atualizacao:', error);
+        setUpdateState({
+          status: 'error',
+          manualDownloadUrl: getManualUpdateUrl(state.downloadedVersion || state.availableVersion),
+          checkedAt: nowIso(),
+          error: error instanceof Error ? error.message : 'Falha ao iniciar instalacao da atualizacao.',
+        });
+      }
+    });
+    return { success: true };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Falha ao iniciar instalacao da atualizacao.',
+    };
+  }
+});
+
+ipcMain.handle('app:open-update-download', async () => {
+  const state = getUpdateState();
+  const url = state.manualDownloadUrl || getManualUpdateUrl(state.availableVersion || state.downloadedVersion);
+  await shell.openExternal(url);
+  return { success: true, url };
 });
 
 ipcMain.handle('offline:replace-snapshot', (_event, payload) => {

@@ -260,6 +260,8 @@ export interface DesktopUpdateStatus {
   currentVersion: string;
   availableVersion: string | null;
   downloadedVersion: string | null;
+  downloadedFile: string | null;
+  manualDownloadUrl: string | null;
   progress: number | null;
   bytesPerSecond: number | null;
   transferred: number | null;
@@ -321,6 +323,11 @@ export const checkDesktopUpdates = async () => {
 export const installDesktopUpdate = async () => {
   if (!window.electronAPI?.app?.installUpdate) return { success: false, error: 'Instalacao indisponivel fora do desktop.' };
   return window.electronAPI.app.installUpdate() as Promise<{ success?: boolean; error?: string }>;
+};
+
+export const openDesktopUpdateDownload = async () => {
+  if (!window.electronAPI?.app?.openUpdateDownload) return { success: false, error: 'Download manual indisponivel fora do desktop.' };
+  return window.electronAPI.app.openUpdateDownload() as Promise<{ success?: boolean; error?: string; url?: string }>;
 };
 
 export const onDesktopUpdateStatus = (callback: (status: DesktopUpdateStatus) => void) => {
