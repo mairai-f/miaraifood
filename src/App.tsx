@@ -28,6 +28,7 @@ import PricingManager from "@/pages/PricingManager";
 import Notes from "@/pages/Notes";
 import Settings from "@/pages/Settings";
 import AccessMonitor from "@/pages/AccessMonitor";
+import AuditLog from "@/pages/AuditLog";
 import { SplashScreen } from "@/components/SplashScreen";
 import type { UserRole } from "@/lib/access";
 import { LocaleProvider } from "../shared/locale/LocaleContext";
@@ -162,6 +163,7 @@ function AppRoutes() {
       <Route path="/notas" element={<ProtectedRoute allowedRoles={['admin']} requiredFeature="notes.manage"><Notes /></ProtectedRoute>} />
       <Route path="/configuracoes" element={<ProtectedRoute allowedRoles={['admin']} requiredFeature="settings.manage"><Settings /></ProtectedRoute>} />
       <Route path="/acessos" element={<ProtectedRoute allowedRoles={['admin']} requiredFeature="settings.manage"><AccessMonitor /></ProtectedRoute>} />
+      <Route path="/auditoria" element={<ProtectedRoute allowedRoles={['admin']} requiredFeature="settings.manage"><AuditLog /></ProtectedRoute>} />
       <Route path="/recompensas" element={<ProtectedRoute allowedRoles={['admin']} requiredFeature="rewards.manage"><Rewards /></ProtectedRoute>} />
       <Route path="/cliente/:clientRef" element={<ProtectedRoute allowedRoles={['admin', 'operator']} requiredFeature="clients.manage"><ClientDetail /></ProtectedRoute>} />
       <Route path="/excluidos" element={<ProtectedRoute allowedRoles={['admin']} requiredFeature="deleted.view"><DeletedClients /></ProtectedRoute>} />

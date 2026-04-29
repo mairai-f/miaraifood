@@ -110,6 +110,11 @@ export interface OfflinePaymentPayload {
 export interface OfflineDebtEntryMutationPayload {
   entryId: string;
   changes: Partial<DebtEntry>;
+  stockMovement?: StockMovement | null;
+  stockRestore?: {
+    productId: string;
+    quantity: number;
+  } | null;
 }
 
 export interface OfflineSaleCancelPayload {

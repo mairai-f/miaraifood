@@ -118,6 +118,32 @@ export default function ClientDetail() {
   );
   const balance = id ? data.getClientBalance(id) : 0;
   const matched = data.searchProducts(productSearch);
+  const getCartQuantityForProduct = (productId: string) =>
+    cart
+      .filter(item => item.id === productId)
+      .reduce((sum, item) => sum + item.quantity, 0);
+  const getInsufficientStockMessage = (productId: string, productName: string, requestedQuantity: number) => {
+    const product = data.products.find(item => item.id === productId);
+    if (!product) return '';
+
+    const availableStock = Number(product.stock || 0);
+    if (availableStock <= 0) return '';
+
+    return availableStock < requestedQuantity
+      ? `Estoque insuficiente para ${product.name || productName}. Disponivel: ${availableStock}, solicitado: ${requestedQuantity}.`
+      : '';
+  };
+  const validateCartStock = () => {
+    for (const item of cart) {
+      const message = getInsufficientStockMessage(item.id, item.name, item.quantity);
+      if (message) {
+        toast.error(message);
+        return false;
+      }
+    }
+
+    return true;
+  };
 
   // ── Agrupamento de pendentes por produto ───────────────────────────────────
   const groupedPending = useMemo(() => {
@@ -277,6 +303,13 @@ export default function ClientDetail() {
   const handleAddToCart = () => {
     if (!selectedProduct) { toast.error('Selecione um produto'); return; }
     const qty = parseInt(quantity) || 1;
+    const requestedQuantity = getCartQuantityForProduct(selectedProduct.id) + qty;
+    const stockMessage = getInsufficientStockMessage(selectedProduct.id, selectedProduct.name, requestedQuantity);
+    if (stockMessage) {
+      toast.error(stockMessage);
+      return;
+    }
+
     setCart(prev => {
       const existing = prev.find(c => c.id === selectedProduct.id);
       if (existing) return prev.map(c => c.id === selectedProduct.id ? { ...c, quantity: c.quantity + qty } : c);
@@ -293,6 +326,7 @@ export default function ClientDetail() {
 
   const handleSubmitCart = async (sendWhatsApp: boolean = true) => {
     if (cart.length === 0) { toast.error('Adicione pelo menos um produto'); return; }
+    if (!validateCartStock()) return;
 
     const dateAdded = new Date().toISOString();
 
@@ -660,6 +694,7 @@ export default function ClientDetail() {
                                   {e.date_paid && ` • Pago: ${formatClientDateTime(e.date_paid)}`}
                                 </p>
                                 {e.registered_by && <p className="text-xs text-muted-foreground">Por: {e.registered_by}</p>}
+                                <p className="text-xs text-muted-foreground">Estoque: saída vinculada ao fiado</p>
                               </div>
                               <div className="flex items-center gap-1 shrink-0">
                                 <span className="font-medium text-destructive text-xs">R$ {e.total.toFixed(2)}</span>

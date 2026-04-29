@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { createClient, FunctionsFetchError, FunctionsHttpError, FunctionsRelayError } from '@supabase/supabase-js';
+import { toast } from 'sonner';
 import { useData } from '@/contexts/DataContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useDesktopRuntime } from '@/contexts/DesktopRuntimeContext';
@@ -142,8 +143,8 @@ const isValidEmailRecipient = (value: string) =>
   /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 
 const silentToast = {
-  success: (_message?: string) => undefined,
-  error: (_message?: string) => undefined,
+  success: (message?: string) => message ? toast.success(message) : undefined,
+  error: (message?: string) => message ? toast.error(message) : undefined,
 };
 
 const escapeHtml = (value: string) =>
@@ -1489,8 +1490,39 @@ export default function PDV() {
   const cashOutAmountValue = Number.isFinite(parsedCashOutAmount) ? parsedCashOutAmount : 0;
   const cashOutExceedsBalance = cashOutAmountValue > currentCashBalance;
   const showOpenCashDialog = !cashSession && !showCloseCashReceipt && !cashSessionLoading;
+  const getCartQuantityForProduct = (productId: string) =>
+    cart
+      .filter(item => item.product.id === productId)
+      .reduce((sum, item) => sum + item.quantity, 0);
+  const getInsufficientStockMessage = (product: Product, requestedQuantity: number) => {
+    const availableStock = Number(product.stock || 0);
+    if (availableStock <= 0) return '';
+
+    return availableStock < requestedQuantity
+      ? `Estoque insuficiente para ${product.name}. Disponivel: ${availableStock}, solicitado: ${requestedQuantity}.`
+      : '';
+  };
+  const validateCartStock = () => {
+    for (const item of cart) {
+      const product = products.find(currentProduct => currentProduct.id === item.product.id) ?? item.product;
+      const message = getInsufficientStockMessage(product, item.quantity);
+      if (message) {
+        silentToast.error(message);
+        return false;
+      }
+    }
+
+    return true;
+  };
 
   const addToCart = (p: Product) => {
+    const requestedQuantity = getCartQuantityForProduct(p.id) + 1;
+    const stockMessage = getInsufficientStockMessage(p, requestedQuantity);
+    if (stockMessage) {
+      silentToast.error(stockMessage);
+      return;
+    }
+
     setCart(prev => {
       const existing = prev.find(i => i.product.id === p.id);
       if (existing) return prev.map(i => i.product.id === p.id ? { ...i, quantity: i.quantity + 1 } : i);
@@ -1742,6 +1774,7 @@ export default function PDV() {
   const openCheckout = () => {
     if (!cashSession) { silentToast.error('Abra o caixa antes de vender'); return; }
     if (cart.length === 0) { silentToast.error('Carrinho vazio'); return; }
+    if (!validateCartStock()) return;
     setPaymentMethod('');
     setCreditInstallments(null);
     setPendingCreditInstallments(1);
@@ -1774,6 +1807,7 @@ export default function PDV() {
     if (paymentMethod === 'fiado' && !selectedClientId) {
       silentToast.error('Selecione um cliente para fiado'); return;
     }
+    if (!validateCartStock()) return;
 
     finalizeLockRef.current = true;
     setIsFinalizingSale(true);

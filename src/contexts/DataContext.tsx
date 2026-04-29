@@ -155,6 +155,11 @@ type AddDebtEntriesOptions = {
   adjustStock?: boolean;
   stockReason?: string;
 };
+type StockDemand = {
+  productId?: string | null;
+  productName: string;
+  quantity: number;
+};
 
 interface DataContextType {
   clients: Client[]; products: Product[]; debtEntries: DebtEntry[]; payments: Payment[]; rewards: Reward[];
@@ -810,6 +815,43 @@ export function DataProvider({ children }: { children: ReactNode }) {
       .from('debt_entries')
       .update(stripSyncFields(payload.changes))
       .eq('id', payload.entryId));
+
+    if (payload.stockRestore) {
+      const { data: productData, error: productError } = await db
+        .from('products')
+        .select('id, stock')
+        .eq('id', payload.stockRestore.productId)
+        .maybeSingle();
+
+      if (productError) throw productError;
+      const product = productData as { id: string; stock: number } | null;
+
+      if (!product) {
+        throw new OfflineSyncConflictError(
+          'debt_entry.delete',
+          `O produto ${payload.stockRestore.productId} nao existe mais no banco remoto para restaurar o estoque.`,
+        );
+      }
+
+      ensureSuccess(await db
+        .from('products')
+        .update({ stock: Number(product.stock || 0) + payload.stockRestore.quantity })
+        .eq('id', payload.stockRestore.productId));
+    }
+
+    if (payload.stockMovement) {
+      const { data: existingMovement, error: existingMovementError } = await db
+        .from('stock_movements')
+        .select('id')
+        .eq('id', payload.stockMovement.id)
+        .maybeSingle();
+
+      if (existingMovementError) throw existingMovementError;
+
+      if (!existingMovement) {
+        ensureSuccess(await db.from('stock_movements').insert(stripSyncFields(payload.stockMovement)));
+      }
+    }
   }, []);
 
   const syncQueuedPaymentOperation = useCallback(async (payload: OfflinePaymentPayload) => {
@@ -1503,6 +1545,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
       }
 
       setProducts(prev => prev.map(product => product.id === id ? withDisplayCode(nextProduct, prev) : product));
+      void recordAuditLog('product.update', 'product', id, {
+        name: currentProduct.name,
+        changes: productPayload,
+        offline: true,
+      });
     };
 
     if (canUseOfflineConcentrator && typeof navigator !== 'undefined' && navigator.onLine === false) {
@@ -1519,6 +1566,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
         .single();
       if (error) throw error;
       setProducts(prev => prev.map(product => product.id === id ? withDisplayCode(updated as Product, prev) : product));
+      void recordAuditLog('product.update', 'product', id, {
+        name: currentProduct.name,
+        changes: productPayload,
+      });
     } catch (error) {
       if (canUseOfflineConcentrator && isProbablyOfflineError(error)) {
         await updateOfflineProduct();
@@ -1560,6 +1611,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
       }
 
       setProducts(prev => prev.map(product => product.id === id ? withDisplayCode(nextProduct, prev) : product));
+      void recordAuditLog('product.delete', 'product', id, {
+        name: currentProduct.name,
+        offline: true,
+      });
     };
 
     if (canUseOfflineConcentrator && typeof navigator !== 'undefined' && navigator.onLine === false) {
@@ -1571,6 +1626,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       const { data: updated, error } = await db.from('products').update({ deleted: true, deleted_at: new Date().toISOString() }).eq('id', id).select('*').single();
       if (error) throw error;
       setProducts(prev => prev.map(product => product.id === id ? withDisplayCode(updated as Product, prev) : product));
+      void recordAuditLog('product.delete', 'product', id, { name: currentProduct.name });
     } catch (error) {
       if (canUseOfflineConcentrator && isProbablyOfflineError(error)) {
         await deleteOfflineProduct();
@@ -1580,6 +1636,30 @@ export function DataProvider({ children }: { children: ReactNode }) {
       throw error;
     }
   };
+  const ensureStockAvailable = (demands: StockDemand[]) => {
+    const demandByProduct = demands
+      .filter(item => item.productId && item.quantity > 0)
+      .reduce((map, item) => {
+        const productId = item.productId!;
+        const current = map.get(productId) ?? { productName: item.productName, quantity: 0 };
+        current.quantity += item.quantity;
+        map.set(productId, current);
+        return map;
+      }, new Map<string, { productName: string; quantity: number }>());
+
+    for (const [productId, demand] of demandByProduct.entries()) {
+      const product = products.find(item => item.id === productId);
+      if (!product || product.deleted) continue;
+
+      const availableStock = Number(product.stock || 0);
+      if (availableStock <= 0) continue;
+
+      if (availableStock < demand.quantity) {
+        throw new Error(`Estoque insuficiente para ${product.name || demand.productName}. Disponivel: ${availableStock}, solicitado: ${demand.quantity}.`);
+      }
+    }
+  };
+
   const addPricingRule = async (rule: Omit<ProductCategoryPricingRule, 'id' | 'created_at' | 'updated_at' | 'owner_user_id'> & { owner_user_id?: string }) => {
     const normalizedRule = {
       owner_user_id: rule.owner_user_id || ownerUserId!,
@@ -1725,6 +1805,29 @@ export function DataProvider({ children }: { children: ReactNode }) {
     );
   };
 
+  const recordAuditLog = async (
+    action: string,
+    entityType: string,
+    entityId: string | null,
+    details: Record<string, unknown> = {},
+  ) => {
+    if (isDemoMode || !ownerUserId) return;
+
+    try {
+      await db.from('audit_logs' as never).insert({
+        owner_user_id: ownerUserId,
+        actor_user_id: user?.id ?? null,
+        actor_label: user?.email ?? null,
+        action,
+        entity_type: entityType,
+        entity_id: entityId,
+        details,
+      } as never);
+    } catch (error) {
+      console.warn('Nao foi possivel registrar auditoria:', error);
+    }
+  };
+
   // --- Debt Entries ---
   const addDebtEntry = async (clientId: string, productId: string, productName: string, quantity: number, unitPrice: number, dateAdded?: string, registeredBy?: string) => {
     await addDebtEntries([
@@ -1748,6 +1851,15 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
     const shouldAdjustStock = options.adjustStock !== false;
     const stockReason = options.stockReason ?? 'Fiado';
+
+    if (shouldAdjustStock) {
+      ensureStockAvailable(entries.map(entry => ({
+        productId: entry.productId,
+        productName: entry.productName,
+        quantity: entry.quantity,
+      })));
+    }
+
     const buildStockMovements = (date = nowIso(), queued = false) => entries
       .filter(entry => entry.productId && entry.quantity > 0)
       .map(entry => ({
@@ -1945,27 +2057,57 @@ export function DataProvider({ children }: { children: ReactNode }) {
       throw new Error('Operador não pode excluir itens da caderneta.');
     }
 
+    const entryToDelete = debtEntries.find(entry => entry.id === id);
+    const shouldRestoreStock = Boolean(
+      entryToDelete
+      && !entryToDelete.deleted
+      && entryToDelete.status === 'pending'
+      && entryToDelete.product_id
+      && entryToDelete.quantity > 0,
+    );
+
     const trimmedReason = reason.trim();
     if (!trimmedReason) {
       throw new Error('Informe o motivo da exclusão do item.');
     }
 
+    const deletedAt = nowIso();
+    const stockMovement = shouldRestoreStock && entryToDelete ? {
+      id: createId(),
+      product_id: entryToDelete.product_id,
+      user_id: ownerUserId!,
+      type: 'entrada',
+      quantity: entryToDelete.quantity,
+      reason: `Estorno fiado: ${trimmedReason}`,
+      date: deletedAt,
+    } as StockMovement : null;
+
+    const applyDebtDeletionState = (changes: Partial<DebtEntry>, movement: StockMovement | null) => {
+      setDebtEntries(prev => prev.map(entry => entry.id === id ? { ...entry, ...changes } as DebtEntry : entry));
+      if (!movement) return;
+      setProducts(prev => prev.map(product =>
+        product.id === movement.product_id
+          ? { ...product, stock: (product.stock || 0) + movement.quantity }
+          : product
+      ));
+      setStockMovements(prev => [movement, ...prev]);
+    };
+
     if (isDemoMode) {
-      setDebtEntries(prev => prev.map(entry => entry.id === id ? {
-        ...entry,
+      applyDebtDeletionState({
         deleted: true,
         manual_deleted: true,
-        deleted_at: nowIso(),
+        deleted_at: deletedAt,
         deleted_reason: trimmedReason,
         deleted_by: user?.email ?? 'Administrador',
-      } : entry));
+      }, stockMovement);
       return;
     }
 
     const changes = {
       deleted: true,
       manual_deleted: true,
-      deleted_at: nowIso(),
+      deleted_at: deletedAt,
       deleted_reason: trimmedReason,
       deleted_by: user?.email ?? 'Administrador',
     };
@@ -1978,9 +2120,21 @@ export function DataProvider({ children }: { children: ReactNode }) {
           sync_status: 'queued',
           sync_error: null,
         },
+        stockMovement: stockMovement ? { ...stockMovement, sync_status: 'queued', sync_error: null } : null,
+        stockRestore: stockMovement ? {
+          productId: stockMovement.product_id,
+          quantity: stockMovement.quantity,
+        } : null,
       });
       if (!queued) throw new Error('Nao foi possivel registrar a exclusao do fiado na fila offline.');
-      setDebtEntries(prev => prev.map(entry => entry.id === id ? { ...entry, ...changes, sync_status: 'queued', sync_error: null } : entry));
+      applyDebtDeletionState({ ...changes, sync_status: 'queued', sync_error: null }, stockMovement);
+      void recordAuditLog('debt_entry.delete', 'debt_entry', id, {
+        productName: entryToDelete?.product_name,
+        quantity: entryToDelete?.quantity,
+        reason: trimmedReason,
+        restoredStock: Boolean(stockMovement),
+        offline: true,
+      });
     };
 
     if (canUseOfflineConcentrator && typeof navigator !== 'undefined' && navigator.onLine === false) {
@@ -1990,7 +2144,40 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
     try {
       ensureSuccess(await db.from('debt_entries').update(changes).eq('id', id));
+      if (stockMovement) {
+        const product = products.find(item => item.id === stockMovement.product_id);
+        if (product) {
+          ensureSuccess(await db
+            .from('products')
+            .update({ stock: (product.stock || 0) + stockMovement.quantity })
+            .eq('id', stockMovement.product_id));
+        }
+        const { data: movementRow, error: movementError } = await db
+          .from('stock_movements')
+          .insert({
+            product_id: stockMovement.product_id,
+            user_id: ownerUserId!,
+            type: stockMovement.type,
+            quantity: stockMovement.quantity,
+            reason: stockMovement.reason,
+          })
+          .select('*')
+          .single();
+        if (movementError) throw movementError;
+        applyDebtDeletionState(changes, movementRow as StockMovement);
+        void recordAuditLog('debt_entry.delete_restore_stock', 'debt_entry', id, {
+          productName: entryToDelete?.product_name,
+          quantity: entryToDelete?.quantity,
+          reason: trimmedReason,
+        });
+        return;
+      }
       await fetchAll();
+      void recordAuditLog('debt_entry.delete', 'debt_entry', id, {
+        productName: entryToDelete?.product_name,
+        quantity: entryToDelete?.quantity,
+        reason: trimmedReason,
+      });
     } catch (error) {
       if (canUseOfflineConcentrator && isProbablyOfflineError(error)) {
         await deleteOfflineDebtEntry();
@@ -2304,6 +2491,12 @@ export function DataProvider({ children }: { children: ReactNode }) {
   ) => {
     const itemsWithMetrics = buildSaleItemPricingMetrics(items, sale.discount ?? 0);
 
+    ensureStockAvailable(itemsWithMetrics.map(item => ({
+      productId: item.product_id,
+      productName: item.product_name,
+      quantity: item.quantity,
+    })));
+
     if (isDemoMode) {
       const saleId = createId();
       const createdAt = nowIso();
@@ -2451,13 +2644,19 @@ export function DataProvider({ children }: { children: ReactNode }) {
       const { data: insertedItems, error: saleItemsError } = await db.from('sale_items').insert(itemsWithSaleId).select('*');
       if (saleItemsError) throw saleItemsError;
 
-      const stockUpdates = itemsWithMetrics
+      const productQuantities = itemsWithMetrics
         .filter(item => item.product_id)
-        .map(item => {
-          const product = products.find(p => p.id === item.product_id);
-          if (!product || product.stock <= 0) return null;
-          const newStock = Math.max(0, product.stock - item.quantity);
-          return db.from('products').update({ stock: newStock }).eq('id', item.product_id);
+        .reduce((map, item) => {
+          const productId = item.product_id!;
+          map.set(productId, (map.get(productId) || 0) + item.quantity);
+          return map;
+        }, new Map<string, number>());
+      const stockUpdates = Array.from(productQuantities.entries())
+        .map(([productId, quantity]) => {
+          const product = products.find(p => p.id === productId);
+          if (!product) return null;
+          const newStock = Math.max(0, product.stock - quantity);
+          return db.from('products').update({ stock: newStock }).eq('id', productId);
         })
         .filter(Boolean);
 
@@ -2569,6 +2768,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
       });
       if (!queued) throw new Error('Nao foi possivel registrar o cancelamento da venda na fila offline.');
       applyCancelSaleState({ ...changes, sync_status: 'queued', sync_error: null }, stockMovements, itemsToRestore);
+      void recordAuditLog('sale.cancel', 'sale', saleId, {
+        reason,
+        restoredItems: itemsToRestore.length,
+        offline: true,
+      });
     };
 
     if (canUseOfflineConcentrator && typeof navigator !== 'undefined' && navigator.onLine === false) {
@@ -2627,6 +2831,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
       if (insertedStockMovements.length > 0) {
         setStockMovements(prev => [...insertedStockMovements, ...prev]);
       }
+      void recordAuditLog('sale.cancel', 'sale', saleId, {
+        reason,
+        restoredItems: itemsToRestore.length,
+      });
     } catch (error) {
       if (canUseOfflineConcentrator && isProbablyOfflineError(error)) {
         await cancelOfflineSale();
@@ -2737,6 +2945,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
       setProducts(prev => prev.map(product => (product.deleted || (product.stock || 0) <= 0 ? product : { ...product, stock: 0, sync_status: 'queued', sync_error: null })));
       setStockMovements(prev => [...stockMovements, ...prev]);
+      void recordAuditLog('stock.clear_all', 'stock', null, {
+        reason,
+        products: stockedProducts.length,
+        offline: true,
+      });
     };
 
     if (canUseOfflineConcentrator && typeof navigator !== 'undefined' && navigator.onLine === false) {
@@ -2781,6 +2994,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
         )
       );
       setStockMovements(prev => [...((movementRows as StockMovement[]) ?? []), ...prev]);
+      void recordAuditLog('stock.clear_all', 'stock', null, {
+        reason,
+        products: stockedProducts.length,
+      });
     } catch (error) {
       if (canUseOfflineConcentrator && isProbablyOfflineError(error)) {
         await clearOfflineStock();

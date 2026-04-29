@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
-import { TrendingUp, Package, Users, DollarSign } from 'lucide-react';
+import { Download, TrendingUp, Package, Users, DollarSign } from 'lucide-react';
 import { formatDateOnly, translateCurrentText } from '../../shared/locale/format';
 
 const COLORS = ['hsl(var(--primary))', 'hsl(var(--destructive))', 'hsl(var(--accent))', '#8884d8', '#82ca9d', '#ffc658'];
@@ -60,6 +60,38 @@ export default function Reports() {
   const totalProfit = totalRevenue - totalCost;
   const totalFiadoSpent = filteredFiadoEntries.reduce((sum, entry) => sum + entry.total, 0);
   const totalFiadoPaid = filteredFiadoPayments.reduce((sum, payment) => sum + payment.amount, 0);
+  const lowStockProducts = useMemo(
+    () => products
+      .filter(product => !product.deleted && product.min_stock > 0 && product.stock <= product.min_stock)
+      .sort((a, b) => (a.stock - a.min_stock) - (b.stock - b.min_stock)),
+    [products],
+  );
+  const overdueBuckets = useMemo(() => {
+    const now = new Date();
+    const buckets = {
+      d7: { label: '7+ dias', count: 0, total: 0 },
+      d15: { label: '15+ dias', count: 0, total: 0 },
+      d30: { label: '30+ dias', count: 0, total: 0 },
+    };
+
+    debtEntries
+      .filter(entry => entry.status === 'pending' && !entry.deleted && !entry.manual_deleted)
+      .forEach(entry => {
+        const ageDays = Math.floor((now.getTime() - new Date(entry.date_added).getTime()) / (24 * 60 * 60 * 1000));
+        if (ageDays >= 30) {
+          buckets.d30.count += 1;
+          buckets.d30.total += entry.total;
+        } else if (ageDays >= 15) {
+          buckets.d15.count += 1;
+          buckets.d15.total += entry.total;
+        } else if (ageDays >= 7) {
+          buckets.d7.count += 1;
+          buckets.d7.total += entry.total;
+        }
+      });
+
+    return [buckets.d7, buckets.d15, buckets.d30];
+  }, [debtEntries]);
 
   // Top products
   const productRanking = useMemo(() => {
@@ -154,6 +186,43 @@ export default function Reports() {
     return Array.from(map.entries()).map(([name, value]) => ({ name, value }));
   }, [filteredSales]);
 
+  const exportCsv = () => {
+    const rows = [
+      ['tipo', 'data', 'descricao', 'cliente', 'quantidade', 'total', 'lucro'],
+      ...filteredSales.map(sale => [
+        'venda',
+        sale.date,
+        sale.payment_method,
+        clients.find(client => client.id === sale.client_id)?.name || '',
+        '',
+        sale.total.toFixed(2),
+        filteredItems
+          .filter(item => item.sale_id === sale.id)
+          .reduce((sum, item) => sum + (item.total_profit ?? item.total - item.cost_price * item.quantity), 0)
+          .toFixed(2),
+      ]),
+      ...filteredFiadoEntries.map(entry => [
+        'fiado',
+        entry.date_added,
+        entry.product_name,
+        clients.find(client => client.id === entry.client_id)?.name || '',
+        String(entry.quantity),
+        entry.total.toFixed(2),
+        '',
+      ]),
+    ];
+    const csv = rows
+      .map(row => row.map(cell => `"${String(cell).replaceAll('"', '""')}"`).join(','))
+      .join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `happycash-relatorio-${startDate}-a-${endDate}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="space-y-4">
       <h1 className="text-xl font-bold">📊 Relatórios</h1>
@@ -162,6 +231,9 @@ export default function Reports() {
       <div className="flex flex-wrap gap-3 items-end">
         <div className="space-y-1"><Label className="text-xs">De</Label><Input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="h-8 text-xs w-40" /></div>
         <div className="space-y-1"><Label className="text-xs">Até</Label><Input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="h-8 text-xs w-40" /></div>
+        <Button type="button" variant="outline" size="sm" onClick={exportCsv}>
+          <Download className="mr-2 h-4 w-4" />Exportar CSV
+        </Button>
       </div>
 
       {/* Stats */}
@@ -180,6 +252,39 @@ export default function Reports() {
             <CardContent className="px-3 pb-3"><p className="text-lg font-bold">{s.value}</p></CardContent>
           </Card>
         ))}
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <Card className="border-border/50">
+          <CardHeader><CardTitle className="text-sm">Produtos Abaixo do Mínimo</CardTitle></CardHeader>
+          <CardContent>
+            {lowStockProducts.length === 0 ? <p className="text-xs text-muted-foreground">Nenhum produto abaixo do mínimo.</p> : (
+              <div className="space-y-2">
+                {lowStockProducts.slice(0, 12).map(product => (
+                  <div key={product.id} className="flex items-center justify-between gap-3 text-xs">
+                    <span className="truncate">{product.name}</span>
+                    <span className="font-medium text-destructive">Est: {product.stock} / mín: {product.min_stock}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="border-border/50">
+          <CardHeader><CardTitle className="text-sm">Inadimplência por Tempo</CardTitle></CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-3 gap-2">
+              {overdueBuckets.map(bucket => (
+                <div key={bucket.label} className="rounded-lg border border-border bg-secondary/30 p-3">
+                  <p className="text-xs text-muted-foreground">{bucket.label}</p>
+                  <p className="mt-1 text-sm font-bold">R$ {bucket.total.toFixed(2)}</p>
+                  <p className="text-[11px] text-muted-foreground">{bucket.count} item(ns)</p>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Sales by day chart */}
