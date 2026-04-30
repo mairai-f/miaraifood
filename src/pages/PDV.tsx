@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { createClient, FunctionsFetchError, FunctionsHttpError, FunctionsRelayError } from '@supabase/supabase-js';
@@ -414,7 +414,7 @@ export default function PDV() {
     return 'Não foi possível enviar o relatório por e-mail.';
   };
 
-  const getFiscalFunctionErrorMessage = async (
+  const getFiscalFunctionErrorMessage = useCallback(async (
     error: unknown,
     fallbackMessage: string,
     data?: ManageFiscalDocumentsResponse | null,
@@ -447,9 +447,9 @@ export default function PDV() {
     }
 
     return resolvedMessage;
-  };
+  }, []);
 
-  const loadFiscalRuntime = async () => {
+  const loadFiscalRuntime = useCallback(async () => {
     if (!session?.access_token) {
       setFiscalRuntime(null);
       setFiscalRuntimeError('');
@@ -482,7 +482,7 @@ export default function PDV() {
 
     setFiscalRuntime(normalizeFiscalRuntimeStatus(data.runtime as Record<string, unknown>));
     setLoadingFiscalRuntime(false);
-  };
+  }, [getFiscalFunctionErrorMessage, session?.access_token]);
 
   const issueFiscalDocumentInHomologation = async (saleId: string) => {
     fiscalIssuanceSaleIdRef.current = saleId;
@@ -533,7 +533,7 @@ export default function PDV() {
 
   useEffect(() => {
     void loadFiscalRuntime();
-  }, [session?.access_token]);
+  }, [loadFiscalRuntime]);
 
   useEffect(() => {
     let active = true;
@@ -713,14 +713,14 @@ export default function PDV() {
   }, [pdvEligibleRewards, selectedRewardId]);
 
   const saleSearchTerm = saleSearch.trim().toLowerCase();
-  const isInCurrentCashSession = (value: string) => {
+  const isInCurrentCashSession = useCallback((value: string) => {
     if (!cashSession) return false;
     return new Date(value).getTime() >= new Date(cashSession.openedAt).getTime();
-  };
+  }, [cashSession]);
 
   const sessionScopedSales = useMemo(() => {
     return sales.filter(sale => isInCurrentCashSession(sale.date));
-  }, [cashSession, sales]);
+  }, [isInCurrentCashSession, sales]);
 
   const visibleSales = useMemo(() => {
     return sessionScopedSales
@@ -1478,7 +1478,7 @@ export default function PDV() {
 
   const cashSessionCashOuts = useMemo(() => {
     return expenses.filter(expense => expense.category === 'Saída de caixa' && isInCurrentCashSession(expense.date));
-  }, [cashSession, expenses]);
+  }, [expenses, isInCurrentCashSession]);
 
   const cashSalesTotal = cashSessionSales
     .reduce((sum, sale) => sum + sale.total, 0);
@@ -2634,6 +2634,9 @@ export default function PDV() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
+    // The keyboard handler intentionally tracks the current PDV render state.
+    // Memoizing every command here makes this already-large component harder to audit.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeProducts, filtered, search, cart, cartKeyboardSelectionIndex, cartItemPendingPriceEdit, discount, paymentMethod, cashReceived, selectedClientId, total, change, canFinalizeCheckout, showCheckout, showFinalizeConfirm, showCreditInstallmentsDialog, showReceipt, showSalesSearch, showCancelledSales, showCashOut, showCloseCashReceipt, showOpenCashDialog, saleToCancel, navigate, isAdmin, creditInstallments, pendingCreditInstallments]);
 
   return (

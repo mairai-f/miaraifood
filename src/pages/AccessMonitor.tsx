@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Monitor, Smartphone, Tablet, RefreshCw, Shield } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { ACCESS_ACTIVE_WINDOW_MS } from '@/lib/accessTracking';
@@ -77,6 +77,8 @@ const sourceLabel: Record<AccessSessionRow['source'], string> = {
   site: 'Site',
 };
 
+const accessDb = supabase as unknown as AccessQueryClient;
+
 const DeviceIcon = ({ type }: { type: AccessSessionRow['device_type'] }) => {
   if (type === 'mobile') return <Smartphone className="h-4 w-4" />;
   if (type === 'tablet') return <Tablet className="h-4 w-4" />;
@@ -90,14 +92,13 @@ const isSessionActive = (session: AccessSessionRow) => {
 };
 
 export default function AccessMonitor() {
-  const db = supabase as unknown as AccessQueryClient;
   const [sessions, setSessions] = useState<AccessSessionRow[]>([]);
   const [logs, setLogs] = useState<AccessLogRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const loadAccessData = async () => {
+  const loadAccessData = useCallback(async () => {
     setRefreshing(true);
     setError(null);
 
@@ -105,10 +106,10 @@ export default function AccessMonitor() {
       { data: sessionsData, error: sessionsError },
       { data: logsData, error: logsError },
     ] = await Promise.all([
-      db.from('access_sessions')
+      accessDb.from('access_sessions')
         .select('id, username, email, role, source, device_type, os_name, browser_name, ip_address, country_code, login_at, last_seen_at, ended_at')
         .order('last_seen_at', { ascending: false }),
-      db.from('access_logs')
+      accessDb.from('access_logs')
         .select('id, username, email, role, source, event_type, device_type, os_name, browser_name, ip_address, country_code, occurred_at')
         .order('occurred_at', { ascending: false }),
     ]);
@@ -124,7 +125,7 @@ export default function AccessMonitor() {
     setLogs((logsData || []).slice(0, 120));
     setRefreshing(false);
     setLoading(false);
-  };
+  }, []);
 
   useEffect(() => {
     void loadAccessData();
@@ -134,7 +135,7 @@ export default function AccessMonitor() {
     }, 30_000);
 
     return () => window.clearInterval(intervalId);
-  }, []);
+  }, [loadAccessData]);
 
   const activeSessions = useMemo(
     () => sessions.filter(isSessionActive),

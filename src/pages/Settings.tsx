@@ -57,6 +57,17 @@ interface ResetActionResponse {
   error?: string;
 }
 
+type BackupRestoreTableClient = {
+  from: (table: string) => {
+    upsert: (
+      rows: Array<Record<string, unknown>>,
+      options: { onConflict: string }
+    ) => Promise<{ error: Error | null }>;
+  };
+};
+
+const backupRestoreDb = supabase as unknown as BackupRestoreTableClient;
+
 const planLabels: Record<string, string> = {
   demo: 'Demo 12 Horas',
   fiado: 'Plano Fiado',
@@ -456,7 +467,7 @@ export default function Settings() {
 
   const upsertBackupRows = async (table: string, rows: Array<Record<string, unknown>>) => {
     if (rows.length === 0) return;
-    const { error } = await (supabase as any)
+    const { error } = await backupRestoreDb
       .from(table)
       .upsert(rows, { onConflict: 'id' });
     if (error) throw error;
