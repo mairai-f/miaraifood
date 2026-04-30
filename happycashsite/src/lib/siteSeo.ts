@@ -8,6 +8,7 @@ export interface SiteSeoConfig {
   keywords?: string[];
   noindex?: boolean;
   type?: "website" | "article";
+  jsonLd?: Record<string, unknown> | Record<string, unknown>[];
 }
 
 export const createSiteUrl = (path = "/") => new URL(path, SITE_ORIGIN).toString();

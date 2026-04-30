@@ -31,6 +31,24 @@ const upsertLinkTag = (rel: string, href: string) => {
   element.setAttribute("href", href);
 };
 
+const upsertJsonLd = (content: string) => {
+  let element = document.head.querySelector('script[data-site-seo="jsonld"]') as HTMLScriptElement | null;
+
+  if (!content) {
+    element?.remove();
+    return;
+  }
+
+  if (!element) {
+    element = document.createElement("script");
+    element.setAttribute("type", "application/ld+json");
+    element.setAttribute("data-site-seo", "jsonld");
+    document.head.appendChild(element);
+  }
+
+  element.textContent = content;
+};
+
 const SiteSeo = ({
   title,
   description,
@@ -39,9 +57,11 @@ const SiteSeo = ({
   keywords = [],
   noindex = false,
   type = "website",
+  jsonLd,
 }: SiteSeoConfig) => {
   const location = useLocation();
   const keywordsContent = keywords.join(", ");
+  const jsonLdContent = jsonLd ? JSON.stringify(jsonLd) : "";
 
   useEffect(() => {
     const currentPath = path ?? location.pathname;
@@ -66,7 +86,8 @@ const SiteSeo = ({
     upsertMetaTag('meta[name="twitter:description"]', { name: "twitter:description" }, description);
     upsertMetaTag('meta[name="twitter:image"]', { name: "twitter:image" }, imageUrl);
     upsertLinkTag("canonical", canonicalUrl);
-  }, [description, image, keywordsContent, location.pathname, noindex, path, title, type]);
+    upsertJsonLd(jsonLdContent);
+  }, [description, image, jsonLdContent, keywordsContent, location.pathname, noindex, path, title, type]);
 
   return null;
 };

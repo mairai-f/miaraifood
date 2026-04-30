@@ -62,6 +62,7 @@ const Header = () => {
 
   const links = [
     { label: "Fiado Digital", href: "/caderneta-de-fiado-digital" },
+    { label: "Controle de Fiado", href: "/controle-de-fiado" },
     { label: "Sistema PDV", href: "/sistema-pdv" },
     { label: "Estoque", href: "/controle-de-estoque" },
     { label: "Planos", href: buildHomeSectionHref("planos") },
@@ -79,7 +80,7 @@ const Header = () => {
           <img src={logo} alt="HappyCash" className="h-11 w-auto transition-transform duration-300 group-hover:scale-105" />
         </Link>
 
-        <nav className="hidden md:flex items-center gap-10">
+        <nav className="hidden md:flex items-center gap-6 lg:gap-10">
           {links.map((l) => (
             <a
               key={l.href}

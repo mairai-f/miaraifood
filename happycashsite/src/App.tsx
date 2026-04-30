@@ -15,6 +15,11 @@ import ResetPassword from "./pages/ResetPassword.tsx";
 import FiadoDigital from "./pages/FiadoDigital.tsx";
 import SistemaPdv from "./pages/SistemaPdv.tsx";
 import ControleEstoque from "./pages/ControleEstoque.tsx";
+import ControleDeFiado from "./pages/ControleDeFiado.tsx";
+import AppParaFiado from "./pages/AppParaFiado.tsx";
+import GestaoClientesFiado from "./pages/GestaoClientesFiado.tsx";
+import ComoControlarFiadoMercadinho from "./pages/ComoControlarFiadoMercadinho.tsx";
+import PlanilhaFiadoVsApp from "./pages/PlanilhaFiadoVsApp.tsx";
 import NotFound from "./pages/NotFound.tsx";
 import { LocaleProvider } from "../../shared/locale/LocaleContext";
 
@@ -41,6 +46,11 @@ const App = () => (
             <Route path="/caderneta-de-fiado-digital" element={<FiadoDigital />} />
             <Route path="/sistema-pdv" element={<SistemaPdv />} />
             <Route path="/controle-de-estoque" element={<ControleEstoque />} />
+            <Route path="/controle-de-fiado" element={<ControleDeFiado />} />
+            <Route path="/app-para-fiado" element={<AppParaFiado />} />
+            <Route path="/gestao-de-clientes-fiado" element={<GestaoClientesFiado />} />
+            <Route path="/blog/como-controlar-fiado-no-mercadinho" element={<ComoControlarFiadoMercadinho />} />
+            <Route path="/blog/planilha-de-fiado-vs-app" element={<PlanilhaFiadoVsApp />} />
             <Route path="/downloads/:platform" element={<DownloadRedirect />} />
             <Route path="*" element={<NotFound />} />
           </Routes>

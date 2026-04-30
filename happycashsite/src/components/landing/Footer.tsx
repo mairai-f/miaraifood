@@ -48,6 +48,15 @@ const Footer = () => {
           <div className="space-y-4">
             <h4 className="font-heading font-semibold text-sm text-foreground">Soluções</h4>
             <nav className="flex flex-col gap-3">
+              <Link to="/controle-de-fiado" className="text-sm text-muted-foreground hover:text-primary transition-colors">
+                Controle de fiado
+              </Link>
+              <Link to="/app-para-fiado" className="text-sm text-muted-foreground hover:text-primary transition-colors">
+                App para fiado
+              </Link>
+              <Link to="/gestao-de-clientes-fiado" className="text-sm text-muted-foreground hover:text-primary transition-colors">
+                Gestão de clientes fiado
+              </Link>
               <Link to="/caderneta-de-fiado-digital" className="text-sm text-muted-foreground hover:text-primary transition-colors">
                 Caderneta de fiado digital
               </Link>
@@ -61,7 +70,16 @@ const Footer = () => {
           </div>
 
           <div className="space-y-4">
-            <h4 className="font-heading font-semibold text-sm text-foreground">Contato</h4>
+            <h4 className="font-heading font-semibold text-sm text-foreground">Guias</h4>
+            <nav className="flex flex-col gap-3">
+              <Link to="/blog/como-controlar-fiado-no-mercadinho" className="text-sm text-muted-foreground hover:text-primary transition-colors">
+                Como controlar fiado no mercadinho
+              </Link>
+              <Link to="/blog/planilha-de-fiado-vs-app" className="text-sm text-muted-foreground hover:text-primary transition-colors">
+                Planilha de fiado vs app
+              </Link>
+            </nav>
+            <h4 className="pt-2 font-heading font-semibold text-sm text-foreground">Contato</h4>
             <a
               href={`https://wa.me/${WHATSAPP_NUMBER}`}
               target="_blank"
