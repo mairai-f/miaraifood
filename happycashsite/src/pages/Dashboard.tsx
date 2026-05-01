@@ -1037,7 +1037,7 @@ const Dashboard = () => {
                   <div>
                     <p className="text-sm font-semibold">Downloads do desktop</p>
                     <p className="mt-1 text-sm text-muted-foreground">
-                      O executavel fica liberado apenas para contas com plano PRO ativo.
+                      O executavel fica liberado apenas para contas com plano PRO ativo. Os links abaixo sempre consultam a release mais recente.
                     </p>
                   </div>
                   <Badge variant={isCurrentProPlan ? "default" : "outline"}>
@@ -1050,23 +1050,23 @@ const Dashboard = () => {
                     <Button asChild className="h-11 font-semibold">
                       <Link to={downloads.windows.route}>
                         <Download className="mr-2 h-4 w-4" />
-                        Baixar instalador Windows
+                        Baixar Windows (.exe)
                       </Link>
                     </Button>
                     <Button asChild variant="outline" className="h-11 font-semibold">
                       <Link to={downloads["linux-deb"].route}>
-                        Baixar instalador Linux
+                        Baixar Linux (.deb)
                       </Link>
                     </Button>
                     <Button asChild variant="outline" className="h-11 font-semibold">
                       <Link to={downloads["linux-appimage"].route}>
-                        Baixar Linux portátil
+                        Baixar Linux AppImage
                       </Link>
                     </Button>
                   </div>
                 ) : (
                   <p className="mt-4 text-sm text-muted-foreground">
-                    Quando o plano PRO estiver ativo, esta area libera o download do app desktop para Windows e Linux.
+                    Quando o plano PRO estiver ativo, esta area libera o download do app desktop para Windows (.exe), Linux (.deb) e Linux AppImage.
                   </p>
                 )}
               </div>
