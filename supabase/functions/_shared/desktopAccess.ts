@@ -14,6 +14,11 @@ interface SubscriptionPlanFeatureRow {
   feature_key: string;
 }
 
+interface ProfileOwnershipRow {
+  role: string | null;
+  owner_user_id: string | null;
+}
+
 export interface DesktopLicenseValidationResult {
   ok: boolean;
   code?: string;
@@ -49,8 +54,19 @@ export const isCurrentSubscription = (subscription: StoreSubscriptionRow | null 
 
 export const validateDesktopLicense = async (
   serviceClient: ReturnType<typeof createClient>,
-  ownerUserId: string,
+  userId: string,
 ): Promise<DesktopLicenseValidationResult> => {
+  const { data: profile } = await serviceClient
+    .from("profiles")
+    .select("role, owner_user_id")
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  const ownershipProfile = (profile as ProfileOwnershipRow | null) ?? null;
+  const ownerUserId = ownershipProfile?.role === "operator" && ownershipProfile.owner_user_id
+    ? ownershipProfile.owner_user_id
+    : userId;
+
   const { data: subscriptions, error: subscriptionsError } = await serviceClient
     .from("store_subscriptions")
     .select("plan_id, status, current_period_ends_at, trial_ends_at, created_at")

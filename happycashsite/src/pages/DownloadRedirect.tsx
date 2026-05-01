@@ -23,6 +23,9 @@ type DesktopDownloadResponse = {
   requiredEnv?: string[];
 };
 
+const resolveLoginRedirect = (platformRoute: string) =>
+  `/login?next=${encodeURIComponent(platformRoute)}`;
+
 const DownloadRedirect = () => {
   const { platform } = useParams();
   const navigate = useNavigate();
@@ -33,6 +36,7 @@ const DownloadRedirect = () => {
   const [downloadMeta, setDownloadMeta] = useState<DesktopDownloadResponse | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [requiredEnv, setRequiredEnv] = useState<string[]>([]);
+  const loginRedirect = selectedPlatform ? resolveLoginRedirect(`/downloads/${selectedPlatform}`) : "/login";
 
   useEffect(() => {
     if (!download || !selectedPlatform) {
@@ -53,7 +57,7 @@ const DownloadRedirect = () => {
       if (!active) return;
 
       if (!session?.access_token) {
-        navigate("/login", { replace: true });
+        navigate(loginRedirect, { replace: true });
         return;
       }
 
@@ -84,6 +88,11 @@ const DownloadRedirect = () => {
               ? "Sua sessao expirou. Entre novamente para continuar."
               : functionErrorMessage;
           }
+
+          if (error.context.status === 401) {
+            navigate(loginRedirect, { replace: true });
+            return;
+          }
         }
 
         setErrorMessage(functionErrorMessage);
@@ -103,7 +112,7 @@ const DownloadRedirect = () => {
     return () => {
       active = false;
     };
-  }, [download, navigate, selectedPlatform]);
+  }, [download, loginRedirect, navigate, selectedPlatform]);
 
   if (!download) {
     return (

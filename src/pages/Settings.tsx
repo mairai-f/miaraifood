@@ -363,13 +363,13 @@ export default function Settings() {
       const result = await openDesktopUpdateDownload();
 
       if (result?.success) {
-        toast.success('Pagina de download da atualizacao aberta.');
+        toast.success('Area segura de download aberta no HappyCash Site.');
         return;
       }
 
-      toast.error(result?.error || 'Nao foi possivel abrir o download manual.');
+      toast.error(result?.error || 'Nao foi possivel abrir a area segura de download.');
     } catch {
-      toast.error('Nao foi possivel abrir o download manual.');
+      toast.error('Nao foi possivel abrir a area segura de download.');
     }
   }, []);
 
@@ -756,7 +756,7 @@ export default function Settings() {
                     Tentar novamente
                   </Button>
                   <Button type="button" onClick={() => void handleOpenDesktopUpdateDownload()}>
-                    Abrir download manual
+                    Abrir download no site
                   </Button>
                 </div>
               </div>

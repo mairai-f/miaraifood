@@ -8,8 +8,8 @@ const UPDATE_CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000;
 const isDevelopment = Boolean(process.env.VITE_DEV_SERVER_URL) || !app.isPackaged;
 let autoUpdatesConfigured = false;
 const APP_USER_MODEL_ID = 'com.happycash.desktop';
+const HAPPYCASH_SITE_ORIGIN = (process.env.HAPPYCASH_SITE_ORIGIN || 'https://happycashsite.vercel.app').replace(/\/+$/, '');
 const VALID_UPDATE_CHANNELS = new Set(['latest', 'beta', 'alpha']);
-const UPDATE_RELEASE_REPO = 'celioantonio7/HappyCash-Releases';
 const OFFLINE_DB_FILENAME = 'happycash-concentrator.sqlite';
 const OFFLINE_DB_SCHEMA_VERSION = 2;
 const OFFLINE_SYNC_RETENTION_DAYS = Number.parseInt(process.env.HAPPYCASH_OFFLINE_SYNC_RETENTION_DAYS || '30', 10);
@@ -74,13 +74,20 @@ const getUpdateState = () => ({
   ...updateState,
 });
 
-const getManualUpdateUrl = (version) => {
-  if (version) {
-    return `https://github.com/${UPDATE_RELEASE_REPO}/releases/tag/v${version}`;
+const getDesktopManualDownloadRoute = () => {
+  if (process.platform === 'win32') {
+    return '/downloads/windows';
   }
 
-  return `https://github.com/${UPDATE_RELEASE_REPO}/releases/latest`;
+  if (process.platform === 'linux') {
+    const isAppImageRuntime = Boolean(process.env.APPIMAGE) || process.execPath.toLowerCase().endsWith('.appimage');
+    return isAppImageRuntime ? '/downloads/linux-appimage' : '/downloads/linux-deb';
+  }
+
+  return '/dashboard';
 };
+
+const getManualUpdateUrl = () => `${HAPPYCASH_SITE_ORIGIN}${getDesktopManualDownloadRoute()}`;
 
 const setUpdateState = (patch) => {
   updateState = {

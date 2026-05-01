@@ -25,6 +25,10 @@ const resolveLoginErrorMessage = (message: string) =>
     : message;
 
 const normalizeEmail = (value: string) => value.trim().toLowerCase();
+const resolveSafeNextPath = (value: string | null) => {
+  if (!value || !value.startsWith('/') || value.startsWith('//')) return null;
+  return value;
+};
 
 const Login = () => {
   const [email, setEmail] = useState('');
@@ -50,6 +54,7 @@ const Login = () => {
     const value = searchParams.get('plan');
     return isPublicPlanId(value) ? value : null;
   })();
+  const nextPath = resolveSafeNextPath(searchParams.get('next'));
 
   const selectedPlan = selectedPlanId ? publicPlanContent[selectedPlanId] : null;
 
@@ -85,7 +90,7 @@ const Login = () => {
       clearPasswordState();
       applySiteSessionPreference(keepConnected);
       toast({ title: 'Bem-vindo de volta!' });
-      navigate(selectedPlanId ? `/dashboard?plan=${selectedPlanId}` : '/dashboard');
+      navigate(nextPath || (selectedPlanId ? `/dashboard?plan=${selectedPlanId}` : '/dashboard'));
     } finally {
       setLoading(false);
     }
