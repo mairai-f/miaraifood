@@ -7,6 +7,7 @@
 
 ## 2. Funcionalidades essenciais
 - [ ] Login/autenticação e autorização funcionando.
+- [ ] Pagamento do fiado exigindo credencial de administrador validada.
 - [ ] Fluxo de assinatura/pagamento ativo e testado.
 - [ ] Funções Supabase publicadas e operando.
 - [ ] Envio de relatório de fechamento por e-mail configurado.

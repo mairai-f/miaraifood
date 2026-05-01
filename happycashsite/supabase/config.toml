@@ -29,3 +29,6 @@ verify_jwt = false
 
 [functions.operator-login]
 verify_jwt = false
+
+[functions.authorize-store-admin]
+verify_jwt = false

@@ -4,12 +4,12 @@ import { motion } from 'framer-motion';
 import { useData } from '@/contexts/DataContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCompanyDisplayName } from '@/hooks/use-company-display-name';
-import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
+import { PasswordInput } from '@/components/ui/password-input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { ArrowLeft, Plus, DollarSign, MessageCircle, Trash2, CheckCircle, Edit, X, User, ChevronDown, ChevronRight, Calendar, Percent } from 'lucide-react';
@@ -31,6 +31,7 @@ import { DEFAULT_COMPANY_NAME, fetchCompanyDisplayName } from '@/lib/company';
 import { buildWhatsAppUrl, buildItemWhatsAppUrl, buildPaymentWhatsAppUrl } from '@/lib/whatsapp';
 import { normalizePhone } from '@/lib/phone';
 import { getAvailableClientCredit, getClientCreditLimit, getCreditLimitExceededMessage, normalizeCreditLimit } from '@/lib/creditLimit';
+import { verifyStoreAdminApproval } from '@/lib/adminApproval';
 
 type ClientEditPayload = {
   name: string;
@@ -62,7 +63,7 @@ export default function ClientDetail() {
   const { clientRef } = useParams<{ clientRef: string }>();
   const navigate = useNavigate();
   const data = useData();
-  const { username, isAdmin, ownerUserId, profileEmail, user } = useAuth();
+  const { username, isAdmin, ownerUserId, profileEmail, session, user } = useAuth();
   const companyDisplayName = useCompanyDisplayName();
 
   const [productSearch, setProductSearch] = useState('');
@@ -73,6 +74,10 @@ export default function ClientDetail() {
 
   const [payOpen, setPayOpen] = useState(false);
   const [payAmount, setPayAmount] = useState('');
+  const [paymentAdminEmail, setPaymentAdminEmail] = useState('');
+  const [paymentAdminPassword, setPaymentAdminPassword] = useState('');
+  const [paymentAuthError, setPaymentAuthError] = useState('');
+  const [processingPayment, setProcessingPayment] = useState(false);
   const [discountOpen, setDiscountOpen] = useState(false);
   const [discountType, setDiscountType] = useState<'amount' | 'percent'>('amount');
   const [discountValue, setDiscountValue] = useState('');
@@ -143,6 +148,7 @@ export default function ClientDetail() {
   const availableCredit = getAvailableClientCredit(client, balance);
   const cartTotal = cart.reduce((s, c) => s + c.quantity * c.price, 0);
   const cartExceedsCreditLimit = clientCreditLimit !== null && cartTotal > (availableCredit ?? 0) + 0.009;
+  const defaultAdminEmail = (isAdmin ? (profileEmail || user?.email || '') : '').trim().toLowerCase();
   const matched = data.searchProducts(productSearch);
   const getCartQuantityForProduct = (productId: string) =>
     cart
@@ -422,6 +428,32 @@ export default function ClientDetail() {
         }
       : null;
 
+    if (!session?.access_token) {
+      setPaymentAuthError('Sua sessao expirou. Faca login novamente.');
+      return;
+    }
+
+    if (!paymentAdminEmail.trim() || !paymentAdminPassword.trim()) {
+      setPaymentAuthError('Informe login e senha do administrador.');
+      return;
+    }
+
+    setProcessingPayment(true);
+    setPaymentAuthError('');
+
+    const approval = await verifyStoreAdminApproval(
+      session.access_token,
+      paymentAdminEmail,
+      paymentAdminPassword,
+      'fiado.manage',
+    );
+
+    if (!approval.success) {
+      setProcessingPayment(false);
+      setPaymentAuthError(approval.error || 'Nao foi possivel validar a autorizacao.');
+      return;
+    }
+
     try {
       if (creditedAmount >= balance) {
         await data.closeAllDebt(id, paymentDate, paymentDetails);
@@ -432,29 +464,40 @@ export default function ClientDetail() {
         await data.addPayment(id, amount, 'partial', paymentDate);
         toast.success(`Pagamento de R$ ${amount.toFixed(2)} registrado!`);
       }
+
+      if (client.phone) {
+        try {
+          const storeName = companyDisplayName !== DEFAULT_COMPANY_NAME || !ownerUserId
+            ? companyDisplayName
+            : await fetchCompanyDisplayName(ownerUserId);
+          const isFullPayment = creditedAmount >= balance;
+          const newBalance = balance - creditedAmount;
+          const remainingEntries = isFullPayment ? [] : entries.filter(e => e.status === 'pending');
+          const url = buildPaymentWhatsAppUrl(client.phone, client.name, amount, remainingEntries, Math.max(0, newBalance), storeName);
+          if (!openExternalUrl(url)) {
+            toast.error('Não foi possível abrir o WhatsApp.');
+          }
+        } catch (error) {
+          console.error('Erro ao preparar cobranca do WhatsApp:', error);
+          toast.error('Pagamento registrado, mas nao foi possivel preparar a mensagem do WhatsApp.');
+        }
+      }
+
+      setPayAmount('');
+      setPaymentAdminEmail(defaultAdminEmail);
+      setPaymentAdminPassword('');
+      setPaymentAuthError('');
+      setDiscountValue('');
+      setDiscountOpen(false);
+      setPayOpen(false);
     } catch (error) {
       console.error('Erro ao registrar pagamento:', error);
       const message = error instanceof Error ? error.message : 'Não foi possível registrar o pagamento';
       toast.error(message);
       return;
+    } finally {
+      setProcessingPayment(false);
     }
-
-    if (client.phone) {
-      const storeName = companyDisplayName !== DEFAULT_COMPANY_NAME || !ownerUserId
-        ? companyDisplayName
-        : await fetchCompanyDisplayName(ownerUserId);
-      const isFullPayment = creditedAmount >= balance;
-      const newBalance = balance - creditedAmount;
-      const remainingEntries = isFullPayment ? [] : entries.filter(e => e.status === 'pending');
-      const url = buildPaymentWhatsAppUrl(client.phone, client.name, amount, remainingEntries, Math.max(0, newBalance), storeName);
-      if (!openExternalUrl(url)) {
-        toast.error('Não foi possível abrir o WhatsApp.');
-      }
-    }
-    setPayAmount('');
-    setDiscountValue('');
-    setDiscountOpen(false);
-    setPayOpen(false);
   };
 
   const handleWhatsApp = async () => {
@@ -511,45 +554,31 @@ export default function ClientDetail() {
     }
 
     setProtectedAction(target);
-    setDeleteAuthEmail((profileEmail || user?.email || '').trim());
+    setDeleteAuthEmail(defaultAdminEmail);
     setDeleteAuthPassword('');
     setDeleteReason('');
     setDeleteAuthOpen(true);
   };
 
   const verifyAdminCredentials = async () => {
-    const normalizedEmail = deleteAuthEmail.trim().toLowerCase();
+    if (!session?.access_token) {
+      toast.error('Sua sessao expirou. Faca login novamente.');
+      return false;
+    }
 
-    if (!normalizedEmail || !deleteAuthPassword.trim()) {
+    if (!deleteAuthEmail.trim() || !deleteAuthPassword.trim()) {
       toast.error('Informe email e senha do administrador.');
       return false;
     }
 
-    const { data: loginData, error } = await supabase.auth.signInWithPassword({
-      email: deleteAuthEmail.trim(),
-      password: deleteAuthPassword,
-    });
+    const approval = await verifyStoreAdminApproval(
+      session.access_token,
+      deleteAuthEmail,
+      deleteAuthPassword,
+    );
 
-    if (error || !loginData.user) {
-      toast.error('Email ou senha inválidos.');
-      return false;
-    }
-
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('role, owner_user_id')
-      .eq('user_id', loginData.user.id)
-      .maybeSingle();
-
-    if (profileError) {
-      toast.error('Não foi possível validar o administrador.');
-      return false;
-    }
-
-    const role = profile?.role === 'operator' ? 'operator' : 'admin';
-    const credentialOwnerId = profile?.owner_user_id || loginData.user.id;
-    if (role !== 'admin' || (ownerUserId && credentialOwnerId !== ownerUserId)) {
-      toast.error('Use credenciais do administrador desta loja.');
+    if (!approval.success) {
+      toast.error(approval.error || 'Nao foi possivel validar o administrador.');
       return false;
     }
 
@@ -1077,6 +1106,10 @@ export default function ClientDetail() {
         open={payOpen}
         onOpenChange={(open) => {
           setPayOpen(open);
+          setPaymentAuthError('');
+          setProcessingPayment(false);
+          setPaymentAdminPassword('');
+          setPaymentAdminEmail(open ? defaultAdminEmail : '');
           if (!open) {
             setPayAmount('');
             setDiscountValue('');
@@ -1139,12 +1172,43 @@ export default function ClientDetail() {
                 </div>
               )}
             </div>
+            <div className="space-y-3 rounded-lg border border-border/70 bg-background/70 p-3">
+              <p className="text-sm font-medium">Autorizacao do administrador</p>
+              <p className="text-xs text-muted-foreground">
+                Para registrar pagamento de conta no fiado, informe o login e a senha do administrador da loja.
+              </p>
+              <div className="space-y-2">
+                <Label>Login do administrador</Label>
+                <Input
+                  type="email"
+                  value={paymentAdminEmail}
+                  onChange={event => setPaymentAdminEmail(event.target.value)}
+                  placeholder="admin@empresa.com"
+                  autoComplete="username"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Senha do administrador</Label>
+                <PasswordInput
+                  value={paymentAdminPassword}
+                  onChange={event => setPaymentAdminPassword(event.target.value)}
+                  placeholder="Digite a senha"
+                  autoComplete="current-password"
+                />
+              </div>
+              {paymentAuthError ? (
+                <p className="text-xs font-medium text-destructive">{paymentAuthError}</p>
+              ) : null}
+            </div>
             <div className="flex flex-col sm:flex-row gap-2">
-              <Button className="flex-1" onClick={handlePayment}>Confirmar</Button>
+              <Button className="flex-1" onClick={handlePayment} disabled={processingPayment}>
+                {processingPayment ? 'Validando...' : 'Confirmar'}
+              </Button>
               <Button
                 variant="outline"
                 className="flex-1"
                 onClick={() => setPayAmount(Math.max(0, balance - calculatedDiscountAmount).toFixed(2))}
+                disabled={processingPayment}
               >
                 Pagar Tudo
               </Button>
@@ -1210,8 +1274,7 @@ export default function ClientDetail() {
             </div>
             <div className="space-y-2">
               <Label>Senha</Label>
-              <Input
-                type="password"
+              <PasswordInput
                 value={deleteAuthPassword}
                 onChange={event => setDeleteAuthPassword(event.target.value)}
                 placeholder="••••••••"

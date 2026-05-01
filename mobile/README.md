@@ -87,4 +87,5 @@ Este app já tem suporte a builds nativos via EAS, com configurações em `mobil
 ## Observações
 
 - Para iPhone via Expo Go, use um projeto compatível com Expo Go em dispositivo físico.
+- Como o app mobile é um `WebView`, a exigência de login e senha do administrador para pagamento do fiado entra automaticamente nas builds Android/iOS quando a URL web publicada estiver atualizada.
 - O mobile já está preparado para gerar APK e builds iOS nativos, mas precisa do fluxo Apple/credentials para TestFlight.

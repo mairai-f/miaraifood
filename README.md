@@ -37,6 +37,12 @@ ________________________________________________________________________________
 💡 Autor : CÉLIO ANTONIO DA SILVA JUNIOR
 
 __________________________________________________________________________________
+🆕 Release 0.1.10 :
+
+- Pagamento de conta do fiado agora exige login e senha do administrador da mesma loja antes da confirmação.
+- A validação vale para web, Android (app Expo/WebView) e desktop empacotado em Windows, Linux e `.deb`, porque todos consomem o mesmo fluxo autenticado.
+
+__________________________________________________________________________________
 📧 Relatório de fechamento por e-mail :
 
 Sempre que o caixa for fechado no PDV, o sistema agora tenta enviar o recibo de fechamento por e-mail.
@@ -75,6 +81,7 @@ supabase functions deploy create-plan-charge
 supabase functions deploy asaas-webhook
 supabase functions deploy desktop-download
 supabase functions deploy desktop-license
+supabase functions deploy authorize-store-admin
 ```
 
 Secrets obrigatórios para o fluxo de assinatura via Pix e cartao:
@@ -124,8 +131,8 @@ Publicação comercial via GitHub Release:
 
 ```bash
 # a tag precisa bater com a versão do package.json
-git tag v0.1.1
-git push origin v0.1.1
+git tag v0.1.10
+git push origin v0.1.10
 ```
 
 Também é possível publicar manualmente pelo GitHub:
@@ -136,6 +143,15 @@ Também é possível publicar manualmente pelo GitHub:
 4. Deixe a versão vazia para usar a versão do `package.json`, ou informe a mesma versão sem o `v`.
 
 O workflow `Desktop Release` valida versão, roda `lint`, `test` e `build:all` antes de publicar os assets de Windows e Linux.
+
+Comandos úteis para empacotar esta atualização:
+
+```bash
+npm run build
+npm run electron:build:win
+npm run electron:build:linux
+npm run electron:build:linux:deb
+```
 
 __________________________________________________________________________________
 📱 Versão Mobile (Expo) :
@@ -159,5 +175,6 @@ npm install
 Observações:
 
 - O app mobile usa um `WebView` para carregar o HappyCash sem mexer no deploy web nem no Electron.
+- Como o mobile abre o mesmo frontend autenticado, a nova exigência de login e senha do administrador no pagamento do fiado também vale para Android e iOS assim que o deploy web for atualizado.
 - Para testar no celular pela rede local, rode o frontend principal com `npm run dev` e informe no app uma URL como `http://SEU-IP:8080`.
 - Se depois quisermos gerar builds nativos para loja, a próxima etapa será adicionar EAS Build.
