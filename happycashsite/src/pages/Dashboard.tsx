@@ -1037,7 +1037,7 @@ const Dashboard = () => {
                   <div>
                     <p className="text-sm font-semibold">Downloads do desktop</p>
                     <p className="mt-1 text-sm text-muted-foreground">
-                      O executavel fica liberado apenas para contas com plano PRO ativo. Os links abaixo sempre consultam a release mais recente.
+                      O executavel fica liberado apenas para contas com plano PRO ativo. Os links abaixo sempre consultam a release mais recente para Windows, Linux (.deb) e Linux AppImage.
                     </p>
                   </div>
                   <Badge variant={isCurrentProPlan ? "default" : "outline"}>
@@ -1066,7 +1066,7 @@ const Dashboard = () => {
                   </div>
                 ) : (
                   <p className="mt-4 text-sm text-muted-foreground">
-                    Quando o plano PRO estiver ativo, esta area libera o download do app desktop para Windows (.exe), Linux (.deb) e Linux AppImage.
+                    Quando o plano PRO estiver ativo, esta area libera o download da release mais recente do app desktop para Windows (.exe), Linux (.deb) e Linux AppImage.
                   </p>
                 )}
               </div>

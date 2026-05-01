@@ -37,9 +37,10 @@ ________________________________________________________________________________
 💡 Autor : CÉLIO ANTONIO DA SILVA JUNIOR
 
 __________________________________________________________________________________
-🆕 Release 0.1.11 :
+🆕 Release 0.1.12 :
 
 - Pagamento de conta do fiado continua exigindo login e senha do administrador da mesma loja antes da confirmação.
+- Pagamento acima da dívida agora é bloqueado antes de confirmar, inclusive quando a soma do valor com desconto ultrapassa o saldo.
 - Campos de autorização e da tela de login agora abrem vazios, sem preenchimento automático.
 - Modal de pagamento foi ajustado para não quebrar botões por espaçamento em celular e computador.
 
@@ -132,8 +133,8 @@ Publicação comercial via GitHub Release:
 
 ```bash
 # a tag precisa bater com a versão do package.json
-git tag v0.1.11
-git push origin v0.1.11
+git tag v0.1.12
+git push origin v0.1.12
 ```
 
 Também é possível publicar manualmente pelo GitHub:

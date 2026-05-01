@@ -32,6 +32,7 @@ import { buildWhatsAppUrl, buildItemWhatsAppUrl, buildPaymentWhatsAppUrl } from 
 import { normalizePhone } from '@/lib/phone';
 import { getAvailableClientCredit, getClientCreditLimit, getCreditLimitExceededMessage, normalizeCreditLimit } from '@/lib/creditLimit';
 import { verifyStoreAdminApproval } from '@/lib/adminApproval';
+import { getDebtPaymentCreditedAmount, getDebtPaymentMaxAmount, getDebtPaymentValidationMessage } from '@/lib/debtPayment';
 
 type ClientEditPayload = {
   name: string;
@@ -142,8 +143,13 @@ export default function ClientDetail() {
         Math.max(0, discountType === 'percent' ? balance * Math.min(rawDiscountValue, 100) / 100 : rawDiscountValue)
       )
     : 0;
-  const creditedPaymentAmount = Math.min(balance, rawPaymentAmount + calculatedDiscountAmount);
+  const maximumPaymentAmount = getDebtPaymentMaxAmount(balance, calculatedDiscountAmount);
+  const creditedPaymentAmount = getDebtPaymentCreditedAmount(balance, rawPaymentAmount, calculatedDiscountAmount);
   const remainingAfterPayment = Math.max(0, balance - creditedPaymentAmount);
+  const hasPaymentDraft = payAmount.trim() !== '' || calculatedDiscountAmount > 0;
+  const paymentValidationMessage = hasPaymentDraft
+    ? getDebtPaymentValidationMessage(balance, rawPaymentAmount, calculatedDiscountAmount)
+    : null;
   const clientCreditLimit = getClientCreditLimit(client);
   const availableCredit = getAvailableClientCredit(client, balance);
   const cartTotal = cart.reduce((s, c) => s + c.quantity * c.price, 0);
@@ -407,18 +413,19 @@ export default function ClientDetail() {
 
   const handlePayment = async () => {
     const amount = Number.parseFloat(payAmount) || 0;
+    const paidAmount = Number(amount.toFixed(2));
     const discountAmount = Number(calculatedDiscountAmount.toFixed(2));
-    const creditedAmount = Number(Math.min(balance, amount + discountAmount).toFixed(2));
-    if (amount < 0 || creditedAmount <= 0) { toast.error('Valor inválido'); return; }
-    if (discountAmount > 0 && creditedAmount < balance) {
-      toast.error('Desconto só pode ser usado para pagamento total.');
+    const creditedAmount = getDebtPaymentCreditedAmount(balance, paidAmount, discountAmount);
+    const validationMessage = getDebtPaymentValidationMessage(balance, paidAmount, discountAmount);
+    if (validationMessage) {
+      toast.error(validationMessage);
       return;
     }
     const paymentDate = new Date().toISOString();
     const paymentDetails = discountAmount > 0
       ? {
           payment: {
-            paid_amount: Number(amount.toFixed(2)),
+            paid_amount: paidAmount,
             discount_amount: discountAmount,
             discount_type: discountType,
             discount_value: Number(rawDiscountValue.toFixed(2)),
@@ -460,8 +467,8 @@ export default function ClientDetail() {
           ? `Dívida quitada com R$ ${discountAmount.toFixed(2)} de desconto!`
           : '🎉 PARABÉNS! Você quitou sua dívida! 🏆 Todas as pendências foram resolvidas! 💯');
       } else {
-        await data.addPayment(id, amount, 'partial', paymentDate);
-        toast.success(`Pagamento de R$ ${amount.toFixed(2)} registrado!`);
+        await data.addPayment(id, paidAmount, 'partial', paymentDate);
+        toast.success(`Pagamento de R$ ${paidAmount.toFixed(2)} registrado!`);
       }
 
       if (client.phone) {
@@ -472,7 +479,7 @@ export default function ClientDetail() {
           const isFullPayment = creditedAmount >= balance;
           const newBalance = balance - creditedAmount;
           const remainingEntries = isFullPayment ? [] : entries.filter(e => e.status === 'pending');
-          const url = buildPaymentWhatsAppUrl(client.phone, client.name, amount, remainingEntries, Math.max(0, newBalance), storeName);
+          const url = buildPaymentWhatsAppUrl(client.phone, client.name, paidAmount, remainingEntries, Math.max(0, newBalance), storeName);
           if (!openExternalUrl(url)) {
             toast.error('Não foi possível abrir o WhatsApp.');
           }
@@ -1120,7 +1127,24 @@ export default function ClientDetail() {
           <DialogHeader><DialogTitle>Registrar Pagamento</DialogTitle></DialogHeader>
           <div className="max-h-[72svh] space-y-3 overflow-y-auto pr-1 sm:max-h-[76svh] sm:space-y-4">
             <p className="text-sm text-muted-foreground">Saldo: <span className="text-destructive font-bold">R$ {balance.toFixed(2)}</span></p>
-            <div className="space-y-2"><Label>Valor (R$)</Label><Input type="number" step="0.01" value={payAmount} onChange={e => setPayAmount(e.target.value)} placeholder="0.00" /></div>
+            <div className="space-y-2">
+              <Label>Valor (R$)</Label>
+              <Input
+                type="number"
+                step="0.01"
+                min="0"
+                max={maximumPaymentAmount.toFixed(2)}
+                value={payAmount}
+                onChange={e => setPayAmount(e.target.value)}
+                placeholder="0.00"
+              />
+              <p className="text-xs text-muted-foreground">
+                Valor máximo permitido agora: <span className="font-medium text-foreground">R$ {maximumPaymentAmount.toFixed(2)}</span>
+              </p>
+              {paymentValidationMessage ? (
+                <p className="text-xs font-medium text-destructive">{paymentValidationMessage}</p>
+              ) : null}
+            </div>
             <div className="space-y-3 rounded-lg border border-border/70 bg-background/70 p-2.5 sm:p-3">
               <Button
                 type="button"
@@ -1200,13 +1224,13 @@ export default function ClientDetail() {
               ) : null}
             </div>
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-              <Button className="w-full" onClick={handlePayment} disabled={processingPayment}>
+              <Button className="w-full" onClick={handlePayment} disabled={processingPayment || Boolean(paymentValidationMessage)}>
                 {processingPayment ? 'Validando...' : 'Confirmar'}
               </Button>
               <Button
                 variant="outline"
                 className="w-full"
-                onClick={() => setPayAmount(Math.max(0, balance - calculatedDiscountAmount).toFixed(2))}
+                onClick={() => setPayAmount(maximumPaymentAmount.toFixed(2))}
                 disabled={processingPayment}
               >
                 Pagar Tudo
