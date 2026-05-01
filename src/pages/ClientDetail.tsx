@@ -9,7 +9,6 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
@@ -33,9 +32,17 @@ import { buildWhatsAppUrl, buildItemWhatsAppUrl, buildPaymentWhatsAppUrl } from 
 import { normalizePhone } from '@/lib/phone';
 import { getAvailableClientCredit, getClientCreditLimit, getCreditLimitExceededMessage, normalizeCreditLimit } from '@/lib/creditLimit';
 
-type PendingProtectedDeletion =
+type ClientEditPayload = {
+  name: string;
+  phone: string;
+  credit_limit: number | null;
+};
+
+type PendingProtectedAction =
   | { kind: 'debt'; debtEntryId: string }
   | { kind: 'history' }
+  | { kind: 'client' }
+  | { kind: 'credit'; changes: ClientEditPayload }
   | null;
 
 const samePaymentMoment = (left?: string | null, right?: string | null) => {
@@ -84,7 +91,7 @@ export default function ClientDetail() {
   const [openPaymentGroups, setOpenPaymentGroups] = useState<Set<string>>(new Set());
   const [openPaymentItems, setOpenPaymentItems] = useState<Set<string>>(new Set());
   const [openHistoryItems, setOpenHistoryItems] = useState<Set<string>>(new Set());
-  const [protectedDeletion, setProtectedDeletion] = useState<PendingProtectedDeletion>(null);
+  const [protectedAction, setProtectedAction] = useState<PendingProtectedAction>(null);
   const [deleteAuthOpen, setDeleteAuthOpen] = useState(false);
   const [deleteAuthEmail, setDeleteAuthEmail] = useState('');
   const [deleteAuthPassword, setDeleteAuthPassword] = useState('');
@@ -474,15 +481,117 @@ export default function ClientDetail() {
     setEditEntry(null); toast.success('Atualizado!');
   };
 
-  const handleEditClient = async () => {
-    await data.updateClient(id, {
-      name: editName,
-      phone: normalizePhone(editPhone),
-      credit_limit: normalizeCreditLimit(editCreditLimit),
-    });
+  const buildClientEditPayload = (): ClientEditPayload => ({
+    name: editName,
+    phone: normalizePhone(editPhone),
+    credit_limit: normalizeCreditLimit(editCreditLimit),
+  });
+
+  const applyClientEdit = async (changes: ClientEditPayload) => {
+    await data.updateClient(id, changes);
     setEditClientOpen(false); toast.success('Cliente atualizado!');
-    const updatedSlug = getClientUniqueSlug({ ...client, name: editName }, data.clients);
+    const updatedSlug = getClientUniqueSlug({ ...client, name: changes.name }, data.clients);
     if (updatedSlug !== clientRef) navigate(`/cliente/${updatedSlug}`, { replace: true });
+  };
+
+  const handleEditClient = async () => {
+    const changes = buildClientEditPayload();
+    if (changes.credit_limit !== clientCreditLimit) {
+      openProtectedAction({ kind: 'credit', changes });
+      return;
+    }
+
+    await applyClientEdit(changes);
+  };
+
+  const openProtectedAction = (target: PendingProtectedAction) => {
+    if (!isAdmin && (target?.kind === 'debt' || target?.kind === 'history')) {
+      toast.error('Operador não pode excluir itens da caderneta.');
+      return;
+    }
+
+    setProtectedAction(target);
+    setDeleteAuthEmail((profileEmail || user?.email || '').trim());
+    setDeleteAuthPassword('');
+    setDeleteReason('');
+    setDeleteAuthOpen(true);
+  };
+
+  const verifyAdminCredentials = async () => {
+    const normalizedEmail = deleteAuthEmail.trim().toLowerCase();
+
+    if (!normalizedEmail || !deleteAuthPassword.trim()) {
+      toast.error('Informe email e senha do administrador.');
+      return false;
+    }
+
+    const { data: loginData, error } = await supabase.auth.signInWithPassword({
+      email: deleteAuthEmail.trim(),
+      password: deleteAuthPassword,
+    });
+
+    if (error || !loginData.user) {
+      toast.error('Email ou senha inválidos.');
+      return false;
+    }
+
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('role, owner_user_id')
+      .eq('user_id', loginData.user.id)
+      .maybeSingle();
+
+    if (profileError) {
+      toast.error('Não foi possível validar o administrador.');
+      return false;
+    }
+
+    const role = profile?.role === 'operator' ? 'operator' : 'admin';
+    const credentialOwnerId = profile?.owner_user_id || loginData.user.id;
+    if (role !== 'admin' || (ownerUserId && credentialOwnerId !== ownerUserId)) {
+      toast.error('Use credenciais do administrador desta loja.');
+      return false;
+    }
+
+    return true;
+  };
+
+  const handleProtectedAction = async () => {
+    if (!protectedAction) return;
+
+    if (protectedAction.kind === 'debt' && !deleteReason.trim()) {
+      toast.error('Informe o motivo da exclusão do item.');
+      return;
+    }
+
+    setDeletingProtectedItem(true);
+
+    try {
+      const verified = await verifyAdminCredentials();
+      if (!verified) return;
+
+      if (protectedAction.kind === 'debt') {
+        await data.deleteDebtEntry(protectedAction.debtEntryId, deleteReason);
+        toast.success('Item removido da caderneta.');
+      } else if (protectedAction.kind === 'history') {
+        await data.deleteClientHistory(id);
+        toast.success('Histórico de produtos excluído.');
+      } else if (protectedAction.kind === 'client') {
+        await data.softDeleteClient(id);
+        toast.success('Cliente excluído.');
+        navigate('/clientes');
+      } else {
+        await applyClientEdit(protectedAction.changes);
+      }
+
+      setDeleteAuthOpen(false);
+      setProtectedAction(null);
+      setDeleteAuthPassword('');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Não foi possível concluir a operação.');
+    } finally {
+      setDeletingProtectedItem(false);
+    }
   };
 
   const handleApplyCustomFilter = () => {
@@ -495,71 +604,6 @@ export default function ClientDetail() {
       return;
     }
     setCustomDateRange({ from: customDateFrom, to: customDateTo });
-  };
-
-  const openProtectedDeletion = (target: PendingProtectedDeletion) => {
-    if (!isAdmin) {
-      toast.error('Operador não pode excluir itens da caderneta.');
-      return;
-    }
-
-    setProtectedDeletion(target);
-    setDeleteAuthEmail((profileEmail || user?.email || '').trim());
-    setDeleteAuthPassword('');
-    setDeleteReason('');
-    setDeleteAuthOpen(true);
-  };
-
-  const handleProtectedDeletion = async () => {
-    if (!protectedDeletion) return;
-
-    const expectedEmail = (profileEmail || user?.email || '').trim().toLowerCase();
-    const normalizedEmail = deleteAuthEmail.trim().toLowerCase();
-
-    if (!normalizedEmail || !deleteAuthPassword.trim()) {
-      toast.error('Informe email e senha do administrador.');
-      return;
-    }
-
-    if (protectedDeletion.kind === 'debt' && !deleteReason.trim()) {
-      toast.error('Informe o motivo da exclusão do item.');
-      return;
-    }
-
-    if (expectedEmail && normalizedEmail !== expectedEmail) {
-      toast.error('Use o email do administrador logado para confirmar.');
-      return;
-    }
-
-    setDeletingProtectedItem(true);
-
-    try {
-      const { error } = await supabase.auth.signInWithPassword({
-        email: deleteAuthEmail.trim(),
-        password: deleteAuthPassword,
-      });
-
-      if (error) {
-        toast.error('Email ou senha inválidos.');
-        return;
-      }
-
-      if (protectedDeletion.kind === 'debt') {
-        await data.deleteDebtEntry(protectedDeletion.debtEntryId, deleteReason);
-        toast.success('Item removido da caderneta.');
-      } else {
-        await data.deleteClientHistory(id);
-        toast.success('Histórico de produtos excluído.');
-      }
-
-      setDeleteAuthOpen(false);
-      setProtectedDeletion(null);
-      setDeleteAuthPassword('');
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Não foi possível concluir a exclusão.');
-    } finally {
-      setDeletingProtectedItem(false);
-    }
   };
 
   return (
@@ -592,15 +636,14 @@ export default function ClientDetail() {
               <MessageCircle className="h-3 w-3 mr-1" />WhatsApp
             </Button>
           </div>
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <Button variant="destructive" size="sm" className="w-full sm:w-auto"><Trash2 className="h-3 w-3 mr-1" />Excluir</Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader><AlertDialogTitle>Excluir cliente?</AlertDialogTitle><AlertDialogDescription>O cliente será movido para a lista de excluídos.</AlertDialogDescription></AlertDialogHeader>
-              <AlertDialogFooter><AlertDialogCancel>Cancelar</AlertDialogCancel><AlertDialogAction onClick={() => { data.softDeleteClient(id); navigate('/clientes'); toast.success('Cliente excluído'); }}>Confirmar</AlertDialogAction></AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
+          <Button
+            variant="destructive"
+            size="sm"
+            className="w-full sm:w-auto"
+            onClick={() => openProtectedAction({ kind: 'client' })}
+          >
+            <Trash2 className="h-3 w-3 mr-1" />Excluir
+          </Button>
         </div>
       </div>
 
@@ -776,7 +819,7 @@ export default function ClientDetail() {
                                   }
                                 }}><Edit className="h-3 w-3" /></Button>
                                 {isAdmin && (
-                                  <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => openProtectedDeletion({ kind: 'debt', debtEntryId: e.id })}>
+                                  <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => openProtectedAction({ kind: 'debt', debtEntryId: e.id })}>
                                     <Trash2 className="h-3 w-3" />
                                   </Button>
                                 )}
@@ -805,7 +848,7 @@ export default function ClientDetail() {
                 </Button>
               ))}
               {isAdmin && (
-                <Button variant="destructive" size="sm" className="text-xs" onClick={() => openProtectedDeletion({ kind: 'history' })}>
+                <Button variant="destructive" size="sm" className="text-xs" onClick={() => openProtectedAction({ kind: 'history' })}>
                   <Trash2 className="h-3 w-3 mr-1" />Limpar Produtos
                 </Button>
               )}
@@ -1140,11 +1183,21 @@ export default function ClientDetail() {
       <Dialog open={deleteAuthOpen} onOpenChange={setDeleteAuthOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Confirmar exclusão na caderneta</DialogTitle>
+            <DialogTitle>
+              {protectedAction?.kind === 'credit'
+                ? 'Confirmar alteração de limite'
+                : protectedAction?.kind === 'client'
+                  ? 'Confirmar exclusão do cliente'
+                  : 'Confirmar exclusão na caderneta'}
+            </DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
             <p className="text-sm text-muted-foreground">
-              Para excluir um item ou limpar o histórico da caderneta, informe o email e a senha do administrador.
+              {protectedAction?.kind === 'credit'
+                ? 'Para alterar o limite de crédito, informe o email e a senha do administrador.'
+                : protectedAction?.kind === 'client'
+                  ? 'Para excluir este cliente, informe o email e a senha do administrador.'
+                  : 'Para excluir um item ou limpar o histórico da caderneta, informe o email e a senha do administrador.'}
             </p>
             <div className="space-y-2">
               <Label>Email do administrador</Label>
@@ -1164,7 +1217,7 @@ export default function ClientDetail() {
                 placeholder="••••••••"
               />
             </div>
-            {protectedDeletion?.kind === 'debt' && (
+            {protectedAction?.kind === 'debt' && (
               <div className="space-y-2">
                 <Label>Motivo da exclusão</Label>
                 <Input
@@ -1179,8 +1232,8 @@ export default function ClientDetail() {
             <Button variant="outline" onClick={() => setDeleteAuthOpen(false)} disabled={deletingProtectedItem}>
               Cancelar
             </Button>
-            <Button onClick={() => void handleProtectedDeletion()} disabled={deletingProtectedItem}>
-              Confirmar exclusão
+            <Button onClick={() => void handleProtectedAction()} disabled={deletingProtectedItem}>
+              {protectedAction?.kind === 'credit' ? 'Confirmar alteração' : 'Confirmar exclusão'}
             </Button>
           </DialogFooter>
         </DialogContent>

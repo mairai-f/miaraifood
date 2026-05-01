@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState, type ChangeEvent } from 'react';
-import { Clock3, Download, Settings as SettingsIcon, ShieldAlert } from 'lucide-react';
+import { Clock3, Download, Loader2, Settings as SettingsIcon, ShieldAlert } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import { CompanyProfileCard } from '@/components/CompanyProfileCard';
 import { OperatorManagementPanel } from '@/components/OperatorManagementPanel';
@@ -577,10 +577,29 @@ export default function Settings() {
   const updateProgress = Math.max(0, Math.min(100, desktopUpdateStatus?.progress ?? 0));
   const updateIsDownloading = desktopUpdateStatus?.status === 'downloading';
   const updateIsDownloaded = desktopUpdateStatus?.status === 'downloaded';
+  const updateIsInstalling = desktopUpdateStatus?.status === 'installing';
   const updateHasError = desktopUpdateStatus?.status === 'error';
 
   return (
     <div className="space-y-6">
+      {updateIsInstalling && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-background/95 px-6 backdrop-blur-sm">
+          <div className="flex w-full max-w-sm flex-col items-center gap-4 rounded-lg border border-primary/25 bg-card p-6 text-center shadow-xl">
+            <div className="flex h-14 w-14 items-center justify-center rounded-full bg-primary/10 text-primary">
+              <Loader2 className="h-7 w-7 animate-spin" />
+            </div>
+            <div>
+              <p className="text-lg font-semibold text-foreground">Atualizando HappyCash</p>
+              <p className="mt-2 text-sm text-muted-foreground">
+                Instalando a nova versao. O aplicativo vai reiniciar sozinho em instantes.
+              </p>
+            </div>
+            <Progress value={100} className="h-2 w-full" />
+            <p className="text-xs text-muted-foreground">Nao feche esta janela.</p>
+          </div>
+        </div>
+      )}
+
       <div className="page-header">
         <h1 className="page-title flex items-center gap-3">
           <SettingsIcon className="h-6 w-6 text-primary" />
@@ -715,8 +734,8 @@ export default function Settings() {
                   ) : null}
                 </div>
                 {updateIsDownloaded && (
-                  <Button type="button" onClick={() => void handleInstallDesktopUpdate()}>
-                    Reiniciar e instalar
+                  <Button type="button" onClick={() => void handleInstallDesktopUpdate()} disabled={updateIsInstalling}>
+                    {updateIsInstalling ? 'Atualizando...' : 'Reiniciar e instalar'}
                   </Button>
                 )}
               </div>

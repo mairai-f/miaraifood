@@ -23,6 +23,7 @@ let updateState = {
   downloadedVersion: null,
   downloadedFile: null,
   manualDownloadUrl: null,
+  installStartedAt: null,
   progress: null,
   bytesPerSecond: null,
   transferred: null,
@@ -655,6 +656,7 @@ const checkForUpdates = async () => {
       downloadedVersion: null,
       downloadedFile: null,
       manualDownloadUrl: null,
+      installStartedAt: null,
       checkedAt: nowIso(),
       error: null,
     });
@@ -667,6 +669,7 @@ const checkForUpdates = async () => {
     downloadedVersion: null,
     downloadedFile: null,
     manualDownloadUrl: getManualUpdateUrl(null),
+    installStartedAt: null,
     progress: null,
     bytesPerSecond: null,
     transferred: null,
@@ -700,6 +703,7 @@ const setupAutoUpdates = (mainWindow) => {
       downloadedVersion: null,
       downloadedFile: null,
       manualDownloadUrl: null,
+      installStartedAt: null,
       error: null,
     });
     return;
@@ -717,6 +721,7 @@ const setupAutoUpdates = (mainWindow) => {
     status: 'idle',
     channel: updateChannel,
     manualDownloadUrl: getManualUpdateUrl(null),
+    installStartedAt: null,
     error: null,
   });
 
@@ -730,6 +735,7 @@ const setupAutoUpdates = (mainWindow) => {
       downloadedVersion: null,
       downloadedFile: null,
       manualDownloadUrl: getManualUpdateUrl(null),
+      installStartedAt: null,
       progress: null,
       bytesPerSecond: null,
       transferred: null,
@@ -747,6 +753,7 @@ const setupAutoUpdates = (mainWindow) => {
       downloadedVersion: null,
       downloadedFile: null,
       manualDownloadUrl: getManualUpdateUrl(info?.version || null),
+      installStartedAt: null,
       progress: 0,
       bytesPerSecond: null,
       transferred: null,
@@ -776,6 +783,7 @@ const setupAutoUpdates = (mainWindow) => {
       downloadedVersion: null,
       downloadedFile: null,
       manualDownloadUrl: getManualUpdateUrl(null),
+      installStartedAt: null,
       progress: null,
       bytesPerSecond: null,
       transferred: null,
@@ -803,6 +811,7 @@ const setupAutoUpdates = (mainWindow) => {
       downloadedVersion: null,
       downloadedFile: null,
       manualDownloadUrl: getManualUpdateUrl(currentState.availableVersion),
+      installStartedAt: null,
       checkedAt: nowIso(),
       error: errorMessage,
     });
@@ -816,6 +825,7 @@ const setupAutoUpdates = (mainWindow) => {
       downloadedVersion,
       downloadedFile: info?.downloadedFile || null,
       manualDownloadUrl: getManualUpdateUrl(downloadedVersion),
+      installStartedAt: null,
       progress: 100,
       bytesPerSecond: null,
       transferred: null,
@@ -944,6 +954,12 @@ ipcMain.handle('app:install-update', () => {
   }
 
   try {
+    setUpdateState({
+      status: 'installing',
+      installStartedAt: nowIso(),
+      error: null,
+    });
+
     setImmediate(() => {
       try {
         autoUpdater.quitAndInstall(false, true);
@@ -951,6 +967,7 @@ ipcMain.handle('app:install-update', () => {
         console.error('Falha ao iniciar instalacao da atualizacao:', error);
         setUpdateState({
           status: 'error',
+          installStartedAt: null,
           manualDownloadUrl: getManualUpdateUrl(state.downloadedVersion || state.availableVersion),
           checkedAt: nowIso(),
           error: error instanceof Error ? error.message : 'Falha ao iniciar instalacao da atualizacao.',

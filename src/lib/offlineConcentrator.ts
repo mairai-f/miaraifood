@@ -255,13 +255,14 @@ export interface DesktopRuntimeInfo {
 }
 
 export interface DesktopUpdateStatus {
-  status: 'disabled' | 'idle' | 'checking' | 'downloading' | 'downloaded' | 'error';
+  status: 'disabled' | 'idle' | 'checking' | 'downloading' | 'downloaded' | 'installing' | 'error';
   channel: string | null;
   currentVersion: string;
   availableVersion: string | null;
   downloadedVersion: string | null;
   downloadedFile: string | null;
   manualDownloadUrl: string | null;
+  installStartedAt: string | null;
   progress: number | null;
   bytesPerSecond: number | null;
   transferred: number | null;
