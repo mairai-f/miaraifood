@@ -463,7 +463,7 @@ const Dashboard = () => {
     setDeleteAccountDialogOpen(open);
 
     if (open) {
-      setDeleteAccountEmail((user?.email || storeAccount?.email || "").trim());
+      setDeleteAccountEmail("");
       setDeleteAccountPassword("");
       setDeleteAccountConfirmation("");
       setDeleteAccountError("");

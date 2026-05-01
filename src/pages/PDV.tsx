@@ -2286,7 +2286,7 @@ export default function PDV() {
       return;
     }
 
-    setAdminEmail(isAdmin ? (user?.email || '') : '');
+    setAdminEmail('');
     setAdminPassword('');
     setCloseCashAuthError('');
     setShowCloseCashAuth(true);

@@ -39,7 +39,7 @@ test('switches to operator login and toggles password visibility', async ({ page
   await expect(passwordInput).toHaveAttribute('type', 'text');
 });
 
-test('loads remembered operator preferences', async ({ page }) => {
+test('keeps remembered login mode without pre-filling auth fields', async ({ page }) => {
   await page.addInitScript(() => {
     window.localStorage.setItem('happycash:system:last-login-mode', 'operator');
     window.localStorage.setItem('happycash:system:remember-account', '1');
@@ -50,9 +50,9 @@ test('loads remembered operator preferences', async ({ page }) => {
   await page.goto('/login');
 
   await expect(page.getByRole('tab', { name: 'Operador' })).toHaveAttribute('aria-selected', 'true');
-  await expect(page.getByPlaceholder('Ex: operador.caixa')).toHaveValue('operador.memoria');
-  await expect(page.getByLabel('Lembrar conta')).toBeChecked();
-  await expect(page.getByLabel('Manter conectado')).toBeChecked();
+  await expect(page.getByPlaceholder('Ex: operador.caixa')).toHaveValue('');
+  await expect(page.getByLabel('Lembrar conta')).not.toBeChecked();
+  await expect(page.getByLabel('Manter conectado')).not.toBeChecked();
 });
 
 test('redirects protected routes to login when unauthenticated', async ({ page }) => {

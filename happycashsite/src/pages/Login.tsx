@@ -13,7 +13,6 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import {
   applySiteSessionPreference,
-  getSiteLoginPreferences,
   saveSiteLoginPreferences,
 } from '@/lib/authSessionPreferences';
 import { isPublicPlanId, publicPlanContent } from '@/lib/subscriptionPlans';
@@ -28,12 +27,11 @@ const resolveLoginErrorMessage = (message: string) =>
 const normalizeEmail = (value: string) => value.trim().toLowerCase();
 
 const Login = () => {
-  const initialPreferences = getSiteLoginPreferences();
-  const [email, setEmail] = useState(initialPreferences.rememberAccount ? initialPreferences.email : '');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [rememberAccount, setRememberAccount] = useState(initialPreferences.rememberAccount);
-  const [keepConnected, setKeepConnected] = useState(initialPreferences.keepConnected);
+  const [rememberAccount, setRememberAccount] = useState(false);
+  const [keepConnected, setKeepConnected] = useState(false);
   const [loading, setLoading] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
   const [resetOpen, setResetOpen] = useState(false);
@@ -192,7 +190,7 @@ const Login = () => {
                     <button
                       type="button"
                       onClick={() => {
-                        setResetEmail(normalizeEmail(email) || normalizeEmail(initialPreferences.email));
+                        setResetEmail(normalizeEmail(email));
                         setResetOpen(true);
                       }}
                       className="shrink-0 text-xs text-muted-foreground transition-colors hover:text-yellow-300"

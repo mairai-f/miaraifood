@@ -63,7 +63,7 @@ export default function ClientDetail() {
   const { clientRef } = useParams<{ clientRef: string }>();
   const navigate = useNavigate();
   const data = useData();
-  const { username, isAdmin, ownerUserId, profileEmail, session, user } = useAuth();
+  const { username, isAdmin, ownerUserId, session } = useAuth();
   const companyDisplayName = useCompanyDisplayName();
 
   const [productSearch, setProductSearch] = useState('');
@@ -148,7 +148,6 @@ export default function ClientDetail() {
   const availableCredit = getAvailableClientCredit(client, balance);
   const cartTotal = cart.reduce((s, c) => s + c.quantity * c.price, 0);
   const cartExceedsCreditLimit = clientCreditLimit !== null && cartTotal > (availableCredit ?? 0) + 0.009;
-  const defaultAdminEmail = (isAdmin ? (profileEmail || user?.email || '') : '').trim().toLowerCase();
   const matched = data.searchProducts(productSearch);
   const getCartQuantityForProduct = (productId: string) =>
     cart
@@ -484,7 +483,7 @@ export default function ClientDetail() {
       }
 
       setPayAmount('');
-      setPaymentAdminEmail(defaultAdminEmail);
+      setPaymentAdminEmail('');
       setPaymentAdminPassword('');
       setPaymentAuthError('');
       setDiscountValue('');
@@ -554,7 +553,7 @@ export default function ClientDetail() {
     }
 
     setProtectedAction(target);
-    setDeleteAuthEmail(defaultAdminEmail);
+    setDeleteAuthEmail('');
     setDeleteAuthPassword('');
     setDeleteReason('');
     setDeleteAuthOpen(true);
@@ -1109,7 +1108,7 @@ export default function ClientDetail() {
           setPaymentAuthError('');
           setProcessingPayment(false);
           setPaymentAdminPassword('');
-          setPaymentAdminEmail(open ? defaultAdminEmail : '');
+          setPaymentAdminEmail('');
           if (!open) {
             setPayAmount('');
             setDiscountValue('');
@@ -1117,12 +1116,12 @@ export default function ClientDetail() {
           }
         }}
       >
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md sm:max-w-lg">
           <DialogHeader><DialogTitle>Registrar Pagamento</DialogTitle></DialogHeader>
-          <div className="space-y-4">
+          <div className="max-h-[72svh] space-y-3 overflow-y-auto pr-1 sm:max-h-[76svh] sm:space-y-4">
             <p className="text-sm text-muted-foreground">Saldo: <span className="text-destructive font-bold">R$ {balance.toFixed(2)}</span></p>
             <div className="space-y-2"><Label>Valor (R$)</Label><Input type="number" step="0.01" value={payAmount} onChange={e => setPayAmount(e.target.value)} placeholder="0.00" /></div>
-            <div className="space-y-3 rounded-lg border border-border/70 bg-background/70 p-3">
+            <div className="space-y-3 rounded-lg border border-border/70 bg-background/70 p-2.5 sm:p-3">
               <Button
                 type="button"
                 variant={discountOpen ? 'default' : 'outline'}
@@ -1172,7 +1171,7 @@ export default function ClientDetail() {
                 </div>
               )}
             </div>
-            <div className="space-y-3 rounded-lg border border-border/70 bg-background/70 p-3">
+            <div className="space-y-3 rounded-lg border border-border/70 bg-background/70 p-2.5 sm:p-3">
               <p className="text-sm font-medium">Autorizacao do administrador</p>
               <p className="text-xs text-muted-foreground">
                 Para registrar pagamento de conta no fiado, informe o login e a senha do administrador da loja.
@@ -1200,13 +1199,13 @@ export default function ClientDetail() {
                 <p className="text-xs font-medium text-destructive">{paymentAuthError}</p>
               ) : null}
             </div>
-            <div className="flex flex-col sm:flex-row gap-2">
-              <Button className="flex-1" onClick={handlePayment} disabled={processingPayment}>
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <Button className="w-full" onClick={handlePayment} disabled={processingPayment}>
                 {processingPayment ? 'Validando...' : 'Confirmar'}
               </Button>
               <Button
                 variant="outline"
-                className="flex-1"
+                className="w-full"
                 onClick={() => setPayAmount(Math.max(0, balance - calculatedDiscountAmount).toFixed(2))}
                 disabled={processingPayment}
               >

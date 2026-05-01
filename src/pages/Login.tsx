@@ -23,16 +23,14 @@ type LoginMode = 'admin' | 'operator';
 export default function Login() {
   const initialPreferences = getSystemLoginPreferences();
   const [loginMode, setLoginMode] = useState<LoginMode>(initialPreferences.loginMode);
-  const [email, setEmail] = useState(initialPreferences.rememberAccount ? initialPreferences.adminEmail : '');
+  const [email, setEmail] = useState('');
   const [adminPassword, setAdminPassword] = useState('');
   const [showAdminPassword, setShowAdminPassword] = useState(false);
-  const [operatorUsername, setOperatorUsername] = useState(
-    initialPreferences.rememberAccount ? initialPreferences.operatorUsername : '',
-  );
+  const [operatorUsername, setOperatorUsername] = useState('');
   const [operatorPassword, setOperatorPassword] = useState('');
   const [showOperatorPassword, setShowOperatorPassword] = useState(false);
-  const [rememberAccount, setRememberAccount] = useState(initialPreferences.rememberAccount);
-  const [keepConnected, setKeepConnected] = useState(initialPreferences.keepConnected);
+  const [rememberAccount, setRememberAccount] = useState(false);
+  const [keepConnected, setKeepConnected] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [resettingPassword, setResettingPassword] = useState(false);
   const { login, loginOperator, resetPassword } = useAuth();
@@ -175,7 +173,7 @@ export default function Login() {
                         <button
                           type="button"
                           onClick={() => {
-                            setResetEmail(email.trim() || (rememberAccount ? initialPreferences.adminEmail : ''));
+                            setResetEmail(email.trim());
                             setResetOpen(true);
                           }}
                           className="shrink-0 text-xs text-muted-foreground transition-colors hover:text-yellow-300"

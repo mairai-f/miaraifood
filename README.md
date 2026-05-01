@@ -37,10 +37,11 @@ ________________________________________________________________________________
 💡 Autor : CÉLIO ANTONIO DA SILVA JUNIOR
 
 __________________________________________________________________________________
-🆕 Release 0.1.10 :
+🆕 Release 0.1.11 :
 
-- Pagamento de conta do fiado agora exige login e senha do administrador da mesma loja antes da confirmação.
-- A validação vale para web, Android (app Expo/WebView) e desktop empacotado em Windows, Linux e `.deb`, porque todos consomem o mesmo fluxo autenticado.
+- Pagamento de conta do fiado continua exigindo login e senha do administrador da mesma loja antes da confirmação.
+- Campos de autorização e da tela de login agora abrem vazios, sem preenchimento automático.
+- Modal de pagamento foi ajustado para não quebrar botões por espaçamento em celular e computador.
 
 __________________________________________________________________________________
 📧 Relatório de fechamento por e-mail :
@@ -131,8 +132,8 @@ Publicação comercial via GitHub Release:
 
 ```bash
 # a tag precisa bater com a versão do package.json
-git tag v0.1.10
-git push origin v0.1.10
+git tag v0.1.11
+git push origin v0.1.11
 ```
 
 Também é possível publicar manualmente pelo GitHub:

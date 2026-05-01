@@ -90,7 +90,7 @@ const formatBytes = (value: number | null | undefined) => {
 };
 
 export default function Settings() {
-  const { session, ownerUserId, user } = useAuth();
+  const { session, ownerUserId } = useAuth();
   const { isDesktop, offlineEnabled, validUntil: desktopValidUntil, refresh: refreshDesktopLicense } = useDesktopRuntime();
   const data = useData();
   const { refetch } = data;
@@ -393,22 +393,24 @@ export default function Settings() {
   const resetRestoreDialogState = useCallback(() => {
     setRestoreBackup(null);
     setRestoreFileName('');
-    setRestoreAdminEmail(user?.email || '');
+    setRestoreAdminEmail('');
     setRestoreAdminPassword('');
     setRestoreConfirmationText('');
     setRestoreError('');
     setRestoringBackup(false);
-  }, [user?.email]);
+  }, []);
 
   const handleRestoreDialogOpenChange = useCallback((open: boolean) => {
     setRestoreDialogOpen(open);
     if (open) {
-      setRestoreAdminEmail(current => current || user?.email || '');
+      setRestoreAdminEmail('');
+      setRestoreAdminPassword('');
+      setRestoreError('');
       return;
     }
 
     resetRestoreDialogState();
-  }, [resetRestoreDialogState, user?.email]);
+  }, [resetRestoreDialogState]);
 
   const isBackupPayload = (value: unknown): value is BackupPayload => {
     if (!value || typeof value !== 'object') return false;
