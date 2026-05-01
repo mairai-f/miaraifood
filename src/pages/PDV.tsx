@@ -29,6 +29,7 @@ import { roleLabel } from '@/lib/access';
 import { useCompanyDisplayName } from '@/hooks/use-company-display-name';
 import { DEFAULT_COMPANY_NAME, resolveCompanyDisplayName } from '@/lib/company';
 import { getMarginPercent } from '@/lib/pricing';
+import { getAvailableClientCredit, getClientCreditLimit, getCreditLimitExceededMessage } from '@/lib/creditLimit';
 import { enqueueOfflineOperation, isOfflineConcentratorAvailable } from '@/lib/offlineConcentrator';
 import { readScopedCashSession, writeScopedCashSession, type ScopedCashSession } from '@/lib/cashSessionStorage';
 import {
@@ -260,7 +261,7 @@ const getPdvRewardLabel = (reward: Reward) => {
 };
 
 export default function PDV() {
-  const { products, clients, rewards, sales, saleItems, expenses, createSale, addDebtEntries, addExpense, cancelSale, getClientTotalSpending } = useData();
+  const { products, clients, rewards, sales, saleItems, expenses, createSale, addDebtEntries, addExpense, cancelSale, getClientBalance, getClientTotalSpending } = useData();
   const { user, username, session, role, ownerUserId, isAdmin } = useAuth();
   const { isDesktop, offlineEnabled } = useDesktopRuntime();
   const navigate = useNavigate();
@@ -672,6 +673,13 @@ export default function PDV() {
   const appliedRewardDiscount = Math.min(Math.max(0, subtotal - appliedManualDiscount), Math.max(0, rewardDiscount));
   const discount = appliedManualDiscount + appliedRewardDiscount;
   const total = Math.max(0, subtotal - discount);
+  const selectedClient = selectedClientId ? clients.find(client => client.id === selectedClientId) ?? null : null;
+  const selectedClientBalance = selectedClientId ? getClientBalance(selectedClientId) : 0;
+  const selectedClientCreditLimit = getClientCreditLimit(selectedClient);
+  const selectedClientAvailableCredit = getAvailableClientCredit(selectedClient, selectedClientBalance);
+  const fiadoExceedsCreditLimit = paymentMethod === 'fiado'
+    && selectedClientCreditLimit !== null
+    && total > (selectedClientAvailableCredit ?? 0) + 0.009;
   const estimatedProfit = total - cartRealCost;
   const estimatedMargin = getMarginPercent(total, cartRealCost);
   const discountKillsProfit = discount > 0 && estimatedProfit <= 0;
@@ -679,6 +687,7 @@ export default function PDV() {
   const canFinalizeCheckout = Boolean(paymentMethod)
     && (paymentMethod !== 'dinheiro' || (parseFloat(cashReceived) || 0) >= total)
     && (paymentMethod !== 'fiado' || Boolean(selectedClientId))
+    && !fiadoExceedsCreditLimit
     && (paymentMethod !== 'cartao_credito' || Boolean(creditInstallments && creditInstallments > 0));
   const canIssueFiscalDocumentInHomologation = Boolean(
     isAdmin
@@ -1807,6 +1816,10 @@ export default function PDV() {
     if (paymentMethod === 'fiado' && !selectedClientId) {
       silentToast.error('Selecione um cliente para fiado'); return;
     }
+    if (paymentMethod === 'fiado' && selectedClient && selectedClientCreditLimit !== null && fiadoExceedsCreditLimit) {
+      silentToast.error(getCreditLimitExceededMessage(selectedClient.name, selectedClientCreditLimit, selectedClientBalance, total));
+      return;
+    }
     if (!validateCartStock()) return;
 
     finalizeLockRef.current = true;
@@ -1910,8 +1923,9 @@ export default function PDV() {
       if (canIssueFiscalDocumentInHomologation) {
         void issueFiscalDocumentInHomologation(sale.id);
       }
-    } catch {
-      silentToast.error(translateCurrentText('Erro ao finalizar venda'));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : translateCurrentText('Erro ao finalizar venda');
+      silentToast.error(message);
     } finally {
       finalizeLockRef.current = false;
       setIsFinalizingSale(false);
@@ -3044,10 +3058,25 @@ export default function PDV() {
                 <Select value={selectedClientId} onValueChange={setSelectedClientId}>
                   <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Selecione..." /></SelectTrigger>
                   <SelectContent>
-                    {activeClients.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                    {activeClients.map(c => {
+                      const creditLimit = getClientCreditLimit(c);
+                      return (
+                        <SelectItem key={c.id} value={c.id}>
+                          {c.name}{creditLimit !== null ? ` | limite ${formatMoney(creditLimit)}` : ''}
+                        </SelectItem>
+                      );
+                    })}
                   </SelectContent>
                 </Select>
               </div>
+
+              {paymentMethod === 'fiado' && selectedClient && selectedClientCreditLimit !== null && (
+                <div className={`rounded-lg border p-3 text-xs ${fiadoExceedsCreditLimit ? 'border-destructive/50 bg-destructive/10 text-destructive' : 'border-border bg-card text-muted-foreground lg:bg-transparent'}`}>
+                  <p className="font-medium">Limite de crédito: {formatMoney(selectedClientCreditLimit)}</p>
+                  <p>Saldo atual: {formatMoney(selectedClientBalance)} | Disponivel: {formatMoney(selectedClientAvailableCredit ?? 0)}</p>
+                  {fiadoExceedsCreditLimit && <p className="mt-1 font-medium">Esta venda excede o limite do cliente.</p>}
+                </div>
+              )}
 
               {selectedClientId && (
                 <div className="space-y-1 rounded-lg border border-border bg-card p-3 lg:bg-transparent">

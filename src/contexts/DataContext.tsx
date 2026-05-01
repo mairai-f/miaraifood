@@ -41,6 +41,7 @@ import {
 } from '@/lib/offlineConcentrator';
 import { shouldUseOfflineSnapshotFallback } from '@/lib/offlineSnapshotPolicy';
 import { buildSaleItemPricingMetrics, normalizeProductPricing, normalizePricingRoundingRule } from '@/lib/pricing';
+import { getClientCreditLimit, getCreditLimitExceededMessage, normalizeCreditLimit } from '@/lib/creditLimit';
 
 // Generated Supabase types are behind the current schema for these operational tables.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -167,7 +168,7 @@ interface DataContextType {
   sales: Sale[]; saleItems: SaleItem[]; stockMovements: StockMovement[]; expenses: Expense[];
   pricingRules: ProductCategoryPricingRule[]; priceHistory: ProductPriceHistoryEntry[];
   loading: boolean;
-  addClient: (name: string, phone: string) => Promise<void>;
+  addClient: (name: string, phone: string, creditLimit?: number | null) => Promise<void>;
   updateClient: (id: string, data: Partial<Client>) => Promise<void>;
   softDeleteClient: (id: string) => Promise<void>;
   addProduct: (name: string, price: number, category: string, extra?: Partial<Product>) => Promise<void>;
@@ -1238,12 +1239,15 @@ export function DataProvider({ children }: { children: ReactNode }) {
   }, [canUseOfflineConcentrator, isDemoMode, ownerUserId, syncOfflineQueue]);
 
   // --- Clients ---
-  const addClient = async (name: string, phone: string) => {
+  const addClient = async (name: string, phone: string, creditLimit?: number | null) => {
+    const normalizedCreditLimit = normalizeCreditLimit(creditLimit);
+
     if (isDemoMode) {
       const client: Client = {
         id: createId(),
         name,
         phone,
+        credit_limit: normalizedCreditLimit,
         created_at: nowIso(),
         deleted: false,
         deleted_at: null,
@@ -1258,6 +1262,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         id: createId(),
         name,
         phone,
+        credit_limit: normalizedCreditLimit,
         created_at: nowIso(),
         deleted: false,
         deleted_at: null,
@@ -1283,7 +1288,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
     }
 
     try {
-      const { data, error } = await db.from('clients').insert({ name, phone, user_id: ownerUserId! }).select('*').single();
+      const { data, error } = await db
+        .from('clients')
+        .insert({ name, phone, credit_limit: normalizedCreditLimit, user_id: ownerUserId! })
+        .select('*')
+        .single();
       if (error) throw error;
       setClients(prev => sortClientsByCreatedAt([data as Client, ...prev.filter(client => client.id !== data.id)]));
     } catch (error) {
@@ -1852,6 +1861,21 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
     const shouldAdjustStock = options.adjustStock !== false;
     const stockReason = options.stockReason ?? 'Fiado';
+    const totalsByClient = entries.reduce((map, entry) => {
+      map.set(entry.clientId, (map.get(entry.clientId) || 0) + entry.quantity * entry.unitPrice);
+      return map;
+    }, new Map<string, number>());
+
+    for (const [clientId, requestedAmount] of totalsByClient) {
+      const client = clients.find(item => item.id === clientId);
+      const creditLimit = getClientCreditLimit(client);
+      if (client && creditLimit !== null) {
+        const currentBalance = getClientBalance(clientId);
+        if (currentBalance + requestedAmount > creditLimit + 0.009) {
+          throw new Error(getCreditLimitExceededMessage(client.name, creditLimit, currentBalance, requestedAmount));
+        }
+      }
+    }
 
     if (shouldAdjustStock) {
       ensureStockAvailable(entries.map(entry => ({

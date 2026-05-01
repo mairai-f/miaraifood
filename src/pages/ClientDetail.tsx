@@ -31,6 +31,7 @@ import { openExternalUrl } from '@/lib/openExternalUrl';
 import { DEFAULT_COMPANY_NAME, fetchCompanyDisplayName } from '@/lib/company';
 import { buildWhatsAppUrl, buildItemWhatsAppUrl, buildPaymentWhatsAppUrl } from '@/lib/whatsapp';
 import { normalizePhone } from '@/lib/phone';
+import { getAvailableClientCredit, getClientCreditLimit, getCreditLimitExceededMessage, normalizeCreditLimit } from '@/lib/creditLimit';
 
 type PendingProtectedDeletion =
   | { kind: 'debt'; debtEntryId: string }
@@ -74,6 +75,7 @@ export default function ClientDetail() {
   const [editClientOpen, setEditClientOpen] = useState(false);
   const [editName, setEditName] = useState('');
   const [editPhone, setEditPhone] = useState('');
+  const [editCreditLimit, setEditCreditLimit] = useState('');
   const [historyFilter, setHistoryFilter] = useState<'all' | 'daily' | 'weekly' | 'monthly' | 'custom'>('all');
   const [customDateFrom, setCustomDateFrom] = useState('');
   const [customDateTo, setCustomDateTo] = useState('');
@@ -130,6 +132,10 @@ export default function ClientDetail() {
     : 0;
   const creditedPaymentAmount = Math.min(balance, rawPaymentAmount + calculatedDiscountAmount);
   const remainingAfterPayment = Math.max(0, balance - creditedPaymentAmount);
+  const clientCreditLimit = getClientCreditLimit(client);
+  const availableCredit = getAvailableClientCredit(client, balance);
+  const cartTotal = cart.reduce((s, c) => s + c.quantity * c.price, 0);
+  const cartExceedsCreditLimit = clientCreditLimit !== null && cartTotal > (availableCredit ?? 0) + 0.009;
   const matched = data.searchProducts(productSearch);
   const getCartQuantityForProduct = (productId: string) =>
     cart
@@ -338,6 +344,10 @@ export default function ClientDetail() {
   const handleSubmitCart = async (sendWhatsApp: boolean = true) => {
     if (cart.length === 0) { toast.error('Adicione pelo menos um produto'); return; }
     if (!validateCartStock()) return;
+    if (clientCreditLimit !== null && cartExceedsCreditLimit) {
+      toast.error(getCreditLimitExceededMessage(client.name, clientCreditLimit, balance, cartTotal));
+      return;
+    }
 
     const dateAdded = new Date().toISOString();
 
@@ -355,7 +365,8 @@ export default function ClientDetail() {
       );
     } catch (error) {
       console.error('Erro ao marcar produtos:', error);
-      toast.error('Nao foi possivel marcar os produtos');
+      const message = error instanceof Error ? error.message : 'Nao foi possivel marcar os produtos';
+      toast.error(message);
       return;
     }
 
@@ -464,7 +475,11 @@ export default function ClientDetail() {
   };
 
   const handleEditClient = async () => {
-    await data.updateClient(id, { name: editName, phone: normalizePhone(editPhone) });
+    await data.updateClient(id, {
+      name: editName,
+      phone: normalizePhone(editPhone),
+      credit_limit: normalizeCreditLimit(editCreditLimit),
+    });
     setEditClientOpen(false); toast.success('Cliente atualizado!');
     const updatedSlug = getClientUniqueSlug({ ...client, name: editName }, data.clients);
     if (updatedSlug !== clientRef) navigate(`/cliente/${updatedSlug}`, { replace: true });
@@ -560,7 +575,17 @@ export default function ClientDetail() {
         </div>
         <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
           <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={() => { setEditName(client.name); setEditPhone(client.phone); setEditClientOpen(true); }} className="flex-1 sm:flex-none">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setEditName(client.name);
+                setEditPhone(client.phone);
+                setEditCreditLimit(clientCreditLimit === null ? '' : clientCreditLimit.toFixed(2));
+                setEditClientOpen(true);
+              }}
+              className="flex-1 sm:flex-none"
+            >
               <User className="h-3 w-3 mr-1" />Editar
             </Button>
             <Button variant="outline" size="sm" onClick={handleWhatsApp} className="flex-1 sm:flex-none">
@@ -587,6 +612,11 @@ export default function ClientDetail() {
               <div>
                 <p className="text-xs text-muted-foreground">Saldo Devedor</p>
                 <p className={`text-2xl font-bold ${balance > 0 ? 'text-destructive' : 'text-success'}`}>R$ {balance.toFixed(2)}</p>
+                {clientCreditLimit !== null && (
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Limite: R$ {clientCreditLimit.toFixed(2)} | Disponivel: R$ {(availableCredit ?? 0).toFixed(2)}
+                  </p>
+                )}
               </div>
               <div className="flex gap-2 w-full sm:w-auto">
                 <Button size="sm" className="flex-1 sm:flex-none" onClick={() => setPayOpen(true)} disabled={balance <= 0}>
@@ -666,13 +696,18 @@ export default function ClientDetail() {
                     ))}
                     <div className="border-t border-border pt-2 flex items-center justify-between text-sm font-bold">
                       <span>Total:</span>
-                      <span>R$ {cart.reduce((s, c) => s + c.quantity * c.price, 0).toFixed(2)}</span>
+                      <span>R$ {cartTotal.toFixed(2)}</span>
                     </div>
+                    {cartExceedsCreditLimit && clientCreditLimit !== null && (
+                      <p className="text-xs font-medium text-destructive">
+                        Limite excedido. Disponivel: R$ {(availableCredit ?? 0).toFixed(2)}
+                      </p>
+                    )}
                     <div className="flex gap-2">
-                      <Button onClick={() => handleSubmitCart(false)} variant="outline" className="flex-1" size="sm">
+                      <Button onClick={() => handleSubmitCart(false)} variant="outline" className="flex-1" size="sm" disabled={cartExceedsCreditLimit}>
                         <CheckCircle className="h-3 w-3 mr-1" />Marcar
                       </Button>
-                      <Button onClick={() => handleSubmitCart(true)} className="flex-1" size="sm">
+                      <Button onClick={() => handleSubmitCart(true)} className="flex-1" size="sm" disabled={cartExceedsCreditLimit}>
                         <MessageCircle className="h-3 w-3 mr-1" />Marcar e Enviar
                       </Button>
                     </div>
@@ -1085,6 +1120,17 @@ export default function ClientDetail() {
               <Label>Telefone</Label>
               <Input value={editPhone} onChange={e => setEditPhone(e.target.value)} />
               <p className="text-xs text-muted-foreground">DDI 55 será adicionado automaticamente</p>
+            </div>
+            <div className="space-y-2">
+              <Label>Limite de crédito (R$)</Label>
+              <Input
+                type="number"
+                min="0"
+                step="0.01"
+                value={editCreditLimit}
+                onChange={e => setEditCreditLimit(e.target.value)}
+                placeholder="Sem limite"
+              />
             </div>
           </div>
           <DialogFooter><Button onClick={handleEditClient} className="w-full sm:w-auto">Salvar</Button></DialogFooter>

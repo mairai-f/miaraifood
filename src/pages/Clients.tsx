@@ -6,16 +6,18 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
-import { Plus, Search, Phone, DollarSign } from 'lucide-react';
+import { CreditCard, Plus, Search, Phone, DollarSign } from 'lucide-react';
 import { toast } from 'sonner';
 import { getClientUniqueSlug } from '@/lib/clientSlug';
 import { sortClientsByDebt } from '@/lib/clientSorting';
+import { getClientCreditLimit, normalizeCreditLimit } from '@/lib/creditLimit';
 
 export default function Clients() {
   const { clients, addClient, getClientBalance, getClientTotalSpending } = useData();
   const [search, setSearch] = useState('');
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
+  const [creditLimit, setCreditLimit] = useState('');
   const [open, setOpen] = useState(false);
   const navigate = useNavigate();
 
@@ -47,9 +49,10 @@ export default function Clients() {
   const handleAdd = async () => {
     if (!name.trim()) { toast.error('Nome é obrigatório'); return; }
     const normalizedPhone = normalizeWhatsappPhone(phone.trim());
+    const normalizedCreditLimit = normalizeCreditLimit(creditLimit);
     try {
-      await addClient(name.trim(), normalizedPhone);
-      setName(''); setPhone(''); setOpen(false);
+      await addClient(name.trim(), normalizedPhone, normalizedCreditLimit);
+      setName(''); setPhone(''); setCreditLimit(''); setOpen(false);
       toast.success('Cliente cadastrado!');
     } catch (error) {
       console.error('Erro ao cadastrar cliente:', error);
@@ -71,6 +74,17 @@ export default function Clients() {
             <div className="space-y-4">
               <div className="space-y-2"><Label>Nome</Label><Input value={name} onChange={e => setName(e.target.value)} placeholder="Nome do cliente" /></div>
               <div className="space-y-2"><Label>Telefone (WhatsApp)</Label><Input value={formatPhoneMask(phone)} onChange={e => setPhone(e.target.value.replace(/\D/g, ''))} placeholder="(11) 99999-9999" /></div>
+              <div className="space-y-2">
+                <Label>Limite de crédito (R$)</Label>
+                <Input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={creditLimit}
+                  onChange={e => setCreditLimit(e.target.value)}
+                  placeholder="Sem limite"
+                />
+              </div>
             </div>
             <DialogFooter><Button onClick={handleAdd}>Cadastrar</Button></DialogFooter>
           </DialogContent>
@@ -85,6 +99,7 @@ export default function Clients() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {filtered.map(c => {
           const balance = getClientBalance(c.id);
+          const clientCreditLimit = getClientCreditLimit(c);
           return (
             <div
               key={c.id}
@@ -99,6 +114,12 @@ export default function Clients() {
                     <DollarSign className="h-4 w-4 shrink-0" />
                     <span className={`money-value font-bold ${balance > 0 ? 'text-destructive' : 'text-success'}`}>R$ {balance.toFixed(2)}</span>
                   </div>
+                  {clientCreditLimit !== null && (
+                    <p className="meta-text mt-2 flex items-center gap-1">
+                      <CreditCard className="h-3 w-3 shrink-0" />
+                      <span>Limite: R$ {clientCreditLimit.toFixed(2)}</span>
+                    </p>
+                  )}
                 </CardContent>
               </Card>
             </div>

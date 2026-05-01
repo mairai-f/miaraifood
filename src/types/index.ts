@@ -2,6 +2,7 @@ export interface Client {
   id: string;
   name: string;
   phone: string;
+  credit_limit?: number | null;
   created_at: string;
   deleted: boolean;
   deleted_at?: string | null;
