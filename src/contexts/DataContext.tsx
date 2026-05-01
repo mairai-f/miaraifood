@@ -2232,14 +2232,17 @@ export function DataProvider({ children }: { children: ReactNode }) {
     }
 
     try {
-      const { data, error } = await db
-        .from('payments')
-        .insert({ client_id: clientId, amount, type, date: date || new Date().toISOString(), details })
-        .select('*')
-        .single();
+      const payment: Payment = {
+        id: createId(),
+        client_id: clientId,
+        amount,
+        type,
+        date: date || nowIso(),
+        details,
+      };
 
-      if (error) throw error;
-      setPayments(prev => sortPaymentsByDate([data as Payment, ...prev]));
+      ensureSuccess(await db.from('payments').insert(buildRemotePaymentRecord(payment, true)));
+      setPayments(prev => sortPaymentsByDate([payment, ...prev]));
     } catch (error) {
       if (canUseOfflineConcentrator && isProbablyOfflineError(error)) {
         await addOfflinePayment();
