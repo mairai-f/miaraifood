@@ -108,6 +108,7 @@ const stripSyncFields = <T extends { sync_status?: unknown; sync_error?: unknown
 const compactObject = (value: Record<string, unknown>) => Object.fromEntries(
   Object.entries(value).filter(([, entryValue]) => entryValue !== undefined),
 );
+const normalizePaymentDetails = (details: unknown) => details ?? [];
 const sortByIsoDesc = <T,>(rows: T[], selectIso: (row: T) => string | null | undefined) => (
   [...rows].sort((left, right) => new Date(selectIso(right) ?? 0).getTime() - new Date(selectIso(left) ?? 0).getTime())
 );
@@ -130,7 +131,7 @@ const buildRemoteProductRecord = (product: Partial<Product>, includeId = false) 
 };
 const buildRemotePaymentRecord = (payment: Partial<Payment>, includeId = false) => {
   const { id, sync_status: _syncStatus, sync_error: _syncError, ...rest } = payment;
-  const payload = compactObject(rest as Record<string, unknown>);
+  const payload = compactObject({ ...rest, details: normalizePaymentDetails(rest.details) } as Record<string, unknown>);
   return includeId ? compactObject({ id, ...payload }) : payload;
 };
 const buildRemoteRewardRecord = (reward: Partial<Reward>, includeId = false) => {
@@ -2190,6 +2191,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
   // --- Payments ---
   const addPayment = async (clientId: string, amount: number, type: 'total' | 'partial', date?: string, details: unknown = null) => {
+    const paymentDetails = normalizePaymentDetails(details);
+
     if (isDemoMode) {
       const payment: Payment = {
         id: createId(),
@@ -2197,7 +2200,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         amount,
         type,
         date: date || nowIso(),
-        details,
+        details: paymentDetails,
       };
       setPayments(prev => sortPaymentsByDate([payment, ...prev]));
       return;
@@ -2210,7 +2213,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         amount,
         type,
         date: date || nowIso(),
-        details,
+        details: paymentDetails,
         sync_status: 'queued',
         sync_error: null,
       };
@@ -2238,7 +2241,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         amount,
         type,
         date: date || nowIso(),
-        details,
+        details: paymentDetails,
       };
 
       ensureSuccess(await db.from('payments').insert(buildRemotePaymentRecord(payment, true)));
@@ -2334,6 +2337,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const closeAllDebt = async (clientId: string, date?: string, details: unknown = null) => {
     const balance = getClientBalance(clientId);
     const paymentDate = date || new Date().toISOString();
+    const paymentDetails = normalizePaymentDetails(details);
     const pendingIds = debtEntries.filter(d => d.client_id === clientId && isVisiblePendingDebtEntry(d)).map(d => d.id);
 
     if (balance <= 0 && pendingIds.length === 0) {
@@ -2348,7 +2352,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
           amount: balance,
           type: 'total',
           date: paymentDate,
-          details,
+          details: paymentDetails,
         }, ...prev]));
       }
 
@@ -2370,7 +2374,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
             amount: balance,
             type: 'total',
             date: paymentDate,
-            details,
+            details: paymentDetails,
             sync_status: 'queued',
             sync_error: null,
           } as Payment
@@ -2417,7 +2421,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       if (balance > 0) {
         const { error } = await db
           .from('payments')
-          .insert({ client_id: clientId, amount: balance, type: 'total', date: paymentDate, details });
+          .insert({ client_id: clientId, amount: balance, type: 'total', date: paymentDate, details: paymentDetails });
 
         if (error) throw error;
       }
