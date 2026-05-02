@@ -330,6 +330,8 @@ export default function Settings() {
 
       if (status?.status === 'downloaded') {
         toast.success(`Atualizacao ${status.downloadedVersion || ''} pronta para instalar.`);
+      } else if (status?.status === 'publishing') {
+        toast.message(status.error || 'A nova release ainda esta sendo publicada. O HappyCash vai tentar novamente automaticamente.');
       } else if (status?.status === 'downloading') {
         toast.success(`Atualizacao ${status.availableVersion || ''} encontrada. Acompanhe o download nesta tela.`);
       } else if (status?.status === 'idle') {
@@ -578,6 +580,7 @@ export default function Settings() {
   const currentDeadline = getSubscriptionEndAt(subscription);
   const updateProgress = Math.max(0, Math.min(100, desktopUpdateStatus?.progress ?? 0));
   const updateIsDownloading = desktopUpdateStatus?.status === 'downloading';
+  const updateIsPublishing = desktopUpdateStatus?.status === 'publishing';
   const updateIsDownloaded = desktopUpdateStatus?.status === 'downloaded';
   const updateIsInstalling = desktopUpdateStatus?.status === 'installing';
   const updateHasError = desktopUpdateStatus?.status === 'error';
@@ -740,6 +743,17 @@ export default function Settings() {
                     {updateIsInstalling ? 'Atualizando...' : 'Reiniciar e instalar'}
                   </Button>
                 )}
+              </div>
+            )}
+
+            {updateIsPublishing && (
+              <div className="space-y-3 rounded-lg border border-primary/25 bg-primary/5 p-4">
+                <div>
+                  <p className="text-sm font-medium text-foreground">Release em publicacao</p>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    {desktopUpdateStatus?.error || 'A nova release ainda esta sendo publicada. O HappyCash vai tentar novamente automaticamente em instantes.'}
+                  </p>
+                </div>
               </div>
             )}
 

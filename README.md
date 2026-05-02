@@ -37,12 +37,13 @@ ________________________________________________________________________________
 💡 Autor : CÉLIO ANTONIO DA SILVA JUNIOR
 
 __________________________________________________________________________________
-🆕 Release 0.1.13 :
+🆕 Release 0.1.14 :
 
 - Pagamento de conta do fiado continua exigindo login e senha do administrador da mesma loja antes da confirmação.
 - Pagamento acima da dívida agora é bloqueado antes de confirmar, inclusive quando a soma do valor com desconto ultrapassa o saldo.
 - O download manual de atualização no desktop agora abre o HappyCash Site, sem expor a página de releases do GitHub para o cliente final.
 - Operadores agora validam a licença desktop e mobile pela conta dona da loja, evitando bloqueio indevido ao entrar com usuário de operador.
+- Quando a release ainda está sendo publicada no GitHub, o desktop trata a ausência temporária de `latest-linux.yml` ou `latest.yml` como publicação em andamento e tenta novamente sozinho, sem cair em erro definitivo.
 - Campos de autorização e da tela de login agora abrem vazios, sem preenchimento automático.
 - Modal de pagamento foi ajustado para não quebrar botões por espaçamento em celular e computador.
 
@@ -135,8 +136,8 @@ Publicação comercial via GitHub Release:
 
 ```bash
 # a tag precisa bater com a versão do package.json
-git tag v0.1.13
-git push origin v0.1.13
+git tag v0.1.14
+git push origin v0.1.14
 ```
 
 Também é possível publicar manualmente pelo GitHub:

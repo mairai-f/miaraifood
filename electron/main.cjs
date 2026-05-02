@@ -5,6 +5,7 @@ const { autoUpdater } = require('electron-updater');
 
 const UPDATE_CHECK_DELAY_MS = 15_000;
 const UPDATE_CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000;
+const UPDATE_METADATA_RETRY_DELAY_MS = 60_000;
 const isDevelopment = Boolean(process.env.VITE_DEV_SERVER_URL) || !app.isPackaged;
 let autoUpdatesConfigured = false;
 const APP_USER_MODEL_ID = 'com.happycash.desktop';
@@ -31,6 +32,7 @@ let updateState = {
   checkedAt: null,
   error: null,
 };
+let pendingUpdateRetryTimer = null;
 
 const isHttpUrl = (value) => {
   try {
@@ -88,6 +90,36 @@ const getDesktopManualDownloadRoute = () => {
 };
 
 const getManualUpdateUrl = () => `${HAPPYCASH_SITE_ORIGIN}${getDesktopManualDownloadRoute()}`;
+
+const clearPendingUpdateRetry = () => {
+  if (pendingUpdateRetryTimer) {
+    clearTimeout(pendingUpdateRetryTimer);
+    pendingUpdateRetryTimer = null;
+  }
+};
+
+const isReleaseMetadataPublishingError = (errorMessage) =>
+  /Cannot find latest(?:-[\w]+)?\.yml in the latest release artifacts/i.test(errorMessage);
+
+const scheduleUpdateMetadataRetry = (errorMessage) => {
+  clearPendingUpdateRetry();
+
+  const friendlyMessage = 'A nova release ainda esta sendo publicada. O HappyCash vai tentar novamente automaticamente em instantes.';
+  setUpdateState({
+    status: 'publishing',
+    checkedAt: nowIso(),
+    error: friendlyMessage,
+    manualDownloadUrl: getManualUpdateUrl(updateState.availableVersion || updateState.downloadedVersion),
+  });
+
+  pendingUpdateRetryTimer = setTimeout(() => {
+    pendingUpdateRetryTimer = null;
+    void checkForUpdates();
+  }, UPDATE_METADATA_RETRY_DELAY_MS);
+
+  console.warn('Metadados de update ainda indisponiveis, nova tentativa agendada.', errorMessage);
+  return getUpdateState();
+};
 
 const setUpdateState = (patch) => {
   updateState = {
@@ -690,11 +722,15 @@ const checkForUpdates = async () => {
     return getUpdateState();
   } catch (error) {
     console.error('Erro ao procurar atualizacoes automáticas:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Falha ao procurar atualizacoes.';
+    if (isReleaseMetadataPublishingError(errorMessage)) {
+      return scheduleUpdateMetadataRetry(errorMessage);
+    }
     return setUpdateState({
       status: 'error',
       manualDownloadUrl: getManualUpdateUrl(updateState.availableVersion),
       checkedAt: nowIso(),
-      error: error instanceof Error ? error.message : 'Falha ao procurar atualizacoes.',
+      error: errorMessage,
     });
   }
 };
@@ -736,6 +772,7 @@ const setupAutoUpdates = (mainWindow) => {
 
   autoUpdater.on('checking-for-update', () => {
     console.log('Verificando atualizacoes do HappyCash...');
+    clearPendingUpdateRetry();
     setUpdateState({
       status: 'checking',
       availableVersion: null,
@@ -754,6 +791,7 @@ const setupAutoUpdates = (mainWindow) => {
 
   autoUpdater.on('update-available', (info) => {
     console.log(`Atualizacao ${info?.version || ''} encontrada. Baixando em segundo plano...`);
+    clearPendingUpdateRetry();
     setUpdateState({
       status: 'downloading',
       availableVersion: info?.version || null,
@@ -784,6 +822,7 @@ const setupAutoUpdates = (mainWindow) => {
 
   autoUpdater.on('update-not-available', () => {
     console.log('Nenhuma atualizacao nova encontrada.');
+    clearPendingUpdateRetry();
     setUpdateState({
       status: 'idle',
       availableVersion: null,
@@ -804,6 +843,11 @@ const setupAutoUpdates = (mainWindow) => {
     console.error('Falha no auto-update:', error);
     const currentState = getUpdateState();
     const errorMessage = error instanceof Error ? error.message : 'Falha no auto-update.';
+
+    if (isReleaseMetadataPublishingError(errorMessage)) {
+      scheduleUpdateMetadataRetry(errorMessage);
+      return;
+    }
 
     if (currentState.status === 'downloaded') {
       setUpdateState({
@@ -826,6 +870,7 @@ const setupAutoUpdates = (mainWindow) => {
 
   autoUpdater.on('update-downloaded', async (info) => {
     const downloadedVersion = info?.version || updateState.availableVersion || null;
+    clearPendingUpdateRetry();
     setUpdateState({
       status: 'downloaded',
       availableVersion: downloadedVersion,
@@ -853,6 +898,7 @@ const setupAutoUpdates = (mainWindow) => {
   app.on('before-quit', () => {
     clearTimeout(initialTimer);
     clearInterval(recurringTimer);
+    clearPendingUpdateRetry();
   });
 };
 

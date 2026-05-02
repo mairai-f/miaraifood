@@ -255,7 +255,7 @@ export interface DesktopRuntimeInfo {
 }
 
 export interface DesktopUpdateStatus {
-  status: 'disabled' | 'idle' | 'checking' | 'downloading' | 'downloaded' | 'installing' | 'error';
+  status: 'disabled' | 'idle' | 'checking' | 'publishing' | 'downloading' | 'downloaded' | 'installing' | 'error';
   channel: string | null;
   currentVersion: string;
   availableVersion: string | null;
