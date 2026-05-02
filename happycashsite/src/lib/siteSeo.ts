@@ -1,4 +1,4 @@
-export const SITE_ORIGIN = "https://happycashsite.vercel.app";
+export const SITE_ORIGIN = "https://www.happycashsite.com.br";
 
 export interface SiteSeoConfig {
   title: string;

@@ -6,4 +6,4 @@ Disallow: /pix
 Disallow: /reset-password
 Disallow: /downloads/
 
-Sitemap: https://happycashsite.vercel.app/sitemap.xml
+Sitemap: https://www.happycashsite.com.br/sitemap.xml

@@ -13,6 +13,9 @@ const DEFAULT_ALLOWED_ORIGINS = [
   "http://localhost:4174",
   "https://happycash.vercel.app",
   "https://happycashsite.vercel.app",
+  "https://www.happycashsite.com.br",
+  "https://happycashsite.com.br",
+  "https://app.happycashsite.com.br",
 ];
 
 const DEFAULT_ALLOWED_HEADERS = [

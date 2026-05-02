@@ -161,7 +161,7 @@ type DeleteAccountResponse = {
 
 const SITE_SESSION_EXPIRED_MESSAGE = "Sua sessao expirou. Entre novamente para continuar.";
 const DELETE_ACCOUNT_CONFIRM_TEXT = "APAGAR";
-const SYSTEM_APP_URL = "https://happycash.vercel.app/";
+const SYSTEM_APP_URL = "https://app.happycashsite.com.br/";
 const SITE_REGISTRATION_FUNCTION_MISSING_MESSAGE =
   "A funcao finalize-site-registration nao esta publicada ou acessivel neste projeto do Supabase. Publique a function para abrir o dashboard.";
 const SITE_REGISTRATION_FETCH_MESSAGE =

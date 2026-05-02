@@ -12,7 +12,7 @@ const planLabels: Record<string, string> = {
   pro: 'Plano PRO - 30 dias',
 };
 
-const HAPPY_CASH_SITE_PAYMENT_URL = 'https://happycashsite.vercel.app/dashboard';
+const HAPPY_CASH_SITE_PAYMENT_URL = 'https://www.happycashsite.com.br/dashboard';
 
 export function FeatureLocked() {
   const { planId } = usePlanAccess();

@@ -100,7 +100,7 @@ supabase secrets set ASAAS_WEBHOOK_AUTH_TOKEN="seu-token-webhook"
 Secret recomendado para o fluxo de confirmação por email:
 
 ```bash
-supabase secrets set SITE_EMAIL_CONFIRM_REDIRECT_URL="https://happycashsite.vercel.app/dashboard"
+supabase secrets set SITE_EMAIL_CONFIRM_REDIRECT_URL="https://www.happycashsite.com.br/auth/callback?plan=demo"
 ```
 
 Secrets opcionais para liberar download via GitHub Release no plano PRO:
