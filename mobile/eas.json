@@ -8,7 +8,7 @@
       "developmentClient": true,
       "distribution": "internal",
       "env": {
-        "EXPO_PUBLIC_HAPPYCASH_WEB_URL": "https://happycash.vercel.app"
+        "EXPO_PUBLIC_HAPPYCASH_WEB_URL": "https://app.happycashsite.com.br"
       }
     },
     "preview": {
@@ -17,13 +17,13 @@
       },
       "distribution": "internal",
       "env": {
-        "EXPO_PUBLIC_HAPPYCASH_WEB_URL": "https://happycash.vercel.app"
+        "EXPO_PUBLIC_HAPPYCASH_WEB_URL": "https://app.happycashsite.com.br"
       }
     },
     "production": {
       "autoIncrement": true,
       "env": {
-        "EXPO_PUBLIC_HAPPYCASH_WEB_URL": "https://happycash.vercel.app"
+        "EXPO_PUBLIC_HAPPYCASH_WEB_URL": "https://app.happycashsite.com.br"
       }
     }
   },
