@@ -1,4 +1,4 @@
-import screenshotFiado from "@/assets/fiado-digital-clientes.png";
+import screenshotFiado from "@/assets/fiado-digital-clientes.webp";
 import SeoContentPage from "@/components/landing/SeoContentPage";
 import { createSiteUrl } from "@/lib/siteSeo";
 
@@ -13,7 +13,7 @@ const PlanilhaFiadoVsApp = () => (
       description,
       path,
       type: "article",
-      image: "/favicon.png",
+      image: "/favicon.webp",
       keywords: ["planilha de fiado", "app de fiado", "controle de fiado excel", "sistema de fiado", "controle clientes fiado"],
       jsonLd: {
         "@context": "https://schema.org",

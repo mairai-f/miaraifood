@@ -10,7 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Eye, EyeOff, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
-import happyCashLogo from '@/assets/happycash-logo.png';
+import happyCashLogo from '@/assets/happycash-logo.webp';
 import {
   applySystemSessionPreference,
   getSystemLoginPreferences,
@@ -132,6 +132,11 @@ export default function Login() {
               src={happyCashLogo}
               alt="HappyCash"
               className="mx-auto h-auto w-[clamp(6.25rem,28vw,10rem)] max-w-full object-contain"
+              width={768}
+              height={512}
+              loading="eager"
+              fetchPriority="high"
+              decoding="async"
               animate={{ y: [0, -8, 0] }}
               transition={{ duration: 4.2, repeat: Infinity, ease: 'easeInOut' }}
             />

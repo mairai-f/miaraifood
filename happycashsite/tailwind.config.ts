@@ -26,8 +26,8 @@ export default {
     },
     extend: {
       fontFamily: {
-        heading: ["Space Grotesk", "sans-serif"],
-        body: ["Inter", "sans-serif"],
+        heading: ["Avenir Next Condensed", "Trebuchet MS", "Arial Narrow", "sans-serif"],
+        body: ["Avenir Next", "Segoe UI", "system-ui", "sans-serif"],
       },
       colors: {
         border: "hsl(var(--border))",

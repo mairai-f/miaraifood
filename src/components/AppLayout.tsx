@@ -3,7 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Home, Users, Package, Gift, Trash2, LogOut, Menu, X, UserCircle, Receipt, BarChart3, DollarSign, Boxes, ChevronDown, ChevronUp, FileText, Shield, Calculator, ShieldCheck } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { usePlanAccess } from '@/contexts/PlanContext';
-import happyCashLogo from '@/assets/happycash-logo.png';
+import happyCashLogo from '@/assets/happycash-logo.webp';
 import { roleLabel } from '@/lib/access';
 
 const navItems = [
@@ -131,6 +131,10 @@ export function AppLayout({ children }: { children: ReactNode }) {
                 src={happyCashLogo}
                 alt="Logo do sistema"
                 className="mx-auto h-auto w-full max-w-[168px] object-contain"
+                width={768}
+                height={512}
+                loading="eager"
+                decoding="async"
               />
               <p className="mt-2 text-[11px] font-semibold tracking-[0.08em] text-muted-foreground">
                 SISTEMA DE GESTAO 2.0

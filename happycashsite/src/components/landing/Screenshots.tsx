@@ -3,17 +3,17 @@ import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { Carousel, CarouselContent, CarouselItem, CarouselPrevious, CarouselNext } from "@/components/ui/carousel";
 
-import estoqueMovimentacaoModal from "@/assets/estoque-movimentacao-modal.png";
-import estoquePainel from "@/assets/estoque-painel.png";
-import fiadoClientes from "@/assets/fiado-digital-clientes.png";
-import fiadoDividasAgrupadas from "@/assets/fiado-digital-dividas-agrupadas.png";
-import fiadoHistoricoAgrupado from "@/assets/fiado-digital-historico-agrupado.png";
-import pdvBuscarVendas from "@/assets/pdv-buscar-vendas.png";
-import pdvCaixaFechadoAbertura from "@/assets/pdv-caixa-fechado-abertura.png";
-import pdvFinalizarVendaFiado from "@/assets/pdv-finalizar-venda-fiado.png";
-import pdvFinalizarVendaPagamento from "@/assets/pdv-finalizar-venda-pagamento.png";
-import pdvPrincipalCarrinho from "@/assets/pdv-principal-carrinho.png";
-import pdvSaidaDeCaixa from "@/assets/pdv-saida-de-caixa.png";
+import estoqueMovimentacaoModal from "@/assets/estoque-movimentacao-modal.webp";
+import estoquePainel from "@/assets/estoque-painel.webp";
+import fiadoClientes from "@/assets/fiado-digital-clientes.webp";
+import fiadoDividasAgrupadas from "@/assets/fiado-digital-dividas-agrupadas.webp";
+import fiadoHistoricoAgrupado from "@/assets/fiado-digital-historico-agrupado.webp";
+import pdvBuscarVendas from "@/assets/pdv-buscar-vendas.webp";
+import pdvCaixaFechadoAbertura from "@/assets/pdv-caixa-fechado-abertura.webp";
+import pdvFinalizarVendaFiado from "@/assets/pdv-finalizar-venda-fiado.webp";
+import pdvFinalizarVendaPagamento from "@/assets/pdv-finalizar-venda-pagamento.webp";
+import pdvPrincipalCarrinho from "@/assets/pdv-principal-carrinho.webp";
+import pdvSaidaDeCaixa from "@/assets/pdv-saida-de-caixa.webp";
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -81,7 +81,10 @@ const Screenshots = () => {
                         src={s.src}
                         alt={s.alt}
                         className="rounded-xl w-full"
+                        width={1440}
+                        height={1200}
                         loading="lazy"
+                        decoding="async"
                       />
                     </div>
                   </div>

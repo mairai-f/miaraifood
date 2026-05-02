@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { Zap, Shield, Smartphone, Headphones } from "lucide-react";
-import screenshot2 from "@/assets/fiado-digital-clientes.png";
+import screenshot2 from "@/assets/fiado-digital-clientes.webp";
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -52,7 +52,15 @@ const Benefits = () => {
           <div className="benefits-image relative">
             <div className="absolute -inset-4 bg-gradient-to-br from-primary/20 via-transparent to-secondary/20 rounded-3xl blur-2xl" />
             <div className="relative rounded-2xl border border-border/50 bg-card/80 backdrop-blur-sm p-3 shadow-2xl">
-              <img src={screenshot2} alt="HappyCash Dashboard" className="rounded-xl w-full" loading="lazy" />
+              <img
+                src={screenshot2}
+                alt="HappyCash Dashboard"
+                className="rounded-xl w-full"
+                width={1440}
+                height={1200}
+                loading="lazy"
+                decoding="async"
+              />
             </div>
           </div>
 

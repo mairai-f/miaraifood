@@ -35,7 +35,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useToast } from "@/hooks/use-toast";
-import logo from "@/assets/logo-happycash.png";
+import logo from "@/assets/logo-happycash.webp";
 
 type AuthUser = {
   id: string;

@@ -16,7 +16,7 @@ import {
   saveSiteLoginPreferences,
 } from '@/lib/authSessionPreferences';
 import { isPublicPlanId, publicPlanContent } from '@/lib/subscriptionPlans';
-import logo from '@/assets/logo-happycash.png';
+import logo from '@/assets/logo-happycash.webp';
 import { LanguageSwitcher } from '../../../shared/locale/LanguageSwitcher';
 
 const resolveLoginErrorMessage = (message: string) =>

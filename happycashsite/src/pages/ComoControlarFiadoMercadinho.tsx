@@ -1,4 +1,4 @@
-import screenshotPdvFiado from "@/assets/pdv-finalizar-venda-fiado.png";
+import screenshotPdvFiado from "@/assets/pdv-finalizar-venda-fiado.webp";
 import SeoContentPage from "@/components/landing/SeoContentPage";
 import { createSiteUrl } from "@/lib/siteSeo";
 
@@ -13,7 +13,7 @@ const ComoControlarFiadoMercadinho = () => (
       description,
       path,
       type: "article",
-      image: "/favicon.png",
+      image: "/favicon.webp",
       keywords: ["como controlar fiado no mercadinho", "fiado mercadinho", "controle de fiado mercado", "caderneta de fiado", "cobrança de fiado"],
       jsonLd: {
         "@context": "https://schema.org",

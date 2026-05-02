@@ -1,6 +1,6 @@
 import { motion } from "framer-motion";
 
-import happyCashLogo from "@/assets/happycash-logo.png";
+import happyCashLogo from "@/assets/happycash-logo.webp";
 import { Progress } from "@/components/ui/progress";
 
 interface SplashScreenProps {
@@ -33,6 +33,11 @@ export function SplashScreen({ progress }: SplashScreenProps) {
             src={happyCashLogo}
             alt="HappyCash"
             className="mx-auto h-auto w-full max-w-[300px] object-contain sm:max-w-[340px]"
+            width={768}
+            height={512}
+            loading="eager"
+            fetchPriority="high"
+            decoding="async"
           />
         </motion.div>
 

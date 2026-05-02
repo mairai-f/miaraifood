@@ -4,8 +4,8 @@ import { Button } from "@/components/ui/button";
 import { ArrowRight, Play } from "lucide-react";
 import gsap from "gsap";
 import { useLandingAccountActions } from "@/hooks/use-landing-account-actions";
-import screenshot1 from "@/assets/pdv-principal-carrinho.png";
-import mascot from "@/assets/happycoin.png";
+import screenshot1 from "@/assets/pdv-principal-carrinho.webp";
+import mascot from "@/assets/happycoin.webp";
 
 const rotatingWords = ["mercearia", "padaria", "adega", "bar", "loja"];
 
@@ -144,11 +144,24 @@ const Hero = () => {
                 src={screenshot1}
                 alt="HappyCash - Sistema PDV"
                 className="rounded-xl w-full"
+                width={1440}
+                height={1200}
+                loading="eager"
+                fetchPriority="high"
+                decoding="async"
               />
             </div>
             {/* Mascot */}
             <div className="absolute -bottom-4 left-2 hidden animate-bounce-slow sm:block lg:-bottom-6 lg:-left-6">
-              <img src={mascot} alt="HappyCoin Mascote" className="h-20 w-20 drop-shadow-2xl lg:h-24 lg:w-24" />
+              <img
+                src={mascot}
+                alt="HappyCoin Mascote"
+                className="h-20 w-20 drop-shadow-2xl lg:h-24 lg:w-24"
+                width={384}
+                height={384}
+                loading="lazy"
+                decoding="async"
+              />
             </div>
             {/* Floating badge */}
             <div className="absolute right-2 top-2 hidden rounded-xl border border-border bg-card px-3 py-2 shadow-xl sm:block lg:-right-4 lg:-top-4 lg:px-4 lg:py-3">

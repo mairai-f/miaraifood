@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { isPublicPlanId, publicPlanContent } from "@/lib/subscriptionPlans";
-import logo from "@/assets/logo-happycash.png";
+import logo from "@/assets/logo-happycash.webp";
 import { Eye, EyeOff, Loader2, PlayCircle, UserPlus } from "lucide-react";
 import { getPasswordPolicyError, passwordPolicyHint } from "../../../shared/security/passwordPolicy";
 

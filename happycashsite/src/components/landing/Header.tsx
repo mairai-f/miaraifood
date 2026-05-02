@@ -9,7 +9,7 @@ import { clearSiteLocalSession } from "@/lib/authSessionPreferences";
 import { useCurrentSubscription } from "@/hooks/use-current-subscription";
 import { isCurrentSubscription } from "@/lib/subscriptionStatus";
 import { isPublicPlanId, publicPlanContent } from "@/lib/subscriptionPlans";
-import logo from "@/assets/logo-happycash.png";
+import logo from "@/assets/logo-happycash.webp";
 
 const Header = () => {
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -26,7 +26,7 @@ const Header = () => {
   })();
   const loginHref = selectedPlanId ? `/login?plan=${selectedPlanId}` : "/login";
   const dashboardHref = selectedPlanId ? `/dashboard?plan=${selectedPlanId}` : "/dashboard";
-  const homeHref = selectedPlanId ? `/paginainicial?plan=${selectedPlanId}` : "/paginainicial";
+  const homeHref = selectedPlanId ? `/?plan=${selectedPlanId}` : "/";
   const logoutHref = selectedPlanId ? `/saindo?plan=${selectedPlanId}` : "/saindo";
   const signupHref = selectedPlanId ? `/cadastro?plan=${selectedPlanId}` : "/cadastro";
   const hasActivePaidPlan = Boolean(
@@ -43,7 +43,7 @@ const Header = () => {
     ? `${currentPlanName} • ${countdown.markerLabel}`
     : currentPlanName;
   const isHomePage = location.pathname === "/" || location.pathname === "/index" || location.pathname === "/paginainicial";
-  const buildHomeSectionHref = (id: string) => (isHomePage ? `#${id}` : `/paginainicial#${id}`);
+  const buildHomeSectionHref = (id: string) => (isHomePage ? `#${id}` : `/#${id}`);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 50);
@@ -77,7 +77,16 @@ const Header = () => {
     }`}>
       <div className="container flex h-20 items-center justify-between">
         <Link to={homeHref} className="flex items-center gap-2 group">
-          <img src={logo} alt="HappyCash" className="h-11 w-auto transition-transform duration-300 group-hover:scale-105" />
+          <img
+            src={logo}
+            alt="HappyCash"
+            className="h-11 w-auto transition-transform duration-300 group-hover:scale-105"
+            width={768}
+            height={512}
+            loading="eager"
+            fetchPriority="high"
+            decoding="async"
+          />
         </Link>
 
         <nav className="hidden md:flex items-center gap-6 lg:gap-10">

@@ -1,4 +1,4 @@
-import screenshotFiado from "@/assets/fiado-digital-dividas-agrupadas.png";
+import screenshotFiado from "@/assets/fiado-digital-dividas-agrupadas.webp";
 import SeoContentPage from "@/components/landing/SeoContentPage";
 import { createSiteUrl } from "@/lib/siteSeo";
 
@@ -12,7 +12,7 @@ const ControleDeFiado = () => (
       title: "Controle de fiado | Sistema para vender fiado sem caderno",
       description,
       path,
-      image: "/favicon.png",
+      image: "/favicon.webp",
       keywords: [
         "controle de fiado",
         "sistema de fiado",

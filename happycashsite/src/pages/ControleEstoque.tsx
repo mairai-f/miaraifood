@@ -1,4 +1,4 @@
-import screenshotEstoque from "@/assets/estoque-painel.png";
+import screenshotEstoque from "@/assets/estoque-painel.webp";
 import SolutionPage from "@/components/landing/SolutionPage";
 
 const ControleEstoque = () => {

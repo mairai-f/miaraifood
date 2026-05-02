@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 
-import logo from "@/assets/logo-happycash.png";
+import logo from "@/assets/logo-happycash.webp";
 import { supabase } from "@/integrations/supabase/client";
 import { clearSiteLocalSession } from "@/lib/authSessionPreferences";
 import { Progress } from "@/components/ui/progress";

@@ -1,4 +1,4 @@
-import screenshotFiado from "@/assets/fiado-digital-clientes.png";
+import screenshotFiado from "@/assets/fiado-digital-clientes.webp";
 import SeoContentPage from "@/components/landing/SeoContentPage";
 import { createSiteUrl } from "@/lib/siteSeo";
 
@@ -12,7 +12,7 @@ const AppParaFiado = () => (
       title: "App para fiado | Controle clientes e dívidas no HappyCash",
       description,
       path,
-      image: "/favicon.png",
+      image: "/favicon.webp",
       keywords: ["app para fiado", "aplicativo de fiado", "controle fiado celular", "caderneta digital", "app controle de clientes"],
       jsonLd: {
         "@context": "https://schema.org",

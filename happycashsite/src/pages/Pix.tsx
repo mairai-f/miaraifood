@@ -1,7 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, CreditCard, ShieldCheck } from "lucide-react";
 import { Link } from "react-router-dom";
-import logo from "@/assets/logo-happycash.png";
+import logo from "@/assets/logo-happycash.webp";
 
 const plans = [
   { name: "Plano Fiado", display: "R$ 100,00 / 30 dias" },

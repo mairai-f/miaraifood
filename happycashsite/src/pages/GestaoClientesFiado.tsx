@@ -1,4 +1,4 @@
-import screenshotHistorico from "@/assets/fiado-digital-historico-agrupado.png";
+import screenshotHistorico from "@/assets/fiado-digital-historico-agrupado.webp";
 import SeoContentPage from "@/components/landing/SeoContentPage";
 import { createSiteUrl } from "@/lib/siteSeo";
 
@@ -12,7 +12,7 @@ const GestaoClientesFiado = () => (
       title: "Gestão de clientes fiado | Histórico e cobrança no HappyCash",
       description,
       path,
-      image: "/favicon.png",
+      image: "/favicon.webp",
       keywords: ["gestão de clientes fiado", "clientes fiado", "controle de clientes", "cobrança de fiado", "histórico de fiado"],
       jsonLd: {
         "@context": "https://schema.org",

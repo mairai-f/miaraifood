@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { Suspense, lazy, useEffect, useRef, useState } from "react";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import Header from "@/components/landing/Header";
@@ -8,16 +8,19 @@ import Stats from "@/components/landing/Stats";
 import Features from "@/components/landing/Features";
 import Benefits from "@/components/landing/Benefits";
 import Pricing from "@/components/landing/Pricing";
-import Screenshots from "@/components/landing/Screenshots";
 import FAQ from "@/components/landing/FAQ";
 import CTA from "@/components/landing/CTA";
 import Footer from "@/components/landing/Footer";
 import SiteSeo from "@/components/seo/SiteSeo";
-import heroScreenshot from "@/assets/pdv-principal-carrinho.png";
+import heroScreenshot from "@/assets/pdv-principal-carrinho.webp";
 
 gsap.registerPlugin(ScrollTrigger);
+const Screenshots = lazy(() => import("@/components/landing/Screenshots"));
 
 const Index = () => {
+  const screenshotsAnchorRef = useRef<HTMLDivElement>(null);
+  const [shouldRenderScreenshots, setShouldRenderScreenshots] = useState(false);
+
   useEffect(() => {
     // Smooth scroll for anchor links
     const handleClick = (e: Event) => {
@@ -36,12 +39,30 @@ const Index = () => {
     return () => document.removeEventListener("click", handleClick);
   }, []);
 
+  useEffect(() => {
+    const target = screenshotsAnchorRef.current;
+    if (!target || shouldRenderScreenshots) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) {
+          setShouldRenderScreenshots(true);
+          observer.disconnect();
+        }
+      },
+      { rootMargin: "360px 0px" },
+    );
+
+    observer.observe(target);
+    return () => observer.disconnect();
+  }, [shouldRenderScreenshots]);
+
   return (
     <div className="min-h-screen bg-background overflow-x-hidden">
       <SiteSeo
         title="HappyCash | Controle fiado, PDV e estoque sem caderno"
         description="Pare de usar caderno para controlar fiado. Com o HappyCash você registra clientes, cobra pelo WhatsApp, acompanha PDV, estoque e relatórios em tempo real."
-        path="/paginainicial"
+        path="/"
         image={heroScreenshot}
         keywords={[
           "controle de fiado",
@@ -59,7 +80,15 @@ const Index = () => {
       <Features />
       <Benefits />
       <Pricing />
-      <Screenshots />
+      <div ref={screenshotsAnchorRef} className="min-h-[32rem]">
+        {shouldRenderScreenshots ? (
+          <Suspense fallback={<div className="py-24 md:py-32" aria-hidden="true" />}>
+            <Screenshots />
+          </Suspense>
+        ) : (
+          <div className="py-24 md:py-32" aria-hidden="true" />
+        )}
+      </div>
       <FAQ />
       <CTA />
       <Footer />

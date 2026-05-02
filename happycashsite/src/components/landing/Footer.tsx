@@ -1,5 +1,5 @@
 import { Link, useLocation } from "react-router-dom";
-import logo from "@/assets/logo-happycash.png";
+import logo from "@/assets/logo-happycash.webp";
 import { MessageCircle, Instagram, Youtube } from "lucide-react";
 
 const WHATSAPP_NUMBER = "5512988918792";
@@ -7,7 +7,7 @@ const WHATSAPP_NUMBER = "5512988918792";
 const Footer = () => {
   const location = useLocation();
   const isHomePage = location.pathname === "/" || location.pathname === "/index" || location.pathname === "/paginainicial";
-  const buildHomeSectionHref = (id: string) => (isHomePage ? `#${id}` : `/paginainicial#${id}`);
+  const buildHomeSectionHref = (id: string) => (isHomePage ? `#${id}` : `/#${id}`);
 
   return (
     <footer className="relative border-t border-border bg-card/30 backdrop-blur-sm">
@@ -17,7 +17,7 @@ const Footer = () => {
       <div className="container py-16">
         <div className="grid gap-10 items-start md:grid-cols-5">
           <div className="md:col-span-2 space-y-4">
-            <img src={logo} alt="HappyCash" className="h-12 w-auto" />
+            <img src={logo} alt="HappyCash" className="h-12 w-auto" width={768} height={512} loading="lazy" decoding="async" />
             <p className="text-sm text-muted-foreground max-w-sm leading-relaxed">
               Sistema para controlar fiado, PDV e estoque sem depender de caderno, planilha e improviso.
             </p>

@@ -4,7 +4,7 @@ import { ArrowLeft, ExternalLink, Loader2 } from "lucide-react";
 
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import logo from "@/assets/logo-happycash.png";
+import logo from "@/assets/logo-happycash.webp";
 
 const AuthCallback = () => {
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
