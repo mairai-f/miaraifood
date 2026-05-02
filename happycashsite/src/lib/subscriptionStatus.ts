@@ -90,7 +90,7 @@ export const getSubscriptionCountdown = (subscription: SubscriptionTimingLike | 
       endAt,
       endAtLabel,
       remainingLabel: `Restam ${compactTime} na demo.`,
-      markerLabel: `Demo: ${compactTime}`,
+      markerLabel: `Restam ${compactTime}`,
       badgeVariant: totalMinutes <= 60 ? "destructive" as const : "secondary" as const,
       isExpired: false,
       isExpiringSoon: totalMinutes <= 180,
