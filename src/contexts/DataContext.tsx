@@ -323,17 +323,17 @@ export function DataProvider({ children }: { children: ReactNode }) {
     }
 
     const [c, p, d, pay, r, s, si, sm, exp, pr, ph] = await Promise.all([
-      canReadClients ? db.from('clients').select('*').order('created_at', { ascending: false }) : emptyResult,
+      canReadClients ? db.from('clients').select('*').order('created_at', { ascending: false }).limit(1000) : emptyResult,
       Promise.resolve(productsResponse),
-      canReadFiado ? db.from('debt_entries').select('*').order('date_added', { ascending: false }) : emptyResult,
-      canReadFiado ? db.from('payments').select('*').order('date', { ascending: false }) : emptyResult,
-      canReadRewards ? db.from('rewards').select('*').order('created_at', { ascending: false }) : emptyResult,
-      canReadSales ? db.from('sales').select('*').order('date', { ascending: false }) : emptyResult,
-      canReadSales ? db.from('sale_items').select('*') : emptyResult,
-      canReadStock ? db.from('stock_movements').select('*').order('date', { ascending: false }) : emptyResult,
-      canReadExpenses ? db.from('expenses').select('*').order('date', { ascending: false }) : emptyResult,
+      canReadFiado ? db.from('debt_entries').select('*').order('date_added', { ascending: false }).limit(2000) : emptyResult,
+      canReadFiado ? db.from('payments').select('*').order('date', { ascending: false }).limit(2000) : emptyResult,
+      canReadRewards ? db.from('rewards').select('*').order('created_at', { ascending: false }).limit(1000) : emptyResult,
+      canReadSales ? db.from('sales').select('*').order('date', { ascending: false }).limit(2000) : emptyResult,
+      canReadSales ? db.from('sale_items').select('*').limit(5000) : emptyResult,
+      canReadStock ? db.from('stock_movements').select('*').order('date', { ascending: false }).limit(2000) : emptyResult,
+      canReadExpenses ? db.from('expenses').select('*').order('date', { ascending: false }).limit(1000) : emptyResult,
       canReadPricing ? db.from('product_category_pricing_rules').select('*').order('category', { ascending: true }) : emptyResult,
-      canReadPricing ? db.from('product_price_history').select('*').order('created_at', { ascending: false }) : emptyResult,
+      canReadPricing ? db.from('product_price_history').select('*').order('created_at', { ascending: false }).limit(1000) : emptyResult,
     ]);
 
     const remoteErrors = [c, p, d, pay, r, s, si, sm, exp, pr, ph]
