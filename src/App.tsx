@@ -9,8 +9,10 @@ import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { DesktopRuntimeProvider, useDesktopRuntime } from "@/contexts/DesktopRuntimeContext";
 import { PlanProvider, usePlanAccess } from "@/contexts/PlanContext";
 import Login from "@/pages/Login";
+import { DesktopActivation } from "@/pages/DesktopActivation";
 import { SplashScreen } from "@/components/SplashScreen";
 import { hasSeenAppSplash, markAppSplashSeen } from "@/lib/appSplash";
+import { getDesktopActivationStatus, isDesktopActivationAvailable } from "@/lib/desktopActivation";
 import { LocaleProvider } from "../shared/locale/LocaleContext";
 
 const queryClient = new QueryClient();
@@ -35,7 +37,28 @@ function AppRoutes() {
   const [progress, setProgress] = useState(0);
   const [minimumSplashDone, setMinimumSplashDone] = useState(hasSeenAppSplash());
   const [showSplash, setShowSplash] = useState(!hasSeenAppSplash());
+  const [desktopActivationChecking, setDesktopActivationChecking] = useState(isDesktopActivationAvailable());
+  const [desktopActivated, setDesktopActivated] = useState(!isDesktopActivationAvailable());
   const shouldBlockSplash = loading || planLoading || checkingDesktopLicense;
+
+  useEffect(() => {
+    if (!isDesktopActivationAvailable()) {
+      setDesktopActivated(true);
+      setDesktopActivationChecking(false);
+      return;
+    }
+
+    let active = true;
+    void getDesktopActivationStatus().then((status) => {
+      if (!active) return;
+      setDesktopActivated(Boolean(status.activated));
+      setDesktopActivationChecking(false);
+    });
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   useEffect(() => {
     if (hasSeenAppSplash()) {
@@ -79,6 +102,14 @@ function AppRoutes() {
       return () => window.clearTimeout(hideTimer);
     }
   }, [minimumSplashDone, shouldBlockSplash]);
+
+  if (desktopActivationChecking) {
+    return <FullScreenLoader />;
+  }
+
+  if (!desktopActivated) {
+    return <DesktopActivation onActivated={() => setDesktopActivated(true)} />;
+  }
 
   if (showSplash && !isAuthenticated) {
     return <SplashScreen progress={progress} />;

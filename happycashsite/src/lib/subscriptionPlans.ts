@@ -6,6 +6,7 @@ export interface PublicPlanContent {
   name: string;
   price: number;
   priceLabel: string;
+  annualPriceLabel?: string;
   durationLabel: string;
   summary: string;
   description: string;
@@ -30,9 +31,10 @@ export const publicPlanContent: Record<PublicPlanId, PublicPlanContent> = {
   },
   fiado: {
     id: "fiado",
-    name: "Plano Fiado",
+    name: "Plano Basico",
     price: 100,
     priceLabel: "R$ 100",
+    annualPriceLabel: "R$ 997 / ano",
     durationLabel: "30 dias",
     summary: "Painel, clientes, produtos, excluidos, fiado e cobrancas por 30 dias.",
     description: "Ideal para quem precisa controlar fiado com operacao simples e sem configuracoes.",
@@ -43,6 +45,7 @@ export const publicPlanContent: Record<PublicPlanId, PublicPlanContent> = {
       "Excluidos",
       "Fiado e cobrancas",
       "Sem acesso as configuracoes",
+      "Sem impressora termica no plano",
       "Pagamento via Pix e debito / credito",
     ],
   },
@@ -51,17 +54,20 @@ export const publicPlanContent: Record<PublicPlanId, PublicPlanContent> = {
     name: "Plano Completo",
     price: 230,
     priceLabel: "R$ 230",
+    annualPriceLabel: "R$ 2.097 / ano",
     durationLabel: "30 dias",
     summary: "Tudo do Fiado com PDV, estoque, relatorios, caixa e configuracoes por 30 dias.",
     description: "Gestao completa do HappyCash no web com todos os recursos principais da operacao.",
     features: [
-      "Tudo do Plano Fiado",
+      "Tudo do Plano Basico",
       "PDV",
       "Estoque",
       "Modulo de precificacao inteligente",
       "Relatorios",
       "Caixa",
       "Configuracoes da loja",
+      "Compatibilidade com impressora termica instalada no computador",
+      "Maquininha somente no plano anual",
       "Pagamento via Pix e debito / credito",
     ],
   },
@@ -70,16 +76,20 @@ export const publicPlanContent: Record<PublicPlanId, PublicPlanContent> = {
     name: "Plano PRO",
     price: 347,
     priceLabel: "R$ 347",
+    annualPriceLabel: "R$ 2.997 / ano",
     durationLabel: "30 dias",
-    summary: "Tudo do Completo com desktop, mobile e recursos premium por 30 dias.",
-    description: "Plano com mais valor para quem quer operar no web e preparar desktop, mobile e offline.",
+    summary: "Tudo do Completo com desktop, mobile, PRO Offline e sincronizacao por 30 dias.",
+    description: "Plano para operar no web, desktop e mobile, com ativacao inicial online e uso offline controlado.",
     features: [
       "Tudo do Plano Completo",
       "Modulo de precificacao inteligente",
       "Aplicativo desktop",
       "App mobile",
-      "Fluxo preparado para offline",
-      "Impressao Bematech",
+      "PRO Offline com ativacao inicial online",
+      "Tolerancia offline de ate 7 dias",
+      "Sincronizacao com a nuvem quando houver internet",
+      "Compatibilidade com impressora termica instalada no computador",
+      "Maquininha somente no plano anual",
       "Mais desempenho no caixa",
       "Pagamento via Pix e debito / credito",
     ],

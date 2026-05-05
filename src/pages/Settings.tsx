@@ -91,7 +91,14 @@ const formatBytes = (value: number | null | undefined) => {
 
 export default function Settings() {
   const { session, ownerUserId } = useAuth();
-  const { isDesktop, offlineEnabled, validUntil: desktopValidUntil, refresh: refreshDesktopLicense } = useDesktopRuntime();
+  const {
+    isDesktop,
+    offlineEnabled,
+    validUntil: desktopValidUntil,
+    offlineGraceUntil: desktopOfflineGraceUntil,
+    offlineGraceDays: desktopOfflineGraceDays,
+    refresh: refreshDesktopLicense,
+  } = useDesktopRuntime();
   const data = useData();
   const { refetch } = data;
   const { subscription, countdown, statusLabel, loading: loadingSubscription } = useCurrentSubscription();
@@ -705,6 +712,10 @@ export default function Settings() {
             </div>
 
             <div className="rounded-lg border border-border/70 bg-background/70 p-4 text-sm text-muted-foreground">
+              <p>
+                Tolerancia offline: {desktopOfflineGraceDays} dias
+                {desktopOfflineGraceUntil ? `, ate ${new Date(desktopOfflineGraceUntil).toLocaleString('pt-BR')}` : ''}
+              </p>
               <p>Ultimo snapshot local: {offlineRuntime?.snapshotUpdatedAt ? new Date(offlineRuntime.snapshotUpdatedAt).toLocaleString('pt-BR') : 'ainda nao salvo'}</p>
               <p className="mt-1">Banco local: {offlineRuntime?.runtime.databasePath || 'nao identificado'}</p>
               <p className="mt-1">Canal de update: {desktopUpdateStatus?.channel || offlineRuntime?.runtime.updateChannel || 'latest'}</p>

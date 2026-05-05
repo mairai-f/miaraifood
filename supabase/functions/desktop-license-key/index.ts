@@ -1,6 +1,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 import { validateDesktopLicense } from "../_shared/desktopAccess.ts";
+import { upsertDesktopLicenseKey } from "../_shared/desktopLicenseKey.ts";
 import { buildCorsHeaders, handleCorsPreflight } from "../_shared/cors.ts";
 
 const jsonResponse = (request: Request, body: Record<string, unknown>, status = 200) =>
@@ -74,35 +75,37 @@ Deno.serve(async (request) => {
 
   const license = await validateDesktopLicense(serviceClient, user.id);
 
-  if (!license.ok) {
+  if (!license.ok || !license.subscriptionId || !license.ownerUserId) {
     return jsonResponse(
       request,
       {
-        licensed: false,
-        error: license.message,
-        code: license.code,
+        success: false,
+        error: license.message || "A chave fica disponivel apenas apos pagamento do Plano PRO.",
+        code: license.code || "PRO_REQUIRED",
         planId: license.planId,
         status: license.status,
         validUntil: license.validUntil,
-        offlineGraceUntil: license.offlineGraceUntil,
-        offlineGraceDays: license.offlineGraceDays,
-        licenseKey: license.licenseKey,
-        features: license.features,
-        offlineEnabled: license.offlineEnabled,
       },
       403,
     );
   }
 
+  const generated = await upsertDesktopLicenseKey(serviceClient, {
+    id: license.subscriptionId,
+    owner_user_id: license.ownerUserId,
+    plan_id: license.planId || "pro",
+    status: license.status || "active",
+    current_period_ends_at: license.validUntil,
+  });
+
   return jsonResponse(request, {
-    licensed: true,
+    success: true,
+    licenseKey: generated.licenseKey,
+    keyPrefix: generated.keyPrefix,
+    keySuffix: generated.keySuffix,
     planId: license.planId,
-    status: license.status,
     validUntil: license.validUntil,
     offlineGraceUntil: license.offlineGraceUntil,
     offlineGraceDays: license.offlineGraceDays,
-    licenseKey: license.licenseKey,
-    features: license.features,
-    offlineEnabled: license.offlineEnabled,
   });
 });

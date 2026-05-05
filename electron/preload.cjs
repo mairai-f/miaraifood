@@ -19,6 +19,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
       return () => ipcRenderer.removeListener('app:update-status-changed', listener);
     },
   },
+  activation: {
+    getStatus: () => ipcRenderer.invoke('activation:get-status'),
+    activate: (payload) => ipcRenderer.invoke('activation:activate', payload),
+    clear: () => ipcRenderer.invoke('activation:clear'),
+  },
   offline: {
     replaceSnapshot: (payload) => ipcRenderer.invoke('offline:replace-snapshot', payload),
     getSnapshot: (payload) => ipcRenderer.invoke('offline:get-snapshot', payload),

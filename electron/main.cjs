@@ -1,6 +1,6 @@
 const path = require('path');
 const { DatabaseSync } = require('node:sqlite');
-const { app, BrowserWindow, ipcMain, shell } = require('electron');
+const { app, BrowserWindow, ipcMain, safeStorage, shell } = require('electron');
 const { autoUpdater } = require('electron-updater');
 
 const UPDATE_CHECK_DELAY_MS = 15_000;
@@ -12,7 +12,7 @@ const APP_USER_MODEL_ID = 'com.happycash.desktop';
 const HAPPYCASH_SITE_ORIGIN = (process.env.HAPPYCASH_SITE_ORIGIN || 'https://www.happycashsite.com.br').replace(/\/+$/, '');
 const VALID_UPDATE_CHANNELS = new Set(['latest', 'beta', 'alpha']);
 const OFFLINE_DB_FILENAME = 'happycash-concentrator.sqlite';
-const OFFLINE_DB_SCHEMA_VERSION = 2;
+const OFFLINE_DB_SCHEMA_VERSION = 3;
 const OFFLINE_SYNC_RETENTION_DAYS = Number.parseInt(process.env.HAPPYCASH_OFFLINE_SYNC_RETENTION_DAYS || '30', 10);
 const OFFLINE_CONFLICT_RETENTION_DAYS = Number.parseInt(process.env.HAPPYCASH_OFFLINE_CONFLICT_RETENTION_DAYS || '30', 10);
 let offlineDb = null;
@@ -69,6 +69,44 @@ const parseJson = (value, fallback = null) => {
     return JSON.parse(value);
   } catch {
     return fallback;
+  }
+};
+
+const sha256Hex = (value) => require('crypto').createHash('sha256').update(String(value || '')).digest('hex');
+
+const hashPin = (pin, salt = null) => {
+  const crypto = require('crypto');
+  const resolvedSalt = salt || crypto.randomBytes(16).toString('hex');
+  const hash = crypto.pbkdf2Sync(String(pin || ''), resolvedSalt, 120_000, 32, 'sha256').toString('hex');
+  return { salt: resolvedSalt, hash };
+};
+
+const encryptLocalPayload = (payload) => {
+  const raw = Buffer.from(JSON.stringify(payload || {}), 'utf8');
+  if (safeStorage.isEncryptionAvailable()) {
+    return {
+      encrypted: true,
+      value: safeStorage.encryptString(raw.toString('utf8')).toString('base64'),
+    };
+  }
+
+  return {
+    encrypted: false,
+    value: raw.toString('base64'),
+  };
+};
+
+const decryptLocalPayload = (row) => {
+  if (!row?.encrypted_license) return null;
+
+  try {
+    const buffer = Buffer.from(row.encrypted_license, 'base64');
+    const json = row.license_encrypted
+      ? safeStorage.decryptString(buffer)
+      : buffer.toString('utf8');
+    return JSON.parse(json);
+  } catch {
+    return null;
   }
 };
 
@@ -190,6 +228,25 @@ const applyOfflineDbMigrations = (db) => {
 
     CREATE INDEX IF NOT EXISTS offline_sync_conflicts_owner_operation_idx
       ON offline_sync_conflicts (owner_user_id, operation_id, resolved_at, created_at DESC);
+
+    CREATE TABLE IF NOT EXISTS desktop_activation (
+      id INTEGER PRIMARY KEY CHECK (id = 1),
+      owner_user_id TEXT NOT NULL,
+      admin_email TEXT NOT NULL,
+      admin_name TEXT NOT NULL,
+      pin_hash TEXT NOT NULL,
+      pin_salt TEXT NOT NULL,
+      license_key_hash TEXT NOT NULL,
+      license_key_suffix TEXT NOT NULL,
+      plan_id TEXT NOT NULL,
+      valid_until TEXT,
+      offline_grace_until TEXT,
+      offline_grace_days INTEGER NOT NULL DEFAULT 7,
+      encrypted_license TEXT NOT NULL,
+      license_encrypted INTEGER NOT NULL DEFAULT 0,
+      activated_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
   `);
 
   const currentVersion = getPragmaNumber(db, 'user_version');
@@ -240,6 +297,132 @@ const getOfflineDb = () => {
 
   offlineDb = db;
   return db;
+};
+
+const getActivationStatusWithDb = (db) => {
+  const row = db.prepare(`
+    SELECT *
+    FROM desktop_activation
+    WHERE id = 1
+  `).get();
+
+  if (!row) {
+    return {
+      activated: false,
+      expired: false,
+      activation: null,
+    };
+  }
+
+  const now = Date.now();
+  const graceUntilMs = row.offline_grace_until ? new Date(row.offline_grace_until).getTime() : Number.POSITIVE_INFINITY;
+  const expired = Number.isFinite(graceUntilMs) && graceUntilMs <= now;
+
+  return {
+    activated: !expired,
+    expired,
+    activation: {
+      ownerUserId: row.owner_user_id,
+      adminEmail: row.admin_email,
+      adminName: row.admin_name,
+      licenseKeySuffix: row.license_key_suffix,
+      planId: row.plan_id,
+      validUntil: row.valid_until || null,
+      offlineGraceUntil: row.offline_grace_until || null,
+      offlineGraceDays: Number(row.offline_grace_days || 7),
+      activatedAt: row.activated_at,
+      license: decryptLocalPayload(row),
+    },
+  };
+};
+
+const saveActivationWithDb = (db, payload) => {
+  if (!payload || typeof payload !== 'object') {
+    throw new Error('Dados de ativacao invalidos.');
+  }
+
+  const ownerUserId = String(payload.ownerUserId || '').trim();
+  const adminEmail = String(payload.adminEmail || '').trim().toLowerCase();
+  const adminName = String(payload.adminName || '').trim();
+  const pin = String(payload.pin || '');
+  const licenseKey = String(payload.licenseKey || '').trim().toUpperCase();
+  const planId = String(payload.planId || 'pro').trim();
+
+  if (!ownerUserId || !adminEmail || !adminName || !licenseKey) {
+    throw new Error('Ativacao incompleta.');
+  }
+
+  if (!/^\d{4,12}$/.test(pin)) {
+    throw new Error('PIN local deve ter de 4 a 12 numeros.');
+  }
+
+  const pinResult = hashPin(pin);
+  const encrypted = encryptLocalPayload({
+    ownerUserId,
+    adminEmail,
+    adminName,
+    licenseKey,
+    planId,
+    validUntil: payload.validUntil || null,
+    offlineGraceUntil: payload.offlineGraceUntil || null,
+    offlineGraceDays: Number(payload.offlineGraceDays || 7),
+    savedAt: nowIso(),
+  });
+
+  db.prepare(`
+    INSERT INTO desktop_activation (
+      id,
+      owner_user_id,
+      admin_email,
+      admin_name,
+      pin_hash,
+      pin_salt,
+      license_key_hash,
+      license_key_suffix,
+      plan_id,
+      valid_until,
+      offline_grace_until,
+      offline_grace_days,
+      encrypted_license,
+      license_encrypted,
+      activated_at,
+      updated_at
+    )
+    VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(id) DO UPDATE SET
+      owner_user_id = excluded.owner_user_id,
+      admin_email = excluded.admin_email,
+      admin_name = excluded.admin_name,
+      pin_hash = excluded.pin_hash,
+      pin_salt = excluded.pin_salt,
+      license_key_hash = excluded.license_key_hash,
+      license_key_suffix = excluded.license_key_suffix,
+      plan_id = excluded.plan_id,
+      valid_until = excluded.valid_until,
+      offline_grace_until = excluded.offline_grace_until,
+      offline_grace_days = excluded.offline_grace_days,
+      encrypted_license = excluded.encrypted_license,
+      license_encrypted = excluded.license_encrypted,
+      updated_at = excluded.updated_at
+  `).run(
+    ownerUserId,
+    adminEmail,
+    adminName,
+    pinResult.hash,
+    pinResult.salt,
+    sha256Hex(licenseKey),
+    licenseKey.slice(-4),
+    planId,
+    payload.validUntil || null,
+    payload.offlineGraceUntil || null,
+    Number(payload.offlineGraceDays || 7),
+    encrypted.value,
+    encrypted.encrypted ? 1 : 0,
+    nowIso(),
+    nowIso(),
+  );
+
+  return getActivationStatusWithDb(db);
 };
 
 const mapQueueRow = (row) => ({
@@ -1041,6 +1224,45 @@ ipcMain.handle('app:open-update-download', async () => {
   const url = state.manualDownloadUrl || getManualUpdateUrl(state.availableVersion || state.downloadedVersion);
   await shell.openExternal(url);
   return { success: true, url };
+});
+
+ipcMain.handle('activation:get-status', () => {
+  try {
+    return getActivationStatusWithDb(getOfflineDb());
+  } catch (error) {
+    return {
+      activated: false,
+      expired: false,
+      activation: null,
+      error: error instanceof Error ? error.message : 'Nao foi possivel ler a ativacao local.',
+    };
+  }
+});
+
+ipcMain.handle('activation:activate', (_event, payload) => {
+  try {
+    return {
+      success: true,
+      ...saveActivationWithDb(getOfflineDb(), payload),
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Nao foi possivel salvar a ativacao local.',
+    };
+  }
+});
+
+ipcMain.handle('activation:clear', () => {
+  try {
+    getOfflineDb().prepare('DELETE FROM desktop_activation WHERE id = 1').run();
+    return { success: true };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Nao foi possivel limpar a ativacao local.',
+    };
+  }
 });
 
 ipcMain.handle('offline:replace-snapshot', (_event, payload) => {

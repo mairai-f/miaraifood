@@ -60,17 +60,37 @@ const Index = () => {
   return (
     <div className="min-h-screen bg-background overflow-x-hidden">
       <SiteSeo
-        title="HappyCash | Controle fiado, PDV e estoque sem caderno"
-        description="Pare de usar caderno para controlar fiado. Com o HappyCash você registra clientes, cobra pelo WhatsApp, acompanha PDV, estoque e relatórios em tempo real."
+        title="HappyCash | Sistema PDV, fiado, estoque e PRO Offline"
+        description="Controle fiado, PDV, estoque e relatórios em tempo real. O HappyCash tem planos mensal e anual, desktop PRO Offline, impressora térmica nos planos Completo e PRO e maquininha nos anuais Completo e PRO."
         path="/"
         image={heroScreenshot}
         keywords={[
           "controle de fiado",
           "caderneta de fiado digital",
           "sistema pdv",
+          "sistema pdv offline",
+          "pdv para mercadinho",
           "controle de estoque online",
+          "sistema com impressora térmica",
+          "sistema com maquininha",
+          "happycash pro offline",
           "cobrança por whatsapp",
           "sistema para varejo",
+        ]}
+        jsonLd={[
+          {
+            "@context": "https://schema.org",
+            "@type": "SoftwareApplication",
+            name: "HappyCash",
+            applicationCategory: "BusinessApplication",
+            operatingSystem: "Web, Windows, Linux, Android",
+            description: "Sistema para controlar fiado, PDV, estoque, relatórios e operação PRO Offline com sincronização.",
+            offers: [
+              { "@type": "Offer", name: "Plano Básico", price: "100", priceCurrency: "BRL", availability: "https://schema.org/InStock" },
+              { "@type": "Offer", name: "Plano Completo", price: "230", priceCurrency: "BRL", availability: "https://schema.org/InStock" },
+              { "@type": "Offer", name: "Plano PRO", price: "347", priceCurrency: "BRL", availability: "https://schema.org/InStock" },
+            ],
+          },
         ]}
       />
       <Header />

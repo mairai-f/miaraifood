@@ -1,8 +1,12 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 
+import { upsertDesktopLicenseKey } from "./desktopLicenseKey.ts";
+
 export type SupportedDesktopPlatform = "windows" | "linux" | "linux-deb" | "linux-appimage";
 
 interface StoreSubscriptionRow {
+  id: string;
+  owner_user_id: string;
   plan_id: string;
   status: string;
   current_period_ends_at: string | null;
@@ -23,15 +27,30 @@ export interface DesktopLicenseValidationResult {
   ok: boolean;
   code?: string;
   message?: string;
+  subscriptionId: string | null;
+  ownerUserId: string | null;
   planId: string | null;
   status: string | null;
   validUntil: string | null;
+  offlineGraceUntil: string | null;
+  offlineGraceDays: number;
+  licenseKey: string | null;
   features: string[];
   offlineEnabled: boolean;
 }
 
 const activeSubscriptionStatuses = new Set(["trialing", "active", "past_due"]);
 const requiredFeatureKeys = ["desktop.app", "offline.access"] as const;
+const PRO_OFFLINE_GRACE_DAYS = 7;
+
+const addDaysIso = (value: string | null, days: number) => {
+  if (!value) return null;
+
+  const timestamp = new Date(value).getTime();
+  if (!Number.isFinite(timestamp)) return null;
+
+  return new Date(timestamp + days * 24 * 60 * 60 * 1000).toISOString();
+};
 
 const getSubscriptionEndAt = (subscription: StoreSubscriptionRow | null | undefined) => {
   if (!subscription) return null;
@@ -69,7 +88,7 @@ export const validateDesktopLicense = async (
 
   const { data: subscriptions, error: subscriptionsError } = await serviceClient
     .from("store_subscriptions")
-    .select("plan_id, status, current_period_ends_at, trial_ends_at, created_at")
+    .select("id, owner_user_id, plan_id, status, current_period_ends_at, trial_ends_at, created_at")
     .eq("owner_user_id", ownerUserId)
     .order("created_at", { ascending: false });
 
@@ -78,11 +97,16 @@ export const validateDesktopLicense = async (
       ok: false,
       code: "SUBSCRIPTION_LOOKUP_FAILED",
       message: "Nao foi possivel validar sua licenca desktop agora.",
+      subscriptionId: null,
+      ownerUserId,
       planId: null,
       status: null,
       validUntil: null,
+      offlineGraceUntil: null,
+      offlineGraceDays: PRO_OFFLINE_GRACE_DAYS,
       features: [],
       offlineEnabled: false,
+      licenseKey: null,
     };
   }
 
@@ -95,11 +119,16 @@ export const validateDesktopLicense = async (
       ok: false,
       code: "PRO_REQUIRED",
       message: "O aplicativo desktop esta disponivel apenas para contas com plano PRO ativo.",
+      subscriptionId: currentSubscription?.id ?? null,
+      ownerUserId,
       planId: currentSubscription?.plan_id ?? null,
       status: currentSubscription?.status ?? null,
       validUntil,
+      offlineGraceUntil: addDaysIso(validUntil, PRO_OFFLINE_GRACE_DAYS),
+      offlineGraceDays: PRO_OFFLINE_GRACE_DAYS,
       features: [],
       offlineEnabled: false,
+      licenseKey: null,
     };
   }
 
@@ -115,11 +144,16 @@ export const validateDesktopLicense = async (
       ok: false,
       code: "FEATURE_LOOKUP_FAILED",
       message: "Nao foi possivel validar os recursos do plano desktop agora.",
+      subscriptionId: currentSubscription.id,
+      ownerUserId,
       planId: currentSubscription.plan_id,
       status: currentSubscription.status,
       validUntil,
+      offlineGraceUntil: addDaysIso(validUntil, PRO_OFFLINE_GRACE_DAYS),
+      offlineGraceDays: PRO_OFFLINE_GRACE_DAYS,
       features: [],
       offlineEnabled: false,
+      licenseKey: null,
     };
   }
 
@@ -132,20 +166,32 @@ export const validateDesktopLicense = async (
       ok: false,
       code: "DESKTOP_NOT_INCLUDED",
       message: "Seu plano atual nao inclui acesso ao aplicativo desktop.",
+      subscriptionId: currentSubscription.id,
+      ownerUserId,
       planId: currentSubscription.plan_id,
       status: currentSubscription.status,
       validUntil,
+      offlineGraceUntil: addDaysIso(validUntil, PRO_OFFLINE_GRACE_DAYS),
+      offlineGraceDays: PRO_OFFLINE_GRACE_DAYS,
       features: [...features],
       offlineEnabled: features.has("offline.access"),
+      licenseKey: null,
     };
   }
 
+  const licenseKey = await upsertDesktopLicenseKey(serviceClient, currentSubscription);
+
   return {
     ok: true,
+    subscriptionId: currentSubscription.id,
+    ownerUserId,
     planId: currentSubscription.plan_id,
     status: currentSubscription.status,
     validUntil,
+    offlineGraceUntil: addDaysIso(validUntil, PRO_OFFLINE_GRACE_DAYS),
+    offlineGraceDays: PRO_OFFLINE_GRACE_DAYS,
     features: [...features],
     offlineEnabled: features.has("offline.access"),
+    licenseKey: licenseKey.licenseKey,
   };
 };

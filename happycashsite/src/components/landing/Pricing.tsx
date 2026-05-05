@@ -3,7 +3,7 @@ import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Check, Star, Zap, Monitor, Smartphone, Download } from "lucide-react";
+import { Check, Star, Zap, Monitor, Smartphone, Download, Printer, ShieldCheck } from "lucide-react";
 import { useAuthSession } from "@/hooks/use-auth-session";
 import { useLandingAccountActions } from "@/hooks/use-landing-account-actions";
 
@@ -26,8 +26,9 @@ const plans = [
   },
   {
     id: "fiado",
-    name: "Caderneta Fiado Digital",
+    name: "Plano Básico",
     price: "100",
+    annualPrice: "997",
     description: "Ideal para quem vive de fiado e precisa de controle simples por 30 dias",
     popular: false,
     features: [
@@ -37,6 +38,7 @@ const plans = [
       "Produtos",
       "Excluídos",
       "Fiado e cobranças",
+      "Sem impressora térmica no plano",
       "Pagamento da assinatura via Pix ou débito / crédito",
     ],
   },
@@ -45,11 +47,12 @@ const plans = [
     name: "Plano Completo",
     subtitle: "PDV + Fiado",
     price: "230",
+    annualPrice: "2.097",
     description: "Gestão completa do seu negócio com ciclo de 30 dias",
     popular: true,
     features: [
       "Plano com validade de 30 dias",
-      "Tudo do Plano Fiado",
+      "Tudo do Plano Básico",
       "Frente de Caixa (PDV)",
       "Controle de estoque",
       "Cadastro de produtos",
@@ -58,6 +61,8 @@ const plans = [
       "Relatórios e financeiro",
       "Configurações da loja",
       "Notas e fiscal",
+      "Compatível com impressoras térmicas instaladas no computador",
+      "Maquininha apenas no plano anual",
       "Pagamento da assinatura via Pix ou débito / crédito",
     ],
   },
@@ -66,7 +71,8 @@ const plans = [
     name: "Plano PRO",
     subtitle: "Completo + App",
     price: "347",
-    description: "Mais valor para operação intensa em ciclos de 30 dias",
+    annualPrice: "2.997",
+    description: "PRO Offline com desktop, mobile e sincronização para operação intensa",
     popular: false,
     features: [
       "Plano com validade de 30 dias",
@@ -74,8 +80,11 @@ const plans = [
       "Módulo de precificação inteligente",
       "Aplicativo desktop",
       "App mobile",
-      "Fluxo preparado para offline",
-      "Impressão Bematech",
+      "PRO Offline com ativação inicial online",
+      "Uso offline com tolerância de até 7 dias",
+      "Sincronização com a nuvem quando houver internet",
+      "Compatível com impressoras térmicas instaladas no computador",
+      "Maquininha apenas no plano anual",
       "Pagamento da assinatura via Pix ou débito / crédito",
     ],
   },
@@ -117,11 +126,10 @@ const Pricing = () => {
             <span className="text-primary">seu negócio</span>
           </h2>
           <p className="text-muted-foreground max-w-xl mx-auto text-lg">
-            Teste grátis por 12 horas e depois escolha o plano que mais combina com sua operação. Fiado, PDV, estoque e relatórios em um só lugar.
+            Teste grátis por 12 horas e depois escolha o plano que mais combina com sua operação. Fiado, PDV, estoque, relatórios e PRO Offline em um só lugar.
           </p>
         </div>
 
-        {/* Platform badges */}
         <div className="flex flex-wrap justify-center gap-4 mb-12">
           <div className="flex items-center gap-2 rounded-full border border-border bg-card/50 px-4 py-2 text-sm text-muted-foreground">
             <Smartphone size={16} className="text-primary" /> Mobile (Web)
@@ -131,6 +139,12 @@ const Pricing = () => {
           </div>
           <div className="flex items-center gap-2 rounded-full border border-border bg-card/50 px-4 py-2 text-sm text-muted-foreground">
             <Download size={16} className="text-primary" /> Linux & Windows
+          </div>
+          <div className="flex items-center gap-2 rounded-full border border-border bg-card/50 px-4 py-2 text-sm text-muted-foreground">
+            <Printer size={16} className="text-primary" /> Impressora no Completo e PRO
+          </div>
+          <div className="flex items-center gap-2 rounded-full border border-border bg-card/50 px-4 py-2 text-sm text-muted-foreground">
+            <ShieldCheck size={16} className="text-primary" /> PRO Offline
           </div>
         </div>
 
@@ -173,6 +187,11 @@ const Pricing = () => {
                     <span className="text-muted-foreground">/30 dias</span>
                   </>
                 )}
+                {plan.annualPrice && (
+                  <p className="mt-2 text-sm font-medium text-muted-foreground">
+                    Anual: R$ {plan.annualPrice}
+                  </p>
+                )}
               </div>
 
               <ul className="space-y-3 mb-8">
@@ -205,7 +224,7 @@ const Pricing = () => {
                       )}
                     </Button>
                     <Button asChild variant="outline" className="w-full font-semibold h-12 text-base" size="lg">
-                      <a href={`https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(`Olá! Tenho interesse no ${plan.name} - R$${plan.price} a cada 30 dias no HappyCash`)}`}
+                      <a href={`https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(`Olá! Tenho interesse no ${plan.name} - R$${plan.price} a cada 30 dias ou anual R$ ${plan.annualPrice || "0"} no HappyCash`)}`}
                         target="_blank" rel="noopener noreferrer">
                         Falar no WhatsApp
                       </a>
@@ -216,6 +235,12 @@ const Pricing = () => {
             </div>
           ))}
         </div>
+        <p className="mt-8 text-center text-sm text-muted-foreground">
+          Impressora térmica compatível apenas nos planos Completo e PRO. A impressora precisa estar instalada no computador e não está inclusa no plano.
+        </p>
+        <p className="mt-2 text-center text-sm text-muted-foreground">
+          Maquininha disponível somente nos planos anuais Completo e PRO, conforme disponibilidade comercial.
+        </p>
       </div>
     </section>
   );

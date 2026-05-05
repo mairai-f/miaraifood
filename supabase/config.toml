@@ -21,6 +21,9 @@ verify_jwt = false
 [functions.desktop-license]
 verify_jwt = false
 
+[functions.desktop-license-key]
+verify_jwt = false
+
 [functions.finalize-site-registration]
 verify_jwt = false
 

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { Download, HardDriveDownload, Loader2, ShieldCheck } from "lucide-react";
+import { Copy, Download, HardDriveDownload, Loader2, ShieldCheck } from "lucide-react";
 
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -18,6 +18,7 @@ type DesktopDownloadResponse = {
   publishedAt?: string | null;
   offlineEnabled?: boolean;
   validUntil?: string | null;
+  licenseKey?: string | null;
   error?: string;
   code?: string;
   requiredEnv?: string[];
@@ -193,23 +194,73 @@ const DownloadRedirect = () => {
                     {downloadMeta.publishedAt && <p>Publicado em: <span className="font-medium text-foreground">{new Date(downloadMeta.publishedAt).toLocaleString("pt-BR")}</span></p>}
                   </div>
                 )}
-                <Button
-                  className="mt-4"
-                  onClick={() => {
-                    if (downloadUrl && downloadMeta?.assetName) {
-                      const link = document.createElement('a');
-                      link.href = downloadUrl;
-                      link.download = downloadMeta.assetName;
-                      link.style.display = 'none';
-                      document.body.appendChild(link);
-                      link.click();
-                      document.body.removeChild(link);
-                    }
-                  }}
-                >
-                  <Download className="mr-2 h-4 w-4" />
-                  Baixar agora
-                </Button>
+                {downloadMeta?.licenseKey && (
+                  <div className="mt-4 rounded-xl border border-border/70 bg-background/80 p-4">
+                    <p className="text-sm font-semibold text-foreground">Chave de licenca incluída no download</p>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      Use esta chave na primeira ativacao do executavel.
+                    </p>
+                    <div className="mt-3 flex flex-col gap-3 sm:flex-row">
+                      <div className="min-w-0 flex-1 rounded-lg border border-border bg-muted/20 px-3 py-2 font-mono text-sm text-foreground">
+                        {downloadMeta.licenseKey}
+                      </div>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => void navigator.clipboard.writeText(downloadMeta.licenseKey || "")}
+                      >
+                        <Copy className="mr-2 h-4 w-4" />
+                        Copiar
+                      </Button>
+                    </div>
+                  </div>
+                )}
+                <div className="mt-4 flex flex-wrap gap-3">
+                  <Button
+                    onClick={() => {
+                      if (downloadUrl && downloadMeta?.assetName) {
+                        const link = document.createElement('a');
+                        link.href = downloadUrl;
+                        link.download = downloadMeta.assetName;
+                        link.style.display = 'none';
+                        document.body.appendChild(link);
+                        link.click();
+                        document.body.removeChild(link);
+                      }
+                    }}
+                  >
+                    <Download className="mr-2 h-4 w-4" />
+                    Baixar instalador
+                  </Button>
+                  {downloadMeta?.licenseKey && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => {
+                        const content = [
+                          "HappyCash PRO Offline",
+                          "",
+                          `Chave de licenca: ${downloadMeta.licenseKey}`,
+                          downloadMeta.validUntil ? `Valida ate: ${new Date(downloadMeta.validUntil).toLocaleString("pt-BR")}` : "",
+                          "",
+                          "Use esta chave na primeira ativacao do executavel.",
+                        ].filter(Boolean).join("\n");
+                        const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
+                        const url = URL.createObjectURL(blob);
+                        const link = document.createElement("a");
+                        link.href = url;
+                        link.download = "HappyCash-chave-licenca.txt";
+                        link.style.display = "none";
+                        document.body.appendChild(link);
+                        link.click();
+                        document.body.removeChild(link);
+                        URL.revokeObjectURL(url);
+                      }}
+                    >
+                      Baixar chave .txt
+                    </Button>
+                  )}
+                </div>
               </div>
             )}
 

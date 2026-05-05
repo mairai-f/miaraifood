@@ -2,6 +2,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 
 import type { AsaasWebhookPayload } from "../_shared/asaas.ts";
 import { buildCorsHeaders, handleCorsPreflight } from "../_shared/cors.ts";
+import { upsertDesktopLicenseKey } from "../_shared/desktopLicenseKey.ts";
 
 interface StoreSubscriptionRow {
   id: string;
@@ -141,6 +142,16 @@ const activateSubscriptionFromPayment = async (
       metadata: nextMetadata,
     })
     .eq("id", subscription.id);
+
+  if (subscription.plan_id === "pro") {
+    await upsertDesktopLicenseKey(serviceClient, {
+      id: subscription.id,
+      owner_user_id: subscription.owner_user_id,
+      plan_id: subscription.plan_id,
+      status: "active",
+      current_period_ends_at: endAt.toISOString(),
+    });
+  }
 };
 
 Deno.serve(async (request) => {

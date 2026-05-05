@@ -11,6 +11,9 @@ interface DesktopLicenseResponse {
   planId?: string | null;
   status?: string | null;
   validUntil?: string | null;
+  offlineGraceUntil?: string | null;
+  offlineGraceDays?: number;
+  licenseKey?: string | null;
   features?: string[];
   offlineEnabled?: boolean;
 }
@@ -21,6 +24,9 @@ interface DesktopRuntimeContextValue {
   licensed: boolean;
   offlineEnabled: boolean;
   validUntil: string | null;
+  offlineGraceUntil: string | null;
+  offlineGraceDays: number;
+  licenseKey: string | null;
   planId: string | null;
   error: string | null;
   code: string | null;
@@ -30,6 +36,16 @@ interface DesktopRuntimeContextValue {
 const DesktopRuntimeContext = createContext<DesktopRuntimeContextValue | null>(null);
 const isDesktopRuntime = typeof window !== 'undefined' && Boolean(window.electronAPI);
 const licenseCacheKey = (userId: string) => `happycash:desktop:license:${userId}`;
+const DEFAULT_OFFLINE_GRACE_DAYS = 7;
+
+const addDaysIso = (value: string | null, days: number) => {
+  if (!value) return null;
+
+  const timestamp = new Date(value).getTime();
+  if (!Number.isFinite(timestamp)) return null;
+
+  return new Date(timestamp + days * 24 * 60 * 60 * 1000).toISOString();
+};
 
 const readCachedLicense = (userId: string) => {
   if (typeof window === 'undefined') return null;
@@ -40,6 +56,9 @@ const readCachedLicense = (userId: string) => {
     return JSON.parse(stored) as {
       planId: string | null;
       validUntil: string | null;
+      offlineGraceUntil?: string | null;
+      offlineGraceDays?: number;
+      licenseKey?: string | null;
       offlineEnabled: boolean;
     };
   } catch {
@@ -52,6 +71,9 @@ const writeCachedLicense = (
   payload: {
     planId: string | null;
     validUntil: string | null;
+    offlineGraceUntil: string | null;
+    offlineGraceDays: number;
+    licenseKey: string | null;
     offlineEnabled: boolean;
   },
 ) => {
@@ -70,6 +92,9 @@ export function DesktopRuntimeProvider({ children }: { children: ReactNode }) {
   const [licensed, setLicensed] = useState(!isDesktopRuntime);
   const [offlineEnabled, setOfflineEnabled] = useState(false);
   const [validUntil, setValidUntil] = useState<string | null>(null);
+  const [offlineGraceUntil, setOfflineGraceUntil] = useState<string | null>(null);
+  const [offlineGraceDays, setOfflineGraceDays] = useState(DEFAULT_OFFLINE_GRACE_DAYS);
+  const [licenseKey, setLicenseKey] = useState<string | null>(null);
   const [planId, setPlanId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [code, setCode] = useState<string | null>(null);
@@ -79,6 +104,9 @@ export function DesktopRuntimeProvider({ children }: { children: ReactNode }) {
     setLicensed(!isDesktopRuntime);
     setOfflineEnabled(false);
     setValidUntil(null);
+    setOfflineGraceUntil(null);
+    setOfflineGraceDays(DEFAULT_OFFLINE_GRACE_DAYS);
+    setLicenseKey(null);
     setPlanId(null);
     setError(null);
     setCode(null);
@@ -111,8 +139,10 @@ export function DesktopRuntimeProvider({ children }: { children: ReactNode }) {
 
     if (invokeError || !data?.licensed) {
       const cachedLicense = readCachedLicense(user.id);
+      const cachedGraceUntil = cachedLicense?.offlineGraceUntil
+        ?? addDaysIso(cachedLicense?.validUntil ?? null, cachedLicense?.offlineGraceDays ?? DEFAULT_OFFLINE_GRACE_DAYS);
       const cachedLicenseStillValid = cachedLicense && (
-        !cachedLicense.validUntil || new Date(cachedLicense.validUntil).getTime() > Date.now()
+        !cachedGraceUntil || new Date(cachedGraceUntil).getTime() > Date.now()
       );
       const canUseCachedLicense = Boolean(cachedLicenseStillValid) && (
         (typeof navigator !== 'undefined' && navigator.onLine === false)
@@ -123,6 +153,9 @@ export function DesktopRuntimeProvider({ children }: { children: ReactNode }) {
         setLicensed(true);
         setOfflineEnabled(Boolean(cachedLicense.offlineEnabled));
         setValidUntil(cachedLicense.validUntil ?? null);
+        setOfflineGraceUntil(cachedGraceUntil ?? null);
+        setOfflineGraceDays(cachedLicense.offlineGraceDays ?? DEFAULT_OFFLINE_GRACE_DAYS);
+        setLicenseKey(cachedLicense.licenseKey ?? null);
         setPlanId(cachedLicense.planId ?? null);
         setError(null);
         setCode('OFFLINE_LICENSE_CACHE');
@@ -140,6 +173,9 @@ export function DesktopRuntimeProvider({ children }: { children: ReactNode }) {
           nextCode = errorPayload.code || nextCode;
           setPlanId(errorPayload.planId ?? null);
           setValidUntil(errorPayload.validUntil ?? null);
+          setOfflineGraceUntil(errorPayload.offlineGraceUntil ?? addDaysIso(errorPayload.validUntil ?? null, errorPayload.offlineGraceDays ?? DEFAULT_OFFLINE_GRACE_DAYS));
+          setOfflineGraceDays(errorPayload.offlineGraceDays ?? DEFAULT_OFFLINE_GRACE_DAYS);
+          setLicenseKey(errorPayload.licenseKey ?? null);
           setOfflineEnabled(Boolean(errorPayload.offlineEnabled));
         } catch {
           message = invokeError.context.status === 401
@@ -149,6 +185,9 @@ export function DesktopRuntimeProvider({ children }: { children: ReactNode }) {
       } else {
         setPlanId(data?.planId ?? null);
         setValidUntil(data?.validUntil ?? null);
+        setOfflineGraceUntil(data?.offlineGraceUntil ?? addDaysIso(data?.validUntil ?? null, data?.offlineGraceDays ?? DEFAULT_OFFLINE_GRACE_DAYS));
+        setOfflineGraceDays(data?.offlineGraceDays ?? DEFAULT_OFFLINE_GRACE_DAYS);
+        setLicenseKey(data?.licenseKey ?? null);
         setOfflineEnabled(Boolean(data?.offlineEnabled));
       }
 
@@ -162,6 +201,9 @@ export function DesktopRuntimeProvider({ children }: { children: ReactNode }) {
     setLicensed(true);
     setOfflineEnabled(Boolean(data.offlineEnabled));
     setValidUntil(data.validUntil ?? null);
+    setOfflineGraceUntil(data.offlineGraceUntil ?? addDaysIso(data.validUntil ?? null, data.offlineGraceDays ?? DEFAULT_OFFLINE_GRACE_DAYS));
+    setOfflineGraceDays(data.offlineGraceDays ?? DEFAULT_OFFLINE_GRACE_DAYS);
+    setLicenseKey(data.licenseKey ?? null);
     setPlanId(data.planId ?? null);
     setError(null);
     setCode(null);
@@ -169,6 +211,9 @@ export function DesktopRuntimeProvider({ children }: { children: ReactNode }) {
     writeCachedLicense(user.id, {
       planId: data.planId ?? null,
       validUntil: data.validUntil ?? null,
+      offlineGraceUntil: data.offlineGraceUntil ?? addDaysIso(data.validUntil ?? null, data.offlineGraceDays ?? DEFAULT_OFFLINE_GRACE_DAYS),
+      offlineGraceDays: data.offlineGraceDays ?? DEFAULT_OFFLINE_GRACE_DAYS,
+      licenseKey: data.licenseKey ?? null,
       offlineEnabled: Boolean(data.offlineEnabled),
     });
   }, [authLoading, resetState, session?.access_token, user]);
@@ -185,6 +230,9 @@ export function DesktopRuntimeProvider({ children }: { children: ReactNode }) {
         licensed,
         offlineEnabled,
         validUntil,
+        offlineGraceUntil,
+        offlineGraceDays,
+        licenseKey,
         planId,
         error,
         code,

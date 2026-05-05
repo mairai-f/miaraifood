@@ -18,6 +18,11 @@ interface Window {
       openUpdateDownload: () => Promise<unknown>;
       onUpdateStatus: (callback: (status: unknown) => void) => () => void;
     };
+    activation?: {
+      getStatus: () => Promise<unknown>;
+      activate: (payload: unknown) => Promise<unknown>;
+      clear: () => Promise<unknown>;
+    };
     offline?: {
       replaceSnapshot: (payload: unknown) => Promise<unknown>;
       getSnapshot: (payload: unknown) => Promise<unknown>;

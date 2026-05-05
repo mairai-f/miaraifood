@@ -159,6 +159,17 @@ type DeleteAccountResponse = {
   error?: string;
 };
 
+type DesktopLicenseKeyResponse = {
+  success?: boolean;
+  licenseKey?: string;
+  keyPrefix?: string;
+  keySuffix?: string;
+  validUntil?: string | null;
+  offlineGraceUntil?: string | null;
+  offlineGraceDays?: number;
+  error?: string;
+};
+
 const SITE_SESSION_EXPIRED_MESSAGE = "Sua sessao expirou. Entre novamente para continuar.";
 const DELETE_ACCOUNT_CONFIRM_TEXT = "APAGAR";
 const SYSTEM_APP_URL = "https://app.happycashsite.com.br/";
@@ -216,6 +227,9 @@ const Dashboard = () => {
   const [deleteAccountConfirmation, setDeleteAccountConfirmation] = useState("");
   const [deleteAccountError, setDeleteAccountError] = useState("");
   const [deletingAccount, setDeletingAccount] = useState(false);
+  const [desktopLicenseKey, setDesktopLicenseKey] = useState<string | null>(null);
+  const [desktopLicenseKeyLoading, setDesktopLicenseKeyLoading] = useState(false);
+  const [desktopLicenseKeyError, setDesktopLicenseKeyError] = useState<string | null>(null);
   const navigate = useNavigate();
   const { toast } = useToast();
   const isMobile = useIsMobile();
@@ -438,6 +452,68 @@ const Dashboard = () => {
   const pendingPaymentMethod = pendingSubscription
     ? resolveSubscriptionPaymentMethod(pendingSubscription.billing_type)
     : null;
+
+  useEffect(() => {
+    if (!isCurrentProPlan) {
+      setDesktopLicenseKey(null);
+      setDesktopLicenseKeyError(null);
+      setDesktopLicenseKeyLoading(false);
+      return;
+    }
+
+    let active = true;
+
+    const loadDesktopLicenseKey = async () => {
+      setDesktopLicenseKeyLoading(true);
+      setDesktopLicenseKeyError(null);
+
+      const session = await getFreshSiteSession();
+
+      if (!active) return;
+
+      if (!session?.access_token) {
+        setDesktopLicenseKeyLoading(false);
+        setDesktopLicenseKeyError("Entre novamente para ver a chave de licenca.");
+        return;
+      }
+
+      const { data, error } = await supabase.functions.invoke<DesktopLicenseKeyResponse>("desktop-license-key", {
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: {},
+      });
+
+      if (!active) return;
+
+      if (error || !data?.success || !data.licenseKey) {
+        let message = data?.error || "Nao foi possivel liberar a chave de licenca agora.";
+
+        if (error instanceof FunctionsHttpError) {
+          try {
+            const errorPayload = await error.context.clone().json() as DesktopLicenseKeyResponse;
+            message = errorPayload.error || message;
+          } catch {
+            message = error.context.status === 401 ? SITE_SESSION_EXPIRED_MESSAGE : message;
+          }
+        }
+
+        setDesktopLicenseKey(null);
+        setDesktopLicenseKeyError(message);
+        setDesktopLicenseKeyLoading(false);
+        return;
+      }
+
+      setDesktopLicenseKey(data.licenseKey);
+      setDesktopLicenseKeyLoading(false);
+    };
+
+    void loadDesktopLicenseKey();
+
+    return () => {
+      active = false;
+    };
+  }, [isCurrentProPlan]);
 
   const sortedPlans = publicPlanList.map((fallbackPlan) => {
     const dbPlan = plans.find((plan) => plan.id === fallbackPlan.id);
@@ -1047,6 +1123,46 @@ const Dashboard = () => {
 
                 {isCurrentProPlan ? (
                   <div className="mt-4 grid gap-3">
+                    <div className="rounded-2xl border border-primary/20 bg-primary/5 p-4">
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div>
+                          <p className="text-sm font-semibold">Chave de licenca PRO Offline</p>
+                          <p className="mt-1 text-sm text-muted-foreground">
+                            Liberada apos confirmacao do pagamento PRO. Use esta chave na ativacao inicial do desktop.
+                          </p>
+                        </div>
+                        <Badge variant="default">Ativa</Badge>
+                      </div>
+
+                      <div className="mt-4 flex flex-col gap-3 sm:flex-row">
+                        <Input
+                          readOnly
+                          value={desktopLicenseKeyLoading ? "Gerando chave..." : desktopLicenseKey || desktopLicenseKeyError || ""}
+                          className="font-mono"
+                        />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          disabled={!desktopLicenseKey}
+                          onClick={async () => {
+                            if (!desktopLicenseKey) return;
+                            await navigator.clipboard.writeText(desktopLicenseKey);
+                            toast({
+                              title: "Chave copiada",
+                              description: "Cole esta chave na primeira ativacao do executavel.",
+                            });
+                          }}
+                        >
+                          <Copy className="mr-2 h-4 w-4" />
+                          Copiar
+                        </Button>
+                      </div>
+
+                      {desktopLicenseKeyError && (
+                        <p className="mt-2 text-sm text-destructive">{desktopLicenseKeyError}</p>
+                      )}
+                    </div>
+
                     <Button asChild className="h-11 font-semibold">
                       <Link to={downloads.windows.route}>
                         <Download className="mr-2 h-4 w-4" />

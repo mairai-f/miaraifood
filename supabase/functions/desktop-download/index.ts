@@ -110,6 +110,9 @@ Deno.serve(async (request) => {
         code: license.code,
         planId: license.planId,
         validUntil: license.validUntil,
+        offlineGraceUntil: license.offlineGraceUntil,
+        offlineGraceDays: license.offlineGraceDays,
+        licenseKey: license.licenseKey,
         offlineEnabled: license.offlineEnabled,
       },
       403,
@@ -130,6 +133,9 @@ Deno.serve(async (request) => {
         size: release.size,
         offlineEnabled: license.offlineEnabled,
         validUntil: license.validUntil,
+        offlineGraceUntil: license.offlineGraceUntil,
+        offlineGraceDays: license.offlineGraceDays,
+        licenseKey: license.licenseKey,
       });
     } catch (error) {
       console.error("GitHub desktop release lookup failed:", error);
@@ -178,5 +184,8 @@ Deno.serve(async (request) => {
     expiresIn,
     offlineEnabled: license.offlineEnabled,
     validUntil: license.validUntil,
+    offlineGraceUntil: license.offlineGraceUntil,
+    offlineGraceDays: license.offlineGraceDays,
+    licenseKey: license.licenseKey,
   });
 });
