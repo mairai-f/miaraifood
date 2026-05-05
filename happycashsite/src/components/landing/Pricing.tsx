@@ -61,8 +61,7 @@ const plans = [
       "Relatórios e financeiro",
       "Configurações da loja",
       "Notas e fiscal",
-      "Compatível com impressoras térmicas instaladas no computador",
-      "Maquininha apenas no plano anual",
+      "No anual: compatível com impressoras térmicas instaladas no computador",
       "Pagamento da assinatura via Pix ou débito / crédito",
     ],
   },
@@ -83,8 +82,7 @@ const plans = [
       "PRO Offline com ativação inicial online",
       "Uso offline com tolerância de até 7 dias",
       "Sincronização com a nuvem quando houver internet",
-      "Compatível com impressoras térmicas instaladas no computador",
-      "Maquininha apenas no plano anual",
+      "No anual: compatível com impressoras térmicas instaladas no computador",
       "Pagamento da assinatura via Pix ou débito / crédito",
     ],
   },
@@ -236,10 +234,10 @@ const Pricing = () => {
           ))}
         </div>
         <p className="mt-8 text-center text-sm text-muted-foreground">
-          Impressora térmica compatível apenas nos planos Completo e PRO. A impressora precisa estar instalada no computador e não está inclusa no plano.
+          Impressora térmica compatível apenas nos planos anuais Completo e PRO. A impressora precisa estar instalada no computador e não está inclusa no plano.
         </p>
         <p className="mt-2 text-center text-sm text-muted-foreground">
-          Maquininha disponível somente nos planos anuais Completo e PRO, conforme disponibilidade comercial.
+          No ciclo anual, a condição comercial de impressora é exclusiva dos planos Completo e PRO.
         </p>
       </div>
     </section>

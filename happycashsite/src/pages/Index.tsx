@@ -61,7 +61,7 @@ const Index = () => {
     <div className="min-h-screen bg-background overflow-x-hidden">
       <SiteSeo
         title="HappyCash | Sistema PDV, fiado, estoque e PRO Offline"
-        description="Controle fiado, PDV, estoque e relatórios em tempo real. O HappyCash tem planos mensal e anual, desktop PRO Offline, impressora térmica nos planos Completo e PRO e maquininha nos anuais Completo e PRO."
+        description="Controle fiado, PDV, estoque e relatórios em tempo real. O HappyCash tem planos mensal e anual, desktop PRO Offline e impressora térmica nos planos anuais Completo e PRO."
         path="/"
         image={heroScreenshot}
         keywords={[
@@ -72,7 +72,7 @@ const Index = () => {
           "pdv para mercadinho",
           "controle de estoque online",
           "sistema com impressora térmica",
-          "sistema com maquininha",
+          "sistema com impressora",
           "happycash pro offline",
           "cobrança por whatsapp",
           "sistema para varejo",

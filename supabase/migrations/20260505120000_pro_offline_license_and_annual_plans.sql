@@ -20,8 +20,8 @@ SET
   description = CASE
     WHEN id = 'demo' THEN 'Acesso inicial liberado por 12 horas.'
     WHEN id = 'fiado' THEN 'Plano Basico para fiado, clientes e produtos por 30 dias.'
-    WHEN id = 'completo' THEN 'Gestao completa com PDV, estoque, fiscal e impressora termica instalada no computador por 30 dias.'
-    WHEN id = 'pro' THEN 'Completo + desktop PRO Offline, mobile, sincronizacao e impressora termica instalada no computador por 30 dias.'
+    WHEN id = 'completo' THEN 'Gestao completa com PDV, estoque e fiscal por 30 dias.'
+    WHEN id = 'pro' THEN 'Completo + desktop PRO Offline, mobile e sincronizacao por 30 dias.'
     ELSE description
   END
 WHERE id IN ('demo', 'fiado', 'completo', 'pro');
@@ -30,26 +30,21 @@ UPDATE public.subscription_plans
 SET name = 'Plano Basico'
 WHERE id = 'fiado';
 
--- # Feature `thermal.printer`
--- # Completo e PRO podem divulgar/configurar impressora termica instalada no computador.
--- # Fiado/Basico e Demo nao recebem esta feature para evitar promessa comercial indevida.
+-- # Feature `thermal.printer.annual`
+-- # Apenas os anuais Completo e PRO podem divulgar/configurar impressora termica instalada no computador.
+-- # Fiado/Basico, Demo e planos mensais nao recebem esta feature para evitar promessa comercial indevida.
 DELETE FROM public.subscription_plan_features
-WHERE feature_key IN ('thermal.printer', 'bematech.print', 'card.terminal.annual')
-  AND plan_id NOT IN ('completo', 'pro');
+WHERE feature_key IN ('thermal.printer', 'bematech.print', 'thermal.printer.annual', 'card.terminal.annual');
 
 INSERT INTO public.subscription_plan_features (plan_id, feature_key, enabled)
 VALUES
-  ('completo', 'thermal.printer', true),
-  ('completo', 'bematech.print', true),
-  ('completo', 'card.terminal.annual', true),
-  ('pro', 'thermal.printer', true),
-  ('pro', 'bematech.print', true),
-  ('pro', 'card.terminal.annual', true)
+  ('completo', 'thermal.printer.annual', true),
+  ('pro', 'thermal.printer.annual', true)
 ON CONFLICT (plan_id, feature_key) DO UPDATE
 SET enabled = EXCLUDED.enabled;
 
 COMMENT ON TABLE public.subscription_plan_features IS
-  '# Liga recursos comerciais aos planos. Exemplo: desktop.app e offline.access liberam o PRO Offline; thermal.printer libera impressora nos planos Completo e PRO; card.terminal.annual marca maquininha somente nos anuais Completo e PRO.';
+  '# Liga recursos comerciais aos planos. Exemplo: desktop.app e offline.access liberam o PRO Offline; thermal.printer.annual marca impressora somente nos anuais Completo e PRO.';
 
 COMMENT ON COLUMN public.subscription_plan_features.feature_key IS
   '# Nome tecnico do recurso controlado por plano, usado pelo app, site e Edge Functions.';

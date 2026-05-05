@@ -7,8 +7,7 @@ Implementar a primeira base do PRO Offline e atualizar a comunicacao da landing 
 - Plano Basico: R$ 100 / 30 dias e R$ 997 / ano.
 - Plano Completo: R$ 230 / 30 dias e R$ 2.097 / ano.
 - Plano PRO: R$ 347 / 30 dias e R$ 2.997 / ano.
-- Impressora termica apenas nos planos Completo e PRO.
-- Maquininha apenas nos planos anuais Completo e PRO.
+- Impressora termica apenas nos planos anuais Completo e PRO.
 - PRO Offline apenas no plano PRO.
 - Sem desconto antecipado nesta fase.
 
@@ -77,7 +76,12 @@ Mensagem esperada quando expirar:
 - `supabase/migrations/20260505120000_pro_offline_license_and_annual_plans.sql`
   - Adiciona `annual_price`.
   - Documenta as tabelas/colunas com `COMMENT`.
-  - Adiciona `thermal.printer` somente para Completo e PRO.
+  - Adiciona `thermal.printer.annual` somente para Completo anual e PRO anual.
+
+- `supabase/migrations/20260505124500_correct_annual_printer_feature.sql`
+  - Remove recursos antigos/genericos de impressora.
+  - Mantem apenas `thermal.printer.annual` para Completo anual e PRO anual.
+  - Corrige a regra comercial no banco depois da mudanca de escopo.
 
 - `supabase/migrations/20260505123000_create_desktop_license_keys.sql`
   - Cria `desktop_license_keys`.
@@ -106,26 +110,28 @@ Texto comercial correto:
 Regra:
 
 - Basico: nao inclui impressora.
-- Completo: inclui compatibilidade com impressora.
-- PRO: inclui compatibilidade com impressora.
+- Completo mensal: nao inclui impressora.
+- PRO mensal: nao inclui impressora.
+- Completo anual: pode incluir impressora, conforme disponibilidade comercial.
+- PRO anual: pode incluir impressora, conforme disponibilidade comercial.
 
-## Maquininha
+## Impressora anual
 
 Regra comercial:
 
-- Basico mensal/anual: nao inclui maquininha.
-- Completo mensal: nao inclui maquininha.
-- PRO mensal: nao inclui maquininha.
-- Completo anual: pode incluir maquininha, conforme disponibilidade comercial.
-- PRO anual: pode incluir maquininha, conforme disponibilidade comercial.
+- Basico mensal/anual: nao inclui impressora.
+- Completo mensal: nao inclui impressora.
+- PRO mensal: nao inclui impressora.
+- Completo anual: pode incluir impressora, conforme disponibilidade comercial.
+- PRO anual: pode incluir impressora, conforme disponibilidade comercial.
 
 Feature tecnica documentada:
 
-- `card.terminal.annual`: marca a regra de maquininha apenas para anuais Completo e PRO.
+- `thermal.printer.annual`: marca a regra de impressora apenas para anuais Completo e PRO.
 
 ## Importante sobre PIN
 
-Quando a tela de criacao de usuario/PIN local for implementada, nunca salvar PIN puro.
+Na ativacao do desktop, o usuario cria o administrador local e um PIN. Nunca salvar PIN puro.
 
 Fluxo correto:
 
@@ -135,4 +141,13 @@ gera hash
 compara com hash salvo
 ```
 
-O PIN local ainda nao foi implementado nesta primeira entrega.
+Implementacao atual:
+
+- `src/pages/DesktopActivation.tsx`
+  - Coleta e-mail, senha, chave de licenca, nome do administrador e PIN.
+  - Valida a licenca online uma vez antes de liberar o desktop.
+
+- `electron/main.cjs`
+  - Gera hash PBKDF2 do PIN.
+  - Salva `pin_hash`, `pin_salt` e metadados da ativacao no SQLite local.
+  - Guarda o payload da licenca local com criptografia via `safeStorage` quando disponivel.
