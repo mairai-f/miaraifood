@@ -317,6 +317,12 @@ Deno.serve(async (request) => {
           access_token: sessionData.session.access_token,
           refresh_token: sessionData.session.refresh_token,
         },
+        operator: {
+          userId: profile.user_id,
+          ownerUserId: profile.owner_user_id,
+          username: profile.username ?? normalizedUsername,
+          email: authEmail ?? profileEmail ?? operatorEmail,
+        },
       });
     }
   }

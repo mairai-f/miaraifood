@@ -6,7 +6,7 @@ import {
   operatorUsernameHelpText,
 } from '../_shared/operatorCredentials.ts';
 import { buildCorsHeaders, handleCorsPreflight } from '../_shared/cors.ts';
-import { getPasswordPolicyError } from '../_shared/passwordPolicy.ts';
+import { getOperatorCredentialError } from '../../../shared/security/operatorCredential.ts';
 
 type ManageOperatorRequest =
   | {
@@ -157,14 +157,14 @@ Deno.serve(async (request) => {
   if (body.action === 'create') {
     const normalizedUsername = normalizeOperatorUsername(body.username ?? '');
     const password = body.password?.trim();
-    const passwordError = getPasswordPolicyError(password || '');
+    const credentialError = getOperatorCredentialError(password || '');
 
     if (!isValidOperatorUsername(normalizedUsername)) {
       return jsonResponse(request, { error: operatorUsernameHelpText }, 400);
     }
 
-    if (!password || passwordError) {
-      return jsonResponse(request, { error: passwordError || 'Informe a senha do operador.' }, 400);
+    if (!password || credentialError) {
+      return jsonResponse(request, { error: credentialError || 'Informe a senha ou PIN do operador.' }, 400);
     }
 
     const { data: existingOperators, error: existingOperatorsError } = await serviceClient
@@ -235,14 +235,14 @@ Deno.serve(async (request) => {
   if (body.action === 'reset_password') {
     const operatorUserId = body.operatorUserId?.trim();
     const password = body.password?.trim();
-    const passwordError = getPasswordPolicyError(password || '');
+    const credentialError = getOperatorCredentialError(password || '');
 
     if (!operatorUserId) {
       return jsonResponse(request, { error: 'Operador inválido.' }, 400);
     }
 
-    if (!password || passwordError) {
-      return jsonResponse(request, { error: passwordError || 'Informe a nova senha.' }, 400);
+    if (!password || credentialError) {
+      return jsonResponse(request, { error: credentialError || 'Informe a nova senha ou PIN.' }, 400);
     }
 
     const { data: targetProfile, error: targetProfileError } = await serviceClient

@@ -95,7 +95,7 @@ const Hero = () => {
             </h1>
 
             <p className="hero-subtitle max-w-lg text-base leading-relaxed text-muted-foreground sm:text-lg md:text-xl">
-              Controle seus clientes no fiado em segundos, veja quem te deve em tempo real e acompanhe PDV, estoque e cobranças via WhatsApp em um só lugar. No plano PRO, cada máquina nova valida a chave da empresa antes do login do operador.
+              Controle seus clientes no fiado em segundos, veja quem te deve em tempo real e acompanhe PDV, estoque e cobranças via WhatsApp em um só lugar. No plano PRO, a máquina valida a chave da empresa no primeiro acesso, o operador entra uma vez com internet e depois pode seguir com usuário e PIN no offline por até 5 dias.
             </p>
 
             <div className="hero-buttons flex flex-col sm:flex-row gap-4">

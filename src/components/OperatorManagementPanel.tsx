@@ -25,7 +25,7 @@ import { toast } from 'sonner';
 import { Eye, KeyRound, Plus, Trash2, Users, Wallet } from 'lucide-react';
 import type { Expense, Sale } from '@/types';
 import { formatDateTime } from '../../shared/locale/format';
-import { getPasswordPolicyError, passwordPolicyHint } from '../../shared/security/passwordPolicy';
+import { getOperatorCredentialError, operatorCredentialHint } from '../../shared/security/operatorCredential';
 
 // Generated Supabase types are behind the current schema for these admin tables.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -286,13 +286,13 @@ export function OperatorManagementPanel({
     }
 
     if (!username.trim() || !password.trim()) {
-      toast.error('Preencha usuário e senha');
+      toast.error('Preencha usuário e senha ou PIN');
       return;
     }
 
-    const passwordError = getPasswordPolicyError(password.trim());
-    if (passwordError) {
-      toast.error(passwordError);
+    const credentialError = getOperatorCredentialError(password.trim());
+    if (credentialError) {
+      toast.error(credentialError);
       return;
     }
 
@@ -348,12 +348,12 @@ export function OperatorManagementPanel({
 
     if (!selectedOperator) return;
     if (!resetPassword.trim()) {
-      toast.error('Informe a nova senha');
+      toast.error('Informe a nova senha ou PIN');
       return;
     }
-    const passwordError = getPasswordPolicyError(resetPassword.trim());
-    if (passwordError) {
-      toast.error(passwordError);
+    const credentialError = getOperatorCredentialError(resetPassword.trim());
+    if (credentialError) {
+      toast.error(credentialError);
       return;
     }
 
@@ -610,16 +610,16 @@ export function OperatorManagementPanel({
             {latestCredential ? (
               <div className="space-y-2 rounded-lg border border-primary/20 bg-primary/5 p-4 text-sm">
                 <p><strong>Usuário:</strong> {latestCredential.username}</p>
-                <p><strong>Senha provisoria:</strong> {latestCredential.temporaryPassword}</p>
+                <p><strong>Senha ou PIN provisório:</strong> {latestCredential.temporaryPassword}</p>
               </div>
             ) : (
               <p className="text-sm text-muted-foreground">
-                O usuário e a senha aparecem apenas quando o operador e criado ou quando voce redefine a senha dele.
+                O usuário e a credencial aparecem apenas quando o operador e criado ou quando voce redefine a senha dele.
               </p>
             )}
 
             <p className="text-xs text-muted-foreground">
-              Por seguranca, o sistema nao mostra a senha atual depois que ela e salva no Auth.
+              Por seguranca, o sistema nao mostra a senha ou PIN atual depois que ele e salvo no Auth.
             </p>
           </div>
 
@@ -823,9 +823,9 @@ export function OperatorManagementPanel({
               <Input value={username} onChange={event => setUsername(event.target.value)} placeholder="Ex: operador.caixa" />
             </div>
             <div className="space-y-1">
-              <Label>Senha inicial</Label>
-              <PasswordInput value={password} onChange={event => setPassword(event.target.value)} placeholder="Use uma senha forte" />
-              <p className="text-xs text-muted-foreground">{passwordPolicyHint}</p>
+              <Label>Senha ou PIN inicial</Label>
+              <PasswordInput value={password} onChange={event => setPassword(event.target.value)} placeholder="Use uma senha forte ou PIN" />
+              <p className="text-xs text-muted-foreground">{operatorCredentialHint}</p>
             </div>
             <p className="text-xs text-muted-foreground">
               Use de 3 a 24 caracteres com letras, numeros, ponto, hifen ou underscore.
@@ -970,13 +970,13 @@ export function OperatorManagementPanel({
               <Input value={selectedOperator?.username || ''} readOnly />
             </div>
             <div className="space-y-1">
-              <Label>Nova senha</Label>
+              <Label>Nova senha ou PIN</Label>
               <PasswordInput
                 value={resetPassword}
                 onChange={event => setResetPassword(event.target.value)}
-                placeholder="Informe uma senha forte"
+                placeholder="Informe uma senha forte ou PIN"
               />
-              <p className="text-xs text-muted-foreground">{passwordPolicyHint}</p>
+              <p className="text-xs text-muted-foreground">{operatorCredentialHint}</p>
             </div>
           </div>
           <DialogFooter>

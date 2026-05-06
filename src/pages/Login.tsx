@@ -196,14 +196,14 @@ export default function Login() {
             <CardHeader className="px-4 pb-1 pt-3 text-center sm:px-5 sm:pt-4">
               <CardTitle className="text-lg font-bold tracking-wide text-yellow-300 sm:text-xl">Entrar</CardTitle>
               <p className="text-[11px] text-muted-foreground sm:text-xs">
-                Administrador entra com email. Operador entra com usuário e senha ou PIN.
+                Administrador entra com email. Operador entra com usuario e senha ou PIN.
               </p>
               {desktopActivation && (
                 <div className="mt-3 rounded-xl border border-primary/20 bg-primary/5 px-3 py-2 text-left text-xs text-muted-foreground">
                   <p className="font-semibold text-foreground">{desktopActivation.companyName}</p>
                   <p className="mt-1">
                     {offlineAdminAvailable
-                      ? 'Empresa reconhecida nesta maquina. Entre com o usuario e senha ou PIN desta loja.'
+                      ? 'Empresa reconhecida nesta maquina. No primeiro acesso online do operador, o desktop valida a loja, salva os dados locais e depois libera esse mesmo usuario com senha ou PIN no offline.'
                       : 'Empresa reconhecida nesta maquina. No primeiro acesso, entre como administrador com email e senha para cadastrar o usuario admin offline desta maquina.'}
                   </p>
                   <button
@@ -416,7 +416,6 @@ export default function Login() {
                           onChange={e => setOperatorPassword(e.target.value)}
                           required
                           placeholder="••••••••"
-                          minLength={6}
                           autoComplete="current-password"
                           className="h-10 pr-10 sm:h-11"
                         />
@@ -429,6 +428,9 @@ export default function Login() {
                           {showOperatorPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                         </button>
                       </div>
+                      <p className="text-xs text-muted-foreground">
+                        No primeiro login online, essa credencial fica salva nesta maquina para o desktop operar offline por ate 5 dias.
+                      </p>
                     </div>
                     <div className="grid grid-cols-2 gap-2 pt-0.5">
                       <div className="flex min-w-0 items-center gap-2">

@@ -54,7 +54,7 @@ const CTA = () => {
                 <span className="text-primary">negócio</span>?
               </h2>
               <p className="text-muted-foreground text-lg mb-10 max-w-lg mx-auto leading-relaxed">
-                Crie sua conta, teste grátis e veja na prática como fiado, PDV, estoque e cobranças podem trabalhar no mesmo lugar. No PRO, cada máquina nova valida a chave da empresa antes do login do operador.
+                Crie sua conta, teste grátis e veja na prática como fiado, PDV, estoque e cobranças podem trabalhar no mesmo lugar. No PRO, a máquina valida a chave da empresa no primeiro acesso e depois o operador consegue trabalhar offline com usuário e PIN.
               </p>
               <div className="flex flex-col gap-4 justify-center sm:flex-row sm:flex-wrap">
                 {showTestButton ? (
