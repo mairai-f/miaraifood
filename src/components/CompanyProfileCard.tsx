@@ -62,6 +62,8 @@ export function CompanyProfileCard() {
   const [saving, setSaving] = useState(false);
   const [desktopLicenseKey, setDesktopLicenseKey] = useState<string | null>(null);
   const isDemoMode = planId === 'demo';
+  const isDesktopRuntime = typeof window !== 'undefined' && Boolean(window.electronAPI);
+  const shouldRevealDesktopLicenseKey = !isDesktopRuntime;
 
   useEffect(() => {
     if (!isAdmin) return;
@@ -87,12 +89,15 @@ export function CompanyProfileCard() {
 
     const loadCompany = async () => {
       setLoading(true);
+      const storeAccountSelect = shouldRevealDesktopLicenseKey
+        ? 'nome_estabelecimento, cnpj, desktop_license_key'
+        : 'nome_estabelecimento, cnpj';
 
       const [
         { data: storeAccountData, error: storeAccountError },
         { data: fiscalSettingsData, error: fiscalSettingsError },
       ] = await Promise.all([
-        db.from('store_accounts').select('nome_estabelecimento, cnpj, desktop_license_key').eq('owner_user_id', ownerUserId).maybeSingle(),
+        db.from('store_accounts').select(storeAccountSelect).eq('owner_user_id', ownerUserId).maybeSingle(),
         db.from('store_fiscal_settings').select('issuer_legal_name, issuer_trade_name, issuer_cnpj, issuer_state_registration').eq('owner_user_id', ownerUserId).maybeSingle(),
       ]);
 
@@ -122,7 +127,11 @@ export function CompanyProfileCard() {
         stateRegistration,
       };
 
-      setDesktopLicenseKey(storeAccountData?.desktop_license_key ? String(storeAccountData.desktop_license_key) : null);
+      setDesktopLicenseKey(
+        shouldRevealDesktopLicenseKey && storeAccountData?.desktop_license_key
+          ? String(storeAccountData.desktop_license_key)
+          : null,
+      );
       setSavedForm(nextForm);
       setForm(nextForm);
       setLoading(false);
@@ -133,22 +142,24 @@ export function CompanyProfileCard() {
     return () => {
       active = false;
     };
-  }, [isAdmin, isDemoMode, ownerUserId]);
+  }, [isAdmin, isDemoMode, ownerUserId, shouldRevealDesktopLicenseKey]);
 
   const companyDisplayName = useMemo(
     () => savedForm.tradeName.trim() || savedForm.legalName.trim() || 'Empresa nao cadastrada',
     [savedForm.legalName, savedForm.tradeName],
   );
   const desktopKeyUnlocked = subscription?.plan_id === 'pro' && subscription.status === 'active';
-  const desktopKeyStatusMessage = loadingSubscription
-    ? 'Verificando a liberacao da chave desktop desta conta...'
-    : desktopKeyUnlocked
-      ? 'Use esta chave em cada nova maquina para reconhecer a empresa antes do login com usuario e PIN.'
-      : subscription?.plan_id !== 'pro'
-        ? 'A chave desktop aparece somente para contas com plano PRO.'
-        : subscription?.status === 'pending'
-          ? 'A chave desktop aparece quando o pagamento do plano PRO for confirmado no Asaas.'
-          : 'A chave desktop aparece somente com o plano PRO em status ativo.';
+  const desktopKeyStatusMessage = !shouldRevealDesktopLicenseKey
+    ? 'A chave desktop continua salva para esta empresa, mas fica visivel somente no painel web do administrador.'
+    : loadingSubscription
+      ? 'Verificando a liberacao da chave desktop desta conta...'
+      : desktopKeyUnlocked
+        ? 'Use esta chave em cada nova maquina para reconhecer a empresa antes do login com usuario e PIN.'
+        : subscription?.plan_id !== 'pro'
+          ? 'A chave desktop aparece somente para contas com plano PRO.'
+          : subscription?.status === 'pending'
+            ? 'A chave desktop aparece quando o pagamento do plano PRO for confirmado no Asaas.'
+            : 'A chave desktop aparece somente com o plano PRO em status ativo.';
 
   if (!isAdmin) return null;
 
@@ -343,23 +354,29 @@ export function CompanyProfileCard() {
                     Chave Desktop
                   </p>
                   <p className="font-mono text-sm text-foreground">
-                    {desktopKeyUnlocked ? (desktopLicenseKey ?? 'Chave indisponivel no momento') : 'Disponivel apos PRO ativo'}
+                    {!shouldRevealDesktopLicenseKey
+                      ? 'Oculta neste executavel'
+                      : desktopKeyUnlocked
+                        ? (desktopLicenseKey ?? 'Chave indisponivel no momento')
+                        : 'Disponivel apos PRO ativo'}
                   </p>
                   <p className="text-sm text-muted-foreground">
                     {desktopKeyStatusMessage}
                   </p>
                 </div>
 
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="gap-2"
-                  onClick={() => void handleCopyDesktopLicenseKey()}
-                  disabled={!desktopKeyUnlocked || !desktopLicenseKey}
-                >
-                  <Copy className="h-4 w-4" />
-                  Copiar chave
-                </Button>
+                {shouldRevealDesktopLicenseKey && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="gap-2"
+                    onClick={() => void handleCopyDesktopLicenseKey()}
+                    disabled={!desktopKeyUnlocked || !desktopLicenseKey}
+                  >
+                    <Copy className="h-4 w-4" />
+                    Copiar chave
+                  </Button>
+                )}
               </div>
             </div>
 
