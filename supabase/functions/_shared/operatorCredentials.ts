@@ -8,3 +8,9 @@ export const buildOperatorEmail = (username: string) =>
 
 export const operatorUsernameHelpText =
   'Use de 3 a 24 caracteres com letras, numeros, ponto, hifen ou underscore.';
+
+export {
+  buildOperatorAuthPasswordCandidates,
+  isOperatorPin,
+  resolveOperatorAuthPassword,
+} from "../../../shared/security/operatorCredential.ts";

@@ -1,6 +1,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import {
   buildOperatorEmail,
+  buildOperatorAuthPasswordCandidates,
   isValidOperatorUsername,
   normalizeOperatorUsername,
 } from '../_shared/operatorCredentials.ts';
@@ -275,6 +276,7 @@ Deno.serve(async (request) => {
 
   for (const profile of matchingProfiles) {
     const operatorEmails = new Set<string>();
+    const authPasswords = buildOperatorAuthPasswordCandidates(normalizedUsername, password);
     const profileEmail = profile.email?.trim();
     if (profileEmail) operatorEmails.add(profileEmail);
 
@@ -294,36 +296,38 @@ Deno.serve(async (request) => {
     operatorEmails.add(buildOperatorEmail(normalizedUsername));
 
     for (const operatorEmail of operatorEmails) {
-      const { data: sessionData, error: loginError } = await authClient.auth.signInWithPassword({
-        email: operatorEmail,
-        password,
-      });
+      for (const authPassword of authPasswords) {
+        const { data: sessionData, error: loginError } = await authClient.auth.signInWithPassword({
+          email: operatorEmail,
+          password: authPassword,
+        });
 
-      if (loginError || !sessionData.session) {
-        continue;
+        if (loginError || !sessionData.session) {
+          continue;
+        }
+
+        await logAttempt(serviceClient, {
+          usernameHash,
+          ipHash,
+          origin,
+          status: 'success',
+          userAgent,
+        });
+
+        return jsonResponse(request, {
+          success: true,
+          session: {
+            access_token: sessionData.session.access_token,
+            refresh_token: sessionData.session.refresh_token,
+          },
+          operator: {
+            userId: profile.user_id,
+            ownerUserId: profile.owner_user_id,
+            username: profile.username ?? normalizedUsername,
+            email: authEmail ?? profileEmail ?? operatorEmail,
+          },
+        });
       }
-
-      await logAttempt(serviceClient, {
-        usernameHash,
-        ipHash,
-        origin,
-        status: 'success',
-        userAgent,
-      });
-
-      return jsonResponse(request, {
-        success: true,
-        session: {
-          access_token: sessionData.session.access_token,
-          refresh_token: sessionData.session.refresh_token,
-        },
-        operator: {
-          userId: profile.user_id,
-          ownerUserId: profile.owner_user_id,
-          username: profile.username ?? normalizedUsername,
-          email: authEmail ?? profileEmail ?? operatorEmail,
-        },
-      });
     }
   }
 

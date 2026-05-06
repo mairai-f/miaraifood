@@ -4,6 +4,7 @@ import {
   isValidOperatorUsername,
   normalizeOperatorUsername,
   operatorUsernameHelpText,
+  resolveOperatorAuthPassword,
 } from '../_shared/operatorCredentials.ts';
 import { buildCorsHeaders, handleCorsPreflight } from '../_shared/cors.ts';
 import { getOperatorCredentialError } from '../../../shared/security/operatorCredential.ts';
@@ -158,6 +159,7 @@ Deno.serve(async (request) => {
     const normalizedUsername = normalizeOperatorUsername(body.username ?? '');
     const password = body.password?.trim();
     const credentialError = getOperatorCredentialError(password || '');
+    const authPassword = resolveOperatorAuthPassword(normalizedUsername, password || '');
 
     if (!isValidOperatorUsername(normalizedUsername)) {
       return jsonResponse(request, { error: operatorUsernameHelpText }, 400);
@@ -188,7 +190,7 @@ Deno.serve(async (request) => {
 
     const { data: createdUser, error: createError } = await serviceClient.auth.admin.createUser({
       email: generatedEmail,
-      password,
+      password: authPassword,
       email_confirm: true,
       user_metadata: {
         username: normalizedUsername,
@@ -259,8 +261,9 @@ Deno.serve(async (request) => {
       return jsonResponse(request, { error: 'Você não pode redefinir a senha deste operador.' }, 403);
     }
 
+    const authPassword = resolveOperatorAuthPassword(targetProfile.username ?? '', password || '');
     const { error: resetError } = await serviceClient.auth.admin.updateUserById(operatorUserId, {
-      password,
+      password: authPassword,
     });
 
     if (resetError) {
