@@ -1,5 +1,4 @@
 DROP POLICY IF EXISTS "products_update_store" ON public.products;
-
 CREATE POLICY "products_update_store"
 ON public.products
 FOR UPDATE

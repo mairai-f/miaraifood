@@ -20,20 +20,16 @@ CREATE TABLE IF NOT EXISTS public.fiscal_documents (
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now()
 );
-
 ALTER TABLE public.fiscal_documents ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.fiscal_documents FORCE ROW LEVEL SECURITY;
-
 DROP POLICY IF EXISTS "fiscal_documents_select_store" ON public.fiscal_documents;
 DROP POLICY IF EXISTS "fiscal_documents_insert_admin_store" ON public.fiscal_documents;
 DROP POLICY IF EXISTS "fiscal_documents_update_admin_store" ON public.fiscal_documents;
-
 CREATE POLICY "fiscal_documents_select_store"
 ON public.fiscal_documents
 FOR SELECT
 TO authenticated
 USING (owner_user_id = public.get_current_store_owner_id());
-
 CREATE POLICY "fiscal_documents_insert_admin_store"
 ON public.fiscal_documents
 FOR INSERT
@@ -42,7 +38,6 @@ WITH CHECK (
   owner_user_id = public.get_current_store_owner_id()
   AND public.current_user_is_admin()
 );
-
 CREATE POLICY "fiscal_documents_update_admin_store"
 ON public.fiscal_documents
 FOR UPDATE
@@ -55,16 +50,12 @@ WITH CHECK (
   owner_user_id = public.get_current_store_owner_id()
   AND public.current_user_is_admin()
 );
-
 CREATE UNIQUE INDEX IF NOT EXISTS fiscal_documents_series_number_idx
   ON public.fiscal_documents(owner_user_id, document_model, series, number);
-
 CREATE INDEX IF NOT EXISTS fiscal_documents_owner_emitted_at_idx
   ON public.fiscal_documents(owner_user_id, emitted_at DESC);
-
 CREATE INDEX IF NOT EXISTS fiscal_documents_sale_id_idx
   ON public.fiscal_documents(sale_id);
-
 DROP TRIGGER IF EXISTS update_fiscal_documents_updated_at ON public.fiscal_documents;
 CREATE TRIGGER update_fiscal_documents_updated_at
 BEFORE UPDATE ON public.fiscal_documents

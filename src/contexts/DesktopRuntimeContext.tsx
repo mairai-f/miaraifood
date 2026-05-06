@@ -21,6 +21,8 @@ interface DesktopRuntimeContextValue {
   licensed: boolean;
   offlineEnabled: boolean;
   validUntil: string | null;
+  validationExpiresAt: string | null;
+  usingOfflineValidationCache: boolean;
   planId: string | null;
   error: string | null;
   code: string | null;
@@ -30,6 +32,25 @@ interface DesktopRuntimeContextValue {
 const DesktopRuntimeContext = createContext<DesktopRuntimeContextValue | null>(null);
 const isDesktopRuntime = typeof window !== 'undefined' && Boolean(window.electronAPI);
 const licenseCacheKey = (userId: string) => `happycash:desktop:license:${userId}`;
+const OFFLINE_VALIDATION_GRACE_DAYS = 5;
+const OFFLINE_VALIDATION_GRACE_MS = OFFLINE_VALIDATION_GRACE_DAYS * 24 * 60 * 60 * 1000;
+
+const toTimestamp = (value: string | null | undefined) => {
+  if (!value) return null;
+  const parsed = new Date(value).getTime();
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
+const buildValidationExpiresAt = (payload: {
+  validUntil: string | null;
+  validatedAt?: string | null;
+}) => {
+  const validatedAt = toTimestamp(payload.validatedAt) ?? Date.now();
+  const planValidUntil = toTimestamp(payload.validUntil);
+  const offlineGraceUntil = validatedAt + OFFLINE_VALIDATION_GRACE_MS;
+  const expiresAt = planValidUntil ? Math.min(planValidUntil, offlineGraceUntil) : offlineGraceUntil;
+  return new Date(expiresAt).toISOString();
+};
 
 const readCachedLicense = (userId: string) => {
   if (typeof window === 'undefined') return null;
@@ -41,6 +62,7 @@ const readCachedLicense = (userId: string) => {
       planId: string | null;
       validUntil: string | null;
       offlineEnabled: boolean;
+      validatedAt?: string | null;
     };
   } catch {
     return null;
@@ -53,6 +75,7 @@ const writeCachedLicense = (
     planId: string | null;
     validUntil: string | null;
     offlineEnabled: boolean;
+    validatedAt: string;
   },
 ) => {
   if (typeof window === 'undefined') return;
@@ -70,6 +93,8 @@ export function DesktopRuntimeProvider({ children }: { children: ReactNode }) {
   const [licensed, setLicensed] = useState(!isDesktopRuntime);
   const [offlineEnabled, setOfflineEnabled] = useState(false);
   const [validUntil, setValidUntil] = useState<string | null>(null);
+  const [validationExpiresAt, setValidationExpiresAt] = useState<string | null>(null);
+  const [usingOfflineValidationCache, setUsingOfflineValidationCache] = useState(false);
   const [planId, setPlanId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [code, setCode] = useState<string | null>(null);
@@ -79,6 +104,8 @@ export function DesktopRuntimeProvider({ children }: { children: ReactNode }) {
     setLicensed(!isDesktopRuntime);
     setOfflineEnabled(false);
     setValidUntil(null);
+    setValidationExpiresAt(null);
+    setUsingOfflineValidationCache(false);
     setPlanId(null);
     setError(null);
     setCode(null);
@@ -111,8 +138,11 @@ export function DesktopRuntimeProvider({ children }: { children: ReactNode }) {
 
     if (invokeError || !data?.licensed) {
       const cachedLicense = readCachedLicense(user.id);
-      const cachedLicenseStillValid = cachedLicense && (
-        !cachedLicense.validUntil || new Date(cachedLicense.validUntil).getTime() > Date.now()
+      const cachedValidationExpiresAt = cachedLicense ? buildValidationExpiresAt(cachedLicense) : null;
+      const cachedLicenseStillValid = Boolean(
+        cachedValidationExpiresAt
+        && toTimestamp(cachedValidationExpiresAt)
+        && toTimestamp(cachedValidationExpiresAt)! > Date.now()
       );
       const canUseCachedLicense = Boolean(cachedLicenseStillValid) && (
         (typeof navigator !== 'undefined' && navigator.onLine === false)
@@ -120,18 +150,41 @@ export function DesktopRuntimeProvider({ children }: { children: ReactNode }) {
       );
 
       if (canUseCachedLicense && cachedLicenseStillValid) {
+        const validatedAt = cachedLicense?.validatedAt || new Date().toISOString();
         setLicensed(true);
         setOfflineEnabled(Boolean(cachedLicense.offlineEnabled));
         setValidUntil(cachedLicense.validUntil ?? null);
+        setValidationExpiresAt(cachedValidationExpiresAt);
+        setUsingOfflineValidationCache(true);
         setPlanId(cachedLicense.planId ?? null);
         setError(null);
         setCode('OFFLINE_LICENSE_CACHE');
         setChecking(false);
+        if (!cachedLicense.validatedAt) {
+          writeCachedLicense(user.id, {
+            planId: cachedLicense.planId ?? null,
+            validUntil: cachedLicense.validUntil ?? null,
+            offlineEnabled: Boolean(cachedLicense.offlineEnabled),
+            validatedAt,
+          });
+        }
         return;
       }
 
       let message = data?.error || 'Nao foi possivel validar sua licenca desktop agora.';
       let nextCode = data?.code || null;
+      const shouldPreferOfflineValidationMessage = Boolean(cachedLicense)
+        && (((typeof navigator !== 'undefined' && navigator.onLine === false) || isProbablyOfflineError(invokeError)));
+
+      if (
+        shouldPreferOfflineValidationMessage
+        && cachedValidationExpiresAt
+        && toTimestamp(cachedValidationExpiresAt)
+        && toTimestamp(cachedValidationExpiresAt)! <= Date.now()
+      ) {
+        message = `A validacao offline expirou. Conecte o HappyCash a internet para renovar o acesso apos ${OFFLINE_VALIDATION_GRACE_DAYS} dias.`;
+        nextCode = 'OFFLINE_VALIDATION_EXPIRED';
+      }
 
       if (invokeError && typeof invokeError === 'object' && 'context' in invokeError && invokeError.context instanceof Response) {
         try {
@@ -155,13 +208,21 @@ export function DesktopRuntimeProvider({ children }: { children: ReactNode }) {
       setLicensed(false);
       setError(message);
       setCode(nextCode);
+      setValidationExpiresAt(cachedValidationExpiresAt);
+      setUsingOfflineValidationCache(false);
       setChecking(false);
       return;
     }
 
+    const validatedAt = new Date().toISOString();
     setLicensed(true);
     setOfflineEnabled(Boolean(data.offlineEnabled));
     setValidUntil(data.validUntil ?? null);
+    setValidationExpiresAt(buildValidationExpiresAt({
+      validUntil: data.validUntil ?? null,
+      validatedAt,
+    }));
+    setUsingOfflineValidationCache(false);
     setPlanId(data.planId ?? null);
     setError(null);
     setCode(null);
@@ -170,6 +231,7 @@ export function DesktopRuntimeProvider({ children }: { children: ReactNode }) {
       planId: data.planId ?? null,
       validUntil: data.validUntil ?? null,
       offlineEnabled: Boolean(data.offlineEnabled),
+      validatedAt,
     });
   }, [authLoading, resetState, session?.access_token, user]);
 
@@ -185,6 +247,8 @@ export function DesktopRuntimeProvider({ children }: { children: ReactNode }) {
         licensed,
         offlineEnabled,
         validUntil,
+        validationExpiresAt,
+        usingOfflineValidationCache,
         planId,
         error,
         code,

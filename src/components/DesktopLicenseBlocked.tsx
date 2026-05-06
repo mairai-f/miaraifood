@@ -9,7 +9,8 @@ const SALES_PAGE_URL = 'https://www.happycashsite.com.br/#planos';
 
 export function DesktopLicenseBlocked() {
   const { logout } = useAuth();
-  const { error, code, planId, validUntil, refresh } = useDesktopRuntime();
+  const { error, code, planId, refresh, validUntil, validationExpiresAt } = useDesktopRuntime();
+  const isOfflineValidationExpired = code === 'OFFLINE_VALIDATION_EXPIRED';
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background p-6">
@@ -20,7 +21,9 @@ export function DesktopLicenseBlocked() {
             <CardTitle className="text-2xl">Licenca desktop indisponivel</CardTitle>
           </div>
           <CardDescription>
-            O aplicativo desktop do HappyCash so funciona para contas com plano PRO ativo e licenca validada no backend.
+            {isOfflineValidationExpired
+              ? 'O prazo de validacao offline terminou. Conecte o app a internet para renovar o acesso local.'
+              : 'O aplicativo desktop do HappyCash so funciona para contas com plano PRO ativo e licenca validada no backend.'}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -30,12 +33,19 @@ export function DesktopLicenseBlocked() {
               <p>Plano atual: {planId || 'nao identificado'}</p>
               <p>Codigo: {code || 'sem codigo'}</p>
               <p>Validade atual: {validUntil ? new Date(validUntil).toLocaleString('pt-BR') : 'sem validade ativa'}</p>
+              {validationExpiresAt && (
+                <p>Limite offline local: {new Date(validationExpiresAt).toLocaleString('pt-BR')}</p>
+              )}
             </div>
           </div>
 
           <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 text-sm text-muted-foreground">
             <p className="font-medium text-foreground">Como liberar</p>
-            <p className="mt-1">Ative o plano PRO no site. Assim que o pagamento for confirmado, o desktop volta a validar automaticamente.</p>
+            <p className="mt-1">
+              {isOfflineValidationExpired
+                ? 'Reconecte o desktop e clique em validar novamente. Depois disso, o modo offline volta a contar um novo prazo local de 5 dias.'
+                : 'Ative o plano PRO no site. Assim que o pagamento for confirmado, o desktop volta a validar automaticamente.'}
+            </p>
           </div>
 
           <div className="flex flex-wrap gap-3">

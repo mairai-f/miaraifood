@@ -9,12 +9,14 @@ import { buildCorsHeaders, handleCorsPreflight } from '../_shared/cors.ts';
 type OperatorLoginRequest = {
   username?: string;
   password?: string;
+  ownerUserId?: string | null;
 };
 
 type OperatorProfileRow = {
   user_id: string;
   email: string | null;
   username: string | null;
+  owner_user_id: string | null;
 };
 
 type AttemptStatus = 'blocked' | 'config_error' | 'failed' | 'invalid' | 'success';
@@ -144,6 +146,7 @@ Deno.serve(async (request) => {
   const body = await getBody(request);
   const normalizedUsername = normalizeOperatorUsername(body?.username ?? '');
   const password = body?.password?.trim();
+  const ownerUserId = body?.ownerUserId?.trim() || null;
   const origin = request.headers.get('origin');
   const userAgent = request.headers.get('user-agent');
   const clientIp = extractClientIp(request);
@@ -240,7 +243,7 @@ Deno.serve(async (request) => {
 
   const { data: profiles, error: profileError } = await serviceClient
     .from('profiles')
-    .select('user_id, email, username')
+    .select('user_id, email, username, owner_user_id')
     .eq('role', 'operator');
 
   if (profileError || !profiles || profiles.length === 0) {
@@ -255,7 +258,8 @@ Deno.serve(async (request) => {
   }
 
   const matchingProfiles = (profiles as OperatorProfileRow[]).filter(profile =>
-    normalizeOperatorUsername(profile.username ?? '') === normalizedUsername,
+    normalizeOperatorUsername(profile.username ?? '') === normalizedUsername
+      && (!ownerUserId || profile.owner_user_id === ownerUserId),
   );
 
   if (matchingProfiles.length === 0) {

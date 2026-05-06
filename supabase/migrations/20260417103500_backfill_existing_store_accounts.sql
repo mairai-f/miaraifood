@@ -69,7 +69,6 @@ WHERE NOT EXISTS (
   FROM public.store_accounts AS account
   WHERE account.owner_user_id = owner.owner_user_id
 );
-
 INSERT INTO public.store_subscriptions (
   store_account_id,
   owner_user_id,

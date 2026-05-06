@@ -1,10 +1,20 @@
 import { ReactNode, useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Home, Users, Package, Gift, Trash2, LogOut, Menu, X, UserCircle, Receipt, BarChart3, DollarSign, Boxes, ChevronDown, ChevronUp, FileText, Shield, Calculator, ShieldCheck } from 'lucide-react';
+import { Clock3, Home, Users, Package, Gift, Trash2, LogOut, Menu, X, UserCircle, Receipt, BarChart3, DollarSign, Boxes, ChevronDown, ChevronUp, FileText, Shield, Calculator, ShieldCheck } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { useDesktopRuntime } from '@/contexts/DesktopRuntimeContext';
 import { usePlanAccess } from '@/contexts/PlanContext';
 import happyCashLogo from '@/assets/happycash-logo.webp';
 import { roleLabel } from '@/lib/access';
+import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 
 const navItems = [
   { path: '/', label: 'Painel', icon: Home, shortcut: '1', roles: ['admin', 'operator'], featureKey: 'dashboard.view' },
@@ -22,17 +32,94 @@ const navItems = [
   { path: '/excluidos', label: 'Excluídos', icon: Trash2, roles: ['admin'], featureKey: 'deleted.view' },
 ];
 
+const OFFLINE_VALIDATION_GRACE_DAYS = 5;
+const OFFLINE_VALIDATION_GRACE_MS = OFFLINE_VALIDATION_GRACE_DAYS * 24 * 60 * 60 * 1000;
+const OFFLINE_VALIDATION_REMINDER_HOURS = 5;
+const OFFLINE_VALIDATION_REMINDER_MS = OFFLINE_VALIDATION_REMINDER_HOURS * 60 * 60 * 1000;
+
+const offlineValidationCacheKey = (userId: string) => `happycash:desktop:offline-validation:${userId}`;
+const offlineValidationReminderKey = (userId: string, expiresAt: string) =>
+  `happycash:desktop:offline-validation-reminder:${userId}:${expiresAt}`;
+
+const readOfflineValidationStartedAt = (userId: string) => {
+  if (typeof window === 'undefined') return null;
+  return window.localStorage.getItem(offlineValidationCacheKey(userId));
+};
+
+const writeOfflineValidationStartedAt = (userId: string, value: string) => {
+  if (typeof window === 'undefined') return;
+  window.localStorage.setItem(offlineValidationCacheKey(userId), value);
+};
+
+const parseTimestamp = (value: string | null | undefined) => {
+  if (!value) return null;
+  const parsed = new Date(value).getTime();
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
+const buildOfflineValidationExpiresAt = (startedAt: string | null, planValidUntil: string | null) => {
+  const startedAtMs = parseTimestamp(startedAt);
+  if (!startedAtMs) return null;
+
+  const offlineLimitMs = startedAtMs + OFFLINE_VALIDATION_GRACE_MS;
+  const planValidUntilMs = parseTimestamp(planValidUntil);
+  const expiresAtMs = planValidUntilMs ? Math.min(offlineLimitMs, planValidUntilMs) : offlineLimitMs;
+  return new Date(expiresAtMs).toISOString();
+};
+
+const formatRemainingTime = (remainingMs: number) => {
+  const totalMinutes = Math.max(0, Math.ceil(remainingMs / 60000));
+  const days = Math.floor(totalMinutes / (24 * 60));
+  const hours = Math.floor((totalMinutes % (24 * 60)) / 60);
+  const minutes = totalMinutes % 60;
+  const parts: string[] = [];
+
+  if (days > 0) parts.push(`${days}d`);
+  if (hours > 0) parts.push(`${hours}h`);
+  if (minutes > 0 || parts.length === 0) parts.push(`${minutes}min`);
+
+  return parts.slice(0, 2).join(' ');
+};
+
 export function AppLayout({ children }: { children: ReactNode }) {
   const { logout, user, username, role } = useAuth();
+  const {
+    isDesktop,
+    licensed: desktopLicensed,
+    refresh: refreshDesktopLicense,
+    validUntil: desktopValidUntil,
+    validationExpiresAt: desktopValidationExpiresAt,
+    usingOfflineValidationCache,
+  } = useDesktopRuntime();
   const { hasFeature } = usePlanAccess();
   const location = useLocation();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
+  const [offlineReminderOpen, setOfflineReminderOpen] = useState(false);
+  const [offlineValidationStartedAt, setOfflineValidationStartedAt] = useState<string | null>(null);
   const navRef = useRef<HTMLElement | null>(null);
   const [scrollHints, setScrollHints] = useState({ top: false, bottom: false });
   const isPdvMode = location.pathname === '/pdv';
   const visibleNavItems = navItems.filter(item => item.roles.includes(role) && hasFeature(item.featureKey));
   const canOpenSettings = role === 'admin' && hasFeature('settings.manage');
+  const fallbackValidationStartedAt = user?.id ? readOfflineValidationStartedAt(user.id) : null;
+  const offlineValidationExpiresAt = desktopValidationExpiresAt
+    || buildOfflineValidationExpiresAt(offlineValidationStartedAt || fallbackValidationStartedAt, desktopValidUntil);
+  const offlineValidationExpiresAtMs = parseTimestamp(offlineValidationExpiresAt);
+  const offlineValidationRemainingMs = offlineValidationExpiresAtMs ? offlineValidationExpiresAtMs - Date.now() : null;
+  const offlineValidationExpired = Boolean(
+    isDesktop
+    && usingOfflineValidationCache
+    && offlineValidationRemainingMs !== null
+    && offlineValidationRemainingMs <= 0
+  );
+  const shouldShowOfflineReminder = Boolean(
+    isDesktop
+    && usingOfflineValidationCache
+    && offlineValidationRemainingMs !== null
+    && offlineValidationRemainingMs > 0
+    && offlineValidationRemainingMs <= OFFLINE_VALIDATION_REMINDER_MS
+  );
 
   const handleAccountClick = () => {
     if (!canOpenSettings) return;
@@ -112,6 +199,80 @@ export function AppLayout({ children }: { children: ReactNode }) {
     };
   }, [location.pathname, open, updateScrollHints]);
 
+  useEffect(() => {
+    if (!isDesktop || !user?.id) {
+      setOfflineValidationStartedAt(null);
+      return;
+    }
+
+    const storedStartedAt = readOfflineValidationStartedAt(user.id);
+
+    if (desktopLicensed && !usingOfflineValidationCache) {
+      const nextStartedAt = new Date().toISOString();
+      writeOfflineValidationStartedAt(user.id, nextStartedAt);
+      setOfflineValidationStartedAt(nextStartedAt);
+      return;
+    }
+
+    if (usingOfflineValidationCache && !storedStartedAt) {
+      const migratedStartedAt = new Date().toISOString();
+      writeOfflineValidationStartedAt(user.id, migratedStartedAt);
+      setOfflineValidationStartedAt(migratedStartedAt);
+      return;
+    }
+
+    setOfflineValidationStartedAt(storedStartedAt);
+  }, [desktopLicensed, isDesktop, user?.id, usingOfflineValidationCache]);
+
+  useEffect(() => {
+    if (!user?.id || !offlineValidationExpiresAt || !shouldShowOfflineReminder) {
+      setOfflineReminderOpen(false);
+      return;
+    }
+
+    const reminderKey = offlineValidationReminderKey(user.id, offlineValidationExpiresAt);
+    if (window.sessionStorage.getItem(reminderKey) === '1') return;
+
+    setOfflineReminderOpen(true);
+  }, [offlineValidationExpiresAt, shouldShowOfflineReminder, user?.id]);
+
+  const handleCloseOfflineReminder = useCallback(() => {
+    if (user?.id && offlineValidationExpiresAt) {
+      window.sessionStorage.setItem(offlineValidationReminderKey(user.id, offlineValidationExpiresAt), '1');
+    }
+
+    setOfflineReminderOpen(false);
+  }, [offlineValidationExpiresAt, user?.id]);
+
+  if (offlineValidationExpired) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background p-6">
+        <div className="w-full max-w-xl rounded-2xl border border-border/70 bg-card p-6 shadow-xl">
+          <div className="flex items-center gap-3 text-primary">
+            <Clock3 className="h-5 w-5" />
+            <h2 className="text-xl font-semibold text-foreground">Validação offline expirada</h2>
+          </div>
+          <p className="mt-4 text-sm text-muted-foreground">
+            O HappyCash pode ficar offline por até {OFFLINE_VALIDATION_GRACE_DAYS} dias após a última validação.
+            Esse prazo terminou, então agora é preciso reconectar à internet para validar novamente.
+          </p>
+          <div className="mt-4 rounded-xl border border-border/70 bg-background/70 p-4 text-sm text-muted-foreground">
+            <p>Última validade offline: {offlineValidationExpiresAt ? new Date(offlineValidationExpiresAt).toLocaleString('pt-BR') : 'não identificada'}</p>
+            <p className="mt-1">Situação atual: acesso offline bloqueado até nova validação online.</p>
+          </div>
+          <div className="mt-6 flex flex-wrap gap-3">
+            <Button type="button" onClick={() => void refreshDesktopLicense()}>
+              Validar novamente
+            </Button>
+            <Button type="button" variant="outline" onClick={() => void logout()}>
+              Sair
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (isPdvMode) {
     return (
       <div className="h-screen overflow-hidden bg-background">
@@ -122,6 +283,51 @@ export function AppLayout({ children }: { children: ReactNode }) {
 
   return (
     <div className="flex h-screen overflow-hidden bg-background">
+      <Dialog open={offlineReminderOpen} onOpenChange={(nextOpen) => {
+        if (!nextOpen) {
+          handleCloseOfflineReminder();
+          return;
+        }
+
+        setOfflineReminderOpen(true);
+      }}>
+        <DialogContent className="max-w-md border-border/70 bg-card/95 backdrop-blur">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Clock3 className="h-5 w-5 text-primary" />
+              Lembrete de validação offline
+            </DialogTitle>
+            <DialogDescription>
+              Faltam menos de {OFFLINE_VALIDATION_REMINDER_HOURS} horas para a validação offline vencer.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 text-sm text-muted-foreground">
+            <p className="font-medium text-foreground">
+              Restam {offlineValidationRemainingMs !== null ? formatRemainingTime(offlineValidationRemainingMs) : 'poucos minutos'} para validar novamente.
+            </p>
+            <p className="mt-2">
+              Conecte o HappyCash à internet para renovar a validação e evitar bloqueio do modo offline.
+            </p>
+            <p className="mt-2">
+              Limite atual: {offlineValidationExpiresAt ? new Date(offlineValidationExpiresAt).toLocaleString('pt-BR') : 'não identificado'}.
+            </p>
+          </div>
+
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={handleCloseOfflineReminder}>
+              Lembrar depois
+            </Button>
+            <Button type="button" onClick={() => {
+              handleCloseOfflineReminder();
+              void refreshDesktopLicense();
+            }}>
+              Validar agora
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {open && <div className="fixed inset-0 bg-background/80 z-40 lg:hidden" onClick={() => setOpen(false)} />}
       <aside className={`fixed inset-y-0 left-0 z-50 flex h-full w-64 flex-col overflow-hidden border-r border-border bg-card transition-transform duration-300 lg:static lg:h-screen lg:translate-x-0 lg:shrink-0 ${open ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}>
         <div className="shrink-0 border-b border-border px-4 py-5">

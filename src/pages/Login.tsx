@@ -16,13 +16,15 @@ import {
   getSystemLoginPreferences,
   saveSystemLoginPreferences,
 } from '@/lib/authSessionPreferences';
+import { clearDesktopActivation, readDesktopActivation } from '@/lib/desktopActivation';
 import { LanguageSwitcher } from '../../shared/locale/LanguageSwitcher';
 
 type LoginMode = 'admin' | 'operator';
 
 export default function Login() {
   const initialPreferences = getSystemLoginPreferences();
-  const [loginMode, setLoginMode] = useState<LoginMode>(initialPreferences.loginMode);
+  const desktopActivation = readDesktopActivation();
+  const [loginMode, setLoginMode] = useState<LoginMode>(desktopActivation ? 'operator' : initialPreferences.loginMode);
   const [email, setEmail] = useState('');
   const [adminPassword, setAdminPassword] = useState('');
   const [showAdminPassword, setShowAdminPassword] = useState(false);
@@ -149,8 +151,26 @@ export default function Login() {
             <CardHeader className="px-4 pb-1 pt-3 text-center sm:px-5 sm:pt-4">
               <CardTitle className="text-lg font-bold tracking-wide text-yellow-300 sm:text-xl">Entrar</CardTitle>
               <p className="text-[11px] text-muted-foreground sm:text-xs">
-                Administrador entra com email. Operador entra com usuário.
+                Administrador entra com email. Operador entra com usuário e senha ou PIN.
               </p>
+              {desktopActivation && (
+                <div className="mt-3 rounded-xl border border-primary/20 bg-primary/5 px-3 py-2 text-left text-xs text-muted-foreground">
+                  <p className="font-semibold text-foreground">{desktopActivation.companyName}</p>
+                  <p className="mt-1">
+                    Empresa reconhecida nesta máquina. Entre com o usuário e senha ou PIN desta loja.
+                  </p>
+                  <button
+                    type="button"
+                    className="mt-2 text-primary transition-colors hover:text-primary/80"
+                    onClick={() => {
+                      clearDesktopActivation();
+                      window.location.reload();
+                    }}
+                  >
+                    Trocar chave desta máquina
+                  </button>
+                </div>
+              )}
             </CardHeader>
             <CardContent className="px-4 pb-3 sm:px-5 sm:pb-4">
               <Tabs value={loginMode} onValueChange={value => setLoginMode(value as LoginMode)} className="w-full">
@@ -263,7 +283,7 @@ export default function Login() {
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label>Senha</Label>
+                      <Label>Senha ou PIN</Label>
                       <div className="relative">
                         <Input
                           type={showOperatorPassword ? 'text' : 'password'}

@@ -10,7 +10,6 @@ AS $$
   WHERE owner_user_id = public.get_current_store_owner_id()
   LIMIT 1
 $$;
-
 CREATE OR REPLACE FUNCTION public.get_current_store_plan_id()
 RETURNS text
 LANGUAGE sql
@@ -43,7 +42,6 @@ AS $$
     COALESCE(subscription.current_period_ends_at, subscription.trial_ends_at, subscription.created_at) DESC
   LIMIT 1
 $$;
-
 CREATE OR REPLACE FUNCTION public.current_store_has_feature(target_feature text)
 RETURNS boolean
 LANGUAGE sql
@@ -59,11 +57,9 @@ AS $$
       AND feature.enabled
   )
 $$;
-
 DROP POLICY IF EXISTS "cash_sessions_select_store" ON public.cash_sessions;
 DROP POLICY IF EXISTS "cash_sessions_insert_store" ON public.cash_sessions;
 DROP POLICY IF EXISTS "cash_sessions_update_store" ON public.cash_sessions;
-
 CREATE POLICY "cash_sessions_select_store"
 ON public.cash_sessions
 FOR SELECT
@@ -72,7 +68,6 @@ USING (
   owner_user_id = public.get_current_store_owner_id()
   AND public.current_store_has_feature('cash.manage')
 );
-
 CREATE POLICY "cash_sessions_insert_store"
 ON public.cash_sessions
 FOR INSERT
@@ -82,7 +77,6 @@ WITH CHECK (
   AND operator_user_id = auth.uid()
   AND public.current_store_has_feature('cash.manage')
 );
-
 CREATE POLICY "cash_sessions_update_store"
 ON public.cash_sessions
 FOR UPDATE
@@ -96,12 +90,10 @@ WITH CHECK (
   owner_user_id = public.get_current_store_owner_id()
   AND public.current_store_has_feature('cash.manage')
 );
-
 DROP POLICY IF EXISTS "clients_select_store" ON public.clients;
 DROP POLICY IF EXISTS "clients_insert_store" ON public.clients;
 DROP POLICY IF EXISTS "clients_update_store" ON public.clients;
 DROP POLICY IF EXISTS "clients_delete_store" ON public.clients;
-
 CREATE POLICY "clients_select_store"
 ON public.clients
 FOR SELECT
@@ -110,7 +102,6 @@ USING (
   user_id = public.get_current_store_owner_id()
   AND public.current_store_has_feature('clients.manage')
 );
-
 CREATE POLICY "clients_insert_store"
 ON public.clients
 FOR INSERT
@@ -119,7 +110,6 @@ WITH CHECK (
   user_id = public.get_current_store_owner_id()
   AND public.current_store_has_feature('clients.manage')
 );
-
 CREATE POLICY "clients_update_store"
 ON public.clients
 FOR UPDATE
@@ -132,7 +122,6 @@ WITH CHECK (
   user_id = public.get_current_store_owner_id()
   AND public.current_store_has_feature('clients.manage')
 );
-
 CREATE POLICY "clients_delete_store"
 ON public.clients
 FOR DELETE
@@ -141,12 +130,10 @@ USING (
   user_id = public.get_current_store_owner_id()
   AND public.current_store_has_feature('clients.manage')
 );
-
 DROP POLICY IF EXISTS "products_select_store" ON public.products;
 DROP POLICY IF EXISTS "products_insert_store" ON public.products;
 DROP POLICY IF EXISTS "products_update_store" ON public.products;
 DROP POLICY IF EXISTS "products_delete_store" ON public.products;
-
 CREATE POLICY "products_select_store"
 ON public.products
 FOR SELECT
@@ -155,7 +142,6 @@ USING (
   user_id = public.get_current_store_owner_id()
   AND public.current_store_has_feature('products.manage')
 );
-
 CREATE POLICY "products_insert_store"
 ON public.products
 FOR INSERT
@@ -164,7 +150,6 @@ WITH CHECK (
   user_id = public.get_current_store_owner_id()
   AND public.current_store_has_feature('products.manage')
 );
-
 CREATE POLICY "products_update_store"
 ON public.products
 FOR UPDATE
@@ -177,7 +162,6 @@ WITH CHECK (
   user_id = public.get_current_store_owner_id()
   AND public.current_store_has_feature('products.manage')
 );
-
 CREATE POLICY "products_delete_store"
 ON public.products
 FOR DELETE
@@ -186,12 +170,10 @@ USING (
   user_id = public.get_current_store_owner_id()
   AND public.current_store_has_feature('products.manage')
 );
-
 DROP POLICY IF EXISTS "debt_entries_select_store" ON public.debt_entries;
 DROP POLICY IF EXISTS "debt_entries_insert_store" ON public.debt_entries;
 DROP POLICY IF EXISTS "debt_entries_update_store" ON public.debt_entries;
 DROP POLICY IF EXISTS "debt_entries_delete_store" ON public.debt_entries;
-
 CREATE POLICY "debt_entries_select_store"
 ON public.debt_entries
 FOR SELECT
@@ -205,7 +187,6 @@ USING (
       AND client.user_id = public.get_current_store_owner_id()
   )
 );
-
 CREATE POLICY "debt_entries_insert_store"
 ON public.debt_entries
 FOR INSERT
@@ -225,7 +206,6 @@ WITH CHECK (
       AND product.user_id = public.get_current_store_owner_id()
   )
 );
-
 CREATE POLICY "debt_entries_update_store"
 ON public.debt_entries
 FOR UPDATE
@@ -254,7 +234,6 @@ WITH CHECK (
       AND product.user_id = public.get_current_store_owner_id()
   )
 );
-
 CREATE POLICY "debt_entries_delete_store"
 ON public.debt_entries
 FOR DELETE
@@ -268,12 +247,10 @@ USING (
       AND client.user_id = public.get_current_store_owner_id()
   )
 );
-
 DROP POLICY IF EXISTS "payments_select_store" ON public.payments;
 DROP POLICY IF EXISTS "payments_insert_store" ON public.payments;
 DROP POLICY IF EXISTS "payments_update_store" ON public.payments;
 DROP POLICY IF EXISTS "payments_delete_store" ON public.payments;
-
 CREATE POLICY "payments_select_store"
 ON public.payments
 FOR SELECT
@@ -287,7 +264,6 @@ USING (
       AND client.user_id = public.get_current_store_owner_id()
   )
 );
-
 CREATE POLICY "payments_insert_store"
 ON public.payments
 FOR INSERT
@@ -301,7 +277,6 @@ WITH CHECK (
       AND client.user_id = public.get_current_store_owner_id()
   )
 );
-
 CREATE POLICY "payments_update_store"
 ON public.payments
 FOR UPDATE
@@ -324,7 +299,6 @@ WITH CHECK (
       AND client.user_id = public.get_current_store_owner_id()
   )
 );
-
 CREATE POLICY "payments_delete_store"
 ON public.payments
 FOR DELETE
@@ -338,12 +312,10 @@ USING (
       AND client.user_id = public.get_current_store_owner_id()
   )
 );
-
 DROP POLICY IF EXISTS "rewards_select_store" ON public.rewards;
 DROP POLICY IF EXISTS "rewards_insert_store" ON public.rewards;
 DROP POLICY IF EXISTS "rewards_update_store" ON public.rewards;
 DROP POLICY IF EXISTS "rewards_delete_store" ON public.rewards;
-
 CREATE POLICY "rewards_select_store"
 ON public.rewards
 FOR SELECT
@@ -352,7 +324,6 @@ USING (
   user_id = public.get_current_store_owner_id()
   AND public.current_store_has_feature('rewards.manage')
 );
-
 CREATE POLICY "rewards_insert_store"
 ON public.rewards
 FOR INSERT
@@ -361,7 +332,6 @@ WITH CHECK (
   user_id = public.get_current_store_owner_id()
   AND public.current_store_has_feature('rewards.manage')
 );
-
 CREATE POLICY "rewards_update_store"
 ON public.rewards
 FOR UPDATE
@@ -374,7 +344,6 @@ WITH CHECK (
   user_id = public.get_current_store_owner_id()
   AND public.current_store_has_feature('rewards.manage')
 );
-
 CREATE POLICY "rewards_delete_store"
 ON public.rewards
 FOR DELETE
@@ -383,12 +352,10 @@ USING (
   user_id = public.get_current_store_owner_id()
   AND public.current_store_has_feature('rewards.manage')
 );
-
 DROP POLICY IF EXISTS "sales_select_store" ON public.sales;
 DROP POLICY IF EXISTS "sales_insert_store" ON public.sales;
 DROP POLICY IF EXISTS "sales_update_store" ON public.sales;
 DROP POLICY IF EXISTS "sales_delete_store" ON public.sales;
-
 CREATE POLICY "sales_select_store"
 ON public.sales
 FOR SELECT
@@ -397,7 +364,6 @@ USING (
   user_id = public.get_current_store_owner_id()
   AND public.current_store_has_feature('pdv.use')
 );
-
 CREATE POLICY "sales_insert_store"
 ON public.sales
 FOR INSERT
@@ -415,7 +381,6 @@ WITH CHECK (
     )
   )
 );
-
 CREATE POLICY "sales_update_store"
 ON public.sales
 FOR UPDATE
@@ -437,7 +402,6 @@ WITH CHECK (
     )
   )
 );
-
 CREATE POLICY "sales_delete_store"
 ON public.sales
 FOR DELETE
@@ -446,12 +410,10 @@ USING (
   user_id = public.get_current_store_owner_id()
   AND public.current_store_has_feature('pdv.use')
 );
-
 DROP POLICY IF EXISTS "sale_items_select_store" ON public.sale_items;
 DROP POLICY IF EXISTS "sale_items_insert_store" ON public.sale_items;
 DROP POLICY IF EXISTS "sale_items_update_store" ON public.sale_items;
 DROP POLICY IF EXISTS "sale_items_delete_store" ON public.sale_items;
-
 CREATE POLICY "sale_items_select_store"
 ON public.sale_items
 FOR SELECT
@@ -465,7 +427,6 @@ USING (
       AND sale.user_id = public.get_current_store_owner_id()
   )
 );
-
 CREATE POLICY "sale_items_insert_store"
 ON public.sale_items
 FOR INSERT
@@ -488,7 +449,6 @@ WITH CHECK (
     )
   )
 );
-
 CREATE POLICY "sale_items_update_store"
 ON public.sale_items
 FOR UPDATE
@@ -520,7 +480,6 @@ WITH CHECK (
     )
   )
 );
-
 CREATE POLICY "sale_items_delete_store"
 ON public.sale_items
 FOR DELETE
@@ -534,12 +493,10 @@ USING (
       AND sale.user_id = public.get_current_store_owner_id()
   )
 );
-
 DROP POLICY IF EXISTS "stock_movements_select_store" ON public.stock_movements;
 DROP POLICY IF EXISTS "stock_movements_insert_store" ON public.stock_movements;
 DROP POLICY IF EXISTS "stock_movements_update_store" ON public.stock_movements;
 DROP POLICY IF EXISTS "stock_movements_delete_store" ON public.stock_movements;
-
 CREATE POLICY "stock_movements_select_store"
 ON public.stock_movements
 FOR SELECT
@@ -548,7 +505,6 @@ USING (
   user_id = public.get_current_store_owner_id()
   AND public.current_store_has_feature('stock.manage')
 );
-
 CREATE POLICY "stock_movements_insert_store"
 ON public.stock_movements
 FOR INSERT
@@ -563,7 +519,6 @@ WITH CHECK (
       AND product.user_id = public.get_current_store_owner_id()
   )
 );
-
 CREATE POLICY "stock_movements_update_store"
 ON public.stock_movements
 FOR UPDATE
@@ -582,7 +537,6 @@ WITH CHECK (
       AND product.user_id = public.get_current_store_owner_id()
   )
 );
-
 CREATE POLICY "stock_movements_delete_store"
 ON public.stock_movements
 FOR DELETE
@@ -591,12 +545,10 @@ USING (
   user_id = public.get_current_store_owner_id()
   AND public.current_store_has_feature('stock.manage')
 );
-
 DROP POLICY IF EXISTS "expenses_select_store" ON public.expenses;
 DROP POLICY IF EXISTS "expenses_insert_store" ON public.expenses;
 DROP POLICY IF EXISTS "expenses_update_store" ON public.expenses;
 DROP POLICY IF EXISTS "expenses_delete_store" ON public.expenses;
-
 CREATE POLICY "expenses_select_store"
 ON public.expenses
 FOR SELECT
@@ -605,7 +557,6 @@ USING (
   user_id = public.get_current_store_owner_id()
   AND public.current_store_has_feature('financial.manage')
 );
-
 CREATE POLICY "expenses_insert_store"
 ON public.expenses
 FOR INSERT
@@ -614,7 +565,6 @@ WITH CHECK (
   user_id = public.get_current_store_owner_id()
   AND public.current_store_has_feature('financial.manage')
 );
-
 CREATE POLICY "expenses_update_store"
 ON public.expenses
 FOR UPDATE
@@ -627,7 +577,6 @@ WITH CHECK (
   user_id = public.get_current_store_owner_id()
   AND public.current_store_has_feature('financial.manage')
 );
-
 CREATE POLICY "expenses_delete_store"
 ON public.expenses
 FOR DELETE
@@ -636,11 +585,9 @@ USING (
   user_id = public.get_current_store_owner_id()
   AND public.current_store_has_feature('financial.manage')
 );
-
 DROP POLICY IF EXISTS "store_fiscal_settings_select_admin_store" ON public.store_fiscal_settings;
 DROP POLICY IF EXISTS "store_fiscal_settings_insert_admin_store" ON public.store_fiscal_settings;
 DROP POLICY IF EXISTS "store_fiscal_settings_update_admin_store" ON public.store_fiscal_settings;
-
 CREATE POLICY "store_fiscal_settings_select_admin_store"
 ON public.store_fiscal_settings
 FOR SELECT
@@ -650,7 +597,6 @@ USING (
   AND public.current_user_is_admin()
   AND public.current_store_has_feature('settings.manage')
 );
-
 CREATE POLICY "store_fiscal_settings_insert_admin_store"
 ON public.store_fiscal_settings
 FOR INSERT
@@ -660,7 +606,6 @@ WITH CHECK (
   AND public.current_user_is_admin()
   AND public.current_store_has_feature('settings.manage')
 );
-
 CREATE POLICY "store_fiscal_settings_update_admin_store"
 ON public.store_fiscal_settings
 FOR UPDATE
@@ -675,11 +620,9 @@ WITH CHECK (
   AND public.current_user_is_admin()
   AND public.current_store_has_feature('settings.manage')
 );
-
 DROP POLICY IF EXISTS "fiscal_documents_select_store" ON public.fiscal_documents;
 DROP POLICY IF EXISTS "fiscal_documents_insert_admin_store" ON public.fiscal_documents;
 DROP POLICY IF EXISTS "fiscal_documents_update_admin_store" ON public.fiscal_documents;
-
 CREATE POLICY "fiscal_documents_select_store"
 ON public.fiscal_documents
 FOR SELECT
@@ -688,7 +631,6 @@ USING (
   owner_user_id = public.get_current_store_owner_id()
   AND public.current_store_has_feature('fiscal.manage')
 );
-
 CREATE POLICY "fiscal_documents_insert_admin_store"
 ON public.fiscal_documents
 FOR INSERT
@@ -698,7 +640,6 @@ WITH CHECK (
   AND public.current_user_is_admin()
   AND public.current_store_has_feature('fiscal.manage')
 );
-
 CREATE POLICY "fiscal_documents_update_admin_store"
 ON public.fiscal_documents
 FOR UPDATE

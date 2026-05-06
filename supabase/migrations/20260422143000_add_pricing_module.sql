@@ -13,7 +13,6 @@ ADD COLUMN IF NOT EXISTS minimum_markup_pct numeric(10,2) NOT NULL DEFAULT 0,
 ADD COLUMN IF NOT EXISTS minimum_price numeric(10,2) NOT NULL DEFAULT 0,
 ADD COLUMN IF NOT EXISTS rounding_rule text NOT NULL DEFAULT 'none',
 ADD COLUMN IF NOT EXISTS pricing_notes text NOT NULL DEFAULT '';
-
 DO $$
 BEGIN
   IF NOT EXISTS (
@@ -27,7 +26,6 @@ BEGIN
     CHECK (rounding_rule IN ('none', '0.01', '0.05', '0.10', '0.50', '1.00', 'whole_90', 'whole_99'));
   END IF;
 END $$;
-
 UPDATE public.products
 SET purchase_cost = cost_price
 WHERE purchase_cost = 0
@@ -39,7 +37,6 @@ WHERE purchase_cost = 0
   AND packaging_cost = 0
   AND operational_cost = 0
   AND other_extra_cost = 0;
-
 CREATE OR REPLACE FUNCTION public.sync_product_real_cost()
 RETURNS trigger
 LANGUAGE plpgsql
@@ -100,16 +97,13 @@ BEGIN
   RETURN NEW;
 END;
 $$;
-
 DROP TRIGGER IF EXISTS sync_product_real_cost ON public.products;
 CREATE TRIGGER sync_product_real_cost
 BEFORE INSERT OR UPDATE ON public.products
 FOR EACH ROW
 EXECUTE FUNCTION public.sync_product_real_cost();
-
 UPDATE public.products
 SET purchase_cost = purchase_cost;
-
 ALTER TABLE public.sale_items
 ADD COLUMN IF NOT EXISTS discount_amount numeric(10,2) NOT NULL DEFAULT 0,
 ADD COLUMN IF NOT EXISTS net_total numeric(10,2) NOT NULL DEFAULT 0,
@@ -117,7 +111,6 @@ ADD COLUMN IF NOT EXISTS unit_profit numeric(10,2) NOT NULL DEFAULT 0,
 ADD COLUMN IF NOT EXISTS total_profit numeric(10,2) NOT NULL DEFAULT 0,
 ADD COLUMN IF NOT EXISTS markup_pct numeric(10,2) NOT NULL DEFAULT 0,
 ADD COLUMN IF NOT EXISTS margin_pct numeric(10,2) NOT NULL DEFAULT 0;
-
 UPDATE public.sale_items
 SET
   discount_amount = COALESCE(discount_amount, 0),
@@ -150,7 +143,6 @@ SET
     END,
     2
   );
-
 CREATE TABLE IF NOT EXISTS public.product_category_pricing_rules (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   owner_user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -164,7 +156,6 @@ CREATE TABLE IF NOT EXISTS public.product_category_pricing_rules (
   updated_at timestamptz NOT NULL DEFAULT now(),
   UNIQUE (owner_user_id, category)
 );
-
 DO $$
 BEGIN
   IF NOT EXISTS (
@@ -178,21 +169,16 @@ BEGIN
     CHECK (rounding_rule IN ('none', '0.01', '0.05', '0.10', '0.50', '1.00', 'whole_90', 'whole_99'));
   END IF;
 END $$;
-
 CREATE INDEX IF NOT EXISTS product_category_pricing_rules_owner_idx
   ON public.product_category_pricing_rules(owner_user_id);
-
 CREATE INDEX IF NOT EXISTS product_category_pricing_rules_category_idx
   ON public.product_category_pricing_rules(category);
-
 ALTER TABLE public.product_category_pricing_rules ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.product_category_pricing_rules FORCE ROW LEVEL SECURITY;
-
 DROP POLICY IF EXISTS "product_category_pricing_rules_select_store" ON public.product_category_pricing_rules;
 DROP POLICY IF EXISTS "product_category_pricing_rules_insert_store" ON public.product_category_pricing_rules;
 DROP POLICY IF EXISTS "product_category_pricing_rules_update_store" ON public.product_category_pricing_rules;
 DROP POLICY IF EXISTS "product_category_pricing_rules_delete_store" ON public.product_category_pricing_rules;
-
 CREATE POLICY "product_category_pricing_rules_select_store"
 ON public.product_category_pricing_rules
 FOR SELECT
@@ -201,7 +187,6 @@ USING (
   owner_user_id = public.get_current_store_owner_id()
   AND public.current_store_has_feature('pricing.manage')
 );
-
 CREATE POLICY "product_category_pricing_rules_insert_store"
 ON public.product_category_pricing_rules
 FOR INSERT
@@ -210,7 +195,6 @@ WITH CHECK (
   owner_user_id = public.get_current_store_owner_id()
   AND public.current_store_has_feature('pricing.manage')
 );
-
 CREATE POLICY "product_category_pricing_rules_update_store"
 ON public.product_category_pricing_rules
 FOR UPDATE
@@ -223,7 +207,6 @@ WITH CHECK (
   owner_user_id = public.get_current_store_owner_id()
   AND public.current_store_has_feature('pricing.manage')
 );
-
 CREATE POLICY "product_category_pricing_rules_delete_store"
 ON public.product_category_pricing_rules
 FOR DELETE
@@ -232,17 +215,14 @@ USING (
   owner_user_id = public.get_current_store_owner_id()
   AND public.current_store_has_feature('pricing.manage')
 );
-
 DROP TRIGGER IF EXISTS update_product_category_pricing_rules_updated_at ON public.product_category_pricing_rules;
 CREATE TRIGGER update_product_category_pricing_rules_updated_at
 BEFORE UPDATE ON public.product_category_pricing_rules
 FOR EACH ROW
 EXECUTE FUNCTION public.update_updated_at_column();
-
 DELETE FROM public.subscription_plan_features
 WHERE feature_key = 'pricing.manage'
   AND plan_id NOT IN ('completo', 'pro');
-
 INSERT INTO public.subscription_plan_features (plan_id, feature_key, enabled)
 VALUES
   ('completo', 'pricing.manage', true),

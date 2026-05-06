@@ -4,7 +4,6 @@ SET
   description = 'Acesso inicial liberado por 12 horas.',
   trial_hours = 12
 WHERE id = 'demo';
-
 UPDATE public.store_subscriptions
 SET
   trial_ends_at = trial_started_at + interval '12 hours',

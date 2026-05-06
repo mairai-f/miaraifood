@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Building2, FileBadge2, Loader2, Save } from 'lucide-react';
+import { Building2, Copy, FileBadge2, KeyRound, Loader2, Save } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { useAuth } from '@/contexts/AuthContext';
@@ -58,6 +58,7 @@ export function CompanyProfileCard() {
   const [form, setForm] = useState<CompanyForm>(defaultForm);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [desktopLicenseKey, setDesktopLicenseKey] = useState<string | null>(null);
   const isDemoMode = planId === 'demo';
 
   useEffect(() => {
@@ -66,11 +67,13 @@ export function CompanyProfileCard() {
     if (isDemoMode) {
       setSavedForm(defaultForm);
       setForm(defaultForm);
+      setDesktopLicenseKey(null);
       setLoading(false);
       return;
     }
 
     if (!ownerUserId) {
+      setDesktopLicenseKey(null);
       setLoading(false);
       return;
     }
@@ -87,7 +90,7 @@ export function CompanyProfileCard() {
         { data: storeAccountData, error: storeAccountError },
         { data: fiscalSettingsData, error: fiscalSettingsError },
       ] = await Promise.all([
-        db.from('store_accounts').select('nome_estabelecimento, cnpj').eq('owner_user_id', ownerUserId).maybeSingle(),
+        db.from('store_accounts').select('nome_estabelecimento, cnpj, desktop_license_key').eq('owner_user_id', ownerUserId).maybeSingle(),
         db.from('store_fiscal_settings').select('issuer_legal_name, issuer_trade_name, issuer_cnpj, issuer_state_registration').eq('owner_user_id', ownerUserId).maybeSingle(),
       ]);
 
@@ -96,6 +99,7 @@ export function CompanyProfileCard() {
       if (storeAccountError || fiscalSettingsError) {
         setSavedForm(defaultForm);
         setForm(defaultForm);
+        setDesktopLicenseKey(null);
         setLoading(false);
         return;
       }
@@ -116,6 +120,7 @@ export function CompanyProfileCard() {
         stateRegistration,
       };
 
+      setDesktopLicenseKey(storeAccountData?.desktop_license_key ? String(storeAccountData.desktop_license_key) : null);
       setSavedForm(nextForm);
       setForm(nextForm);
       setLoading(false);
@@ -137,6 +142,20 @@ export function CompanyProfileCard() {
 
   const updateField = <K extends keyof CompanyForm>(field: K, value: CompanyForm[K]) => {
     setForm(current => ({ ...current, [field]: value }));
+  };
+
+  const handleCopyDesktopLicenseKey = async () => {
+    if (!desktopLicenseKey) {
+      toast.error('A chave desktop desta empresa ainda nao esta disponivel.');
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(desktopLicenseKey);
+      toast.success('Chave desktop copiada.');
+    } catch {
+      toast.error('Nao foi possivel copiar a chave agora.');
+    }
   };
 
   const handleSave = async () => {
@@ -302,6 +321,34 @@ export function CompanyProfileCard() {
               <p className="mt-1 text-sm text-muted-foreground">
                 O cupom vai usar o nome da empresa, mantendo a assinatura do sistema HappyCash no rodape.
               </p>
+            </div>
+
+            <div className="rounded-lg border border-primary/15 bg-primary/5 p-4">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="space-y-2">
+                  <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-primary">
+                    <KeyRound className="h-3.5 w-3.5" />
+                    Chave Desktop
+                  </p>
+                  <p className="font-mono text-sm text-foreground">
+                    {desktopLicenseKey ?? 'Chave indisponivel no momento'}
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    Use esta chave em cada nova maquina para reconhecer a empresa antes do login com usuario e PIN.
+                  </p>
+                </div>
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="gap-2"
+                  onClick={() => void handleCopyDesktopLicenseKey()}
+                  disabled={!desktopLicenseKey}
+                >
+                  <Copy className="h-4 w-4" />
+                  Copiar chave
+                </Button>
+              </div>
             </div>
 
             <div className="flex flex-wrap gap-2">

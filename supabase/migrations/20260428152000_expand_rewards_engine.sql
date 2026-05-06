@@ -7,7 +7,6 @@ ALTER TABLE public.rewards
   ADD COLUMN IF NOT EXISTS allow_pdv_redemption boolean NOT NULL DEFAULT true,
   ADD COLUMN IF NOT EXISTS auto_apply boolean NOT NULL DEFAULT false,
   ADD COLUMN IF NOT EXISTS notes text NOT NULL DEFAULT '';
-
 DO $$
 BEGIN
   IF NOT EXISTS (

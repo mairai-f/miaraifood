@@ -23,19 +23,15 @@ CREATE TABLE IF NOT EXISTS public.site_pending_registrations (
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now()
 );
-
 CREATE INDEX IF NOT EXISTS site_pending_registrations_status_created_at_idx
   ON public.site_pending_registrations(status, created_at DESC);
-
 ALTER TABLE public.site_pending_registrations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.site_pending_registrations FORCE ROW LEVEL SECURITY;
-
 DROP TRIGGER IF EXISTS update_site_pending_registrations_updated_at ON public.site_pending_registrations;
 CREATE TRIGGER update_site_pending_registrations_updated_at
 BEFORE UPDATE ON public.site_pending_registrations
 FOR EACH ROW
 EXECUTE FUNCTION public.update_updated_at_column();
-
 CREATE TABLE IF NOT EXISTS public.site_registration_attempts (
   id uuid NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
   ip_hash text,
@@ -45,17 +41,13 @@ CREATE TABLE IF NOT EXISTS public.site_registration_attempts (
   user_agent text,
   created_at timestamptz NOT NULL DEFAULT now()
 );
-
 CREATE INDEX IF NOT EXISTS site_registration_attempts_created_at_idx
   ON public.site_registration_attempts(created_at DESC);
-
 CREATE INDEX IF NOT EXISTS site_registration_attempts_ip_hash_created_at_idx
   ON public.site_registration_attempts(ip_hash, created_at DESC)
   WHERE ip_hash IS NOT NULL;
-
 CREATE INDEX IF NOT EXISTS site_registration_attempts_email_hash_created_at_idx
   ON public.site_registration_attempts(email_hash, created_at DESC)
   WHERE email_hash IS NOT NULL;
-
 ALTER TABLE public.site_registration_attempts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.site_registration_attempts FORCE ROW LEVEL SECURITY;

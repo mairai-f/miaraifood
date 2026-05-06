@@ -5,7 +5,6 @@ BEGIN
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SET search_path = public;
-
 CREATE TABLE IF NOT EXISTS public.subscription_plans (
   id text PRIMARY KEY CHECK (id IN ('demo', 'fiado', 'completo', 'pro')),
   name text NOT NULL,
@@ -21,7 +20,6 @@ CREATE TABLE IF NOT EXISTS public.subscription_plans (
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now()
 );
-
 CREATE TABLE IF NOT EXISTS public.subscription_plan_features (
   plan_id text NOT NULL REFERENCES public.subscription_plans(id) ON DELETE CASCADE,
   feature_key text NOT NULL,
@@ -29,7 +27,6 @@ CREATE TABLE IF NOT EXISTS public.subscription_plan_features (
   created_at timestamptz NOT NULL DEFAULT now(),
   PRIMARY KEY (plan_id, feature_key)
 );
-
 CREATE TABLE IF NOT EXISTS public.store_accounts (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   owner_user_id uuid NOT NULL UNIQUE REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -50,7 +47,6 @@ CREATE TABLE IF NOT EXISTS public.store_accounts (
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now()
 );
-
 CREATE TABLE IF NOT EXISTS public.billing_customers (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   store_account_id uuid NOT NULL UNIQUE REFERENCES public.store_accounts(id) ON DELETE CASCADE,
@@ -65,7 +61,6 @@ CREATE TABLE IF NOT EXISTS public.billing_customers (
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now()
 );
-
 CREATE TABLE IF NOT EXISTS public.store_subscriptions (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   store_account_id uuid NOT NULL REFERENCES public.store_accounts(id) ON DELETE CASCADE,
@@ -88,44 +83,33 @@ CREATE TABLE IF NOT EXISTS public.store_subscriptions (
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now()
 );
-
 CREATE INDEX IF NOT EXISTS subscription_plans_sort_order_idx
   ON public.subscription_plans(sort_order, id);
-
 CREATE INDEX IF NOT EXISTS subscription_plan_features_feature_key_idx
   ON public.subscription_plan_features(feature_key);
-
 CREATE INDEX IF NOT EXISTS store_accounts_owner_user_id_idx
   ON public.store_accounts(owner_user_id);
-
 CREATE INDEX IF NOT EXISTS billing_customers_owner_user_id_idx
   ON public.billing_customers(owner_user_id);
-
 CREATE INDEX IF NOT EXISTS billing_customers_store_account_id_idx
   ON public.billing_customers(store_account_id);
-
 CREATE INDEX IF NOT EXISTS store_subscriptions_owner_status_idx
   ON public.store_subscriptions(owner_user_id, status, created_at DESC);
-
 CREATE INDEX IF NOT EXISTS store_subscriptions_store_account_id_idx
   ON public.store_subscriptions(store_account_id, created_at DESC);
-
 CREATE UNIQUE INDEX IF NOT EXISTS store_subscriptions_one_current_idx
   ON public.store_subscriptions(store_account_id)
   WHERE status IN ('trialing', 'active', 'past_due');
-
 ALTER TABLE public.subscription_plans ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.subscription_plan_features ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.store_accounts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.billing_customers ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.store_subscriptions ENABLE ROW LEVEL SECURITY;
-
 ALTER TABLE public.subscription_plans FORCE ROW LEVEL SECURITY;
 ALTER TABLE public.subscription_plan_features FORCE ROW LEVEL SECURITY;
 ALTER TABLE public.store_accounts FORCE ROW LEVEL SECURITY;
 ALTER TABLE public.billing_customers FORCE ROW LEVEL SECURITY;
 ALTER TABLE public.store_subscriptions FORCE ROW LEVEL SECURITY;
-
 DROP POLICY IF EXISTS "subscription_plans_public_read" ON public.subscription_plans;
 DROP POLICY IF EXISTS "subscription_plan_features_public_read" ON public.subscription_plan_features;
 DROP POLICY IF EXISTS "store_accounts_select_owner" ON public.store_accounts;
@@ -134,13 +118,11 @@ DROP POLICY IF EXISTS "store_accounts_update_owner" ON public.store_accounts;
 DROP POLICY IF EXISTS "billing_customers_select_owner" ON public.billing_customers;
 DROP POLICY IF EXISTS "billing_customers_update_owner" ON public.billing_customers;
 DROP POLICY IF EXISTS "store_subscriptions_select_owner" ON public.store_subscriptions;
-
 CREATE POLICY "subscription_plans_public_read"
 ON public.subscription_plans
 FOR SELECT
 TO anon, authenticated
 USING (is_public AND is_active);
-
 CREATE POLICY "subscription_plan_features_public_read"
 ON public.subscription_plan_features
 FOR SELECT
@@ -154,69 +136,58 @@ USING (
       AND plan.is_active
   )
 );
-
 CREATE POLICY "store_accounts_select_owner"
 ON public.store_accounts
 FOR SELECT
 TO authenticated
 USING (owner_user_id = auth.uid());
-
 CREATE POLICY "store_accounts_insert_owner"
 ON public.store_accounts
 FOR INSERT
 TO authenticated
 WITH CHECK (owner_user_id = auth.uid());
-
 CREATE POLICY "store_accounts_update_owner"
 ON public.store_accounts
 FOR UPDATE
 TO authenticated
 USING (owner_user_id = auth.uid())
 WITH CHECK (owner_user_id = auth.uid());
-
 CREATE POLICY "billing_customers_select_owner"
 ON public.billing_customers
 FOR SELECT
 TO authenticated
 USING (owner_user_id = auth.uid());
-
 CREATE POLICY "billing_customers_update_owner"
 ON public.billing_customers
 FOR UPDATE
 TO authenticated
 USING (owner_user_id = auth.uid())
 WITH CHECK (owner_user_id = auth.uid());
-
 CREATE POLICY "store_subscriptions_select_owner"
 ON public.store_subscriptions
 FOR SELECT
 TO authenticated
 USING (owner_user_id = auth.uid());
-
 DROP TRIGGER IF EXISTS update_subscription_plans_updated_at ON public.subscription_plans;
 CREATE TRIGGER update_subscription_plans_updated_at
 BEFORE UPDATE ON public.subscription_plans
 FOR EACH ROW
 EXECUTE FUNCTION public.update_updated_at_column();
-
 DROP TRIGGER IF EXISTS update_store_accounts_updated_at ON public.store_accounts;
 CREATE TRIGGER update_store_accounts_updated_at
 BEFORE UPDATE ON public.store_accounts
 FOR EACH ROW
 EXECUTE FUNCTION public.update_updated_at_column();
-
 DROP TRIGGER IF EXISTS update_billing_customers_updated_at ON public.billing_customers;
 CREATE TRIGGER update_billing_customers_updated_at
 BEFORE UPDATE ON public.billing_customers
 FOR EACH ROW
 EXECUTE FUNCTION public.update_updated_at_column();
-
 DROP TRIGGER IF EXISTS update_store_subscriptions_updated_at ON public.store_subscriptions;
 CREATE TRIGGER update_store_subscriptions_updated_at
 BEFORE UPDATE ON public.store_subscriptions
 FOR EACH ROW
 EXECUTE FUNCTION public.update_updated_at_column();
-
 INSERT INTO public.subscription_plans (
   id,
   name,
@@ -228,7 +199,7 @@ INSERT INTO public.subscription_plans (
   sort_order
 )
 VALUES
-  ('demo', 'Demo 12 Horas', 'Acesso inicial liberado por 12 horas.', 0, 'trial', 0, 12, 0),
+  ('demo', 'Demo 3 Horas', 'Acesso inicial liberado por 3 horas.', 0, 'trial', 0, 3, 0),
   ('fiado', 'Plano Fiado', 'Fiado com painel, clientes, produtos e histórico básico por 30 dias.', 100, 'monthly', 30, 0, 1),
   ('completo', 'Plano Completo', 'Gestão completa do HappyCash no web por 30 dias.', 230, 'monthly', 30, 0, 2),
   ('pro', 'Plano PRO', 'Completo + desktop, mobile e recursos premium por 30 dias.', 347, 'monthly', 30, 0, 3)
@@ -243,10 +214,8 @@ SET
   sort_order = EXCLUDED.sort_order,
   is_active = true,
   is_public = true;
-
 DELETE FROM public.subscription_plan_features
 WHERE plan_id IN ('demo', 'fiado', 'completo', 'pro');
-
 INSERT INTO public.subscription_plan_features (plan_id, feature_key, enabled)
 VALUES
   ('demo', 'dashboard.view', true),

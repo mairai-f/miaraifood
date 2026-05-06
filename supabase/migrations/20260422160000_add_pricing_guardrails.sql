@@ -32,7 +32,6 @@ BEGIN
   END CASE;
 END;
 $$;
-
 CREATE OR REPLACE FUNCTION public.sync_product_real_cost()
 RETURNS trigger
 LANGUAGE plpgsql
@@ -115,7 +114,6 @@ BEGIN
   RETURN NEW;
 END;
 $$;
-
 CREATE TABLE IF NOT EXISTS public.product_price_history (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   owner_user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -132,19 +130,14 @@ CREATE TABLE IF NOT EXISTS public.product_price_history (
   new_margin_pct numeric(10,2) NOT NULL DEFAULT 0,
   created_at timestamptz NOT NULL DEFAULT now()
 );
-
 CREATE INDEX IF NOT EXISTS product_price_history_owner_created_idx
   ON public.product_price_history(owner_user_id, created_at DESC);
-
 CREATE INDEX IF NOT EXISTS product_price_history_product_created_idx
   ON public.product_price_history(product_id, created_at DESC);
-
 ALTER TABLE public.product_price_history ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.product_price_history FORCE ROW LEVEL SECURITY;
-
 DROP POLICY IF EXISTS "product_price_history_select_store" ON public.product_price_history;
 DROP POLICY IF EXISTS "product_price_history_insert_store" ON public.product_price_history;
-
 CREATE POLICY "product_price_history_select_store"
 ON public.product_price_history
 FOR SELECT
@@ -153,7 +146,6 @@ USING (
   owner_user_id = public.get_current_store_owner_id()
   AND public.current_store_has_feature('pricing.manage')
 );
-
 CREATE POLICY "product_price_history_insert_store"
 ON public.product_price_history
 FOR INSERT
@@ -162,7 +154,6 @@ WITH CHECK (
   owner_user_id = public.get_current_store_owner_id()
   AND public.current_store_has_feature('pricing.manage')
 );
-
 CREATE OR REPLACE FUNCTION public.log_product_price_history()
 RETURNS trigger
 LANGUAGE plpgsql
@@ -238,7 +229,6 @@ BEGIN
   RETURN NEW;
 END;
 $$;
-
 DROP TRIGGER IF EXISTS log_product_price_history ON public.products;
 CREATE TRIGGER log_product_price_history
 AFTER UPDATE ON public.products

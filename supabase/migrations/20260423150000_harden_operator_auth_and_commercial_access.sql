@@ -1,7 +1,6 @@
 DELETE FROM public.subscription_plan_features
 WHERE plan_id = 'demo'
   AND feature_key IN ('desktop.app', 'offline.access');
-
 DO $$
 DECLARE
   duplicate_count integer := 0;
@@ -27,7 +26,6 @@ BEGIN
     RAISE NOTICE 'Skipping unique operator username index because duplicate operator usernames already exist.';
   END IF;
 END $$;
-
 CREATE TABLE IF NOT EXISTS public.operator_login_attempts (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   username_hash text,
@@ -37,13 +35,10 @@ CREATE TABLE IF NOT EXISTS public.operator_login_attempts (
   user_agent text,
   created_at timestamptz NOT NULL DEFAULT now()
 );
-
 CREATE INDEX IF NOT EXISTS operator_login_attempts_username_created_idx
   ON public.operator_login_attempts (username_hash, created_at DESC);
-
 CREATE INDEX IF NOT EXISTS operator_login_attempts_ip_created_idx
   ON public.operator_login_attempts (ip_hash, created_at DESC);
-
 DO $$
 DECLARE
   target_email CONSTANT text := 'celioantonio.dev@gmail.com';

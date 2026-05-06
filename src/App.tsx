@@ -8,9 +8,15 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { DesktopRuntimeProvider, useDesktopRuntime } from "@/contexts/DesktopRuntimeContext";
 import { PlanProvider, usePlanAccess } from "@/contexts/PlanContext";
+import { DesktopActivationScreen } from "@/components/DesktopActivationScreen";
 import Login from "@/pages/Login";
 import { SplashScreen } from "@/components/SplashScreen";
 import { hasSeenAppSplash, markAppSplashSeen } from "@/lib/appSplash";
+import {
+  isDesktopActivationRequired,
+  readDesktopActivation,
+  type DesktopActivationRecord,
+} from "@/lib/desktopActivation";
 import { LocaleProvider } from "../shared/locale/LocaleContext";
 
 const queryClient = new QueryClient();
@@ -29,13 +35,15 @@ function FullScreenLoader() {
 }
 
 function AppRoutes() {
-  const { isAuthenticated, loading } = useAuth();
-  const { checking: checkingDesktopLicense } = useDesktopRuntime();
+  const { isAuthenticated, loading, logout } = useAuth();
+  const { checking: checkingDesktopLicense, isDesktop } = useDesktopRuntime();
   const { loading: planLoading } = usePlanAccess();
+  const [desktopActivation, setDesktopActivation] = useState<DesktopActivationRecord | null>(() => readDesktopActivation());
   const [progress, setProgress] = useState(0);
   const [minimumSplashDone, setMinimumSplashDone] = useState(hasSeenAppSplash());
   const [showSplash, setShowSplash] = useState(!hasSeenAppSplash());
   const shouldBlockSplash = loading || planLoading || checkingDesktopLicense;
+  const requiresDesktopActivation = isDesktop && isDesktopActivationRequired() && !desktopActivation;
 
   useEffect(() => {
     if (hasSeenAppSplash()) {
@@ -80,8 +88,24 @@ function AppRoutes() {
     }
   }, [minimumSplashDone, shouldBlockSplash]);
 
+  useEffect(() => {
+    setDesktopActivation(readDesktopActivation());
+  }, [isAuthenticated, isDesktop]);
+
+  const handleDesktopActivated = async (activation: DesktopActivationRecord) => {
+    if (isAuthenticated) {
+      await logout();
+    }
+
+    setDesktopActivation(activation);
+  };
+
   if (showSplash && !isAuthenticated) {
     return <SplashScreen progress={progress} />;
+  }
+
+  if (requiresDesktopActivation) {
+    return <DesktopActivationScreen onActivated={handleDesktopActivated} />;
   }
 
   return (

@@ -1,5 +1,4 @@
 DROP POLICY IF EXISTS "cash_sessions_update_store" ON public.cash_sessions;
-
 CREATE POLICY "cash_sessions_update_store"
 ON public.cash_sessions
 FOR UPDATE

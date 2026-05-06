@@ -8,6 +8,7 @@ import {
   clearSystemClientSessionId,
   trackSystemAccessEvent,
 } from '@/lib/accessTracking';
+import { getActivatedDesktopOwnerUserId, readDesktopActivation } from '@/lib/desktopActivation';
 import { isDesktopRuntime, isProbablyOfflineError } from '@/lib/offlineConcentrator';
 import { getPasswordPolicyError } from '../../shared/security/passwordPolicy';
 import { retryAsync } from '../../shared/network/retry';
@@ -124,9 +125,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         owner_user_id: profile?.owner_user_id ?? currentUser.id,
       };
 
+      const activatedOwnerUserId = getActivatedDesktopOwnerUserId();
+      if (isDesktopRuntime() && activatedOwnerUserId && resolvedProfile.owner_user_id !== activatedOwnerUserId) {
+        throw new Error('DESKTOP_ACTIVATION_OWNER_MISMATCH');
+      }
+
       writeCachedProfile(currentUser.id, resolvedProfile);
       return resolvedProfile;
     } catch (error) {
+      if (error instanceof Error && error.message === 'DESKTOP_ACTIVATION_OWNER_MISMATCH') {
+        throw error;
+      }
+
       console.error('Erro inesperado ao carregar perfil do usuário:', error);
 
       const cachedProfile = readCachedProfile(currentUser.id);
@@ -203,6 +213,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         console.error('Erro ao sincronizar autenticação:', error);
         resetAuthState();
+        if (error instanceof Error && error.message === 'DESKTOP_ACTIVATION_OWNER_MISMATCH') {
+          clearLocalSession();
+        }
       } finally {
         if (isMounted && currentRequestId === syncRequestId) {
           setLoading(false);
@@ -244,6 +257,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         console.error('Erro ao inicializar autenticação:', error);
         resetAuthState();
+        if (error instanceof Error && error.message === 'DESKTOP_ACTIVATION_OWNER_MISMATCH') {
+          clearLocalSession();
+        }
         setLoading(false);
       }
     })();
@@ -284,15 +300,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [session?.access_token, user]);
 
   const login = async (email: string, password: string): Promise<string | true> => {
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    return error ? error.message : true;
+    const activation = readDesktopActivation();
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error || !data.user) return error ? error.message : 'Nao foi possivel iniciar a sessao.';
+
+    if (activation?.ownerUserId) {
+      try {
+        const profile = await fetchProfile(data.user);
+        if ((profile.owner_user_id ?? data.user.id) !== activation.ownerUserId) {
+          await supabase.auth.signOut({ scope: 'local' });
+          return `Este login nao pertence a empresa ativada neste desktop: ${activation.companyName}.`;
+        }
+      } catch (activationError) {
+        await supabase.auth.signOut({ scope: 'local' });
+        if (activationError instanceof Error && activationError.message === 'DESKTOP_ACTIVATION_OWNER_MISMATCH') {
+          return `Este login nao pertence a empresa ativada neste desktop: ${activation.companyName}.`;
+        }
+        return 'Nao foi possivel validar a empresa desta sessao.';
+      }
+    }
+
+    return true;
   };
 
   const loginOperator = async (username: string, password: string): Promise<string | true> => {
+    const activation = readDesktopActivation();
     const { data, error } = await supabase.functions.invoke<OperatorLoginResponse>('operator-login', {
       body: {
         username,
         password,
+        ownerUserId: activation?.ownerUserId ?? null,
       },
     });
 

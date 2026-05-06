@@ -27,14 +27,11 @@ CREATE TABLE IF NOT EXISTS public.store_fiscal_settings (
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now()
 );
-
 ALTER TABLE public.store_fiscal_settings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.store_fiscal_settings FORCE ROW LEVEL SECURITY;
-
 DROP POLICY IF EXISTS "store_fiscal_settings_select_admin_store" ON public.store_fiscal_settings;
 DROP POLICY IF EXISTS "store_fiscal_settings_insert_admin_store" ON public.store_fiscal_settings;
 DROP POLICY IF EXISTS "store_fiscal_settings_update_admin_store" ON public.store_fiscal_settings;
-
 CREATE POLICY "store_fiscal_settings_select_admin_store"
 ON public.store_fiscal_settings
 FOR SELECT
@@ -43,7 +40,6 @@ USING (
   owner_user_id = public.get_current_store_owner_id()
   AND public.current_user_is_admin()
 );
-
 CREATE POLICY "store_fiscal_settings_insert_admin_store"
 ON public.store_fiscal_settings
 FOR INSERT
@@ -52,7 +48,6 @@ WITH CHECK (
   owner_user_id = public.get_current_store_owner_id()
   AND public.current_user_is_admin()
 );
-
 CREATE POLICY "store_fiscal_settings_update_admin_store"
 ON public.store_fiscal_settings
 FOR UPDATE
@@ -65,10 +60,8 @@ WITH CHECK (
   owner_user_id = public.get_current_store_owner_id()
   AND public.current_user_is_admin()
 );
-
 CREATE INDEX IF NOT EXISTS store_fiscal_settings_owner_user_id_idx
   ON public.store_fiscal_settings(owner_user_id);
-
 DROP TRIGGER IF EXISTS update_store_fiscal_settings_updated_at ON public.store_fiscal_settings;
 CREATE TRIGGER update_store_fiscal_settings_updated_at
 BEFORE UPDATE ON public.store_fiscal_settings
