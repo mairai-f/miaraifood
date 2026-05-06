@@ -50,7 +50,7 @@ const writeCachedPlanAccess = (
 };
 
 export function PlanProvider({ children }: { children: ReactNode }) {
-  const { user, loading: authLoading } = useAuth();
+  const { user, loading: authLoading, isLocalOfflineSession } = useAuth();
   const [planId, setPlanId] = useState<string | null>(null);
   const [features, setFeatures] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
@@ -64,6 +64,14 @@ export function PlanProvider({ children }: { children: ReactNode }) {
     if (!user) {
       setPlanId(null);
       setFeatures([]);
+      setLoading(false);
+      return;
+    }
+
+    if (isLocalOfflineSession) {
+      const cachedPlanAccess = readCachedPlanAccess(user.id);
+      setPlanId(cachedPlanAccess?.planId ?? null);
+      setFeatures(cachedPlanAccess?.features ?? []);
       setLoading(false);
       return;
     }
@@ -116,7 +124,7 @@ export function PlanProvider({ children }: { children: ReactNode }) {
       planId: currentPlanId,
       features: nextFeatures,
     });
-  }, [authLoading, user]);
+  }, [authLoading, isLocalOfflineSession, user]);
 
   useEffect(() => {
     void refresh();

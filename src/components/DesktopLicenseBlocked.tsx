@@ -23,7 +23,7 @@ export function DesktopLicenseBlocked() {
           <CardDescription>
             {isOfflineValidationExpired
               ? 'O prazo de validacao offline terminou. Conecte o app a internet para renovar o acesso local.'
-              : 'O aplicativo desktop do HappyCash so funciona para contas com plano PRO ativo e licenca validada no backend.'}
+              : 'O aplicativo desktop do HappyCash so funciona para contas com plano PRO em status ativo, com pagamento confirmado e licenca validada no backend.'}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -44,7 +44,7 @@ export function DesktopLicenseBlocked() {
             <p className="mt-1">
               {isOfflineValidationExpired
                 ? 'Reconecte o desktop e clique em validar novamente. Depois disso, o modo offline volta a contar um novo prazo local de 5 dias.'
-                : 'Ative o plano PRO no site. Assim que o pagamento for confirmado, o desktop volta a validar automaticamente.'}
+                : 'Ative o plano PRO no site e aguarde a confirmacao do pagamento. Assim que o status ficar ativo, o desktop volta a validar automaticamente.'}
             </p>
           </div>
 

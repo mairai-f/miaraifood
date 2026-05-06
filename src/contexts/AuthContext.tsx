@@ -9,6 +9,7 @@ import {
   trackSystemAccessEvent,
 } from '@/lib/accessTracking';
 import { getActivatedDesktopOwnerUserId, readDesktopActivation } from '@/lib/desktopActivation';
+import { verifyOfflineAdminAccess } from '@/lib/offlineAdminAccess';
 import { isDesktopRuntime, isProbablyOfflineError } from '@/lib/offlineConcentrator';
 import { getPasswordPolicyError } from '../../shared/security/passwordPolicy';
 import { retryAsync } from '../../shared/network/retry';
@@ -37,11 +38,14 @@ interface AuthContextType {
   isAdmin: boolean;
   isOperator: boolean;
   login: (email: string, password: string) => Promise<string | true>;
+  loginOfflineAdmin: (username: string, pin: string) => Promise<string | true>;
   loginOperator: (username: string, password: string) => Promise<string | true>;
   register: (email: string, password: string, username: string) => Promise<string | true>;
   resetPassword: (email: string) => Promise<boolean>;
   logout: () => Promise<void>;
   isAuthenticated: boolean;
+  isLocalOfflineSession: boolean;
+  refreshProfile: () => Promise<void>;
   loading: boolean;
 }
 
@@ -52,6 +56,15 @@ interface OperatorLoginResponse {
     refresh_token?: string;
   };
   error?: string;
+}
+
+interface LocalOfflineAdminSession {
+  source: 'offline-admin';
+  userId: string;
+  ownerUserId: string;
+  username: string;
+  email: string | null;
+  authenticatedAt: string;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -86,6 +99,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [profileEmail, setProfileEmail] = useState<string | null>(null);
   const [role, setRole] = useState<UserRole>('admin');
   const [ownerUserId, setOwnerUserId] = useState<string | null>(null);
+  const [localOfflineAdminSession, setLocalOfflineAdminSession] = useState<LocalOfflineAdminSession | null>(null);
   const [loading, setLoading] = useState(true);
 
   const resetAuthState = useCallback(() => {
@@ -95,7 +109,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setProfileEmail(null);
     setRole('admin');
     setOwnerUserId(null);
+    setLocalOfflineAdminSession(null);
   }, []);
+
+  const buildLocalOfflineUser = useCallback((payload: LocalOfflineAdminSession) => ({
+    id: payload.userId,
+    email: payload.email ?? undefined,
+    aud: 'authenticated',
+    role: 'authenticated',
+    app_metadata: {
+      provider: 'offline-admin',
+      providers: ['offline-admin'],
+    },
+    user_metadata: {
+      username: payload.username,
+      role: 'admin',
+      owner_user_id: payload.ownerUserId,
+      offline: true,
+    },
+    created_at: payload.authenticatedAt,
+  } as User), []);
+
+  const applyLocalOfflineAdminSession = useCallback((payload: LocalOfflineAdminSession) => {
+    setSession(null);
+    setUser(buildLocalOfflineUser(payload));
+    setUsername(payload.username);
+    setProfileEmail(payload.email);
+    setRole('admin');
+    setOwnerUserId(payload.ownerUserId);
+    setLocalOfflineAdminSession(payload);
+  }, [buildLocalOfflineUser]);
 
   const clearLocalSession = useCallback(() => {
     window.setTimeout(() => {
@@ -161,6 +204,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setOwnerUserId(profile.owner_user_id ?? currentUser.id);
   }, [fetchProfile]);
 
+  const refreshProfile = useCallback(async () => {
+    if (!user) return;
+
+    if (localOfflineAdminSession) {
+      applyLocalOfflineAdminSession(localOfflineAdminSession);
+      return;
+    }
+
+    await syncProfileState(user);
+  }, [applyLocalOfflineAdminSession, localOfflineAdminSession, syncProfileState, user]);
+
   useEffect(() => {
     let isMounted = true;
     let syncRequestId = 0;
@@ -175,7 +229,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       try {
         if (!nextSession?.access_token) {
           if (isMounted && currentRequestId === syncRequestId) {
-            resetAuthState();
+            if (localOfflineAdminSession) {
+              applyLocalOfflineAdminSession(localOfflineAdminSession);
+            } else {
+              resetAuthState();
+            }
           }
           return;
         }
@@ -205,6 +263,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           return;
         }
 
+        setLocalOfflineAdminSession(null);
         setSession(nextSession);
         setUser(data.user);
         await syncProfileState(data.user);
@@ -269,7 +328,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       syncRequestId += 1;
       subscription.unsubscribe();
     };
-  }, [clearLocalSession, resetAuthState, syncProfileState]);
+  }, [applyLocalOfflineAdminSession, clearLocalSession, localOfflineAdminSession, resetAuthState, syncProfileState]);
 
   useEffect(() => {
     if (!session?.access_token || !user) return;
@@ -319,6 +378,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return 'Nao foi possivel validar a empresa desta sessao.';
       }
     }
+
+    return true;
+  };
+
+  const loginOfflineAdmin = async (adminUsername: string, pin: string): Promise<string | true> => {
+    const activation = readDesktopActivation();
+
+    if (!activation?.ownerUserId) {
+      return 'Ative esta maquina com a chave da empresa antes do login offline.';
+    }
+
+    const verification = await verifyOfflineAdminAccess({
+      ownerUserId: activation.ownerUserId,
+      username: adminUsername,
+      pin,
+    });
+
+    if (!verification.success) {
+      return verification.error;
+    }
+
+    clearSystemTemporarySessionPreference();
+    await supabase.auth.signOut({ scope: 'local' });
+
+    applyLocalOfflineAdminSession({
+      source: 'offline-admin',
+      userId: verification.record.userId,
+      ownerUserId: verification.record.ownerUserId,
+      username: verification.record.username,
+      email: verification.record.email,
+      authenticatedAt: new Date().toISOString(),
+    });
 
     return true;
   };
@@ -389,6 +480,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     clearSystemClientSessionId();
     clearSystemTemporarySessionPreference();
+
+    if (localOfflineAdminSession) {
+      resetAuthState();
+      await supabase.auth.signOut({ scope: 'local' });
+      return;
+    }
+
     await supabase.auth.signOut();
   };
 
@@ -404,11 +502,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isAdmin: role === 'admin',
         isOperator: role === 'operator',
         login,
+        loginOfflineAdmin,
         loginOperator,
         register,
         resetPassword,
         logout,
         isAuthenticated: !!user,
+        isLocalOfflineSession: Boolean(localOfflineAdminSession),
+        refreshProfile,
         loading,
       }}
     >

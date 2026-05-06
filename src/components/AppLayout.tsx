@@ -1,12 +1,17 @@
 import { ReactNode, useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Clock3, Home, Users, Package, Gift, Trash2, LogOut, Menu, X, UserCircle, Receipt, BarChart3, DollarSign, Boxes, ChevronDown, ChevronUp, FileText, Shield, Calculator, ShieldCheck } from 'lucide-react';
+import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import { useDesktopRuntime } from '@/contexts/DesktopRuntimeContext';
 import { usePlanAccess } from '@/contexts/PlanContext';
 import happyCashLogo from '@/assets/happycash-logo.webp';
 import { roleLabel } from '@/lib/access';
+import { readDesktopActivation } from '@/lib/desktopActivation';
+import { hasOfflineAdminAccess, saveOfflineAdminAccess } from '@/lib/offlineAdminAccess';
+import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
+import { DesktopOfflineAdminSetupDialog } from '@/components/DesktopOfflineAdminSetupDialog';
 import {
   Dialog,
   DialogContent,
@@ -82,7 +87,7 @@ const formatRemainingTime = (remainingMs: number) => {
 };
 
 export function AppLayout({ children }: { children: ReactNode }) {
-  const { logout, user, username, role } = useAuth();
+  const { logout, user, username, role, ownerUserId, session, isLocalOfflineSession, refreshProfile } = useAuth();
   const {
     isDesktop,
     licensed: desktopLicensed,
@@ -95,11 +100,14 @@ export function AppLayout({ children }: { children: ReactNode }) {
   const location = useLocation();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
+  const [offlineAdminSetupOpen, setOfflineAdminSetupOpen] = useState(false);
+  const [savingOfflineAdminSetup, setSavingOfflineAdminSetup] = useState(false);
   const [offlineReminderOpen, setOfflineReminderOpen] = useState(false);
   const [offlineValidationStartedAt, setOfflineValidationStartedAt] = useState<string | null>(null);
   const navRef = useRef<HTMLElement | null>(null);
   const [scrollHints, setScrollHints] = useState({ top: false, bottom: false });
   const isPdvMode = location.pathname === '/pdv';
+  const desktopActivation = readDesktopActivation();
   const visibleNavItems = navItems.filter(item => item.roles.includes(role) && hasFeature(item.featureKey));
   const canOpenSettings = role === 'admin' && hasFeature('settings.manage');
   const fallbackValidationStartedAt = user?.id ? readOfflineValidationStartedAt(user.id) : null;
@@ -126,6 +134,14 @@ export function AppLayout({ children }: { children: ReactNode }) {
     setOpen(false);
     navigate('/configuracoes');
   };
+
+  const defaultOfflineAdminUsername = (username || user?.email || 'admin')
+    .trim()
+    .toLowerCase()
+    .replace(/@.*$/, '')
+    .replace(/[^a-z0-9._-]/g, '-')
+    .replace(/^-+|-+$/g, '')
+    || 'admin';
 
   const updateScrollHints = useCallback(() => {
     const nav = navRef.current;
@@ -236,6 +252,28 @@ export function AppLayout({ children }: { children: ReactNode }) {
     setOfflineReminderOpen(true);
   }, [offlineValidationExpiresAt, shouldShowOfflineReminder, user?.id]);
 
+  useEffect(() => {
+    if (
+      !isDesktop
+      || role !== 'admin'
+      || !user?.id
+      || !ownerUserId
+      || !session?.access_token
+      || isLocalOfflineSession
+      || !desktopActivation
+    ) {
+      setOfflineAdminSetupOpen(false);
+      return;
+    }
+
+    if (desktopActivation.ownerUserId !== ownerUserId) {
+      setOfflineAdminSetupOpen(false);
+      return;
+    }
+
+    setOfflineAdminSetupOpen(!hasOfflineAdminAccess(ownerUserId));
+  }, [desktopActivation, isDesktop, isLocalOfflineSession, ownerUserId, role, session?.access_token, user?.id]);
+
   const handleCloseOfflineReminder = useCallback(() => {
     if (user?.id && offlineValidationExpiresAt) {
       window.sessionStorage.setItem(offlineValidationReminderKey(user.id, offlineValidationExpiresAt), '1');
@@ -243,6 +281,45 @@ export function AppLayout({ children }: { children: ReactNode }) {
 
     setOfflineReminderOpen(false);
   }, [offlineValidationExpiresAt, user?.id]);
+
+  const handleOfflineAdminSetup = useCallback(async (payload: { username: string; pin: string }) => {
+    if (!user?.id || !ownerUserId) {
+      toast.error('Nao foi possivel identificar o administrador desta loja.');
+      return;
+    }
+
+    setSavingOfflineAdminSetup(true);
+
+    try {
+      await saveOfflineAdminAccess({
+        userId: user.id,
+        ownerUserId,
+        username: payload.username,
+        email: user.email ?? null,
+        pin: payload.pin,
+      });
+
+      if (session?.access_token && username !== payload.username) {
+        // Generated Supabase types are behind the current profile schema.
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const db = supabase as any;
+        const { error } = await db.from('profiles').update({ username: payload.username }).eq('user_id', user.id);
+
+        if (error) {
+          toast.error('Acesso offline salvo, mas nao foi possivel sincronizar o usuario admin no Supabase agora.');
+        } else {
+          await refreshProfile();
+        }
+      }
+
+      setOfflineAdminSetupOpen(false);
+      toast.success('Acesso offline do administrador configurado nesta maquina.');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Nao foi possivel salvar o acesso offline do administrador.');
+    } finally {
+      setSavingOfflineAdminSetup(false);
+    }
+  }, [ownerUserId, refreshProfile, session?.access_token, user?.email, user?.id, username]);
 
   if (offlineValidationExpired) {
     return (
@@ -283,6 +360,14 @@ export function AppLayout({ children }: { children: ReactNode }) {
 
   return (
     <div className="flex h-screen overflow-hidden bg-background">
+      <DesktopOfflineAdminSetupDialog
+        open={offlineAdminSetupOpen}
+        defaultUsername={defaultOfflineAdminUsername}
+        companyName={desktopActivation?.companyName ?? null}
+        submitting={savingOfflineAdminSetup}
+        onSubmit={handleOfflineAdminSetup}
+      />
+
       <Dialog open={offlineReminderOpen} onOpenChange={(nextOpen) => {
         if (!nextOpen) {
           handleCloseOfflineReminder();

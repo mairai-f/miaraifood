@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import { usePlanAccess } from '@/contexts/PlanContext';
 import { supabase } from '@/integrations/supabase/client';
+import { useCurrentSubscription } from '@/hooks/use-current-subscription';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -53,6 +54,7 @@ const toOptionalText = (value: string) => {
 export function CompanyProfileCard() {
   const { ownerUserId, user, isAdmin } = useAuth();
   const { planId } = usePlanAccess();
+  const { subscription, loading: loadingSubscription } = useCurrentSubscription();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [savedForm, setSavedForm] = useState<CompanyForm>(defaultForm);
   const [form, setForm] = useState<CompanyForm>(defaultForm);
@@ -137,6 +139,16 @@ export function CompanyProfileCard() {
     () => savedForm.tradeName.trim() || savedForm.legalName.trim() || 'Empresa nao cadastrada',
     [savedForm.legalName, savedForm.tradeName],
   );
+  const desktopKeyUnlocked = subscription?.plan_id === 'pro' && subscription.status === 'active';
+  const desktopKeyStatusMessage = loadingSubscription
+    ? 'Verificando a liberacao da chave desktop desta conta...'
+    : desktopKeyUnlocked
+      ? 'Use esta chave em cada nova maquina para reconhecer a empresa antes do login com usuario e PIN.'
+      : subscription?.plan_id !== 'pro'
+        ? 'A chave desktop aparece somente para contas com plano PRO.'
+        : subscription?.status === 'pending'
+          ? 'A chave desktop aparece quando o pagamento do plano PRO for confirmado no Asaas.'
+          : 'A chave desktop aparece somente com o plano PRO em status ativo.';
 
   if (!isAdmin) return null;
 
@@ -331,10 +343,10 @@ export function CompanyProfileCard() {
                     Chave Desktop
                   </p>
                   <p className="font-mono text-sm text-foreground">
-                    {desktopLicenseKey ?? 'Chave indisponivel no momento'}
+                    {desktopKeyUnlocked ? (desktopLicenseKey ?? 'Chave indisponivel no momento') : 'Disponivel apos PRO ativo'}
                   </p>
                   <p className="text-sm text-muted-foreground">
-                    Use esta chave em cada nova maquina para reconhecer a empresa antes do login com usuario e PIN.
+                    {desktopKeyStatusMessage}
                   </p>
                 </div>
 
@@ -343,7 +355,7 @@ export function CompanyProfileCard() {
                   variant="outline"
                   className="gap-2"
                   onClick={() => void handleCopyDesktopLicenseKey()}
-                  disabled={!desktopLicenseKey}
+                  disabled={!desktopKeyUnlocked || !desktopLicenseKey}
                 >
                   <Copy className="h-4 w-4" />
                   Copiar chave

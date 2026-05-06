@@ -88,7 +88,7 @@ const writeCachedLicense = (
 };
 
 export function DesktopRuntimeProvider({ children }: { children: ReactNode }) {
-  const { session, user, loading: authLoading } = useAuth();
+  const { session, user, loading: authLoading, isLocalOfflineSession } = useAuth();
   const [checking, setChecking] = useState(isDesktopRuntime);
   const [licensed, setLicensed] = useState(!isDesktopRuntime);
   const [offlineEnabled, setOfflineEnabled] = useState(false);
@@ -122,7 +122,64 @@ export function DesktopRuntimeProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    if (!session?.access_token || !user) {
+    if (!user) {
+      resetState(false);
+      return;
+    }
+
+    const applyCachedOfflineLicense = () => {
+      const cachedLicense = readCachedLicense(user.id);
+      const cachedValidationExpiresAt = cachedLicense ? buildValidationExpiresAt(cachedLicense) : null;
+      const cachedLicenseStillValid = Boolean(
+        cachedValidationExpiresAt
+        && toTimestamp(cachedValidationExpiresAt)
+        && toTimestamp(cachedValidationExpiresAt)! > Date.now()
+      );
+
+      if (cachedLicense && cachedLicenseStillValid) {
+        const validatedAt = cachedLicense.validatedAt || new Date().toISOString();
+        setLicensed(true);
+        setOfflineEnabled(Boolean(cachedLicense.offlineEnabled));
+        setValidUntil(cachedLicense.validUntil ?? null);
+        setValidationExpiresAt(cachedValidationExpiresAt);
+        setUsingOfflineValidationCache(true);
+        setPlanId(cachedLicense.planId ?? null);
+        setError(null);
+        setCode('OFFLINE_LICENSE_CACHE');
+        setChecking(false);
+        if (!cachedLicense.validatedAt) {
+          writeCachedLicense(user.id, {
+            planId: cachedLicense.planId ?? null,
+            validUntil: cachedLicense.validUntil ?? null,
+            offlineEnabled: Boolean(cachedLicense.offlineEnabled),
+            validatedAt,
+          });
+        }
+        return true;
+      }
+
+      const expiredMessage = cachedValidationExpiresAt
+        ? `A validacao offline expirou. Conecte o HappyCash a internet para renovar o acesso apos ${OFFLINE_VALIDATION_GRACE_DAYS} dias.`
+        : 'Esta maquina ainda nao possui uma validacao offline pronta para uso.';
+
+      setLicensed(false);
+      setOfflineEnabled(Boolean(cachedLicense?.offlineEnabled));
+      setValidUntil(cachedLicense?.validUntil ?? null);
+      setValidationExpiresAt(cachedValidationExpiresAt);
+      setUsingOfflineValidationCache(false);
+      setPlanId(cachedLicense?.planId ?? null);
+      setError(expiredMessage);
+      setCode(cachedValidationExpiresAt ? 'OFFLINE_VALIDATION_EXPIRED' : 'OFFLINE_LICENSE_UNAVAILABLE');
+      setChecking(false);
+      return true;
+    };
+
+    if (!session?.access_token) {
+      if (isLocalOfflineSession) {
+        applyCachedOfflineLicense();
+        return;
+      }
+
       resetState(false);
       return;
     }
@@ -233,7 +290,7 @@ export function DesktopRuntimeProvider({ children }: { children: ReactNode }) {
       offlineEnabled: Boolean(data.offlineEnabled),
       validatedAt,
     });
-  }, [authLoading, resetState, session?.access_token, user]);
+  }, [authLoading, isLocalOfflineSession, resetState, session?.access_token, user]);
 
   useEffect(() => {
     void refresh();

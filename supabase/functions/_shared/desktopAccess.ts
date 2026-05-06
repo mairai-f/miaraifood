@@ -90,11 +90,18 @@ export const validateDesktopLicense = async (
   const currentSubscription = subscriptionRows.find(isCurrentSubscription) ?? subscriptionRows[0] ?? null;
   const validUntil = getSubscriptionEndAt(currentSubscription);
 
-  if (!currentSubscription || currentSubscription.plan_id !== "pro" || !isCurrentSubscription(currentSubscription)) {
+  const hasActiveDesktopPlan = Boolean(
+    currentSubscription
+    && currentSubscription.plan_id === "pro"
+    && currentSubscription.status === "active"
+    && isCurrentSubscription(currentSubscription),
+  );
+
+  if (!hasActiveDesktopPlan) {
     return {
       ok: false,
-      code: "PRO_REQUIRED",
-      message: "O aplicativo desktop esta disponivel apenas para contas com plano PRO ativo.",
+      code: "PRO_ACTIVE_REQUIRED",
+      message: "O aplicativo desktop libera somente apos a confirmacao do pagamento do plano PRO.",
       planId: currentSubscription?.plan_id ?? null,
       status: currentSubscription?.status ?? null,
       validUntil,
