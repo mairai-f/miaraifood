@@ -1037,7 +1037,7 @@ const Dashboard = () => {
                   <div>
                     <p className="text-sm font-semibold">Downloads do desktop</p>
                     <p className="mt-1 text-sm text-muted-foreground">
-                      O executavel fica liberado apenas para contas com plano PRO ativo. Os links abaixo sempre consultam a release mais recente para Windows, Linux (.deb) e Linux AppImage.
+                      O executavel fica liberado apenas para contas com plano PRO ativo. Cada nova instalacao pede a chave da empresa antes do login e os links abaixo sempre consultam a release mais recente para Windows, Linux (.deb) e Linux AppImage.
                     </p>
                   </div>
                   <Badge variant={isCurrentProPlan ? "default" : "outline"}>
@@ -1047,6 +1047,15 @@ const Dashboard = () => {
 
                 {isCurrentProPlan ? (
                   <div className="mt-4 grid gap-3">
+                    <div className="rounded-2xl border border-border bg-background/70 p-4">
+                      <p className="text-sm font-semibold">Como funciona no desktop PRO</p>
+                      <ul className="mt-3 space-y-2 text-sm text-muted-foreground">
+                        <li>1. Instale a release mais recente na maquina.</li>
+                        <li>2. Valide a chave da empresa no primeiro acesso dessa maquina.</li>
+                        <li>3. Depois do reconhecimento, entre com o usuario e PIN ou senha do operador.</li>
+                        <li>4. O offline local pode seguir por ate 5 dias apos uma validacao online.</li>
+                      </ul>
+                    </div>
                     <Button asChild className="h-11 font-semibold">
                       <Link to={downloads.windows.route}>
                         <Download className="mr-2 h-4 w-4" />
@@ -1066,7 +1075,7 @@ const Dashboard = () => {
                   </div>
                 ) : (
                   <p className="mt-4 text-sm text-muted-foreground">
-                    Quando o plano PRO estiver ativo, esta area libera o download da release mais recente do app desktop para Windows (.exe), Linux (.deb) e Linux AppImage.
+                    Quando o plano PRO estiver ativo, esta area libera a release mais recente do desktop e a ativacao por chave da empresa em cada maquina.
                   </p>
                 )}
               </div>

@@ -19,7 +19,7 @@ const features = [
   { icon: BarChart3, title: "Relatórios Financeiros", desc: "Enxergue receitas, despesas e desempenho sem montar relatório manual todo dia." },
   { icon: Gift, title: "Programa de Fidelidade", desc: "Recompense clientes frequentes e aumente a recorrência de compra na loja." },
   { icon: Wallet, title: "Pix, Boleto, Crédito e Débito", desc: "Aceite os principais meios de pagamento e mantenha o histórico da operação centralizado." },
-  { icon: Key, title: "Gerador de Chave Pix", desc: "Facilite a cobrança com chaves Pix individuais quando a operação precisar desse fluxo." },
+  { icon: Key, title: "Operadores com usuário e PIN", desc: "No desktop PRO, a empresa ativa a máquina com a chave e depois cada operador entra com usuário e PIN ou senha." },
 ];
 
 const Features = () => {

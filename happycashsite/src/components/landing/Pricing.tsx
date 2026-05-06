@@ -66,15 +66,16 @@ const plans = [
     name: "Plano PRO",
     subtitle: "Completo + App",
     price: "347",
-    description: "Mais valor para operação intensa em ciclos de 30 dias",
+    description: "Desktop PRO com ativação por máquina, mobile e mais segurança para a operação",
     popular: false,
     features: [
       "Plano com validade de 30 dias",
       "Tudo do Plano Completo",
-      "Módulo de precificação inteligente",
-      "Aplicativo desktop",
+      "Desktop para Windows e Linux",
+      "Chave da empresa em cada máquina nova",
+      "Login de operador com usuário e PIN",
+      "Offline local por até 5 dias",
       "App mobile",
-      "Fluxo preparado para offline",
       "Impressão Bematech",
       "Pagamento da assinatura via Pix ou débito / crédito",
     ],
@@ -117,7 +118,7 @@ const Pricing = () => {
             <span className="text-primary">seu negócio</span>
           </h2>
           <p className="text-muted-foreground max-w-xl mx-auto text-lg">
-            Teste grátis por 12 horas e depois escolha o plano que mais combina com sua operação. Fiado, PDV, estoque e relatórios em um só lugar.
+            Teste grátis por 12 horas e depois escolha o plano que mais combina com sua operação. No PRO, cada máquina nova pede a chave da empresa antes do login.
           </p>
         </div>
 

@@ -84,7 +84,7 @@ const Hero = () => {
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
               </span>
-              Fiado, PDV e estoque no mesmo sistema
+              PDV web + desktop PRO com chave por máquina
             </div>
 
             <h1 className="hero-title font-heading text-4xl font-bold leading-[1.1] sm:text-5xl lg:text-6xl xl:text-7xl">
@@ -95,7 +95,7 @@ const Hero = () => {
             </h1>
 
             <p className="hero-subtitle max-w-lg text-base leading-relaxed text-muted-foreground sm:text-lg md:text-xl">
-              Controle seus clientes no fiado em segundos, veja quem te deve em tempo real e acompanhe PDV, estoque e cobranças via WhatsApp em um só lugar.
+              Controle seus clientes no fiado em segundos, veja quem te deve em tempo real e acompanhe PDV, estoque e cobranças via WhatsApp em um só lugar. No plano PRO, cada máquina nova valida a chave da empresa antes do login do operador.
             </p>
 
             <div className="hero-buttons flex flex-col sm:flex-row gap-4">
@@ -131,7 +131,7 @@ const Hero = () => {
               </span>
               <span className="flex items-center gap-2">
                 <span className="h-5 w-5 rounded-full bg-primary/20 flex items-center justify-center text-primary text-xs">✓</span>
-                Funciona no celular e no computador
+                Web, Windows e Linux no PRO
               </span>
             </div>
           </div>

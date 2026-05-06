@@ -186,6 +186,9 @@ const DownloadRedirect = () => {
                 <p className="mt-3 text-sm text-muted-foreground">
                   Se o download nao iniciar sozinho, use o botao abaixo.
                 </p>
+                <p className="mt-2 text-sm text-muted-foreground">
+                  Depois de instalar, valide a chave da empresa nessa maquina e so entao entre com o usuario e PIN ou senha do operador.
+                </p>
                 {downloadMeta?.releaseTag && (
                   <div className="mt-4 rounded-xl border border-border/70 bg-background/70 p-4 text-sm text-muted-foreground">
                     <p>Versao: <span className="font-medium text-foreground">{downloadMeta.releaseVersion || downloadMeta.releaseTag.replace(/^v/i, "")}</span></p>
