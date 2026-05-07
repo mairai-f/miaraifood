@@ -1,7 +1,13 @@
 const ALLOWED_PROTOCOLS = new Set(['http:', 'https:']);
 
+export const INTERNET_REQUIRED_MESSAGE = 'Conecte-se à internet para enviar mensagens. O modo offline continua funcionando para vendas, clientes, estoque e fiado.';
+
+export const isInternetUnavailable = () =>
+  typeof navigator !== 'undefined' && navigator.onLine === false;
+
 export const openExternalUrl = (url: string) => {
   if (typeof window === 'undefined') return false;
+  if (isInternetUnavailable()) return false;
 
   let parsedUrl: URL;
 

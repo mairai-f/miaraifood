@@ -13,7 +13,7 @@ import { toast } from 'sonner';
 import { formatDateTime } from '../../shared/locale/format';
 
 export default function Stock() {
-  const { products, stockMovements, addStockMovement, updateProduct, clearAllStock } = useData();
+  const { products, stockMovements, addStockMovement, clearAllStock } = useData();
   const { user } = useAuth();
   const [search, setSearch] = useState('');
   const [open, setOpen] = useState(false);
@@ -36,10 +36,6 @@ export default function Stock() {
     if (isNaN(quantity) || quantity <= 0) { toast.error('Quantidade inválida'); return; }
 
     await addStockMovement(selectedProduct, movType, quantity, reason.trim());
-
-    // Update product stock
-    const newStock = movType === 'entrada' ? product.stock + quantity : Math.max(0, product.stock - quantity);
-    await updateProduct(selectedProduct, { stock: newStock });
 
     setSelectedProduct(''); setQty(''); setReason(''); setOpen(false);
     toast.success(`Estoque ${movType === 'entrada' ? 'adicionado' : 'removido'}!`);

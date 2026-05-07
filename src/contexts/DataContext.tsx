@@ -354,18 +354,47 @@ export function DataProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    setClients((c.data as Client[]) ?? []);
-    setProducts(productsWithDisplayCodes((p.data as Product[]) ?? []));
-    setDebtEntries((d.data as DebtEntry[]) ?? []);
-    setPayments((pay.data as Payment[]) ?? []);
-    setRewards((r.data as Reward[]) ?? []);
-    setSales((s.data as Sale[]) ?? []);
-    setSaleItems((si.data as SaleItem[]) ?? []);
-    setStockMovements((sm.data as StockMovement[]) ?? []);
-    setExpenses((exp.data as Expense[]) ?? []);
-    setPricingRules((((pr.data as ProductCategoryPricingRule[]) ?? []).map(normalizePricingRuleRow)));
-    setPriceHistory((ph.data as ProductPriceHistoryEntry[]) ?? []);
+    const nextClients = (c.data as Client[]) ?? [];
+    const nextProducts = productsWithDisplayCodes((p.data as Product[]) ?? []);
+    const nextDebtEntries = (d.data as DebtEntry[]) ?? [];
+    const nextPayments = (pay.data as Payment[]) ?? [];
+    const nextRewards = (r.data as Reward[]) ?? [];
+    const nextSales = (s.data as Sale[]) ?? [];
+    const nextSaleItems = (si.data as SaleItem[]) ?? [];
+    const nextStockMovements = (sm.data as StockMovement[]) ?? [];
+    const nextExpenses = (exp.data as Expense[]) ?? [];
+    const nextPricingRules = (((pr.data as ProductCategoryPricingRule[]) ?? []).map(normalizePricingRuleRow));
+    const nextPriceHistory = (ph.data as ProductPriceHistoryEntry[]) ?? [];
+
+    setClients(nextClients);
+    setProducts(nextProducts);
+    setDebtEntries(nextDebtEntries);
+    setPayments(nextPayments);
+    setRewards(nextRewards);
+    setSales(nextSales);
+    setSaleItems(nextSaleItems);
+    setStockMovements(nextStockMovements);
+    setExpenses(nextExpenses);
+    setPricingRules(nextPricingRules);
+    setPriceHistory(nextPriceHistory);
     setLoading(false);
+
+    if (canUseOfflineConcentrator && ownerUserId) {
+      await replaceOfflineSnapshot(ownerUserId, {
+        clients: nextClients,
+        products: nextProducts,
+        debtEntries: nextDebtEntries,
+        payments: nextPayments,
+        rewards: nextRewards,
+        sales: nextSales,
+        saleItems: nextSaleItems,
+        stockMovements: nextStockMovements,
+        expenses: nextExpenses,
+        pricingRules: nextPricingRules,
+        priceHistory: nextPriceHistory,
+        savedAt: nowIso(),
+      });
+    }
   }, [authLoading, canUseOfflineConcentrator, hasFeature, isDemoMode, loadOfflineSnapshotFallback, ownerUserId, planLoading, user]);
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
@@ -2878,6 +2907,21 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
   // --- Stock ---
   const addStockMovement = async (productId: string, type: string, quantity: number, reason: string) => {
+    const currentProduct = products.find(product => product.id === productId);
+    const stockDelta = type === 'entrada' ? quantity : -quantity;
+    const nextStock = currentProduct
+      ? Math.max(0, Number(currentProduct.stock || 0) + stockDelta)
+      : null;
+    const applyStockMovementState = (movement: StockMovement) => {
+      setStockMovements(prev => [movement, ...prev]);
+      if (nextStock === null) return;
+      setProducts(prev => prev.map(product => (
+        product.id === productId
+          ? { ...product, stock: nextStock }
+          : product
+      )));
+    };
+
     if (isDemoMode) {
       const movement: StockMovement = {
         id: createId(),
@@ -2888,7 +2932,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         reason,
         date: nowIso(),
       };
-      setStockMovements(prev => [movement, ...prev]);
+      applyStockMovementState(movement);
       return;
     }
 
@@ -2904,9 +2948,15 @@ export function DataProvider({ children }: { children: ReactNode }) {
         sync_status: 'queued',
         sync_error: null,
       };
-      const queued = await enqueueOfflineOperation(ownerUserId!, 'stock_movement.create', { movement });
+      const queued = await enqueueOfflineOperation(ownerUserId!, 'stock_movement.create', {
+        movement,
+        stockAdjustment: nextStock === null ? null : {
+          productId,
+          delta: stockDelta,
+        },
+      });
       if (!queued) throw new Error('Nao foi possivel registrar a movimentacao de estoque na fila offline.');
-      setStockMovements(prev => [movement, ...prev]);
+      applyStockMovementState(movement);
     };
 
     if (canUseOfflineConcentrator && typeof navigator !== 'undefined' && navigator.onLine === false) {
@@ -2917,7 +2967,13 @@ export function DataProvider({ children }: { children: ReactNode }) {
     try {
       const { data, error } = await db.from('stock_movements').insert({ product_id: productId, user_id: ownerUserId!, type, quantity, reason }).select('*').single();
       if (error) throw error;
-      setStockMovements(prev => [data as StockMovement, ...prev]);
+      if (nextStock !== null) {
+        ensureSuccess(await db
+          .from('products')
+          .update({ stock: nextStock })
+          .eq('id', productId));
+      }
+      applyStockMovementState(data as StockMovement);
     } catch (error) {
       if (canUseOfflineConcentrator && isProbablyOfflineError(error)) {
         await addOfflineStockMovement();

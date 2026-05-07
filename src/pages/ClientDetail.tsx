@@ -26,7 +26,7 @@ import {
   toUtcIsoString,
 } from '@/lib/clientDateTime';
 import { getPaymentLabel, groupPaymentSnapshotItems, parsePaymentAdjustmentDetails, parsePaymentType } from '@/lib/payment';
-import { openExternalUrl } from '@/lib/openExternalUrl';
+import { INTERNET_REQUIRED_MESSAGE, isInternetUnavailable, openExternalUrl } from '@/lib/openExternalUrl';
 import { DEFAULT_COMPANY_NAME, fetchCompanyDisplayName } from '@/lib/company';
 import { buildWhatsAppUrl, buildItemWhatsAppUrl, buildPaymentWhatsAppUrl } from '@/lib/whatsapp';
 import { normalizePhone } from '@/lib/phone';
@@ -388,9 +388,17 @@ export default function ClientDetail() {
       return;
     }
 
-    toast.success(`${cart.length} item(s) adicionado(s)${sendWhatsApp ? ' e notificado!' : ' (sem notificar)!'}`);
+    const shouldNotifyWhatsApp = sendWhatsApp && Boolean(client.phone);
 
-    if (sendWhatsApp && client.phone) {
+    toast.success(`${cart.length} item(s) adicionado(s)${shouldNotifyWhatsApp ? '!' : ' (sem notificar)!'}`);
+
+    if (shouldNotifyWhatsApp && isInternetUnavailable()) {
+      toast.error(INTERNET_REQUIRED_MESSAGE);
+      setCart([]);
+      return;
+    }
+
+    if (shouldNotifyWhatsApp) {
       const storeName = companyDisplayName !== DEFAULT_COMPANY_NAME || !ownerUserId
         ? companyDisplayName
         : await fetchCompanyDisplayName(ownerUserId);
@@ -472,7 +480,9 @@ export default function ClientDetail() {
       }
 
       if (client.phone) {
-        try {
+        if (isInternetUnavailable()) {
+          toast.error(INTERNET_REQUIRED_MESSAGE);
+        } else try {
           const storeName = companyDisplayName !== DEFAULT_COMPANY_NAME || !ownerUserId
             ? companyDisplayName
             : await fetchCompanyDisplayName(ownerUserId);
@@ -508,6 +518,11 @@ export default function ClientDetail() {
 
   const handleWhatsApp = async () => {
     if (!client.phone) { toast.error('Cliente sem telefone cadastrado'); return; }
+    if (isInternetUnavailable()) {
+      toast.error(INTERNET_REQUIRED_MESSAGE);
+      return;
+    }
+
     const storeName = companyDisplayName !== DEFAULT_COMPANY_NAME || !ownerUserId
       ? companyDisplayName
       : await fetchCompanyDisplayName(ownerUserId);

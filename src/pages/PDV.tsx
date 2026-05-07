@@ -19,7 +19,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Ban, FileText, History, Loader2, Minus, Plus, Printer, Receipt, Search, ShoppingCart, Wallet, X } from 'lucide-react';
 import type { Expense, Product, Reward, Sale } from '@/types';
-import { openExternalUrl } from '@/lib/openExternalUrl';
+import { INTERNET_REQUIRED_MESSAGE, isInternetUnavailable, openExternalUrl } from '@/lib/openExternalUrl';
 import { normalizePhone } from '@/lib/phone';
 import { openRetailCouponPrintWindow } from '@/lib/retailCoupon';
 import { supabase } from '@/integrations/supabase/client';
@@ -1936,9 +1936,16 @@ export default function PDV() {
     if (!lastSaleData?.clientId) return;
     const client = activeClients.find(c => c.id === lastSaleData.clientId);
     if (!client?.phone) { silentToast.error(translateCurrentText('Cliente sem telefone')); return; }
+    if (isInternetUnavailable()) {
+      silentToast.error(INTERNET_REQUIRED_MESSAGE);
+      return;
+    }
+
     const lines = lastSaleData.items.map(i => `• ${i.product.name} x${i.quantity} (${formatMoney(i.unitPrice)}) — ${formatMoney(getCartItemTotal(i))}`);
     const msg = `🧾 *HappyCash - ${translateCurrentText('Comprovante')}*\n\n${lines.join('\n')}\n\n${lastSaleData.discount > 0 ? `${translateCurrentText('Desconto')}: ${formatMoney(lastSaleData.discount)}\n` : ''}💰 *${translateCurrentText('Total')}: ${formatMoney(lastSaleData.total)}*\n📅 ${formatDateTime(new Date())}\n${translateCurrentText('Pagamento')}: ${lastSaleData.method}`;
-    openExternalUrl(`https://wa.me/${normalizePhone(client.phone)}?text=${encodeURIComponent(msg)}`);
+    if (!openExternalUrl(`https://wa.me/${normalizePhone(client.phone)}?text=${encodeURIComponent(msg)}`)) {
+      silentToast.error('Não foi possível abrir o WhatsApp.');
+    }
   };
 
   const canSilentPrintRetailCoupon = typeof window !== 'undefined'
@@ -2182,8 +2189,16 @@ export default function PDV() {
   };
 
   const sendCloseCashReportEmail = async (receipt: CashCloseReceipt) => {
+    setCloseCashLastSentChannel('email');
+
+    if (isInternetUnavailable()) {
+      setCloseCashEmailStatus('error');
+      setCloseCashEmailMessage('Conecte-se à internet para enviar o relatório por e-mail. O fechamento offline continua salvo no sistema.');
+      setCloseCashEmailRecipients([]);
+      return;
+    }
+
     if (!user || !session?.access_token) {
-      setCloseCashLastSentChannel('email');
       setCloseCashEmailStatus('error');
       setCloseCashEmailMessage('Faça login novamente para enviar o relatório por e-mail.');
       setCloseCashEmailRecipients([]);
@@ -2202,7 +2217,6 @@ export default function PDV() {
     }
 
     setShowCloseCashSendDialog(false);
-    setCloseCashLastSentChannel('email');
     setCloseCashEmailStatus('sending');
     setCloseCashEmailMessage('Enviando relatório por e-mail...');
     setCloseCashEmailRecipients([]);
@@ -2242,6 +2256,13 @@ export default function PDV() {
   const sendCloseCashReportWhatsApp = (receipt: CashCloseReceipt) => {
     const normalizedPhone = normalizePhone(closeCashWhatsappPhone);
     setCloseCashLastSentChannel('whatsapp');
+
+    if (isInternetUnavailable()) {
+      setCloseCashEmailStatus('error');
+      setCloseCashEmailMessage(INTERNET_REQUIRED_MESSAGE);
+      setCloseCashEmailRecipients([]);
+      return;
+    }
 
     if (!normalizedPhone) {
       setCloseCashEmailStatus('error');
