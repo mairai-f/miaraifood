@@ -14,6 +14,8 @@ import { usePlanAccess } from '@/contexts/PlanContext';
 import { hasSeenAppSplash, markAppSplashSeen } from '@/lib/appSplash';
 import type { UserRole } from '@/lib/access';
 
+let hasResolvedProtectedAccessOnce = false;
+
 const Dashboard = lazy(() => import('@/pages/Dashboard'));
 const Clients = lazy(() => import('@/pages/Clients'));
 const Products = lazy(() => import('@/pages/Products'));
@@ -57,12 +59,13 @@ function ProtectedRoute({
   const { isAuthenticated, loading, role } = useAuth();
   const { isDesktop, checking: checkingDesktopLicense, licensed } = useDesktopRuntime();
   const { loading: planLoading, hasFeature } = usePlanAccess();
-  const [hasResolvedAccess, setHasResolvedAccess] = useState(false);
+  const [hasResolvedAccess, setHasResolvedAccess] = useState(hasResolvedProtectedAccessOnce);
   const shouldBlockAccess = loading || planLoading || checkingDesktopLicense;
   const shouldShowSplash = !hasSeenAppSplash() && !isAuthenticated;
 
   useEffect(() => {
     if (!shouldBlockAccess) {
+      hasResolvedProtectedAccessOnce = true;
       setHasResolvedAccess(true);
       markAppSplashSeen();
     }

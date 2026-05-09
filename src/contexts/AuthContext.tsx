@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import type { Session, User } from '@supabase/supabase-js';
 import type { UserRole } from '@/lib/access';
@@ -109,6 +109,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [ownerUserId, setOwnerUserId] = useState<string | null>(null);
   const [localOfflineSession, setLocalOfflineSession] = useState<LocalOfflineSession | null>(null);
   const [loading, setLoading] = useState(true);
+  const localOfflineSessionRef = useRef<LocalOfflineSession | null>(null);
 
   const resetAuthState = useCallback(() => {
     setSession(null);
@@ -117,6 +118,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setProfileEmail(null);
     setRole('admin');
     setOwnerUserId(null);
+    localOfflineSessionRef.current = null;
     setLocalOfflineSession(null);
   }, []);
 
@@ -139,6 +141,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   } as User), []);
 
   const applyLocalOfflineSession = useCallback((payload: LocalOfflineSession) => {
+    localOfflineSessionRef.current = payload;
     setSession(null);
     setUser(buildLocalOfflineUser(payload));
     setUsername(payload.username);
@@ -237,8 +240,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       try {
         if (!nextSession?.access_token) {
           if (isMounted && currentRequestId === syncRequestId) {
-            if (localOfflineSession) {
-              applyLocalOfflineSession(localOfflineSession);
+            const offlineSession = localOfflineSessionRef.current;
+            if (offlineSession) {
+              applyLocalOfflineSession(offlineSession);
             } else {
               resetAuthState();
             }
@@ -466,7 +470,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         password,
         ownerUserId: activation?.ownerUserId ?? null,
       },
-    });
+    }).catch((error) => ({ data: null, error }));
 
     if (error || !data?.success || !data.session?.access_token || !data.session?.refresh_token) {
       if (isDesktopRuntime() && isProbablyOfflineError(error)) {

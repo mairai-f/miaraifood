@@ -51,6 +51,7 @@ export default function Login() {
   const [submitting, setSubmitting] = useState(false);
   const [resettingPassword, setResettingPassword] = useState(false);
   const { login, loginOfflineAdmin, loginOperator, resetPassword } = useAuth();
+  const isDesktop = typeof window !== 'undefined' && Boolean(window.electronAPI);
 
   const [resetOpen, setResetOpen] = useState(false);
   const [resetEmail, setResetEmail] = useState('');
@@ -164,21 +165,21 @@ export default function Login() {
   };
 
   return (
-    <div className="relative min-h-[100svh] overflow-y-auto bg-[#050505] px-3 py-4 sm:px-4 sm:py-6">
+    <div className="relative h-[100svh] overflow-hidden bg-[#050505] px-3 py-2 sm:px-4 sm:py-3">
       <LanguageSwitcher />
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(250,204,21,0.18),_transparent_35%),radial-gradient(circle_at_bottom_right,_rgba(245,158,11,0.12),_transparent_42%)]" />
-      <div className="relative mx-auto flex min-h-[calc(100svh-2rem)] w-full max-w-[24rem] items-center justify-center sm:min-h-[calc(100svh-3rem)] sm:max-w-md">
+      <div className="relative mx-auto flex h-full w-full max-w-[23rem] items-center justify-center sm:max-w-sm">
         <motion.div
           initial={{ opacity: 0, scale: 0.97, y: 20 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           transition={{ duration: 0.45, type: 'spring' }}
           className="w-full"
         >
-          <div className="mb-3 text-center sm:mb-4">
+          <div className="mb-2 text-center">
             <motion.img
               src={happyCashLogo}
               alt="HappyCash"
-              className="mx-auto h-auto w-[clamp(5.75rem,24vw,9rem)] max-w-full object-contain"
+              className="mx-auto h-auto w-[clamp(4.75rem,18vh,7.75rem)] max-w-full object-contain"
               width={768}
               height={512}
               loading="eager"
@@ -187,28 +188,37 @@ export default function Login() {
               animate={{ y: [0, -8, 0] }}
               transition={{ duration: 4.2, repeat: Infinity, ease: 'easeInOut' }}
             />
-            <p className="mt-1.5 text-[9px] font-semibold uppercase tracking-[0.18em] text-yellow-200/80 sm:mt-2 sm:text-[10px] sm:tracking-[0.24em]">
+            <p className="mt-1 text-[8px] font-semibold uppercase tracking-[0.16em] text-yellow-200/80 sm:text-[9px]">
               Sistema PDV • Vendas • Controle • Gestão
             </p>
           </div>
 
           <Card className="border-yellow-400/15 bg-black/45 shadow-[0_24px_60px_rgba(0,0,0,0.35)] backdrop-blur-md">
-            <CardHeader className="space-y-2 px-4 pb-2 pt-4 text-center sm:px-5 sm:pt-5">
-              <CardTitle className="text-lg font-bold tracking-wide text-yellow-300 sm:text-xl">Entrar</CardTitle>
-              <p className="text-[11px] text-muted-foreground sm:text-xs">
+            <CardHeader className="space-y-1 px-4 pb-2 pt-3 text-center sm:px-5">
+              <CardTitle className="text-base font-bold tracking-wide text-yellow-300 sm:text-lg">Entrar</CardTitle>
+              <p className="text-[10px] text-muted-foreground sm:text-[11px]">
                 Administrador entra com email. Operador entra com usuario e senha ou PIN.
               </p>
               {desktopActivation && (
-                <div className="mt-2 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-left text-[11px] leading-relaxed text-muted-foreground sm:text-xs">
+                <div className="mt-1.5 rounded-lg border border-primary/20 bg-primary/5 px-3 py-1.5 text-left text-[10px] leading-snug text-muted-foreground sm:text-[11px]">
                   <p className="font-semibold text-foreground">{desktopActivation.companyName}</p>
-                  <p className="mt-1">
+                  {!isDesktop && (
+                    <p className="mt-1">
+                      {offlineAdminAvailable
+                        ? 'Empresa reconhecida nesta maquina. No primeiro acesso online do operador, o desktop valida a loja, salva os dados locais e depois libera esse mesmo usuario com senha ou PIN no offline.'
+                        : 'Empresa reconhecida nesta maquina. No primeiro acesso, entre como administrador com email e senha para cadastrar o usuario admin offline desta maquina.'}
+                    </p>
+                  )}
+                  {isDesktop && (
+                    <p className="mt-0.5">
                     {offlineAdminAvailable
-                      ? 'Empresa reconhecida nesta maquina. No primeiro acesso online do operador, o desktop valida a loja, salva os dados locais e depois libera esse mesmo usuario com senha ou PIN no offline.'
-                      : 'Empresa reconhecida nesta maquina. No primeiro acesso, entre como administrador com email e senha para cadastrar o usuario admin offline desta maquina.'}
-                  </p>
+                        ? 'Desktop preparado para login online ou offline nesta maquina.'
+                        : 'Entre como administrador online para configurar o acesso offline.'}
+                    </p>
+                  )}
                   <button
                     type="button"
-                    className="mt-1.5 text-primary transition-colors hover:text-primary/80"
+                    className="mt-1 text-primary transition-colors hover:text-primary/80"
                     onClick={() => {
                       clearDesktopActivation();
                       window.location.reload();
@@ -219,9 +229,9 @@ export default function Login() {
                 </div>
               )}
             </CardHeader>
-            <CardContent className="px-4 pb-4 sm:px-5 sm:pb-5">
+            <CardContent className="max-h-[calc(100svh-12.75rem)] overflow-y-auto px-4 pb-3 sm:px-5">
               <Tabs value={loginMode} onValueChange={value => setLoginMode(value as LoginMode)} className="w-full">
-                <TabsList className="mb-2.5 grid h-9 w-full grid-cols-2 bg-zinc-900/70 p-1">
+                <TabsList className="mb-2 grid h-8 w-full grid-cols-2 bg-zinc-900/70 p-1">
                   <TabsTrigger value="admin">Administrador</TabsTrigger>
                   <TabsTrigger value="operator" disabled={Boolean(desktopActivation && !offlineAdminAvailable)}>
                     Operador
@@ -231,12 +241,12 @@ export default function Login() {
                 <TabsContent value="admin" className="mt-0">
                   <form onSubmit={handleAdminSubmit} className="space-y-2.5 sm:space-y-3">
                     {offlineAdminAvailable && (
-                      <div className="rounded-xl border border-primary/20 bg-primary/5 p-2">
+                      <div className="rounded-lg border border-primary/20 bg-primary/5 p-1.5">
                         <div className="grid grid-cols-2 gap-2">
                           <Button
                             type="button"
                             variant={adminAccessMode === 'online' ? 'default' : 'outline'}
-                            className="h-9"
+                            className="h-8 text-xs"
                             onClick={() => setAdminAccessMode('online')}
                           >
                             Email e senha
@@ -244,13 +254,13 @@ export default function Login() {
                           <Button
                             type="button"
                             variant={adminAccessMode === 'offline' ? 'default' : 'outline'}
-                            className="h-9"
+                            className="h-8 text-xs"
                             onClick={() => setAdminAccessMode('offline')}
                           >
                             Usuario e PIN
                           </Button>
                         </div>
-                        <p className="mt-2 px-1 text-xs text-muted-foreground">
+                        <p className="mt-1.5 px-1 text-[10px] leading-snug text-muted-foreground sm:text-[11px]">
                           {adminAccessMode === 'offline'
                             ? 'Use o usuario admin local e o PIN desta maquina para entrar sem internet.'
                             : 'Use o email e a senha da conta administradora para validar o acesso online.'}
@@ -266,7 +276,7 @@ export default function Login() {
 
                     {adminAccessMode === 'offline' ? (
                       <>
-                        <div className="space-y-2">
+                        <div className="space-y-1.5">
                           <Label>Usuario admin</Label>
                           <Input
                             value={adminOfflineUsername}
@@ -275,10 +285,10 @@ export default function Login() {
                             placeholder="Ex: admin.loja"
                             autoCapitalize="none"
                             autoCorrect="off"
-                            className="h-10 sm:h-11"
+                            className="h-9 sm:h-10"
                           />
                         </div>
-                        <div className="space-y-2">
+                        <div className="space-y-1.5">
                           <Label>PIN offline</Label>
                           <div className="relative">
                             <Input
@@ -289,7 +299,7 @@ export default function Login() {
                               placeholder="••••"
                               autoComplete="current-password"
                               inputMode="numeric"
-                              className="h-10 pr-10 sm:h-11"
+                              className="h-9 pr-10 sm:h-10"
                             />
                             <button
                               type="button"
@@ -304,7 +314,7 @@ export default function Login() {
                       </>
                     ) : (
                       <>
-                        <div className="space-y-2">
+                        <div className="space-y-1.5">
                           <Label>Email</Label>
                           <Input
                             type="email"
@@ -312,10 +322,10 @@ export default function Login() {
                             onChange={e => setEmail(e.target.value)}
                             required
                             placeholder="usuario@happycash.com"
-                            className="h-10 sm:h-11"
+                            className="h-9 sm:h-10"
                           />
                         </div>
-                        <div className="space-y-2">
+                        <div className="space-y-1.5">
                           <div className="flex items-center justify-between gap-3">
                             <Label>Senha</Label>
                             <button
@@ -338,7 +348,7 @@ export default function Login() {
                               placeholder="••••••••"
                               minLength={6}
                               autoComplete="current-password"
-                              className="h-10 pr-10 sm:h-11"
+                              className="h-9 pr-10 sm:h-10"
                             />
                             <button
                               type="button"
@@ -378,7 +388,7 @@ export default function Login() {
                     </div>
                     <Button
                       type="submit"
-                      className="h-10 w-full px-4 text-center text-sm font-semibold text-black hover:bg-yellow-300 sm:h-11 bg-yellow-400"
+                      className="h-9 w-full px-4 text-center text-sm font-semibold text-black hover:bg-yellow-300 sm:h-10 bg-yellow-400"
                       disabled={submitting || (adminAccessMode === 'offline' && !offlineAdminAvailable)}
                     >
                       {submitting ? (
@@ -395,7 +405,7 @@ export default function Login() {
 
                 <TabsContent value="operator" className="mt-0">
                   <form onSubmit={handleOperatorSubmit} className="space-y-2.5 sm:space-y-3">
-                    <div className="space-y-2">
+                    <div className="space-y-1.5">
                       <Label>Usuário</Label>
                       <Input
                         value={operatorUsername}
@@ -404,10 +414,10 @@ export default function Login() {
                         placeholder="Ex: operador.caixa"
                         autoCapitalize="none"
                         autoCorrect="off"
-                        className="h-10 sm:h-11"
+                        className="h-9 sm:h-10"
                       />
                     </div>
-                    <div className="space-y-2">
+                    <div className="space-y-1.5">
                       <Label>Senha ou PIN</Label>
                       <div className="relative">
                         <Input
@@ -417,7 +427,7 @@ export default function Login() {
                           required
                           placeholder="••••••••"
                           autoComplete="current-password"
-                          className="h-10 pr-10 sm:h-11"
+                          className="h-9 pr-10 sm:h-10"
                         />
                         <button
                           type="button"
@@ -428,7 +438,7 @@ export default function Login() {
                           {showOperatorPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                         </button>
                       </div>
-                      <p className="text-xs text-muted-foreground">
+                      <p className="text-[10px] leading-snug text-muted-foreground sm:text-[11px]">
                         No primeiro login online, essa credencial fica salva nesta maquina para o desktop operar offline por ate 5 dias.
                       </p>
                     </div>
@@ -458,7 +468,7 @@ export default function Login() {
                     </div>
                     <Button
                       type="submit"
-                      className="h-10 w-full px-4 text-center text-sm font-semibold text-black hover:bg-yellow-300 sm:h-11 bg-yellow-400"
+                      className="h-9 w-full px-4 text-center text-sm font-semibold text-black hover:bg-yellow-300 sm:h-10 bg-yellow-400"
                       disabled={submitting}
                     >
                       {submitting ? (
