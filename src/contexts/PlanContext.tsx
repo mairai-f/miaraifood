@@ -50,7 +50,7 @@ const writeCachedPlanAccess = (
 };
 
 export function PlanProvider({ children }: { children: ReactNode }) {
-  const { user, loading: authLoading, isLocalOfflineSession } = useAuth();
+  const { user, ownerUserId, loading: authLoading, isLocalOfflineSession } = useAuth();
   const [planId, setPlanId] = useState<string | null>(null);
   const [features, setFeatures] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
@@ -69,7 +69,8 @@ export function PlanProvider({ children }: { children: ReactNode }) {
     }
 
     if (isLocalOfflineSession) {
-      const cachedPlanAccess = readCachedPlanAccess(user.id);
+      const cachedPlanAccess = readCachedPlanAccess(user.id)
+        || (ownerUserId && ownerUserId !== user.id ? readCachedPlanAccess(ownerUserId) : null);
       setPlanId(cachedPlanAccess?.planId ?? null);
       setFeatures(cachedPlanAccess?.features ?? []);
       setLoading(false);
@@ -80,12 +81,16 @@ export function PlanProvider({ children }: { children: ReactNode }) {
 
     const applyCachedPlanAccess = (error: unknown) => {
       const cachedPlanAccess = readCachedPlanAccess(user.id);
-      if (!cachedPlanAccess || !isDesktopRuntime() || !isProbablyOfflineError(error)) {
+      const ownerCachedPlanAccess = ownerUserId && ownerUserId !== user.id
+        ? readCachedPlanAccess(ownerUserId)
+        : null;
+      const fallbackPlanAccess = cachedPlanAccess || ownerCachedPlanAccess;
+      if (!fallbackPlanAccess || !isDesktopRuntime() || !isProbablyOfflineError(error)) {
         return false;
       }
 
-      setPlanId(cachedPlanAccess.planId);
-      setFeatures(cachedPlanAccess.features);
+      setPlanId(fallbackPlanAccess.planId);
+      setFeatures(fallbackPlanAccess.features);
       setLoading(false);
       return true;
     };
@@ -124,7 +129,7 @@ export function PlanProvider({ children }: { children: ReactNode }) {
       planId: currentPlanId,
       features: nextFeatures,
     });
-  }, [authLoading, isLocalOfflineSession, user]);
+  }, [authLoading, isLocalOfflineSession, ownerUserId, user]);
 
   useEffect(() => {
     void refresh();

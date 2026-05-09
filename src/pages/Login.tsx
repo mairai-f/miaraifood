@@ -164,21 +164,21 @@ export default function Login() {
   };
 
   return (
-    <div className="relative h-[100svh] overflow-hidden bg-[#050505] px-3 py-2 sm:px-4 sm:py-3">
+    <div className="relative min-h-[100svh] overflow-y-auto bg-[#050505] px-3 py-4 sm:px-4 sm:py-6">
       <LanguageSwitcher />
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(250,204,21,0.18),_transparent_35%),radial-gradient(circle_at_bottom_right,_rgba(245,158,11,0.12),_transparent_42%)]" />
-      <div className="relative mx-auto flex h-full w-full max-w-[23rem] items-center justify-center sm:max-w-sm">
+      <div className="relative mx-auto flex min-h-[calc(100svh-2rem)] w-full max-w-[24rem] items-center justify-center sm:min-h-[calc(100svh-3rem)] sm:max-w-md">
         <motion.div
           initial={{ opacity: 0, scale: 0.97, y: 20 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           transition={{ duration: 0.45, type: 'spring' }}
           className="w-full"
         >
-          <div className="mb-2 text-center sm:mb-3">
+          <div className="mb-3 text-center sm:mb-4">
             <motion.img
               src={happyCashLogo}
               alt="HappyCash"
-              className="mx-auto h-auto w-[clamp(6.25rem,28vw,10rem)] max-w-full object-contain"
+              className="mx-auto h-auto w-[clamp(5.75rem,24vw,9rem)] max-w-full object-contain"
               width={768}
               height={512}
               loading="eager"
@@ -193,13 +193,13 @@ export default function Login() {
           </div>
 
           <Card className="border-yellow-400/15 bg-black/45 shadow-[0_24px_60px_rgba(0,0,0,0.35)] backdrop-blur-md">
-            <CardHeader className="px-4 pb-1 pt-3 text-center sm:px-5 sm:pt-4">
+            <CardHeader className="space-y-2 px-4 pb-2 pt-4 text-center sm:px-5 sm:pt-5">
               <CardTitle className="text-lg font-bold tracking-wide text-yellow-300 sm:text-xl">Entrar</CardTitle>
               <p className="text-[11px] text-muted-foreground sm:text-xs">
                 Administrador entra com email. Operador entra com usuario e senha ou PIN.
               </p>
               {desktopActivation && (
-                <div className="mt-3 rounded-xl border border-primary/20 bg-primary/5 px-3 py-2 text-left text-xs text-muted-foreground">
+                <div className="mt-2 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-left text-[11px] leading-relaxed text-muted-foreground sm:text-xs">
                   <p className="font-semibold text-foreground">{desktopActivation.companyName}</p>
                   <p className="mt-1">
                     {offlineAdminAvailable
@@ -208,7 +208,7 @@ export default function Login() {
                   </p>
                   <button
                     type="button"
-                    className="mt-2 text-primary transition-colors hover:text-primary/80"
+                    className="mt-1.5 text-primary transition-colors hover:text-primary/80"
                     onClick={() => {
                       clearDesktopActivation();
                       window.location.reload();
@@ -219,7 +219,7 @@ export default function Login() {
                 </div>
               )}
             </CardHeader>
-            <CardContent className="px-4 pb-3 sm:px-5 sm:pb-4">
+            <CardContent className="px-4 pb-4 sm:px-5 sm:pb-5">
               <Tabs value={loginMode} onValueChange={value => setLoginMode(value as LoginMode)} className="w-full">
                 <TabsList className="mb-2.5 grid h-9 w-full grid-cols-2 bg-zinc-900/70 p-1">
                   <TabsTrigger value="admin">Administrador</TabsTrigger>
@@ -228,7 +228,7 @@ export default function Login() {
                   </TabsTrigger>
                 </TabsList>
 
-                <TabsContent value="admin">
+                <TabsContent value="admin" className="mt-0">
                   <form onSubmit={handleAdminSubmit} className="space-y-2.5 sm:space-y-3">
                     {offlineAdminAvailable && (
                       <div className="rounded-xl border border-primary/20 bg-primary/5 p-2">
@@ -393,7 +393,7 @@ export default function Login() {
                   </form>
                 </TabsContent>
 
-                <TabsContent value="operator">
+                <TabsContent value="operator" className="mt-0">
                   <form onSubmit={handleOperatorSubmit} className="space-y-2.5 sm:space-y-3">
                     <div className="space-y-2">
                       <Label>Usuário</Label>

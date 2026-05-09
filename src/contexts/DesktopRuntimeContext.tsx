@@ -88,7 +88,7 @@ const writeCachedLicense = (
 };
 
 export function DesktopRuntimeProvider({ children }: { children: ReactNode }) {
-  const { session, user, loading: authLoading, isLocalOfflineSession } = useAuth();
+  const { session, user, ownerUserId, loading: authLoading, isLocalOfflineSession } = useAuth();
   const [checking, setChecking] = useState(isDesktopRuntime);
   const [licensed, setLicensed] = useState(!isDesktopRuntime);
   const [offlineEnabled, setOfflineEnabled] = useState(false);
@@ -127,8 +127,17 @@ export function DesktopRuntimeProvider({ children }: { children: ReactNode }) {
       return;
     }
 
+    const readRuntimeCachedLicense = () => {
+      const primaryLicense = readCachedLicense(user.id);
+      if (primaryLicense || !ownerUserId || ownerUserId === user.id) {
+        return primaryLicense;
+      }
+
+      return readCachedLicense(ownerUserId);
+    };
+
     const applyCachedOfflineLicense = () => {
-      const cachedLicense = readCachedLicense(user.id);
+      const cachedLicense = readRuntimeCachedLicense();
       const cachedValidationExpiresAt = cachedLicense ? buildValidationExpiresAt(cachedLicense) : null;
       const cachedLicenseStillValid = Boolean(
         cachedValidationExpiresAt
@@ -194,7 +203,7 @@ export function DesktopRuntimeProvider({ children }: { children: ReactNode }) {
     });
 
     if (invokeError || !data?.licensed) {
-      const cachedLicense = readCachedLicense(user.id);
+      const cachedLicense = readRuntimeCachedLicense();
       const cachedValidationExpiresAt = cachedLicense ? buildValidationExpiresAt(cachedLicense) : null;
       const cachedLicenseStillValid = Boolean(
         cachedValidationExpiresAt
@@ -290,7 +299,7 @@ export function DesktopRuntimeProvider({ children }: { children: ReactNode }) {
       offlineEnabled: Boolean(data.offlineEnabled),
       validatedAt,
     });
-  }, [authLoading, isLocalOfflineSession, resetState, session?.access_token, user]);
+  }, [authLoading, isLocalOfflineSession, ownerUserId, resetState, session?.access_token, user]);
 
   useEffect(() => {
     void refresh();

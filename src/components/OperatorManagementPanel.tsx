@@ -26,6 +26,8 @@ import { Eye, KeyRound, Plus, Trash2, Users, Wallet } from 'lucide-react';
 import type { Expense, Sale } from '@/types';
 import { formatDateTime } from '../../shared/locale/format';
 import { getOperatorCredentialError, operatorCredentialHint } from '../../shared/security/operatorCredential';
+import { readDesktopActivation } from '@/lib/desktopActivation';
+import { saveOfflineOperatorAccess } from '@/lib/offlineOperatorAccess';
 
 // Generated Supabase types are behind the current schema for these admin tables.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -169,6 +171,33 @@ export function OperatorManagementPanel({
 
     return functionErrorMessage;
   }, []);
+
+  const saveOperatorOfflineAccessIfPossible = useCallback(async (
+    operator: OperatorFunctionResponse['operator'],
+    secret: string,
+  ) => {
+    if (!operator || !ownerUserId || typeof window === 'undefined' || !window.electronAPI) {
+      return;
+    }
+
+    const activation = readDesktopActivation();
+    if (!activation || activation.ownerUserId !== ownerUserId) {
+      return;
+    }
+
+    try {
+      await saveOfflineOperatorAccess({
+        userId: operator.user_id,
+        ownerUserId,
+        username: operator.username,
+        email: null,
+        secret,
+      });
+    } catch (error) {
+      console.error('Nao foi possivel salvar o acesso offline do operador:', error);
+      toast.warning('Operador salvo online, mas nao foi possivel preparar o login offline nesta maquina.');
+    }
+  }, [ownerUserId]);
 
   const loadData = useCallback(async () => {
     if (!isAdmin || !ownerUserId) {
@@ -333,6 +362,7 @@ export function OperatorManagementPanel({
       username: data.operator.username,
       temporaryPassword: data.temporaryPassword,
     });
+    await saveOperatorOfflineAccessIfPossible(data.operator, data.temporaryPassword);
     resetCreateForm();
     handleCreateDialogOpenChange(false);
     toast.success('Operador criado com sucesso');
@@ -394,6 +424,7 @@ export function OperatorManagementPanel({
       username: data.operator.username,
       temporaryPassword: data.temporaryPassword,
     });
+    await saveOperatorOfflineAccessIfPossible(data.operator, data.temporaryPassword);
     setResetPassword('');
     setSelectedOperator(null);
     setResetDialogOpen(false);
