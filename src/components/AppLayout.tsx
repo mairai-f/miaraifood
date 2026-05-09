@@ -348,14 +348,16 @@ export function AppLayout({ children }: { children: ReactNode }) {
         }
       }
 
+      toast.message('Preparando banco local desta maquina...');
+      await refetch();
       setOfflineAdminSetupOpen(false);
-      toast.success('Acesso offline do administrador configurado nesta maquina.');
+      toast.success('Acesso offline do administrador configurado e dados locais atualizados.');
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Nao foi possivel salvar o acesso offline do administrador.');
     } finally {
       setSavingOfflineAdminSetup(false);
     }
-  }, [ownerUserId, refreshProfile, session?.access_token, user?.email, user?.id, username]);
+  }, [ownerUserId, refetch, refreshProfile, session?.access_token, user?.email, user?.id, username]);
 
   if (offlineValidationExpired) {
     return (

@@ -219,7 +219,7 @@ interface DataContextType {
 const DataContext = createContext<DataContextType | null>(null);
 
 export function DataProvider({ children }: { children: ReactNode }) {
-  const { user, ownerUserId, loading: authLoading, isAdmin } = useAuth();
+  const { user, ownerUserId, loading: authLoading, isAdmin, isLocalOfflineSession } = useAuth();
   const { isDesktop, offlineEnabled } = useDesktopRuntime();
   const { hasFeature, loading: planLoading, planId } = usePlanAccess();
   const [clients, setClients] = useState<Client[]>([]);
@@ -353,7 +353,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    if (canUseOfflineConcentrator && typeof navigator !== 'undefined' && navigator.onLine === false) {
+    if (
+      canUseOfflineConcentrator
+      && (isLocalOfflineSession || (typeof navigator !== 'undefined' && navigator.onLine === false))
+    ) {
       const restoredOfflineSnapshot = await loadOfflineSnapshotFallback();
       if (restoredOfflineSnapshot) {
         return;
@@ -469,7 +472,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       setOfflinePreparationMessage('Acesso offline pronto. Se a internet cair, estes dados serao carregados deste computador.');
       setOfflineSnapshotUpdatedAt(snapshot.savedAt);
     }
-  }, [authLoading, canUseOfflineConcentrator, clearStoreData, hasFeature, isDemoMode, loadOfflineSnapshotFallback, ownerUserId, planLoading, user]);
+  }, [authLoading, canUseOfflineConcentrator, clearStoreData, hasFeature, isDemoMode, isLocalOfflineSession, loadOfflineSnapshotFallback, ownerUserId, planLoading, user]);
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
 
