@@ -1,8 +1,9 @@
 import { ReactNode, useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Clock3, Home, Users, Package, Gift, Trash2, LogOut, Menu, X, UserCircle, Receipt, BarChart3, DollarSign, Boxes, ChevronDown, ChevronUp, FileText, Shield, Calculator, ShieldCheck } from 'lucide-react';
+import { Clock3, Home, Users, Package, Gift, Trash2, LogOut, Menu, X, UserCircle, Receipt, BarChart3, DollarSign, Boxes, ChevronDown, ChevronUp, FileText, Shield, Calculator, ShieldCheck, Database, Loader2, WifiOff } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
+import { useData } from '@/contexts/DataContext';
 import { useDesktopRuntime } from '@/contexts/DesktopRuntimeContext';
 import { usePlanAccess } from '@/contexts/PlanContext';
 import happyCashLogo from '@/assets/happycash-logo.webp';
@@ -89,6 +90,12 @@ const formatRemainingTime = (remainingMs: number) => {
 export function AppLayout({ children }: { children: ReactNode }) {
   const { logout, user, username, role, ownerUserId, session, isLocalOfflineSession, refreshProfile } = useAuth();
   const {
+    offlinePreparationStatus,
+    offlinePreparationMessage,
+    offlineSnapshotUpdatedAt,
+    refetch,
+  } = useData();
+  const {
     isDesktop,
     licensed: desktopLicensed,
     refresh: refreshDesktopLicense,
@@ -104,6 +111,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
   const [savingOfflineAdminSetup, setSavingOfflineAdminSetup] = useState(false);
   const [offlineReminderOpen, setOfflineReminderOpen] = useState(false);
   const [offlineValidationStartedAt, setOfflineValidationStartedAt] = useState<string | null>(null);
+  const [isOnline, setIsOnline] = useState(() => (typeof navigator === 'undefined' ? true : navigator.onLine));
   const navRef = useRef<HTMLElement | null>(null);
   const [scrollHints, setScrollHints] = useState({ top: false, bottom: false });
   const isPdvMode = location.pathname === '/pdv';
@@ -128,6 +136,34 @@ export function AppLayout({ children }: { children: ReactNode }) {
     && offlineValidationRemainingMs > 0
     && offlineValidationRemainingMs <= OFFLINE_VALIDATION_REMINDER_MS
   );
+  const isOfflinePreparationRelevant = isDesktop && offlinePreparationStatus !== 'unavailable';
+  const shouldBlockMissingOfflineSnapshot = Boolean(
+    isDesktop
+    && isLocalOfflineSession
+    && !isOnline
+    && (offlinePreparationStatus === 'not-ready' || offlinePreparationStatus === 'error')
+  );
+  const shouldShowOfflinePreparationBanner = Boolean(
+    isOfflinePreparationRelevant
+    && !shouldBlockMissingOfflineSnapshot
+    && (
+      offlinePreparationStatus === 'preparing'
+      || offlinePreparationStatus === 'error'
+      || offlinePreparationStatus === 'not-ready'
+    )
+  );
+
+  useEffect(() => {
+    const syncNetworkStatus = () => setIsOnline(typeof navigator === 'undefined' ? true : navigator.onLine);
+
+    window.addEventListener('online', syncNetworkStatus);
+    window.addEventListener('offline', syncNetworkStatus);
+
+    return () => {
+      window.removeEventListener('online', syncNetworkStatus);
+      window.removeEventListener('offline', syncNetworkStatus);
+    };
+  }, []);
 
   const handleAccountClick = () => {
     if (!canOpenSettings) return;
@@ -350,6 +386,34 @@ export function AppLayout({ children }: { children: ReactNode }) {
     );
   }
 
+  if (shouldBlockMissingOfflineSnapshot) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background p-6">
+        <div className="w-full max-w-xl rounded-2xl border border-border/70 bg-card p-6 shadow-xl">
+          <div className="flex items-center gap-3 text-primary">
+            <WifiOff className="h-5 w-5" />
+            <h2 className="text-xl font-semibold text-foreground">Desktop ainda nao preparado para offline</h2>
+          </div>
+          <p className="mt-4 text-sm text-muted-foreground">
+            {offlinePreparationMessage || 'Este computador ainda nao baixou os dados da loja para uso offline.'}
+          </p>
+          <div className="mt-4 rounded-xl border border-border/70 bg-background/70 p-4 text-sm text-muted-foreground">
+            <p>Como preparar: conecte a internet, entre com o administrador, configure o usuario/PIN offline e aguarde a mensagem de acesso offline pronto.</p>
+            <p className="mt-2">Depois disso, se a internet cair, o HappyCash abre os dados salvos neste computador.</p>
+          </div>
+          <div className="mt-6 flex flex-wrap gap-3">
+            <Button type="button" onClick={() => void refetch()}>
+              Tentar carregar novamente
+            </Button>
+            <Button type="button" variant="outline" onClick={() => void logout()}>
+              Sair
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (isPdvMode) {
     return (
       <div className="h-screen overflow-hidden bg-background">
@@ -504,7 +568,44 @@ export function AppLayout({ children }: { children: ReactNode }) {
         <header className="shrink-0 border-b border-border p-3 sm:p-4 lg:hidden">
           <button onClick={() => setOpen(true)} className="text-muted-foreground hover:text-foreground"><Menu className="h-6 w-6" /></button>
         </header>
-        <main className="flex-1 overflow-y-auto p-3 sm:p-4 lg:p-8">{children}</main>
+        <main className="flex-1 overflow-y-auto p-3 sm:p-4 lg:p-8">
+          {shouldShowOfflinePreparationBanner && (
+            <div className="mb-4 rounded-lg border border-primary/20 bg-primary/5 px-4 py-3 text-sm text-muted-foreground">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex min-w-0 items-start gap-3">
+                  {offlinePreparationStatus === 'preparing' ? (
+                    <Loader2 className="mt-0.5 h-4 w-4 shrink-0 animate-spin text-primary" />
+                  ) : (
+                    <Database className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                  )}
+                  <div className="min-w-0">
+                    <p className="font-medium text-foreground">
+                      {offlinePreparationStatus === 'preparing'
+                        ? 'Preparando uso offline'
+                        : offlinePreparationStatus === 'ready'
+                          ? 'Uso offline pronto'
+                          : 'Atenção ao uso offline'}
+                    </p>
+                    <p className="mt-1 leading-relaxed">
+                      {offlinePreparationMessage || 'Conecte a internet para preparar este computador para uso offline.'}
+                    </p>
+                    {offlineSnapshotUpdatedAt && (
+                      <p className="mt-1 text-xs">
+                        Ultima copia local: {new Date(offlineSnapshotUpdatedAt).toLocaleString('pt-BR')}.
+                      </p>
+                    )}
+                  </div>
+                </div>
+                {(offlinePreparationStatus === 'error' || offlinePreparationStatus === 'not-ready') && (
+                  <Button type="button" size="sm" variant="outline" onClick={() => void refetch()}>
+                    Tentar novamente
+                  </Button>
+                )}
+              </div>
+            </div>
+          )}
+          {children}
+        </main>
       </div>
     </div>
   );

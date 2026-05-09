@@ -162,12 +162,16 @@ type StockDemand = {
   productName: string;
   quantity: number;
 };
+export type OfflinePreparationStatus = 'unavailable' | 'not-ready' | 'preparing' | 'ready' | 'error';
 
 interface DataContextType {
   clients: Client[]; products: Product[]; debtEntries: DebtEntry[]; payments: Payment[]; rewards: Reward[];
   sales: Sale[]; saleItems: SaleItem[]; stockMovements: StockMovement[]; expenses: Expense[];
   pricingRules: ProductCategoryPricingRule[]; priceHistory: ProductPriceHistoryEntry[];
   loading: boolean;
+  offlinePreparationStatus: OfflinePreparationStatus;
+  offlinePreparationMessage: string | null;
+  offlineSnapshotUpdatedAt: string | null;
   addClient: (name: string, phone: string, creditLimit?: number | null) => Promise<void>;
   updateClient: (id: string, data: Partial<Client>) => Promise<void>;
   softDeleteClient: (id: string) => Promise<void>;
@@ -230,13 +234,14 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [pricingRules, setPricingRules] = useState<ProductCategoryPricingRule[]>([]);
   const [priceHistory, setPriceHistory] = useState<ProductPriceHistoryEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [offlinePreparationStatus, setOfflinePreparationStatus] = useState<OfflinePreparationStatus>('unavailable');
+  const [offlinePreparationMessage, setOfflinePreparationMessage] = useState<string | null>(null);
+  const [offlineSnapshotUpdatedAt, setOfflineSnapshotUpdatedAt] = useState<string | null>(null);
   const isDemoMode = planId === 'demo';
   const canUseOfflineConcentrator = isDesktop && offlineEnabled && isOfflineConcentratorAvailable();
   const offlineSyncInFlightRef = useRef(false);
 
-  useEffect(() => {
-    if (!user || !ownerUserId || !isDemoMode) return;
-
+  const clearStoreData = useCallback(() => {
     setClients([]);
     setProducts([]);
     setDebtEntries([]);
@@ -248,8 +253,56 @@ export function DataProvider({ children }: { children: ReactNode }) {
     setExpenses([]);
     setPricingRules([]);
     setPriceHistory([]);
+  }, []);
+
+  const markOfflineNotReady = useCallback((message = 'Este computador ainda nao foi preparado para uso offline. Conecte a internet, entre uma vez e aguarde o download dos dados da loja terminar.') => {
+    setOfflinePreparationStatus('not-ready');
+    setOfflinePreparationMessage(message);
+    setOfflineSnapshotUpdatedAt(null);
+  }, []);
+
+  useEffect(() => {
+    if (!user || !ownerUserId || !isDemoMode) return;
+
+    clearStoreData();
     setLoading(false);
-  }, [isDemoMode, ownerUserId, user]);
+  }, [clearStoreData, isDemoMode, ownerUserId, user]);
+
+  useEffect(() => {
+    if (!canUseOfflineConcentrator || !ownerUserId || isDemoMode) {
+      setOfflinePreparationStatus('unavailable');
+      setOfflinePreparationMessage(null);
+      setOfflineSnapshotUpdatedAt(null);
+      return;
+    }
+
+    let cancelled = false;
+
+    void (async () => {
+      try {
+        const result = await getOfflineSnapshot(ownerUserId);
+        if (cancelled) return;
+
+        if (result.snapshot) {
+          setOfflinePreparationStatus('ready');
+          setOfflinePreparationMessage('Dados offline preparados neste computador.');
+          setOfflineSnapshotUpdatedAt(result.updatedAt ?? result.snapshot.savedAt ?? null);
+        } else {
+          markOfflineNotReady();
+        }
+      } catch {
+        if (!cancelled) {
+          setOfflinePreparationStatus('error');
+          setOfflinePreparationMessage('Nao foi possivel verificar o preparo offline deste computador.');
+          setOfflineSnapshotUpdatedAt(null);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [canUseOfflineConcentrator, isDemoMode, markOfflineNotReady, ownerUserId]);
 
   const applyOfflineSnapshot = useCallback((snapshot: OfflineSnapshot) => {
     setClients(sortClientsByCreatedAt(snapshot.clients ?? []));
@@ -269,12 +322,20 @@ export function DataProvider({ children }: { children: ReactNode }) {
     if (!canUseOfflineConcentrator || !ownerUserId) return false;
 
     const offlineSnapshotResult = await getOfflineSnapshot(ownerUserId);
-    if (!offlineSnapshotResult.snapshot) return false;
+    if (!offlineSnapshotResult.snapshot) {
+      clearStoreData();
+      markOfflineNotReady();
+      setLoading(false);
+      return true;
+    }
 
     applyOfflineSnapshot(offlineSnapshotResult.snapshot);
+    setOfflinePreparationStatus('ready');
+    setOfflinePreparationMessage('Usando os dados offline salvos neste computador.');
+    setOfflineSnapshotUpdatedAt(offlineSnapshotResult.updatedAt ?? offlineSnapshotResult.snapshot.savedAt ?? null);
     setLoading(false);
     return true;
-  }, [applyOfflineSnapshot, canUseOfflineConcentrator, ownerUserId]);
+  }, [applyOfflineSnapshot, canUseOfflineConcentrator, clearStoreData, markOfflineNotReady, ownerUserId]);
 
   const fetchAll = useCallback(async () => {
     if (authLoading || planLoading) {
@@ -283,8 +344,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     }
 
     if (!user || !ownerUserId) {
-      setClients([]); setProducts([]); setDebtEntries([]); setPayments([]); setRewards([]);
-      setSales([]); setSaleItems([]); setStockMovements([]); setExpenses([]); setPricingRules([]); setPriceHistory([]);
+      clearStoreData();
       setLoading(false); return;
     }
 
@@ -301,6 +361,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
     }
 
     setLoading(true);
+
+    if (canUseOfflineConcentrator && ownerUserId) {
+      setOfflinePreparationStatus('preparing');
+      setOfflinePreparationMessage('Preparando acesso offline... baixando e salvando os dados da loja neste computador.');
+    }
 
     const canReadClients = hasFeature('clients.manage');
     const canReadProducts = hasFeature('products.manage');
@@ -350,6 +415,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
       }
 
       console.error('Falha ao atualizar os dados remotos; mantendo o ultimo estado em memoria.', remoteErrors);
+      if (canUseOfflineConcentrator) {
+        setOfflinePreparationStatus('error');
+        setOfflinePreparationMessage('Nao foi possivel baixar os dados para uso offline agora. Verifique a internet e tente novamente.');
+      }
       setLoading(false);
       return;
     }
@@ -380,7 +449,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     setLoading(false);
 
     if (canUseOfflineConcentrator && ownerUserId) {
-      await replaceOfflineSnapshot(ownerUserId, {
+      const snapshot: OfflineSnapshot = {
         clients: nextClients,
         products: nextProducts,
         debtEntries: nextDebtEntries,
@@ -393,9 +462,14 @@ export function DataProvider({ children }: { children: ReactNode }) {
         pricingRules: nextPricingRules,
         priceHistory: nextPriceHistory,
         savedAt: nowIso(),
-      });
+      };
+
+      await replaceOfflineSnapshot(ownerUserId, snapshot);
+      setOfflinePreparationStatus('ready');
+      setOfflinePreparationMessage('Acesso offline pronto. Se a internet cair, estes dados serao carregados deste computador.');
+      setOfflineSnapshotUpdatedAt(snapshot.savedAt);
     }
-  }, [authLoading, canUseOfflineConcentrator, hasFeature, isDemoMode, loadOfflineSnapshotFallback, ownerUserId, planLoading, user]);
+  }, [authLoading, canUseOfflineConcentrator, clearStoreData, hasFeature, isDemoMode, loadOfflineSnapshotFallback, ownerUserId, planLoading, user]);
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
 
@@ -419,7 +493,14 @@ export function DataProvider({ children }: { children: ReactNode }) {
       savedAt: nowIso(),
     };
 
-    void replaceOfflineSnapshot(ownerUserId, snapshot);
+    void replaceOfflineSnapshot(ownerUserId, snapshot).then(() => {
+      setOfflinePreparationStatus('ready');
+      setOfflinePreparationMessage('Acesso offline pronto. Os dados locais foram atualizados.');
+      setOfflineSnapshotUpdatedAt(snapshot.savedAt);
+    }).catch(() => {
+      setOfflinePreparationStatus('error');
+      setOfflinePreparationMessage('Nao foi possivel atualizar os dados offline neste computador.');
+    });
   }, [
     canUseOfflineConcentrator,
     clients,
@@ -3338,6 +3419,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   return (
     <DataContext.Provider value={{
       clients, products, debtEntries, payments, rewards, sales, saleItems, stockMovements, expenses, pricingRules, priceHistory, loading,
+      offlinePreparationStatus, offlinePreparationMessage, offlineSnapshotUpdatedAt,
       addClient, updateClient, softDeleteClient,
       addProduct, updateProduct, deleteProduct, searchProducts,
       addPricingRule, updatePricingRule, deletePricingRule,

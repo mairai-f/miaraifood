@@ -205,15 +205,15 @@ export default function Login() {
                   {!isDesktop && (
                     <p className="mt-1">
                       {offlineAdminAvailable
-                        ? 'Empresa reconhecida nesta maquina. No primeiro acesso online do operador, o desktop valida a loja, salva os dados locais e depois libera esse mesmo usuario com senha ou PIN no offline.'
+                        ? 'Empresa reconhecida nesta maquina. Ao entrar online, o desktop baixa os dados da loja e atualiza a copia local para uso offline.'
                         : 'Empresa reconhecida nesta maquina. No primeiro acesso, entre como administrador com email e senha para cadastrar o usuario admin offline desta maquina.'}
                     </p>
                   )}
                   {isDesktop && (
                     <p className="mt-0.5">
                     {offlineAdminAvailable
-                        ? 'Desktop preparado para login online ou offline nesta maquina.'
-                        : 'Entre como administrador online para configurar o acesso offline.'}
+                        ? 'Entre online para atualizar os dados locais ou offline se a internet caiu.'
+                        : 'Entre como administrador online para configurar usuario, PIN e dados offline.'}
                     </p>
                   )}
                   <button
@@ -262,8 +262,8 @@ export default function Login() {
                         </div>
                         <p className="mt-1.5 px-1 text-[10px] leading-snug text-muted-foreground sm:text-[11px]">
                           {adminAccessMode === 'offline'
-                            ? 'Use o usuario admin local e o PIN desta maquina para entrar sem internet.'
-                            : 'Use o email e a senha da conta administradora para validar o acesso online.'}
+                            ? 'Use o usuario admin local e o PIN desta maquina. Se os dados ainda nao foram baixados, o sistema avisara para conectar a internet.'
+                            : 'Use o email e a senha da conta administradora. O desktop vai baixar e salvar os dados locais para o offline.'}
                         </p>
                       </div>
                     )}
@@ -439,7 +439,7 @@ export default function Login() {
                         </button>
                       </div>
                       <p className="text-[10px] leading-snug text-muted-foreground sm:text-[11px]">
-                        No primeiro login online, essa credencial fica salva nesta maquina para o desktop operar offline por ate 5 dias.
+                        No primeiro login online, essa credencial fica vinculada ao administrador desta loja e a copia local dos dados e atualizada para operar offline.
                       </p>
                     </div>
                     <div className="grid grid-cols-2 gap-2 pt-0.5">

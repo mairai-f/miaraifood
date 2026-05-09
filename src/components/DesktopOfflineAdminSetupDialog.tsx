@@ -88,7 +88,7 @@ export function DesktopOfflineAdminSetupDialog({
           </div>
           <DialogTitle className="text-center">Configure o admin offline desta maquina</DialogTitle>
           <DialogDescription className="text-center">
-            Depois do primeiro login com email e senha, cadastre um usuario admin e um PIN local para manter o acesso offline.
+            Depois do primeiro login com email e senha, cadastre um usuario admin e um PIN local. Em seguida o HappyCash baixa os dados da loja e deixa esta maquina pronta para uso offline.
           </DialogDescription>
         </DialogHeader>
 
@@ -96,7 +96,7 @@ export function DesktopOfflineAdminSetupDialog({
           <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 text-sm text-muted-foreground">
             <p className="font-medium text-foreground">{companyName || 'Empresa ativada nesta maquina'}</p>
             <p className="mt-2">
-              Esse usuario admin e PIN vao valer apenas neste computador e serao usados quando a internet cair.
+              Esse usuario admin e PIN vao valer apenas neste computador e ficam vinculados ao administrador desta empresa.
             </p>
           </div>
 

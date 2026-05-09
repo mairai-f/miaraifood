@@ -90,7 +90,7 @@ export function DesktopActivationScreen({ onActivated }: DesktopActivationScreen
             </div>
             <CardTitle className="text-xl text-yellow-300">Chave da licença</CardTitle>
             <CardDescription>
-              Em cada maquina nova, informe a chave da empresa para reconhecer o cadastro. Depois disso, o primeiro acesso deve ser do admin com email e senha para cadastrar o usuario admin offline desta maquina.
+              Em cada maquina nova, informe a chave da empresa para reconhecer o cadastro. Depois disso, o primeiro acesso deve ser do admin com email e senha para cadastrar usuario/PIN offline e baixar os dados locais desta maquina.
             </CardDescription>
           </CardHeader>
 
@@ -132,7 +132,7 @@ export function DesktopActivationScreen({ onActivated }: DesktopActivationScreen
                   <p className="mt-2">CNPJ: {formatDocument(recognizedCompany.cnpj)}</p>
                 )}
                 <p className="mt-1">
-                  Empresa reconhecida. Agora o admin entra com email e senha para concluir o cadastro local desta maquina.
+                  Empresa reconhecida. Agora o admin entra com email e senha para configurar usuario/PIN e preparar o banco local desta maquina.
                 </p>
               </div>
             )}

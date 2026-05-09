@@ -1037,7 +1037,7 @@ const Dashboard = () => {
                   <div>
                     <p className="text-sm font-semibold">Downloads do desktop</p>
                     <p className="mt-1 text-sm text-muted-foreground">
-                      O executavel fica liberado apenas para contas com plano PRO ativo. Cada nova instalacao pede a chave da empresa, valida o primeiro acesso online e os links abaixo sempre consultam a release mais recente para Windows, Linux (.deb) e Linux AppImage.
+                      O executavel fica liberado apenas para contas com plano PRO ativo. Cada nova instalacao pede a chave da empresa, valida o primeiro acesso online, prepara o banco local da loja e os links abaixo sempre consultam a release mais recente para Windows, Linux (.deb) e Linux AppImage.
                     </p>
                   </div>
                   <Badge variant={isCurrentProPlan ? "default" : "outline"}>
@@ -1052,8 +1052,8 @@ const Dashboard = () => {
                       <ul className="mt-3 space-y-2 text-sm text-muted-foreground">
                         <li>1. Instale a release mais recente na maquina.</li>
                         <li>2. Valide a chave da empresa no primeiro acesso dessa maquina.</li>
-                        <li>3. No primeiro acesso online, entre com o usuario e PIN ou senha do operador para salvar a maquina.</li>
-                        <li>4. Depois disso, o offline local pode seguir por ate 5 dias sem internet.</li>
+                        <li>3. No primeiro acesso online, entre como administrador, configure usuario/PIN e aguarde o download dos dados locais.</li>
+                        <li>4. Depois disso, admin e operadores preparados podem seguir offline por ate 5 dias sem internet.</li>
                       </ul>
                     </div>
                     <Button asChild className="h-11 font-semibold">
