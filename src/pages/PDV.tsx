@@ -32,6 +32,7 @@ import { getMarginPercent } from '@/lib/pricing';
 import { getAvailableClientCredit, getClientCreditLimit, getCreditLimitExceededMessage } from '@/lib/creditLimit';
 import { enqueueOfflineOperation, isOfflineConcentratorAvailable } from '@/lib/offlineConcentrator';
 import { readScopedCashSession, writeScopedCashSession, type ScopedCashSession } from '@/lib/cashSessionStorage';
+import { parseDecimalInput, parseOptionalDecimalInput } from '@/lib/numberInput';
 import {
   type FiscalDocumentRecord,
   type FiscalRuntimeStatus,
@@ -648,9 +649,11 @@ export default function PDV() {
   const subtotal = cart.reduce((s, i) => s + getCartItemTotal(i), 0);
   const cartRealCost = cart.reduce((sum, item) => sum + (item.product.cost_price || 0) * item.quantity, 0);
   const cartUnits = cart.reduce((sum, item) => sum + item.quantity, 0);
+  const manualDiscountValue = parseDecimalInput(discountInput);
+  const cashReceivedAmount = parseDecimalInput(cashReceived);
   const manualDiscount = discountType === 'percent'
-    ? subtotal * (parseFloat(discountInput) || 0) / 100
-    : parseFloat(discountInput) || 0;
+    ? subtotal * manualDiscountValue / 100
+    : manualDiscountValue;
   const selectedClientSpending = selectedClientId ? getClientTotalSpending(selectedClientId) : 0;
   const pdvEligibleRewards = useMemo(() => {
     if (!selectedClientId) return [];
@@ -683,9 +686,9 @@ export default function PDV() {
   const estimatedProfit = total - cartRealCost;
   const estimatedMargin = getMarginPercent(total, cartRealCost);
   const discountKillsProfit = discount > 0 && estimatedProfit <= 0;
-  const change = paymentMethod === 'dinheiro' ? Math.max(0, (parseFloat(cashReceived) || 0) - total) : 0;
+  const change = paymentMethod === 'dinheiro' ? Math.max(0, cashReceivedAmount - total) : 0;
   const canFinalizeCheckout = Boolean(paymentMethod)
-    && (paymentMethod !== 'dinheiro' || (parseFloat(cashReceived) || 0) >= total)
+    && (paymentMethod !== 'dinheiro' || cashReceivedAmount >= total)
     && (paymentMethod !== 'fiado' || Boolean(selectedClientId))
     && !fiadoExceedsCreditLimit
     && (paymentMethod !== 'cartao_credito' || Boolean(creditInstallments && creditInstallments > 0));
@@ -1495,8 +1498,8 @@ export default function PDV() {
     .reduce((sum, expense) => sum + expense.amount, 0);
   const cashOpeningAmount = cashSession?.openingAmount || 0;
   const currentCashBalance = cashOpeningAmount + cashSalesTotal - cashOutTotal;
-  const parsedCashOutAmount = parseFloat(cashOutAmount);
-  const cashOutAmountValue = Number.isFinite(parsedCashOutAmount) ? parsedCashOutAmount : 0;
+  const parsedCashOutAmount = parseOptionalDecimalInput(cashOutAmount);
+  const cashOutAmountValue = parsedCashOutAmount ?? 0;
   const cashOutExceedsBalance = cashOutAmountValue > currentCashBalance;
   const showOpenCashDialog = !cashSession && !showCloseCashReceipt && !cashSessionLoading;
   const getCartQuantityForProduct = (productId: string) =>
@@ -1655,8 +1658,8 @@ export default function PDV() {
   const applyCartItemPriceChange = () => {
     if (!cartItemPendingPriceEdit) return;
 
-    const parsedPrice = Number.parseFloat(pendingCartItemPrice.replace(',', '.').trim());
-    if (!Number.isFinite(parsedPrice) || parsedPrice < 0) {
+    const parsedPrice = parseOptionalDecimalInput(pendingCartItemPrice);
+    if (parsedPrice === null || parsedPrice < 0) {
       silentToast.error('Informe um preço válido');
       return;
     }
@@ -1810,7 +1813,7 @@ export default function PDV() {
     if (cart.length === 0) { silentToast.error('Carrinho vazio'); return; }
     if (!paymentMethod) return;
     if (finalizeLockRef.current) return;
-    if (paymentMethod === 'dinheiro' && (parseFloat(cashReceived) || 0) < total) {
+    if (paymentMethod === 'dinheiro' && cashReceivedAmount < total) {
       silentToast.error('Valor recebido insuficiente'); return;
     }
     if (paymentMethod === 'fiado' && !selectedClientId) {
@@ -1845,7 +1848,7 @@ export default function PDV() {
         total,
         discount,
         payment_method: paymentMethod,
-        cash_received: parseFloat(cashReceived) || 0,
+        cash_received: cashReceivedAmount,
         change_amount: change,
       }, items);
 
@@ -1876,7 +1879,7 @@ export default function PDV() {
         total,
         discount,
         method: finalizedPaymentMethod,
-        cashReceived: parseFloat(cashReceived) || 0,
+        cashReceived: cashReceivedAmount,
         change,
         clientId: selectedClientId || null,
         isDelivery,
@@ -2037,7 +2040,7 @@ export default function PDV() {
       return;
     }
 
-    const amount = parseFloat(openingAmount) || 0;
+    const amount = parseDecimalInput(openingAmount);
     if (amount < 0) { silentToast.error('Valor de abertura inválido'); return; }
 
     if (canUseDesktopOffline && typeof navigator !== 'undefined' && navigator.onLine === false) {
@@ -2900,9 +2903,8 @@ export default function PDV() {
               <Label htmlFor="cart-item-price">Novo preço</Label>
               <Input
                 id="cart-item-price"
-                type="number"
-                step="0.01"
-                min="0"
+                type="text"
+                inputMode="decimal"
                 value={pendingCartItemPrice}
                 onFocus={e => e.currentTarget.select()}
                 onChange={e => setPendingCartItemPrice(e.target.value)}
@@ -2989,7 +2991,7 @@ export default function PDV() {
               <div className="grid grid-cols-[1fr_88px] items-end gap-2">
                 <div className="flex-1 space-y-1">
                   <Label className="text-sm">Desconto</Label>
-                  <Input type="number" step="0.01" placeholder="0" value={discountInput} onChange={e => setDiscountInput(e.target.value)} className="h-9 text-sm" />
+                  <Input type="text" inputMode="decimal" placeholder="0,00" value={discountInput} onChange={e => setDiscountInput(e.target.value)} className="h-9 text-sm" />
                 </div>
                 <Select value={discountType} onValueChange={v => setDiscountType(v as 'value' | 'percent')}>
                   <SelectTrigger className="w-20 h-9 text-sm"><SelectValue /></SelectTrigger>
@@ -3040,12 +3042,12 @@ export default function PDV() {
                   <Label className="text-sm">Valor recebido</Label>
                   <Input
                     ref={cashReceivedInputRef}
-                    type="number"
-                    step="0.01"
-                  value={cashReceived}
-                  onFocus={e => e.currentTarget.select()}
-                  onChange={e => setCashReceived(e.target.value)}
-                  onKeyDown={e => {
+                    type="text"
+                    inputMode="decimal"
+                    value={cashReceived}
+                    onFocus={e => e.currentTarget.select()}
+                    onChange={e => setCashReceived(e.target.value)}
+                    onKeyDown={e => {
                     if (e.key === 'Enter') {
                       e.preventDefault();
                       e.stopPropagation();
@@ -3416,11 +3418,11 @@ export default function PDV() {
             <div className="space-y-1">
               <Label>Valor da saída</Label>
               <Input
-                type="number"
-                step="0.01"
+                type="text"
+                inputMode="decimal"
                 value={cashOutAmount}
                 onChange={e => setCashOutAmount(e.target.value)}
-                placeholder="0.00"
+                placeholder="0,00"
                 className={cashOutExceedsBalance ? 'border-destructive focus-visible:ring-destructive' : ''}
               />
               {cashOutExceedsBalance && (
@@ -3533,8 +3535,8 @@ export default function PDV() {
               <Label>Valor de abertura</Label>
               <Input
                 autoFocus
-                type="number"
-                step="0.01"
+                type="text"
+                inputMode="decimal"
                 value={openingAmount}
                 onChange={e => setOpeningAmount(e.target.value)}
                 onKeyDown={e => {

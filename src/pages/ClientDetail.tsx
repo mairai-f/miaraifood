@@ -33,6 +33,7 @@ import { normalizePhone } from '@/lib/phone';
 import { getAvailableClientCredit, getClientCreditLimit, getCreditLimitExceededMessage, normalizeCreditLimit } from '@/lib/creditLimit';
 import { verifyStoreAdminApproval } from '@/lib/adminApproval';
 import { getDebtPaymentCreditedAmount, getDebtPaymentMaxAmount, getDebtPaymentValidationMessage } from '@/lib/debtPayment';
+import { parseDecimalInput } from '@/lib/numberInput';
 
 type ClientEditPayload = {
   name: string;
@@ -135,8 +136,8 @@ export default function ClientDetail() {
     [allClientEntries, clientPayments]
   );
   const balance = id ? data.getClientBalance(id) : 0;
-  const rawPaymentAmount = Number.parseFloat(payAmount) || 0;
-  const rawDiscountValue = Number.parseFloat(discountValue) || 0;
+  const rawPaymentAmount = parseDecimalInput(payAmount);
+  const rawDiscountValue = parseDecimalInput(discountValue);
   const calculatedDiscountAmount = discountOpen
     ? Math.min(
         balance,
@@ -420,7 +421,7 @@ export default function ClientDetail() {
   };
 
   const handlePayment = async () => {
-    const amount = Number.parseFloat(payAmount) || 0;
+    const amount = parseDecimalInput(payAmount);
     const paidAmount = Number(amount.toFixed(2));
     const discountAmount = Number(calculatedDiscountAmount.toFixed(2));
     const creditedAmount = getDebtPaymentCreditedAmount(balance, paidAmount, discountAmount);
@@ -1145,13 +1146,12 @@ export default function ClientDetail() {
             <div className="space-y-2">
               <Label>Valor (R$)</Label>
               <Input
-                type="number"
-                step="0.01"
-                min="0"
+                type="text"
+                inputMode="decimal"
                 max={maximumPaymentAmount.toFixed(2)}
                 value={payAmount}
                 onChange={e => setPayAmount(e.target.value)}
-                placeholder="0.00"
+                placeholder="0,00"
               />
               <p className="text-xs text-muted-foreground">
                 Valor máximo permitido agora: <span className="font-medium text-foreground">R$ {maximumPaymentAmount.toFixed(2)}</span>
@@ -1193,13 +1193,12 @@ export default function ClientDetail() {
                   <div className="space-y-2">
                     <Label>{discountType === 'amount' ? 'Desconto (R$)' : 'Desconto (%)'}</Label>
                     <Input
-                      type="number"
-                      step="0.01"
-                      min="0"
+                      type="text"
+                      inputMode="decimal"
                       max={discountType === 'percent' ? 100 : undefined}
                       value={discountValue}
                       onChange={e => setDiscountValue(e.target.value)}
-                      placeholder={discountType === 'amount' ? '0.00' : '0'}
+                      placeholder={discountType === 'amount' ? '0,00' : '0'}
                     />
                   </div>
                   <div className="rounded-md bg-muted/50 p-3 text-xs text-muted-foreground">
@@ -1269,9 +1268,8 @@ export default function ClientDetail() {
             <div className="space-y-2">
               <Label>Limite de crédito (R$)</Label>
               <Input
-                type="number"
-                min="0"
-                step="0.01"
+                type="text"
+                inputMode="decimal"
                 value={editCreditLimit}
                 onChange={e => setEditCreditLimit(e.target.value)}
                 placeholder="Sem limite"

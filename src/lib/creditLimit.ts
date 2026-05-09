@@ -1,9 +1,10 @@
 import type { Client } from '@/types';
+import { parseOptionalDecimalInput } from '@/lib/numberInput';
 
 export const normalizeCreditLimit = (value: unknown): number | null => {
   if (value === null || value === undefined || value === '') return null;
-  const numericValue = Number(value);
-  if (!Number.isFinite(numericValue)) return null;
+  const numericValue = parseOptionalDecimalInput(value as string | number | null | undefined);
+  if (numericValue === null || !Number.isFinite(numericValue)) return null;
   return Math.max(0, Number(numericValue.toFixed(2)));
 };
 

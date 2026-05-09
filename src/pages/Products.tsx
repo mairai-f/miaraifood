@@ -16,6 +16,7 @@ import { Product } from '@/types';
 import { canManageProducts } from '@/lib/access';
 import { getMarginPercent, getMarkupPercent, getPriceFromMarkup, getUnitProfit } from '@/lib/pricing';
 import { verifyPricingManagerApproval } from '@/lib/pricingManagerApproval';
+import { parseDecimalInput } from '@/lib/numberInput';
 
 const LOW_MARGIN_WARNING_PCT = 15;
 
@@ -50,8 +51,8 @@ export default function Products() {
     );
   });
 
-  const numericPrice = parseFloat(price) || 0;
-  const numericCostPrice = parseFloat(costPrice) || 0;
+  const numericPrice = parseDecimalInput(price);
+  const numericCostPrice = parseDecimalInput(costPrice);
   const previewMarkup = numericCostPrice > 0 ? getMarkupPercent(numericPrice, numericCostPrice) : 0;
   const previewMargin = numericPrice > 0 ? getMarginPercent(numericPrice, numericCostPrice) : 0;
   const priceBelowCost = numericPrice > 0 && numericPrice < numericCostPrice;
@@ -93,8 +94,8 @@ export default function Products() {
     if (!name.trim() || !price) { toast.error('Preencha nome e preço'); return; }
     const data: Partial<Product> = {
       name: name.trim(),
-      price: parseFloat(price),
-      cost_price: parseFloat(costPrice) || 0,
+      price: parseDecimalInput(price),
+      cost_price: parseDecimalInput(costPrice),
       category: category.trim(),
       barcode: barcode.trim(),
       stock: parseInt(stock) || 0,
@@ -190,22 +191,22 @@ export default function Products() {
               <div className="space-y-3 max-h-[60vh] overflow-auto">
                 <div className="space-y-1"><Label>Nome / Marca</Label><Input value={name} onChange={e => setName(e.target.value)} placeholder="Ex: Skol 600ml" /></div>
                 <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1"><Label>Preço Venda (R$)</Label><Input type="number" step="0.01" value={price} onChange={e => setPrice(e.target.value)} placeholder="0.00" /></div>
-                  <div className="space-y-1"><Label>Custo Real (R$)</Label><Input type="number" step="0.01" value={costPrice} onChange={e => {
+                  <div className="space-y-1"><Label>Preço Venda (R$)</Label><Input type="text" inputMode="decimal" value={price} onChange={e => setPrice(e.target.value)} placeholder="0,00" /></div>
+                  <div className="space-y-1"><Label>Custo Real (R$)</Label><Input type="text" inputMode="decimal" value={costPrice} onChange={e => {
                     const nextCost = e.target.value;
-                    const previousCost = parseFloat(costPrice) || 0;
-                    const currentPrice = parseFloat(price) || 0;
+                    const previousCost = parseDecimalInput(costPrice);
+                    const currentPrice = parseDecimalInput(price);
                     const preservedMarkup = previousCost > 0 && currentPrice > 0
                       ? getMarkupPercent(currentPrice, previousCost)
                       : 0;
                     setCostPrice(nextCost);
                     if (preservedMarkup > 0) {
-                      const recalculatedPrice = getPriceFromMarkup(parseFloat(nextCost) || 0, preservedMarkup);
+                      const recalculatedPrice = getPriceFromMarkup(parseDecimalInput(nextCost), preservedMarkup);
                       setPrice(recalculatedPrice > 0 ? recalculatedPrice.toFixed(2) : '');
                     }
-                  }} placeholder="0.00" /></div>
+                  }} placeholder="0,00" /></div>
                 </div>
-                {price && costPrice && parseFloat(costPrice) > 0 && (
+                {price && costPrice && numericCostPrice > 0 && (
                   <div className="flex items-center gap-2 text-xs p-2 rounded-lg bg-primary/10">
                     <TrendingUp className="h-4 w-4 text-primary" />
                     <span>

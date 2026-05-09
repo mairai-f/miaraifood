@@ -45,6 +45,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { verifyPricingManagerApproval } from '@/lib/pricingManagerApproval';
+import { parseDecimalInput } from '@/lib/numberInput';
 
 type ProductFormState = {
   id: string | null;
@@ -127,8 +128,7 @@ const formatMoney = (value: number) => currencyFormatter.format(Number.isFinite(
 const formatPercent = (value: number) => `${percentFormatter.format(Number.isFinite(value) ? value : 0)}%`;
 const LOW_MARGIN_WARNING_PCT = 15;
 const toNumber = (value: string | number | null | undefined) => {
-  const parsed = typeof value === 'number' ? value : Number.parseFloat(String(value ?? '').replace(',', '.'));
-  return Number.isFinite(parsed) ? parsed : 0;
+  return parseDecimalInput(value);
 };
 const toInteger = (value: string | number | null | undefined) => {
   const parsed = typeof value === 'number' ? value : Number.parseInt(String(value ?? ''), 10);
@@ -864,35 +864,35 @@ export default function PricingManager() {
                   <div className="grid gap-3 sm:grid-cols-2">
                     <div className="space-y-1.5">
                       <Label>Custo de compra</Label>
-                      <Input type="number" step="0.01" value={productForm.purchase_cost} onChange={(event) => updateProductForm('purchase_cost', event.target.value)} />
+                      <Input type="text" inputMode="decimal" value={productForm.purchase_cost} onChange={(event) => updateProductForm('purchase_cost', event.target.value)} />
                     </div>
                     <div className="space-y-1.5">
                       <Label>Frete</Label>
-                      <Input type="number" step="0.01" value={productForm.freight_cost} onChange={(event) => updateProductForm('freight_cost', event.target.value)} />
+                      <Input type="text" inputMode="decimal" value={productForm.freight_cost} onChange={(event) => updateProductForm('freight_cost', event.target.value)} />
                     </div>
                     <div className="space-y-1.5">
                       <Label>Imposto</Label>
-                      <Input type="number" step="0.01" value={productForm.tax_cost} onChange={(event) => updateProductForm('tax_cost', event.target.value)} />
+                      <Input type="text" inputMode="decimal" value={productForm.tax_cost} onChange={(event) => updateProductForm('tax_cost', event.target.value)} />
                     </div>
                     <div className="space-y-1.5">
                       <Label>Comissão</Label>
-                      <Input type="number" step="0.01" value={productForm.commission_cost} onChange={(event) => updateProductForm('commission_cost', event.target.value)} />
+                      <Input type="text" inputMode="decimal" value={productForm.commission_cost} onChange={(event) => updateProductForm('commission_cost', event.target.value)} />
                     </div>
                     <div className="space-y-1.5">
                       <Label>Taxa de cartão</Label>
-                      <Input type="number" step="0.01" value={productForm.card_fee_cost} onChange={(event) => updateProductForm('card_fee_cost', event.target.value)} />
+                      <Input type="text" inputMode="decimal" value={productForm.card_fee_cost} onChange={(event) => updateProductForm('card_fee_cost', event.target.value)} />
                     </div>
                     <div className="space-y-1.5">
                       <Label>Embalagem</Label>
-                      <Input type="number" step="0.01" value={productForm.packaging_cost} onChange={(event) => updateProductForm('packaging_cost', event.target.value)} />
+                      <Input type="text" inputMode="decimal" value={productForm.packaging_cost} onChange={(event) => updateProductForm('packaging_cost', event.target.value)} />
                     </div>
                     <div className="space-y-1.5">
                       <Label>Custo operacional</Label>
-                      <Input type="number" step="0.01" value={productForm.operational_cost} onChange={(event) => updateProductForm('operational_cost', event.target.value)} />
+                      <Input type="text" inputMode="decimal" value={productForm.operational_cost} onChange={(event) => updateProductForm('operational_cost', event.target.value)} />
                     </div>
                     <div className="space-y-1.5">
                       <Label>Outros custos</Label>
-                      <Input type="number" step="0.01" value={productForm.other_extra_cost} onChange={(event) => updateProductForm('other_extra_cost', event.target.value)} />
+                      <Input type="text" inputMode="decimal" value={productForm.other_extra_cost} onChange={(event) => updateProductForm('other_extra_cost', event.target.value)} />
                     </div>
                   </div>
                 </div>
@@ -901,8 +901,8 @@ export default function PricingManager() {
                   <div className="space-y-1.5">
                     <Label>Preço de venda</Label>
                     <Input
-                      type="number"
-                      step="0.01"
+                      type="text"
+                      inputMode="decimal"
                       value={productForm.price}
                       onChange={(event) => {
                         setProductSyncMode('price');
@@ -916,8 +916,8 @@ export default function PricingManager() {
                   <div className="space-y-1.5">
                     <Label>Markup alvo (%)</Label>
                     <Input
-                      type="number"
-                      step="0.01"
+                      type="text"
+                      inputMode="decimal"
                       value={productForm.target_markup_pct}
                       onChange={(event) => {
                         setProductSyncMode('markup');
@@ -927,11 +927,11 @@ export default function PricingManager() {
                   </div>
                   <div className="space-y-1.5">
                     <Label>Markup mínimo (%)</Label>
-                    <Input type="number" step="0.01" value={productForm.minimum_markup_pct} onChange={(event) => updateProductForm('minimum_markup_pct', event.target.value)} />
+                    <Input type="text" inputMode="decimal" value={productForm.minimum_markup_pct} onChange={(event) => updateProductForm('minimum_markup_pct', event.target.value)} />
                   </div>
                   <div className="space-y-1.5">
                     <Label>Preço mínimo</Label>
-                    <Input type="number" step="0.01" value={productForm.minimum_price} onChange={(event) => updateProductForm('minimum_price', event.target.value)} />
+                    <Input type="text" inputMode="decimal" value={productForm.minimum_price} onChange={(event) => updateProductForm('minimum_price', event.target.value)} />
                   </div>
                   <div className="space-y-1.5">
                     <Label>Arredondamento</Label>
@@ -1204,15 +1204,15 @@ export default function PricingManager() {
                 <div className="grid gap-3 sm:grid-cols-2">
                   <div className="space-y-1.5">
                     <Label>Markup padrão (%)</Label>
-                    <Input type="number" step="0.01" value={ruleForm.default_markup_pct} onChange={(event) => setRuleForm((current) => ({ ...current, default_markup_pct: event.target.value }))} />
+                    <Input type="text" inputMode="decimal" value={ruleForm.default_markup_pct} onChange={(event) => setRuleForm((current) => ({ ...current, default_markup_pct: event.target.value }))} />
                   </div>
                   <div className="space-y-1.5">
                     <Label>Markup mínimo (%)</Label>
-                    <Input type="number" step="0.01" value={ruleForm.minimum_markup_pct} onChange={(event) => setRuleForm((current) => ({ ...current, minimum_markup_pct: event.target.value }))} />
+                    <Input type="text" inputMode="decimal" value={ruleForm.minimum_markup_pct} onChange={(event) => setRuleForm((current) => ({ ...current, minimum_markup_pct: event.target.value }))} />
                   </div>
                   <div className="space-y-1.5">
                     <Label>Preço mínimo</Label>
-                    <Input type="number" step="0.01" value={ruleForm.minimum_price} onChange={(event) => setRuleForm((current) => ({ ...current, minimum_price: event.target.value }))} />
+                    <Input type="text" inputMode="decimal" value={ruleForm.minimum_price} onChange={(event) => setRuleForm((current) => ({ ...current, minimum_price: event.target.value }))} />
                   </div>
                   <div className="space-y-1.5">
                     <Label>Arredondamento</Label>
@@ -1308,41 +1308,41 @@ export default function PricingManager() {
                 <div className="grid gap-3 sm:grid-cols-2">
                   <div className="space-y-1.5">
                     <Label>Custo de compra</Label>
-                    <Input type="number" step="0.01" value={simulatorForm.purchase_cost} onChange={(event) => updateSimulatorForm('purchase_cost', event.target.value)} />
+                    <Input type="text" inputMode="decimal" value={simulatorForm.purchase_cost} onChange={(event) => updateSimulatorForm('purchase_cost', event.target.value)} />
                   </div>
                   <div className="space-y-1.5">
                     <Label>Frete</Label>
-                    <Input type="number" step="0.01" value={simulatorForm.freight_cost} onChange={(event) => updateSimulatorForm('freight_cost', event.target.value)} />
+                    <Input type="text" inputMode="decimal" value={simulatorForm.freight_cost} onChange={(event) => updateSimulatorForm('freight_cost', event.target.value)} />
                   </div>
                   <div className="space-y-1.5">
                     <Label>Imposto</Label>
-                    <Input type="number" step="0.01" value={simulatorForm.tax_cost} onChange={(event) => updateSimulatorForm('tax_cost', event.target.value)} />
+                    <Input type="text" inputMode="decimal" value={simulatorForm.tax_cost} onChange={(event) => updateSimulatorForm('tax_cost', event.target.value)} />
                   </div>
                   <div className="space-y-1.5">
                     <Label>Comissão</Label>
-                    <Input type="number" step="0.01" value={simulatorForm.commission_cost} onChange={(event) => updateSimulatorForm('commission_cost', event.target.value)} />
+                    <Input type="text" inputMode="decimal" value={simulatorForm.commission_cost} onChange={(event) => updateSimulatorForm('commission_cost', event.target.value)} />
                   </div>
                   <div className="space-y-1.5">
                     <Label>Taxa de cartão</Label>
-                    <Input type="number" step="0.01" value={simulatorForm.card_fee_cost} onChange={(event) => updateSimulatorForm('card_fee_cost', event.target.value)} />
+                    <Input type="text" inputMode="decimal" value={simulatorForm.card_fee_cost} onChange={(event) => updateSimulatorForm('card_fee_cost', event.target.value)} />
                   </div>
                   <div className="space-y-1.5">
                     <Label>Embalagem</Label>
-                    <Input type="number" step="0.01" value={simulatorForm.packaging_cost} onChange={(event) => updateSimulatorForm('packaging_cost', event.target.value)} />
+                    <Input type="text" inputMode="decimal" value={simulatorForm.packaging_cost} onChange={(event) => updateSimulatorForm('packaging_cost', event.target.value)} />
                   </div>
                   <div className="space-y-1.5">
                     <Label>Custo operacional</Label>
-                    <Input type="number" step="0.01" value={simulatorForm.operational_cost} onChange={(event) => updateSimulatorForm('operational_cost', event.target.value)} />
+                    <Input type="text" inputMode="decimal" value={simulatorForm.operational_cost} onChange={(event) => updateSimulatorForm('operational_cost', event.target.value)} />
                   </div>
                   <div className="space-y-1.5">
                     <Label>Outros custos</Label>
-                    <Input type="number" step="0.01" value={simulatorForm.other_extra_cost} onChange={(event) => updateSimulatorForm('other_extra_cost', event.target.value)} />
+                    <Input type="text" inputMode="decimal" value={simulatorForm.other_extra_cost} onChange={(event) => updateSimulatorForm('other_extra_cost', event.target.value)} />
                   </div>
                   <div className="space-y-1.5">
                     <Label>Preço final</Label>
                     <Input
-                      type="number"
-                      step="0.01"
+                      type="text"
+                      inputMode="decimal"
                       value={simulatorForm.price}
                       onChange={(event) => {
                         setSimulatorSyncMode('price');
@@ -1360,8 +1360,8 @@ export default function PricingManager() {
                   <div className="space-y-1.5">
                     <Label>Markup desejado (%)</Label>
                     <Input
-                      type="number"
-                      step="0.01"
+                      type="text"
+                      inputMode="decimal"
                       value={simulatorForm.target_markup_pct}
                       onChange={(event) => {
                         setSimulatorSyncMode('markup');
@@ -1376,7 +1376,7 @@ export default function PricingManager() {
                   </div>
                   <div className="space-y-1.5">
                     <Label>Desconto simulado</Label>
-                    <Input type="number" step="0.01" value={simulatorForm.discount_amount} onChange={(event) => updateSimulatorForm('discount_amount', event.target.value)} />
+                    <Input type="text" inputMode="decimal" value={simulatorForm.discount_amount} onChange={(event) => updateSimulatorForm('discount_amount', event.target.value)} />
                   </div>
                   <div className="space-y-1.5">
                     <Label>Arredondamento</Label>
