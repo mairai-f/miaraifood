@@ -1,13 +1,18 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { ArrowRight, Play } from "lucide-react";
+import { ArrowRight, CheckCircle2, MessageCircle, Play, ShoppingCart } from "lucide-react";
 import gsap from "gsap";
 import { useLandingAccountActions } from "@/hooks/use-landing-account-actions";
 import screenshot1 from "@/assets/pdv-principal-carrinho.webp";
 import mascot from "@/assets/happycoin.webp";
 
 const rotatingWords = ["mercearia", "padaria", "adega", "bar", "loja"];
+const quickWins = [
+  "Fiado sem caderno",
+  "PDV em poucos cliques",
+  "Estoque sempre visível",
+];
 
 const Hero = () => {
   const sectionRef = useRef<HTMLElement>(null);
@@ -39,10 +44,6 @@ const Hero = () => {
         },
       });
 
-      // Floating glow orbs
-      gsap.to(".hero-orb-1", { y: -30, x: 20, duration: 4, repeat: -1, yoyo: true, ease: "sine.inOut" });
-      gsap.to(".hero-orb-2", { y: 20, x: -30, duration: 5, repeat: -1, yoyo: true, ease: "sine.inOut" });
-      gsap.to(".hero-orb-3", { y: -20, x: 15, duration: 3.5, repeat: -1, yoyo: true, ease: "sine.inOut" });
     }, sectionRef);
 
     return () => ctx.revert();
@@ -67,47 +68,42 @@ const Hero = () => {
   }, []);
 
   return (
-    <section ref={sectionRef} className="relative flex min-h-screen items-center overflow-hidden pt-20">
-      {/* Animated background orbs */}
-      <div className="hero-orb-1 absolute left-[10%] top-20 h-[280px] w-[280px] rounded-full bg-primary/8 blur-[80px] sm:h-[380px] sm:w-[380px] lg:h-[500px] lg:w-[500px] lg:blur-[100px]" />
-      <div className="hero-orb-2 absolute bottom-20 right-[10%] h-[220px] w-[220px] rounded-full bg-secondary/8 blur-[70px] sm:h-[320px] sm:w-[320px] lg:h-[400px] lg:w-[400px] lg:blur-[100px]" />
-      <div className="hero-orb-3 absolute left-1/2 top-1/2 h-[180px] w-[180px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary/5 blur-[60px] sm:h-[240px] sm:w-[240px] lg:h-[300px] lg:w-[300px] lg:blur-[80px]" />
-      
-      {/* Grid pattern overlay */}
-      <div className="absolute inset-0 bg-[linear-gradient(rgba(255,184,0,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(255,184,0,0.03)_1px,transparent_1px)] bg-[size:60px_60px]" />
+    <section ref={sectionRef} className="relative flex min-h-[calc(100svh-2rem)] items-center overflow-hidden border-b border-border/60 bg-background pt-24">
+      <div className="absolute inset-0 bg-[linear-gradient(rgba(255,184,0,0.025)_1px,transparent_1px),linear-gradient(90deg,rgba(255,184,0,0.025)_1px,transparent_1px)] bg-[size:64px_64px]" />
+      <div className="absolute inset-x-0 bottom-0 h-40 bg-gradient-to-t from-card/60 to-transparent" />
 
       <div className="container relative z-10">
-        <div className="grid items-center gap-10 lg:grid-cols-2 lg:gap-16">
-          <div className="space-y-6 sm:space-y-8">
-            <div className="hero-badge inline-flex max-w-full items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-4 py-2 text-xs font-medium text-primary backdrop-blur-sm sm:px-5 sm:text-sm">
+        <div className="grid items-center gap-10 pb-12 pt-4 lg:grid-cols-[0.95fr_1.05fr] lg:gap-14 lg:pb-16">
+          <div className="space-y-5 sm:space-y-6">
+            <div className="hero-badge inline-flex max-w-full items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-4 py-2 text-xs font-semibold text-primary backdrop-blur-sm sm:px-5 sm:text-sm">
               <span className="relative flex h-2 w-2">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
               </span>
-              PDV web + desktop PRO com chave por máquina
+              Feito para comércio pequeno que vende fiado
             </div>
 
-            <h1 className="hero-title font-heading text-4xl font-bold leading-[1.1] sm:text-5xl lg:text-6xl xl:text-7xl">
-              Pare de usar caderno para controlar sua{" "}
+            <h1 className="hero-title max-w-3xl font-heading text-4xl font-bold leading-[1.08] sm:text-5xl lg:text-6xl">
+              Controle fiado, caixa e estoque da sua{" "}
               <span ref={wordRef} className="text-primary inline-block capitalize">
                 {rotatingWords[wordIndex]}
               </span>
             </h1>
 
-            <p className="hero-subtitle max-w-lg text-base leading-relaxed text-muted-foreground sm:text-lg md:text-xl">
-              Controle seus clientes no fiado em segundos, veja quem te deve em tempo real e acompanhe PDV, estoque e cobranças via WhatsApp em um só lugar. No plano PRO, o primeiro acesso online vincula a máquina ao administrador, baixa os dados da loja e depois libera usuário e PIN no offline por até 5 dias.
+            <p className="hero-subtitle max-w-2xl text-base leading-relaxed text-muted-foreground sm:text-lg">
+              O HappyCash troca caderno e planilha por um painel simples para vender, cobrar pelo WhatsApp, acompanhar clientes devedores e fechar o caixa com mais confiança.
             </p>
 
-            <div className="hero-buttons flex flex-col sm:flex-row gap-4">
+            <div className="hero-buttons flex flex-col gap-3 sm:flex-row">
               {showTestButton && (
-                <Button asChild size="lg" className="bg-primary text-primary-foreground font-semibold text-base h-14 px-8 animate-glow-pulse hover:scale-105 transition-transform">
+                <Button asChild size="lg" className="h-14 bg-primary px-7 text-base font-semibold text-primary-foreground transition-transform hover:scale-[1.02] hover:bg-primary/90">
                   <Link to={testHref}>
                     Testar grátis agora <ArrowRight className="ml-2 h-5 w-5" />
                   </Link>
                 </Button>
               )}
               {showCreateAccount && (
-                <Button asChild variant="outline" size="lg" className="text-base border-border hover:bg-muted h-14 px-8 hover:scale-105 transition-transform group">
+                <Button asChild variant="outline" size="lg" className="h-14 border-border px-7 text-base transition-transform hover:scale-[1.02] hover:bg-muted group">
                   <Link to={createAccountHref}>
                     <Play className="mr-2 h-4 w-4 text-primary group-hover:scale-110 transition-transform" />
                     Criar conta
@@ -116,42 +112,44 @@ const Hero = () => {
               )}
             </div>
 
-            <a href="#planos" className="inline-flex items-center gap-2 text-sm font-semibold text-muted-foreground transition-colors hover:text-primary">
-              Ver planos e funcionalidades
-            </a>
+            <div className="hero-trust grid gap-2 pt-1 text-sm text-muted-foreground sm:grid-cols-3">
+              {quickWins.map((item) => (
+                <span key={item} className="flex items-center gap-2 rounded-lg border border-border/70 bg-card/60 px-3 py-2">
+                  <CheckCircle2 className="h-4 w-4 shrink-0 text-primary" />
+                  {item}
+                </span>
+              ))}
+            </div>
 
-            <div className="hero-trust flex flex-wrap items-center gap-6 pt-2 text-sm text-muted-foreground">
+            <div className="flex flex-wrap items-center gap-x-5 gap-y-2 pt-1 text-sm text-muted-foreground">
               <span className="flex items-center gap-2">
-                <span className="h-5 w-5 rounded-full bg-primary/20 flex items-center justify-center text-primary text-xs">✓</span>
+                <CheckCircle2 className="h-4 w-4 text-primary" />
                 Demo grátis sem cartão
               </span>
               <span className="flex items-center gap-2">
-                <span className="h-5 w-5 rounded-full bg-primary/20 flex items-center justify-center text-primary text-xs">✓</span>
+                <MessageCircle className="h-4 w-4 text-primary" />
                 Cobrança pronta no WhatsApp
               </span>
               <span className="flex items-center gap-2">
-                <span className="h-5 w-5 rounded-full bg-primary/20 flex items-center justify-center text-primary text-xs">✓</span>
+                <ShoppingCart className="h-4 w-4 text-primary" />
                 Web, Windows e Linux no PRO
               </span>
             </div>
           </div>
 
           <div ref={imageRef} className="hero-image relative mx-auto w-full max-w-xl lg:max-w-none">
-            {/* Glowing border effect */}
-            <div className="absolute -inset-1 bg-gradient-to-br from-primary/30 via-transparent to-secondary/30 rounded-2xl blur-sm" />
-            <div className="relative rounded-2xl border border-border/50 bg-card/80 backdrop-blur-sm p-3 shadow-2xl shadow-primary/10">
+            <div className="relative rounded-xl border border-border/70 bg-card p-2 shadow-2xl shadow-black/20 sm:p-3">
               <img
                 src={screenshot1}
                 alt="HappyCash - Sistema PDV"
-                className="rounded-xl w-full"
+                className="w-full rounded-lg"
                 width={1440}
                 height={1200}
                 loading="eager"
-                fetchPriority="high"
+                fetchpriority="high"
                 decoding="async"
               />
             </div>
-            {/* Mascot */}
             <div className="absolute -bottom-4 left-2 hidden animate-bounce-slow sm:block lg:-bottom-6 lg:-left-6">
               <img
                 src={mascot}
@@ -163,13 +161,14 @@ const Hero = () => {
                 decoding="async"
               />
             </div>
-            {/* Floating badge */}
-            <div className="absolute right-2 top-2 hidden rounded-xl border border-border bg-card px-3 py-2 shadow-xl sm:block lg:-right-4 lg:-top-4 lg:px-4 lg:py-3">
+            <div className="absolute right-2 top-2 hidden rounded-lg border border-border bg-card px-3 py-2 shadow-xl sm:block lg:-right-4 lg:-top-4 lg:px-4 lg:py-3">
               <div className="flex items-center gap-2">
-                <div className="h-8 w-8 rounded-full bg-primary/20 flex items-center justify-center text-primary">💰</div>
+                <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary/15 text-primary">
+                  <ShoppingCart className="h-4 w-4" />
+                </div>
                 <div>
-                  <p className="text-xs text-muted-foreground">Vendas hoje</p>
-                  <p className="text-sm font-bold text-primary">R$ 3.450,00</p>
+                  <p className="text-xs text-muted-foreground">Visão do caixa</p>
+                  <p className="text-sm font-bold text-primary">vendas + fiado</p>
                 </div>
               </div>
             </div>
@@ -177,13 +176,9 @@ const Hero = () => {
         </div>
       </div>
 
-      {/* Scroll indicator */}
-      <div className="absolute bottom-6 left-1/2 hidden -translate-x-1/2 flex-col items-center gap-2 text-muted-foreground/50 md:flex">
-        <span className="text-xs tracking-widest uppercase">Scroll</span>
-        <div className="w-5 h-8 border-2 border-muted-foreground/30 rounded-full flex justify-center pt-1">
-          <div className="w-1 h-2 bg-primary rounded-full animate-bounce" />
-        </div>
-      </div>
+      <a href="#planos" className="absolute bottom-5 left-1/2 hidden -translate-x-1/2 text-xs font-semibold uppercase tracking-[0.24em] text-muted-foreground/70 transition-colors hover:text-primary md:block">
+        Ver planos
+      </a>
     </section>
   );
 };

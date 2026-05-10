@@ -31,13 +31,13 @@ const OutcomeHighlights = () => {
       <div className="container relative z-10">
         <div className="mx-auto mb-12 max-w-3xl text-center">
           <span className="inline-block text-sm font-semibold uppercase tracking-[0.28em] text-primary">
-            Valor na prática
+            Rotina mais simples
           </span>
           <h2 className="mt-4 font-heading text-3xl font-bold leading-tight md:text-4xl lg:text-5xl">
-            Menos improviso. Mais controle sobre fiado, vendas e estoque.
+            O que muda quando o fiado sai do improviso
           </h2>
           <p className="mt-4 text-lg leading-relaxed text-muted-foreground">
-            O HappyCash foi feito para quem precisa controlar clientes no fiado, vender rápido no PDV e enxergar o negócio sem perder tempo.
+            O HappyCash foi feito para loja pequena que precisa registrar rápido, cobrar melhor e entender o dinheiro sem perder a manhã conferindo anotação.
           </p>
         </div>
 
@@ -45,9 +45,9 @@ const OutcomeHighlights = () => {
           {outcomes.map((item) => (
             <article
               key={item.title}
-              className="rounded-3xl border border-border/70 bg-card/70 p-6 shadow-lg shadow-black/5 backdrop-blur-sm transition-transform duration-300 hover:-translate-y-1 hover:border-primary/40"
+              className="rounded-lg border border-border/70 bg-card/70 p-6 shadow-lg shadow-black/5 backdrop-blur-sm transition-transform duration-300 hover:-translate-y-1 hover:border-primary/40"
             >
-              <div className="mb-4 inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+              <div className="mb-4 inline-flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10 text-primary">
                 <item.icon size={22} />
               </div>
               <h3 className="font-heading text-lg font-semibold leading-snug">{item.title}</h3>

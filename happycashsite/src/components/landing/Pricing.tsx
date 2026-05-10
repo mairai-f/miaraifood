@@ -114,11 +114,10 @@ const Pricing = () => {
         <div className="pricing-title text-center mb-16">
           <span className="inline-block text-sm font-semibold text-primary tracking-widest uppercase mb-4">Planos</span>
           <h2 className="font-heading text-3xl md:text-4xl lg:text-5xl font-bold mb-4">
-            Escolha o plano ideal para{" "}
-            <span className="text-primary">seu negócio</span>
+            Comece grátis e escolha quando fizer sentido
           </h2>
           <p className="text-muted-foreground max-w-xl mx-auto text-lg">
-            Teste grátis por 12 horas e depois escolha o plano que mais combina com sua operação. No PRO, cada máquina nova pede a chave da empresa antes do login.
+            Teste por 12 horas sem cartão. Depois, escolha o plano certo para controlar fiado, PDV, estoque e operação offline no PRO.
           </p>
         </div>
 
@@ -139,7 +138,7 @@ const Pricing = () => {
           {plans.map((plan) => (
             <div
               key={plan.name}
-              className={`pricing-card relative rounded-2xl border p-8 transition-all duration-500 hover:-translate-y-2 ${
+              className={`pricing-card relative rounded-lg border p-8 transition-all duration-500 hover:-translate-y-2 ${
                 plan.popular
                   ? "border-primary/50 bg-gradient-to-b from-primary/15 via-primary/5 to-card shadow-2xl shadow-primary/15"
                   : plan.highlight === "demo"

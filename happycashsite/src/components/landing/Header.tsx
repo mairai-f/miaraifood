@@ -60,11 +60,9 @@ const Header = () => {
 
   const links = [
     { label: "Fiado Digital", href: "/caderneta-de-fiado-digital" },
-    { label: "Controle de Fiado", href: "/controle-de-fiado" },
     { label: "Sistema PDV", href: "/sistema-pdv" },
     { label: "Estoque", href: "/controle-de-estoque" },
     { label: "Planos", href: buildHomeSectionHref("planos") },
-    { label: "FAQ", href: buildHomeSectionHref("faq") },
   ];
 
   return (
@@ -82,12 +80,12 @@ const Header = () => {
             width={768}
             height={512}
             loading="eager"
-            fetchPriority="high"
+            fetchpriority="high"
             decoding="async"
           />
         </Link>
 
-        <nav className="hidden md:flex items-center gap-6 lg:gap-10">
+        <nav className="hidden md:flex items-center gap-6 lg:gap-8">
           {links.map((l) => (
             <a
               key={l.href}
@@ -99,7 +97,7 @@ const Header = () => {
           ))}
         </nav>
 
-        <div className="hidden md:flex items-center gap-3">
+        <div className="hidden md:flex items-center gap-2 lg:gap-3">
           {isAuthenticated ? (
             <>
               {!loadingSubscription && subscriptionMarker && (
@@ -107,7 +105,7 @@ const Header = () => {
                   {subscriptionMarker}
                 </Badge>
               )}
-              <span className="max-w-[220px] truncate text-xs font-medium text-muted-foreground">
+              <span className="hidden max-w-[180px] truncate text-xs font-medium text-muted-foreground xl:block">
                 {user?.email}
               </span>
               <Button asChild variant="outline" size="sm">
