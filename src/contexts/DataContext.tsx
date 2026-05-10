@@ -1681,14 +1681,41 @@ export function DataProvider({ children }: { children: ReactNode }) {
     }
 
     try {
+      const remoteProductPayload = buildRemoteProductRecord(productPayload);
       const { data: updated, error } = await db
         .from('products')
-        .update(buildRemoteProductRecord(productPayload))
+        .update(remoteProductPayload)
         .eq('id', id)
         .select('*')
-        .single();
+        .maybeSingle();
       if (error) throw error;
-      setProducts(prev => prev.map(product => product.id === id ? withDisplayCode(updated as Product, prev) : product));
+
+      let syncedProduct = updated as Product | null;
+
+      if (!syncedProduct) {
+        const recreatePayload = buildRemoteProductRecord({
+          ...currentProduct,
+          ...productPayload,
+          id,
+          user_id: ownerUserId!,
+          deleted: currentProduct.deleted ?? false,
+          deleted_at: currentProduct.deleted_at ?? null,
+        }, true);
+        const { data: recreated, error: recreateError } = await db
+          .from('products')
+          .upsert(recreatePayload, { onConflict: 'id' })
+          .select('*')
+          .maybeSingle();
+
+        if (recreateError) throw recreateError;
+        syncedProduct = recreated as Product | null;
+      }
+
+      if (!syncedProduct) {
+        throw new Error('Nao foi possivel salvar o produto no banco online. Verifique se o usuario tem permissao de administrador e tente novamente.');
+      }
+
+      setProducts(prev => prev.map(product => product.id === id ? withDisplayCode(syncedProduct, prev) : product));
       void recordAuditLog('product.update', 'product', id, {
         name: currentProduct.name,
         changes: productPayload,

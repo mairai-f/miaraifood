@@ -189,7 +189,15 @@ export function DesktopRuntimeProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      resetState(false);
+      setLicensed(false);
+      setOfflineEnabled(false);
+      setValidUntil(null);
+      setValidationExpiresAt(null);
+      setUsingOfflineValidationCache(false);
+      setPlanId(null);
+      setError('Sua sessao online expirou ou nao foi carregada. Saia e entre novamente com o administrador para validar a licenca desktop.');
+      setCode('SESSION_UNAVAILABLE');
+      setChecking(false);
       return;
     }
 

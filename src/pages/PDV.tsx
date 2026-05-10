@@ -364,7 +364,7 @@ export default function PDV() {
       : ['Sem saídas nesta abertura.'];
 
     return [
-      '🧾 *HappyCash - Fechamento do Caixa*',
+      `🧾 *${retailCouponStoreName} - Fechamento do Caixa*`,
       '',
       `Aberto por: ${receipt.openedBy}`,
       `Data de abertura: ${formatSaleDate(receipt.openedAt)}`,
@@ -1945,7 +1945,7 @@ export default function PDV() {
     }
 
     const lines = lastSaleData.items.map(i => `• ${i.product.name} x${i.quantity} (${formatMoney(i.unitPrice)}) — ${formatMoney(getCartItemTotal(i))}`);
-    const msg = `🧾 *HappyCash - ${translateCurrentText('Comprovante')}*\n\n${lines.join('\n')}\n\n${lastSaleData.discount > 0 ? `${translateCurrentText('Desconto')}: ${formatMoney(lastSaleData.discount)}\n` : ''}💰 *${translateCurrentText('Total')}: ${formatMoney(lastSaleData.total)}*\n📅 ${formatDateTime(new Date())}\n${translateCurrentText('Pagamento')}: ${lastSaleData.method}`;
+    const msg = `🧾 *${retailCouponStoreName} - ${translateCurrentText('Comprovante')}*\n\n${lines.join('\n')}\n\n${lastSaleData.discount > 0 ? `${translateCurrentText('Desconto')}: ${formatMoney(lastSaleData.discount)}\n` : ''}💰 *${translateCurrentText('Total')}: ${formatMoney(lastSaleData.total)}*\n📅 ${formatDateTime(new Date())}\n${translateCurrentText('Pagamento')}: ${lastSaleData.method}`;
     if (!openExternalUrl(`https://wa.me/${normalizePhone(client.phone)}?text=${encodeURIComponent(msg)}`)) {
       silentToast.error('Não foi possível abrir o WhatsApp.');
     }

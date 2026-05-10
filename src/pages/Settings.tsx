@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type ChangeEvent } from 'react';
+import { useCallback, useEffect, useMemo, useState, type ChangeEvent } from 'react';
 import { Clock3, Download, Loader2, Settings as SettingsIcon, ShieldAlert } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import { CompanyProfileCard } from '@/components/CompanyProfileCard';
@@ -118,6 +118,14 @@ export default function Settings() {
   const [restoreConfirmationText, setRestoreConfirmationText] = useState('');
   const [restoreError, setRestoreError] = useState('');
   const [restoringBackup, setRestoringBackup] = useState(false);
+  const pendingOfflineConflicts = useMemo(
+    () => offlineConflicts.filter(conflict => !conflict.resolvedAt),
+    [offlineConflicts],
+  );
+  const resolvedOfflineConflicts = useMemo(
+    () => offlineConflicts.filter(conflict => conflict.resolvedAt),
+    [offlineConflicts],
+  );
 
   const loadOfflineRuntime = useCallback(async () => {
     if (!isDesktop || !ownerUserId) {
@@ -788,7 +796,7 @@ export default function Settings() {
               </Button>
             </div>
 
-            {offlineConflicts.length > 0 && (
+            {pendingOfflineConflicts.length > 0 && (
               <div className="space-y-3 rounded-lg border border-amber-500/30 bg-amber-500/5 p-4">
                 <div>
                   <p className="text-sm font-medium text-foreground">Conflitos pendentes do concentrador</p>
@@ -798,7 +806,48 @@ export default function Settings() {
                 </div>
 
                 <div className="space-y-3">
-                  {offlineConflicts.slice(0, 5).map(conflict => (
+                  {pendingOfflineConflicts.slice(0, 5).map(conflict => (
+                    <div key={conflict.id} className="rounded-lg border border-border/70 bg-background/80 p-3 text-sm">
+                      <p className="font-medium text-foreground">{conflict.operationType}</p>
+                      <p className="mt-1 text-muted-foreground">{conflict.message}</p>
+                      <p className="mt-2 text-xs text-muted-foreground">
+                        Registrado em {new Date(conflict.createdAt).toLocaleString('pt-BR')}
+                      </p>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <Button
+                          type="button"
+                          variant="default"
+                          size="sm"
+                          onClick={() => void handleRetryOfflineOperation(conflict.operationId)}
+                        >
+                          Tentar novamente
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => void handleResolveOfflineConflict(conflict.id)}
+                        >
+                          Marcar como resolvido
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {pendingOfflineConflicts.length === 0 && resolvedOfflineConflicts.length > 0 && (
+              <div className="space-y-3 rounded-lg border border-border/70 bg-background/70 p-4">
+                <div>
+                  <p className="text-sm font-medium text-foreground">Historico de conflitos resolvidos</p>
+                  <p className="text-sm text-muted-foreground">
+                    Estes itens ja foram tratados no concentrador local e nao contam como pendentes.
+                  </p>
+                </div>
+
+                <div className="space-y-3">
+                  {resolvedOfflineConflicts.slice(0, 5).map(conflict => (
                     <div key={conflict.id} className="rounded-lg border border-border/70 bg-background/80 p-3 text-sm">
                       <p className="font-medium text-foreground">{conflict.operationType}</p>
                       <p className="mt-1 text-muted-foreground">{conflict.message}</p>
@@ -806,26 +855,6 @@ export default function Settings() {
                         Registrado em {new Date(conflict.createdAt).toLocaleString('pt-BR')}
                         {conflict.resolvedAt ? ` • resolvido em ${new Date(conflict.resolvedAt).toLocaleString('pt-BR')}` : ''}
                       </p>
-                      {!conflict.resolvedAt && (
-                        <div className="mt-3 flex flex-wrap gap-2">
-                          <Button
-                            type="button"
-                            variant="default"
-                            size="sm"
-                            onClick={() => void handleRetryOfflineOperation(conflict.operationId)}
-                          >
-                            Tentar novamente
-                          </Button>
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            onClick={() => void handleResolveOfflineConflict(conflict.id)}
-                          >
-                            Marcar como resolvido
-                          </Button>
-                        </div>
-                      )}
                     </div>
                   ))}
                 </div>
