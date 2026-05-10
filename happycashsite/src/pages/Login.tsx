@@ -54,6 +54,12 @@ const Login = () => {
     const value = searchParams.get('plan');
     return isPublicPlanId(value) ? value : null;
   })();
+  const selectedBillingPeriod = searchParams.get('period') === 'annual' ? 'annual' : 'monthly';
+  const selectedPlanQuery = selectedPlanId
+    ? `plan=${selectedPlanId}${selectedBillingPeriod === 'annual' ? '&period=annual' : ''}`
+    : selectedBillingPeriod === 'annual'
+    ? 'period=annual'
+    : '';
   const nextPath = resolveSafeNextPath(searchParams.get('next'));
 
   const selectedPlan = selectedPlanId ? publicPlanContent[selectedPlanId] : null;
@@ -90,7 +96,7 @@ const Login = () => {
       clearPasswordState();
       applySiteSessionPreference(keepConnected);
       toast({ title: 'Bem-vindo de volta!' });
-      navigate(nextPath || (selectedPlanId ? `/dashboard?plan=${selectedPlanId}` : '/dashboard'));
+      navigate(nextPath || (selectedPlanQuery ? `/dashboard?${selectedPlanQuery}` : '/dashboard'));
     } finally {
       setLoading(false);
     }
@@ -279,7 +285,7 @@ const Login = () => {
                 <p className="text-muted-foreground">
                   Nao tem conta?{' '}
                   <Link
-                    to={selectedPlanId ? `/cadastro?plan=${selectedPlanId}` : '/cadastro'}
+                    to={selectedPlanQuery ? `/cadastro?${selectedPlanQuery}` : '/cadastro'}
                     className="font-medium text-yellow-300 hover:underline"
                   >
                     Criar conta

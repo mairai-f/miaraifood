@@ -21,13 +21,14 @@ const plans = [
       "Acesso completo por 12 horas",
       "Todas as funcionalidades",
       "Sem cartão de crédito",
-      "Suporte via WhatsApp",
+      "Suporte por email",
     ],
   },
   {
     id: "fiado",
     name: "Caderneta Fiado Digital",
     price: 100,
+    annualPrice: 997,
     description: "Ideal para quem vive de fiado e precisa de controle simples por 30 dias",
     popular: false,
     features: [
@@ -45,6 +46,7 @@ const plans = [
     name: "Plano Completo",
     subtitle: "PDV + Fiado",
     price: 230,
+    annualPrice: 2097,
     description: "Gestão completa do seu negócio com ciclo de 30 dias",
     popular: true,
     features: [
@@ -66,6 +68,7 @@ const plans = [
     name: "Plano PRO",
     subtitle: "Completo + App",
     price: 347,
+    annualPrice: 2997,
     description: "Desktop PRO com ativação por máquina, mobile e mais segurança para a operação",
     popular: false,
     features: [
@@ -82,8 +85,6 @@ const plans = [
   },
 ];
 
-const WHATSAPP_NUMBER = "5512988918792";
-const annualDiscountMonths = 2;
 const formatPrice = (value: number) => value.toLocaleString("pt-BR", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
 
 const Pricing = () => {
@@ -121,7 +122,7 @@ const Pricing = () => {
             Comece grátis e escolha quando fizer sentido
           </h2>
           <p className="text-muted-foreground max-w-xl mx-auto text-lg">
-            Teste por 12 horas sem cartão. Depois, escolha entre pagar a cada 30 dias ou fechar o anual com 2 meses de desconto.
+            Teste por 12 horas sem cartão. Depois, escolha entre pagar a cada 30 dias ou fechar o anual direto no checkout.
           </p>
         </div>
 
@@ -164,14 +165,16 @@ const Pricing = () => {
         <div className="pricing-cards grid md:grid-cols-2 xl:grid-cols-4 gap-6 max-w-7xl mx-auto">
           {plans.map((plan) => {
             const isDemo = plan.highlight === "demo";
-            const annualPrice = plan.price * (12 - annualDiscountMonths);
+            const annualPrice = plan.annualPrice ?? 0;
             const displayPrice = annualSelected && !isDemo ? annualPrice : plan.price;
             const periodLabel = annualSelected && !isDemo ? "/ano" : "/30 dias";
-            const annualSavings = plan.price * annualDiscountMonths;
-            const whatsappText = annualSelected && !isDemo
-              ? `Olá! Tenho interesse no plano anual ${plan.name} - R$${formatPrice(annualPrice)} por 12 meses no HappyCash`
-              : `Olá! Tenho interesse no ${plan.name} - R$${formatPrice(plan.price)} a cada 30 dias no HappyCash`;
-            const whatsappHref = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(whatsappText)}`;
+            const annualSavings = Math.max(0, plan.price * 12 - annualPrice);
+            const planHref = annualSelected
+              ? `/dashboard?plan=${plan.id}&period=annual`
+              : `/dashboard?plan=${plan.id}`;
+            const signupHref = annualSelected
+              ? `/cadastro?plan=${plan.id}&period=annual`
+              : `/cadastro?plan=${plan.id}`;
 
             return (
               <div
@@ -215,7 +218,7 @@ const Pricing = () => {
                       <span className="font-heading text-5xl font-bold text-primary mx-1">{formatPrice(displayPrice)}</span>
                       <span className="text-muted-foreground">{periodLabel}</span>
                       {annualSelected && (
-                        <p className="mt-2 text-xs font-medium text-primary">Equivale a R$ {formatPrice(plan.price)} por mês, com 2 meses grátis.</p>
+                        <p className="mt-2 text-xs font-medium text-primary">Economia de R$ {formatPrice(annualSavings)} comparado ao mensal.</p>
                       )}
                     </>
                   )}
@@ -239,35 +242,22 @@ const Pricing = () => {
                         <Link to={isAuthenticated ? testHref : `/cadastro?plan=${plan.id}`}>Testar grátis agora</Link>
                       </Button>
                     ) : null
-                  ) : annualSelected ? (
-                    <>
-                      <Button asChild className={`w-full font-semibold h-12 text-base transition-all duration-300 hover:scale-[1.02] hover:shadow-lg ${
-                        plan.popular ? "bg-primary text-primary-foreground hover:bg-primary/90 hover:shadow-primary/30" : "bg-muted text-foreground hover:bg-muted/80"
-                      }`} size="lg">
-                        <a href={whatsappHref} target="_blank" rel="noopener noreferrer">Assinar anual no WhatsApp</a>
-                      </Button>
-                      {!isAuthenticated && (
-                        <Button asChild variant="outline" className="w-full font-semibold h-12 text-base" size="lg">
-                          <Link to={`/cadastro?plan=${plan.id}`}>Criar conta primeiro</Link>
-                        </Button>
-                      )}
-                    </>
                   ) : (
                     <>
                       <Button asChild className={`w-full font-semibold h-12 text-base transition-all duration-300 hover:scale-[1.02] hover:shadow-lg ${
                         plan.popular ? "bg-primary text-primary-foreground hover:bg-primary/90 hover:shadow-primary/30" : "bg-muted text-foreground hover:bg-muted/80"
                       }`} size="lg">
                         {isAuthenticated ? (
-                          <Link to={`/dashboard?plan=${plan.id}`}>Abrir no Painel</Link>
+                          <Link to={planHref}>{annualSelected ? "Abrir checkout anual" : "Abrir no Painel"}</Link>
                         ) : (
-                          <Link to={`/cadastro?plan=${plan.id}`}>Criar conta e assinar</Link>
+                          <Link to={signupHref}>Criar conta e assinar</Link>
                         )}
                       </Button>
-                      <Button asChild variant="outline" className="w-full font-semibold h-12 text-base" size="lg">
-                        <a href={whatsappHref} target="_blank" rel="noopener noreferrer">
-                          Falar no WhatsApp
-                        </a>
-                      </Button>
+                      {!annualSelected && (
+                        <Button asChild variant="outline" className="w-full font-semibold h-12 text-base" size="lg">
+                          <Link to={`/dashboard?plan=${plan.id}&period=annual`}>Ver anual</Link>
+                        </Button>
+                      )}
                     </>
                   )}
                 </div>

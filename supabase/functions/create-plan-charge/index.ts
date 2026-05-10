@@ -16,16 +16,19 @@ import { buildCorsHeaders, handleCorsPreflight } from "../_shared/cors.ts";
 type SupportedPaidPlan = "fiado" | "completo" | "pro";
 type CheckoutPaymentMethod = "pix" | "card";
 type SupportedBillingType = "PIX" | "CREDIT_CARD";
+type BillingPeriod = "monthly" | "annual";
 
 interface CreatePlanChargeRequest {
   planId?: SupportedPaidPlan;
   paymentMethod?: CheckoutPaymentMethod;
+  billingPeriod?: BillingPeriod;
 }
 
 interface SubscriptionPlanRow {
   id: SupportedPaidPlan;
   name: string;
   price: number;
+  annual_price: number | null;
   currency: string;
   duration_days: number;
 }
@@ -81,6 +84,7 @@ const extractAccessToken = (authorization: string | null) => {
 
 const supportedPlans = new Set<SupportedPaidPlan>(["fiado", "completo", "pro"]);
 const supportedPaymentMethods = new Set<CheckoutPaymentMethod>(["pix", "card"]);
+const supportedBillingPeriods = new Set<BillingPeriod>(["monthly", "annual"]);
 const awaitingPaymentStatuses = new Set(["PENDING", "OVERDUE", "AWAITING_RISK_ANALYSIS"]);
 const receivedPaymentStatuses = new Set(["RECEIVED", "CONFIRMED", "RECEIVED_IN_CASH"]);
 
@@ -97,6 +101,8 @@ const trimToUndefined = (value?: string | null) => {
 };
 const resolvePaymentMethod = (value?: string | null): CheckoutPaymentMethod =>
   value === "card" ? "card" : "pix";
+const resolveBillingPeriod = (value?: string | null): BillingPeriod =>
+  value === "annual" ? "annual" : "monthly";
 const resolveBillingType = (paymentMethod: CheckoutPaymentMethod): SupportedBillingType =>
   paymentMethod === "card" ? "CREDIT_CARD" : "PIX";
 const resolvePaymentMethodFromBillingType = (billingType?: string | null): CheckoutPaymentMethod =>
@@ -433,6 +439,7 @@ Deno.serve(async (request) => {
 
   const planId = body.planId;
   const paymentMethod = resolvePaymentMethod(body.paymentMethod);
+  const billingPeriod = resolveBillingPeriod(body.billingPeriod);
 
   if (!planId || !supportedPlans.has(planId)) {
     return jsonResponse(request, { error: "Plano inválido." }, 400);
@@ -442,9 +449,13 @@ Deno.serve(async (request) => {
     return jsonResponse(request, { error: "Forma de pagamento inválida." }, 400);
   }
 
+  if (body.billingPeriod && !supportedBillingPeriods.has(body.billingPeriod)) {
+    return jsonResponse(request, { error: "Periodo de cobranca inválido." }, 400);
+  }
+
   const { data: planData, error: planError } = await serviceClient
     .from("subscription_plans")
-    .select("id, name, price, currency, duration_days")
+    .select("id, name, price, annual_price, currency, duration_days")
     .eq("id", planId)
     .eq("is_active", true)
     .single();
@@ -466,6 +477,14 @@ Deno.serve(async (request) => {
   const plan = planData as SubscriptionPlanRow;
   const storeAccount = storeAccountData as StoreAccountRow;
   const billingType = resolveBillingType(paymentMethod);
+  const chargeValue = billingPeriod === "annual"
+    ? Number(plan.annual_price || 0)
+    : Number(plan.price);
+  const periodDays = billingPeriod === "annual" ? 365 : Math.max(1, Number(plan.duration_days || 30));
+
+  if (!Number.isFinite(chargeValue) || chargeValue <= 0) {
+    return jsonResponse(request, { error: "Preço do plano inválido para o periodo escolhido." }, 400);
+  }
 
   try {
     const asaasCustomerId = await ensureBillingCustomer(serviceClient, user.id, storeAccount);
@@ -503,6 +522,7 @@ Deno.serve(async (request) => {
 
       const paymentStatus = (currentPayment.status || "PENDING").toUpperCase();
       const pendingPaymentMethod = resolvePaymentMethodFromBillingType(pendingSubscription.billing_type);
+      const pendingBillingPeriod = pendingSubscription.metadata?.checkout_billing_period === "annual" ? "annual" : "monthly";
 
       if (receivedPaymentStatuses.has(paymentStatus)) {
         return jsonResponse(
@@ -515,7 +535,7 @@ Deno.serve(async (request) => {
         );
       }
 
-      if (pendingPaymentMethod === paymentMethod && awaitingPaymentStatuses.has(paymentStatus)) {
+      if (pendingPaymentMethod === paymentMethod && pendingBillingPeriod === billingPeriod && awaitingPaymentStatuses.has(paymentStatus)) {
         const checkout = await buildCheckoutPayload(pendingSubscription.id, planId, paymentMethod, currentPayment);
 
         await serviceClient
@@ -526,6 +546,8 @@ Deno.serve(async (request) => {
               asaas_invoice_url: currentPayment.invoiceUrl || null,
               checkout_payment_method: paymentMethod,
               checkout_billing_type: billingType,
+              checkout_billing_period: billingPeriod,
+              checkout_period_days: periodDays,
               last_checkout_requested_at: new Date().toISOString(),
               reused_pending_checkout: true,
             }),
@@ -554,6 +576,7 @@ Deno.serve(async (request) => {
         checkout_cancelled_by_plan: planId,
         checkout_cancelled_by_payment_method: paymentMethod,
         checkout_cancelled_by_billing_type: billingType,
+        checkout_cancelled_by_billing_period: billingPeriod,
       });
 
       await serviceClient
@@ -571,6 +594,8 @@ Deno.serve(async (request) => {
       checkout_plan_name: plan.name,
       checkout_payment_method: paymentMethod,
       checkout_billing_type: billingType,
+      checkout_billing_period: billingPeriod,
+      checkout_period_days: periodDays,
     };
 
     const { data: createdSubscriptionData, error: createSubscriptionError } = await serviceClient
@@ -582,7 +607,7 @@ Deno.serve(async (request) => {
         provider: "asaas",
         status: "pending",
         billing_type: billingType,
-        price: plan.price,
+        price: chargeValue,
         currency: plan.currency,
         external_reference: user.id,
         metadata: pendingMetadata,
@@ -600,9 +625,9 @@ Deno.serve(async (request) => {
       const payment = await createAsaasPayment({
         customer: asaasCustomerId,
         billingType,
-        value: Number(plan.price),
+        value: chargeValue,
         dueDate: todayAsaasDate(),
-        description: `HappyCash - ${plan.name} - 30 dias`,
+        description: `HappyCash - ${plan.name} - ${billingPeriod === "annual" ? "12 meses" : "30 dias"}`,
         externalReference: createdSubscription.id,
       });
 
@@ -614,6 +639,8 @@ Deno.serve(async (request) => {
         asaas_billing_type: payment.billingType || billingType,
         checkout_payment_method: paymentMethod,
         checkout_billing_type: billingType,
+        checkout_billing_period: billingPeriod,
+        checkout_period_days: periodDays,
         last_checkout_requested_at: new Date().toISOString(),
       } as Record<string, unknown>;
 

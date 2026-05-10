@@ -70,9 +70,15 @@ const Cadastro = () => {
     const value = searchParams.get("plan");
     return isPublicPlanId(value) ? value : null;
   })();
+  const selectedBillingPeriod = searchParams.get("period") === "annual" ? "annual" : "monthly";
+  const selectedPlanQuery = selectedPlanId
+    ? `plan=${selectedPlanId}${selectedBillingPeriod === "annual" ? "&period=annual" : ""}`
+    : selectedBillingPeriod === "annual"
+    ? "period=annual"
+    : "";
   const selectedPlan = selectedPlanId ? publicPlanContent[selectedPlanId] : null;
   const demoDashboardPath = "/dashboard?plan=demo";
-  const emailConfirmPath = `/auth/callback?plan=${selectedPlanId || "demo"}`;
+  const emailConfirmPath = `/auth/callback?${selectedPlanQuery || "plan=demo"}`;
 
   // Step 1 - Account
   const [email, setEmail] = useState("");
@@ -234,7 +240,7 @@ const Cadastro = () => {
                 type="button"
                 variant="ghost"
                 className="h-11 sm:col-span-2"
-                onClick={() => navigate(selectedPlanId ? `/login?plan=${selectedPlanId}` : "/login")}
+                onClick={() => navigate(selectedPlanQuery ? `/login?${selectedPlanQuery}` : "/login")}
               >
                 Ir para o login
               </Button>
@@ -466,7 +472,7 @@ const Cadastro = () => {
 
           <p className="text-center text-sm text-muted-foreground pt-2">
             Já tem conta?{" "}
-            <Link to={selectedPlanId ? `/login?plan=${selectedPlanId}` : "/login"} className="text-primary hover:underline font-medium">Entrar</Link>
+            <Link to={selectedPlanQuery ? `/login?${selectedPlanQuery}` : "/login"} className="text-primary hover:underline font-medium">Entrar</Link>
             {" · "}
             <Link to="/paginainicial" className="text-muted-foreground hover:text-primary text-xs">Voltar ao site</Link>
           </p>

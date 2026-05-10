@@ -1,4 +1,4 @@
-import { ArrowRight, CheckCircle2, MessageCircle } from "lucide-react";
+import { ArrowRight, CheckCircle2, Mail } from "lucide-react";
 import { Link } from "react-router-dom";
 
 import Footer from "@/components/landing/Footer";
@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { useLandingAccountActions } from "@/hooks/use-landing-account-actions";
 import type { SiteSeoConfig } from "@/lib/siteSeo";
 
-const WHATSAPP_NUMBER = "5512988918792";
+const SUPPORT_EMAIL = "happycashsupport@gmail.com";
 
 interface SolutionCard {
   title: string;
@@ -100,13 +100,11 @@ const SolutionPage = ({
               </div>
 
               <a
-                href={`https://wa.me/${WHATSAPP_NUMBER}`}
-                target="_blank"
-                rel="noopener noreferrer"
+                href={`mailto:${SUPPORT_EMAIL}`}
                 className="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-muted-foreground transition-colors hover:text-primary"
               >
-                <MessageCircle className="h-4 w-4 text-primary" />
-                Tirar dúvida no WhatsApp
+                <Mail className="h-4 w-4 text-primary" />
+                Tirar dúvida por email
               </a>
 
               <div className="mt-8 flex flex-wrap gap-3">
@@ -259,8 +257,8 @@ const SolutionPage = ({
                     </Button>
                   )}
                   <Button asChild variant="outline" size="lg" className="h-14 px-8 text-base font-semibold">
-                    <a href={`https://wa.me/${WHATSAPP_NUMBER}`} target="_blank" rel="noopener noreferrer">
-                      Falar no WhatsApp
+                    <a href={`mailto:${SUPPORT_EMAIL}`}>
+                      Enviar email
                     </a>
                   </Button>
                 </div>

@@ -54,6 +54,7 @@ type SubscriptionPlanRow = {
   name: string;
   description: string | null;
   price: number | null;
+  annual_price: number | null;
   duration_days: number | null;
   sort_order: number | null;
 };
@@ -132,6 +133,7 @@ type CreatePlanChargeResponse = {
   code?: string;
   checkout?: {
     paymentMethod: "pix" | "card";
+    billingPeriod?: "monthly" | "annual";
     subscriptionId: string;
     planId: PaidPlanId;
     paymentId: string;
@@ -146,6 +148,7 @@ type CreatePlanChargeResponse = {
 };
 
 type CheckoutPaymentMethod = NonNullable<NonNullable<CreatePlanChargeResponse["checkout"]>["paymentMethod"]>;
+type CheckoutBillingPeriod = "monthly" | "annual";
 type PlanCheckoutState = NonNullable<CreatePlanChargeResponse["checkout"]>;
 
 type FinalizeSiteRegistrationResponse = {
@@ -192,8 +195,8 @@ const resolveSubscriptionPaymentMethod = (billingType?: StoreSubscriptionRow["bi
 const getPaymentMethodLabel = (paymentMethod: CheckoutPaymentMethod) =>
   paymentMethod === "card" ? "Debito / Credito" : "Pix";
 
-const getPlanChargeActionKey = (planId: PaidPlanId, paymentMethod: CheckoutPaymentMethod) =>
-  `${planId}:${paymentMethod}`;
+const getPlanChargeActionKey = (planId: PaidPlanId, paymentMethod: CheckoutPaymentMethod, billingPeriod: CheckoutBillingPeriod) =>
+  `${planId}:${paymentMethod}:${billingPeriod}`;
 
 const Dashboard = () => {
   const location = useLocation();
@@ -225,9 +228,14 @@ const Dashboard = () => {
     const value = searchParams.get("plan");
     return isPublicPlanId(value) ? value : null;
   })();
+  const selectedBillingPeriod: CheckoutBillingPeriod = searchParams.get("period") === "annual" ? "annual" : "monthly";
 
-  const querySuffix = selectedPlanId ? `?plan=${selectedPlanId}` : "";
-  const logoutHref = selectedPlanId ? `/saindo?plan=${selectedPlanId}` : "/saindo";
+  const querySuffix = selectedPlanId
+    ? `?plan=${selectedPlanId}${selectedBillingPeriod === "annual" ? "&period=annual" : ""}`
+    : selectedBillingPeriod === "annual"
+    ? "?period=annual"
+    : "";
+  const logoutHref = selectedPlanId ? `/saindo${querySuffix}` : "/saindo";
 
   useEffect(() => {
     if (loading || location.hash !== "#planos") return;
@@ -306,7 +314,7 @@ const Dashboard = () => {
       async () => {
         const responses = await Promise.all([
           db.from("store_accounts").select("id, nome_cliente, nome_estabelecimento, email").eq("owner_user_id", userId).maybeSingle(),
-          db.from("subscription_plans").select("id, name, description, price, duration_days, sort_order").eq("is_public", true).eq("is_active", true).order("sort_order", { ascending: true }),
+          db.from("subscription_plans").select("id, name, description, price, annual_price, duration_days, sort_order").eq("is_public", true).eq("is_active", true).order("sort_order", { ascending: true }),
           db.from("store_subscriptions").select("id, plan_id, status, billing_type, provider, provider_payment_id, current_period_starts_at, current_period_ends_at, trial_started_at, trial_ends_at, metadata, created_at").eq("owner_user_id", userId).order("created_at", { ascending: false }),
           db.from("billing_customers").select("provider, provider_customer_id").eq("owner_user_id", userId).maybeSingle(),
         ] as const);
@@ -438,6 +446,8 @@ const Dashboard = () => {
   const pendingPaymentMethod = pendingSubscription
     ? resolveSubscriptionPaymentMethod(pendingSubscription.billing_type)
     : null;
+  const pendingBillingPeriod: CheckoutBillingPeriod =
+    pendingSubscription?.metadata?.checkout_billing_period === "annual" ? "annual" : "monthly";
 
   const sortedPlans = publicPlanList.map((fallbackPlan) => {
     const dbPlan = plans.find((plan) => plan.id === fallbackPlan.id);
@@ -446,6 +456,7 @@ const Dashboard = () => {
       name: dbPlan?.name || fallbackPlan.name,
       description: dbPlan?.description || fallbackPlan.description,
       price: Number(dbPlan?.price ?? fallbackPlan.price),
+      annual_price: Number(dbPlan?.annual_price ?? fallbackPlan.price * 10),
       duration_days: Number(dbPlan?.duration_days ?? (fallbackPlan.id === "demo" ? 0 : 30)),
     };
   });
@@ -578,8 +589,12 @@ const Dashboard = () => {
     }
   }, [checkoutDialogOpen, currentSubscription, planCheckout, toast]);
 
-  const handleCreatePlanCharge = async (planId: PaidPlanId, paymentMethod: CheckoutPaymentMethod) => {
-    const actionKey = getPlanChargeActionKey(planId, paymentMethod);
+  const handleCreatePlanCharge = async (
+    planId: PaidPlanId,
+    paymentMethod: CheckoutPaymentMethod,
+    billingPeriod: CheckoutBillingPeriod = selectedBillingPeriod,
+  ) => {
+    const actionKey = getPlanChargeActionKey(planId, paymentMethod, billingPeriod);
     const paymentMethodLabel = getPaymentMethodLabel(paymentMethod);
     setActivatingCheckout(actionKey);
 
@@ -593,7 +608,7 @@ const Dashboard = () => {
       }
 
       const { data, error } = await supabase.functions.invoke<CreatePlanChargeResponse>("create-plan-charge", {
-        body: { planId, paymentMethod },
+        body: { planId, paymentMethod, billingPeriod },
         headers: {
           Authorization: `Bearer ${session.access_token}`,
         },
@@ -639,7 +654,7 @@ const Dashboard = () => {
       await loadDashboard(session.user.id);
       setPlanCheckout(data.checkout);
       setCheckoutDialogOpen(true);
-      navigate(`/dashboard?plan=${planId}`, { replace: true });
+      navigate(`/dashboard?plan=${planId}${billingPeriod === "annual" ? "&period=annual" : ""}`, { replace: true });
       toast({
         title: data.reusedPending ? `${paymentMethodLabel} pendente reaberto` : `${paymentMethodLabel} preparado com sucesso`,
         description: paymentMethod === "pix"
@@ -925,10 +940,10 @@ const Dashboard = () => {
               <div>
                 <Button
                   className="h-10"
-                  onClick={() => handleCreatePlanCharge(pendingPlanId!, pendingPaymentMethod)}
-                  disabled={activatingCheckout === getPlanChargeActionKey(pendingPlanId!, pendingPaymentMethod)}
+                  onClick={() => handleCreatePlanCharge(pendingPlanId!, pendingPaymentMethod, pendingBillingPeriod)}
+                  disabled={activatingCheckout === getPlanChargeActionKey(pendingPlanId!, pendingPaymentMethod, pendingBillingPeriod)}
                 >
-                  {activatingCheckout === getPlanChargeActionKey(pendingPlanId!, pendingPaymentMethod) ? (
+                  {activatingCheckout === getPlanChargeActionKey(pendingPlanId!, pendingPaymentMethod, pendingBillingPeriod) ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                       {pendingPaymentMethod === "pix" ? "Abrindo Pix..." : "Abrindo fatura..."}
@@ -1162,10 +1177,30 @@ const Dashboard = () => {
             <div>
               <h2 className="font-heading text-2xl font-bold">Escolha seu plano</h2>
               <p className="text-sm text-muted-foreground">
-                Todos os planos pagos ficam ativos por 30 dias. Gere o Pix ou abra a fatura de debito / credito e o plano libera sozinho quando o pagamento for confirmado.
+                Escolha mensal ou anual. Gere o Pix ou abra a fatura de debito / credito e o plano libera sozinho quando o pagamento for confirmado.
               </p>
             </div>
-            <Badge variant="outline">Pix e debito / credito</Badge>
+            <div className="flex flex-col gap-2 sm:items-end">
+              <Badge variant="outline">Pix e debito / credito</Badge>
+              <div className="grid grid-cols-2 rounded-lg border border-border bg-card p-1">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={selectedBillingPeriod === "monthly" ? "default" : "ghost"}
+                  onClick={() => navigate(`/dashboard${selectedPlanId ? `?plan=${selectedPlanId}` : ""}`, { replace: true })}
+                >
+                  Mensal
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={selectedBillingPeriod === "annual" ? "default" : "ghost"}
+                  onClick={() => navigate(`/dashboard?${selectedPlanId ? `plan=${selectedPlanId}&` : ""}period=annual`, { replace: true })}
+                >
+                  Anual
+                </Button>
+              </div>
+            </div>
           </div>
 
           <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
@@ -1177,8 +1212,10 @@ const Dashboard = () => {
                 isPaidPlanId(plan.id);
               const content = publicPlanContent[plan.id];
               const isPaidPlan = isPaidPlanId(plan.id);
-              const pixActionKey = isPaidPlan ? getPlanChargeActionKey(plan.id, "pix") : null;
-              const cardActionKey = isPaidPlan ? getPlanChargeActionKey(plan.id, "card") : null;
+              const displayPrice = selectedBillingPeriod === "annual" && isPaidPlan ? plan.annual_price : plan.price;
+              const displayPeriod = selectedBillingPeriod === "annual" && isPaidPlan ? "/ano" : "/30 dias";
+              const pixActionKey = isPaidPlan ? getPlanChargeActionKey(plan.id, "pix", selectedBillingPeriod) : null;
+              const cardActionKey = isPaidPlan ? getPlanChargeActionKey(plan.id, "card", selectedBillingPeriod) : null;
               const isPixLoading = pixActionKey === activatingCheckout;
               const isCardLoading = cardActionKey === activatingCheckout;
               const isPlanActivating = isPaidPlan && Boolean(activatingCheckout?.startsWith(`${plan.id}:`));
@@ -1197,7 +1234,7 @@ const Dashboard = () => {
                   <CardHeader className="space-y-4">
                     <div className="flex items-start justify-between gap-3">
                       <Badge variant={plan.id === "demo" ? "secondary" : plan.id === "pro" ? "default" : "outline"}>
-                        {plan.id === "demo" ? "Demo" : plan.id === "pro" ? "Mais valor" : "30 dias"}
+                        {plan.id === "demo" ? "Demo" : selectedBillingPeriod === "annual" ? "Anual" : plan.id === "pro" ? "Mais valor" : "30 dias"}
                       </Badge>
                       {isCurrentPaidPlan && <Badge variant="outline">Atual</Badge>}
                     </div>
@@ -1207,11 +1244,14 @@ const Dashboard = () => {
                     </div>
                     <div>
                       <span className="font-heading text-4xl font-bold">
-                        {plan.id === "demo" ? "Gratis" : formatCurrency(plan.price)}
+                        {plan.id === "demo" ? "Gratis" : formatCurrency(displayPrice)}
                       </span>
                       <span className="ml-2 text-sm text-muted-foreground">
-                        {plan.id === "demo" ? "/12 horas" : "/30 dias"}
+                        {plan.id === "demo" ? "/12 horas" : displayPeriod}
                       </span>
+                      {selectedBillingPeriod === "annual" && isPaidPlan && (
+                        <p className="mt-2 text-xs font-medium text-primary">Plano anual com pagamento direto pelo checkout.</p>
+                      )}
                     </div>
                   </CardHeader>
                   <CardContent className="space-y-5">
@@ -1235,7 +1275,7 @@ const Dashboard = () => {
                         <Button
                           className="h-12 w-full font-semibold"
                           disabled={isCurrentPaidPlan || isPlanActivating}
-                          onClick={() => handleCreatePlanCharge(plan.id, "pix")}
+                          onClick={() => handleCreatePlanCharge(plan.id, "pix", selectedBillingPeriod)}
                         >
                           {isPixLoading ? (
                             <>
@@ -1254,7 +1294,7 @@ const Dashboard = () => {
                           variant="outline"
                           className="h-12 w-full font-semibold"
                           disabled={isCurrentPaidPlan || isPlanActivating}
-                          onClick={() => handleCreatePlanCharge(plan.id, "card")}
+                          onClick={() => handleCreatePlanCharge(plan.id, "card", selectedBillingPeriod)}
                         >
                           {isCardLoading ? (
                             <>

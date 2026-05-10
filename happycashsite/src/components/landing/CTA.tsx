@@ -3,13 +3,13 @@ import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { Link, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { ArrowRight, MessageCircle } from "lucide-react";
+import { ArrowRight, Mail } from "lucide-react";
 import { useLandingAccountActions } from "@/hooks/use-landing-account-actions";
 import { isPublicPlanId } from "@/lib/subscriptionPlans";
 
 gsap.registerPlugin(ScrollTrigger);
 
-const WHATSAPP_NUMBER = "5512988918792";
+const SUPPORT_EMAIL = "happycashsupport@gmail.com";
 
 const CTA = () => {
   const ref = useRef<HTMLElement>(null);
@@ -76,9 +76,9 @@ const CTA = () => {
                   </Button>
                 ) : null}
                 <Button asChild variant="outline" size="lg" className="h-14 px-8 text-base border-border hover:bg-muted hover:scale-105 transition-all">
-                  <a href={`https://wa.me/${WHATSAPP_NUMBER}`} target="_blank" rel="noopener noreferrer">
-                    <MessageCircle className="mr-2 h-5 w-5 text-primary" />
-                    Falar no WhatsApp
+                  <a href={`mailto:${SUPPORT_EMAIL}`}>
+                    <Mail className="mr-2 h-5 w-5 text-primary" />
+                    Enviar email
                   </a>
                 </Button>
               </div>

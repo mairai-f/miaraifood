@@ -22,6 +22,16 @@ interface SubscriptionPlanRow {
   duration_days: number;
 }
 
+const resolveSubscriptionDurationDays = (
+  plan: SubscriptionPlanRow,
+  metadata: Record<string, unknown> | null,
+) => {
+  if (metadata?.checkout_billing_period === "annual") return 365;
+  const metadataPeriodDays = Number(metadata?.checkout_period_days || 0);
+  if (Number.isFinite(metadataPeriodDays) && metadataPeriodDays > 0) return metadataPeriodDays;
+  return Math.max(1, Number(plan.duration_days || 30));
+};
+
 const jsonResponse = (request: Request, body: Record<string, unknown>, status = 200) =>
   new Response(JSON.stringify(body), {
     status,
@@ -101,7 +111,7 @@ const activateSubscriptionFromPayment = async (
 
   const plan = planData as SubscriptionPlanRow;
   const startAt = parseWebhookDate(webhook.dateCreated);
-  const endAt = new Date(startAt.getTime() + Math.max(1, Number(plan.duration_days || 30)) * 24 * 60 * 60 * 1000);
+  const endAt = new Date(startAt.getTime() + resolveSubscriptionDurationDays(plan, subscription.metadata) * 24 * 60 * 60 * 1000);
 
   await serviceClient
     .from("store_subscriptions")

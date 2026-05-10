@@ -1,4 +1,4 @@
-import { ArrowRight, CheckCircle2, MessageCircle } from "lucide-react";
+import { ArrowRight, CheckCircle2, Mail } from "lucide-react";
 import { Link } from "react-router-dom";
 
 import Footer from "@/components/landing/Footer";
@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { useLandingAccountActions } from "@/hooks/use-landing-account-actions";
 import type { SiteSeoConfig } from "@/lib/siteSeo";
 
-const WHATSAPP_NUMBER = "5512988918792";
+const SUPPORT_EMAIL = "happycashsupport@gmail.com";
 
 interface SeoContentSection {
   title: string;
@@ -205,9 +205,9 @@ const SeoContentPage = ({
                     </Button>
                   )}
                   <Button asChild variant="outline" size="lg" className="h-14 px-8 text-base font-semibold">
-                    <a href={`https://wa.me/${WHATSAPP_NUMBER}`} target="_blank" rel="noopener noreferrer">
-                      <MessageCircle className="mr-2 h-5 w-5" />
-                      WhatsApp
+                    <a href={`mailto:${SUPPORT_EMAIL}`}>
+                      <Mail className="mr-2 h-5 w-5" />
+                      Email
                     </a>
                   </Button>
                 </div>

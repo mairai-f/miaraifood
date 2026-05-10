@@ -23,10 +23,16 @@ const Header = () => {
     const value = searchParams.get("plan");
     return isPublicPlanId(value) ? value : null;
   })();
-  const loginHref = selectedPlanId ? `/login?plan=${selectedPlanId}` : "/login";
-  const dashboardHref = selectedPlanId ? `/dashboard?plan=${selectedPlanId}` : "/dashboard";
-  const homeHref = selectedPlanId ? `/?plan=${selectedPlanId}` : "/";
-  const signupHref = selectedPlanId ? `/cadastro?plan=${selectedPlanId}` : "/cadastro";
+  const selectedBillingPeriod = searchParams.get("period") === "annual" ? "annual" : "monthly";
+  const selectedPlanQuery = selectedPlanId
+    ? `plan=${selectedPlanId}${selectedBillingPeriod === "annual" ? "&period=annual" : ""}`
+    : selectedBillingPeriod === "annual"
+    ? "period=annual"
+    : "";
+  const loginHref = selectedPlanQuery ? `/login?${selectedPlanQuery}` : "/login";
+  const dashboardHref = selectedPlanQuery ? `/dashboard?${selectedPlanQuery}` : "/dashboard";
+  const homeHref = selectedPlanQuery ? `/?${selectedPlanQuery}` : "/";
+  const signupHref = selectedPlanQuery ? `/cadastro?${selectedPlanQuery}` : "/cadastro";
   const hasActivePaidPlan = Boolean(
     subscription &&
       subscription.plan_id !== "demo" &&

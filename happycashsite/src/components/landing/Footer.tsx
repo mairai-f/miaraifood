@@ -1,8 +1,9 @@
 import { Link, useLocation } from "react-router-dom";
 import logo from "@/assets/logo-happycash.webp";
-import { MessageCircle, Instagram, Youtube } from "lucide-react";
+import { Instagram, Mail, Youtube } from "lucide-react";
 
-const WHATSAPP_NUMBER = "5512988918792";
+const SUPPORT_EMAIL = "happycashsupport@gmail.com";
+const INSTAGRAM_URL = "https://www.instagram.com/happycashsystem/";
 
 const Footer = () => {
   const location = useLocation();
@@ -22,11 +23,11 @@ const Footer = () => {
               Sistema para controlar fiado, PDV e estoque sem depender de caderno, planilha e improviso.
             </p>
             <div className="flex items-center gap-3 pt-2">
-              <a href={`https://wa.me/${WHATSAPP_NUMBER}`} target="_blank" rel="noopener noreferrer" 
+              <a href={`mailto:${SUPPORT_EMAIL}`}
                 className="h-10 w-10 rounded-full bg-muted flex items-center justify-center text-muted-foreground hover:bg-primary hover:text-primary-foreground transition-all duration-300">
-                <MessageCircle size={18} />
+                <Mail size={18} />
               </a>
-              <a href="https://www.instagram.com/happycashsupport/" className="h-10 w-10 rounded-full bg-muted flex items-center justify-center text-muted-foreground hover:bg-primary hover:text-primary-foreground transition-all duration-300">
+              <a href={INSTAGRAM_URL} target="_blank" rel="noopener noreferrer" className="h-10 w-10 rounded-full bg-muted flex items-center justify-center text-muted-foreground hover:bg-primary hover:text-primary-foreground transition-all duration-300">
                 <Instagram size={18} />
               </a>
               <a href="#" className="h-10 w-10 rounded-full bg-muted flex items-center justify-center text-muted-foreground hover:bg-primary hover:text-primary-foreground transition-all duration-300">
@@ -81,13 +82,11 @@ const Footer = () => {
             </nav>
             <h4 className="pt-2 font-heading font-semibold text-sm text-foreground">Contato</h4>
             <a
-              href={`https://wa.me/${WHATSAPP_NUMBER}`}
-              target="_blank"
-              rel="noopener noreferrer"
+              href={`mailto:${SUPPORT_EMAIL}`}
               className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-primary transition-colors"
             >
-              <MessageCircle size={16} />
-              Fale conosco no WhatsApp
+              <Mail size={16} />
+              {SUPPORT_EMAIL}
             </a>
           </div>
         </div>

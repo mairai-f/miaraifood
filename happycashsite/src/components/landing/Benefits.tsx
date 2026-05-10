@@ -10,7 +10,7 @@ const benefits = [
   { icon: Zap, title: "Menos atrito na rotina", desc: "Cadastre cliente, venda, acompanhe saldo e cobre sem ficar alternando entre caderno, planilha e WhatsApp." },
   { icon: Shield, title: "Controle mais confiável", desc: "Histórico organizado para você saber o que foi vendido, pago, cancelado ou ainda está pendente." },
   { icon: Smartphone, title: "Acesse de qualquer lugar", desc: "Use no celular, tablet ou computador. O foco é manter o controle perto de você durante a operação." },
-  { icon: Headphones, title: "Atendimento próximo", desc: "Suporte via WhatsApp para destravar dúvidas mais rápido e sem complicar a implantação." },
+  { icon: Headphones, title: "Atendimento próximo", desc: "Suporte por email para destravar dúvidas sem complicar a implantação." },
 ];
 
 const Benefits = () => {
