@@ -103,8 +103,18 @@ export const clearSiteTemporarySessionPreference = () => {
 export const clearSiteStoredAuth = () => {
   if (!isBrowser()) return;
 
-  window.localStorage.removeItem(storageKeys.auth);
-  window.sessionStorage.removeItem(storageKeys.auth);
+  const removeAuthKeys = (storage: Storage) => {
+    const keys = Array.from({ length: storage.length }, (_, index) => storage.key(index)).filter(Boolean) as string[];
+
+    keys.forEach((key) => {
+      if (key === storageKeys.auth || key.startsWith(`${storageKeys.auth}-`)) {
+        storage.removeItem(key);
+      }
+    });
+  };
+
+  removeAuthKeys(window.localStorage);
+  removeAuthKeys(window.sessionStorage);
   clearSiteTemporarySessionPreference();
 };
 

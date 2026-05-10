@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuthSession } from "@/hooks/use-auth-session";
-import { clearSiteLocalSession } from "@/lib/authSessionPreferences";
+import { clearSiteStoredAuth } from "@/lib/authSessionPreferences";
 import { useCurrentSubscription } from "@/hooks/use-current-subscription";
 import { isCurrentSubscription } from "@/lib/subscriptionStatus";
 import { isPublicPlanId, publicPlanContent } from "@/lib/subscriptionPlans";
@@ -54,7 +54,8 @@ const Header = () => {
 
     setLoggingOut(true);
     setMobileOpen(false);
-    void clearSiteLocalSession(supabase);
+    clearSiteStoredAuth();
+    void supabase.auth.signOut({ scope: "local" });
     window.location.replace(loginHref);
   };
 

@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { Link } from "react-router-dom";
@@ -13,7 +13,7 @@ const plans = [
   {
     id: "demo",
     name: "Demo Grátis",
-    price: "0",
+    price: 0,
     description: "Teste o sistema completo por 12 horas",
     popular: false,
     highlight: "demo",
@@ -27,7 +27,7 @@ const plans = [
   {
     id: "fiado",
     name: "Caderneta Fiado Digital",
-    price: "100",
+    price: 100,
     description: "Ideal para quem vive de fiado e precisa de controle simples por 30 dias",
     popular: false,
     features: [
@@ -44,7 +44,7 @@ const plans = [
     id: "completo",
     name: "Plano Completo",
     subtitle: "PDV + Fiado",
-    price: "230",
+    price: 230,
     description: "Gestão completa do seu negócio com ciclo de 30 dias",
     popular: true,
     features: [
@@ -65,7 +65,7 @@ const plans = [
     id: "pro",
     name: "Plano PRO",
     subtitle: "Completo + App",
-    price: "347",
+    price: 347,
     description: "Desktop PRO com ativação por máquina, mobile e mais segurança para a operação",
     popular: false,
     features: [
@@ -83,11 +83,15 @@ const plans = [
 ];
 
 const WHATSAPP_NUMBER = "5512988918792";
+const annualDiscountMonths = 2;
+const formatPrice = (value: number) => value.toLocaleString("pt-BR", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
 
 const Pricing = () => {
   const ref = useRef<HTMLElement>(null);
+  const [billingPeriod, setBillingPeriod] = useState<"monthly" | "annual">("monthly");
   const { isAuthenticated } = useAuthSession();
   const { showTestButton, testHref } = useLandingAccountActions();
+  const annualSelected = billingPeriod === "annual";
 
   useEffect(() => {
     const ctx = gsap.context(() => {
@@ -117,8 +121,31 @@ const Pricing = () => {
             Comece grátis e escolha quando fizer sentido
           </h2>
           <p className="text-muted-foreground max-w-xl mx-auto text-lg">
-            Teste por 12 horas sem cartão. Depois, escolha o plano certo para controlar fiado, PDV, estoque e operação offline no PRO.
+            Teste por 12 horas sem cartão. Depois, escolha entre pagar a cada 30 dias ou fechar o anual com 2 meses de desconto.
           </p>
+        </div>
+
+        <div className="mb-8 flex justify-center">
+          <div className="grid w-full max-w-sm grid-cols-2 rounded-lg border border-border bg-card/60 p-1">
+            <button
+              type="button"
+              onClick={() => setBillingPeriod("monthly")}
+              className={`rounded-md px-4 py-2 text-sm font-semibold transition-colors ${
+                !annualSelected ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              Mensal
+            </button>
+            <button
+              type="button"
+              onClick={() => setBillingPeriod("annual")}
+              className={`rounded-md px-4 py-2 text-sm font-semibold transition-colors ${
+                annualSelected ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              Anual
+            </button>
+          </div>
         </div>
 
         {/* Platform badges */}
@@ -135,86 +162,118 @@ const Pricing = () => {
         </div>
 
         <div className="pricing-cards grid md:grid-cols-2 xl:grid-cols-4 gap-6 max-w-7xl mx-auto">
-          {plans.map((plan) => (
-            <div
-              key={plan.name}
-              className={`pricing-card relative rounded-lg border p-8 transition-all duration-500 hover:-translate-y-2 ${
-                plan.popular
-                  ? "border-primary/50 bg-gradient-to-b from-primary/15 via-primary/5 to-card shadow-2xl shadow-primary/15"
-                  : plan.highlight === "demo"
-                  ? "border-secondary/50 bg-gradient-to-b from-secondary/10 to-card"
-                  : "border-border bg-card/50 backdrop-blur-sm hover:border-muted-foreground/30 hover:shadow-xl"
-              }`}
-            >
-              {plan.popular && (
-                <div className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-primary px-5 py-1.5 text-xs font-bold text-primary-foreground flex items-center gap-1 shadow-lg shadow-primary/30">
-                  <Star size={12} fill="currentColor" /> MAIS POPULAR
-                </div>
-              )}
-              {plan.highlight === "demo" && (
-                <div className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-secondary px-5 py-1.5 text-xs font-bold text-secondary-foreground flex items-center gap-1 shadow-lg">
-                  <Zap size={12} fill="currentColor" /> TESTE GRÁTIS
-                </div>
-              )}
+          {plans.map((plan) => {
+            const isDemo = plan.highlight === "demo";
+            const annualPrice = plan.price * (12 - annualDiscountMonths);
+            const displayPrice = annualSelected && !isDemo ? annualPrice : plan.price;
+            const periodLabel = annualSelected && !isDemo ? "/ano" : "/30 dias";
+            const annualSavings = plan.price * annualDiscountMonths;
+            const whatsappText = annualSelected && !isDemo
+              ? `Olá! Tenho interesse no plano anual ${plan.name} - R$${formatPrice(annualPrice)} por 12 meses no HappyCash`
+              : `Olá! Tenho interesse no ${plan.name} - R$${formatPrice(plan.price)} a cada 30 dias no HappyCash`;
+            const whatsappHref = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(whatsappText)}`;
 
-              <div className="mb-6">
-                <h3 className="font-heading text-xl font-bold">{plan.name}</h3>
-                {plan.subtitle && <span className="text-sm text-secondary font-medium">{plan.subtitle}</span>}
-                <p className="text-sm text-muted-foreground mt-2">{plan.description}</p>
-              </div>
-
-              <div className="mb-6">
-                {plan.price === "0" ? (
-                  <span className="font-heading text-5xl font-bold text-secondary">Grátis</span>
-                ) : (
-                  <>
-                    <span className="text-sm text-muted-foreground align-top">R$</span>
-                    <span className="font-heading text-5xl font-bold text-primary mx-1">{plan.price}</span>
-                    <span className="text-muted-foreground">/30 dias</span>
-                  </>
+            return (
+              <div
+                key={plan.name}
+                className={`pricing-card relative rounded-lg border p-8 transition-all duration-500 hover:-translate-y-2 ${
+                  plan.popular
+                    ? "border-primary/50 bg-gradient-to-b from-primary/15 via-primary/5 to-card shadow-2xl shadow-primary/15"
+                    : isDemo
+                    ? "border-secondary/50 bg-gradient-to-b from-secondary/10 to-card"
+                    : "border-border bg-card/50 backdrop-blur-sm hover:border-muted-foreground/30 hover:shadow-xl"
+                }`}
+              >
+                {plan.popular && (
+                  <div className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-primary px-5 py-1.5 text-xs font-bold text-primary-foreground flex items-center gap-1 shadow-lg shadow-primary/30">
+                    <Star size={12} fill="currentColor" /> MAIS POPULAR
+                  </div>
                 )}
-              </div>
+                {isDemo && (
+                  <div className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-secondary px-5 py-1.5 text-xs font-bold text-secondary-foreground flex items-center gap-1 shadow-lg">
+                    <Zap size={12} fill="currentColor" /> TESTE GRÁTIS
+                  </div>
+                )}
+                {annualSelected && !isDemo && (
+                  <div className="absolute -top-3 right-4 rounded-full border border-primary/40 bg-background px-3 py-1 text-xs font-bold text-primary shadow-lg">
+                    Economize R$ {formatPrice(annualSavings)}
+                  </div>
+                )}
 
-              <ul className="space-y-3 mb-8">
-                {plan.features.map((f) => (
-                  <li key={f} className="flex items-start gap-3 text-sm">
-                    <div className="shrink-0 mt-0.5 h-5 w-5 rounded-full bg-primary/20 flex items-center justify-center">
-                      <Check className="h-3 w-3 text-primary" />
-                    </div>
-                    <span>{f}</span>
-                  </li>
-                ))}
-              </ul>
+                <div className="mb-6">
+                  <h3 className="font-heading text-xl font-bold">{plan.name}</h3>
+                  {plan.subtitle && <span className="text-sm text-secondary font-medium">{plan.subtitle}</span>}
+                  <p className="text-sm text-muted-foreground mt-2">{plan.description}</p>
+                </div>
 
-              <div className="flex flex-col gap-3">
-                {plan.highlight === "demo" ? (
-                  showTestButton ? (
-                    <Button asChild className="w-full font-semibold h-12 text-base bg-secondary text-secondary-foreground hover:bg-secondary/90" size="lg">
-                      <Link to={isAuthenticated ? testHref : `/cadastro?plan=${plan.id}`}>Testar grátis agora</Link>
-                    </Button>
-                  ) : null
-                ) : (
-                  <>
-                    <Button asChild className={`w-full font-semibold h-12 text-base transition-all duration-300 hover:scale-[1.02] hover:shadow-lg ${
-                      plan.popular ? "bg-primary text-primary-foreground hover:bg-primary/90 hover:shadow-primary/30" : "bg-muted text-foreground hover:bg-muted/80"
-                    }`} size="lg">
-                      {isAuthenticated ? (
-                        <Link to={`/dashboard?plan=${plan.id}`}>Abrir no Painel</Link>
-                      ) : (
-                        <Link to={`/cadastro?plan=${plan.id}`}>Criar conta e assinar</Link>
+                <div className="mb-6">
+                  {isDemo ? (
+                    <span className="font-heading text-5xl font-bold text-secondary">Grátis</span>
+                  ) : (
+                    <>
+                      <span className="text-sm text-muted-foreground align-top">R$</span>
+                      <span className="font-heading text-5xl font-bold text-primary mx-1">{formatPrice(displayPrice)}</span>
+                      <span className="text-muted-foreground">{periodLabel}</span>
+                      {annualSelected && (
+                        <p className="mt-2 text-xs font-medium text-primary">Equivale a R$ {formatPrice(plan.price)} por mês, com 2 meses grátis.</p>
                       )}
-                    </Button>
-                    <Button asChild variant="outline" className="w-full font-semibold h-12 text-base" size="lg">
-                      <a href={`https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(`Olá! Tenho interesse no ${plan.name} - R$${plan.price} a cada 30 dias no HappyCash`)}`}
-                        target="_blank" rel="noopener noreferrer">
-                        Falar no WhatsApp
-                      </a>
-                    </Button>
-                  </>
-                )}
+                    </>
+                  )}
+                </div>
+
+                <ul className="space-y-3 mb-8">
+                  {(annualSelected && !isDemo ? [`Plano anual com validade de 12 meses`, ...plan.features.slice(1)] : plan.features).map((f) => (
+                    <li key={f} className="flex items-start gap-3 text-sm">
+                      <div className="shrink-0 mt-0.5 h-5 w-5 rounded-full bg-primary/20 flex items-center justify-center">
+                        <Check className="h-3 w-3 text-primary" />
+                      </div>
+                      <span>{f}</span>
+                    </li>
+                  ))}
+                </ul>
+
+                <div className="flex flex-col gap-3">
+                  {isDemo ? (
+                    showTestButton ? (
+                      <Button asChild className="w-full font-semibold h-12 text-base bg-secondary text-secondary-foreground hover:bg-secondary/90" size="lg">
+                        <Link to={isAuthenticated ? testHref : `/cadastro?plan=${plan.id}`}>Testar grátis agora</Link>
+                      </Button>
+                    ) : null
+                  ) : annualSelected ? (
+                    <>
+                      <Button asChild className={`w-full font-semibold h-12 text-base transition-all duration-300 hover:scale-[1.02] hover:shadow-lg ${
+                        plan.popular ? "bg-primary text-primary-foreground hover:bg-primary/90 hover:shadow-primary/30" : "bg-muted text-foreground hover:bg-muted/80"
+                      }`} size="lg">
+                        <a href={whatsappHref} target="_blank" rel="noopener noreferrer">Assinar anual no WhatsApp</a>
+                      </Button>
+                      {!isAuthenticated && (
+                        <Button asChild variant="outline" className="w-full font-semibold h-12 text-base" size="lg">
+                          <Link to={`/cadastro?plan=${plan.id}`}>Criar conta primeiro</Link>
+                        </Button>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      <Button asChild className={`w-full font-semibold h-12 text-base transition-all duration-300 hover:scale-[1.02] hover:shadow-lg ${
+                        plan.popular ? "bg-primary text-primary-foreground hover:bg-primary/90 hover:shadow-primary/30" : "bg-muted text-foreground hover:bg-muted/80"
+                      }`} size="lg">
+                        {isAuthenticated ? (
+                          <Link to={`/dashboard?plan=${plan.id}`}>Abrir no Painel</Link>
+                        ) : (
+                          <Link to={`/cadastro?plan=${plan.id}`}>Criar conta e assinar</Link>
+                        )}
+                      </Button>
+                      <Button asChild variant="outline" className="w-full font-semibold h-12 text-base" size="lg">
+                        <a href={whatsappHref} target="_blank" rel="noopener noreferrer">
+                          Falar no WhatsApp
+                        </a>
+                      </Button>
+                    </>
+                  )}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
     </section>
