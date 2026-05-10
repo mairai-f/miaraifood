@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Loader2, Menu, X } from "lucide-react";
-import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useLocation, useSearchParams } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
@@ -16,7 +16,6 @@ const Header = () => {
   const [scrolled, setScrolled] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
   const location = useLocation();
-  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { user, isAuthenticated } = useAuthSession();
   const { subscription, countdown, loading: loadingSubscription } = useCurrentSubscription(user?.id);
@@ -27,7 +26,6 @@ const Header = () => {
   const loginHref = selectedPlanId ? `/login?plan=${selectedPlanId}` : "/login";
   const dashboardHref = selectedPlanId ? `/dashboard?plan=${selectedPlanId}` : "/dashboard";
   const homeHref = selectedPlanId ? `/?plan=${selectedPlanId}` : "/";
-  const logoutHref = selectedPlanId ? `/saindo?plan=${selectedPlanId}` : "/saindo";
   const signupHref = selectedPlanId ? `/cadastro?plan=${selectedPlanId}` : "/cadastro";
   const hasActivePaidPlan = Boolean(
     subscription &&
@@ -57,7 +55,7 @@ const Header = () => {
     setLoggingOut(true);
     setMobileOpen(false);
     void clearSiteLocalSession(supabase);
-    navigate(logoutHref, { replace: true });
+    window.location.replace(loginHref);
   };
 
   const links = [
