@@ -27,6 +27,7 @@ const Reports = lazy(() => import('@/pages/Reports'));
 const Financial = lazy(() => import('@/pages/Financial'));
 const Stock = lazy(() => import('@/pages/Stock'));
 const PricingManager = lazy(() => import('@/pages/PricingManager'));
+const Operations = lazy(() => import('@/pages/Operations'));
 const Notes = lazy(() => import('@/pages/Notes'));
 const Settings = lazy(() => import('@/pages/Settings'));
 const AccessMonitor = lazy(() => import('@/pages/AccessMonitor'));
@@ -97,6 +98,7 @@ const AuthenticatedArea = () => (
       <Route path="/estoque" element={<ProtectedRoute allowedRoles={['admin']} requiredFeature="stock.manage"><LazyPage><Stock /></LazyPage></ProtectedRoute>} />
       <Route path="/relatorios" element={<ProtectedRoute allowedRoles={['admin']} requiredFeature="reports.view"><LazyPage><Reports /></LazyPage></ProtectedRoute>} />
       <Route path="/financeiro" element={<ProtectedRoute allowedRoles={['admin']} requiredFeature="financial.manage"><LazyPage><Financial /></LazyPage></ProtectedRoute>} />
+      <Route path="/operacoes" element={<ProtectedRoute allowedRoles={['admin']} requiredFeature="financial.manage"><LazyPage><Operations /></LazyPage></ProtectedRoute>} />
       <Route path="/precificacao" element={<ProtectedRoute allowedRoles={['admin']} requiredFeature="pricing.manage"><LazyPage><PricingManager /></LazyPage></ProtectedRoute>} />
       <Route path="/notas" element={<ProtectedRoute allowedRoles={['admin']} requiredFeature="notes.manage"><LazyPage><Notes /></LazyPage></ProtectedRoute>} />
       <Route path="/configuracoes" element={<ProtectedRoute allowedRoles={['admin']} requiredFeature="settings.manage"><LazyPage><Settings /></LazyPage></ProtectedRoute>} />
