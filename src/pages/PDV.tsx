@@ -1595,11 +1595,21 @@ export default function PDV() {
   };
 
   const openCartItemPriceEditor = (item: CartItem) => {
+    if (!isAdmin) {
+      silentToast.error('Somente administrador pode alterar preço no caixa');
+      return;
+    }
+
     setCartItemPendingPriceEdit(item);
     setPendingCartItemPrice(item.unitPrice.toFixed(2));
   };
 
   const startCartPriceSelection = () => {
+    if (!isAdmin) {
+      silentToast.error('Somente administrador pode alterar preço no caixa');
+      return;
+    }
+
     if (cart.length === 0) {
       silentToast.error('Carrinho vazio');
       return;
@@ -1636,6 +1646,11 @@ export default function PDV() {
   };
 
   const openSelectedCartItemPriceEditor = () => {
+    if (!isAdmin) {
+      silentToast.error('Somente administrador pode alterar preço no caixa');
+      return;
+    }
+
     if (cart.length === 0) {
       silentToast.error('Carrinho vazio');
       return;
@@ -2822,15 +2837,17 @@ export default function PDV() {
                     {isCartItemPriceEdited(i) && (
                       <p className="text-xs text-muted-foreground">Preço base: {formatMoney(i.product.price)}</p>
                     )}
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="h-7 justify-start border-destructive/40 px-2 text-xs text-destructive hover:bg-destructive/10 hover:text-destructive"
-                      onClick={() => openCartItemPriceEditor(i)}
-                    >
-                      Alterar preço
-                    </Button>
+                    {isAdmin && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-7 justify-start border-destructive/40 px-2 text-xs text-destructive hover:bg-destructive/10 hover:text-destructive"
+                        onClick={() => openCartItemPriceEditor(i)}
+                      >
+                        Alterar preço
+                      </Button>
+                    )}
                     <p className="text-sm font-semibold text-primary">{formatMoney(getCartItemTotal(i))}</p>
                   </div>
                   <div className="flex items-center gap-1 self-center">
