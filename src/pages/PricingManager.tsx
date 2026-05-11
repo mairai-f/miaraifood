@@ -1,5 +1,5 @@
 import { useDeferredValue, useMemo, useState } from 'react';
-import { AlertTriangle, BarChart3, Calculator, Package, Pencil, Save, Search, Sparkles, Trash2, TrendingDown, TrendingUp, Wallet } from 'lucide-react';
+import { AlertTriangle, BarChart3, Calculator, Package, Pencil, Plus, Save, Search, Sparkles, Trash2, TrendingDown, TrendingUp, Wallet } from 'lucide-react';
 import { toast } from 'sonner';
 import { useData } from '@/contexts/DataContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -13,6 +13,7 @@ import {
   getRealCost,
   getSuggestedPrice,
   getTotalExtraCosts,
+  normalizeCustomCosts,
   getUnitProfit,
   normalizeProductPricing,
   normalizePricingRoundingRule,
@@ -63,6 +64,7 @@ type ProductFormState = {
   packaging_cost: string;
   operational_cost: string;
   other_extra_cost: string;
+  cost_items: CostFormItem[];
   price: string;
   target_markup_pct: string;
   minimum_markup_pct: string;
@@ -90,10 +92,20 @@ type SimulatorFormState = {
   packaging_cost: string;
   operational_cost: string;
   other_extra_cost: string;
+  cost_items: CostFormItem[];
   price: string;
   target_markup_pct: string;
   discount_amount: string;
   rounding_rule: PricingRoundingRule;
+};
+
+type ProductTextField = Exclude<keyof ProductFormState, 'cost_items'>;
+type SimulatorTextField = Exclude<keyof SimulatorFormState, 'cost_items'>;
+
+type CostFormItem = {
+  id: string;
+  name: string;
+  amount: string;
 };
 
 type PendingPricingApproval = {
@@ -135,6 +147,34 @@ const toInteger = (value: string | number | null | undefined) => {
   return Number.isFinite(parsed) ? parsed : 0;
 };
 const toInput = (value: number | null | undefined) => (Number.isFinite(value ?? NaN) && Number(value) !== 0 ? String(value) : '');
+const createCostItemId = () => Math.random().toString(36).slice(2, 10);
+const createCostItem = (name = '', amount = ''): CostFormItem => ({ id: createCostItemId(), name, amount });
+const ensureCostItems = (items: CostFormItem[]) => (items.length > 0 ? items : [createCostItem()]);
+const hasTypedCostItems = (items: CostFormItem[]) => items.some((item) => item.name.trim() || item.amount.trim());
+const costItemsToPayload = (items: CostFormItem[]) => normalizeCustomCosts(
+  items.map((item) => ({
+    name: item.name,
+    amount: toNumber(item.amount),
+  })),
+);
+const legacyCostItemsFromProduct = (product: Product) => ([
+  ['Custo de compra', product.purchase_cost ?? product.cost_price ?? 0],
+  ['Frete', product.freight_cost],
+  ['Imposto', product.tax_cost],
+  ['Comissão', product.commission_cost],
+  ['Taxa de cartão', product.card_fee_cost],
+  ['Embalagem', product.packaging_cost],
+  ['Custo operacional', product.operational_cost],
+  ['Outros custos', product.other_extra_cost],
+] as const)
+  .filter(([, amount]) => Number(amount ?? 0) > 0)
+  .map(([name, amount]) => createCostItem(name, toInput(amount)));
+const costItemsFromProduct = (product: Product) => {
+  const customItems = normalizeCustomCosts(product.custom_costs)
+    .map((cost) => createCostItem(cost.name, toInput(cost.amount)));
+
+  return ensureCostItems(customItems.length > 0 ? customItems : legacyCostItemsFromProduct(product));
+};
 
 const createEmptyProductForm = (): ProductFormState => ({
   id: null,
@@ -152,6 +192,7 @@ const createEmptyProductForm = (): ProductFormState => ({
   packaging_cost: '',
   operational_cost: '',
   other_extra_cost: '',
+  cost_items: [createCostItem()],
   price: '',
   target_markup_pct: '',
   minimum_markup_pct: '',
@@ -179,6 +220,7 @@ const createEmptySimulatorForm = (): SimulatorFormState => ({
   packaging_cost: '',
   operational_cost: '',
   other_extra_cost: '',
+  cost_items: [createCostItem()],
   price: '',
   target_markup_pct: '',
   discount_amount: '',
@@ -201,6 +243,7 @@ const productToForm = (product: Product): ProductFormState => ({
   packaging_cost: toInput(product.packaging_cost),
   operational_cost: toInput(product.operational_cost),
   other_extra_cost: toInput(product.other_extra_cost),
+  cost_items: costItemsFromProduct(product),
   price: toInput(product.price),
   target_markup_pct: toInput(product.target_markup_pct),
   minimum_markup_pct: toInput(product.minimum_markup_pct),
@@ -226,14 +269,15 @@ const formToProductPayload = (form: ProductFormState) => normalizeProductPricing
   barcode: form.barcode.trim(),
   stock: Math.max(0, toInteger(form.stock)),
   min_stock: Math.max(0, toInteger(form.min_stock)),
-  purchase_cost: toNumber(form.purchase_cost),
-  freight_cost: toNumber(form.freight_cost),
-  tax_cost: toNumber(form.tax_cost),
-  commission_cost: toNumber(form.commission_cost),
-  card_fee_cost: toNumber(form.card_fee_cost),
-  packaging_cost: toNumber(form.packaging_cost),
-  operational_cost: toNumber(form.operational_cost),
-  other_extra_cost: toNumber(form.other_extra_cost),
+  purchase_cost: 0,
+  freight_cost: 0,
+  tax_cost: 0,
+  commission_cost: 0,
+  card_fee_cost: 0,
+  packaging_cost: 0,
+  operational_cost: 0,
+  other_extra_cost: 0,
+  custom_costs: costItemsToPayload(form.cost_items),
   price: toNumber(form.price),
   target_markup_pct: toNumber(form.target_markup_pct),
   minimum_markup_pct: toNumber(form.minimum_markup_pct),
@@ -252,14 +296,15 @@ const formToRulePayload = (form: RuleFormState) => ({
 });
 
 const simulatorToProductLike = (form: SimulatorFormState) => ({
-  purchase_cost: toNumber(form.purchase_cost),
-  freight_cost: toNumber(form.freight_cost),
-  tax_cost: toNumber(form.tax_cost),
-  commission_cost: toNumber(form.commission_cost),
-  card_fee_cost: toNumber(form.card_fee_cost),
-  packaging_cost: toNumber(form.packaging_cost),
-  operational_cost: toNumber(form.operational_cost),
-  other_extra_cost: toNumber(form.other_extra_cost),
+  purchase_cost: 0,
+  freight_cost: 0,
+  tax_cost: 0,
+  commission_cost: 0,
+  card_fee_cost: 0,
+  packaging_cost: 0,
+  operational_cost: 0,
+  other_extra_cost: 0,
+  custom_costs: costItemsToPayload(form.cost_items),
   price: toNumber(form.price),
   target_markup_pct: toNumber(form.target_markup_pct),
   rounding_rule: form.rounding_rule,
@@ -539,26 +584,45 @@ export default function PricingManager() {
     };
   };
 
-  const updateProductForm = (field: keyof ProductFormState, value: string) => {
+  const updateProductForm = (field: ProductTextField, value: string) => {
     setProductForm((current) => {
       const next = { ...current, [field]: value };
 
       if (
-        field === 'purchase_cost'
-        || field === 'freight_cost'
-        || field === 'tax_cost'
-        || field === 'commission_cost'
-        || field === 'card_fee_cost'
-        || field === 'packaging_cost'
-        || field === 'operational_cost'
-        || field === 'other_extra_cost'
-        || field === 'rounding_rule'
+        field === 'rounding_rule'
       ) {
         return syncProductWithMode(next, productSyncMode);
       }
 
       return next;
     });
+  };
+
+  const updateProductCostItem = (id: string, field: 'name' | 'amount', value: string) => {
+    setProductForm((current) => {
+      const next = {
+        ...current,
+        cost_items: current.cost_items.map((item) => (
+          item.id === id ? { ...item, [field]: value } : item
+        )),
+      };
+
+      return field === 'amount' ? syncProductWithMode(next, productSyncMode) : next;
+    });
+  };
+
+  const addProductCostItem = () => {
+    setProductForm((current) => ({
+      ...current,
+      cost_items: [...current.cost_items, createCostItem()],
+    }));
+  };
+
+  const removeProductCostItem = (id: string) => {
+    setProductForm((current) => syncProductWithMode({
+      ...current,
+      cost_items: ensureCostItems(current.cost_items.filter((item) => item.id !== id)),
+    }, productSyncMode));
   };
 
   const openCreateDialog = () => {
@@ -762,22 +826,14 @@ export default function PricingManager() {
     }
   };
 
-  const updateSimulatorForm = (field: keyof SimulatorFormState, value: string) => {
+  const updateSimulatorForm = (field: SimulatorTextField, value: string) => {
     setSimulatorForm((current) => {
       const next = { ...current, [field]: value };
       const productLike = simulatorToProductLike(next);
       const realCost = getRealCost(productLike);
 
       if (
-        field === 'purchase_cost'
-        || field === 'freight_cost'
-        || field === 'tax_cost'
-        || field === 'commission_cost'
-        || field === 'card_fee_cost'
-        || field === 'packaging_cost'
-        || field === 'operational_cost'
-        || field === 'other_extra_cost'
-        || field === 'rounding_rule'
+        field === 'rounding_rule'
       ) {
         if (simulatorSyncMode === 'markup') {
           const price = applyPricingRounding(realCost * (1 + toNumber(next.target_markup_pct) / 100), next.rounding_rule);
@@ -792,6 +848,47 @@ export default function PricingManager() {
 
       return next;
     });
+  };
+
+  const syncSimulatorCosts = (draft: SimulatorFormState) => {
+    const realCost = getRealCost(simulatorToProductLike(draft));
+
+    if (simulatorSyncMode === 'markup') {
+      const price = applyPricingRounding(realCost * (1 + toNumber(draft.target_markup_pct) / 100), draft.rounding_rule);
+      return { ...draft, price: price > 0 ? String(price) : '' };
+    }
+
+    return {
+      ...draft,
+      target_markup_pct: realCost > 0 ? String(getMarkupFromPrice(realCost, toNumber(draft.price))) : '',
+    };
+  };
+
+  const updateSimulatorCostItem = (id: string, field: 'name' | 'amount', value: string) => {
+    setSimulatorForm((current) => {
+      const next = {
+        ...current,
+        cost_items: current.cost_items.map((item) => (
+          item.id === id ? { ...item, [field]: value } : item
+        )),
+      };
+
+      return field === 'amount' ? syncSimulatorCosts(next) : next;
+    });
+  };
+
+  const addSimulatorCostItem = () => {
+    setSimulatorForm((current) => ({
+      ...current,
+      cost_items: [...current.cost_items, createCostItem()],
+    }));
+  };
+
+  const removeSimulatorCostItem = (id: string) => {
+    setSimulatorForm((current) => syncSimulatorCosts({
+      ...current,
+      cost_items: ensureCostItems(current.cost_items.filter((item) => item.id !== id)),
+    }));
   };
 
   return (
@@ -861,39 +958,46 @@ export default function PricingManager() {
                       </Button>
                     )}
                   </div>
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <div className="space-y-1.5">
-                      <Label>Custo de compra</Label>
-                      <Input type="text" inputMode="decimal" value={productForm.purchase_cost} onChange={(event) => updateProductForm('purchase_cost', event.target.value)} />
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label>Frete</Label>
-                      <Input type="text" inputMode="decimal" value={productForm.freight_cost} onChange={(event) => updateProductForm('freight_cost', event.target.value)} />
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label>Imposto</Label>
-                      <Input type="text" inputMode="decimal" value={productForm.tax_cost} onChange={(event) => updateProductForm('tax_cost', event.target.value)} />
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label>Comissão</Label>
-                      <Input type="text" inputMode="decimal" value={productForm.commission_cost} onChange={(event) => updateProductForm('commission_cost', event.target.value)} />
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label>Taxa de cartão</Label>
-                      <Input type="text" inputMode="decimal" value={productForm.card_fee_cost} onChange={(event) => updateProductForm('card_fee_cost', event.target.value)} />
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label>Embalagem</Label>
-                      <Input type="text" inputMode="decimal" value={productForm.packaging_cost} onChange={(event) => updateProductForm('packaging_cost', event.target.value)} />
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label>Custo operacional</Label>
-                      <Input type="text" inputMode="decimal" value={productForm.operational_cost} onChange={(event) => updateProductForm('operational_cost', event.target.value)} />
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label>Outros custos</Label>
-                      <Input type="text" inputMode="decimal" value={productForm.other_extra_cost} onChange={(event) => updateProductForm('other_extra_cost', event.target.value)} />
-                    </div>
+                  <div className="space-y-2">
+                    {productForm.cost_items.map((item, index) => (
+                      <div key={item.id} className="grid gap-2 sm:grid-cols-[1fr_10rem_auto]">
+                        <div className="space-y-1.5">
+                          <Label>{index === 0 ? 'Nome do custo' : 'Nome'}</Label>
+                          <Input
+                            value={item.name}
+                            onChange={(event) => updateProductCostItem(item.id, 'name', event.target.value)}
+                            placeholder="Ex: Compra, frete, gelo..."
+                          />
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label>{index === 0 ? 'Valor' : 'Valor'}</Label>
+                          <Input
+                            type="text"
+                            inputMode="decimal"
+                            value={item.amount}
+                            onChange={(event) => updateProductCostItem(item.id, 'amount', event.target.value)}
+                            placeholder="0,00"
+                          />
+                        </div>
+                        <div className="flex items-end">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-10 w-10 text-muted-foreground hover:text-destructive"
+                            onClick={() => removeProductCostItem(item.id)}
+                            disabled={productForm.cost_items.length === 1 && !hasTypedCostItems(productForm.cost_items)}
+                            aria-label="Remover custo"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                    <Button type="button" variant="outline" size="sm" onClick={addProductCostItem} className="gap-2">
+                      <Plus className="h-4 w-4" />
+                      Adicionar custo
+                    </Button>
                   </div>
                 </div>
 
@@ -1305,39 +1409,48 @@ export default function PricingManager() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  {simulatorForm.cost_items.map((item, index) => (
+                    <div key={item.id} className="grid gap-2 sm:grid-cols-[1fr_10rem_auto]">
+                      <div className="space-y-1.5">
+                        <Label>{index === 0 ? 'Nome do custo' : 'Nome'}</Label>
+                        <Input
+                          value={item.name}
+                          onChange={(event) => updateSimulatorCostItem(item.id, 'name', event.target.value)}
+                          placeholder="Ex: Compra, frete, imposto..."
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label>Valor</Label>
+                        <Input
+                          type="text"
+                          inputMode="decimal"
+                          value={item.amount}
+                          onChange={(event) => updateSimulatorCostItem(item.id, 'amount', event.target.value)}
+                          placeholder="0,00"
+                        />
+                      </div>
+                      <div className="flex items-end">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="h-10 w-10 text-muted-foreground hover:text-destructive"
+                          onClick={() => removeSimulatorCostItem(item.id)}
+                          disabled={simulatorForm.cost_items.length === 1 && !hasTypedCostItems(simulatorForm.cost_items)}
+                          aria-label="Remover custo"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                  <Button type="button" variant="outline" size="sm" onClick={addSimulatorCostItem} className="gap-2">
+                    <Plus className="h-4 w-4" />
+                    Adicionar custo
+                  </Button>
+                </div>
                 <div className="grid gap-3 sm:grid-cols-2">
-                  <div className="space-y-1.5">
-                    <Label>Custo de compra</Label>
-                    <Input type="text" inputMode="decimal" value={simulatorForm.purchase_cost} onChange={(event) => updateSimulatorForm('purchase_cost', event.target.value)} />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label>Frete</Label>
-                    <Input type="text" inputMode="decimal" value={simulatorForm.freight_cost} onChange={(event) => updateSimulatorForm('freight_cost', event.target.value)} />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label>Imposto</Label>
-                    <Input type="text" inputMode="decimal" value={simulatorForm.tax_cost} onChange={(event) => updateSimulatorForm('tax_cost', event.target.value)} />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label>Comissão</Label>
-                    <Input type="text" inputMode="decimal" value={simulatorForm.commission_cost} onChange={(event) => updateSimulatorForm('commission_cost', event.target.value)} />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label>Taxa de cartão</Label>
-                    <Input type="text" inputMode="decimal" value={simulatorForm.card_fee_cost} onChange={(event) => updateSimulatorForm('card_fee_cost', event.target.value)} />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label>Embalagem</Label>
-                    <Input type="text" inputMode="decimal" value={simulatorForm.packaging_cost} onChange={(event) => updateSimulatorForm('packaging_cost', event.target.value)} />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label>Custo operacional</Label>
-                    <Input type="text" inputMode="decimal" value={simulatorForm.operational_cost} onChange={(event) => updateSimulatorForm('operational_cost', event.target.value)} />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label>Outros custos</Label>
-                    <Input type="text" inputMode="decimal" value={simulatorForm.other_extra_cost} onChange={(event) => updateSimulatorForm('other_extra_cost', event.target.value)} />
-                  </div>
                   <div className="space-y-1.5">
                     <Label>Preço final</Label>
                     <Input

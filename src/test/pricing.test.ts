@@ -18,6 +18,15 @@ describe('pricing helpers', () => {
     })).toBe(12.75);
   });
 
+  it('includes custom named costs in the real product cost', () => {
+    expect(getRealCost({
+      custom_costs: [
+        { name: 'Compra', amount: 10 },
+        { name: 'Frete especial', amount: 2.5 },
+      ],
+    })).toBe(12.5);
+  });
+
   it('rounds suggested prices upward according to the selected rule', () => {
     expect(applyPricingRounding(12.31, '0.50')).toBe(12.5);
     expect(applyPricingRounding(12.91, 'whole_99')).toBe(12.99);

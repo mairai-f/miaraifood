@@ -21,6 +21,11 @@ export type PricingRoundingRule =
   | 'whole_90'
   | 'whole_99';
 
+export interface ProductCustomCost {
+  name: string;
+  amount: number;
+}
+
 export interface Product {
   id: string;
   user_id: string;
@@ -40,6 +45,7 @@ export interface Product {
   packaging_cost?: number;
   operational_cost?: number;
   other_extra_cost?: number;
+  custom_costs?: ProductCustomCost[];
   supplier_name?: string;
   target_markup_pct?: number;
   minimum_markup_pct?: number;

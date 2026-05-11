@@ -25,6 +25,12 @@ export interface PricingProductLike {
   minimum_price?: number | null;
   rounding_rule?: string | null;
   pricing_notes?: string | null;
+  custom_costs?: PricingCustomCostLike[] | null;
+}
+
+export interface PricingCustomCostLike {
+  name?: string | null;
+  amount?: number | null;
 }
 
 export interface PricingRuleLike {
@@ -77,6 +83,19 @@ export const normalizePricingRoundingRule = (value: string | null | undefined): 
   return 'none';
 };
 
+export const normalizeCustomCosts = (costs: PricingCustomCostLike[] | null | undefined) => (
+  Array.isArray(costs) ? costs : []
+)
+  .map((cost) => ({
+    name: cost.name?.trim() ?? '',
+    amount: money(nonNegative(cost.amount ?? 0)),
+  }))
+  .filter((cost) => cost.name || cost.amount > 0);
+
+export const getCustomCostsTotal = (product: Partial<PricingProductLike>) => money(
+  normalizeCustomCosts(product.custom_costs).reduce((sum, cost) => sum + cost.amount, 0),
+);
+
 export const getTotalExtraCosts = (product: Partial<PricingProductLike>) => money(
   nonNegative(product.freight_cost ?? 0)
   + nonNegative(product.tax_cost ?? 0)
@@ -84,7 +103,8 @@ export const getTotalExtraCosts = (product: Partial<PricingProductLike>) => mone
   + nonNegative(product.card_fee_cost ?? 0)
   + nonNegative(product.packaging_cost ?? 0)
   + nonNegative(product.operational_cost ?? 0)
-  + nonNegative(product.other_extra_cost ?? 0),
+  + nonNegative(product.other_extra_cost ?? 0)
+  + getCustomCostsTotal(product),
 );
 
 export const getPurchaseCost = (product: Partial<PricingProductLike>) => money(
@@ -188,6 +208,7 @@ export const normalizeProductPricing = <T extends Partial<PricingProductLike>>(p
     packaging_cost: money(nonNegative(product.packaging_cost ?? 0)),
     operational_cost: money(nonNegative(product.operational_cost ?? 0)),
     other_extra_cost: money(nonNegative(product.other_extra_cost ?? 0)),
+    custom_costs: normalizeCustomCosts(product.custom_costs),
     supplier_name: product.supplier_name?.trim() ?? '',
     target_markup_pct: percent(nonNegative(product.target_markup_pct ?? getMarkupPercent(product.price ?? 0, getRealCost(product)))),
     minimum_markup_pct: percent(nonNegative(product.minimum_markup_pct ?? 0)),
