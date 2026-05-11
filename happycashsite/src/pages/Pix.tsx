@@ -5,8 +5,8 @@ import logo from "@/assets/logo-happycash.webp";
 
 const plans = [
   { name: "Plano Fiado", display: "R$ 100,00 / 30 dias" },
-  { name: "Plano Completo", display: "R$ 230,00 / 30 dias" },
-  { name: "Plano PRO", display: "R$ 347,00 / 30 dias" },
+  { name: "Plano Completo", display: "R$ 189,00 / 30 dias" },
+  { name: "Plano PRO", display: "R$ 250,00 / 30 dias" },
 ];
 
 const Pix = () => {

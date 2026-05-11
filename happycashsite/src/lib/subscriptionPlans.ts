@@ -49,8 +49,8 @@ export const publicPlanContent: Record<PublicPlanId, PublicPlanContent> = {
   completo: {
     id: "completo",
     name: "Plano Completo",
-    price: 230,
-    priceLabel: "R$ 230",
+    price: 189,
+    priceLabel: "R$ 189",
     durationLabel: "30 dias",
     summary: "Tudo do Fiado com PDV, estoque, relatorios, caixa e configuracoes por 30 dias.",
     description: "Gestao completa do HappyCash no web com todos os recursos principais da operacao.",
@@ -68,8 +68,8 @@ export const publicPlanContent: Record<PublicPlanId, PublicPlanContent> = {
   pro: {
     id: "pro",
     name: "Plano PRO",
-    price: 347,
-    priceLabel: "R$ 347",
+    price: 250,
+    priceLabel: "R$ 250",
     durationLabel: "30 dias",
     summary: "Tudo do Completo com desktop PRO, chave por maquina, mobile e offline local por 5 dias.",
     description: "Plano para operar no web e no desktop PRO com ativacao por maquina e login de operador com usuario e PIN.",

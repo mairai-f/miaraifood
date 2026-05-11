@@ -45,8 +45,8 @@ const plans = [
     id: "completo",
     name: "Plano Completo",
     subtitle: "PDV + Fiado",
-    price: 230,
-    annualPrice: 2097,
+    price: 189,
+    annualPrice: 1887,
     description: "Gestão completa do seu negócio com ciclo de 30 dias",
     popular: true,
     features: [
@@ -67,8 +67,8 @@ const plans = [
     id: "pro",
     name: "Plano PRO",
     subtitle: "Completo + App",
-    price: 347,
-    annualPrice: 2997,
+    price: 250,
+    annualPrice: 2497,
     description: "Desktop PRO com ativação por máquina, mobile e mais segurança para a operação",
     popular: false,
     features: [
