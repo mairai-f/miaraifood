@@ -18,6 +18,7 @@
     "mobile:ios": "npm --prefix mobile run ios",
     "mobile:web": "npm --prefix mobile run web",
     "mobile:doctor": "npm --prefix mobile run doctor",
+    "demo:create-accounts": "node scripts/create-demo-accounts.mjs",
     "build:dev": "vite build --mode development",
     "electron:dev": "concurrently -k \"npm run dev\" \"wait-on http://localhost:8080 && cross-env VITE_DEV_SERVER_URL=http://localhost:8080 electron .\"",
     "electron:build": "npm run build && electron-builder --publish never",

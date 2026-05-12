@@ -1999,7 +1999,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   ) => {
     if (entries.length === 0) return;
 
-    const shouldAdjustStock = options.adjustStock !== false;
+    const shouldAdjustStock = options.adjustStock !== false && hasFeature('stock.manage');
     const stockReason = options.stockReason ?? 'Fiado';
     const totalsByClient = entries.reduce((map, entry) => {
       map.set(entry.clientId, (map.get(entry.clientId) || 0) + entry.quantity * entry.unitPrice);
