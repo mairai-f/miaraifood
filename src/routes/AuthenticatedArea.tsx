@@ -14,22 +14,60 @@ import { usePlanAccess } from '@/contexts/PlanContext';
 import { hasSeenAppSplash, markAppSplashSeen } from '@/lib/appSplash';
 import type { UserRole } from '@/lib/access';
 
-const Dashboard = lazy(() => import('@/pages/Dashboard'));
-const Clients = lazy(() => import('@/pages/Clients'));
-const Products = lazy(() => import('@/pages/Products'));
-const Rewards = lazy(() => import('@/pages/Rewards'));
-const ClientDetail = lazy(() => import('@/pages/ClientDetail'));
-const DeletedClients = lazy(() => import('@/pages/DeletedClients'));
-const PDV = lazy(() => import('@/pages/PDV'));
-const Reports = lazy(() => import('@/pages/Reports'));
-const Financial = lazy(() => import('@/pages/Financial'));
-const Stock = lazy(() => import('@/pages/Stock'));
-const PricingManager = lazy(() => import('@/pages/PricingManager'));
-const Operations = lazy(() => import('@/pages/Operations'));
-const Notes = lazy(() => import('@/pages/Notes'));
-const Settings = lazy(() => import('@/pages/Settings'));
-const AccessMonitor = lazy(() => import('@/pages/AccessMonitor'));
-const AuditLog = lazy(() => import('@/pages/AuditLog'));
+const pageLoaders = [
+  () => import('@/pages/Dashboard'),
+  () => import('@/pages/Clients'),
+  () => import('@/pages/Products'),
+  () => import('@/pages/Rewards'),
+  () => import('@/pages/ClientDetail'),
+  () => import('@/pages/DeletedClients'),
+  () => import('@/pages/PDV'),
+  () => import('@/pages/Reports'),
+  () => import('@/pages/Financial'),
+  () => import('@/pages/Stock'),
+  () => import('@/pages/PricingManager'),
+  () => import('@/pages/Operations'),
+  () => import('@/pages/Notes'),
+  () => import('@/pages/Settings'),
+  () => import('@/pages/AccessMonitor'),
+  () => import('@/pages/AuditLog'),
+];
+
+const [
+  loadDashboard,
+  loadClients,
+  loadProducts,
+  loadRewards,
+  loadClientDetail,
+  loadDeletedClients,
+  loadPDV,
+  loadReports,
+  loadFinancial,
+  loadStock,
+  loadPricingManager,
+  loadOperations,
+  loadNotes,
+  loadSettings,
+  loadAccessMonitor,
+  loadAuditLog,
+] = pageLoaders;
+
+const Dashboard = lazy(loadDashboard);
+const Clients = lazy(loadClients);
+const Products = lazy(loadProducts);
+const Rewards = lazy(loadRewards);
+const ClientDetail = lazy(loadClientDetail);
+const DeletedClients = lazy(loadDeletedClients);
+const PDV = lazy(loadPDV);
+const Reports = lazy(loadReports);
+const Financial = lazy(loadFinancial);
+const Stock = lazy(loadStock);
+const PricingManager = lazy(loadPricingManager);
+const Operations = lazy(loadOperations);
+const Notes = lazy(loadNotes);
+const Settings = lazy(loadSettings);
+const AccessMonitor = lazy(loadAccessMonitor);
+const AuditLog = lazy(loadAuditLog);
 
 function FullScreenLoader() {
   return (
@@ -43,7 +81,7 @@ function FullScreenLoader() {
 }
 
 function LazyPage({ children }: { children: ReactNode }) {
-  return <Suspense fallback={<FullScreenLoader />}>{children}</Suspense>;
+  return <Suspense fallback={null}>{children}</Suspense>;
 }
 
 function ProtectedRoute({
@@ -82,29 +120,49 @@ function ProtectedRoute({
   return <AppLayout>{children}</AppLayout>;
 }
 
-const AuthenticatedArea = () => (
-  <DataProvider>
-    <LowStockNotifier />
-    <Routes>
-      <Route path="/" element={<ProtectedRoute allowedRoles={['admin', 'operator']} requiredFeature="dashboard.view"><LazyPage><Dashboard /></LazyPage></ProtectedRoute>} />
-      <Route path="/pdv" element={<ProtectedRoute allowedRoles={['admin', 'operator']} requiredFeature="pdv.use"><LazyPage><PDV /></LazyPage></ProtectedRoute>} />
-      <Route path="/clientes" element={<ProtectedRoute allowedRoles={['admin', 'operator']} requiredFeature="clients.manage"><LazyPage><Clients /></LazyPage></ProtectedRoute>} />
-      <Route path="/produtos" element={<ProtectedRoute allowedRoles={['admin', 'operator']} requiredFeature="products.manage"><LazyPage><Products /></LazyPage></ProtectedRoute>} />
-      <Route path="/estoque" element={<ProtectedRoute allowedRoles={['admin']} requiredFeature="stock.manage"><LazyPage><Stock /></LazyPage></ProtectedRoute>} />
-      <Route path="/relatorios" element={<ProtectedRoute allowedRoles={['admin']} requiredFeature="reports.view"><LazyPage><Reports /></LazyPage></ProtectedRoute>} />
-      <Route path="/financeiro" element={<ProtectedRoute allowedRoles={['admin']} requiredFeature="financial.manage"><LazyPage><Financial /></LazyPage></ProtectedRoute>} />
-      <Route path="/operacoes" element={<ProtectedRoute allowedRoles={['admin']} requiredFeature="financial.manage"><LazyPage><Operations /></LazyPage></ProtectedRoute>} />
-      <Route path="/precificacao" element={<ProtectedRoute allowedRoles={['admin']} requiredFeature="pricing.manage"><LazyPage><PricingManager /></LazyPage></ProtectedRoute>} />
-      <Route path="/notas" element={<ProtectedRoute allowedRoles={['admin']} requiredFeature="notes.manage"><LazyPage><Notes /></LazyPage></ProtectedRoute>} />
-      <Route path="/configuracoes" element={<ProtectedRoute allowedRoles={['admin']} requiredFeature="settings.manage"><LazyPage><Settings /></LazyPage></ProtectedRoute>} />
-      <Route path="/acessos" element={<ProtectedRoute allowedRoles={['admin']} requiredFeature="settings.manage"><LazyPage><AccessMonitor /></LazyPage></ProtectedRoute>} />
-      <Route path="/auditoria" element={<ProtectedRoute allowedRoles={['admin']} requiredFeature="settings.manage"><LazyPage><AuditLog /></LazyPage></ProtectedRoute>} />
-      <Route path="/recompensas" element={<ProtectedRoute allowedRoles={['admin']} requiredFeature="rewards.manage"><LazyPage><Rewards /></LazyPage></ProtectedRoute>} />
-      <Route path="/cliente/:clientRef" element={<ProtectedRoute allowedRoles={['admin', 'operator']} requiredFeature="clients.manage"><LazyPage><ClientDetail /></LazyPage></ProtectedRoute>} />
-      <Route path="/excluidos" element={<ProtectedRoute allowedRoles={['admin']} requiredFeature="deleted.view"><LazyPage><DeletedClients /></LazyPage></ProtectedRoute>} />
-      <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
-  </DataProvider>
-);
+const warmPageChunks = () => {
+  const loadAllPages = () => {
+    pageLoaders.forEach(loader => {
+      void loader();
+    });
+  };
+
+  if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
+    const idleId = window.requestIdleCallback(loadAllPages, { timeout: 2500 });
+    return () => window.cancelIdleCallback(idleId);
+  }
+
+  const timeoutId = window.setTimeout(loadAllPages, 500);
+  return () => window.clearTimeout(timeoutId);
+};
+
+const AuthenticatedArea = () => {
+  useEffect(() => warmPageChunks(), []);
+
+  return (
+    <DataProvider>
+      <LowStockNotifier />
+      <Routes>
+        <Route path="/" element={<ProtectedRoute allowedRoles={['admin', 'operator']} requiredFeature="dashboard.view"><LazyPage><Dashboard /></LazyPage></ProtectedRoute>} />
+        <Route path="/pdv" element={<ProtectedRoute allowedRoles={['admin', 'operator']} requiredFeature="pdv.use"><LazyPage><PDV /></LazyPage></ProtectedRoute>} />
+        <Route path="/clientes" element={<ProtectedRoute allowedRoles={['admin', 'operator']} requiredFeature="clients.manage"><LazyPage><Clients /></LazyPage></ProtectedRoute>} />
+        <Route path="/produtos" element={<ProtectedRoute allowedRoles={['admin', 'operator']} requiredFeature="products.manage"><LazyPage><Products /></LazyPage></ProtectedRoute>} />
+        <Route path="/estoque" element={<ProtectedRoute allowedRoles={['admin']} requiredFeature="stock.manage"><LazyPage><Stock /></LazyPage></ProtectedRoute>} />
+        <Route path="/relatorios" element={<ProtectedRoute allowedRoles={['admin']} requiredFeature="reports.view"><LazyPage><Reports /></LazyPage></ProtectedRoute>} />
+        <Route path="/financeiro" element={<ProtectedRoute allowedRoles={['admin']} requiredFeature="financial.manage"><LazyPage><Financial /></LazyPage></ProtectedRoute>} />
+        <Route path="/operacoes" element={<ProtectedRoute allowedRoles={['admin']} requiredFeature="financial.manage"><LazyPage><Operations /></LazyPage></ProtectedRoute>} />
+        <Route path="/precificacao" element={<ProtectedRoute allowedRoles={['admin']} requiredFeature="pricing.manage"><LazyPage><PricingManager /></LazyPage></ProtectedRoute>} />
+        <Route path="/notas" element={<ProtectedRoute allowedRoles={['admin']} requiredFeature="notes.manage"><LazyPage><Notes /></LazyPage></ProtectedRoute>} />
+        <Route path="/configuracoes" element={<ProtectedRoute allowedRoles={['admin']} requiredFeature="settings.manage"><LazyPage><Settings /></LazyPage></ProtectedRoute>} />
+        <Route path="/acessos" element={<ProtectedRoute allowedRoles={['admin']} requiredFeature="settings.manage"><LazyPage><AccessMonitor /></LazyPage></ProtectedRoute>} />
+        <Route path="/auditoria" element={<ProtectedRoute allowedRoles={['admin']} requiredFeature="settings.manage"><LazyPage><AuditLog /></LazyPage></ProtectedRoute>} />
+        <Route path="/recompensas" element={<ProtectedRoute allowedRoles={['admin']} requiredFeature="rewards.manage"><LazyPage><Rewards /></LazyPage></ProtectedRoute>} />
+        <Route path="/cliente/:clientRef" element={<ProtectedRoute allowedRoles={['admin', 'operator']} requiredFeature="clients.manage"><LazyPage><ClientDetail /></LazyPage></ProtectedRoute>} />
+        <Route path="/excluidos" element={<ProtectedRoute allowedRoles={['admin']} requiredFeature="deleted.view"><LazyPage><DeletedClients /></LazyPage></ProtectedRoute>} />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </DataProvider>
+  );
+};
 
 export default AuthenticatedArea;
