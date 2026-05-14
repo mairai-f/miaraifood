@@ -739,6 +739,8 @@ export default function PDV() {
       .filter(sale => {
         if (!saleSearchTerm) return true;
         const client = activeClients.find(c => c.id === sale.client_id);
+        const saleCashReceived = Number(sale.cash_received || 0);
+        const saleChangeAmount = Number(sale.change_amount || 0);
         return [
           sale.id,
           sale.payment_method,
@@ -746,6 +748,11 @@ export default function PDV() {
           client?.name || '',
           formatSaleDate(sale.date),
           sale.total.toFixed(2),
+          saleCashReceived.toFixed(2),
+          saleChangeAmount.toFixed(2),
+          sale.payment_method === 'dinheiro'
+            ? `recebido ${saleCashReceived.toFixed(2)} troco ${saleChangeAmount.toFixed(2)}`
+            : '',
         ].some(value => value.toLowerCase().includes(saleSearchTerm));
       })
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
@@ -2990,11 +2997,15 @@ export default function PDV() {
                   </div>
                 )}
                 <div className="flex justify-between text-lg font-bold"><span>Total</span><span className="text-primary">R$ {total.toFixed(2)}</span></div>
-                <div className="flex justify-between text-xs text-muted-foreground"><span>Custo real estimado</span><span>R$ {cartRealCost.toFixed(2)}</span></div>
-                <div className="flex justify-between text-xs text-muted-foreground"><span>Lucro estimado</span><span>R$ {estimatedProfit.toFixed(2)} • {estimatedMargin.toFixed(1)}%</span></div>
+                {isAdmin && (
+                  <>
+                    <div className="flex justify-between text-xs text-muted-foreground"><span>Custo real estimado</span><span>R$ {cartRealCost.toFixed(2)}</span></div>
+                    <div className="flex justify-between text-xs text-muted-foreground"><span>Lucro estimado</span><span>R$ {estimatedProfit.toFixed(2)} • {estimatedMargin.toFixed(1)}%</span></div>
+                  </>
+                )}
               </div>
 
-              {discountKillsProfit && (
+              {isAdmin && discountKillsProfit && (
                 <Alert variant="destructive">
                   <AlertTitle>Desconto sem lucro</AlertTitle>
                   <AlertDescription>
@@ -3285,7 +3296,7 @@ export default function PDV() {
               <Input
                 value={saleSearch}
                 onChange={e => setSaleSearch(e.target.value)}
-                placeholder="Buscar por vendedor, cliente, data, total ou forma..."
+                placeholder="Buscar por vendedor, cliente, data, total, forma ou troco..."
                 className="h-10 text-sm"
               />
               <Select value={saleLimit.toString()} onValueChange={value => setSaleLimit(parseInt(value, 10))}>
@@ -3321,6 +3332,8 @@ export default function PDV() {
                 const client = activeClients.find(c => c.id === sale.client_id);
                 const items = saleItems.filter(item => item.sale_id === sale.id);
                 const isCancelled = sale.status === 'cancelled';
+                const saleCashReceived = Number(sale.cash_received || 0);
+                const saleChangeAmount = Number(sale.change_amount || 0);
                 return (
                   <div key={sale.id} className={`rounded-lg border border-border p-3 ${isCancelled ? 'opacity-60' : ''}`}>
                     <div className="grid gap-2 lg:grid-cols-[1fr_auto]">
@@ -3346,6 +3359,11 @@ export default function PDV() {
                           <p className="text-lg font-bold text-primary">{formatMoney(sale.total)}</p>
                           <p className="text-sm text-muted-foreground">Desconto: {formatMoney(sale.discount || 0)}</p>
                           <p className="text-sm text-muted-foreground">{formatPaymentMethod(sale.payment_method)}</p>
+                          {sale.payment_method === 'dinheiro' && (
+                            <p className="text-sm text-muted-foreground">
+                              Recebido: {formatMoney(saleCashReceived)} | Troco: {formatMoney(saleChangeAmount)}
+                            </p>
+                          )}
                         </div>
                         <div className="flex flex-wrap gap-2 lg:justify-end">
                           {!isCancelled && (

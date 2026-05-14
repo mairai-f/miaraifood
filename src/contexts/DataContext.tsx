@@ -164,6 +164,10 @@ type StockDemand = {
 };
 export type OfflinePreparationStatus = 'unavailable' | 'not-ready' | 'preparing' | 'ready' | 'error';
 
+type FetchAllOptions = {
+  silent?: boolean;
+};
+
 interface DataContextType {
   clients: Client[]; products: Product[]; debtEntries: DebtEntry[]; payments: Payment[]; rewards: Reward[];
   sales: Sale[]; saleItems: SaleItem[]; stockMovements: StockMovement[]; expenses: Expense[];
@@ -337,19 +341,22 @@ export function DataProvider({ children }: { children: ReactNode }) {
     return true;
   }, [applyOfflineSnapshot, canUseOfflineConcentrator, clearStoreData, markOfflineNotReady, ownerUserId]);
 
-  const fetchAll = useCallback(async () => {
+  const fetchAll = useCallback(async (options: FetchAllOptions = {}) => {
+    const silent = options.silent === true;
+
     if (authLoading || planLoading) {
-      setLoading(true);
+      if (!silent) setLoading(true);
       return;
     }
 
     if (!user || !ownerUserId) {
       clearStoreData();
-      setLoading(false); return;
+      if (!silent) setLoading(false);
+      return;
     }
 
     if (isDemoMode) {
-      setLoading(false);
+      if (!silent) setLoading(false);
       return;
     }
 
@@ -363,9 +370,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
       }
     }
 
-    setLoading(true);
+    if (!silent) setLoading(true);
 
-    if (canUseOfflineConcentrator && ownerUserId) {
+    if (canUseOfflineConcentrator && ownerUserId && !silent) {
       setOfflinePreparationStatus('preparing');
       setOfflinePreparationMessage('Preparando acesso offline... baixando e salvando os dados da loja neste computador.');
     }
@@ -418,11 +425,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
       }
 
       console.error('Falha ao atualizar os dados remotos; mantendo o ultimo estado em memoria.', remoteErrors);
-      if (canUseOfflineConcentrator) {
+      if (canUseOfflineConcentrator && !silent) {
         setOfflinePreparationStatus('error');
         setOfflinePreparationMessage('Nao foi possivel baixar os dados para uso offline agora. Verifique a internet e tente novamente.');
       }
-      setLoading(false);
+      if (!silent) setLoading(false);
       return;
     }
 
@@ -449,7 +456,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     setExpenses(nextExpenses);
     setPricingRules(nextPricingRules);
     setPriceHistory(nextPriceHistory);
-    setLoading(false);
+    if (!silent) setLoading(false);
 
     if (canUseOfflineConcentrator && ownerUserId) {
       const snapshot: OfflineSnapshot = {
@@ -467,10 +474,19 @@ export function DataProvider({ children }: { children: ReactNode }) {
         savedAt: nowIso(),
       };
 
-      await replaceOfflineSnapshot(ownerUserId, snapshot);
-      setOfflinePreparationStatus('ready');
-      setOfflinePreparationMessage('Acesso offline pronto. Se a internet cair, estes dados serao carregados deste computador.');
-      setOfflineSnapshotUpdatedAt(snapshot.savedAt);
+      if (silent) {
+        void replaceOfflineSnapshot(ownerUserId, snapshot).then(() => {
+          setOfflinePreparationStatus('ready');
+          setOfflineSnapshotUpdatedAt(snapshot.savedAt);
+        }).catch(error => {
+          console.error('Falha ao atualizar o snapshot offline em segundo plano:', error);
+        });
+      } else {
+        await replaceOfflineSnapshot(ownerUserId, snapshot);
+        setOfflinePreparationStatus('ready');
+        setOfflinePreparationMessage('Acesso offline pronto. Se a internet cair, estes dados serao carregados deste computador.');
+        setOfflineSnapshotUpdatedAt(snapshot.savedAt);
+      }
     }
   }, [authLoading, canUseOfflineConcentrator, clearStoreData, hasFeature, isDemoMode, isLocalOfflineSession, loadOfflineSnapshotFallback, ownerUserId, planLoading, user]);
 
@@ -496,14 +512,18 @@ export function DataProvider({ children }: { children: ReactNode }) {
       savedAt: nowIso(),
     };
 
-    void replaceOfflineSnapshot(ownerUserId, snapshot).then(() => {
-      setOfflinePreparationStatus('ready');
-      setOfflinePreparationMessage('Acesso offline pronto. Os dados locais foram atualizados.');
-      setOfflineSnapshotUpdatedAt(snapshot.savedAt);
-    }).catch(() => {
-      setOfflinePreparationStatus('error');
-      setOfflinePreparationMessage('Nao foi possivel atualizar os dados offline neste computador.');
-    });
+    const timerId = window.setTimeout(() => {
+      void replaceOfflineSnapshot(ownerUserId, snapshot).then(() => {
+        setOfflinePreparationStatus('ready');
+        setOfflineSnapshotUpdatedAt(snapshot.savedAt);
+      }).catch(error => {
+        console.error('Falha ao atualizar o snapshot offline em segundo plano:', error);
+      });
+    }, 750);
+
+    return () => {
+      window.clearTimeout(timerId);
+    };
   }, [
     canUseOfflineConcentrator,
     clients,
@@ -1184,6 +1204,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       || !ownerUserId
       || !user
       || isDemoMode
+      || loading
       || typeof navigator === 'undefined'
       || navigator.onLine === false
     ) {
@@ -1194,6 +1215,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
     try {
       const pendingItems = await listOfflineQueue(ownerUserId, ['pending', 'processing']);
+
+      if (pendingItems.length === 0) {
+        await cleanupOfflineData(ownerUserId);
+        return;
+      }
 
       for (const queueItem of pendingItems) {
         await updateOfflineQueueItem({
@@ -1291,7 +1317,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         }
       }
 
-      await fetchAll();
+      await fetchAll({ silent: true });
       await cleanupOfflineData(ownerUserId);
     } finally {
       offlineSyncInFlightRef.current = false;
@@ -1300,6 +1326,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     canUseOfflineConcentrator,
     fetchAll,
     isDemoMode,
+    loading,
     ownerUserId,
     syncQueuedCashSessionCloseOperation,
     syncQueuedCashSessionOpenOperation,
