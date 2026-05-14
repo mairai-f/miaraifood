@@ -7,6 +7,8 @@ const plans = [
   { name: "Plano Fiado", display: "R$ 100,00 / 30 dias" },
   { name: "Plano Completo", display: "R$ 189,00 / 30 dias" },
   { name: "Plano PRO", display: "R$ 250,00 / 30 dias" },
+  { name: "HappyCashFood", display: "R$ 250,00 / 30 dias" },
+  { name: "HappyCashFood Offline", display: "R$ 310,00 / 30 dias" },
 ];
 
 const Pix = () => {
@@ -27,7 +29,7 @@ const Pix = () => {
             </p>
           </div>
 
-          <div className="grid gap-3 md:grid-cols-3">
+          <div className="grid gap-3 md:grid-cols-3 lg:grid-cols-5">
             {plans.map((plan) => (
               <div key={plan.name} className="rounded-xl border border-border bg-muted/30 p-4 text-center">
                 <p className="text-sm font-medium">{plan.name}</p>

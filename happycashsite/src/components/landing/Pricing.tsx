@@ -83,6 +83,45 @@ const plans = [
       "Pagamento da assinatura via Pix ou débito / crédito",
     ],
   },
+  {
+    id: "food",
+    name: "HappyCashFood",
+    subtitle: "Restaurante web",
+    price: 250,
+    annualPrice: 2497,
+    description: "Sistema restaurante com mesas, comandas, cardápio QR, garçom, cozinha, caixa e estoque",
+    popular: false,
+    features: [
+      "Plano com validade de 30 dias",
+      "Tudo do Plano Completo",
+      "Mesas e comandas",
+      "Cardápio QR Code",
+      "Tela do garçom",
+      "Autoatendimento da mesa",
+      "Cozinha KDS",
+      "Sem executável offline",
+      "Pagamento da assinatura via Pix ou débito / crédito",
+    ],
+  },
+  {
+    id: "food_offline",
+    name: "HappyCashFood Offline",
+    subtitle: "Food + executáveis",
+    price: 310,
+    annualPrice: 3097,
+    description: "HappyCashFood com Windows, Linux, .deb, APK e operação offline local",
+    popular: false,
+    features: [
+      "Plano com validade de 30 dias",
+      "Tudo do HappyCashFood",
+      "Windows .exe",
+      "Linux AppImage",
+      "Pacote Linux .deb",
+      "Android APK",
+      "Offline local",
+      "Pagamento da assinatura via Pix ou débito / crédito",
+    ],
+  },
 ];
 
 const formatPrice = (value: number) => value.toLocaleString("pt-BR", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
@@ -162,7 +201,7 @@ const Pricing = () => {
           </div>
         </div>
 
-        <div className="pricing-cards grid md:grid-cols-2 xl:grid-cols-4 gap-6 max-w-7xl mx-auto">
+        <div className="pricing-cards grid md:grid-cols-2 xl:grid-cols-3 gap-6 max-w-7xl mx-auto">
           {plans.map((plan) => {
             const isDemo = plan.highlight === "demo";
             const annualPrice = plan.annualPrice ?? 0;

@@ -10,6 +10,8 @@ const planLabels: Record<string, string> = {
   fiado: 'Plano Fiado - 30 dias',
   completo: 'Plano Completo - 30 dias',
   pro: 'Plano PRO - 30 dias',
+  food: 'HappyCashFood - 30 dias',
+  food_offline: 'HappyCashFood Offline - 30 dias',
 };
 
 const HAPPY_CASH_SITE_PAYMENT_URL = 'https://www.happycashsite.com.br/dashboard';

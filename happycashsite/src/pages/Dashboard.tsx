@@ -165,6 +165,7 @@ type DeleteAccountResponse = {
 const SITE_SESSION_EXPIRED_MESSAGE = "Sua sessao expirou. Entre novamente para continuar.";
 const DELETE_ACCOUNT_CONFIRM_TEXT = "APAGAR";
 const SYSTEM_APP_URL = "https://app.happycashsite.com.br/";
+const FOOD_SYSTEM_APP_URL = "https://app.happycashsite.com.br/restaurante";
 const SITE_REGISTRATION_FUNCTION_MISSING_MESSAGE =
   "A funcao finalize-site-registration nao esta publicada ou acessivel neste projeto do Supabase. Publique a function para abrir o dashboard.";
 const SITE_REGISTRATION_FETCH_MESSAGE =
@@ -440,6 +441,12 @@ const Dashboard = () => {
   const countdown = getSubscriptionCountdown(currentSubscription);
   const currentDeadline = getSubscriptionEndAt(currentSubscription);
   const isCurrentProPlan = currentPlanId === "pro" && isCurrentSubscription(currentSubscription);
+  const isCurrentFoodPlan = (currentPlanId === "food" || currentPlanId === "food_offline") && isCurrentSubscription(currentSubscription);
+  const isCurrentFoodOfflinePlan = currentPlanId === "food_offline" && isCurrentSubscription(currentSubscription);
+  const hasOfflineDownloads = isCurrentProPlan || isCurrentFoodOfflinePlan;
+  const activeSystemUrl = isCurrentFoodPlan ? FOOD_SYSTEM_APP_URL : SYSTEM_APP_URL;
+  const activeSystemLabel = isCurrentFoodPlan ? "Abrir sistema HappyCashFood" : "Abrir sistema HappyCash";
+  const offlineAccessLabel = isCurrentFoodOfflinePlan ? "Food Offline liberado" : isCurrentProPlan ? "PRO liberado" : "Somente PRO ou Food Offline";
   const pendingSubscription = subscriptions.find(subscription => subscription.status === "pending") || null;
   const pendingPlanId = pendingSubscription && isPaidPlanId(pendingSubscription.plan_id) ? pendingSubscription.plan_id : null;
   const pendingPlanContent = pendingPlanId ? publicPlanContent[pendingPlanId] : null;
@@ -871,16 +878,16 @@ const Dashboard = () => {
             <div>
               <h1 className="font-heading text-2xl font-bold sm:text-3xl">Central da conta HappyCash</h1>
               <p className="text-sm text-muted-foreground">
-                A mesma conta serve no site e no sistema HappyCash. Demo com 12 horas e planos pagos com ciclo de 30 dias.
+                A mesma conta serve no site, no HappyCash e no HappyCashFood. Demo com 12 horas e planos pagos com ciclo de 30 dias.
               </p>
             </div>
           </div>
 
           <div className="flex flex-wrap gap-3">
             <Button asChild className="gap-2">
-              <a href={SYSTEM_APP_URL} target="_blank" rel="noreferrer">
+              <a href={activeSystemUrl} target="_blank" rel="noreferrer">
                 <ExternalLink className="h-4 w-4" />
-                Abrir sistema HappyCash
+                {activeSystemLabel}
               </a>
             </Button>
             <Button asChild variant="outline" className="gap-2">
@@ -1022,7 +1029,7 @@ const Dashboard = () => {
                   <Crown className="h-4 w-4" />
                   <AlertTitle>Depois da demo, escolha um plano pago</AlertTitle>
                   <AlertDescription>
-                    Fiado, Completo e PRO ficam ativos por 30 dias cada. O plano Fiado libera painel, clientes, produtos, excluidos e fiado, sem configuracoes.
+                    Fiado, Completo, PRO e Food ficam ativos por 30 dias cada. O plano Fiado libera painel, clientes, produtos, excluidos e fiado, sem configuracoes.
                   </AlertDescription>
                 </Alert>
               )}
@@ -1052,18 +1059,18 @@ const Dashboard = () => {
                   <div>
                     <p className="text-sm font-semibold">Downloads do desktop</p>
                     <p className="mt-1 text-sm text-muted-foreground">
-                      O executavel fica liberado apenas para contas com plano PRO ativo. Cada nova instalacao pede a chave da empresa, valida o primeiro acesso online, prepara o banco local da loja e os links abaixo sempre consultam a release mais recente para Windows, Linux (.deb) e Linux AppImage.
+                      O executavel fica liberado para contas com plano PRO ou HappyCashFood Offline ativo. Cada nova instalacao pede a chave da empresa, valida o primeiro acesso online, prepara o banco local da loja e os links abaixo sempre consultam a release mais recente para Windows, Linux (.deb) e Linux AppImage.
                     </p>
                   </div>
-                  <Badge variant={isCurrentProPlan ? "default" : "outline"}>
-                    {isCurrentProPlan ? "PRO liberado" : "Somente PRO"}
+                  <Badge variant={hasOfflineDownloads ? "default" : "outline"}>
+                    {offlineAccessLabel}
                   </Badge>
                 </div>
 
-                {isCurrentProPlan ? (
+                {hasOfflineDownloads ? (
                   <div className="mt-4 grid gap-3">
                     <div className="rounded-2xl border border-border bg-background/70 p-4">
-                      <p className="text-sm font-semibold">Como funciona no desktop PRO</p>
+                      <p className="text-sm font-semibold">Como funciona no desktop</p>
                       <ul className="mt-3 space-y-2 text-sm text-muted-foreground">
                         <li>1. Instale a release mais recente na maquina.</li>
                         <li>2. Valide a chave da empresa no primeiro acesso dessa maquina.</li>
@@ -1090,7 +1097,7 @@ const Dashboard = () => {
                   </div>
                 ) : (
                   <p className="mt-4 text-sm text-muted-foreground">
-                    Quando o plano PRO estiver ativo, esta area libera a release mais recente do desktop e a ativacao por chave da empresa em cada maquina.
+                    Quando o plano PRO ou HappyCashFood Offline estiver ativo, esta area libera a release mais recente do desktop e a ativacao por chave da empresa em cada maquina.
                   </p>
                 )}
               </div>
@@ -1100,15 +1107,15 @@ const Dashboard = () => {
                   <div>
                     <p className="text-sm font-semibold">Downloads do mobile</p>
                     <p className="mt-1 text-sm text-muted-foreground">
-                      O app mobile fica liberado apenas para contas com plano PRO ativo.
+                      O app mobile fica liberado para contas com plano PRO ou HappyCashFood Offline ativo.
                     </p>
                   </div>
-                  <Badge variant={isCurrentProPlan ? "default" : "outline"}>
-                    {isCurrentProPlan ? "PRO liberado" : "Somente PRO"}
+                  <Badge variant={hasOfflineDownloads ? "default" : "outline"}>
+                    {offlineAccessLabel}
                   </Badge>
                 </div>
 
-                {isCurrentProPlan ? (
+                {hasOfflineDownloads ? (
                   <div className="mt-4 grid gap-3">
                     <Button asChild className="h-11 font-semibold">
                       <Link to={downloads.android.route}>
@@ -1124,16 +1131,16 @@ const Dashboard = () => {
                   </div>
                 ) : (
                   <p className="mt-4 text-sm text-muted-foreground">
-                    Quando o plano PRO estiver ativo, esta area libera o download do app mobile Android e o acesso ao TestFlight iOS.
+                    Quando o plano PRO ou HappyCashFood Offline estiver ativo, esta area libera o download do app mobile Android e o acesso ao TestFlight iOS.
                   </p>
                 )}
               </div>
 
               <div className="grid gap-3">
                 <Button asChild className="h-12 text-base font-semibold">
-                  <a href={SYSTEM_APP_URL} target="_blank" rel="noreferrer">
+                  <a href={activeSystemUrl} target="_blank" rel="noreferrer">
                     <ExternalLink className="mr-2 h-4 w-4" />
-                    Abrir sistema HappyCash
+                    {activeSystemLabel}
                   </a>
                 </Button>
                 <Button asChild className="h-12 text-base font-semibold">
@@ -1203,7 +1210,7 @@ const Dashboard = () => {
             </div>
           </div>
 
-          <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
             {sortedPlans.map((plan) => {
               const isSelected = selectedPlanId === plan.id;
               const isCurrentPaidPlan =
@@ -1233,8 +1240,16 @@ const Dashboard = () => {
                 >
                   <CardHeader className="space-y-4">
                     <div className="flex items-start justify-between gap-3">
-                      <Badge variant={plan.id === "demo" ? "secondary" : plan.id === "pro" ? "default" : "outline"}>
-                        {plan.id === "demo" ? "Demo" : selectedBillingPeriod === "annual" ? "Anual" : plan.id === "pro" ? "Mais valor" : "30 dias"}
+                      <Badge variant={plan.id === "demo" ? "secondary" : plan.id === "pro" || plan.id === "food_offline" ? "default" : "outline"}>
+                        {plan.id === "demo"
+                          ? "Demo"
+                          : selectedBillingPeriod === "annual"
+                          ? "Anual"
+                          : plan.id === "pro"
+                          ? "Mais valor"
+                          : plan.id === "food_offline"
+                          ? "Offline"
+                          : "30 dias"}
                       </Badge>
                       {isCurrentPaidPlan && <Badge variant="outline">Atual</Badge>}
                     </div>

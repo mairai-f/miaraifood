@@ -148,18 +148,18 @@ export function CompanyProfileCard() {
     () => savedForm.tradeName.trim() || savedForm.legalName.trim() || 'Empresa nao cadastrada',
     [savedForm.legalName, savedForm.tradeName],
   );
-  const desktopKeyUnlocked = subscription?.plan_id === 'pro' && subscription.status === 'active';
+  const desktopKeyUnlocked = (subscription?.plan_id === 'pro' || subscription?.plan_id === 'food_offline') && subscription.status === 'active';
   const desktopKeyStatusMessage = !shouldRevealDesktopLicenseKey
     ? 'A chave desktop continua salva para esta empresa, mas fica visivel somente no painel web do administrador.'
     : loadingSubscription
       ? 'Verificando a liberacao da chave desktop desta conta...'
       : desktopKeyUnlocked
         ? 'Use esta chave em cada nova maquina para reconhecer a empresa antes do login com usuario e PIN.'
-        : subscription?.plan_id !== 'pro'
-          ? 'A chave desktop aparece somente para contas com plano PRO.'
+        : subscription?.plan_id !== 'pro' && subscription?.plan_id !== 'food_offline'
+          ? 'A chave desktop aparece somente para contas com plano PRO ou HappyCashFood Offline.'
           : subscription?.status === 'pending'
-            ? 'A chave desktop aparece quando o pagamento do plano PRO for confirmado no Asaas.'
-            : 'A chave desktop aparece somente com o plano PRO em status ativo.';
+            ? 'A chave desktop aparece quando o pagamento do plano for confirmado no Asaas.'
+            : 'A chave desktop aparece somente com plano PRO ou HappyCashFood Offline em status ativo.';
 
   if (!isAdmin) return null;
 

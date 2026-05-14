@@ -9,9 +9,11 @@
   "scripts": {
     "dev": "vite",
     "dev:site": "vite --config happycashsite/vite.config.ts",
+    "dev:food": "vite --config happycashfood/vite.config.ts",
     "build": "vite build",
     "build:site": "vite build --config happycashsite/vite.config.ts",
-    "build:all": "npm run build && npm run build:site",
+    "build:food": "vite build --config happycashfood/vite.config.ts",
+    "build:all": "npm run build && npm run build:site && npm run build:food",
     "mobile:install": "npm install --prefix mobile",
     "mobile:start": "npm --prefix mobile run start",
     "mobile:android": "npm --prefix mobile run android",

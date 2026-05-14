@@ -32,6 +32,7 @@ export interface DesktopLicenseValidationResult {
 
 const activeSubscriptionStatuses = new Set(["trialing", "active", "past_due"]);
 const requiredFeatureKeys = ["desktop.app", "offline.access"] as const;
+const desktopPlanIds = new Set(["pro", "food_offline"]);
 
 const getSubscriptionEndAt = (subscription: StoreSubscriptionRow | null | undefined) => {
   if (!subscription) return null;
@@ -92,7 +93,7 @@ export const validateDesktopLicense = async (
 
   const hasActiveDesktopPlan = Boolean(
     currentSubscription
-    && currentSubscription.plan_id === "pro"
+    && desktopPlanIds.has(currentSubscription.plan_id)
     && currentSubscription.status === "active"
     && isCurrentSubscription(currentSubscription),
   );
@@ -101,7 +102,7 @@ export const validateDesktopLicense = async (
     return {
       ok: false,
       code: "PRO_ACTIVE_REQUIRED",
-      message: "O aplicativo desktop libera somente apos a confirmacao do pagamento do plano PRO.",
+      message: "O aplicativo desktop libera somente apos a confirmacao do pagamento do plano PRO ou HappyCashFood Offline.",
       planId: currentSubscription?.plan_id ?? null,
       status: currentSubscription?.status ?? null,
       validUntil,

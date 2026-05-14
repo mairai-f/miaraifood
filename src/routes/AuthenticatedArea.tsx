@@ -31,6 +31,7 @@ const pageLoaders = [
   () => import('@/pages/Settings'),
   () => import('@/pages/AccessMonitor'),
   () => import('@/pages/AuditLog'),
+  () => import('@/pages/RestaurantRedirect'),
 ];
 
 const [
@@ -50,6 +51,7 @@ const [
   loadSettings,
   loadAccessMonitor,
   loadAuditLog,
+  loadRestaurantRedirect,
 ] = pageLoaders;
 
 const Dashboard = lazy(loadDashboard);
@@ -68,6 +70,7 @@ const Notes = lazy(loadNotes);
 const Settings = lazy(loadSettings);
 const AccessMonitor = lazy(loadAccessMonitor);
 const AuditLog = lazy(loadAuditLog);
+const RestaurantRedirect = lazy(loadRestaurantRedirect);
 
 function FullScreenLoader() {
   return (
@@ -157,6 +160,7 @@ const AuthenticatedArea = () => {
         <Route path="/acessos" element={<ProtectedRoute allowedRoles={['admin']} requiredFeature="settings.manage"><LazyPage><AccessMonitor /></LazyPage></ProtectedRoute>} />
         <Route path="/auditoria" element={<ProtectedRoute allowedRoles={['admin']} requiredFeature="settings.manage"><LazyPage><AuditLog /></LazyPage></ProtectedRoute>} />
         <Route path="/recompensas" element={<ProtectedRoute allowedRoles={['admin']} requiredFeature="rewards.manage"><LazyPage><Rewards /></LazyPage></ProtectedRoute>} />
+        <Route path="/restaurante" element={<ProtectedRoute allowedRoles={['admin', 'operator']} requiredFeature="restaurant.manage"><LazyPage><RestaurantRedirect /></LazyPage></ProtectedRoute>} />
         <Route path="/cliente/:clientRef" element={<ProtectedRoute allowedRoles={['admin', 'operator']} requiredFeature="clients.manage"><LazyPage><ClientDetail /></LazyPage></ProtectedRoute>} />
         <Route path="/excluidos" element={<ProtectedRoute allowedRoles={['admin']} requiredFeature="deleted.view"><LazyPage><DeletedClients /></LazyPage></ProtectedRoute>} />
         <Route path="*" element={<Navigate to="/" replace />} />

@@ -13,7 +13,7 @@ import {
 } from "../_shared/asaas.ts";
 import { buildCorsHeaders, handleCorsPreflight } from "../_shared/cors.ts";
 
-type SupportedPaidPlan = "fiado" | "completo" | "pro";
+type SupportedPaidPlan = "fiado" | "completo" | "pro" | "food" | "food_offline";
 type CheckoutPaymentMethod = "pix" | "card";
 type SupportedBillingType = "PIX" | "CREDIT_CARD";
 type BillingPeriod = "monthly" | "annual";
@@ -82,7 +82,7 @@ const extractAccessToken = (authorization: string | null) => {
   return matchedToken?.[1]?.trim() || null;
 };
 
-const supportedPlans = new Set<SupportedPaidPlan>(["fiado", "completo", "pro"]);
+const supportedPlans = new Set<SupportedPaidPlan>(["fiado", "completo", "pro", "food", "food_offline"]);
 const supportedPaymentMethods = new Set<CheckoutPaymentMethod>(["pix", "card"]);
 const supportedBillingPeriods = new Set<BillingPeriod>(["monthly", "annual"]);
 const awaitingPaymentStatuses = new Set(["PENDING", "OVERDUE", "AWAITING_RISK_ANALYSIS"]);
