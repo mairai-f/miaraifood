@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { isDesktopRuntime, isProbablyOfflineError } from '@/lib/offlineConcentrator';
 import { useAuth } from './AuthContext';
@@ -54,8 +54,17 @@ export function PlanProvider({ children }: { children: ReactNode }) {
   const [planId, setPlanId] = useState<string | null>(null);
   const [features, setFeatures] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
+  const [resolvedPlanSubject, setResolvedPlanSubject] = useState<string | null>(null);
+  const refreshRequestRef = useRef(0);
+  const planSubject = user
+    ? `${user.id}:${ownerUserId ?? 'pending-owner'}:${isLocalOfflineSession ? 'offline' : 'online'}`
+    : 'anonymous';
 
   const refresh = useCallback(async () => {
+    const requestId = ++refreshRequestRef.current;
+    const requestPlanSubject = planSubject;
+    const isCurrentRequest = () => refreshRequestRef.current === requestId;
+
     if (authLoading) {
       setLoading(true);
       return;
@@ -64,6 +73,7 @@ export function PlanProvider({ children }: { children: ReactNode }) {
     if (!user) {
       setPlanId(null);
       setFeatures([]);
+      setResolvedPlanSubject(requestPlanSubject);
       setLoading(false);
       return;
     }
@@ -71,8 +81,10 @@ export function PlanProvider({ children }: { children: ReactNode }) {
     if (isLocalOfflineSession) {
       const cachedPlanAccess = readCachedPlanAccess(user.id)
         || (ownerUserId && ownerUserId !== user.id ? readCachedPlanAccess(ownerUserId) : null);
+      if (!isCurrentRequest()) return;
       setPlanId(cachedPlanAccess?.planId ?? null);
       setFeatures(cachedPlanAccess?.features ?? []);
+      setResolvedPlanSubject(requestPlanSubject);
       setLoading(false);
       return;
     }
@@ -89,19 +101,23 @@ export function PlanProvider({ children }: { children: ReactNode }) {
         return false;
       }
 
+      if (!isCurrentRequest()) return true;
       setPlanId(fallbackPlanAccess.planId);
       setFeatures(fallbackPlanAccess.features);
+      setResolvedPlanSubject(requestPlanSubject);
       setLoading(false);
       return true;
     };
 
     const { data: currentPlanId, error: planError } = await db.rpc('get_current_store_plan_id');
+    if (!isCurrentRequest()) return;
 
     if (planError || !currentPlanId) {
       if (applyCachedPlanAccess(planError)) return;
 
       setPlanId(null);
       setFeatures([]);
+      setResolvedPlanSubject(requestPlanSubject);
       setLoading(false);
       return;
     }
@@ -111,12 +127,14 @@ export function PlanProvider({ children }: { children: ReactNode }) {
       .select('feature_key')
       .eq('plan_id', currentPlanId)
       .eq('enabled', true);
+    if (!isCurrentRequest()) return;
 
     if (featureError) {
       if (applyCachedPlanAccess(featureError)) return;
 
       setPlanId(currentPlanId);
       setFeatures([]);
+      setResolvedPlanSubject(requestPlanSubject);
       setLoading(false);
       return;
     }
@@ -124,25 +142,27 @@ export function PlanProvider({ children }: { children: ReactNode }) {
     const nextFeatures = ((featureRows as Array<{ feature_key: string }> | null) ?? []).map((row) => row.feature_key);
     setPlanId(currentPlanId);
     setFeatures(nextFeatures);
+    setResolvedPlanSubject(requestPlanSubject);
     setLoading(false);
     writeCachedPlanAccess(user.id, {
       planId: currentPlanId,
       features: nextFeatures,
     });
-  }, [authLoading, isLocalOfflineSession, ownerUserId, user]);
+  }, [authLoading, isLocalOfflineSession, ownerUserId, planSubject, user]);
 
   useEffect(() => {
     void refresh();
   }, [refresh]);
 
   const hasFeature = useCallback((featureKey: string) => features.includes(featureKey), [features]);
+  const effectiveLoading = loading || resolvedPlanSubject !== planSubject;
 
   return (
     <PlanContext.Provider
       value={{
         planId,
         features,
-        loading,
+        loading: effectiveLoading,
         hasActivePlan: Boolean(planId),
         hasFeature,
         refresh,

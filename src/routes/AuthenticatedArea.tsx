@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useState, type ReactNode } from 'react';
+import { lazy, Suspense, useEffect, type ReactNode } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 
@@ -13,8 +13,6 @@ import { useDesktopRuntime } from '@/contexts/DesktopRuntimeContext';
 import { usePlanAccess } from '@/contexts/PlanContext';
 import { hasSeenAppSplash, markAppSplashSeen } from '@/lib/appSplash';
 import type { UserRole } from '@/lib/access';
-
-let hasResolvedProtectedAccessOnce = false;
 
 const Dashboard = lazy(() => import('@/pages/Dashboard'));
 const Clients = lazy(() => import('@/pages/Clients'));
@@ -60,19 +58,16 @@ function ProtectedRoute({
   const { isAuthenticated, loading, role } = useAuth();
   const { isDesktop, checking: checkingDesktopLicense, licensed } = useDesktopRuntime();
   const { loading: planLoading, hasFeature } = usePlanAccess();
-  const [hasResolvedAccess, setHasResolvedAccess] = useState(hasResolvedProtectedAccessOnce);
   const shouldBlockAccess = loading || planLoading || checkingDesktopLicense;
   const shouldShowSplash = !hasSeenAppSplash() && !isAuthenticated;
 
   useEffect(() => {
     if (!shouldBlockAccess) {
-      hasResolvedProtectedAccessOnce = true;
-      setHasResolvedAccess(true);
       markAppSplashSeen();
     }
   }, [shouldBlockAccess]);
 
-  if (!hasResolvedAccess && shouldBlockAccess) {
+  if (shouldBlockAccess) {
     if (shouldShowSplash) {
       return <SplashScreen progress={100} />;
     }
