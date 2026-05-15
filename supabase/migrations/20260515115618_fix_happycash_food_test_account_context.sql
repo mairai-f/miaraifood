@@ -96,10 +96,13 @@ BEGIN
   SELECT subscription.id
   INTO current_subscription_id
   FROM public.store_subscriptions AS subscription
-  WHERE subscription.owner_user_id = target_user_id
-    AND subscription.product_context = 'happycash'
+  WHERE (
+      subscription.owner_user_id = target_user_id
+      OR subscription.store_account_id = target_store_account_id
+    )
     AND subscription.status IN ('trialing', 'active', 'past_due', 'pending')
   ORDER BY
+    CASE WHEN subscription.product_context = 'happycash' THEN 0 ELSE 1 END,
     CASE
       WHEN subscription.provider = 'manual' THEN 0
       WHEN subscription.status = 'active' THEN 1
@@ -188,7 +191,10 @@ BEGIN
       'reason', 'fix_happycash_food_test_account_context'
     ),
     updated_at = now()
-  WHERE owner_user_id = target_user_id
+  WHERE (
+      owner_user_id = target_user_id
+      OR store_account_id = target_store_account_id
+    )
     AND status IN ('trialing', 'active', 'past_due', 'pending')
     AND id <> current_subscription_id;
 END $$;
@@ -285,10 +291,13 @@ BEGIN
   SELECT subscription.id
   INTO current_subscription_id
   FROM public.store_subscriptions AS subscription
-  WHERE subscription.owner_user_id = target_user_id
-    AND subscription.product_context = 'happycashfood'
+  WHERE (
+      subscription.owner_user_id = target_user_id
+      OR subscription.store_account_id = target_store_account_id
+    )
     AND subscription.status IN ('trialing', 'active', 'past_due', 'pending')
   ORDER BY
+    CASE WHEN subscription.product_context = 'happycashfood' THEN 0 ELSE 1 END,
     CASE
       WHEN subscription.provider = 'manual' THEN 0
       WHEN subscription.status = 'active' THEN 1
@@ -377,7 +386,10 @@ BEGIN
       'reason', 'fix_happycash_food_test_account_context'
     ),
     updated_at = now()
-  WHERE owner_user_id = target_user_id
+  WHERE (
+      owner_user_id = target_user_id
+      OR store_account_id = target_store_account_id
+    )
     AND status IN ('trialing', 'active', 'past_due', 'pending')
     AND id <> current_subscription_id;
 END $$;
