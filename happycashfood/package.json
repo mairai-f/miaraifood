@@ -1,7 +1,7 @@
 {
   "name": "happycashfood",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "HappyCashFood - atendimento, comandas, cozinha, delivery e caixa para restaurantes.",
   "type": "module",
   "scripts": {

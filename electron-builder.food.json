@@ -1,8 +1,15 @@
 {
   "appId": "com.happycash.food.desktop",
+  "executableName": "HappyCashFood",
   "productName": "HappyCashFood",
   "electronUpdaterCompatibility": ">=2.16",
   "generateUpdatesFilesForAllChannels": true,
+  "extraMetadata": {
+    "name": "happycashfood",
+    "productName": "HappyCashFood",
+    "productContext": "happycashfood",
+    "rendererDir": "dist-food"
+  },
   "directories": {
     "output": "release/happycashfood"
   },

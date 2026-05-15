@@ -7,9 +7,35 @@ const UPDATE_CHECK_DELAY_MS = 15_000;
 const UPDATE_CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000;
 const UPDATE_METADATA_RETRY_DELAY_MS = 60_000;
 const isDevelopment = Boolean(process.env.VITE_DEV_SERVER_URL) || !app.isPackaged;
-const PRODUCT_CONTEXT = process.env.HAPPYCASH_PRODUCT_CONTEXT?.trim().toLowerCase() === 'happycashfood'
-  ? 'happycashfood'
-  : 'happycash';
+const loadPackagedMetadata = () => {
+  try {
+    return require('../package.json');
+  } catch {
+    return {};
+  }
+};
+
+const packagedMetadata = loadPackagedMetadata();
+const inferProductContext = () => {
+  if (process.env.HAPPYCASH_PRODUCT_CONTEXT?.trim().toLowerCase() === 'happycashfood') {
+    return 'happycashfood';
+  }
+
+  if (packagedMetadata.productContext === 'happycashfood') {
+    return 'happycashfood';
+  }
+
+  const runtimeHints = [
+    app.getName(),
+    process.execPath,
+    process.resourcesPath,
+    __dirname,
+  ].filter(Boolean).join(' ').toLowerCase();
+
+  return runtimeHints.includes('happycashfood') ? 'happycashfood' : 'happycash';
+};
+
+const PRODUCT_CONTEXT = inferProductContext();
 const APP_DISPLAY_NAME = PRODUCT_CONTEXT === 'happycashfood' ? 'HappyCashFood' : 'HappyCash';
 let autoUpdatesConfigured = false;
 const APP_USER_MODEL_ID = PRODUCT_CONTEXT === 'happycashfood'
@@ -20,7 +46,11 @@ const VALID_UPDATE_CHANNELS = new Set(['latest', 'beta', 'alpha']);
 const OFFLINE_DB_FILENAME = PRODUCT_CONTEXT === 'happycashfood'
   ? 'happycashfood-concentrator.sqlite'
   : 'happycash-concentrator.sqlite';
-const RENDERER_DIR = (process.env.HAPPYCASH_RENDERER_DIR || 'dist').replace(/^\.?\//, '').trim() || 'dist';
+const configuredRendererDir = process.env.HAPPYCASH_RENDERER_DIR?.replace(/^\.?\//, '').trim();
+const packagedRendererDir = typeof packagedMetadata.rendererDir === 'string'
+  ? packagedMetadata.rendererDir.replace(/^\.?\//, '').trim()
+  : '';
+const RENDERER_DIR = configuredRendererDir || packagedRendererDir || (PRODUCT_CONTEXT === 'happycashfood' ? 'dist-food' : 'dist');
 const OFFLINE_DB_SCHEMA_VERSION = 2;
 const OFFLINE_SYNC_RETENTION_DAYS = Number.parseInt(process.env.HAPPYCASH_OFFLINE_SYNC_RETENTION_DAYS || '30', 10);
 const OFFLINE_CONFLICT_RETENTION_DAYS = Number.parseInt(process.env.HAPPYCASH_OFFLINE_CONFLICT_RETENTION_DAYS || '30', 10);
