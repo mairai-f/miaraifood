@@ -1,4 +1,10 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
+import {
+  isCurrentSubscriptionPlanAllowedForProductContext,
+  isDesktopPlanAllowedForProductContext,
+  normalizeProductContext,
+  type ProductContext,
+} from "./productContext.ts";
 
 export type SupportedDesktopPlatform = "windows" | "linux" | "linux-deb" | "linux-appimage";
 
@@ -32,8 +38,6 @@ export interface DesktopLicenseValidationResult {
 
 const activeSubscriptionStatuses = new Set(["trialing", "active", "past_due"]);
 const requiredFeatureKeys = ["desktop.app", "offline.access"] as const;
-const desktopPlanIds = new Set(["pro", "food_offline"]);
-
 const getSubscriptionEndAt = (subscription: StoreSubscriptionRow | null | undefined) => {
   if (!subscription) return null;
 
@@ -56,6 +60,7 @@ export const isCurrentSubscription = (subscription: StoreSubscriptionRow | null 
 export const validateDesktopLicense = async (
   serviceClient: ReturnType<typeof createClient>,
   userId: string,
+  productContext: ProductContext,
 ): Promise<DesktopLicenseValidationResult> => {
   const { data: profile } = await serviceClient
     .from("profiles")
@@ -88,12 +93,16 @@ export const validateDesktopLicense = async (
   }
 
   const subscriptionRows = (subscriptions as StoreSubscriptionRow[] | null) ?? [];
-  const currentSubscription = subscriptionRows.find(isCurrentSubscription) ?? subscriptionRows[0] ?? null;
+  const normalizedProductContext = normalizeProductContext(productContext);
+  const compatibleSubscriptions = subscriptionRows.filter((subscription) =>
+    isCurrentSubscriptionPlanAllowedForProductContext(normalizedProductContext, subscription.plan_id),
+  );
+  const currentSubscription = compatibleSubscriptions.find(isCurrentSubscription) ?? compatibleSubscriptions[0] ?? null;
   const validUntil = getSubscriptionEndAt(currentSubscription);
 
   const hasActiveDesktopPlan = Boolean(
     currentSubscription
-    && desktopPlanIds.has(currentSubscription.plan_id)
+    && isDesktopPlanAllowedForProductContext(normalizedProductContext, currentSubscription.plan_id)
     && currentSubscription.status === "active"
     && isCurrentSubscription(currentSubscription),
   );
@@ -102,7 +111,9 @@ export const validateDesktopLicense = async (
     return {
       ok: false,
       code: "PRO_ACTIVE_REQUIRED",
-      message: "O aplicativo desktop libera somente apos a confirmacao do pagamento do plano PRO ou HappyCashFood Offline.",
+      message: normalizedProductContext === "happycashfood"
+        ? "O aplicativo desktop do HappyCashFood libera somente apos a confirmacao do pagamento do plano HappyCashFood Offline."
+        : "O aplicativo desktop do HappyCash libera somente apos a confirmacao do pagamento do plano PRO.",
       planId: currentSubscription?.plan_id ?? null,
       status: currentSubscription?.status ?? null,
       validUntil,

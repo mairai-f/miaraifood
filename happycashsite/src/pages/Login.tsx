@@ -156,7 +156,7 @@ const Login = () => {
             <p className="mx-auto mt-1 max-w-[18rem] text-[11px] text-muted-foreground sm:text-xs">
               {selectedPlan
                 ? `Depois do login, voce pode ativar o ${selectedPlan.name}.`
-                : 'Use o mesmo email e senha para entrar no site e no HappyCash.'}
+                : 'Use seu email e senha para entrar no site e seguir para o produto contratado.'}
             </p>
           </div>
 

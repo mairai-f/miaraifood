@@ -1,6 +1,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { buildCorsHeaders, handleCorsPreflight, isAllowedOriginValue } from "../_shared/cors.ts";
 import { getPasswordPolicyError } from "../_shared/passwordPolicy.ts";
+import { normalizeProductContext, resolveProductContextFromPlanId } from "../_shared/productContext.ts";
 
 interface RegisterAccountRequest {
   email?: string;
@@ -21,6 +22,7 @@ interface RegisterAccountRequest {
   redirectTo?: string;
   website?: string;
   captchaToken?: string;
+  planId?: string | null;
 }
 
 interface RegisterAccountResponse {
@@ -124,6 +126,9 @@ const validatePayload = (payload: RegisterAccountRequest) => {
   const estado = payload.estado?.trim().toUpperCase() || "";
   const redirectTo = resolveRedirectTo(payload.redirectTo);
   const captchaToken = payload.captchaToken?.trim() || undefined;
+  const productContext = normalizeProductContext(
+    payload.planId ? resolveProductContextFromPlanId(payload.planId) : "happycash",
+  );
   const passwordError = getPasswordPolicyError(password);
 
   if (!email || !email.includes("@")) throw new Error("Informe um email valido.");
@@ -156,6 +161,7 @@ const validatePayload = (payload: RegisterAccountRequest) => {
     estado,
     redirectTo,
     captchaToken,
+    productContext,
   };
 };
 
@@ -510,6 +516,7 @@ Deno.serve(async (request) => {
           completed_at: null,
           store_account_id: null,
           trial_ends_at: null,
+          product_context: data.productContext,
         },
         { onConflict: "owner_user_id" },
       );

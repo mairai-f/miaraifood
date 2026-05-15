@@ -7,7 +7,16 @@ import { KitchenDisplay } from "@/components/KitchenDisplay";
 import { LoginScreen } from "@/components/LoginScreen";
 import { MetricStrip } from "@/components/MetricStrip";
 import { TableBoard } from "@/components/TableBoard";
-import { demoUsers, initialDeliveries, initialOrders, initialTables, initialWaiters, menuProducts, userPins as defaultUserPins } from "@/data/mockData";
+import {
+  demoUsers,
+  initialClosureReceipts,
+  initialDeliveries,
+  initialOrders,
+  initialTables,
+  initialWaiters,
+  menuProducts,
+  userPins as defaultUserPins,
+} from "@/data/mockData";
 import {
   buildItemFromProduct,
   nextKitchenStatus,
@@ -120,7 +129,7 @@ export default function App() {
   const [waiters, setWaiters] = useState<FoodWaiter[]>(initialWaiters);
   const [deliveries, setDeliveries] = useState<DeliveryOrder[]>(initialDeliveries);
   const [paymentRequests, setPaymentRequests] = useState<CustomerPaymentRequest[]>([]);
-  const [closureReceipts, setClosureReceipts] = useState<FoodClosureReceipt[]>([]);
+  const [closureReceipts, setClosureReceipts] = useState<FoodClosureReceipt[]>(initialClosureReceipts);
   const [selectedTableId, setSelectedTableId] = useState(initialTables[0].id);
   const [note, setNote] = useState("");
   const [transferTargetId, setTransferTargetId] = useState("");
@@ -367,6 +376,14 @@ export default function App() {
       total: orderTotal(payableOrder),
       paidBy: details.paidBy,
       waiterName: order.waiterName,
+      items: order.items
+        .filter((item) => item.status !== "cancelled")
+        .map((item) => ({
+          productId: item.productId,
+          productName: item.productName,
+          quantity: item.quantity,
+          revenue: item.quantity * item.unitPrice,
+        })),
     };
 
     setOrders((currentOrders) =>
@@ -563,6 +580,7 @@ export default function App() {
           orders={orders}
           products={products}
           waiters={waiters}
+          closureReceipts={closureReceipts}
           onAddTable={addTable}
           onDeleteTable={deleteTable}
           onAddWaiter={addWaiter}
@@ -617,8 +635,14 @@ export default function App() {
       </div>
 
       {pendingRemoval && (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-foreground/40 p-4">
-          <div className="w-full max-w-md rounded-lg border bg-card p-5 shadow-panel">
+        <div
+          className="fixed inset-0 z-50 grid place-items-center bg-foreground/40 p-4"
+          onClick={() => setPendingRemoval(null)}
+        >
+          <div
+            className="w-full max-w-md rounded-lg border bg-card p-5 shadow-panel"
+            onClick={(event) => event.stopPropagation()}
+          >
             <h4 className="text-xl font-black">Autorizacao do administrador</h4>
             <p className="mt-2 text-sm text-muted-foreground">Somente administrador pode excluir item da comanda do garcom.</p>
             <input
@@ -634,6 +658,7 @@ export default function App() {
               <button
                 type="button"
                 onClick={() => setPendingRemoval(null)}
+                data-modal-close="true"
                 className="rounded-lg border bg-background px-4 py-2 text-sm font-black"
               >
                 Cancelar

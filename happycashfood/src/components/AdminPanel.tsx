@@ -1,6 +1,6 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { ChartNoAxesCombined, KeyRound, PackageCheck, Plus, Trash2, UsersRound } from "lucide-react";
-import type { FoodOrder, FoodTable, FoodWaiter, MenuProduct, Station } from "@/types";
+import { CalendarRange, ChartNoAxesCombined, KeyRound, PackageCheck, Plus, ReceiptText, Trash2, UsersRound } from "lucide-react";
+import type { CommissionMode, FoodClosureReceipt, FoodOrder, FoodTable, FoodWaiter, MenuProduct, PaymentMethod, Station } from "@/types";
 import { currency, normalizeSearch, occupiedTables, orderTotal, productPriceLabel, sortTablesByNumber, statusTone, waiterCommission } from "@/lib/foodMetrics";
 
 interface AdminPanelProps {
@@ -8,6 +8,7 @@ interface AdminPanelProps {
   orders: FoodOrder[];
   products: MenuProduct[];
   waiters: FoodWaiter[];
+  closureReceipts: FoodClosureReceipt[];
   onAddTable: (table: { number: string; area: string; seats: number }) => void;
   onDeleteTable: (tableId: string) => void;
   onAddWaiter: (waiter: Omit<FoodWaiter, "id">) => void;
@@ -17,7 +18,8 @@ interface AdminPanelProps {
   onDeleteProduct: (productId: string) => void;
 }
 
-type AdminSection = "resumo" | "mesas" | "comissoes" | "cadastro-produto" | "editar-produto" | "excluir-produto";
+type AdminSection = "resumo" | "relatorios" | "mesas" | "comissoes" | "cadastro-produto" | "editar-produto" | "excluir-produto";
+type ReportPeriod = "weekly" | "monthly" | "yearly";
 
 const emptyProductForm = {
   code: "900",
@@ -35,12 +37,25 @@ const emptyProductForm = {
 };
 
 const parseNumber = (value: string) => Number(value.replace(",", ".")) || 0;
+const paymentMethodLabel: Record<PaymentMethod, string> = {
+  pix: "Pix",
+  card: "Cartao",
+  cash: "Dinheiro",
+  mixed: "Dividido",
+  fiado: "Fiado",
+};
+const reportPeriods: Array<{ id: ReportPeriod; label: string; hint: string }> = [
+  { id: "weekly", label: "Semanal", hint: "Ultimos 7 dias" },
+  { id: "monthly", label: "Mensal", hint: "Ultimos 30 dias" },
+  { id: "yearly", label: "Anual", hint: "Ultimos 12 meses" },
+];
 
 export function AdminPanel({
   tables,
   orders,
   products,
   waiters,
+  closureReceipts,
   onAddTable,
   onDeleteTable,
   onAddWaiter,
@@ -50,8 +65,15 @@ export function AdminPanel({
   onDeleteProduct,
 }: AdminPanelProps) {
   const [activeSection, setActiveSection] = useState<AdminSection>("resumo");
+  const [reportPeriod, setReportPeriod] = useState<ReportPeriod>("weekly");
   const [tableForm, setTableForm] = useState({ number: "", area: "Salao", seats: "4" });
-  const [waiterForm, setWaiterForm] = useState({ name: "", username: "", pin: "", commissionMode: "percent" as const, commissionValue: "5" });
+  const [waiterForm, setWaiterForm] = useState<{
+    name: string;
+    username: string;
+    pin: string;
+    commissionMode: CommissionMode;
+    commissionValue: string;
+  }>({ name: "", username: "", pin: "", commissionMode: "percent", commissionValue: "5" });
   const [productForm, setProductForm] = useState(emptyProductForm);
   const [productSearch, setProductSearch] = useState("");
   const [selectedProductId, setSelectedProductId] = useState(products[0]?.id ?? "");
@@ -145,6 +167,90 @@ export function AdminPanel({
     return productRanking.filter((product) => normalizeSearch(product.productName).includes(normalizedProductSearch));
   }, [normalizedProductSearch, productRanking]);
   const topProduct = visibleProductRanking[0] ?? (normalizedProductSearch ? undefined : productRanking[0]);
+  const sortedClosureReceipts = useMemo(
+    () => [...closureReceipts].sort((left, right) => new Date(right.paidAt).getTime() - new Date(left.paidAt).getTime()),
+    [closureReceipts],
+  );
+  const reportWindow = useMemo(() => {
+    const now = new Date();
+    const end = new Date(now);
+    end.setHours(23, 59, 59, 999);
+
+    const start = new Date(now);
+    start.setHours(0, 0, 0, 0);
+
+    if (reportPeriod === "weekly") {
+      start.setDate(start.getDate() - 6);
+    } else if (reportPeriod === "monthly") {
+      start.setDate(start.getDate() - 29);
+    } else {
+      start.setMonth(start.getMonth() - 11, 1);
+      start.setHours(0, 0, 0, 0);
+    }
+
+    return { start, end };
+  }, [reportPeriod]);
+  const receiptsInPeriod = useMemo(
+    () =>
+      sortedClosureReceipts.filter((receipt) => {
+        const paidAt = new Date(receipt.paidAt).getTime();
+        return paidAt >= reportWindow.start.getTime() && paidAt <= reportWindow.end.getTime();
+      }),
+    [reportWindow.end, reportWindow.start, sortedClosureReceipts],
+  );
+  const reportRevenue = receiptsInPeriod.reduce((sum, receipt) => sum + receipt.total, 0);
+  const reportOrderCount = receiptsInPeriod.length;
+  const reportItemCount = receiptsInPeriod.reduce(
+    (sum, receipt) => sum + receipt.items.reduce((subtotal, item) => subtotal + item.quantity, 0),
+    0,
+  );
+  const averageTicket = reportOrderCount > 0 ? reportRevenue / reportOrderCount : 0;
+  const reportTopMethods = useMemo(() => {
+    const totals = new Map<PaymentMethod, { method: PaymentMethod; total: number; count: number }>();
+
+    receiptsInPeriod.forEach((receipt) => {
+      const current = totals.get(receipt.method) ?? { method: receipt.method, total: 0, count: 0 };
+      current.total += receipt.total;
+      current.count += 1;
+      totals.set(receipt.method, current);
+    });
+
+    return Array.from(totals.values()).sort((left, right) => right.total - left.total);
+  }, [receiptsInPeriod]);
+  const reportTopProducts = useMemo(() => {
+    const ranking = new Map<string, { productId: string; productName: string; quantity: number; revenue: number }>();
+
+    receiptsInPeriod.forEach((receipt) => {
+      receipt.items.forEach((item) => {
+        const current = ranking.get(item.productId) ?? {
+          productId: item.productId,
+          productName: item.productName,
+          quantity: 0,
+          revenue: 0,
+        };
+        current.quantity += item.quantity;
+        current.revenue += item.revenue;
+        ranking.set(item.productId, current);
+      });
+    });
+
+    return Array.from(ranking.values())
+      .sort((left, right) => right.quantity - left.quantity || right.revenue - left.revenue)
+      .slice(0, 5);
+  }, [receiptsInPeriod]);
+  const reportWaiters = useMemo(() => {
+    const ranking = new Map<string, { waiterName: string; total: number; count: number }>();
+
+    receiptsInPeriod.forEach((receipt) => {
+      const current = ranking.get(receipt.waiterName) ?? { waiterName: receipt.waiterName, total: 0, count: 0 };
+      current.total += receipt.total;
+      current.count += 1;
+      ranking.set(receipt.waiterName, current);
+    });
+
+    return Array.from(ranking.values()).sort((left, right) => right.total - left.total || right.count - left.count);
+  }, [receiptsInPeriod]);
+  const highlightedWaiter = reportWaiters[0];
 
   useEffect(() => {
     if (filteredProducts.some((product) => product.id === selectedProductId)) return;
@@ -168,6 +274,7 @@ export function AdminPanel({
 
   const sections: Array<{ id: AdminSection; label: string }> = [
     { id: "resumo", label: "Resumo" },
+    { id: "relatorios", label: "Relatorios" },
     { id: "mesas", label: "Mesas" },
     { id: "comissoes", label: "Comissoes" },
     { id: "cadastro-produto", label: "Cadastrar produto" },
@@ -273,8 +380,9 @@ export function AdminPanel({
           <p className="mt-2 text-2xl font-black">{topProduct?.productName ?? "-"}</p>
         </article>
         <article className="rounded-lg border bg-card p-4 shadow-sm">
-          <p className="text-xs font-bold uppercase text-muted-foreground">Plano offline</p>
-          <p className="mt-2 text-3xl font-black">R$ 310</p>
+          <p className="text-xs font-bold uppercase text-muted-foreground">Fechamentos</p>
+          <p className="mt-2 text-3xl font-black">{sortedClosureReceipts.length}</p>
+          <p className="mt-1 text-xs text-muted-foreground">fechamentos registrados</p>
         </article>
       </div>
 
@@ -384,6 +492,188 @@ export function AdminPanel({
                   {normalizedProductSearch
                     ? "Nenhum produto desta busca apareceu no ranking ainda."
                     : "O ranking passa a aparecer automaticamente conforme os pedidos entram."}
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {activeSection === "relatorios" && (
+        <div className="space-y-5">
+          <div className="rounded-lg border bg-card p-5 shadow-sm">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+              <div>
+                <p className="text-xs font-bold uppercase text-muted-foreground">Administrador</p>
+                <h4 className="text-xl font-black">Relatorios semanal, mensal e anual</h4>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Baseado nos fechamentos ja concluidos no HappyCashFood.
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {reportPeriods.map((period) => (
+                  <button
+                    key={period.id}
+                    type="button"
+                    onClick={() => setReportPeriod(period.id)}
+                    className={`rounded-lg border px-4 py-2 text-sm font-black transition ${
+                      reportPeriod === period.id
+                        ? "border-primary bg-primary text-primary-foreground"
+                        : "bg-background text-muted-foreground hover:border-primary hover:text-foreground"
+                    }`}
+                  >
+                    {period.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="mt-3 flex items-center gap-2 text-xs text-muted-foreground">
+              <CalendarRange className="h-4 w-4 text-primary" />
+              {reportPeriods.find((period) => period.id === reportPeriod)?.hint}
+            </div>
+          </div>
+
+          <div className="grid gap-3 lg:grid-cols-4">
+            <article className="rounded-lg border bg-card p-4 shadow-sm">
+              <p className="text-xs font-bold uppercase text-muted-foreground">Faturamento</p>
+              <p className="mt-2 text-3xl font-black">{currency.format(reportRevenue)}</p>
+            </article>
+            <article className="rounded-lg border bg-card p-4 shadow-sm">
+              <p className="text-xs font-bold uppercase text-muted-foreground">Fechamentos</p>
+              <p className="mt-2 text-3xl font-black">{reportOrderCount}</p>
+            </article>
+            <article className="rounded-lg border bg-card p-4 shadow-sm">
+              <p className="text-xs font-bold uppercase text-muted-foreground">Ticket medio</p>
+              <p className="mt-2 text-3xl font-black">{currency.format(averageTicket)}</p>
+            </article>
+            <article className="rounded-lg border bg-card p-4 shadow-sm">
+              <p className="text-xs font-bold uppercase text-muted-foreground">Itens vendidos</p>
+              <p className="mt-2 text-3xl font-black">{reportItemCount}</p>
+            </article>
+          </div>
+
+          <div className="grid gap-5 xl:grid-cols-3">
+            <div className="rounded-lg border bg-card p-5 shadow-sm">
+              <div className="mb-4 flex items-center gap-2">
+                <ReceiptText className="h-5 w-5 text-primary" />
+                <h4 className="text-xl font-black">Formas de pagamento</h4>
+              </div>
+              <div className="space-y-3">
+                {reportTopMethods.length > 0 ? (
+                  reportTopMethods.map((entry) => (
+                    <article key={entry.method} className="rounded-lg border bg-background p-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <p className="font-black">{paymentMethodLabel[entry.method]}</p>
+                          <p className="text-xs text-muted-foreground">{entry.count} fechamento(s)</p>
+                        </div>
+                        <p className="font-black">{currency.format(entry.total)}</p>
+                      </div>
+                    </article>
+                  ))
+                ) : (
+                  <p className="rounded-lg border bg-background p-4 text-sm text-muted-foreground">
+                    Nenhum fechamento no periodo selecionado.
+                  </p>
+                )}
+              </div>
+            </div>
+
+            <div className="rounded-lg border bg-card p-5 shadow-sm">
+              <div className="mb-4 flex items-center gap-2">
+                <PackageCheck className="h-5 w-5 text-primary" />
+                <h4 className="text-xl font-black">Produtos mais vendidos</h4>
+              </div>
+              <div className="space-y-3">
+                {reportTopProducts.length > 0 ? (
+                  reportTopProducts.map((product, index) => (
+                    <article key={product.productId} className="rounded-lg border bg-background p-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <p className="text-xs font-black uppercase text-muted-foreground">#{index + 1}</p>
+                          <p className="font-black">{product.productName}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="font-black">{product.quantity} item(ns)</p>
+                          <p className="text-xs text-muted-foreground">{currency.format(product.revenue)}</p>
+                        </div>
+                      </div>
+                    </article>
+                  ))
+                ) : (
+                  <p className="rounded-lg border bg-background p-4 text-sm text-muted-foreground">
+                    Ainda nao existe produto vendido nesse periodo.
+                  </p>
+                )}
+              </div>
+            </div>
+
+            <div className="rounded-lg border bg-card p-5 shadow-sm">
+              <div className="mb-4 flex items-center gap-2">
+                <UsersRound className="h-5 w-5 text-primary" />
+                <h4 className="text-xl font-black">Equipe em destaque</h4>
+              </div>
+              <div className="space-y-3">
+                {highlightedWaiter ? (
+                  <article className="rounded-lg border bg-background p-3">
+                    <p className="text-xs font-bold uppercase text-muted-foreground">Garcom destaque</p>
+                    <p className="mt-1 text-xl font-black">{highlightedWaiter.waiterName}</p>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      {highlightedWaiter.count} fechamento(s) no periodo
+                    </p>
+                    <p className="mt-3 text-2xl font-black text-primary">{currency.format(highlightedWaiter.total)}</p>
+                  </article>
+                ) : (
+                  <p className="rounded-lg border bg-background p-4 text-sm text-muted-foreground">
+                    Ainda nao ha destaque de equipe nesse periodo.
+                  </p>
+                )}
+
+                {reportWaiters.slice(0, 4).map((waiter) => (
+                  <article key={waiter.waiterName} className="rounded-lg border bg-background p-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="font-black">{waiter.waiterName}</p>
+                        <p className="text-xs text-muted-foreground">{waiter.count} fechamento(s)</p>
+                      </div>
+                      <p className="font-black">{currency.format(waiter.total)}</p>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-lg border bg-card p-5 shadow-sm">
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <div>
+                <p className="text-xs font-bold uppercase text-muted-foreground">Historico do periodo</p>
+                <h4 className="text-xl font-black">Ultimos fechamentos</h4>
+              </div>
+              <ChartNoAxesCombined className="h-5 w-5 text-primary" />
+            </div>
+            <div className="space-y-3">
+              {receiptsInPeriod.length > 0 ? (
+                receiptsInPeriod.slice(0, 8).map((receipt) => (
+                  <article key={receipt.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-background p-3">
+                    <div>
+                      <p className="font-black">Mesa {receipt.tableNumber}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {new Intl.DateTimeFormat("pt-BR", {
+                          dateStyle: "short",
+                          timeStyle: "short",
+                        }).format(new Date(receipt.paidAt))} • {paymentMethodLabel[receipt.method]} • {receipt.waiterName}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-black">{currency.format(receipt.total)}</p>
+                      <p className="text-xs text-muted-foreground">{receipt.paidBy}</p>
+                    </div>
+                  </article>
+                ))
+              ) : (
+                <p className="rounded-lg border bg-background p-4 text-sm text-muted-foreground">
+                  Nenhum fechamento encontrado no periodo selecionado.
                 </p>
               )}
             </div>

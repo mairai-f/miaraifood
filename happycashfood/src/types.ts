@@ -151,4 +151,10 @@ export interface FoodClosureReceipt {
   total: number;
   paidBy: string;
   waiterName: string;
+  items: Array<{
+    productId: string;
+    productName: string;
+    quantity: number;
+    revenue: number;
+  }>;
 }

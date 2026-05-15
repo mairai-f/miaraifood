@@ -1,6 +1,6 @@
 import { type FormEvent, useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { Eye, EyeOff, Loader2, LockKeyhole, LogIn, Mail, UserRound, X } from "lucide-react";
+import { Eye, EyeOff, Loader2, LogIn, Mail, UserRound, X } from "lucide-react";
 import foodLogo from "@/assets/happycashfood.webp";
 import { requestFoodPasswordReset, signInFoodAdmin } from "@/lib/foodAuth";
 import type { FoodUser } from "@/types";
@@ -12,12 +12,6 @@ interface LoginScreenProps {
 }
 
 type LoginMode = "admin" | "operator";
-
-const shouldOpenFromPaidSite = () => {
-  if (typeof window === "undefined") return false;
-  const params = new URLSearchParams(window.location.search);
-  return params.get("site_access") === "1" || params.get("preview") === "1";
-};
 
 const normalizeUsername = (value: string) => value.trim().toLowerCase();
 
@@ -41,10 +35,17 @@ export function LoginScreen({ users, loginPins, onLogin }: LoginScreenProps) {
   );
 
   useEffect(() => {
-    if (!shouldOpenFromPaidSite()) return;
-    const adminUser = users.find((user) => user.role === "admin") ?? users[0];
-    if (adminUser) onLogin(adminUser);
-  }, [onLogin, users]);
+    if (!resetOpen) return undefined;
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      setResetOpen(false);
+    };
+
+    window.addEventListener("keydown", handleEscape);
+    return () => window.removeEventListener("keydown", handleEscape);
+  }, [resetOpen]);
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
@@ -91,17 +92,6 @@ export function LoginScreen({ users, loginPins, onLogin }: LoginScreenProps) {
       setResettingPassword(false);
     }
   };
-
-  if (shouldOpenFromPaidSite()) {
-    return (
-      <main className="grid min-h-screen place-items-center bg-[#050505] px-6">
-        <div className="flex items-center gap-3 text-sm font-semibold text-muted-foreground">
-          <LockKeyhole className="h-4 w-4 animate-pulse text-primary" />
-          Liberando HappyCashFood...
-        </div>
-      </main>
-    );
-  }
 
   return (
     <main className="relative h-[100svh] overflow-hidden bg-[#050505] px-3 py-2 text-foreground sm:px-4 sm:py-3">
@@ -285,8 +275,14 @@ export function LoginScreen({ users, loginPins, onLogin }: LoginScreenProps) {
       </section>
 
       {resetOpen && (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4">
-          <div className="w-full max-w-md rounded-lg border border-yellow-400/15 bg-zinc-950 p-5 shadow-[0_24px_60px_rgba(0,0,0,0.4)]">
+        <div
+          className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4"
+          onClick={() => setResetOpen(false)}
+        >
+          <div
+            className="w-full max-w-md rounded-lg border border-yellow-400/15 bg-zinc-950 p-5 shadow-[0_24px_60px_rgba(0,0,0,0.4)]"
+            onClick={(event) => event.stopPropagation()}
+          >
             <div className="flex items-start justify-between gap-3">
               <div>
                 <h2 className="text-lg font-black text-yellow-50">Redefinir senha</h2>
@@ -295,6 +291,7 @@ export function LoginScreen({ users, loginPins, onLogin }: LoginScreenProps) {
               <button
                 type="button"
                 onClick={() => setResetOpen(false)}
+                data-modal-close="true"
                 className="grid h-9 w-9 place-items-center rounded-lg border border-border bg-black/30 text-muted-foreground"
                 aria-label="Fechar redefinição"
               >

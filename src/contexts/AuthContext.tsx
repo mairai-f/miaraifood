@@ -13,6 +13,7 @@ import { verifyOfflineAdminAccess } from '@/lib/offlineAdminAccess';
 import { saveOfflineOperatorAccess, verifyOfflineOperatorAccess } from '@/lib/offlineOperatorAccess';
 import { isDesktopRuntime, isProbablyOfflineError } from '@/lib/offlineConcentrator';
 import { getPasswordPolicyError } from '../../shared/security/passwordPolicy';
+import { normalizeProductContext, type ProductContext } from '../../shared/productContext';
 import { retryAsync } from '../../shared/network/retry';
 
 interface UserProfile {
@@ -20,6 +21,7 @@ interface UserProfile {
   email: string | null;
   role: UserRole;
   owner_user_id: string | null;
+  product_context: ProductContext;
 }
 
 interface ProfileQueryRow {
@@ -27,6 +29,23 @@ interface ProfileQueryRow {
   email?: string | null;
   role?: string | null;
   owner_user_id?: string | null;
+}
+
+interface ProductContextRpcClient {
+  rpc(functionName: 'get_current_store_product_context'): Promise<{
+    data: string | null;
+    error: { message: string } | null;
+  }>;
+}
+
+interface ProfileCountClient {
+  from(table: 'profiles'): {
+    select(columns: string, options: { count: 'exact'; head: true }): {
+      eq(column: string, value: string): Promise<{
+        count: number | null;
+      }>;
+    };
+  };
 }
 
 interface AuthContextType {
@@ -77,6 +96,9 @@ interface LocalOfflineSession {
 
 const AuthContext = createContext<AuthContextType | null>(null);
 const profileCacheKey = (userId: string) => `happycash:system:profile:${userId}`;
+const DESKTOP_ACTIVATION_OWNER_MISMATCH = 'DESKTOP_ACTIVATION_OWNER_MISMATCH';
+const SYSTEM_PRODUCT_CONTEXT_MISMATCH = 'SYSTEM_PRODUCT_CONTEXT_MISMATCH';
+const SYSTEM_PRODUCT_CONTEXT_MISMATCH_MESSAGE = 'Esta conta pertence ao HappyCashFood. Entre pelo sistema HappyCashFood.';
 
 const readCachedProfile = (userId: string): UserProfile | null => {
   if (typeof window === 'undefined') return null;
@@ -158,6 +180,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }, 0);
   }, []);
 
+  const fetchStoreAccountProductContext = useCallback(async (_ownerUserId: string) => {
+    if (!_ownerUserId) {
+      return 'happycash' as ProductContext;
+    }
+
+    const db = supabase as unknown as ProductContextRpcClient;
+    const { data, error } = await db.rpc('get_current_store_product_context');
+
+    if (error) {
+      throw error;
+    }
+
+    return normalizeProductContext(data);
+  }, []);
+
   const fetchProfile = useCallback(async (currentUser: User): Promise<UserProfile> => {
     try {
       const { data, error } = await supabase
@@ -172,22 +209,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       const profile = (data ?? null) as ProfileQueryRow | null;
 
-      const resolvedProfile = {
+      const resolvedProfile: UserProfile = {
         username: profile?.username ?? null,
         email: profile?.email ?? currentUser.email ?? null,
         role: profile?.role === 'operator' ? 'operator' : 'admin',
         owner_user_id: profile?.owner_user_id ?? currentUser.id,
+        product_context: 'happycash',
       };
+
+      const productContext = await fetchStoreAccountProductContext(resolvedProfile.owner_user_id ?? currentUser.id);
+      if (productContext !== 'happycash') {
+        throw new Error(SYSTEM_PRODUCT_CONTEXT_MISMATCH);
+      }
+
+      resolvedProfile.product_context = productContext;
 
       const activatedOwnerUserId = getActivatedDesktopOwnerUserId();
       if (isDesktopRuntime() && activatedOwnerUserId && resolvedProfile.owner_user_id !== activatedOwnerUserId) {
-        throw new Error('DESKTOP_ACTIVATION_OWNER_MISMATCH');
+        throw new Error(DESKTOP_ACTIVATION_OWNER_MISMATCH);
       }
 
       writeCachedProfile(currentUser.id, resolvedProfile);
       return resolvedProfile;
     } catch (error) {
-      if (error instanceof Error && error.message === 'DESKTOP_ACTIVATION_OWNER_MISMATCH') {
+      if (
+        error instanceof Error
+        && (error.message === DESKTOP_ACTIVATION_OWNER_MISMATCH || error.message === SYSTEM_PRODUCT_CONTEXT_MISMATCH)
+      ) {
         throw error;
       }
 
@@ -203,9 +251,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         email: currentUser.email ?? null,
         role: 'admin',
         owner_user_id: currentUser.id,
+        product_context: 'happycash',
       };
     }
-  }, []);
+  }, [fetchStoreAccountProductContext]);
 
   const syncProfileState = useCallback(async (currentUser: User) => {
     const profile = await fetchProfile(currentUser);
@@ -284,7 +333,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         console.error('Erro ao sincronizar autenticação:', error);
         resetAuthState();
-        if (error instanceof Error && error.message === 'DESKTOP_ACTIVATION_OWNER_MISMATCH') {
+        if (
+          error instanceof Error
+          && (error.message === DESKTOP_ACTIVATION_OWNER_MISMATCH || error.message === SYSTEM_PRODUCT_CONTEXT_MISMATCH)
+        ) {
           clearLocalSession();
         }
       } finally {
@@ -328,7 +380,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         console.error('Erro ao inicializar autenticação:', error);
         resetAuthState();
-        if (error instanceof Error && error.message === 'DESKTOP_ACTIVATION_OWNER_MISMATCH') {
+        if (
+          error instanceof Error
+          && (error.message === DESKTOP_ACTIVATION_OWNER_MISMATCH || error.message === SYSTEM_PRODUCT_CONTEXT_MISMATCH)
+        ) {
           clearLocalSession();
         }
         setLoading(false);
@@ -375,20 +430,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     if (error || !data.user) return error ? error.message : 'Nao foi possivel iniciar a sessao.';
 
-    if (activation?.ownerUserId) {
-      try {
-        const profile = await fetchProfile(data.user);
+    try {
+      const profile = await fetchProfile(data.user);
+      if (activation?.ownerUserId) {
         if ((profile.owner_user_id ?? data.user.id) !== activation.ownerUserId) {
           await supabase.auth.signOut({ scope: 'local' });
           return `Este login nao pertence a empresa ativada neste desktop: ${activation.companyName}.`;
         }
-      } catch (activationError) {
-        await supabase.auth.signOut({ scope: 'local' });
-        if (activationError instanceof Error && activationError.message === 'DESKTOP_ACTIVATION_OWNER_MISMATCH') {
-          return `Este login nao pertence a empresa ativada neste desktop: ${activation.companyName}.`;
-        }
-        return 'Nao foi possivel validar a empresa desta sessao.';
       }
+    } catch (activationError) {
+      await supabase.auth.signOut({ scope: 'local' });
+      if (activationError instanceof Error && activationError.message === DESKTOP_ACTIVATION_OWNER_MISMATCH) {
+        return activation?.ownerUserId
+          ? `Este login nao pertence a empresa ativada neste desktop: ${activation.companyName}.`
+          : 'Nao foi possivel validar a empresa desta sessao.';
+      }
+      if (activationError instanceof Error && activationError.message === SYSTEM_PRODUCT_CONTEXT_MISMATCH) {
+        return SYSTEM_PRODUCT_CONTEXT_MISMATCH_MESSAGE;
+      }
+      return 'Nao foi possivel validar a empresa desta sessao.';
     }
 
     return true;
@@ -399,6 +459,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     if (!activation?.ownerUserId) {
       return 'Ative esta maquina com a chave da empresa antes do login offline.';
+    }
+
+    if (activation.appContext !== 'happycash') {
+      return SYSTEM_PRODUCT_CONTEXT_MISMATCH_MESSAGE;
     }
 
     const verification = await verifyOfflineAdminAccess({
@@ -432,6 +496,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const tryOfflineOperatorLogin = async () => {
       if (!activation?.ownerUserId) {
         return 'Ative esta maquina com a chave da empresa antes do login offline.';
+      }
+
+      if (activation.appContext !== 'happycash') {
+        return SYSTEM_PRODUCT_CONTEXT_MISMATCH_MESSAGE;
       }
 
       const verification = await verifyOfflineOperatorAccess({
@@ -500,6 +568,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return setSessionError.message;
     }
 
+    try {
+      const { data: authenticatedUserData, error: authenticatedUserError } = await supabase.auth.getUser(data.session.access_token);
+      if (authenticatedUserError || !authenticatedUserData.user) {
+        await supabase.auth.signOut({ scope: 'local' });
+        return 'Nao foi possivel validar esta sessao do operador.';
+      }
+
+      await fetchProfile(authenticatedUserData.user);
+    } catch (profileError) {
+      await supabase.auth.signOut({ scope: 'local' });
+      if (profileError instanceof Error && profileError.message === SYSTEM_PRODUCT_CONTEXT_MISMATCH) {
+        return SYSTEM_PRODUCT_CONTEXT_MISMATCH_MESSAGE;
+      }
+      if (profileError instanceof Error && profileError.message === DESKTOP_ACTIVATION_OWNER_MISMATCH) {
+        return activation?.ownerUserId
+          ? `Este login nao pertence a empresa ativada neste desktop: ${activation.companyName}.`
+          : 'Nao foi possivel validar esta sessao do operador.';
+      }
+      return 'Nao foi possivel validar esta sessao do operador.';
+    }
+
     if (
       isDesktopRuntime()
       && activation?.ownerUserId
@@ -526,7 +615,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const passwordError = getPasswordPolicyError(password);
     if (passwordError) return passwordError;
 
-    const { count } = await supabase
+    const profileDb = supabase as unknown as ProfileCountClient;
+    const { count } = await profileDb
       .from('profiles')
       .select('id', { count: 'exact', head: true })
       .eq('role', 'admin');

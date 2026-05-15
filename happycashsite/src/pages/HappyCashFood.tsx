@@ -130,14 +130,14 @@ const HappyCashFood = () => {
             <div className="max-w-4xl">
               <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-primary/40 bg-primary/10 px-4 py-2 text-sm font-bold text-primary">
                 <Utensils className="h-4 w-4" />
-                Vertical restaurante do HappyCash
+                Sistema separado para operacao food
               </div>
               <h1 className="font-heading text-5xl font-black leading-tight text-foreground sm:text-6xl lg:text-7xl">
                 HappyCashFood
               </h1>
               <p className="mt-6 max-w-2xl text-lg leading-relaxed text-muted-foreground sm:text-xl">
                 Sistema para bares, lanchonetes, pizzarias e restaurantes com mesa, comanda, cozinha, delivery,
-                caixa por mesa e operacao offline sem depender do PDV padrao do HappyCash.
+                caixa por mesa e operacao offline em um ambiente proprio do HappyCashFood.
               </p>
               <div className="mt-6 flex flex-wrap gap-3">
                 <span className="rounded-lg border border-primary/35 bg-primary/10 px-4 py-2 text-sm font-black text-primary">

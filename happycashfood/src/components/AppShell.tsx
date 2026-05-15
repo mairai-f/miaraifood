@@ -151,25 +151,7 @@ export function AppShell({
           })}
         </nav>
 
-        {isWaiterArea ? (
-          <div className="mt-8 rounded-lg border bg-muted/50 p-3">
-            <p className="text-xs font-semibold uppercase text-muted-foreground">Area liberada</p>
-            <p className="mt-1 text-sm font-bold">Mesas e comandas</p>
-            <p className="mt-2 text-xs text-muted-foreground">
-              O garcom visualiza as mesas, acompanha os pedidos e pode encerrar a conta pela comanda.
-            </p>
-          </div>
-        ) : (
-          <div className="mt-8 rounded-lg border bg-muted/50 p-3">
-            <p className="text-xs font-semibold uppercase text-muted-foreground">Ambiente ativo</p>
-            <p className="mt-1 text-sm font-bold">HappyCashFood</p>
-            <p className="mt-2 text-xs text-muted-foreground">
-              O download do plano offline fica liberado somente no HappyCashSite.
-            </p>
-          </div>
-        )}
-
-        <div className="mt-3 rounded-lg border bg-background p-3">
+        <div className="mt-8 rounded-lg border bg-background p-3">
           <p className="text-xs font-semibold uppercase text-muted-foreground">Atalhos</p>
           <p className="mt-1 text-sm font-bold">1 a {shortcutNavItems.length} para menu</p>
           <p className="mt-2 text-xs text-muted-foreground">Esc fecha modal e Tab segue pelos campos.</p>

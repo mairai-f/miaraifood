@@ -6,6 +6,10 @@ import {
   getAsaasCustomer,
 } from "../_shared/asaas.ts";
 import { buildCorsHeaders, handleCorsPreflight } from "../_shared/cors.ts";
+import {
+  normalizeProductContext,
+  type ProductContext,
+} from "../_shared/productContext.ts";
 
 interface PendingRegistrationRow {
   id: string;
@@ -27,10 +31,12 @@ interface PendingRegistrationRow {
   status: "pending" | "completed";
   store_account_id: string | null;
   trial_ends_at: string | null;
+  product_context: ProductContext;
 }
 
 interface StoreAccountRow {
   id: string;
+  product_context: ProductContext;
 }
 
 interface BillingCustomerRow {
@@ -44,6 +50,7 @@ interface StoreSubscriptionRow {
   plan_id: string;
   current_period_ends_at: string | null;
   trial_ends_at: string | null;
+  product_context: ProductContext;
 }
 
 const jsonResponse = (request: Request, body: Record<string, unknown>, status = 200) =>
@@ -217,7 +224,7 @@ Deno.serve(async (request) => {
 
   const { data: existingStoreAccountData, error: existingStoreAccountError } = await serviceClient
     .from("store_accounts")
-    .select("id")
+    .select("id, product_context")
     .eq("owner_user_id", user.id)
     .maybeSingle();
 
@@ -254,6 +261,7 @@ Deno.serve(async (request) => {
         "status",
         "store_account_id",
         "trial_ends_at",
+        "product_context",
       ].join(", "),
     )
     .eq("owner_user_id", user.id)
@@ -283,6 +291,16 @@ Deno.serve(async (request) => {
 
   try {
     let storeAccountId = existingStoreAccount?.id ?? registration.store_account_id ?? null;
+    const accountProductContext = normalizeProductContext(
+      existingStoreAccount?.product_context ?? registration.product_context,
+    );
+
+    if (
+      existingStoreAccount
+      && normalizeProductContext(existingStoreAccount.product_context) !== normalizeProductContext(registration.product_context)
+    ) {
+      throw new Error("Esta conta ja esta designada para outro produto. Use um cadastro separado para HappyCash e HappyCashFood.");
+    }
 
     if (!storeAccountId) {
       const { data: createdStoreAccountData, error: createdStoreAccountError } = await serviceClient
@@ -303,8 +321,9 @@ Deno.serve(async (request) => {
           bairro: registration.bairro,
           cidade: registration.cidade,
           estado: registration.estado,
+          product_context: accountProductContext,
         })
-        .select("id")
+        .select("id, product_context")
         .single();
 
       if (createdStoreAccountError || !createdStoreAccountData) {
@@ -321,8 +340,9 @@ Deno.serve(async (request) => {
 
     const { data: existingSubscriptionsData, error: existingSubscriptionsError } = await serviceClient
       .from("store_subscriptions")
-      .select("id, status, plan_id, current_period_ends_at, trial_ends_at")
+      .select("id, status, plan_id, current_period_ends_at, trial_ends_at, product_context")
       .eq("owner_user_id", user.id)
+      .eq("product_context", accountProductContext)
       .order("created_at", { ascending: false });
 
     if (existingSubscriptionsError) {
@@ -350,6 +370,7 @@ Deno.serve(async (request) => {
           status: "trialing",
           billing_type: "PIX",
           price: 0,
+          product_context: accountProductContext,
           trial_started_at: trialStartedAt.toISOString(),
           trial_ends_at: resolvedTrialEndsAt,
           current_period_starts_at: trialStartedAt.toISOString(),
@@ -385,6 +406,7 @@ Deno.serve(async (request) => {
       alreadyReady: Boolean(existingStoreAccount),
       storeAccountId,
       trialEndsAt,
+      productContext: accountProductContext,
     });
   } catch (error) {
     await updatePendingRegistration(serviceClient, registration.id, {

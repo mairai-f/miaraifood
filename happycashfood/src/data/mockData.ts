@@ -1,6 +1,12 @@
-import type { DeliveryOrder, FoodOrder, FoodTable, FoodUser, FoodWaiter, MenuProduct } from "@/types";
+import type { DeliveryOrder, FoodClosureReceipt, FoodOrder, FoodTable, FoodUser, FoodWaiter, MenuProduct } from "@/types";
 
 const ago = (minutes: number) => new Date(Date.now() - minutes * 60000).toISOString();
+const daysAgo = (days: number, hour = 19, minute = 0) => {
+  const date = new Date();
+  date.setDate(date.getDate() - days);
+  date.setHours(hour, minute, 0, 0);
+  return date.toISOString();
+};
 
 export const initialTables: FoodTable[] = [
   { id: "table-01", number: "01", area: "Salao", seats: 4, status: "occupied", customerName: "Mesa Silva", waiterName: "Ana", openedAt: ago(38) },
@@ -334,6 +340,107 @@ export const initialDeliveries: DeliveryOrder[] = [
     paymentMethod: "card",
     items: [
       { id: "del-item-03", productId: "prod-01", productName: "Burger artesanal", quantity: 2, unitPrice: 34.9, station: "kitchen", notes: "Ponto bem passado", ingredients: ["blend 160g", "queijo prato", "alface", "tomate", "molho da casa"], selectedOptions: ["Bem passado"], status: "received", createdAt: ago(5) },
+    ],
+  },
+];
+
+export const initialClosureReceipts: FoodClosureReceipt[] = [
+  {
+    id: "closure-01",
+    orderId: "history-01",
+    tableId: "history-table-02",
+    tableNumber: "02",
+    paidAt: daysAgo(2, 21, 18),
+    method: "pix",
+    subtotal: 116.5,
+    serviceFee: 11.65,
+    discount: 0,
+    total: 128.15,
+    paidBy: "Carlos",
+    waiterName: "Ana",
+    items: [
+      { productId: "prod-01", productName: "Burger artesanal", quantity: 2, revenue: 69.8 },
+      { productId: "prod-04", productName: "Batata com cheddar", quantity: 1, revenue: 28.5 },
+      { productId: "prod-05", productName: "Coca-Cola lata", quantity: 2, revenue: 15.8 },
+      { productId: "prod-10", productName: "Brownie da casa", quantity: 1, revenue: 18.9 },
+    ],
+  },
+  {
+    id: "closure-02",
+    orderId: "history-02",
+    tableId: "history-table-07",
+    tableNumber: "07",
+    paidAt: daysAgo(9, 22, 6),
+    method: "card",
+    subtotal: 146.7,
+    serviceFee: 14.67,
+    discount: 5,
+    total: 156.37,
+    paidBy: "Mesa Souza",
+    waiterName: "Bruno",
+    items: [
+      { productId: "prod-02", productName: "Pizza calabresa", quantity: 2, revenue: 99.8 },
+      { productId: "prod-06", productName: "Coca-Cola 2L", quantity: 1, revenue: 14.9 },
+      { productId: "prod-10", productName: "Brownie da casa", quantity: 2, revenue: 37.8 },
+    ],
+  },
+  {
+    id: "closure-03",
+    orderId: "history-03",
+    tableId: "history-table-05",
+    tableNumber: "05",
+    paidAt: daysAgo(24, 20, 11),
+    method: "cash",
+    subtotal: 89.2,
+    serviceFee: 8.92,
+    discount: 3,
+    total: 95.12,
+    paidBy: "Juliana",
+    waiterName: "Ana",
+    items: [
+      { productId: "prod-07", productName: "Suco natural", quantity: 2, revenue: 25.8 },
+      { productId: "prod-01", productName: "Burger artesanal", quantity: 1, revenue: 34.9 },
+      { productId: "prod-04", productName: "Batata com cheddar", quantity: 1, revenue: 28.5 },
+    ],
+  },
+  {
+    id: "closure-04",
+    orderId: "history-04",
+    tableId: "history-table-09",
+    tableNumber: "09",
+    paidAt: daysAgo(112, 21, 44),
+    method: "pix",
+    subtotal: 241.3,
+    serviceFee: 24.13,
+    discount: 0,
+    total: 265.43,
+    paidBy: "Mesa deck",
+    waiterName: "Bruno",
+    items: [
+      { productId: "prod-03", productName: "Pizza quatro queijos", quantity: 2, revenue: 109.8 },
+      { productId: "prod-08", productName: "Caipirinha", quantity: 3, revenue: 65.7 },
+      { productId: "prod-10", productName: "Brownie da casa", quantity: 2, revenue: 37.8 },
+      { productId: "prod-05", productName: "Coca-Cola lata", quantity: 2, revenue: 15.8 },
+    ],
+  },
+  {
+    id: "closure-05",
+    orderId: "history-05",
+    tableId: "history-table-10",
+    tableNumber: "10",
+    paidAt: daysAgo(301, 19, 37),
+    method: "fiado",
+    subtotal: 132.7,
+    serviceFee: 13.27,
+    discount: 8,
+    total: 137.97,
+    paidBy: "Conta empresa",
+    waiterName: "Ana",
+    items: [
+      { productId: "prod-02", productName: "Pizza calabresa", quantity: 1, revenue: 49.9 },
+      { productId: "prod-09", productName: "Mojito", quantity: 2, revenue: 49.8 },
+      { productId: "prod-07", productName: "Suco natural", quantity: 1, revenue: 12.9 },
+      { productId: "prod-10", productName: "Brownie da casa", quantity: 1, revenue: 18.9 },
     ],
   },
 ];

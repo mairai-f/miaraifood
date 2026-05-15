@@ -67,8 +67,8 @@ export function TableBoard({
     ? filteredProducts.filter((product) => product.category === selectedCategory)
     : filteredProducts;
   const selectedOrderItems = selectedOrder?.items ?? [];
-  const tableItemsPerPage = 4;
-  const productItemsPerPage = 4;
+  const tableItemsPerPage = 3;
+  const productItemsPerPage = 3;
   const tableTotalPages = Math.max(1, Math.ceil(selectedOrderItems.length / tableItemsPerPage));
   const visibleOrderItems = selectedOrderItems.slice(
     tableItemsPage * tableItemsPerPage,
@@ -79,6 +79,8 @@ export function TableBoard({
     productPage * productItemsPerPage,
     productPage * productItemsPerPage + productItemsPerPage,
   );
+  const tablePageNumbers = Array.from({ length: tableTotalPages }, (_, index) => index);
+  const productPageNumbers = Array.from({ length: productTotalPages }, (_, index) => index);
   const canTransfer = role === "admin" || role === "cashier";
 
   useEffect(() => {
@@ -188,8 +190,14 @@ export function TableBoard({
       </section>
 
       {tableModalOpen && (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-foreground/50 p-2 sm:p-4">
-          <div className="w-full max-w-5xl rounded-2xl border bg-card shadow-panel">
+        <div
+          className="fixed inset-0 z-50 grid place-items-center bg-foreground/50 p-2 sm:p-4"
+          onClick={closeTableModal}
+        >
+          <div
+            className="w-full max-w-5xl rounded-2xl border bg-card shadow-panel"
+            onClick={(event) => event.stopPropagation()}
+          >
             <div className="flex items-start justify-between gap-3 border-b p-4 sm:p-5">
               <div>
                 <p className="text-xs font-semibold uppercase text-muted-foreground">Comanda ativa</p>
@@ -351,7 +359,24 @@ export function TableBoard({
                 </div>
 
                 {selectedOrderItems.length > tableItemsPerPage && (
-                  <div className="flex items-center justify-between rounded-lg border bg-background px-3 py-2 text-sm">
+                  <div className="space-y-2 rounded-lg border bg-background px-3 py-2 text-sm">
+                    <div className="flex flex-wrap gap-2">
+                      {tablePageNumbers.map((page) => (
+                        <button
+                          key={`table-page-${page}`}
+                          type="button"
+                          onClick={() => setTableItemsPage(page)}
+                          className={`rounded-lg border px-3 py-1.5 font-black transition ${
+                            tableItemsPage === page
+                              ? "border-primary bg-primary text-primary-foreground"
+                              : "bg-card text-muted-foreground hover:border-primary hover:text-foreground"
+                          }`}
+                        >
+                          {page + 1}
+                        </button>
+                      ))}
+                    </div>
+                    <div className="flex items-center justify-between">
                     <button
                       type="button"
                       onClick={() => setTableItemsPage((current) => Math.max(0, current - 1))}
@@ -369,6 +394,7 @@ export function TableBoard({
                     >
                       Proxima
                     </button>
+                    </div>
                   </div>
                 )}
               </div>
@@ -378,8 +404,14 @@ export function TableBoard({
       )}
 
       {productModalOpen && (
-        <div className="fixed inset-0 z-[60] grid place-items-center bg-foreground/60 p-2 sm:p-4">
-          <div className="w-full max-w-5xl rounded-2xl border bg-card shadow-panel">
+        <div
+          className="fixed inset-0 z-[60] grid place-items-center bg-foreground/60 p-2 sm:p-4"
+          onClick={closeProductModal}
+        >
+          <div
+            className="w-full max-w-5xl rounded-2xl border bg-card shadow-panel"
+            onClick={(event) => event.stopPropagation()}
+          >
             <div className="flex items-start justify-between gap-3 border-b p-4 sm:p-5">
               <div>
                 <p className="text-xs font-semibold uppercase text-muted-foreground">Cardapio da comanda</p>
@@ -445,6 +477,11 @@ export function TableBoard({
                 ))}
               </div>
 
+              <div className="rounded-lg border bg-background px-3 py-2 text-sm">
+                <span className="font-black">{selectedCategory || "Busca geral"}:</span>{" "}
+                {categoryProducts.length} produto(s) separados por pagina.
+              </div>
+
               <div className="grid gap-3 lg:grid-cols-2">
                 {visibleCategoryProducts.length > 0 ? (
                   visibleCategoryProducts.map((product) => (
@@ -475,7 +512,24 @@ export function TableBoard({
               </div>
 
               {categoryProducts.length > productItemsPerPage && (
-                <div className="flex items-center justify-between rounded-lg border bg-background px-3 py-2 text-sm">
+                <div className="space-y-2 rounded-lg border bg-background px-3 py-2 text-sm">
+                  <div className="flex flex-wrap gap-2">
+                    {productPageNumbers.map((page) => (
+                      <button
+                        key={`product-page-${page}`}
+                        type="button"
+                        onClick={() => setProductPage(page)}
+                        className={`rounded-lg border px-3 py-1.5 font-black transition ${
+                          productPage === page
+                            ? "border-primary bg-primary text-primary-foreground"
+                            : "bg-card text-muted-foreground hover:border-primary hover:text-foreground"
+                        }`}
+                      >
+                        {page + 1}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="flex items-center justify-between">
                   <button
                     type="button"
                     onClick={() => setProductPage((current) => Math.max(0, current - 1))}
@@ -493,6 +547,7 @@ export function TableBoard({
                   >
                     Proxima
                   </button>
+                  </div>
                 </div>
               )}
 

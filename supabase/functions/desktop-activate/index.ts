@@ -2,12 +2,14 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 
 import { validateDesktopLicense } from "../_shared/desktopAccess.ts";
 import { buildCorsHeaders, handleCorsPreflight } from "../_shared/cors.ts";
+import { normalizeProductContext, type ProductContext } from "../_shared/productContext.ts";
 
 type DesktopActivateRequest = {
   licenseKey?: string;
   installationId?: string;
   platform?: string | null;
   appVersion?: string | null;
+  appContext?: string | null;
 };
 
 type StoreAccountRow = {
@@ -16,6 +18,7 @@ type StoreAccountRow = {
   nome_estabelecimento: string | null;
   nome_cliente: string | null;
   cnpj: string | null;
+  product_context: ProductContext;
 };
 
 const jsonResponse = (request: Request, body: Record<string, unknown>, status = 200) =>
@@ -45,6 +48,9 @@ const normalizeOptionalText = (value: string | null | undefined, maxLength: numb
   return normalized.slice(0, maxLength);
 };
 
+const normalizeAppContext = (value: string | null | undefined) =>
+  value?.trim().toLowerCase() === "happycashfood" ? "happycashfood" : "happycash";
+
 Deno.serve(async (request) => {
   if (request.method === "OPTIONS") {
     return handleCorsPreflight(request, {
@@ -68,6 +74,7 @@ Deno.serve(async (request) => {
   const installationId = normalizeOptionalText(body?.installationId, 120);
   const platform = normalizeOptionalText(body?.platform, 40);
   const appVersion = normalizeOptionalText(body?.appVersion, 40);
+  const appContext = normalizeAppContext(body?.appContext);
 
   if (!licenseKey) {
     return jsonResponse(request, { error: "Digite a chave da licenca desta empresa." }, 400);
@@ -86,7 +93,7 @@ Deno.serve(async (request) => {
 
   const { data: storeAccount, error: storeAccountError } = await serviceClient
     .from("store_accounts")
-    .select("id, owner_user_id, nome_estabelecimento, nome_cliente, cnpj")
+    .select("id, owner_user_id, nome_estabelecimento, nome_cliente, cnpj, product_context")
     .eq("desktop_license_key", licenseKey)
     .maybeSingle();
 
@@ -99,7 +106,21 @@ Deno.serve(async (request) => {
   }
 
   const account = storeAccount as StoreAccountRow;
-  const license = await validateDesktopLicense(serviceClient, account.owner_user_id);
+  const accountProductContext = normalizeProductContext(account.product_context);
+
+  if (accountProductContext !== appContext) {
+    return jsonResponse(
+      request,
+      {
+        error: accountProductContext === "happycashfood"
+          ? "Esta chave pertence ao HappyCashFood. Use o aplicativo HappyCashFood para ativar esta empresa."
+          : "Esta chave pertence ao HappyCash. Use o aplicativo HappyCash para ativar esta empresa.",
+      },
+      403,
+    );
+  }
+
+  const license = await validateDesktopLicense(serviceClient, account.owner_user_id, accountProductContext);
 
   if (!license.ok) {
     return jsonResponse(
@@ -123,14 +144,16 @@ Deno.serve(async (request) => {
     .upsert({
       store_account_id: account.id,
       owner_user_id: account.owner_user_id,
+      app_context: appContext,
       installation_id: installationId,
       platform,
       app_version: appVersion,
       company_name: companyName,
       activated_at: now,
       last_seen_at: now,
+      updated_at: now,
     }, {
-      onConflict: "owner_user_id,installation_id",
+      onConflict: "store_account_id,app_context,installation_id",
     });
 
   if (activationError) {
@@ -140,10 +163,12 @@ Deno.serve(async (request) => {
   return jsonResponse(request, {
     success: true,
     ownerUserId: account.owner_user_id,
+    storeAccountId: account.id,
     companyName,
     cnpj: account.cnpj ?? null,
     planId: license.planId,
     validUntil: license.validUntil,
     offlineEnabled: license.offlineEnabled,
+    appContext,
   });
 });

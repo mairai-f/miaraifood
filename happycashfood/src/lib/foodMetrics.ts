@@ -63,9 +63,9 @@ export const statusLabel: Record<KitchenStatus, string> = {
 };
 
 export const statusTone = {
-  free: "border-emerald-200 bg-emerald-50 text-emerald-800",
-  occupied: "border-blue-200 bg-blue-50 text-blue-800",
-  closing: "border-amber-200 bg-amber-50 text-amber-900",
+  free: "border-emerald-500/35 bg-emerald-500/12 text-emerald-100",
+  occupied: "border-sky-500/35 bg-sky-500/12 text-sky-100",
+  closing: "border-amber-400/35 bg-amber-400/12 text-amber-50",
 };
 
 export const nextKitchenStatus = (status: KitchenStatus): KitchenStatus => {

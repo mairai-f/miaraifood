@@ -48,6 +48,7 @@ export function CheckoutPanel({
   const [cashReceivedInput, setCashReceivedInput] = useState("");
   const [paidBy, setPaidBy] = useState("");
   const [confirming, setConfirming] = useState(false);
+  const [confirmExitOpen, setConfirmExitOpen] = useState(false);
   const [checkoutModalOpen, setCheckoutModalOpen] = useState(false);
   const [itemsPage, setItemsPage] = useState(0);
   const payableOrders = useMemo(
@@ -69,9 +70,10 @@ export function CheckoutPanel({
   const change = paymentMethod === "cash" ? Math.max(0, cashReceived - total) : 0;
   const canClose = Boolean(selectedOrder && paymentMethod && (paymentMethod !== "cash" || cashReceived >= total));
   const selectedOrderItems = selectedOrder?.items ?? [];
-  const itemsPerPage = 4;
+  const itemsPerPage = 3;
   const totalItemPages = Math.max(1, Math.ceil(selectedOrderItems.length / itemsPerPage));
   const visibleItems = selectedOrderItems.slice(itemsPage * itemsPerPage, itemsPage * itemsPerPage + itemsPerPage);
+  const itemPageNumbers = Array.from({ length: totalItemPages }, (_, index) => index);
 
   useEffect(() => {
     setItemsPage(0);
@@ -80,6 +82,7 @@ export function CheckoutPanel({
   const closeModal = () => {
     setCheckoutModalOpen(false);
     setConfirming(false);
+    setConfirmExitOpen(false);
     setItemsPage(0);
   };
 
@@ -87,7 +90,13 @@ export function CheckoutPanel({
     onSelectOrder(orderId);
     setCheckoutModalOpen(true);
     setConfirming(false);
+    setConfirmExitOpen(false);
     setItemsPage(0);
+  };
+
+  const requestModalClose = () => {
+    if (!checkoutModalOpen) return;
+    setConfirmExitOpen(true);
   };
 
   const handleClose = () => {
@@ -98,6 +107,7 @@ export function CheckoutPanel({
       paidBy: paidBy.trim() || selectedOrder.customerName,
     });
     setConfirming(false);
+    setConfirmExitOpen(false);
     setCheckoutModalOpen(false);
     setDiscountInput("");
     setPaymentMethod("pix");
@@ -149,8 +159,14 @@ export function CheckoutPanel({
       </div>
 
       {checkoutModalOpen && selectedOrder && (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-foreground/50 p-2 sm:p-4">
-          <div className="w-full max-w-6xl rounded-2xl border bg-card shadow-panel">
+        <div
+          className="fixed inset-0 z-50 grid place-items-center bg-foreground/50 p-2 sm:p-4"
+          onClick={requestModalClose}
+        >
+          <div
+            className="w-full max-w-6xl rounded-2xl border bg-card shadow-panel"
+            onClick={(event) => event.stopPropagation()}
+          >
             <div className="flex flex-col gap-3 border-b p-4 sm:flex-row sm:items-start sm:justify-between sm:p-5">
               <div>
                 <h3 className="text-2xl font-black sm:text-3xl">Mesa {selectedTable?.number ?? "?"}</h3>
@@ -162,7 +178,7 @@ export function CheckoutPanel({
                 </span>
                 <button
                   type="button"
-                  onClick={closeModal}
+                  onClick={requestModalClose}
                   data-modal-close="true"
                   className="grid h-9 w-9 place-items-center rounded-lg border bg-background text-muted-foreground sm:h-10 sm:w-10"
                   aria-label="Fechar fechamento"
@@ -220,7 +236,24 @@ export function CheckoutPanel({
                 </div>
 
                 {selectedOrderItems.length > itemsPerPage && (
-                  <div className="flex items-center justify-between rounded-lg border bg-background px-3 py-2 text-sm">
+                  <div className="space-y-2 rounded-lg border bg-background px-3 py-2 text-sm">
+                    <div className="flex flex-wrap gap-2">
+                      {itemPageNumbers.map((page) => (
+                        <button
+                          key={`checkout-page-${page}`}
+                          type="button"
+                          onClick={() => setItemsPage(page)}
+                          className={`rounded-lg border px-3 py-1.5 font-black transition ${
+                            itemsPage === page
+                              ? "border-primary bg-primary text-primary-foreground"
+                              : "bg-card text-muted-foreground hover:border-primary hover:text-foreground"
+                          }`}
+                        >
+                          {page + 1}
+                        </button>
+                      ))}
+                    </div>
+                    <div className="flex items-center justify-between">
                     <button
                       type="button"
                       onClick={() => setItemsPage((current) => Math.max(0, current - 1))}
@@ -238,6 +271,7 @@ export function CheckoutPanel({
                     >
                       Proxima
                     </button>
+                    </div>
                   </div>
                 )}
 
@@ -379,8 +413,14 @@ export function CheckoutPanel({
       )}
 
       {confirming && selectedOrder && (
-        <div className="fixed inset-0 z-[60] grid place-items-center bg-foreground/60 p-3 sm:p-4">
-          <div className="w-full max-w-md rounded-xl border bg-card p-4 shadow-panel sm:rounded-2xl sm:p-5">
+        <div
+          className="fixed inset-0 z-[60] grid place-items-center bg-foreground/60 p-3 sm:p-4"
+          onClick={() => setConfirming(false)}
+        >
+          <div
+            className="w-full max-w-md rounded-xl border bg-card p-4 shadow-panel sm:rounded-2xl sm:p-5"
+            onClick={(event) => event.stopPropagation()}
+          >
             <h4 className="text-xl font-black">Finalizar mesa {selectedTable?.number ?? "?"}?</h4>
             <p className="mt-2 text-sm text-muted-foreground">
               Confirma o pagamento de {currency.format(total)} em {paymentMethods.find((method) => method.id === paymentMethod)?.label}?
@@ -400,6 +440,40 @@ export function CheckoutPanel({
                 className="rounded-lg bg-primary px-4 py-2 text-sm font-black text-primary-foreground"
               >
                 Confirmar pagamento
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {confirmExitOpen && selectedOrder && (
+        <div
+          className="fixed inset-0 z-[70] grid place-items-center bg-foreground/70 p-3 sm:p-4"
+          onClick={() => setConfirmExitOpen(false)}
+        >
+          <div
+            className="w-full max-w-md rounded-xl border bg-card p-4 shadow-panel sm:rounded-2xl sm:p-5"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <h4 className="text-xl font-black">Sair do fechamento?</h4>
+            <p className="mt-2 text-sm text-muted-foreground">
+              A tela de pagamento e sensivel. Deseja sair da mesa {selectedTable?.number ?? "?"} sem concluir a cobranca agora?
+            </p>
+            <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                onClick={() => setConfirmExitOpen(false)}
+                data-modal-close="true"
+                className="rounded-lg border bg-background px-4 py-2 text-sm font-black"
+              >
+                Continuar fechamento
+              </button>
+              <button
+                type="button"
+                onClick={closeModal}
+                className="rounded-lg bg-primary px-4 py-2 text-sm font-black text-primary-foreground"
+              >
+                Sair do modal
               </button>
             </div>
           </div>

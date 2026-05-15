@@ -11,6 +11,7 @@ interface Window {
         platform: string;
         databasePath: string;
         updateChannel: string;
+        productContext: "happycash" | "happycashfood";
       }>;
       getUpdateStatus: () => Promise<unknown>;
       checkForUpdates: () => Promise<unknown>;

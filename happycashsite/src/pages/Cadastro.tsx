@@ -159,6 +159,7 @@ const Cadastro = () => {
         body: {
           email,
           password,
+          planId: selectedPlanId,
           nomeCliente,
           telefone,
           cnpj,
@@ -217,7 +218,7 @@ const Cadastro = () => {
 
           <div className="rounded-2xl border border-border bg-card/80 backdrop-blur-sm p-8 space-y-4">
             <p className="text-sm text-muted-foreground">
-              Depois de confirmar, sua conta da loja sera finalizada automaticamente e a demo sera liberada no primeiro acesso.
+              Depois de confirmar, sua conta sera finalizada no produto escolhido e a demo sera liberada no primeiro acesso.
             </p>
             {selectedPlan && selectedPlanId !== "demo" && (
               <p className="text-sm text-muted-foreground">

@@ -12,6 +12,11 @@ import {
   type CreateAsaasCustomerInput,
 } from "../_shared/asaas.ts";
 import { buildCorsHeaders, handleCorsPreflight } from "../_shared/cors.ts";
+import {
+  isPaidPlanAllowedForProductContext,
+  normalizeProductContext,
+  type ProductContext,
+} from "../_shared/productContext.ts";
 
 type SupportedPaidPlan = "fiado" | "completo" | "pro" | "food" | "food_offline";
 type CheckoutPaymentMethod = "pix" | "card";
@@ -45,6 +50,7 @@ interface StoreAccountRow {
   complemento: string | null;
   bairro: string | null;
   cep: string;
+  product_context: ProductContext;
 }
 
 interface BillingCustomerRow {
@@ -58,6 +64,7 @@ interface StoreSubscriptionRow {
   store_account_id: string;
   owner_user_id: string;
   plan_id: SupportedPaidPlan;
+  product_context: ProductContext;
   status: string;
   billing_type: SupportedBillingType | null;
   provider_payment_id: string | null;
@@ -466,7 +473,7 @@ Deno.serve(async (request) => {
 
   const { data: storeAccountData, error: storeAccountError } = await serviceClient
     .from("store_accounts")
-    .select("id, nome_cliente, email, telefone, cnpj, nome_estabelecimento, nome_rua, numero, complemento, bairro, cep")
+    .select("id, nome_cliente, email, telefone, cnpj, nome_estabelecimento, nome_rua, numero, complemento, bairro, cep, product_context")
     .eq("owner_user_id", user.id)
     .single();
 
@@ -476,6 +483,8 @@ Deno.serve(async (request) => {
 
   const plan = planData as SubscriptionPlanRow;
   const storeAccount = storeAccountData as StoreAccountRow;
+  const accountProductContext = normalizeProductContext(storeAccount.product_context);
+  const productDisplayName = accountProductContext === "happycashfood" ? "HappyCashFood" : "HappyCash";
   const billingType = resolveBillingType(paymentMethod);
   const chargeValue = billingPeriod === "annual"
     ? Number(plan.annual_price || 0)
@@ -486,13 +495,26 @@ Deno.serve(async (request) => {
     return jsonResponse(request, { error: "Preço do plano inválido para o periodo escolhido." }, 400);
   }
 
+  if (!isPaidPlanAllowedForProductContext(accountProductContext, planId)) {
+    return jsonResponse(
+      request,
+      {
+        error: accountProductContext === "happycashfood"
+          ? "Esta conta foi criada para o HappyCashFood e aceita apenas os planos HappyCashFood."
+          : "Esta conta foi criada para o HappyCash e aceita apenas os planos HappyCash.",
+      },
+      403,
+    );
+  }
+
   try {
     const asaasCustomerId = await ensureBillingCustomer(serviceClient, user.id, storeAccount);
 
     const { data: pendingSubscriptionsData, error: pendingSubscriptionsError } = await serviceClient
       .from("store_subscriptions")
-      .select("id, store_account_id, owner_user_id, plan_id, status, billing_type, provider_payment_id, metadata, created_at")
+      .select("id, store_account_id, owner_user_id, plan_id, product_context, status, billing_type, provider_payment_id, metadata, created_at")
       .eq("owner_user_id", user.id)
+      .eq("product_context", accountProductContext)
       .eq("status", "pending")
       .order("created_at", { ascending: false });
 
@@ -604,6 +626,7 @@ Deno.serve(async (request) => {
         store_account_id: storeAccount.id,
         owner_user_id: user.id,
         plan_id: planId,
+        product_context: accountProductContext,
         provider: "asaas",
         status: "pending",
         billing_type: billingType,
@@ -612,7 +635,7 @@ Deno.serve(async (request) => {
         external_reference: user.id,
         metadata: pendingMetadata,
       })
-      .select("id, store_account_id, owner_user_id, plan_id, status, billing_type, provider_payment_id, metadata, created_at")
+      .select("id, store_account_id, owner_user_id, plan_id, product_context, status, billing_type, provider_payment_id, metadata, created_at")
       .single();
 
     if (createSubscriptionError || !createdSubscriptionData) {
@@ -627,7 +650,7 @@ Deno.serve(async (request) => {
         billingType,
         value: chargeValue,
         dueDate: todayAsaasDate(),
-        description: `HappyCash - ${plan.name} - ${billingPeriod === "annual" ? "12 meses" : "30 dias"}`,
+        description: `${productDisplayName} - ${plan.name} - ${billingPeriod === "annual" ? "12 meses" : "30 dias"}`,
         externalReference: createdSubscription.id,
       });
 

@@ -4,25 +4,25 @@
 
 @layer base {
   :root {
-    --background: 230 25% 7%;
-    --foreground: 45 10% 92%;
-    --card: 230 20% 11%;
-    --card-foreground: 45 10% 92%;
-    --muted: 230 15% 18%;
-    --muted-foreground: 230 10% 55%;
-    --primary: 45 100% 55%;
-    --primary-foreground: 230 25% 7%;
-    --secondary: 195 85% 50%;
-    --secondary-foreground: 230 25% 7%;
-    --destructive: 0 84% 60%;
-    --destructive-foreground: 45 10% 92%;
-    --success: 142 64% 35%;
+    --background: 222 23% 9%;
+    --foreground: 42 25% 96%;
+    --card: 224 19% 13%;
+    --card-foreground: 42 25% 96%;
+    --muted: 225 15% 18%;
+    --muted-foreground: 220 12% 72%;
+    --primary: 45 100% 58%;
+    --primary-foreground: 228 30% 8%;
+    --secondary: 191 90% 58%;
+    --secondary-foreground: 228 30% 8%;
+    --destructive: 0 85% 64%;
+    --destructive-foreground: 42 25% 96%;
+    --success: 150 73% 46%;
     --success-foreground: 0 0% 100%;
-    --warning: 38 93% 48%;
+    --warning: 42 100% 57%;
     --warning-foreground: 224 32% 14%;
-    --border: 230 15% 20%;
-    --input: 230 15% 20%;
-    --ring: 45 100% 55%;
+    --border: 223 13% 28%;
+    --input: 223 13% 28%;
+    --ring: 45 100% 58%;
   }
 
   * {
@@ -32,6 +32,8 @@
   body {
     @apply bg-background text-foreground font-body;
     font-feature-settings: "rlig" 1, "calt" 1;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
 
   h1,

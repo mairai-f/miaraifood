@@ -1,11 +1,28 @@
 import { createClient } from "@supabase/supabase-js";
 import type { FoodUser } from "@/types";
+import {
+  isCurrentSubscriptionPlanAllowedForProductContext,
+  normalizeProductContext,
+  type ProductContext,
+} from "../../../shared/productContext";
 
 type FoodProfileRow = {
   username: string | null;
   email: string | null;
   role: string | null;
   owner_user_id: string | null;
+};
+
+type FoodStoreAccountRow = {
+  product_context: ProductContext | null;
+};
+
+type FoodSubscriptionRow = {
+  plan_id: string;
+  status: string;
+  current_period_ends_at: string | null;
+  trial_ends_at: string | null;
+  created_at: string;
 };
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string | undefined;
@@ -22,6 +39,23 @@ const foodSupabase = supabaseUrl && supabasePublishableKey
   : null;
 
 const normalizeEmail = (value: string) => value.trim().toLowerCase();
+const activeSubscriptionStatuses = new Set(["trialing", "active", "past_due"]);
+
+const getSubscriptionEndAt = (subscription: FoodSubscriptionRow | null | undefined) => {
+  if (!subscription) return null;
+  if (subscription.status === "trialing") {
+    return subscription.trial_ends_at ?? subscription.current_period_ends_at ?? null;
+  }
+  return subscription.current_period_ends_at ?? subscription.trial_ends_at ?? null;
+};
+
+const isCurrentSubscription = (subscription: FoodSubscriptionRow | null | undefined) => {
+  if (!subscription || !activeSubscriptionStatuses.has(subscription.status)) return false;
+  const endAt = getSubscriptionEndAt(subscription);
+  if (!endAt) return true;
+  return new Date(endAt).getTime() > Date.now();
+};
+
 const resolveResetRedirectUrl = () => {
   const siteUrl = (import.meta.env.VITE_HAPPYCASH_SITE_URL as string | undefined)?.trim() || "https://www.happycashsite.com.br";
   return `${siteUrl.replace(/\/+$/, "")}/reset-password`;
@@ -57,7 +91,46 @@ export const signInFoodAdmin = async (
   }
 
   if (profile?.role !== "admin") {
+    await foodSupabase.auth.signOut();
     throw new Error("Este login nao possui perfil administrador do HappyCashFood.");
+  }
+
+  const ownerUserId = profile.owner_user_id ?? authData.user.id;
+  const [
+    { data: storeAccount, error: storeAccountError },
+    { data: subscriptions, error: subscriptionsError },
+  ] = await Promise.all([
+    foodSupabase
+      .from("store_accounts")
+      .select("product_context")
+      .eq("owner_user_id", ownerUserId)
+      .maybeSingle<FoodStoreAccountRow>(),
+    foodSupabase
+      .from("store_subscriptions")
+      .select("plan_id, status, current_period_ends_at, trial_ends_at, created_at")
+      .eq("owner_user_id", ownerUserId)
+      .order("created_at", { ascending: false }),
+  ]);
+
+  if (storeAccountError || subscriptionsError) {
+    await foodSupabase.auth.signOut();
+    throw new Error("Nao foi possivel validar a assinatura do HappyCashFood.");
+  }
+
+  const accountProductContext = normalizeProductContext(storeAccount?.product_context);
+  if (accountProductContext !== "happycashfood") {
+    await foodSupabase.auth.signOut();
+    throw new Error("Esta conta pertence ao HappyCash. Entre no sistema correto.");
+  }
+
+  const subscriptionRows = ((subscriptions as FoodSubscriptionRow[] | null) || []).filter((subscription) =>
+    isCurrentSubscriptionPlanAllowedForProductContext("happycashfood", subscription.plan_id),
+  );
+  const currentSubscription = subscriptionRows.find(isCurrentSubscription) ?? subscriptionRows[0] ?? null;
+
+  if (!currentSubscription || !isCurrentSubscription(currentSubscription)) {
+    await foodSupabase.auth.signOut();
+    throw new Error("Esta conta nao possui acesso ativo ao HappyCashFood.");
   }
 
   const adminUser = users.find((user) => user.role === "admin") ?? users[0];

@@ -999,6 +999,7 @@ ipcMain.handle('app:get-runtime-info', () => ({
   platform: process.platform,
   databasePath: getOfflineDbPath(),
   updateChannel: getUpdateChannel(),
+  productContext: PRODUCT_CONTEXT,
 }));
 
 ipcMain.handle('app:get-update-status', () => {

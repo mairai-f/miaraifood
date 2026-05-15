@@ -23,6 +23,14 @@ import { downloads } from "@/lib/desktopDownloads";
 import { getFreshSiteSession } from "@/lib/siteSession";
 import { getSubscriptionCountdown, getSubscriptionEndAt, getSubscriptionStatusLabel, isCurrentSubscription } from "@/lib/subscriptionStatus";
 import { publicPlanContent, publicPlanList, isPaidPlanId, isPublicPlanId, type PaidPlanId, type PublicPlanId } from "@/lib/subscriptionPlans";
+import {
+  getProductContextLabel,
+  getPublicPlanIdsForProductContext,
+  isCurrentSubscriptionPlanAllowedForProductContext,
+  isPaidPlanAllowedForProductContext,
+  normalizeProductContext,
+  type ProductContext,
+} from "../../../shared/productContext";
 import { retryAsync } from "../../../shared/network/retry";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -47,6 +55,7 @@ type StoreAccountRow = {
   nome_cliente: string | null;
   nome_estabelecimento: string | null;
   email: string | null;
+  product_context: ProductContext | null;
 };
 
 type SubscriptionPlanRow = {
@@ -314,7 +323,7 @@ const Dashboard = () => {
     ] = await retryAsync(
       async () => {
         const responses = await Promise.all([
-          db.from("store_accounts").select("id, nome_cliente, nome_estabelecimento, email").eq("owner_user_id", userId).maybeSingle(),
+          db.from("store_accounts").select("id, nome_cliente, nome_estabelecimento, email, product_context").eq("owner_user_id", userId).maybeSingle(),
           db.from("subscription_plans").select("id, name, description, price, annual_price, duration_days, sort_order").eq("is_public", true).eq("is_active", true).order("sort_order", { ascending: true }),
           db.from("store_subscriptions").select("id, plan_id, status, billing_type, provider, provider_payment_id, current_period_starts_at, current_period_ends_at, trial_started_at, trial_ends_at, metadata, created_at").eq("owner_user_id", userId).order("created_at", { ascending: false }),
           db.from("billing_customers").select("provider, provider_customer_id").eq("owner_user_id", userId).maybeSingle(),
@@ -435,19 +444,26 @@ const Dashboard = () => {
     };
   }, [logoutHref, navigate, querySuffix]);
 
-  const currentSubscription = subscriptions.find(isCurrentSubscription) || subscriptions[0] || null;
+  const accountProductContext = normalizeProductContext(storeAccount?.product_context);
+  const productLabel = getProductContextLabel(accountProductContext);
+  const isFoodAccount = accountProductContext === "happycashfood";
+  const compatibleSubscriptions = subscriptions.filter((subscription) =>
+    isCurrentSubscriptionPlanAllowedForProductContext(accountProductContext, subscription.plan_id),
+  );
+  const currentSubscription = compatibleSubscriptions.find(isCurrentSubscription) || compatibleSubscriptions[0] || null;
   const currentPlanId = currentSubscription?.plan_id || null;
   const currentPlanContent = currentPlanId ? publicPlanContent[currentPlanId] : null;
   const countdown = getSubscriptionCountdown(currentSubscription);
   const currentDeadline = getSubscriptionEndAt(currentSubscription);
   const isCurrentProPlan = currentPlanId === "pro" && isCurrentSubscription(currentSubscription);
-  const isCurrentFoodPlan = (currentPlanId === "food" || currentPlanId === "food_offline") && isCurrentSubscription(currentSubscription);
   const isCurrentFoodOfflinePlan = currentPlanId === "food_offline" && isCurrentSubscription(currentSubscription);
   const isCurrentFoodWebOnlyPlan = currentPlanId === "food" && isCurrentSubscription(currentSubscription);
-  const hasOfflineDownloads = isCurrentProPlan || isCurrentFoodOfflinePlan;
-  const activeSystemUrl = isCurrentFoodPlan ? FOOD_SYSTEM_APP_URL : SYSTEM_APP_URL;
-  const activeSystemLabel = isCurrentFoodPlan ? "Abrir sistema HappyCashFood" : "Abrir sistema HappyCash";
-  const offlineAccessLabel = isCurrentFoodOfflinePlan ? "Food Offline liberado" : isCurrentProPlan ? "PRO liberado" : "Somente PRO ou Food Offline";
+  const hasOfflineDownloads = isFoodAccount ? isCurrentFoodOfflinePlan : isCurrentProPlan;
+  const activeSystemUrl = isFoodAccount ? FOOD_SYSTEM_APP_URL : SYSTEM_APP_URL;
+  const activeSystemLabel = isFoodAccount ? "Abrir sistema HappyCashFood" : "Abrir sistema HappyCash";
+  const offlineAccessLabel = isFoodAccount
+    ? (isCurrentFoodOfflinePlan ? "Food Offline liberado" : "Somente Food Offline")
+    : (isCurrentProPlan ? "PRO liberado" : "Somente PRO");
   const usesFoodReleaseContext = isCurrentFoodOfflinePlan;
   const desktopDownloadsTitle = usesFoodReleaseContext ? "Releases HappyCashFood Offline" : "Downloads do desktop";
   const desktopDownloadsCtaWindows = usesFoodReleaseContext ? "Baixar HappyCashFood Windows (.exe)" : "Baixar Windows (.exe)";
@@ -457,8 +473,10 @@ const Dashboard = () => {
   const mobileDownloadsCtaAndroid = usesFoodReleaseContext ? "Baixar APK HappyCashFood" : "Baixar APK Android";
   const mobileDownloadsDescription = usesFoodReleaseContext
     ? "O HappyCashSite libera o APK separado do HappyCashFood somente depois que o plano Food Offline estiver confirmado no Asaas."
-    : "O app mobile fica liberado para contas com plano PRO ou HappyCashFood Offline ativo.";
-  const pendingSubscription = subscriptions.find(subscription => subscription.status === "pending") || null;
+    : isFoodAccount
+    ? "O app mobile do HappyCashFood fica liberado somente para contas com plano HappyCashFood Offline ativo."
+    : "O app mobile do HappyCash fica liberado somente para contas com plano PRO ativo.";
+  const pendingSubscription = compatibleSubscriptions.find((subscription) => subscription.status === "pending") || null;
   const pendingPlanId = pendingSubscription && isPaidPlanId(pendingSubscription.plan_id) ? pendingSubscription.plan_id : null;
   const pendingPlanContent = pendingPlanId ? publicPlanContent[pendingPlanId] : null;
   const pendingPaymentMethod = pendingSubscription
@@ -467,17 +485,20 @@ const Dashboard = () => {
   const pendingBillingPeriod: CheckoutBillingPeriod =
     pendingSubscription?.metadata?.checkout_billing_period === "annual" ? "annual" : "monthly";
 
-  const sortedPlans = publicPlanList.map((fallbackPlan) => {
-    const dbPlan = plans.find((plan) => plan.id === fallbackPlan.id);
-    return {
-      ...fallbackPlan,
-      name: dbPlan?.name || fallbackPlan.name,
-      description: dbPlan?.description || fallbackPlan.description,
-      price: Number(dbPlan?.price ?? fallbackPlan.price),
-      annual_price: Number(dbPlan?.annual_price ?? fallbackPlan.price * 10),
-      duration_days: Number(dbPlan?.duration_days ?? (fallbackPlan.id === "demo" ? 0 : 30)),
-    };
-  });
+  const allowedPlanIds = new Set(getPublicPlanIdsForProductContext(accountProductContext));
+  const sortedPlans = publicPlanList
+    .filter((fallbackPlan) => allowedPlanIds.has(fallbackPlan.id))
+    .map((fallbackPlan) => {
+      const dbPlan = plans.find((plan) => plan.id === fallbackPlan.id);
+      return {
+        ...fallbackPlan,
+        name: dbPlan?.name || fallbackPlan.name,
+        description: dbPlan?.description || fallbackPlan.description,
+        price: Number(dbPlan?.price ?? fallbackPlan.price),
+        annual_price: Number(dbPlan?.annual_price ?? fallbackPlan.price * 10),
+        duration_days: Number(dbPlan?.duration_days ?? (fallbackPlan.id === "demo" ? 0 : 30)),
+      };
+    });
 
   const handleLogout = async () => {
     if (loggingOut) return;
@@ -612,6 +633,17 @@ const Dashboard = () => {
     paymentMethod: CheckoutPaymentMethod,
     billingPeriod: CheckoutBillingPeriod = selectedBillingPeriod,
   ) => {
+    if (!isPaidPlanAllowedForProductContext(accountProductContext, planId)) {
+      toast({
+        title: "Plano bloqueado",
+        description: isFoodAccount
+          ? "Esta conta foi designada para o HappyCashFood e aceita apenas os planos HappyCashFood."
+          : "Esta conta foi designada para o HappyCash e aceita apenas os planos HappyCash.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     const actionKey = getPlanChargeActionKey(planId, paymentMethod, billingPeriod);
     const paymentMethodLabel = getPaymentMethodLabel(paymentMethod);
     setActivatingCheckout(actionKey);
@@ -1040,7 +1072,9 @@ const Dashboard = () => {
                   <Crown className="h-4 w-4" />
                   <AlertTitle>Depois da demo, escolha um plano pago</AlertTitle>
                   <AlertDescription>
-                    Fiado, Completo, PRO e Food ficam ativos por 30 dias cada. O plano Fiado libera painel, clientes, produtos, excluidos e fiado, sem configuracoes.
+                    {isFoodAccount
+                      ? "HappyCashFood e HappyCashFood Offline ficam ativos por 30 dias cada. Esta conta mostra apenas os planos do ecossistema Food."
+                      : "Fiado, Completo e PRO ficam ativos por 30 dias cada. Esta conta mostra apenas os planos do ecossistema HappyCash."}
                   </AlertDescription>
                 </Alert>
               )}
@@ -1058,9 +1092,9 @@ const Dashboard = () => {
               <div className="rounded-2xl border border-border bg-background/70 p-4">
                 <p className="text-sm font-semibold">Como esta funcionando agora</p>
                 <ul className="mt-3 space-y-2 text-sm text-muted-foreground">
-                  <li>1. O cadastro cria sua conta unica no HappyCash.</li>
-                  <li>2. A demo libera tudo por 12 horas.</li>
-                  <li>3. Os planos pagos podem ser cobrados por Pix ou debito / credito e valem 30 dias.</li>
+                  <li>1. O cadastro cria uma conta separada para o {productLabel}.</li>
+                  <li>2. A demo libera o ambiente escolhido por 12 horas.</li>
+                  <li>3. Os planos pagos exibidos aqui pertencem somente ao {productLabel} e valem 30 dias.</li>
                   <li>4. Assim que o pagamento for confirmado no Asaas, o plano ativa automaticamente.</li>
                 </ul>
               </div>

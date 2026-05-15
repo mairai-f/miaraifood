@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Bell, CheckCircle2, ChefHat, Clock3, Package2, X } from "lucide-react";
+import { Bell, CheckCircle2, ChefHat, Clock3, X } from "lucide-react";
 import type { FoodOrder, FoodTable, KitchenStatus, KitchenTicket, Station } from "@/types";
 import { formatElapsed, nextKitchenStatus, statusLabel } from "@/lib/foodMetrics";
 
@@ -19,10 +19,11 @@ const stationLabel: Record<Station, string> = {
 };
 
 const columnTone: Record<KitchenStatus, string> = {
-  received: "border-blue-200 bg-blue-50 text-blue-800",
-  preparing: "border-amber-200 bg-amber-50 text-amber-900",
-  ready: "border-emerald-200 bg-emerald-50 text-emerald-800",
-  delivered: "border-slate-200 bg-slate-50 text-slate-700",
+  received: "border-sky-500/35 bg-sky-500/12 text-sky-100",
+  preparing: "border-amber-400/35 bg-amber-400/12 text-amber-50",
+  ready: "border-emerald-500/35 bg-emerald-500/12 text-emerald-100",
+  delivered: "border-slate-400/30 bg-slate-400/12 text-slate-100",
+  cancelled: "border-rose-500/35 bg-rose-500/12 text-rose-100",
 };
 
 const statusHint: Record<KitchenStatus, string> = {
@@ -30,6 +31,7 @@ const statusHint: Record<KitchenStatus, string> = {
   preparing: "Pedidos em preparo na cozinha, bar ou balcao.",
   ready: "Pedidos prontos para retirada ou entrega na mesa.",
   delivered: "Pedidos ja entregues ao cliente.",
+  cancelled: "Pedidos cancelados e removidos da operacao.",
 };
 
 const sumTicketItems = (ticket: KitchenTicket) =>
@@ -38,7 +40,7 @@ const sumTicketItems = (ticket: KitchenTicket) =>
 export function KitchenDisplay({ tickets, orders, tables, onAdvanceTicket }: KitchenDisplayProps) {
   const [activeStatus, setActiveStatus] = useState<KitchenStatus | null>(null);
   const [modalPage, setModalPage] = useState(0);
-  const ticketsPerPage = 3;
+  const ticketsPerPage = 2;
   const orderById = useMemo(
     () => new Map(orders.map((order) => [order.id, order])),
     [orders],
@@ -97,6 +99,7 @@ export function KitchenDisplay({ tickets, orders, tables, onAdvanceTicket }: Kit
   const visibleTickets = activeSummary
     ? activeSummary.tickets.slice(modalPage * ticketsPerPage, modalPage * ticketsPerPage + ticketsPerPage)
     : [];
+  const modalPageNumbers = Array.from({ length: totalModalPages }, (_, index) => index);
 
   const openStatusModal = (status: KitchenStatus) => {
     setActiveStatus(status);
@@ -132,7 +135,7 @@ export function KitchenDisplay({ tickets, orders, tables, onAdvanceTicket }: Kit
                   <p className="text-xs font-semibold opacity-80">{statusHint[status]}</p>
                 </div>
                 <span className="rounded-full bg-card/80 px-3 py-1 text-xs font-black">
-                  {summary.shortcut}
+                  Atalho {summary.shortcut}
                 </span>
               </div>
 
@@ -171,8 +174,14 @@ export function KitchenDisplay({ tickets, orders, tables, onAdvanceTicket }: Kit
       </div>
 
       {activeSummary && (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-foreground/50 p-3">
-          <div className="w-full max-w-6xl rounded-2xl border bg-card shadow-panel">
+        <div
+          className="fixed inset-0 z-50 grid place-items-center bg-foreground/50 p-3"
+          onClick={() => setActiveStatus(null)}
+        >
+          <div
+            className="w-full max-w-6xl rounded-2xl border bg-card shadow-panel"
+            onClick={(event) => event.stopPropagation()}
+          >
             <div className="flex items-start justify-between gap-3 border-b p-4 sm:p-5">
               <div>
                 <p className="text-xs font-semibold uppercase text-muted-foreground">KDS detalhado</p>
@@ -211,7 +220,7 @@ export function KitchenDisplay({ tickets, orders, tables, onAdvanceTicket }: Kit
               </div>
 
               <div className="space-y-3">
-                <div className="grid gap-3 xl:grid-cols-3">
+                <div className="grid gap-3 xl:grid-cols-2">
                   {visibleTickets.length > 0 ? (
                     visibleTickets.map((ticket) => {
                       const nextStatus = nextKitchenStatus(activeSummary.status);
@@ -266,7 +275,24 @@ export function KitchenDisplay({ tickets, orders, tables, onAdvanceTicket }: Kit
                 </div>
 
                 {activeSummary.tickets.length > ticketsPerPage && (
-                  <div className="flex items-center justify-between rounded-lg border bg-background px-3 py-2 text-sm">
+                  <div className="space-y-2 rounded-lg border bg-background px-3 py-2 text-sm">
+                    <div className="flex flex-wrap gap-2">
+                      {modalPageNumbers.map((page) => (
+                        <button
+                          key={`kds-page-${page}`}
+                          type="button"
+                          onClick={() => setModalPage(page)}
+                          className={`rounded-lg border px-3 py-1.5 font-black transition ${
+                            modalPage === page
+                              ? "border-primary bg-primary text-primary-foreground"
+                              : "bg-card text-muted-foreground hover:border-primary hover:text-foreground"
+                          }`}
+                        >
+                          {page + 1}
+                        </button>
+                      ))}
+                    </div>
+                    <div className="flex items-center justify-between">
                     <button
                       type="button"
                       onClick={() => setModalPage((current) => Math.max(0, current - 1))}
@@ -284,6 +310,7 @@ export function KitchenDisplay({ tickets, orders, tables, onAdvanceTicket }: Kit
                     >
                       Proxima
                     </button>
+                    </div>
                   </div>
                 )}
               </div>

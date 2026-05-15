@@ -8,6 +8,7 @@ interface StoreSubscriptionRow {
   owner_user_id: string;
   store_account_id: string;
   plan_id: string;
+  product_context: string;
   status: string;
   provider_payment_id: string | null;
   current_period_starts_at: string | null;
@@ -72,7 +73,7 @@ const resolveSubscription = async (
   if (externalReference) {
     const { data, error } = await serviceClient
       .from("store_subscriptions")
-      .select("id, owner_user_id, store_account_id, plan_id, status, provider_payment_id, current_period_starts_at, current_period_ends_at, trial_started_at, trial_ends_at, metadata")
+      .select("id, owner_user_id, store_account_id, plan_id, product_context, status, provider_payment_id, current_period_starts_at, current_period_ends_at, trial_started_at, trial_ends_at, metadata")
       .eq("id", externalReference)
       .maybeSingle();
 
@@ -83,7 +84,7 @@ const resolveSubscription = async (
 
   const { data, error } = await serviceClient
     .from("store_subscriptions")
-    .select("id, owner_user_id, store_account_id, plan_id, status, provider_payment_id, current_period_starts_at, current_period_ends_at, trial_started_at, trial_ends_at, metadata")
+    .select("id, owner_user_id, store_account_id, plan_id, product_context, status, provider_payment_id, current_period_starts_at, current_period_ends_at, trial_started_at, trial_ends_at, metadata")
     .eq("provider_payment_id", paymentId)
     .maybeSingle();
 
@@ -125,7 +126,8 @@ const activateSubscriptionFromPayment = async (
         replaced_by_payment_id: payment.id,
       },
     })
-    .eq("owner_user_id", subscription.owner_user_id)
+    .eq("store_account_id", subscription.store_account_id)
+    .eq("product_context", subscription.product_context)
     .in("status", activeSubscriptionStatuses)
     .neq("id", subscription.id);
 

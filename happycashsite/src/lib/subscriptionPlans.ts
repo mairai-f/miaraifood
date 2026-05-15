@@ -92,9 +92,9 @@ export const publicPlanContent: Record<PublicPlanId, PublicPlanContent> = {
     priceLabel: "R$ 250",
     durationLabel: "30 dias",
     summary: "Sistema restaurante web com mesas, comandas em modal, cozinha, caixa por mesa e estoque.",
-    description: "Plano para restaurantes, bares, lanchonetes e pizzarias operarem no mesmo fluxo de conta e pagamento do HappyCash.",
+    description: "Plano separado para restaurantes, bares, lanchonetes e pizzarias operarem exclusivamente no HappyCashFood.",
     features: [
-      "Tudo que o HappyCash libera no plano completo",
+      "Operacao completa do HappyCashFood",
       "Mesas e comandas",
       "Cardapio da comanda por mesa",
       "Tela do garcom",
@@ -112,9 +112,9 @@ export const publicPlanContent: Record<PublicPlanId, PublicPlanContent> = {
     priceLabel: "R$ 310",
     durationLabel: "30 dias",
     summary: "HappyCashFood com sistema offline, executavel Windows, Linux, .deb e APK.",
-    description: "Plano restaurante com o mesmo sistema Food e a liberacao dos executaveis offline para caixa e operacao local.",
+    description: "Plano restaurante separado do HappyCash com executaveis offline para caixa e operacao local no HappyCashFood.",
     features: [
-      "Tudo do HappyCashFood",
+      "Tudo da operacao web do HappyCashFood",
       "Executavel Windows",
       "Linux AppImage",
       "Pacote Linux .deb",

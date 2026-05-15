@@ -46,6 +46,7 @@
     "electron:publish:linux": "npm run build && electron-builder --linux AppImage deb --x64 --publish always -c.publish.channel=latest -c.publish.releaseType=release",
     "electron:publish:food:win": "npm run build:food:desktop:renderer && cross-env HAPPYCASH_PRODUCT_CONTEXT=happycashfood HAPPYCASH_RENDERER_DIR=dist-food electron-builder --win nsis --x64 --publish always -c.publish.channel=latest -c.publish.releaseType=release --config electron-builder.food.json",
     "electron:publish:food:linux": "npm run build:food:desktop:renderer && cross-env HAPPYCASH_PRODUCT_CONTEXT=happycashfood HAPPYCASH_RENDERER_DIR=dist-food electron-builder --linux AppImage deb --x64 --publish always -c.publish.channel=latest -c.publish.releaseType=release --config electron-builder.food.json",
+    "release:publish:food:repo": "node scripts/publish-happycashfood-release.mjs",
     "electron:publish:win:beta": "npm run build && electron-builder --win nsis --x64 --publish always -c.publish.channel=beta -c.publish.releaseType=prerelease",
     "electron:publish:linux:beta": "npm run build && electron-builder --linux AppImage deb --x64 --publish always -c.publish.channel=beta -c.publish.releaseType=prerelease",
     "lint": "eslint .",
