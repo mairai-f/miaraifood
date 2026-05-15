@@ -1,7 +1,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { buildCorsHeaders, handleCorsPreflight } from "../_shared/cors.ts";
 import { validateDesktopLicense, type SupportedDesktopPlatform } from "../_shared/desktopAccess.ts";
-import { fetchLatestDesktopReleaseAsset } from "../_shared/githubRelease.ts";
+import { fetchLatestDesktopReleaseAsset, type DesktopReleaseContext } from "../_shared/githubRelease.ts";
 
 interface DesktopDownloadRequest {
   platform?: SupportedDesktopPlatform;
@@ -19,14 +19,36 @@ const jsonResponse = (request: Request, body: Record<string, unknown>, status = 
   });
 
 const supportedPlatforms = new Set<SupportedDesktopPlatform>(["windows", "linux", "linux-deb", "linux-appimage"]);
-const bucketEnvKey = "DESKTOP_DOWNLOAD_BUCKET";
-const platformEnvKeys: Record<SupportedDesktopPlatform, string> = {
-  windows: "DESKTOP_WINDOWS_OBJECT_PATH",
-  linux: "DESKTOP_LINUX_DEB_OBJECT_PATH",
-  "linux-deb": "DESKTOP_LINUX_DEB_OBJECT_PATH",
-  "linux-appimage": "DESKTOP_LINUX_APPIMAGE_OBJECT_PATH",
+const contextBucketEnvKeys: Record<DesktopReleaseContext, string> = {
+  happycash: "DESKTOP_DOWNLOAD_BUCKET",
+  happycashfood: "FOOD_DOWNLOAD_BUCKET",
 };
-const releaseProvider = () => (Deno.env.get("DESKTOP_RELEASE_PROVIDER") || "github").trim().toLowerCase();
+const contextPlatformEnvKeys: Record<DesktopReleaseContext, Record<SupportedDesktopPlatform, string>> = {
+  happycash: {
+    windows: "DESKTOP_WINDOWS_OBJECT_PATH",
+    linux: "DESKTOP_LINUX_DEB_OBJECT_PATH",
+    "linux-deb": "DESKTOP_LINUX_DEB_OBJECT_PATH",
+    "linux-appimage": "DESKTOP_LINUX_APPIMAGE_OBJECT_PATH",
+  },
+  happycashfood: {
+    windows: "FOOD_WINDOWS_OBJECT_PATH",
+    linux: "FOOD_LINUX_DEB_OBJECT_PATH",
+    "linux-deb": "FOOD_LINUX_DEB_OBJECT_PATH",
+    "linux-appimage": "FOOD_LINUX_APPIMAGE_OBJECT_PATH",
+  },
+};
+
+const releaseProvider = (context: DesktopReleaseContext) => (
+  context === "happycashfood"
+    ? (Deno.env.get("FOOD_DESKTOP_RELEASE_PROVIDER") || Deno.env.get("DESKTOP_RELEASE_PROVIDER") || "github").trim().toLowerCase()
+    : (Deno.env.get("DESKTOP_RELEASE_PROVIDER") || "github").trim().toLowerCase()
+);
+
+const resolveDownloadContext = (planId?: string | null): DesktopReleaseContext =>
+  planId === "food_offline" ? "happycashfood" : "happycash";
+
+const resolveDefaultBucketName = (context: DesktopReleaseContext) =>
+  context === "happycashfood" ? "happycashfood-downloads" : "desktop-downloads";
 
 const extractAccessToken = (authorization: string | null) => {
   if (!authorization) return null;
@@ -116,9 +138,13 @@ Deno.serve(async (request) => {
     );
   }
 
-  if (releaseProvider() === "github") {
+  const downloadContext = resolveDownloadContext(license.planId);
+  const bucketEnvKey = contextBucketEnvKeys[downloadContext];
+  const objectPathKey = contextPlatformEnvKeys[downloadContext][platform];
+
+  if (releaseProvider(downloadContext) === "github") {
     try {
-      const release = await fetchLatestDesktopReleaseAsset(platform);
+      const release = await fetchLatestDesktopReleaseAsset(platform, downloadContext);
 
       return jsonResponse(request, {
         success: true,
@@ -136,8 +162,7 @@ Deno.serve(async (request) => {
     }
   }
 
-  const bucketName = Deno.env.get(bucketEnvKey)?.trim() || "desktop-downloads";
-  const objectPathKey = platformEnvKeys[platform];
+  const bucketName = Deno.env.get(bucketEnvKey)?.trim() || resolveDefaultBucketName(downloadContext);
   const objectPath = Deno.env.get(objectPathKey)?.trim();
   if (!objectPath) {
     return jsonResponse(

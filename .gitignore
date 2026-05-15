@@ -15,6 +15,7 @@ lerna-debug.log*
 .envrc
 node_modules/
 dist/
+dist-food/
 dist-site/
 dist-ssr/
 dist-electron/

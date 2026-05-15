@@ -1,0 +1,46 @@
+{
+  "appId": "com.happycash.food.desktop",
+  "productName": "HappyCashFood",
+  "electronUpdaterCompatibility": ">=2.16",
+  "generateUpdatesFilesForAllChannels": true,
+  "directories": {
+    "output": "release/happycashfood"
+  },
+  "files": [
+    "dist-food/**/*",
+    "build/icon.png",
+    "build/icon.ico",
+    "electron/**/*",
+    "package.json"
+  ],
+  "publish": [
+    {
+      "provider": "github",
+      "owner": "celioantonio7",
+      "repo": "HappyCashFood-Releases",
+      "channel": "latest",
+      "releaseType": "release"
+    }
+  ],
+  "win": {
+    "icon": "build/icon.ico",
+    "artifactName": "HappyCashFood-Setup-${version}.${ext}",
+    "target": [
+      "nsis",
+      "portable"
+    ]
+  },
+  "nsis": {
+    "oneClick": false,
+    "allowToChangeInstallationDirectory": true
+  },
+  "linux": {
+    "icon": "build/icon.png",
+    "artifactName": "HappyCashFood-${version}.${ext}",
+    "target": [
+      "AppImage",
+      "deb"
+    ],
+    "category": "Office"
+  }
+}

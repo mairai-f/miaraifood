@@ -25,16 +25,42 @@ export interface GitHubDesktopReleaseAsset {
   size: number | null;
 }
 
-const DEFAULT_OWNER = "celioantonio7";
-const DEFAULT_REPO = "HappyCash-Releases";
-const DEFAULT_CHANNEL = "latest";
+export interface GitHubMobileReleaseAsset {
+  assetName: string;
+  downloadUrl: string;
+  tag: string;
+  version: string;
+  htmlUrl: string;
+  publishedAt: string | null;
+  size: number | null;
+}
 
-const readReleaseConfig = () => ({
-  owner: (Deno.env.get("GITHUB_DESKTOP_RELEASE_OWNER") || DEFAULT_OWNER).trim(),
-  repo: (Deno.env.get("GITHUB_DESKTOP_RELEASE_REPO") || DEFAULT_REPO).trim(),
-  channel: (Deno.env.get("GITHUB_DESKTOP_RELEASE_CHANNEL") || DEFAULT_CHANNEL).trim().toLowerCase(),
-  token: Deno.env.get("GITHUB_DESKTOP_RELEASE_TOKEN")?.trim() || null,
-});
+export type DesktopReleaseContext = "happycash" | "happycashfood";
+
+const DEFAULT_OWNER = "celioantonio7";
+const DEFAULT_CHANNEL = "latest";
+const DEFAULT_REPOSITORIES: Record<DesktopReleaseContext, string> = {
+  happycash: "HappyCash-Releases",
+  happycashfood: "HappyCashFood-Releases",
+};
+
+const readReleaseConfig = (context: DesktopReleaseContext) => {
+  if (context === "happycashfood") {
+    return {
+      owner: (Deno.env.get("GITHUB_FOOD_RELEASE_OWNER") || Deno.env.get("GITHUB_DESKTOP_RELEASE_OWNER") || DEFAULT_OWNER).trim(),
+      repo: (Deno.env.get("GITHUB_FOOD_RELEASE_REPO") || DEFAULT_REPOSITORIES.happycashfood).trim(),
+      channel: (Deno.env.get("GITHUB_FOOD_RELEASE_CHANNEL") || Deno.env.get("GITHUB_DESKTOP_RELEASE_CHANNEL") || DEFAULT_CHANNEL).trim().toLowerCase(),
+      token: Deno.env.get("GITHUB_FOOD_RELEASE_TOKEN")?.trim() || Deno.env.get("GITHUB_DESKTOP_RELEASE_TOKEN")?.trim() || null,
+    };
+  }
+
+  return {
+    owner: (Deno.env.get("GITHUB_DESKTOP_RELEASE_OWNER") || DEFAULT_OWNER).trim(),
+    repo: (Deno.env.get("GITHUB_DESKTOP_RELEASE_REPO") || DEFAULT_REPOSITORIES.happycash).trim(),
+    channel: (Deno.env.get("GITHUB_DESKTOP_RELEASE_CHANNEL") || DEFAULT_CHANNEL).trim().toLowerCase(),
+    token: Deno.env.get("GITHUB_DESKTOP_RELEASE_TOKEN")?.trim() || null,
+  };
+};
 
 const githubHeaders = (token?: string | null) => {
   const headers = new Headers({
@@ -96,10 +122,17 @@ const findPlatformAsset = (assets: GitHubReleaseAsset[], platform: SupportedDesk
   ) || null;
 };
 
+const findAndroidApkAsset = (assets: GitHubReleaseAsset[]) =>
+  assets.find((asset) =>
+    /\.apk$/i.test(asset.name)
+    && !/sha256|checksum|blockmap/i.test(asset.name),
+  ) || null;
+
 export const fetchLatestDesktopReleaseAsset = async (
   platform: SupportedDesktopPlatform,
+  context: DesktopReleaseContext = "happycash",
 ): Promise<GitHubDesktopReleaseAsset> => {
-  const { owner, repo, channel, token } = readReleaseConfig();
+  const { owner, repo, channel, token } = readReleaseConfig(context);
 
   const release = channel === "latest"
     ? await requestGitHub<GitHubReleasePayload>(`/repos/${owner}/${repo}/releases/latest`, token)
@@ -116,6 +149,39 @@ export const fetchLatestDesktopReleaseAsset = async (
 
   if (!asset) {
     throw new Error(`Nenhum asset de ${platform} foi encontrado no release ${release.tag_name}.`);
+  }
+
+  return {
+    assetName: asset.name,
+    downloadUrl: asset.browser_download_url,
+    tag: release.tag_name,
+    version: release.tag_name.replace(/^v/i, ""),
+    htmlUrl: release.html_url,
+    publishedAt: release.published_at,
+    size: typeof asset.size === "number" ? asset.size : null,
+  };
+};
+
+export const fetchLatestMobileReleaseAsset = async (
+  context: DesktopReleaseContext = "happycash",
+): Promise<GitHubMobileReleaseAsset> => {
+  const { owner, repo, channel, token } = readReleaseConfig(context);
+
+  const release = channel === "latest"
+    ? await requestGitHub<GitHubReleasePayload>(`/repos/${owner}/${repo}/releases/latest`, token)
+    : selectReleaseByChannel(
+        await requestGitHub<GitHubReleasePayload[]>(`/repos/${owner}/${repo}/releases?per_page=20`, token),
+        channel,
+      );
+
+  if (!release) {
+    throw new Error("Nenhum release do GitHub foi encontrado para o canal configurado.");
+  }
+
+  const asset = findAndroidApkAsset(release.assets || []);
+
+  if (!asset) {
+    throw new Error(`Nenhum asset Android APK foi encontrado no release ${release.tag_name}.`);
   }
 
   return {

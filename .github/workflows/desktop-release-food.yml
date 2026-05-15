@@ -1,0 +1,117 @@
+name: Desktop Release Food
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Versao para publicar. Deixe vazio para usar a versao do package.json.'
+        required: false
+        type: string
+
+permissions:
+  contents: write
+
+env:
+  VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+  VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
+
+concurrency:
+  group: desktop-release-food-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  validate-version:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Validate tag matches package version
+        env:
+          REQUESTED_VERSION: ${{ github.event_name == 'workflow_dispatch' && inputs.version || github.ref_name }}
+        run: |
+          PACKAGE_VERSION=$(node -p "require('./package.json').version")
+          RELEASE_VERSION="${REQUESTED_VERSION#v}"
+
+          if [ -z "$RELEASE_VERSION" ]; then
+            RELEASE_VERSION="$PACKAGE_VERSION"
+          elif [ "$GITHUB_REF_TYPE" = "branch" ] && [ "$RELEASE_VERSION" = "$GITHUB_REF_NAME" ]; then
+            RELEASE_VERSION="$PACKAGE_VERSION"
+          fi
+
+          if [ "$PACKAGE_VERSION" != "$RELEASE_VERSION" ]; then
+            echo "package.json version ($PACKAGE_VERSION) precisa bater com a versao solicitada (${RELEASE_VERSION})."
+            exit 1
+          fi
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Test
+        run: npm test
+
+      - name: Build HappyCashFood web
+        run: npm run build:food
+
+  release-linux:
+    needs: validate-version
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Publish Linux AppImage and deb
+        env:
+          GH_TOKEN: ${{ secrets.FOOD_DESKTOP_RELEASE_GH_TOKEN || secrets.DESKTOP_RELEASE_GH_TOKEN || secrets.GITHUB_TOKEN }}
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+        run: npm run electron:publish:food:linux
+
+  release-windows:
+    needs: release-linux
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Publish Windows installer
+        env:
+          GH_TOKEN: ${{ secrets.FOOD_DESKTOP_RELEASE_GH_TOKEN || secrets.DESKTOP_RELEASE_GH_TOKEN || secrets.GITHUB_TOKEN }}
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+          CSC_LINK: ${{ secrets.WINDOWS_CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.WINDOWS_CSC_KEY_PASSWORD }}
+          WIN_CSC_LINK: ${{ secrets.WINDOWS_CSC_LINK }}
+          WIN_CSC_KEY_PASSWORD: ${{ secrets.WINDOWS_CSC_KEY_PASSWORD }}
+        run: npm run electron:publish:food:win

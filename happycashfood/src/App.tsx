@@ -5,9 +5,7 @@ import { CheckoutPanel } from "@/components/CheckoutPanel";
 import { DeliveryPanel } from "@/components/DeliveryPanel";
 import { KitchenDisplay } from "@/components/KitchenDisplay";
 import { LoginScreen } from "@/components/LoginScreen";
-import { MenuQrPanel } from "@/components/MenuQrPanel";
 import { MetricStrip } from "@/components/MetricStrip";
-import { OfflineDownloadsPanel } from "@/components/OfflineDownloadsPanel";
 import { TableBoard } from "@/components/TableBoard";
 import { demoUsers, initialDeliveries, initialOrders, initialTables, initialWaiters, menuProducts, userPins as defaultUserPins } from "@/data/mockData";
 import {
@@ -106,7 +104,6 @@ const nextDeliveryStatus = (status: DeliveryStatus): DeliveryStatus => {
 };
 
 const firstViewForRole = (user: FoodUser): FoodView => {
-  if (user.role === "customer") return "menu";
   if (user.role === "kitchen") return "kitchen";
   if (user.role === "cashier") return "checkout";
   return "floor";
@@ -136,7 +133,7 @@ export default function App() {
   const tickets = useMemo(() => groupTickets(orders, deliveries), [orders, deliveries]);
   const readyItems = tickets
     .filter((ticket) => ticket.status === "ready")
-    .reduce((sum, ticket) => sum + ticket.items.length, 0);
+    .reduce((sum, ticket) => sum + ticket.items.reduce((subtotal, item) => subtotal + item.quantity, 0), 0);
 
   const login = (user: FoodUser) => {
     setCurrentUser(user);
@@ -199,7 +196,7 @@ export default function App() {
     const item = buildItemFromProduct(product, itemNote, selectedOptions, unitPrice);
     const now = new Date().toISOString();
     const selectedTable = tables.find((table) => table.id === tableId);
-    const waiterName = currentUser?.role === "waiter" ? currentUser.name : selectedTable?.waiterName || (currentUser?.role === "customer" ? "QR" : waiters[0]?.name || "Garcom");
+    const waiterName = currentUser?.role === "waiter" ? currentUser.name : selectedTable?.waiterName || waiters[0]?.name || "Garcom";
 
     if (!existingOrder) {
       const order: FoodOrder = {
@@ -517,13 +514,28 @@ export default function App() {
     );
   };
 
+  const deleteTable = (tableId: string) => {
+    if (orders.some((order) => order.tableId === tableId && order.status !== "paid")) return;
+    const nextTables = tables.filter((table) => table.id !== tableId);
+    setTables(nextTables);
+    if (selectedTableId === tableId) {
+      setSelectedTableId(nextTables[0]?.id ?? "");
+    }
+  };
+
+  const deleteProduct = (productId: string) => {
+    setProducts((currentProducts) => currentProducts.filter((product) => product.id !== productId));
+  };
+
   if (!currentUser) {
-    return <LoginScreen users={appUsers} onLogin={login} />;
+    return <LoginScreen users={appUsers} loginPins={loginPins} onLogin={login} />;
   }
+
+  const showOperationalSummary = currentUser.role === "admin" || currentUser.role === "cashier" || currentUser.role === "kitchen";
 
   const currentView = (() => {
     if (activeView === "kitchen") {
-      return <KitchenDisplay tickets={tickets} onAdvanceTicket={advanceTicket} />;
+      return <KitchenDisplay tickets={tickets} orders={orders} tables={tables} onAdvanceTicket={advanceTicket} />;
     }
 
     if (activeView === "checkout") {
@@ -540,28 +552,8 @@ export default function App() {
       );
     }
 
-    if (activeView === "menu") {
-      return (
-        <MenuQrPanel
-          tables={tables}
-          products={products}
-          orders={orders}
-          selectedTableId={currentUser.tableId ?? selectedTableId}
-          customerMode={currentUser.role === "customer"}
-          onSelectTable={setSelectedTableId}
-          onCustomerAddProduct={addProductToTable}
-          onCancelItem={cancelOrderItem}
-          onRequestPayment={requestCustomerPayment}
-        />
-      );
-    }
-
     if (activeView === "delivery") {
       return <DeliveryPanel deliveries={deliveries} onAdvanceDelivery={advanceDelivery} />;
-    }
-
-    if (activeView === "downloads") {
-      return <OfflineDownloadsPanel />;
     }
 
     if (activeView === "admin") {
@@ -572,10 +564,12 @@ export default function App() {
           products={products}
           waiters={waiters}
           onAddTable={addTable}
+          onDeleteTable={deleteTable}
           onAddWaiter={addWaiter}
           onUpdateWaiter={updateWaiter}
           onAddProduct={addProduct}
           onUpdateProduct={updateProduct}
+          onDeleteProduct={deleteProduct}
         />
       );
     }
@@ -613,8 +607,8 @@ export default function App() {
       onOpenPaymentRequest={openPaymentRequest}
     >
       <div className="space-y-5">
-        {currentUser.role !== "customer" && <MetricStrip tables={tables} orders={orders} readyItems={readyItems} />}
-        {closureReceipts[0] && currentUser.role !== "customer" && (
+        {showOperationalSummary && <MetricStrip tables={tables} orders={orders} readyItems={readyItems} />}
+        {closureReceipts[0] && showOperationalSummary && (
           <div className="rounded-lg border border-success/40 bg-success/10 p-3 text-sm font-bold text-success">
             Ultimo fechamento: mesa {closureReceipts[0].tableNumber} - {closureReceipts[0].paidBy} - {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(closureReceipts[0].total)}
           </div>

@@ -1,6 +1,6 @@
 import { ReactNode, useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Clock3, Home, Users, Package, Gift, Trash2, LogOut, Menu, X, UserCircle, Receipt, BarChart3, DollarSign, Boxes, ChevronDown, ChevronUp, FileText, Shield, Calculator, ShieldCheck, Database, Loader2, WifiOff, ClipboardList, Utensils } from 'lucide-react';
+import { Clock3, Home, Users, Package, Gift, Trash2, LogOut, Menu, X, UserCircle, Receipt, BarChart3, DollarSign, Boxes, ChevronDown, ChevronUp, FileText, Shield, Calculator, ShieldCheck, Database, Loader2, WifiOff, ClipboardList } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import { useData } from '@/contexts/DataContext';
@@ -31,7 +31,6 @@ const navItems = [
   { path: '/relatorios', label: 'Relatórios', icon: BarChart3, shortcut: '6', roles: ['admin'], featureKey: 'reports.view' },
   { path: '/financeiro', label: 'Financeiro', icon: DollarSign, shortcut: '7', roles: ['admin'], featureKey: 'financial.manage' },
   { path: '/operacoes', label: 'Operações', icon: ClipboardList, roles: ['admin'], featureKey: 'financial.manage' },
-  { path: '/restaurante', label: 'Restaurante', icon: Utensils, roles: ['admin', 'operator'], featureKey: 'restaurant.manage' },
   { path: '/notas', label: 'Notas', icon: FileText, shortcut: '8', roles: ['admin'], featureKey: 'notes.manage' },
   { path: '/precificacao', label: 'Precificação', icon: Calculator, roles: ['admin'], featureKey: 'pricing.manage' },
   { path: '/acessos', label: 'Acessos', icon: Shield, roles: ['admin'], featureKey: 'settings.manage' },

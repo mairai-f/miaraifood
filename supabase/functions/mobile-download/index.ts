@@ -1,6 +1,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { buildCorsHeaders, handleCorsPreflight } from "../_shared/cors.ts";
 import { validateDesktopLicense } from "../_shared/desktopAccess.ts";
+import { fetchLatestMobileReleaseAsset, type DesktopReleaseContext } from "../_shared/githubRelease.ts";
 
 interface MobileDownloadRequest {
   platform?: SupportedMobilePlatform;
@@ -20,14 +21,42 @@ interface MobileDownloadResponse {
 type SupportedMobilePlatform = "android" | "ios";
 
 const supportedPlatforms = new Set<SupportedMobilePlatform>(["android", "ios"]);
-const bucketEnvKey = "MOBILE_DOWNLOAD_BUCKET";
-const androidApkUrlKey = "ANDROID_APK_URL";
-const platformEnvKeys: Record<SupportedMobilePlatform, string> = {
-  android: "ANDROID_APK_OBJECT_PATH",
-  ios: "IOS_TESTFLIGHT_URL",
+const contextBucketEnvKeys: Record<DesktopReleaseContext, string> = {
+  happycash: "MOBILE_DOWNLOAD_BUCKET",
+  happycashfood: "FOOD_MOBILE_DOWNLOAD_BUCKET",
+};
+const contextPlatformEnvKeys: Record<DesktopReleaseContext, Record<SupportedMobilePlatform, string>> = {
+  happycash: {
+    android: "ANDROID_APK_OBJECT_PATH",
+    ios: "IOS_TESTFLIGHT_URL",
+  },
+  happycashfood: {
+    android: "FOOD_ANDROID_APK_OBJECT_PATH",
+    ios: "FOOD_IOS_TESTFLIGHT_URL",
+  },
+};
+const contextDirectUrlEnvKeys: Record<DesktopReleaseContext, Record<SupportedMobilePlatform, string>> = {
+  happycash: {
+    android: "ANDROID_APK_URL",
+    ios: "IOS_TESTFLIGHT_URL",
+  },
+  happycashfood: {
+    android: "FOOD_ANDROID_APK_URL",
+    ios: "FOOD_IOS_TESTFLIGHT_URL",
+  },
 };
 
-const releaseProvider = () => (Deno.env.get("MOBILE_RELEASE_PROVIDER") || "storage").trim().toLowerCase();
+const releaseProvider = (context: DesktopReleaseContext) => (
+  context === "happycashfood"
+    ? (Deno.env.get("FOOD_MOBILE_RELEASE_PROVIDER") || Deno.env.get("MOBILE_RELEASE_PROVIDER") || "storage").trim().toLowerCase()
+    : (Deno.env.get("MOBILE_RELEASE_PROVIDER") || "storage").trim().toLowerCase()
+);
+
+const resolveDownloadContext = (planId?: string | null): DesktopReleaseContext =>
+  planId === "food_offline" ? "happycashfood" : "happycash";
+
+const resolveDefaultBucketName = (context: DesktopReleaseContext) =>
+  context === "happycashfood" ? "happycashfood-mobile-downloads" : "mobile-downloads";
 
 const extractAccessToken = (authorization: string | null) => {
   if (!authorization) return null;
@@ -128,8 +157,13 @@ Deno.serve(async (request) => {
     );
   }
 
+  const downloadContext = resolveDownloadContext(license.planId);
+  const directUrlKey = contextDirectUrlEnvKeys[downloadContext][platform];
+  const storagePathKey = contextPlatformEnvKeys[downloadContext][platform];
+  const bucketEnvKey = contextBucketEnvKeys[downloadContext];
+
   if (platform === "ios") {
-    const testFlightUrl = Deno.env.get("IOS_TESTFLIGHT_URL")?.trim();
+    const testFlightUrl = Deno.env.get(directUrlKey)?.trim() || Deno.env.get("IOS_TESTFLIGHT_URL")?.trim();
 
     if (!testFlightUrl) {
       return jsonResponse(
@@ -137,7 +171,7 @@ Deno.serve(async (request) => {
         {
           error: "O link do TestFlight iOS não foi configurado.",
           code: "DOWNLOAD_NOT_CONFIGURED",
-          requiredEnv: [platformEnvKeys.ios],
+          requiredEnv: [directUrlKey],
         },
         503,
       );
@@ -150,19 +184,41 @@ Deno.serve(async (request) => {
     });
   }
 
-  const apkUrl = Deno.env.get(androidApkUrlKey)?.trim();
+  if (releaseProvider(downloadContext) === "github") {
+    try {
+      const release = await fetchLatestMobileReleaseAsset(downloadContext);
+
+      return jsonResponse(request, {
+        success: true,
+        downloadUrl: release.downloadUrl,
+        assetName: release.assetName,
+        releaseTag: release.tag,
+        releaseVersion: release.version,
+        publishedAt: release.publishedAt,
+        validUntil: license.validUntil,
+      });
+    } catch (error) {
+      console.error("GitHub mobile release lookup failed:", error);
+    }
+  }
+
+  const apkUrl = Deno.env.get(directUrlKey)?.trim() || Deno.env.get("ANDROID_APK_URL")?.trim();
   if (apkUrl) {
     return jsonResponse(request, {
       success: true,
       downloadUrl: apkUrl,
-      assetName: "HappyCash-Mobile.apk",
+      assetName: downloadContext === "happycashfood" ? "HappyCashFood-Mobile.apk" : "HappyCash-Mobile.apk",
       validUntil: license.validUntil,
     });
   }
 
-  const bucketName = Deno.env.get(bucketEnvKey)?.trim() || Deno.env.get("DESKTOP_DOWNLOAD_BUCKET")?.trim() || "mobile-downloads";
-  const objectPathKey = platformEnvKeys[platform];
-  const objectPath = Deno.env.get(objectPathKey)?.trim();
+  const bucketName =
+    Deno.env.get(bucketEnvKey)?.trim()
+    || (downloadContext === "happycashfood" ? Deno.env.get("FOOD_DOWNLOAD_BUCKET")?.trim() : null)
+    || Deno.env.get("MOBILE_DOWNLOAD_BUCKET")?.trim()
+    || Deno.env.get("DESKTOP_DOWNLOAD_BUCKET")?.trim()
+    || resolveDefaultBucketName(downloadContext);
+  const objectPath = Deno.env.get(storagePathKey)?.trim();
 
   if (!objectPath) {
     return jsonResponse(
@@ -170,7 +226,7 @@ Deno.serve(async (request) => {
       {
         error: "O release desta plataforma ainda não foi configurado.",
         code: "DOWNLOAD_NOT_CONFIGURED",
-        requiredEnv: [bucketEnvKey, objectPathKey, androidApkUrlKey],
+        requiredEnv: [bucketEnvKey, storagePathKey, directUrlKey],
       },
       503,
     );
@@ -191,7 +247,7 @@ Deno.serve(async (request) => {
       {
         error: "O arquivo protegido não foi encontrado no storage.",
         code: "DOWNLOAD_FILE_MISSING",
-        requiredEnv: [bucketEnvKey, objectPathKey],
+        requiredEnv: [bucketEnvKey, storagePathKey],
       },
       404,
     );

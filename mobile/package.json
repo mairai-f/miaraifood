@@ -6,12 +6,16 @@
   "description": "App mobile Expo do HappyCash para Android e iOS.",
   "scripts": {
     "start": "expo start",
+    "start:food": "cross-env HAPPYCASH_MOBILE_CONTEXT=happycashfood EXPO_PUBLIC_HAPPYCASH_CONTEXT=happycashfood EXPO_PUBLIC_HAPPYCASH_WEB_URL=https://food.happycashsite.com.br expo start",
     "android": "expo start --android",
+    "android:food": "cross-env HAPPYCASH_MOBILE_CONTEXT=happycashfood EXPO_PUBLIC_HAPPYCASH_CONTEXT=happycashfood EXPO_PUBLIC_HAPPYCASH_WEB_URL=https://food.happycashsite.com.br expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
     "doctor": "npx expo-doctor",
     "build:android:apk": "eas build -p android --profile preview",
+    "build:android:apk:food": "eas build -p android --profile food-preview",
     "build:android:store": "eas build -p android --profile production",
+    "build:android:store:food": "eas build -p android --profile food-production",
     "build:ios:store": "eas build -p ios --profile production"
   },
   "dependencies": {
@@ -25,6 +29,7 @@
   "devDependencies": {
     "@types/react": "~19.1.0",
     "babel-preset-expo": "~54.0.10",
+    "cross-env": "^10.1.0",
     "typescript": "~5.9.2"
   }
 }

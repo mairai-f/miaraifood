@@ -165,7 +165,7 @@ type DeleteAccountResponse = {
 const SITE_SESSION_EXPIRED_MESSAGE = "Sua sessao expirou. Entre novamente para continuar.";
 const DELETE_ACCOUNT_CONFIRM_TEXT = "APAGAR";
 const SYSTEM_APP_URL = "https://app.happycashsite.com.br/";
-const FOOD_SYSTEM_APP_URL = "https://app.happycashsite.com.br/restaurante";
+const FOOD_SYSTEM_APP_URL = "https://food.happycashsite.com.br/?site_access=1";
 const SITE_REGISTRATION_FUNCTION_MISSING_MESSAGE =
   "A funcao finalize-site-registration nao esta publicada ou acessivel neste projeto do Supabase. Publique a function para abrir o dashboard.";
 const SITE_REGISTRATION_FETCH_MESSAGE =
@@ -443,10 +443,21 @@ const Dashboard = () => {
   const isCurrentProPlan = currentPlanId === "pro" && isCurrentSubscription(currentSubscription);
   const isCurrentFoodPlan = (currentPlanId === "food" || currentPlanId === "food_offline") && isCurrentSubscription(currentSubscription);
   const isCurrentFoodOfflinePlan = currentPlanId === "food_offline" && isCurrentSubscription(currentSubscription);
+  const isCurrentFoodWebOnlyPlan = currentPlanId === "food" && isCurrentSubscription(currentSubscription);
   const hasOfflineDownloads = isCurrentProPlan || isCurrentFoodOfflinePlan;
   const activeSystemUrl = isCurrentFoodPlan ? FOOD_SYSTEM_APP_URL : SYSTEM_APP_URL;
   const activeSystemLabel = isCurrentFoodPlan ? "Abrir sistema HappyCashFood" : "Abrir sistema HappyCash";
   const offlineAccessLabel = isCurrentFoodOfflinePlan ? "Food Offline liberado" : isCurrentProPlan ? "PRO liberado" : "Somente PRO ou Food Offline";
+  const usesFoodReleaseContext = isCurrentFoodOfflinePlan;
+  const desktopDownloadsTitle = usesFoodReleaseContext ? "Releases HappyCashFood Offline" : "Downloads do desktop";
+  const desktopDownloadsCtaWindows = usesFoodReleaseContext ? "Baixar HappyCashFood Windows (.exe)" : "Baixar Windows (.exe)";
+  const desktopDownloadsCtaDeb = usesFoodReleaseContext ? "Baixar HappyCashFood Linux (.deb)" : "Baixar Linux (.deb)";
+  const desktopDownloadsCtaAppImage = usesFoodReleaseContext ? "Baixar HappyCashFood Linux AppImage" : "Baixar Linux AppImage";
+  const mobileDownloadsTitle = usesFoodReleaseContext ? "APK HappyCashFood" : "Downloads do mobile";
+  const mobileDownloadsCtaAndroid = usesFoodReleaseContext ? "Baixar APK HappyCashFood" : "Baixar APK Android";
+  const mobileDownloadsDescription = usesFoodReleaseContext
+    ? "O HappyCashSite libera o APK separado do HappyCashFood somente depois que o plano Food Offline estiver confirmado no Asaas."
+    : "O app mobile fica liberado para contas com plano PRO ou HappyCashFood Offline ativo.";
   const pendingSubscription = subscriptions.find(subscription => subscription.status === "pending") || null;
   const pendingPlanId = pendingSubscription && isPaidPlanId(pendingSubscription.plan_id) ? pendingSubscription.plan_id : null;
   const pendingPlanContent = pendingPlanId ? publicPlanContent[pendingPlanId] : null;
@@ -1054,87 +1065,107 @@ const Dashboard = () => {
                 </ul>
               </div>
 
-              <div className="rounded-2xl border border-border bg-background/70 p-4">
-                <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <div>
-                    <p className="text-sm font-semibold">Downloads do desktop</p>
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      O executavel fica liberado para contas com plano PRO ou HappyCashFood Offline ativo. Cada nova instalacao pede a chave da empresa, valida o primeiro acesso online, prepara o banco local da loja e os links abaixo sempre consultam a release mais recente para Windows, Linux (.deb) e Linux AppImage.
-                    </p>
-                  </div>
-                  <Badge variant={hasOfflineDownloads ? "default" : "outline"}>
-                    {offlineAccessLabel}
-                  </Badge>
-                </div>
-
-                {hasOfflineDownloads ? (
-                  <div className="mt-4 grid gap-3">
-                    <div className="rounded-2xl border border-border bg-background/70 p-4">
-                      <p className="text-sm font-semibold">Como funciona no desktop</p>
-                      <ul className="mt-3 space-y-2 text-sm text-muted-foreground">
-                        <li>1. Instale a release mais recente na maquina.</li>
-                        <li>2. Valide a chave da empresa no primeiro acesso dessa maquina.</li>
-                        <li>3. No primeiro acesso online, entre como administrador, configure usuario/PIN e aguarde o download dos dados locais.</li>
-                        <li>4. Depois disso, admin e operadores preparados podem seguir offline por ate 5 dias sem internet.</li>
-                      </ul>
+              {isCurrentFoodWebOnlyPlan ? (
+                <div className="rounded-2xl border border-border bg-background/70 p-4">
+                  <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <p className="text-sm font-semibold">Downloads do HappyCashFood</p>
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        No plano HappyCashFood online, o dashboard nao mostra downloads. As releases para Windows, Linux (.deb), Linux AppImage e APK aparecem no HappyCashSite somente depois da confirmacao do plano HappyCashFood Offline no Asaas.
+                      </p>
                     </div>
-                    <Button asChild className="h-11 font-semibold">
-                      <Link to={downloads.windows.route}>
-                        <Download className="mr-2 h-4 w-4" />
-                        Baixar Windows (.exe)
-                      </Link>
-                    </Button>
-                    <Button asChild variant="outline" className="h-11 font-semibold">
-                      <Link to={downloads["linux-deb"].route}>
-                        Baixar Linux (.deb)
-                      </Link>
-                    </Button>
-                    <Button asChild variant="outline" className="h-11 font-semibold">
-                      <Link to={downloads["linux-appimage"].route}>
-                        Baixar Linux AppImage
-                      </Link>
-                    </Button>
+                    <Badge variant="outline">Somente Food Offline</Badge>
                   </div>
-                ) : (
-                  <p className="mt-4 text-sm text-muted-foreground">
-                    Quando o plano PRO ou HappyCashFood Offline estiver ativo, esta area libera a release mais recente do desktop e a ativacao por chave da empresa em cada maquina.
-                  </p>
-                )}
-              </div>
-
-              <div className="mt-6 rounded-3xl border border-border bg-background/70 p-4">
-                <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <div>
-                    <p className="text-sm font-semibold">Downloads do mobile</p>
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      O app mobile fica liberado para contas com plano PRO ou HappyCashFood Offline ativo.
-                    </p>
-                  </div>
-                  <Badge variant={hasOfflineDownloads ? "default" : "outline"}>
-                    {offlineAccessLabel}
-                  </Badge>
                 </div>
+              ) : (
+                <>
+                  <div className="rounded-2xl border border-border bg-background/70 p-4">
+                    <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
+                      <div>
+                        <p className="text-sm font-semibold">{desktopDownloadsTitle}</p>
+                        <p className="mt-1 text-sm text-muted-foreground">
+                          {usesFoodReleaseContext
+                            ? "O download nao aparece dentro do HappyCashFood. Depois da confirmacao no Asaas, o HappyCashSite libera as releases separadas do Food para Windows, Linux (.deb) e Linux AppImage."
+                            : "O executavel fica liberado para contas com plano PRO ou HappyCashFood Offline ativo. Cada nova instalacao pede a chave da empresa, valida o primeiro acesso online, prepara o banco local da loja e os links abaixo sempre consultam a release mais recente para Windows, Linux (.deb) e Linux AppImage."}
+                        </p>
+                      </div>
+                      <Badge variant={hasOfflineDownloads ? "default" : "outline"}>
+                        {offlineAccessLabel}
+                      </Badge>
+                    </div>
 
-                {hasOfflineDownloads ? (
-                  <div className="mt-4 grid gap-3">
-                    <Button asChild className="h-11 font-semibold">
-                      <Link to={downloads.android.route}>
-                        <Download className="mr-2 h-4 w-4" />
-                        Baixar APK Android
-                      </Link>
-                    </Button>
-                    <Button asChild variant="outline" className="h-11 font-semibold">
-                      <Link to={downloads.ios.route}>
-                        Acessar TestFlight iOS
-                      </Link>
-                    </Button>
+                    {hasOfflineDownloads ? (
+                      <div className="mt-4 grid gap-3">
+                        <div className="rounded-2xl border border-border bg-background/70 p-4">
+                          <p className="text-sm font-semibold">Como funciona no desktop</p>
+                          <ul className="mt-3 space-y-2 text-sm text-muted-foreground">
+                            <li>1. Instale a release mais recente na maquina.</li>
+                            <li>2. Valide a chave da empresa no primeiro acesso dessa maquina.</li>
+                            <li>3. No primeiro acesso online, entre como administrador, configure usuario/PIN e aguarde o download dos dados locais.</li>
+                            <li>4. Depois disso, admin e operadores preparados podem seguir offline por ate 5 dias sem internet.</li>
+                          </ul>
+                        </div>
+                        <Button asChild className="h-11 font-semibold">
+                          <Link to={downloads.windows.route}>
+                            <Download className="mr-2 h-4 w-4" />
+                            {desktopDownloadsCtaWindows}
+                          </Link>
+                        </Button>
+                        <Button asChild variant="outline" className="h-11 font-semibold">
+                          <Link to={downloads["linux-deb"].route}>
+                            {desktopDownloadsCtaDeb}
+                          </Link>
+                        </Button>
+                        <Button asChild variant="outline" className="h-11 font-semibold">
+                          <Link to={downloads["linux-appimage"].route}>
+                            {desktopDownloadsCtaAppImage}
+                          </Link>
+                        </Button>
+                      </div>
+                    ) : (
+                      <p className="mt-4 text-sm text-muted-foreground">
+                        Quando o plano PRO ou HappyCashFood Offline estiver ativo, esta area libera a release mais recente do desktop e a ativacao por chave da empresa em cada maquina.
+                      </p>
+                    )}
                   </div>
-                ) : (
-                  <p className="mt-4 text-sm text-muted-foreground">
-                    Quando o plano PRO ou HappyCashFood Offline estiver ativo, esta area libera o download do app mobile Android e o acesso ao TestFlight iOS.
-                  </p>
-                )}
-              </div>
+
+                  <div className="mt-6 rounded-3xl border border-border bg-background/70 p-4">
+                    <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
+                      <div>
+                        <p className="text-sm font-semibold">{mobileDownloadsTitle}</p>
+                        <p className="mt-1 text-sm text-muted-foreground">
+                          {mobileDownloadsDescription}
+                        </p>
+                      </div>
+                      <Badge variant={hasOfflineDownloads ? "default" : "outline"}>
+                        {offlineAccessLabel}
+                      </Badge>
+                    </div>
+
+                    {hasOfflineDownloads ? (
+                      <div className="mt-4 grid gap-3">
+                        <Button asChild className="h-11 font-semibold">
+                          <Link to={downloads.android.route}>
+                            <Download className="mr-2 h-4 w-4" />
+                            {mobileDownloadsCtaAndroid}
+                          </Link>
+                        </Button>
+                        {!usesFoodReleaseContext && (
+                          <Button asChild variant="outline" className="h-11 font-semibold">
+                            <Link to={downloads.ios.route}>
+                              Acessar TestFlight iOS
+                            </Link>
+                          </Button>
+                        )}
+                      </div>
+                    ) : (
+                      <p className="mt-4 text-sm text-muted-foreground">
+                        Quando o plano PRO ou HappyCashFood Offline estiver ativo, esta area libera o download do app mobile Android e o acesso ao TestFlight iOS.
+                      </p>
+                    )}
+                  </div>
+                </>
+              )}
 
               <div className="grid gap-3">
                 <Button asChild className="h-12 text-base font-semibold">

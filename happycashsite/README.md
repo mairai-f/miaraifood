@@ -21,6 +21,12 @@ Pontos importantes:
 - `ANDROID_APK_URL` (alternativa direta ao bucket privado)
 - `IOS_TESTFLIGHT_URL`
 - `MOBILE_DOWNLOAD_SIGNED_URL_TTL`
+- O download do `HappyCashFood Offline` pode usar variaveis separadas:
+- `FOOD_MOBILE_DOWNLOAD_BUCKET`
+- `FOOD_ANDROID_APK_OBJECT_PATH`
+- `FOOD_ANDROID_APK_URL`
+- `FOOD_IOS_TESTFLIGHT_URL`
+- `FOOD_MOBILE_RELEASE_PROVIDER=github` para buscar o APK direto do repositório `HappyCashFood-Releases`
 - Rotas de download protegidas:
   - `/downloads/android` para APK Android
   - `/downloads/ios` para TestFlight iOS
@@ -30,6 +36,12 @@ Pontos importantes:
 - `GITHUB_DESKTOP_RELEASE_REPO`
 - `GITHUB_DESKTOP_RELEASE_CHANNEL`
 - `GITHUB_DESKTOP_RELEASE_TOKEN` opcional para reduzir rate limit da API do GitHub
+- O `HappyCashFood Offline` pode usar repo separado para Windows, `.deb` e `AppImage` com:
+- `FOOD_DESKTOP_RELEASE_PROVIDER=github`
+- `GITHUB_FOOD_RELEASE_OWNER`
+- `GITHUB_FOOD_RELEASE_REPO`
+- `GITHUB_FOOD_RELEASE_CHANNEL`
+- `GITHUB_FOOD_RELEASE_TOKEN`
 - A validação de licenca desktop usa a function `desktop-license`, e o app Electron so libera uso com plano `PRO` ativo.
 - O fluxo de assinatura com Asaas agora usa:
 - `finalize-site-registration` para preparar a conta e abrir o dashboard autenticado

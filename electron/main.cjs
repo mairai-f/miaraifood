@@ -7,11 +7,20 @@ const UPDATE_CHECK_DELAY_MS = 15_000;
 const UPDATE_CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000;
 const UPDATE_METADATA_RETRY_DELAY_MS = 60_000;
 const isDevelopment = Boolean(process.env.VITE_DEV_SERVER_URL) || !app.isPackaged;
+const PRODUCT_CONTEXT = process.env.HAPPYCASH_PRODUCT_CONTEXT?.trim().toLowerCase() === 'happycashfood'
+  ? 'happycashfood'
+  : 'happycash';
+const APP_DISPLAY_NAME = PRODUCT_CONTEXT === 'happycashfood' ? 'HappyCashFood' : 'HappyCash';
 let autoUpdatesConfigured = false;
-const APP_USER_MODEL_ID = 'com.happycash.desktop';
+const APP_USER_MODEL_ID = PRODUCT_CONTEXT === 'happycashfood'
+  ? 'com.happycash.food.desktop'
+  : 'com.happycash.desktop';
 const HAPPYCASH_SITE_ORIGIN = (process.env.HAPPYCASH_SITE_ORIGIN || 'https://www.happycashsite.com.br').replace(/\/+$/, '');
 const VALID_UPDATE_CHANNELS = new Set(['latest', 'beta', 'alpha']);
-const OFFLINE_DB_FILENAME = 'happycash-concentrator.sqlite';
+const OFFLINE_DB_FILENAME = PRODUCT_CONTEXT === 'happycashfood'
+  ? 'happycashfood-concentrator.sqlite'
+  : 'happycash-concentrator.sqlite';
+const RENDERER_DIR = (process.env.HAPPYCASH_RENDERER_DIR || 'dist').replace(/^\.?\//, '').trim() || 'dist';
 const OFFLINE_DB_SCHEMA_VERSION = 2;
 const OFFLINE_SYNC_RETENTION_DAYS = Number.parseInt(process.env.HAPPYCASH_OFFLINE_SYNC_RETENTION_DAYS || '30', 10);
 const OFFLINE_CONFLICT_RETENTION_DAYS = Number.parseInt(process.env.HAPPYCASH_OFFLINE_CONFLICT_RETENTION_DAYS || '30', 10);
@@ -48,7 +57,7 @@ const resolveRendererEntry = () => {
     return process.env.VITE_DEV_SERVER_URL;
   }
 
-  return path.join(__dirname, '..', 'dist', 'index.html');
+  return path.join(__dirname, '..', RENDERER_DIR, 'index.html');
 };
 
 const getWindowIconPath = () => {
@@ -104,7 +113,7 @@ const isReleaseMetadataPublishingError = (errorMessage) =>
 const scheduleUpdateMetadataRetry = (errorMessage) => {
   clearPendingUpdateRetry();
 
-  const friendlyMessage = 'A nova release ainda esta sendo publicada. O HappyCash vai tentar novamente automaticamente em instantes.';
+  const friendlyMessage = `A nova release ainda esta sendo publicada. O ${APP_DISPLAY_NAME} vai tentar novamente automaticamente em instantes.`;
   setUpdateState({
     status: 'publishing',
     checkedAt: nowIso(),
@@ -680,7 +689,7 @@ const getUpdateChannel = () => {
   return 'latest';
 };
 
-app.setName('HappyCash');
+app.setName(APP_DISPLAY_NAME);
 
 if (process.platform === 'win32') {
   app.setAppUserModelId(APP_USER_MODEL_ID);
@@ -771,7 +780,7 @@ const setupAutoUpdates = (mainWindow) => {
   console.log(`Canal de atualizacao configurado: ${updateChannel}`);
 
   autoUpdater.on('checking-for-update', () => {
-    console.log('Verificando atualizacoes do HappyCash...');
+    console.log(`Verificando atualizacoes do ${APP_DISPLAY_NAME}...`);
     clearPendingUpdateRetry();
     setUpdateState({
       status: 'checking',

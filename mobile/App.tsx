@@ -14,8 +14,15 @@ import {
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
 
-const defaultPublicSystemUrl = 'https://app.happycashsite.com.br';
 const runtimeEnv = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env ?? {};
+const appContext = runtimeEnv.EXPO_PUBLIC_HAPPYCASH_CONTEXT?.trim().toLowerCase() === 'happycashfood'
+  ? 'happycashfood'
+  : 'happycash';
+const productLabel = appContext === 'happycashfood' ? 'HappyCashFood Mobile' : 'HappyCash Mobile';
+const productShortLabel = appContext === 'happycashfood' ? 'HappyCashFood' : 'HappyCash';
+const defaultPublicSystemUrl = appContext === 'happycashfood'
+  ? 'https://food.happycashsite.com.br'
+  : 'https://app.happycashsite.com.br';
 const envConfiguredUrl = runtimeEnv.EXPO_PUBLIC_HAPPYCASH_WEB_URL?.trim() || '';
 const envSuggestedDevUrl = runtimeEnv.EXPO_PUBLIC_HAPPYCASH_DEV_URL?.trim() || '';
 
@@ -55,9 +62,9 @@ export default function App() {
   const renderConfig = () => (
     <ScrollView contentContainerStyle={styles.configScrollContent}>
       <View style={styles.card}>
-        <Text style={styles.title}>HappyCash Mobile</Text>
+        <Text style={styles.title}>{productLabel}</Text>
         <Text style={styles.subtitle}>
-          Este app Expo carrega a versao web do HappyCash dentro de um WebView para testar Android e iPhone sem quebrar o sistema atual.
+          Este app Expo carrega a versao web do {productShortLabel} dentro de um WebView para testar Android sem misturar a release mobile do Food com a do HappyCash principal.
         </Text>
 
         <View style={styles.quickActions}>
@@ -75,7 +82,7 @@ export default function App() {
           </Pressable>
         </View>
 
-        <Text style={styles.label}>URL do HappyCash</Text>
+        <Text style={styles.label}>URL do {productShortLabel}</Text>
         <TextInput
           autoCapitalize="none"
           autoCorrect={false}
@@ -88,7 +95,7 @@ export default function App() {
         />
 
         <Text style={styles.help}>
-          Para testar o sistema local no celular, rode o frontend principal na mesma rede e informe algo como
+          Para testar o sistema local no celular, rode o frontend na mesma rede e informe algo como
           {' '}<Text style={styles.helpStrong}>http://SEU-IP:8080</Text>.
         </Text>
 
@@ -101,7 +108,7 @@ export default function App() {
           disabled={!canLoadDraft}
           onPress={handleApplyUrl}
         >
-          <Text style={styles.actionButtonText}>Abrir HappyCash</Text>
+          <Text style={styles.actionButtonText}>Abrir {productShortLabel}</Text>
         </Pressable>
       </View>
     </ScrollView>
@@ -118,7 +125,7 @@ export default function App() {
           <>
             <View style={styles.topBar}>
               <View style={styles.topBarTextGroup}>
-                <Text style={styles.topBarTitle}>HappyCash</Text>
+                <Text style={styles.topBarTitle}>{productShortLabel}</Text>
                 <Text style={styles.topBarUrl} numberOfLines={1}>{activeUrl}</Text>
               </View>
 
@@ -152,7 +159,7 @@ export default function App() {
                 renderLoading={() => (
                   <View style={styles.loadingContainer}>
                     <ActivityIndicator size="large" color="#ffcc00" />
-                    <Text style={styles.loadingText}>Carregando HappyCash...</Text>
+                    <Text style={styles.loadingText}>Carregando {productShortLabel}...</Text>
                   </View>
                 )}
               />

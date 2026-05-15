@@ -22,6 +22,10 @@ const foodSupabase = supabaseUrl && supabasePublishableKey
   : null;
 
 const normalizeEmail = (value: string) => value.trim().toLowerCase();
+const resolveResetRedirectUrl = () => {
+  const siteUrl = (import.meta.env.VITE_HAPPYCASH_SITE_URL as string | undefined)?.trim() || "https://www.happycashsite.com.br";
+  return `${siteUrl.replace(/\/+$/, "")}/reset-password`;
+};
 
 export const signInFoodAdmin = async (
   email: string,
@@ -69,4 +73,19 @@ export const signInFoodAdmin = async (
     username: profile.username || normalizedEmail,
     role: "admin",
   };
+};
+
+export const requestFoodPasswordReset = async (email: string) => {
+  if (!foodSupabase) {
+    throw new Error("Supabase nao esta configurado para o HappyCashFood.");
+  }
+
+  const normalizedEmail = normalizeEmail(email);
+  const { error } = await foodSupabase.auth.resetPasswordForEmail(normalizedEmail, {
+    redirectTo: resolveResetRedirectUrl(),
+  });
+
+  if (error) {
+    throw new Error(error.message || "Nao foi possivel enviar o email de redefinicao.");
+  }
 };
