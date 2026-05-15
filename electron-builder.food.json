@@ -8,8 +8,8 @@
   },
   "files": [
     "dist-food/**/*",
-    "build/icon.png",
-    "build/icon.ico",
+    "build/happycashfood-icon.png",
+    "build/happycashfood-icon.ico",
     "electron/**/*",
     "package.json"
   ],
@@ -23,7 +23,7 @@
     }
   ],
   "win": {
-    "icon": "build/icon.ico",
+    "icon": "build/happycashfood-icon.ico",
     "artifactName": "HappyCashFood-Setup-${version}.${ext}",
     "target": [
       "nsis",
@@ -35,7 +35,7 @@
     "allowToChangeInstallationDirectory": true
   },
   "linux": {
-    "icon": "build/icon.png",
+    "icon": "build/happycashfood-icon.png",
     "artifactName": "HappyCashFood-${version}.${ext}",
     "target": [
       "AppImage",

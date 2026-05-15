@@ -15,7 +15,7 @@ SET enabled = EXCLUDED.enabled;
 
 DO $$
 DECLARE
-  target_email CONSTANT text := 'celioantonio.dev@gmail.com';
+  target_email CONSTANT text := 'celioantonio.dev1@gmail.com';
   target_user_id uuid;
   target_store_account_id uuid;
   current_subscription_id uuid;

@@ -29,6 +29,7 @@ import {
   isCurrentSubscriptionPlanAllowedForProductContext,
   isPaidPlanAllowedForProductContext,
   normalizeProductContext,
+  resolveProductContextFromPlanId,
   type ProductContext,
 } from "../../../shared/productContext";
 import { retryAsync } from "../../../shared/network/retry";
@@ -207,6 +208,12 @@ const getPaymentMethodLabel = (paymentMethod: CheckoutPaymentMethod) =>
 
 const getPlanChargeActionKey = (planId: PaidPlanId, paymentMethod: CheckoutPaymentMethod, billingPeriod: CheckoutBillingPeriod) =>
   `${planId}:${paymentMethod}:${billingPeriod}`;
+
+const getSystemUrlForProductContext = (productContext: ProductContext) =>
+  productContext === "happycashfood" ? FOOD_SYSTEM_APP_URL : SYSTEM_APP_URL;
+
+const getSystemLabelForProductContext = (productContext: ProductContext) =>
+  productContext === "happycashfood" ? "Abrir sistema HappyCashFood" : "Abrir sistema HappyCash";
 
 const Dashboard = () => {
   const location = useLocation();
@@ -459,8 +466,22 @@ const Dashboard = () => {
   const isCurrentFoodOfflinePlan = currentPlanId === "food_offline" && isCurrentSubscription(currentSubscription);
   const isCurrentFoodWebOnlyPlan = currentPlanId === "food" && isCurrentSubscription(currentSubscription);
   const hasOfflineDownloads = isFoodAccount ? isCurrentFoodOfflinePlan : isCurrentProPlan;
-  const activeSystemUrl = isFoodAccount ? FOOD_SYSTEM_APP_URL : SYSTEM_APP_URL;
-  const activeSystemLabel = isFoodAccount ? "Abrir sistema HappyCashFood" : "Abrir sistema HappyCash";
+  const pendingSubscription = compatibleSubscriptions.find((subscription) => subscription.status === "pending") || null;
+  const pendingPlanId = pendingSubscription && isPaidPlanId(pendingSubscription.plan_id) ? pendingSubscription.plan_id : null;
+  const pendingPlanContent = pendingPlanId ? publicPlanContent[pendingPlanId] : null;
+  const pendingPaymentMethod = pendingSubscription
+    ? resolveSubscriptionPaymentMethod(pendingSubscription.billing_type)
+    : null;
+  const pendingBillingPeriod: CheckoutBillingPeriod =
+    pendingSubscription?.metadata?.checkout_billing_period === "annual" ? "annual" : "monthly";
+  const paidPlanIdForSystemTarget = planCheckout?.planId
+    ?? pendingPlanId
+    ?? (currentPlanId && currentPlanId !== "demo" ? currentPlanId : null);
+  const systemProductContext = paidPlanIdForSystemTarget
+    ? resolveProductContextFromPlanId(paidPlanIdForSystemTarget)
+    : accountProductContext;
+  const activeSystemUrl = getSystemUrlForProductContext(systemProductContext);
+  const activeSystemLabel = getSystemLabelForProductContext(systemProductContext);
   const offlineAccessLabel = isFoodAccount
     ? (isCurrentFoodOfflinePlan ? "Food Offline liberado" : "Somente Food Offline")
     : (isCurrentProPlan ? "PRO liberado" : "Somente PRO");
@@ -476,14 +497,6 @@ const Dashboard = () => {
     : isFoodAccount
     ? "O app mobile do HappyCashFood fica liberado somente para contas com plano HappyCashFood Offline ativo."
     : "O app mobile do HappyCash fica liberado somente para contas com plano PRO ativo.";
-  const pendingSubscription = compatibleSubscriptions.find((subscription) => subscription.status === "pending") || null;
-  const pendingPlanId = pendingSubscription && isPaidPlanId(pendingSubscription.plan_id) ? pendingSubscription.plan_id : null;
-  const pendingPlanContent = pendingPlanId ? publicPlanContent[pendingPlanId] : null;
-  const pendingPaymentMethod = pendingSubscription
-    ? resolveSubscriptionPaymentMethod(pendingSubscription.billing_type)
-    : null;
-  const pendingBillingPeriod: CheckoutBillingPeriod =
-    pendingSubscription?.metadata?.checkout_billing_period === "annual" ? "annual" : "monthly";
 
   const allowedPlanIds = new Set(getPublicPlanIdsForProductContext(accountProductContext));
   const sortedPlans = publicPlanList
@@ -619,12 +632,23 @@ const Dashboard = () => {
     if (!checkoutDialogOpen || !planCheckout) return;
 
     if (currentSubscription?.plan_id === planCheckout.planId && isCurrentSubscription(currentSubscription)) {
+      const checkoutProductContext = resolveProductContextFromPlanId(planCheckout.planId);
+      const checkoutSystemUrl = getSystemUrlForProductContext(checkoutProductContext);
+
       setCheckoutDialogOpen(false);
       setPlanCheckout(null);
       toast({
         title: `${publicPlanContent[planCheckout.planId].name} liberado`,
-        description: "Pagamento confirmado. Seu plano ja esta ativo por 30 dias.",
+        description: checkoutProductContext === "happycashfood"
+          ? "Pagamento confirmado. Vamos abrir o HappyCashFood."
+          : "Pagamento confirmado. Seu plano ja esta ativo por 30 dias.",
       });
+
+      if (checkoutProductContext === "happycashfood") {
+        window.setTimeout(() => {
+          window.location.assign(checkoutSystemUrl);
+        }, 600);
+      }
     }
   }, [checkoutDialogOpen, currentSubscription, planCheckout, toast]);
 

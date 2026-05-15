@@ -4,25 +4,39 @@ import path from "node:path";
 
 const owner = process.env.GITHUB_FOOD_RELEASE_OWNER?.trim() || "celioantonio7";
 const repo = process.env.GITHUB_FOOD_RELEASE_REPO?.trim() || "HappyCashFood-Releases";
-const version = `v${JSON.parse(execSync("node -p \"JSON.stringify(require('./package.json').version)\"", { encoding: "utf8" }))}`;
+const version = `v${JSON.parse(readFileSync("happycashfood/package.json", "utf8")).version}`;
 const releaseDir = path.resolve("release/happycashfood");
 const assets = [
+  path.join(releaseDir, `HappyCashFood-Setup-${version.slice(1)}.exe`),
+  path.join(releaseDir, `HappyCashFood-Setup-${version.slice(1)}.exe.blockmap`),
+  path.join(releaseDir, "latest.yml"),
   path.join(releaseDir, `HappyCashFood-${version.slice(1)}.AppImage`),
   path.join(releaseDir, `HappyCashFood-${version.slice(1)}.deb`),
   path.join(releaseDir, "latest-linux.yml"),
   path.join(releaseDir, `HappyCashFood-${version.slice(1)}-win-unpacked.zip`),
 ];
 
-const credentialScript = [
-  "tmp=$(mktemp)",
-  "printf 'protocol=https\\nhost=github.com\\n\\n' | git credential fill > \"$tmp\" 2>/dev/null",
-  "sed -n 's/^password=//p' \"$tmp\" | head -n1",
-  "rm -f \"$tmp\"",
-].join("; ");
+const readGitHubTokenFromCredential = () => {
+  try {
+    const output = execSync("git credential fill", {
+      input: "protocol=https\nhost=github.com\n\n",
+      encoding: "utf8",
+      stdio: ["pipe", "pipe", "ignore"],
+    });
+
+    return output
+      .split("\n")
+      .find((line) => line.startsWith("password="))
+      ?.slice("password=".length)
+      .trim() || "";
+  } catch {
+    return "";
+  }
+};
 
 const token = process.env.GH_TOKEN?.trim()
   || process.env.GITHUB_TOKEN?.trim()
-  || execSync(`bash -lc "${credentialScript}"`, { encoding: "utf8" }).trim();
+  || readGitHubTokenFromCredential();
 
 if (!token) {
   throw new Error("Nenhum token do GitHub foi encontrado. Defina GH_TOKEN ou mantenha a credencial HTTPS salva no git.");
@@ -114,6 +128,7 @@ const mimeTypeForAsset = (name) => {
   if (name.endsWith(".yml")) return "text/yaml";
   if (name.endsWith(".deb")) return "application/vnd.debian.binary-package";
   if (name.endsWith(".zip")) return "application/zip";
+  if (name.endsWith(".exe")) return "application/vnd.microsoft.portable-executable";
   return "application/octet-stream";
 };
 

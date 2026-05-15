@@ -61,7 +61,8 @@ const resolveRendererEntry = () => {
 };
 
 const getWindowIconPath = () => {
-  const iconFilename = process.platform === 'win32' ? 'icon.ico' : 'icon.png';
+  const iconBasename = PRODUCT_CONTEXT === 'happycashfood' ? 'happycashfood-icon' : 'icon';
+  const iconFilename = process.platform === 'win32' ? `${iconBasename}.ico` : `${iconBasename}.png`;
   return path.join(__dirname, '..', 'build', iconFilename);
 };
 
