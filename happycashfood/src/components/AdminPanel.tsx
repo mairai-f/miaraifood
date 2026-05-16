@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState, type ReactNode } from "react";
 import { CalendarRange, ChartNoAxesCombined, KeyRound, PackageCheck, Plus, ReceiptText, Trash2, UsersRound } from "lucide-react";
 import type { CommissionMode, FoodClosureReceipt, FoodOrder, FoodTable, FoodWaiter, MenuProduct, PaymentMethod, Station } from "@/types";
 import { currency, normalizeSearch, occupiedTables, orderTotal, productPriceLabel, sortTablesByNumber, statusTone, waiterCommission } from "@/lib/foodMetrics";
@@ -49,6 +49,27 @@ const reportPeriods: Array<{ id: ReportPeriod; label: string; hint: string }> = 
   { id: "monthly", label: "Mensal", hint: "Ultimos 30 dias" },
   { id: "yearly", label: "Anual", hint: "Ultimos 12 meses" },
 ];
+
+const foodInputClassName = "h-11 rounded-lg border bg-background px-3 font-bold outline-none ring-primary focus:ring-2";
+const fieldLabelClassName = "text-xs font-black uppercase tracking-wide text-muted-foreground";
+
+const Field = ({
+  label,
+  hint,
+  className = "",
+  children,
+}: {
+  label: string;
+  hint?: string;
+  className?: string;
+  children: ReactNode;
+}) => (
+  <label className={`grid gap-1.5 ${className}`}>
+    <span className={fieldLabelClassName}>{label}</span>
+    {children}
+    {hint && <span className="text-xs leading-5 text-muted-foreground">{hint}</span>}
+  </label>
+);
 
 export function AdminPanel({
   tables,
@@ -686,9 +707,15 @@ export function AdminPanel({
           <form onSubmit={submitTable} className="rounded-lg border bg-card p-5 shadow-sm">
             <h4 className="text-xl font-black">Adicionar mesa</h4>
             <div className="mt-4 grid gap-3">
-              <input value={tableForm.number} onChange={(event) => setTableForm((current) => ({ ...current, number: event.target.value }))} className="h-11 rounded-lg border bg-background px-3 font-bold outline-none ring-primary focus:ring-2" placeholder="Numero" />
-              <input value={tableForm.area} onChange={(event) => setTableForm((current) => ({ ...current, area: event.target.value }))} className="h-11 rounded-lg border bg-background px-3 font-bold outline-none ring-primary focus:ring-2" placeholder="Area" />
-              <input value={tableForm.seats} onChange={(event) => setTableForm((current) => ({ ...current, seats: event.target.value }))} className="h-11 rounded-lg border bg-background px-3 font-bold outline-none ring-primary focus:ring-2" inputMode="numeric" placeholder="Lugares" />
+              <Field label="Numero da mesa" hint="Identificacao exibida no mapa, como 01, 02, Balcao 1 ou Deck 4.">
+                <input value={tableForm.number} onChange={(event) => setTableForm((current) => ({ ...current, number: event.target.value }))} className={foodInputClassName} placeholder="Ex: 01" />
+              </Field>
+              <Field label="Ambiente da mesa" hint="Salao, varanda, balcao, deck ou outro setor do restaurante.">
+                <input value={tableForm.area} onChange={(event) => setTableForm((current) => ({ ...current, area: event.target.value }))} className={foodInputClassName} placeholder="Ex: Salao" />
+              </Field>
+              <Field label="Quantidade de lugares" hint="Numero de pessoas que a mesa comporta.">
+                <input value={tableForm.seats} onChange={(event) => setTableForm((current) => ({ ...current, seats: event.target.value }))} className={foodInputClassName} inputMode="numeric" placeholder="Ex: 4" />
+              </Field>
             </div>
             <button type="submit" className="mt-4 inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-black text-primary-foreground">
               <Plus className="h-4 w-4" />
@@ -734,14 +761,24 @@ export function AdminPanel({
           <form onSubmit={submitWaiter} className="rounded-lg border bg-card p-5 shadow-sm">
             <h4 className="text-xl font-black">Adicionar garcom</h4>
             <div className="mt-4 grid gap-3">
-              <input value={waiterForm.name} onChange={(event) => setWaiterForm((current) => ({ ...current, name: event.target.value }))} className="h-11 rounded-lg border bg-background px-3 font-bold outline-none ring-primary focus:ring-2" placeholder="Nome" />
-              <input value={waiterForm.username} onChange={(event) => setWaiterForm((current) => ({ ...current, username: event.target.value }))} className="h-11 rounded-lg border bg-background px-3 font-bold outline-none ring-primary focus:ring-2" placeholder="Usuario" />
-              <input value={waiterForm.pin} onChange={(event) => setWaiterForm((current) => ({ ...current, pin: event.target.value }))} className="h-11 rounded-lg border bg-background px-3 font-bold outline-none ring-primary focus:ring-2" placeholder="PIN" />
-              <input value={waiterForm.commissionValue} onChange={(event) => setWaiterForm((current) => ({ ...current, commissionValue: event.target.value }))} className="h-11 rounded-lg border bg-background px-3 font-bold outline-none ring-primary focus:ring-2" placeholder="Comissao" />
-              <select value={waiterForm.commissionMode} onChange={(event) => setWaiterForm((current) => ({ ...current, commissionMode: event.target.value as "percent" | "cash" }))} className="h-11 rounded-lg border bg-background px-3 font-bold outline-none ring-primary focus:ring-2">
-                <option value="percent">% sobre vendas</option>
-                <option value="cash">Valor fixo por comanda</option>
-              </select>
+              <Field label="Nome do garcom" hint="Nome mostrado nas comandas, relatorios e fechamento.">
+                <input value={waiterForm.name} onChange={(event) => setWaiterForm((current) => ({ ...current, name: event.target.value }))} className={foodInputClassName} placeholder="Ex: Ana" />
+              </Field>
+              <Field label="Usuario de login" hint="Login curto para o garcom entrar no sistema.">
+                <input value={waiterForm.username} onChange={(event) => setWaiterForm((current) => ({ ...current, username: event.target.value }))} className={foodInputClassName} placeholder="Ex: ana" />
+              </Field>
+              <Field label="PIN ou senha do garcom" hint="Credencial usada pelo garcom no login operacional.">
+                <input value={waiterForm.pin} onChange={(event) => setWaiterForm((current) => ({ ...current, pin: event.target.value }))} className={foodInputClassName} placeholder="Ex: 1111" />
+              </Field>
+              <Field label="Valor da comissao" hint="Use percentual, como 6, ou valor fixo em reais, como 4.">
+                <input value={waiterForm.commissionValue} onChange={(event) => setWaiterForm((current) => ({ ...current, commissionValue: event.target.value }))} className={foodInputClassName} placeholder="Ex: 5" />
+              </Field>
+              <Field label="Tipo de comissao">
+                <select value={waiterForm.commissionMode} onChange={(event) => setWaiterForm((current) => ({ ...current, commissionMode: event.target.value as "percent" | "cash" }))} className={foodInputClassName}>
+                  <option value="percent">% sobre vendas</option>
+                  <option value="cash">Valor fixo por comanda</option>
+                </select>
+              </Field>
             </div>
             <button type="submit" className="mt-4 inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-black text-primary-foreground">
               <KeyRound className="h-4 w-4" />
@@ -791,24 +828,48 @@ export function AdminPanel({
       {activeSection === "cadastro-produto" && (
         <form onSubmit={submitProduct} className="rounded-lg border bg-card p-5 shadow-sm">
           <h4 className="text-xl font-black">Cadastrar produto</h4>
-          <p className="mt-1 text-sm text-muted-foreground">Use tamanhos como P:39.90, M:49.90, G:64.90. Ingredientes separados por virgula.</p>
+          <p className="mt-1 text-sm text-muted-foreground">Preencha os dados que aparecem no cardapio, no caixa, no estoque e na cozinha.</p>
           <div className="mt-4 grid gap-3 md:grid-cols-3">
-            <input value={productForm.code} onChange={(event) => setProductForm((current) => ({ ...current, code: event.target.value }))} className="h-11 rounded-lg border bg-background px-3 font-bold outline-none ring-primary focus:ring-2" placeholder="Codigo" />
-            <input value={productForm.name} onChange={(event) => setProductForm((current) => ({ ...current, name: event.target.value }))} className="h-11 rounded-lg border bg-background px-3 font-bold outline-none ring-primary focus:ring-2 md:col-span-2" placeholder="Nome do produto" />
-            <input value={productForm.category} onChange={(event) => setProductForm((current) => ({ ...current, category: event.target.value }))} className="h-11 rounded-lg border bg-background px-3 font-bold outline-none ring-primary focus:ring-2" placeholder="Categoria" />
-            <input value={productForm.price} onChange={(event) => setProductForm((current) => ({ ...current, price: event.target.value }))} className="h-11 rounded-lg border bg-background px-3 font-bold outline-none ring-primary focus:ring-2" placeholder="Preco" />
-            <input value={productForm.costPrice} onChange={(event) => setProductForm((current) => ({ ...current, costPrice: event.target.value }))} className="h-11 rounded-lg border bg-background px-3 font-bold outline-none ring-primary focus:ring-2" placeholder="Custo" />
-            <select value={productForm.station} onChange={(event) => setProductForm((current) => ({ ...current, station: event.target.value as Station }))} className="h-11 rounded-lg border bg-background px-3 font-bold outline-none ring-primary focus:ring-2">
-              <option value="kitchen">Cozinha</option>
-              <option value="bar">Bar</option>
-              <option value="counter">Balcao</option>
-            </select>
-            <input value={productForm.stock} onChange={(event) => setProductForm((current) => ({ ...current, stock: event.target.value }))} className="h-11 rounded-lg border bg-background px-3 font-bold outline-none ring-primary focus:ring-2" placeholder="Estoque" />
-            <input value={productForm.prepMinutes} onChange={(event) => setProductForm((current) => ({ ...current, prepMinutes: event.target.value }))} className="h-11 rounded-lg border bg-background px-3 font-bold outline-none ring-primary focus:ring-2" placeholder="Min preparo" />
-            <input value={productForm.description} onChange={(event) => setProductForm((current) => ({ ...current, description: event.target.value }))} className="h-11 rounded-lg border bg-background px-3 font-bold outline-none ring-primary focus:ring-2 md:col-span-3" placeholder="Descricao" />
-            <input value={productForm.ingredients} onChange={(event) => setProductForm((current) => ({ ...current, ingredients: event.target.value }))} className="h-11 rounded-lg border bg-background px-3 font-bold outline-none ring-primary focus:ring-2 md:col-span-3" placeholder="Ingredientes" />
-            <input value={productForm.sizes} onChange={(event) => setProductForm((current) => ({ ...current, sizes: event.target.value }))} className="h-11 rounded-lg border bg-background px-3 font-bold outline-none ring-primary focus:ring-2 md:col-span-2" placeholder="Tamanhos P:39.90, M:49.90" />
-            <input value={productForm.tags} onChange={(event) => setProductForm((current) => ({ ...current, tags: event.target.value }))} className="h-11 rounded-lg border bg-background px-3 font-bold outline-none ring-primary focus:ring-2" placeholder="Tags" />
+            <Field label="Codigo do produto" hint="Codigo interno usado na busca e no atendimento.">
+              <input value={productForm.code} onChange={(event) => setProductForm((current) => ({ ...current, code: event.target.value }))} className={foodInputClassName} placeholder="Ex: 900" />
+            </Field>
+            <Field label="Nome do produto" hint="Nome exibido no cardapio, caixa e cozinha." className="md:col-span-2">
+              <input value={productForm.name} onChange={(event) => setProductForm((current) => ({ ...current, name: event.target.value }))} className={foodInputClassName} placeholder="Ex: Pizza calabresa" />
+            </Field>
+            <Field label="Categoria do cardapio" hint="Grupo onde o produto aparece, como Pizza, Burger ou Bebidas.">
+              <input value={productForm.category} onChange={(event) => setProductForm((current) => ({ ...current, category: event.target.value }))} className={foodInputClassName} placeholder="Ex: Pizza" />
+            </Field>
+            <Field label="Preco de venda" hint="Valor cobrado do cliente.">
+              <input value={productForm.price} onChange={(event) => setProductForm((current) => ({ ...current, price: event.target.value }))} className={foodInputClassName} placeholder="Ex: 49,90" />
+            </Field>
+            <Field label="Custo do produto" hint="Usado para margem e relatorios.">
+              <input value={productForm.costPrice} onChange={(event) => setProductForm((current) => ({ ...current, costPrice: event.target.value }))} className={foodInputClassName} placeholder="Ex: 19,80" />
+            </Field>
+            <Field label="Setor de preparo" hint="Para onde o pedido sera enviado no KDS.">
+              <select value={productForm.station} onChange={(event) => setProductForm((current) => ({ ...current, station: event.target.value as Station }))} className={foodInputClassName}>
+                <option value="kitchen">Cozinha</option>
+                <option value="bar">Bar</option>
+                <option value="counter">Balcao</option>
+              </select>
+            </Field>
+            <Field label="Estoque atual" hint="Quantidade disponivel para venda.">
+              <input value={productForm.stock} onChange={(event) => setProductForm((current) => ({ ...current, stock: event.target.value }))} className={foodInputClassName} placeholder="Ex: 32" />
+            </Field>
+            <Field label="Tempo de preparo" hint="Tempo medio em minutos.">
+              <input value={productForm.prepMinutes} onChange={(event) => setProductForm((current) => ({ ...current, prepMinutes: event.target.value }))} className={foodInputClassName} placeholder="Ex: 18" />
+            </Field>
+            <Field label="Descricao do produto" hint="Texto curto para explicar o item ao cliente." className="md:col-span-3">
+              <input value={productForm.description} onChange={(event) => setProductForm((current) => ({ ...current, description: event.target.value }))} className={foodInputClassName} placeholder="Ex: Calabresa, mussarela, cebola e oregano." />
+            </Field>
+            <Field label="Ingredientes" hint="Separe por virgula. Ex: massa, molho, calabresa, cebola." className="md:col-span-3">
+              <input value={productForm.ingredients} onChange={(event) => setProductForm((current) => ({ ...current, ingredients: event.target.value }))} className={foodInputClassName} placeholder="Ex: massa, molho, calabresa" />
+            </Field>
+            <Field label="Tamanhos e precos" hint="Opcional. Use P:39.90, M:49.90, G:64.90." className="md:col-span-2">
+              <input value={productForm.sizes} onChange={(event) => setProductForm((current) => ({ ...current, sizes: event.target.value }))} className={foodInputClassName} placeholder="Ex: P:39.90, M:49.90" />
+            </Field>
+            <Field label="Tags do produto" hint="Opcional. Ex: mais vendido, sem lactose, promocao.">
+              <input value={productForm.tags} onChange={(event) => setProductForm((current) => ({ ...current, tags: event.target.value }))} className={foodInputClassName} placeholder="Ex: mais vendido" />
+            </Field>
           </div>
           <button type="submit" className="mt-4 inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-black text-primary-foreground">
             <PackageCheck className="h-4 w-4" />

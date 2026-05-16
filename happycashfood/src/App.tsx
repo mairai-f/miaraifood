@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AppShell, type FoodView } from "@/components/AppShell";
 import { AdminPanel } from "@/components/AdminPanel";
 import { CheckoutPanel } from "@/components/CheckoutPanel";
@@ -136,10 +136,30 @@ export default function App() {
   const [selectedOrderId, setSelectedOrderId] = useState(initialOrders[0]?.id ?? "");
   const [splitCount, setSplitCount] = useState(1);
   const [pendingRemoval, setPendingRemoval] = useState<{ orderId: string; itemId: string } | null>(null);
-  const [adminPin, setAdminPin] = useState("");
-  const [adminPinError, setAdminPinError] = useState("");
+  const [adminPassword, setAdminPassword] = useState("");
+  const [adminPasswordError, setAdminPasswordError] = useState("");
 
   const tickets = useMemo(() => groupTickets(orders, deliveries), [orders, deliveries]);
+  const pendingRemovalOrder = pendingRemoval
+    ? orders.find((order) => order.id === pendingRemoval.orderId)
+    : undefined;
+  const pendingRemovalItem = pendingRemovalOrder && pendingRemoval
+    ? pendingRemovalOrder.items.find((item) => item.id === pendingRemoval.itemId)
+    : undefined;
+  const pendingRemovalTable = pendingRemovalOrder
+    ? tables.find((table) => table.id === pendingRemovalOrder.tableId)
+    : undefined;
+
+  useEffect(() => {
+    if (!pendingRemoval) return undefined;
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [pendingRemoval]);
   const readyItems = tickets
     .filter((ticket) => ticket.status === "ready")
     .reduce((sum, ticket) => sum + ticket.items.reduce((subtotal, item) => subtotal + item.quantity, 0), 0);
@@ -425,6 +445,49 @@ export default function App() {
     );
   };
 
+  const createDelivery = (delivery: {
+    customerName: string;
+    phone: string;
+    address: string;
+    productId: string;
+    quantity: number;
+    deliveryFee: number;
+    paymentMethod: PaymentMethod;
+    note: string;
+  }) => {
+    const product = products.find((item) => item.id === delivery.productId);
+    if (!product) return;
+
+    const quantity = Math.max(1, delivery.quantity);
+    const item = {
+      ...buildItemFromProduct(product, delivery.note),
+      quantity,
+    };
+
+    setDeliveries((currentDeliveries) => [
+      {
+        id: `delivery-${Date.now()}`,
+        customerName: delivery.customerName,
+        phone: delivery.phone,
+        address: delivery.address,
+        status: "new",
+        createdAt: new Date().toISOString(),
+        deliveryFee: delivery.deliveryFee,
+        paymentMethod: delivery.paymentMethod,
+        items: [item],
+      },
+      ...currentDeliveries,
+    ]);
+
+    setProducts((currentProducts) =>
+      currentProducts.map((currentProduct) =>
+        currentProduct.id === product.id
+          ? { ...currentProduct, stock: Math.max(0, currentProduct.stock - quantity) }
+          : currentProduct,
+      ),
+    );
+  };
+
   const cancelOrderItem = (orderId: string, itemId: string) => {
     setOrders((currentOrders) =>
       currentOrders.map((order) => {
@@ -438,25 +501,25 @@ export default function App() {
   };
 
   const requestRemoveItem = (orderId: string, itemId: string) => {
-    if (currentUser?.role === "admin") {
-      cancelOrderItem(orderId, itemId);
-      return;
-    }
     setPendingRemoval({ orderId, itemId });
-    setAdminPin("");
-    setAdminPinError("");
+    setAdminPassword("");
+    setAdminPasswordError("");
+  };
+
+  const closeRemovalModal = () => {
+    setPendingRemoval(null);
+    setAdminPassword("");
+    setAdminPasswordError("");
   };
 
   const confirmAdminRemoval = () => {
     if (!pendingRemoval) return;
-    if (adminPin.trim() !== loginPins.admin) {
-      setAdminPinError("PIN de administrador invalido.");
+    if (adminPassword.trim() !== loginPins.admin) {
+      setAdminPasswordError("Senha da conta administradora invalida.");
       return;
     }
     cancelOrderItem(pendingRemoval.orderId, pendingRemoval.itemId);
-    setPendingRemoval(null);
-    setAdminPin("");
-    setAdminPinError("");
+    closeRemovalModal();
   };
 
   const requestCustomerPayment = (tableId: string) => {
@@ -570,7 +633,14 @@ export default function App() {
     }
 
     if (activeView === "delivery") {
-      return <DeliveryPanel deliveries={deliveries} onAdvanceDelivery={advanceDelivery} />;
+      return (
+        <DeliveryPanel
+          deliveries={deliveries}
+          products={products}
+          onAdvanceDelivery={advanceDelivery}
+          onCreateDelivery={createDelivery}
+        />
+      );
     }
 
     if (activeView === "admin") {
@@ -636,39 +706,52 @@ export default function App() {
 
       {pendingRemoval && (
         <div
-          className="fixed inset-0 z-50 grid place-items-center bg-foreground/40 p-4"
-          onClick={() => setPendingRemoval(null)}
+          className="fixed inset-0 z-50 grid place-items-center overflow-hidden bg-foreground/55 p-3"
+          onClick={closeRemovalModal}
         >
           <div
-            className="w-full max-w-md rounded-lg border bg-card p-5 shadow-panel"
+            className="w-full max-w-xl rounded-2xl border bg-card p-5 shadow-panel"
             onClick={(event) => event.stopPropagation()}
           >
-            <h4 className="text-xl font-black">Autorizacao do administrador</h4>
-            <p className="mt-2 text-sm text-muted-foreground">Somente administrador pode excluir item da comanda do garcom.</p>
+            <p className="text-xs font-black uppercase tracking-wide text-muted-foreground">Confirmacao do administrador</p>
+            <h4 className="mt-1 text-2xl font-black">Cancelar item da comanda</h4>
+            <p className="mt-3 rounded-lg border bg-background p-3 text-sm font-bold">
+              Tem certeza que deseja cancelar{" "}
+              <span className="text-primary">
+                {pendingRemovalItem ? `${pendingRemovalItem.quantity}x ${pendingRemovalItem.productName}` : "este item"}
+              </span>{" "}
+              da Mesa {pendingRemovalTable?.number ?? "?"}?
+            </p>
+            <p className="mt-3 text-sm text-muted-foreground">
+              O item fica marcado como cancelado e deixa de entrar no total da comanda.
+            </p>
+            <label className="mt-4 grid gap-1.5">
+              <span className="text-xs font-black uppercase tracking-wide text-muted-foreground">Senha da conta administradora</span>
             <input
-              value={adminPin}
-              onChange={(event) => setAdminPin(event.target.value)}
-              className="mt-4 h-11 w-full rounded-lg border bg-background px-3 font-bold outline-none ring-primary focus:ring-2"
+              value={adminPassword}
+              onChange={(event) => setAdminPassword(event.target.value)}
+              className="h-11 w-full rounded-lg border bg-background px-3 font-bold outline-none ring-primary focus:ring-2"
               type="password"
-              inputMode="numeric"
-              placeholder="PIN admin"
+              autoComplete="current-password"
+              placeholder="Digite a senha do administrador"
             />
-            {adminPinError && <p className="mt-2 text-sm font-bold text-destructive">{adminPinError}</p>}
+            </label>
+            {adminPasswordError && <p className="mt-2 text-sm font-bold text-destructive">{adminPasswordError}</p>}
             <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
               <button
                 type="button"
-                onClick={() => setPendingRemoval(null)}
+                onClick={closeRemovalModal}
                 data-modal-close="true"
                 className="rounded-lg border bg-background px-4 py-2 text-sm font-black"
               >
-                Cancelar
+                Voltar
               </button>
               <button
                 type="button"
                 onClick={confirmAdminRemoval}
-                className="rounded-lg bg-primary px-4 py-2 text-sm font-black text-primary-foreground"
+                className="rounded-lg bg-destructive px-4 py-2 text-sm font-black text-destructive-foreground"
               >
-                Confirmar exclusao
+                Cancelar item
               </button>
             </div>
           </div>

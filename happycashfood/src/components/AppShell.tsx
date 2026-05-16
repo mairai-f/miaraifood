@@ -152,12 +152,6 @@ export function AppShell({
         </nav>
 
         <div className="mt-8 rounded-lg border bg-background p-3">
-          <p className="text-xs font-semibold uppercase text-muted-foreground">Atalhos</p>
-          <p className="mt-1 text-sm font-bold">1 a {shortcutNavItems.length} para menu</p>
-          <p className="mt-2 text-xs text-muted-foreground">Esc fecha modal e Tab segue pelos campos.</p>
-        </div>
-
-        <div className="mt-3 rounded-lg border bg-background p-3">
           <p className="text-xs font-semibold uppercase text-muted-foreground">{roleLabel[currentUser.role]}</p>
           <p className="mt-1 text-sm font-bold">{currentUser.name}</p>
           <button

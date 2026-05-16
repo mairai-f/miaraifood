@@ -96,6 +96,17 @@ export function TableBoard({
     setProductPage(0);
   }, [selectedCategory, search, productModalOpen]);
 
+  useEffect(() => {
+    if (!tableModalOpen && !productModalOpen) return undefined;
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [productModalOpen, tableModalOpen]);
+
   const openTableModal = (tableId: string) => {
     onSelectTable(tableId);
     setTableModalOpen(true);
@@ -191,18 +202,19 @@ export function TableBoard({
 
       {tableModalOpen && (
         <div
-          className="fixed inset-0 z-50 grid place-items-center bg-foreground/50 p-2 sm:p-4"
+          className="fixed inset-0 z-50 grid place-items-center overflow-hidden bg-foreground/50 p-3"
           onClick={closeTableModal}
         >
           <div
-            className="w-full max-w-5xl rounded-2xl border bg-card shadow-panel"
+            className="w-full max-w-5xl overflow-hidden rounded-2xl border bg-card shadow-panel"
+            style={{ maxHeight: "calc(100dvh - 24px)" }}
             onClick={(event) => event.stopPropagation()}
           >
             <div className="flex items-start justify-between gap-3 border-b p-4 sm:p-5">
               <div>
                 <p className="text-xs font-semibold uppercase text-muted-foreground">Comanda ativa</p>
                 <h3 className="text-2xl font-black sm:text-3xl">Mesa {selectedTable.number}</h3>
-                <p className="mt-1 text-sm text-muted-foreground">Informacoes organizadas sem rolagem.</p>
+                <p className="mt-1 text-sm text-muted-foreground">Itens, consumo e acoes da mesa.</p>
               </div>
               <div className="flex items-center gap-2">
                 <span className={`rounded-full border px-3 py-1 text-xs font-bold ${statusTone[selectedTable.status]}`}>
@@ -222,7 +234,7 @@ export function TableBoard({
 
             <div className="grid gap-4 p-4 sm:p-5 lg:grid-cols-[300px_minmax(0,1fr)]">
               <div className="space-y-3">
-                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
+                <div className="grid grid-cols-2 gap-3">
                   <div className="rounded-lg bg-muted p-3">
                     <p className="text-xs font-semibold text-muted-foreground">Cliente</p>
                     <p className="mt-1 font-bold">{selectedOrder?.customerName ?? selectedTable.customerName ?? `Mesa ${selectedTable.number}`}</p>
@@ -306,9 +318,6 @@ export function TableBoard({
                   </div>
                 )}
 
-                <div className="rounded-lg border bg-background p-3 text-xs text-muted-foreground">
-                  Esc fecha o modal. Tab percorre os campos e botoes.
-                </div>
               </div>
 
               <div className="space-y-4">
@@ -343,7 +352,8 @@ export function TableBoard({
                                   type="button"
                                   onClick={() => onRemoveItem(selectedOrder.id, item.id)}
                                   className="grid h-8 w-8 place-items-center rounded-lg border text-destructive"
-                                  title={role === "admin" ? "Remover item" : "Remover com autorizacao do administrador"}
+                                  title="Cancelar item com senha do administrador"
+                                  aria-label={`Cancelar ${item.quantity}x ${item.productName}`}
                                 >
                                   {role === "admin" ? <Trash2 className="h-4 w-4" /> : <LockKeyhole className="h-4 w-4" />}
                                 </button>
@@ -405,11 +415,12 @@ export function TableBoard({
 
       {productModalOpen && (
         <div
-          className="fixed inset-0 z-[60] grid place-items-center bg-foreground/60 p-2 sm:p-4"
+          className="fixed inset-0 z-[60] grid place-items-center overflow-hidden bg-foreground/60 p-3"
           onClick={closeProductModal}
         >
           <div
-            className="w-full max-w-5xl rounded-2xl border bg-card shadow-panel"
+            className="w-full max-w-5xl overflow-hidden rounded-2xl border bg-card shadow-panel"
+            style={{ maxHeight: "calc(100dvh - 24px)" }}
             onClick={(event) => event.stopPropagation()}
           >
             <div className="flex items-start justify-between gap-3 border-b p-4 sm:p-5">
@@ -551,9 +562,6 @@ export function TableBoard({
                 </div>
               )}
 
-              <div className="rounded-lg border bg-background p-3 text-xs text-muted-foreground">
-                Esc fecha o cardapio. Tab percorre busca, categorias e botoes do produto.
-              </div>
             </div>
           </div>
         </div>

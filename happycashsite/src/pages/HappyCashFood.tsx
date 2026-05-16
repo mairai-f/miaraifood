@@ -1,97 +1,279 @@
 import {
-  BadgeDollarSign,
-  ChefHat,
+  ArrowRight,
+  BarChart3,
   CheckCircle2,
-  Clock,
-  LayoutDashboard,
+  ChefHat,
+  Clock3,
+  CreditCard,
+  MessageCircle,
   MonitorDown,
   Package,
+  QrCode,
   ReceiptText,
   ShieldCheck,
   Smartphone,
+  Store,
+  Table2,
   Truck,
   Utensils,
+  WifiOff,
+  XCircle,
 } from "lucide-react";
+import { useEffect, useRef } from "react";
+import { Link } from "react-router-dom";
+import gsap from "gsap";
+import { ScrollTrigger } from "gsap/ScrollTrigger";
+
 import foodLogo from "@/assets/happycashfood.webp";
+import foodCaixa from "@/assets/happycashfood-caixa-real.png";
+import foodCozinha from "@/assets/happycashfood-cozinha-real.png";
+import foodDelivery from "@/assets/happycashfood-delivery-real.png";
+import foodMesas from "@/assets/happycashfood-mesas-real.png";
 import Header from "@/components/landing/Header";
 import Footer from "@/components/landing/Footer";
 import SiteSeo from "@/components/seo/SiteSeo";
 
-const modules = [
-  { icon: LayoutDashboard, title: "Mesas e comandas em modal", text: "Clique na mesa, abra a comanda, adicione produtos e feche sem poluir a tela principal." },
-  { icon: ChefHat, title: "Cozinha por praca", text: "Pedidos separados entre cozinha, balcao e bar com status recebido, preparando, pronto e entregue." },
-  { icon: ReceiptText, title: "Cardapio da mesa", text: "Catalogo da comanda abre apenas quando a equipe escolhe adicionar itens na mesa certa." },
-  { icon: Truck, title: "Delivery integrado", text: "Pedidos externos seguem no mesmo fluxo do HappyCashFood, com controle de preparo e entrega." },
-  { icon: BadgeDollarSign, title: "Caixa por mesa", text: "O fechamento abre por mesa, sem tela carregada, com Pix, cartao, dinheiro, fiado e conta dividida." },
-  { icon: ShieldCheck, title: "Acesso por plano", text: "Pagou o plano Food, abre o HappyCashFood. Pagou o Food Offline, o dashboard libera as releases protegidas." },
+gsap.registerPlugin(ScrollTrigger);
+
+const HERO_BADGES = [
+  "PDV rapido",
+  "Mesas e comandas",
+  "Cozinha/KDS",
+  "Delivery",
+  "Estoque",
+  "Offline PRO",
+  "App mobile",
 ];
 
-const flow = [
-  "Cliente senta",
-  "Equipe toca na mesa",
-  "Comanda abre em modal",
-  "Produtos entram no cardapio da mesa",
-  "Pedido segue para cozinha, balcao ou bar",
-  "Caixa fecha a mesa sem travar a operacao",
+const businessTypes = [
+  { title: "Hamburgueria", text: "Comanda agil, combos, adicionais e cozinha organizada por status." },
+  { title: "Pizzaria", text: "Pedidos com tamanhos, bordas, delivery e controle de preparo." },
+  { title: "Bar e adega", text: "Balcao rapido, mesas, comandas abertas e controle de caixa." },
+  { title: "Cafeteria", text: "Atendimento de balcao, produtos mais vendidos e fluxo simples." },
+  { title: "Padaria", text: "PDV para movimento alto, estoque e retirada no balcao." },
+  { title: "Delivery", text: "Pedido, endereco, taxa, pagamento e status em uma operacao unica." },
+  { title: "Restaurante", text: "Salao, garcons, cozinha, caixa, relatorios e fechamento por mesa." },
+];
+
+const flowSteps = [
+  { icon: QrCode, title: "Cliente abre o cardapio", text: "QR Code e cardapio online reduzem espera e deixam o pedido mais direto." },
+  { icon: ReceiptText, title: "Pedido entra na comanda", text: "A equipe acompanha mesa, observacao, quantidade e adicionais sem papel solto." },
+  { icon: ChefHat, title: "Cozinha recebe", text: "KDS separa cozinha, bar e balcao por status: recebido, preparando, pronto e entregue." },
+  { icon: Smartphone, title: "Garcom acompanha", text: "Operacao no celular para consultar mesa, adicionar item e seguir o atendimento." },
+  { icon: CreditCard, title: "Caixa finaliza", text: "Fechamento por mesa com Pix, cartao, dinheiro, fiado, desconto e taxa de servico." },
+  { icon: Package, title: "Estoque baixa", text: "Produtos vendidos alimentam controle de estoque, relatorios e margem do negocio." },
+];
+
+const screenshots = [
+  { src: foodMesas, title: "Mapa de mesas e comandas", text: "Visualize mesa livre, ocupada, em fechamento e abra a comanda em poucos cliques." },
+  { src: foodCozinha, title: "KDS cozinha e bar", text: "Pedidos por praca, status de preparo e detalhes da comanda sem depender de papel." },
+  { src: foodCaixa, title: "Caixa por mesa", text: "Feche a conta com taxa, desconto, pagamentos e historico do atendimento." },
+  { src: foodDelivery, title: "Delivery integrado", text: "Acompanhe novos pedidos, preparo, saida e entrega no mesmo painel." },
+];
+
+const featureGroups = [
+  {
+    title: "Atendimento",
+    icon: Table2,
+    items: ["Mesas", "Comandas", "Divisao de conta", "Multiplos pagamentos", "Taxa de servico", "Retirada e balcao"],
+  },
+  {
+    title: "Delivery",
+    icon: Truck,
+    items: ["Status do pedido", "Endereco", "Taxa de entrega", "Motoboy", "Tempo de entrega", "WhatsApp automatico"],
+  },
+  {
+    title: "Cozinha",
+    icon: ChefHat,
+    items: ["Painel KDS", "Separacao por setor", "Status por item", "Observacoes grandes", "Impressao automatica", "Pronto para entrega"],
+  },
+  {
+    title: "Gestao",
+    icon: BarChart3,
+    items: ["Estoque", "Fluxo de caixa", "Relatorios", "Lucro", "Produtos mais vendidos", "Gestao de garcons"],
+  },
+];
+
+const qrSteps = [
+  "Cliente escaneia",
+  "Abre o cardapio",
+  "Faz o pedido",
+  "Paga ou chama o garcom",
+  "Cozinha recebe",
+];
+
+const beforeAfter = [
+  { before: "Papel e comanda perdida", after: "Pedido digital por mesa" },
+  { before: "Erro entre garcom e cozinha", after: "KDS com status em tempo real" },
+  { before: "Estoque sem baixa confiavel", after: "Venda conectada ao controle" },
+  { before: "Caixa confuso no fechamento", after: "Conta organizada por mesa" },
 ];
 
 const foodPlans = [
   {
-    id: "food",
-    name: "HappyCashFood",
+    name: "Food Web",
     price: "R$ 250",
-    description: "Sistema web do restaurante com mesas, comandas, cozinha, delivery, caixa, estoque e gestao organizada.",
-    features: [
-      "Mesas e comandas",
-      "Cozinha e balcao",
-      "Caixa por mesa",
-      "Gestao separada por menu",
-      "Sem download offline",
-    ],
-    highlight: false,
+    description: "Para restaurante que quer organizar salao, caixa, cozinha e delivery pelo navegador.",
+    features: ["Mesas e comandas", "Cozinha/KDS", "Delivery", "Caixa por mesa", "Estoque e relatorios"],
     href: "/cadastro?plan=food",
+    highlight: false,
   },
   {
-    id: "food_offline",
-    name: "HappyCashFood Offline",
+    name: "Food Offline PRO",
     price: "R$ 310",
-    description: "Tudo do plano Food com releases separadas para Windows, Linux .deb, Linux AppImage e Android APK.",
-    features: [
-      "Tudo do HappyCashFood",
-      "Windows",
-      "Linux .deb",
-      "Linux AppImage",
-      "Android APK",
-    ],
-    highlight: true,
+    description: "Para operacao que precisa continuar vendendo mesmo se a internet cair.",
+    features: ["Tudo do Food Web", "Windows", "Linux .deb", "Linux AppImage", "Android APK", "Sincronizacao depois"],
     href: "/cadastro?plan=food_offline",
+    highlight: true,
   },
 ];
 
 const releaseTiles = [
-  { label: "Windows", detail: "Executavel protegido liberado no dashboard apos pagamento.", icon: MonitorDown },
-  { label: "Linux .deb", detail: "Pacote Debian/Ubuntu liberado no HappyCashSite.", icon: Package },
-  { label: "Linux AppImage", detail: "Versao portatil offline liberada no painel.", icon: MonitorDown },
-  { label: "Android APK", detail: "APK protegido liberado somente para Food Offline.", icon: Smartphone },
+  { label: "Windows", detail: "PDV local para caixa e atendimento.", icon: MonitorDown },
+  { label: "Linux .deb", detail: "Instalacao para distribuicoes Debian/Ubuntu.", icon: Package },
+  { label: "Linux AppImage", detail: "Versao portatil para rodar sem instalador.", icon: MonitorDown },
+  { label: "Android APK", detail: "Operacao mobile para equipe e acompanhamento.", icon: Smartphone },
 ];
 
+const proofItems = [
+  "Menos erro entre atendimento, cozinha e caixa.",
+  "Comanda organizada por mesa, sem papel espalhado.",
+  "Fechamento mais rapido em horario de pico.",
+];
+
+const primaryFoodButtonStyle = {
+  backgroundColor: "#ffcc17",
+  borderColor: "#ffcc17",
+  color: "#090908",
+} as const;
+
 const HappyCashFood = () => {
+  const pageRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (prefersReducedMotion) return;
+
+    const ctx = gsap.context(() => {
+      gsap.fromTo(
+        ".food-hero-motion",
+        { y: 34, opacity: 0 },
+        {
+          y: 0,
+          opacity: 1,
+          duration: 0.75,
+          stagger: 0.08,
+          ease: "power3.out",
+        },
+      );
+
+      gsap.to(".food-hero-bg", {
+        yPercent: 8,
+        scale: 1.06,
+        ease: "none",
+        scrollTrigger: {
+          trigger: ".food-hero",
+          start: "top top",
+          end: "bottom top",
+          scrub: true,
+        },
+      });
+
+      gsap.utils.toArray<HTMLElement>(".food-reveal").forEach((el) => {
+        gsap.fromTo(
+          el,
+          { y: 58, opacity: 0 },
+          {
+            y: 0,
+            opacity: 1,
+            duration: 0.78,
+            ease: "power3.out",
+            scrollTrigger: { trigger: el, start: "top 86%", toggleActions: "play none none none" },
+          },
+        );
+      });
+
+      gsap.utils.toArray<HTMLElement>(".food-reveal-left").forEach((el) => {
+        gsap.fromTo(
+          el,
+          { x: -70, opacity: 0 },
+          {
+            x: 0,
+            opacity: 1,
+            duration: 0.85,
+            ease: "power3.out",
+            scrollTrigger: { trigger: el, start: "top 84%", toggleActions: "play none none none" },
+          },
+        );
+      });
+
+      gsap.utils.toArray<HTMLElement>(".food-reveal-right").forEach((el) => {
+        gsap.fromTo(
+          el,
+          { x: 70, opacity: 0 },
+          {
+            x: 0,
+            opacity: 1,
+            duration: 0.85,
+            ease: "power3.out",
+            scrollTrigger: { trigger: el, start: "top 84%", toggleActions: "play none none none" },
+          },
+        );
+      });
+
+      gsap.utils.toArray<HTMLElement>(".food-stagger").forEach((el) => {
+        gsap.fromTo(
+          el.children,
+          { y: 44, opacity: 0, scale: 0.96 },
+          {
+            y: 0,
+            opacity: 1,
+            scale: 1,
+            duration: 0.6,
+            stagger: 0.08,
+            ease: "power3.out",
+            scrollTrigger: { trigger: el, start: "top 84%", toggleActions: "play none none none" },
+          },
+        );
+      });
+
+      gsap.utils.toArray<HTMLElement>(".food-screen-card").forEach((el) => {
+        gsap.fromTo(
+          el,
+          { y: 64, opacity: 0, rotateX: 6 },
+          {
+            y: 0,
+            opacity: 1,
+            rotateX: 0,
+            duration: 0.75,
+            ease: "power3.out",
+            scrollTrigger: { trigger: el, start: "top 82%", toggleActions: "play none none none" },
+          },
+        );
+      });
+    }, pageRef);
+
+    return () => ctx.revert();
+  }, []);
+
   return (
-    <div className="min-h-screen bg-background text-foreground">
+    <div ref={pageRef} className="min-h-screen bg-[#090908] text-white">
       <SiteSeo
-        title="HappyCashFood | Sistema para restaurante, mesas, comandas e operacao offline"
-        description="Conheca o HappyCashFood com mesas, comandas em modal, cozinha, delivery, caixa por mesa e plano offline com releases protegidas no HappyCashSite."
+        title="HappyCashFood | Sistema para restaurante, pizzaria, hamburgueria, bar e delivery"
+        description="HappyCashFood organiza mesas, comandas, QR Code, cozinha/KDS, delivery, caixa, estoque, relatorios e operacao offline para restaurantes."
         path="/happycash-food"
         image={foodLogo}
         keywords={[
           "sistema para restaurante",
+          "sistema para hamburgueria",
+          "sistema para pizzaria",
+          "cardapio qr code",
           "sistema de comanda",
-          "caixa por mesa",
-          "sistema restaurante offline",
           "kds cozinha",
-          "delivery integrado",
-          "apk restaurante offline",
-          "executavel food offline",
+          "delivery restaurante",
+          "sistema restaurante offline",
+          "controle de mesas",
+          "gestao de garcons",
         ]}
         jsonLd={[
           {
@@ -100,7 +282,7 @@ const HappyCashFood = () => {
             name: "HappyCashFood",
             applicationCategory: "BusinessApplication",
             operatingSystem: "Web, Windows, Linux, Android",
-            description: "Sistema para restaurante com mesas, comandas, cozinha, delivery, caixa por mesa e releases offline protegidas pelo HappyCashSite.",
+            description: "Sistema para restaurantes com mesas, comandas, QR Code, cozinha/KDS, delivery, caixa por mesa, estoque e plano offline.",
             offers: foodPlans.map((plan) => ({
               "@type": "Offer",
               name: plan.name,
@@ -114,199 +296,377 @@ const HappyCashFood = () => {
       <Header />
 
       <main>
-        <section className="relative min-h-[88vh] overflow-hidden border-b border-border">
+        <section className="food-hero relative overflow-hidden border-b border-white/10" style={{ minHeight: "680px" }}>
           <img
-            src={foodLogo}
-            alt="HappyCashFood"
-            className="absolute inset-0 h-full w-full object-contain opacity-55"
-            width={1536}
-            height={1024}
+            src={foodMesas}
+            alt="Tela real do HappyCashFood com mesas e comandas"
+            className="food-hero-bg absolute inset-0 h-full w-full object-cover object-center"
+            style={{ filter: "blur(1px)", opacity: 0.24, transform: "scale(1.02)" }}
+            width={1440}
+            height={980}
             loading="eager"
             decoding="async"
           />
-          <div className="absolute inset-0 bg-background/70" />
-          <div className="absolute inset-y-0 left-0 right-0 bg-gradient-to-r from-background via-background/85 to-background/35" />
-          <div className="container relative z-10 flex min-h-[88vh] flex-col justify-center pb-20 pt-32">
-            <div className="max-w-4xl">
-              <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-primary/40 bg-primary/10 px-4 py-2 text-sm font-bold text-primary">
+          <div className="absolute inset-0" style={{ backgroundColor: "rgba(0, 0, 0, 0.72)" }} />
+          <div
+            className="absolute inset-0"
+            style={{
+              background: "linear-gradient(90deg, #050505 0%, #050505 48%, rgba(5, 5, 5, 0.78) 70%, rgba(5, 5, 5, 0.48) 100%)",
+            }}
+          />
+
+          <div className="container relative z-10 flex flex-col justify-center pb-10 pt-24 md:pb-14 md:pt-32" style={{ minHeight: "660px" }}>
+            <div className="max-w-3xl" style={{ maxWidth: "768px" }}>
+              <div className="food-hero-motion inline-flex items-center gap-2 rounded-full border border-amber-400/40 bg-amber-400/10 px-3 py-1.5 text-xs font-black text-amber-200 sm:text-sm">
                 <Utensils className="h-4 w-4" />
-                Sistema separado para operacao food
+                Especialista em alimentacao
               </div>
-              <h1 className="font-heading text-5xl font-black leading-tight text-foreground sm:text-6xl lg:text-7xl">
-                HappyCashFood
+
+              <h1 className="food-hero-motion mt-5 max-w-3xl font-heading text-3xl font-black leading-tight text-white sm:text-5xl lg:text-5xl 2xl:text-6xl" style={{ maxWidth: "760px", lineHeight: 1.08 }}>
+                Sistema para restaurantes, pizzarias, hamburguerias, bares e delivery.
               </h1>
-              <p className="mt-6 max-w-2xl text-lg leading-relaxed text-muted-foreground sm:text-xl">
-                Sistema para bares, lanchonetes, pizzarias e restaurantes com mesa, comanda, cozinha, delivery,
-                caixa por mesa e operacao offline em um ambiente proprio do HappyCashFood.
+
+              <p className="food-hero-motion mt-5 max-w-2xl text-base leading-7 text-zinc-200 sm:text-lg">
+                HappyCashFood organiza atendimento, acelera a cozinha, controla mesas, comandas, delivery,
+                estoque e caixa para sua operacao vender mais com menos erro.
               </p>
-              <div className="mt-6 flex flex-wrap gap-3">
-                <span className="rounded-lg border border-primary/35 bg-primary/10 px-4 py-2 text-sm font-black text-primary">
-                  R$ 250 sistema web
-                </span>
-                <span className="rounded-lg border border-secondary/35 bg-secondary/10 px-4 py-2 text-sm font-black text-secondary">
-                  R$ 310 com releases offline
-                </span>
+
+              <div className="food-hero-motion mt-5 flex max-w-2xl flex-wrap gap-2">
+                {HERO_BADGES.map((item) => (
+                  <span key={item} className="rounded-full border border-white/15 bg-white/10 px-3 py-1.5 text-xs font-bold text-zinc-100">
+                    {item}
+                  </span>
+                ))}
               </div>
-              <div className="mt-8 flex flex-wrap gap-3">
-                <a
-                  href="/cadastro?plan=food"
-                  className="inline-flex items-center gap-2 rounded-lg bg-primary px-5 py-3 text-sm font-black text-primary-foreground transition hover:bg-primary/90"
+
+              <div className="food-hero-motion mt-7 flex flex-col gap-3 sm:flex-row">
+                <Link
+                  to="/cadastro?plan=food"
+                  className="inline-flex h-12 items-center justify-center gap-2 rounded-lg bg-amber-400 px-6 py-4 text-sm font-black text-zinc-950 transition hover:bg-amber-300"
+                  style={primaryFoodButtonStyle}
                 >
-                  Assinar HappyCashFood
+                  Testar gratis <ArrowRight className="h-4 w-4" />
+                </Link>
+                <a
+                  href="#telas-reais"
+                  className="inline-flex h-12 items-center justify-center gap-2 rounded-lg border border-white/20 bg-white/10 px-6 py-4 text-sm font-black text-white transition hover:border-amber-300"
+                >
+                  Ver demonstracao
                 </a>
                 <a
-                  href="#modulos-food"
-                  className="inline-flex items-center gap-2 rounded-lg border border-border bg-background/70 px-5 py-3 text-sm font-black text-foreground backdrop-blur transition hover:border-primary"
+                  href="#planos-food"
+                  className="inline-flex h-12 items-center justify-center gap-2 rounded-lg border border-white/20 bg-zinc-950/60 px-6 py-4 text-sm font-black text-white transition hover:border-emerald-300"
                 >
-                  Ver modulos
+                  Ver planos
                 </a>
               </div>
             </div>
           </div>
         </section>
 
-        <section id="modulos-food" className="container py-20">
-          <div className="mb-10 max-w-3xl">
-            <p className="text-sm font-bold uppercase tracking-[0.2em] text-primary">Modulo restaurante</p>
-            <h2 className="mt-3 font-heading text-4xl font-black">Mesmo login do site, mas operacao aberta no sistema certo</h2>
-            <p className="mt-4 text-muted-foreground">
-              O cliente cria a conta no HappyCashSite, paga o plano Food e o acesso abre no HappyCashFood.
-              Se pagar o Food Offline, o dashboard libera as releases separadas da operacao restaurante.
+        <section className="border-b border-white/10 bg-[#10100e] py-6">
+          <div className="food-stagger container grid gap-3 text-sm font-bold text-zinc-200 md:grid-cols-3">
+            {proofItems.map((item) => (
+              <div key={item} className="flex items-center gap-3 rounded-lg border border-white/10 bg-white/[0.04] p-4">
+                <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-300" />
+                <span>{item}</span>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section className="container py-20">
+          <div className="food-reveal max-w-3xl">
+            <p className="text-sm font-black uppercase tracking-[0.22em] text-amber-300">Fluxo completo</p>
+            <h2 className="mt-3 font-heading text-3xl font-black text-white md:text-5xl">
+              Do QR Code ao caixa, tudo no mesmo caminho.
+            </h2>
+            <p className="mt-4 text-lg leading-8 text-zinc-300">
+              Em vez de cada etapa ficar em um papel, grupo de mensagem ou planilha, o pedido entra no fluxo
+              certo e acompanha a operacao ate o fechamento.
             </p>
           </div>
 
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {modules.map((item) => {
-              const Icon = item.icon;
+          <div className="food-stagger mt-10 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            {flowSteps.map((step, index) => {
+              const Icon = step.icon;
               return (
-                <article key={item.title} className="rounded-lg border border-border bg-card p-5">
-                  <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                    <Icon className="h-5 w-5" />
+                <article key={step.title} className="rounded-lg border border-white/10 bg-white/[0.045] p-5">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-amber-400 text-zinc-950">
+                      <Icon className="h-5 w-5" />
+                    </div>
+                    <span className="text-sm font-black text-zinc-500">0{index + 1}</span>
                   </div>
-                  <h3 className="font-heading text-xl font-black">{item.title}</h3>
-                  <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{item.text}</p>
+                  <h3 className="mt-5 text-xl font-black text-white">{step.title}</h3>
+                  <p className="mt-2 text-sm leading-6 text-zinc-300">{step.text}</p>
                 </article>
               );
             })}
           </div>
         </section>
 
-        <section className="border-y border-border bg-card/35 py-20">
+        <section className="border-y border-white/10 bg-[#12110f] py-20">
           <div className="container">
-            <div className="mb-10 max-w-3xl">
-              <p className="text-sm font-bold uppercase tracking-[0.2em] text-primary">Planos HappyCashFood</p>
-              <h2 className="mt-3 font-heading text-4xl font-black">Sistema web no Food e releases protegidas no Food Offline</h2>
-              <p className="mt-4 text-muted-foreground">
-                O download nao aparece dentro do sistema restaurante. O HappyCashSite reconhece o pagamento e libera
-                os arquivos protegidos somente quando o plano Food Offline estiver ativo.
-              </p>
+            <div className="food-reveal max-w-3xl">
+              <p className="text-sm font-black uppercase tracking-[0.22em] text-emerald-300">Serve para o seu tipo de comida</p>
+              <h2 className="mt-3 font-heading text-3xl font-black md:text-5xl">
+                Quem vende comida precisa de fluxo rapido, nao de sistema generico.
+              </h2>
             </div>
 
-            <div className="grid gap-5 lg:grid-cols-2">
-              {foodPlans.map((plan) => (
-                <article
-                  key={plan.name}
-                  className={`rounded-lg border p-6 ${
-                    plan.highlight ? "border-primary/45 bg-primary/10" : "border-border bg-background"
-                  }`}
-                >
-                  <div className="flex flex-wrap items-start justify-between gap-4">
-                    <div>
-                      <h3 className="font-heading text-2xl font-black">{plan.name}</h3>
-                      <p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground">{plan.description}</p>
-                    </div>
-                    <p className="font-heading text-4xl font-black text-primary">{plan.price}</p>
-                  </div>
-                  <div className="mt-5 grid gap-2 sm:grid-cols-2">
-                    {plan.features.map((feature) => (
-                      <div key={feature} className="flex items-center gap-2 text-sm font-bold">
-                        <CheckCircle2 className="h-4 w-4 text-primary" />
-                        {feature}
-                      </div>
-                    ))}
-                  </div>
-                  <a
-                    href={plan.href}
-                    className={`mt-6 inline-flex h-12 w-full items-center justify-center rounded-lg px-4 text-sm font-black transition ${
-                      plan.highlight
-                        ? "bg-primary text-primary-foreground hover:bg-primary/90"
-                        : "border border-border bg-card text-foreground hover:border-primary"
-                    }`}
-                  >
-                    Escolher {plan.price}
-                  </a>
+            <div className="food-stagger mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              {businessTypes.map((item) => (
+                <article key={item.title} className="rounded-lg border border-white/10 bg-[#090908] p-5">
+                  <Store className="h-6 w-6 text-amber-300" />
+                  <h3 className="mt-4 text-lg font-black">{item.title}</h3>
+                  <p className="mt-2 text-sm leading-6 text-zinc-400">{item.text}</p>
                 </article>
               ))}
-            </div>
-
-            <div className="mt-8 rounded-2xl border border-border bg-background p-6">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <p className="text-sm font-bold uppercase tracking-[0.18em] text-primary">Releases protegidas</p>
-                  <h3 className="mt-2 text-2xl font-black">HappyCashSite libera o download depois do pagamento</h3>
-                </div>
-                <span className="rounded-full border bg-card px-3 py-1 text-xs font-black text-muted-foreground">
-                  HappyCashFood Offline
-                </span>
-              </div>
-              <div className="mt-6 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-                {releaseTiles.map((item) => {
-                  const Icon = item.icon;
-                  return (
-                    <article key={item.label} className="rounded-lg border border-border bg-card p-4">
-                      <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                        <Icon className="h-5 w-5" />
-                      </div>
-                      <h4 className="mt-4 text-lg font-black">{item.label}</h4>
-                      <p className="mt-2 text-sm text-muted-foreground">{item.detail}</p>
-                    </article>
-                  );
-                })}
-              </div>
             </div>
           </div>
         </section>
 
-        <section className="border-y border-border bg-card/35 py-20">
-          <div className="container grid gap-10 lg:grid-cols-[0.85fr_1.15fr] lg:items-center">
-            <div>
-              <p className="text-sm font-bold uppercase tracking-[0.2em] text-primary">Fluxo ideal</p>
-              <h2 className="mt-3 font-heading text-4xl font-black">Do clique na mesa ao caixa sem travar a operacao</h2>
-              <p className="mt-4 text-muted-foreground">
-                A proposta do HappyCashFood agora e reduzir tela carregada: mesa abre modal, produto entra pelo
-                cardapio da comanda e o fechamento acontece por mesa no caixa.
-              </p>
+        <section className="container grid gap-10 py-20 lg:grid-cols-[0.95fr_1.05fr] lg:items-center">
+          <div className="food-reveal-left">
+            <p className="text-sm font-black uppercase tracking-[0.22em] text-amber-300">QR Code vende sozinho</p>
+            <h2 className="mt-3 font-heading text-3xl font-black md:text-5xl">
+              O cliente pede sem esperar o garcom voltar.
+            </h2>
+            <p className="mt-4 text-lg leading-8 text-zinc-300">
+              O cardapio digital reduz atraso, deixa o pedido mais claro e ajuda a vender adicionais,
+              bebidas e acompanhamentos no momento certo.
+            </p>
+            <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+              <Link to="/cadastro?plan=food" className="inline-flex items-center justify-center rounded-lg bg-amber-400 px-5 py-3 text-sm font-black text-zinc-950" style={primaryFoodButtonStyle}>
+                Comecar agora
+              </Link>
+              <a href="#telas-reais" className="inline-flex items-center justify-center rounded-lg border border-white/15 px-5 py-3 text-sm font-black text-white">
+                Ver telas reais
+              </a>
             </div>
-            <div className="grid gap-3 sm:grid-cols-2">
-              {flow.map((step, index) => (
-                <div key={step} className="flex items-center gap-3 rounded-lg border border-border bg-background p-4">
-                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary text-sm font-black text-primary-foreground">
-                    {index + 1}
-                  </span>
-                  <span className="font-bold">{step}</span>
-                </div>
+          </div>
+
+          <div className="food-stagger grid gap-3">
+            {qrSteps.map((step, index) => (
+              <div key={step} className="flex items-center gap-4 rounded-lg border border-white/10 bg-white/[0.045] p-4">
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-emerald-400 text-sm font-black text-zinc-950">
+                  {index + 1}
+                </span>
+                <span className="text-lg font-black">{step}</span>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section id="telas-reais" className="border-y border-white/10 bg-[#10100e] py-20">
+          <div className="container">
+            <div className="food-reveal flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+              <div className="max-w-3xl">
+                <p className="text-sm font-black uppercase tracking-[0.22em] text-amber-300">Telas reais do sistema</p>
+                <h2 className="mt-3 font-heading text-3xl font-black md:text-5xl">
+                  Nada de mockup vazio: veja o HappyCashFood funcionando.
+                </h2>
+              </div>
+              <Link
+                to="/cadastro?plan=food"
+                className="inline-flex h-12 w-fit items-center gap-2 rounded-lg bg-amber-400 px-5 py-3 text-sm font-black text-zinc-950"
+                style={{ ...primaryFoodButtonStyle, alignSelf: "flex-start", minHeight: 48 }}
+              >
+                Testar gratis <ArrowRight className="h-4 w-4" />
+              </Link>
+            </div>
+
+            <div className="mt-10 grid gap-5 lg:grid-cols-2">
+              {screenshots.map((item) => (
+                <article key={item.title} className="food-screen-card overflow-hidden rounded-lg border border-white/10 bg-[#090908]">
+                  <img src={item.src} alt={item.title} className="aspect-[16/10] w-full object-cover object-top" loading="eager" decoding="async" />
+                  <div className="p-5">
+                    <h3 className="text-xl font-black">{item.title}</h3>
+                    <p className="mt-2 text-sm leading-6 text-zinc-400">{item.text}</p>
+                  </div>
+                </article>
               ))}
             </div>
           </div>
         </section>
 
         <section className="container py-20">
-          <div className="grid gap-5 md:grid-cols-3">
-            <article className="rounded-lg border border-border bg-card p-5">
-              <Clock className="mb-4 h-7 w-7 text-primary" />
-              <h3 className="font-heading text-xl font-black">Operacao fluida</h3>
-              <p className="mt-2 text-sm text-muted-foreground">Se a internet cair, a operacao local continua e volta a sincronizar quando reconectar.</p>
-            </article>
-            <article className="rounded-lg border border-border bg-card p-5">
-              <ReceiptText className="mb-4 h-7 w-7 text-primary" />
-              <h3 className="font-heading text-xl font-black">Fechamento por mesa</h3>
-              <p className="mt-2 text-sm text-muted-foreground">Sem “fechamento estilo PDV” poluindo a tela: o caixa abre cada mesa no momento certo.</p>
-            </article>
-            <article className="rounded-lg border border-border bg-card p-5">
-              <ChefHat className="mb-4 h-7 w-7 text-primary" />
-              <h3 className="font-heading text-xl font-black">Cozinha organizada</h3>
-              <p className="mt-2 text-sm text-muted-foreground">Observacoes grandes, ranking automatico dos produtos e separacao clara por estacao de preparo.</p>
-            </article>
+          <div className="food-reveal max-w-3xl">
+            <p className="text-sm font-black uppercase tracking-[0.22em] text-emerald-300">Tudo que o Food faz</p>
+            <h2 className="mt-3 font-heading text-3xl font-black md:text-5xl">
+              Um painel para atendimento, delivery, cozinha e gestao.
+            </h2>
+          </div>
+
+          <div className="food-stagger mt-10 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            {featureGroups.map((group) => {
+              const Icon = group.icon;
+              return (
+                <article key={group.title} className="rounded-lg border border-white/10 bg-white/[0.045] p-5">
+                  <Icon className="h-7 w-7 text-amber-300" />
+                  <h3 className="mt-4 text-xl font-black">{group.title}</h3>
+                  <div className="mt-4 grid gap-2">
+                    {group.items.map((item) => (
+                      <div key={item} className="flex items-center gap-2 text-sm font-bold text-zinc-300">
+                        <CheckCircle2 className="h-4 w-4 text-emerald-300" />
+                        {item}
+                      </div>
+                    ))}
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        </section>
+
+        <section className="border-y border-white/10 bg-[#12110f] py-20">
+          <div className="container grid gap-10 lg:grid-cols-[0.9fr_1.1fr] lg:items-center">
+            <div className="food-reveal-left">
+              <p className="text-sm font-black uppercase tracking-[0.22em] text-amber-300">Diferencial offline</p>
+              <h2 className="mt-3 font-heading text-3xl font-black md:text-5xl">
+                Internet caiu? O HappyCashFood continua funcionando.
+              </h2>
+              <p className="mt-4 text-lg leading-8 text-zinc-300">
+                O plano Food Offline PRO libera versoes protegidas para manter venda, caixa e impressao local
+                mesmo quando a conexao oscila.
+              </p>
+              <div className="food-stagger mt-8 grid gap-3 sm:grid-cols-2">
+                {releaseTiles.map((item) => {
+                  const Icon = item.icon;
+                  return (
+                    <div key={item.label} className="rounded-lg border border-white/10 bg-[#090908] p-4">
+                      <Icon className="h-6 w-6 text-emerald-300" />
+                      <h3 className="mt-3 font-black">{item.label}</h3>
+                      <p className="mt-1 text-sm text-zinc-400">{item.detail}</p>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="food-reveal-right rounded-lg border border-emerald-300/25 bg-emerald-400/10 p-6">
+              <WifiOff className="h-10 w-10 text-emerald-300" />
+              <h3 className="mt-5 text-2xl font-black">Operacao protegida contra instabilidade</h3>
+              <div className="food-stagger mt-5 grid gap-3">
+                {["PDV offline", "Impressao local", "Sincronizacao automatica", "Dados da operacao preservados"].map((item) => (
+                  <div key={item} className="flex items-center gap-3 rounded-lg border border-emerald-300/15 bg-[#090908]/70 p-3 text-sm font-bold">
+                    <ShieldCheck className="h-5 w-5 text-emerald-300" />
+                    {item}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section className="container py-20">
+          <div className="grid gap-8 lg:grid-cols-2">
+            <div className="food-reveal-left">
+              <p className="text-sm font-black uppercase tracking-[0.22em] text-red-300">Antes</p>
+              <h2 className="mt-3 font-heading text-3xl font-black">Quando tudo depende de papel</h2>
+              <div className="food-stagger mt-6 grid gap-3">
+                {beforeAfter.map((item) => (
+                  <div key={item.before} className="flex items-center gap-3 rounded-lg border border-red-300/20 bg-red-500/10 p-4">
+                    <XCircle className="h-5 w-5 text-red-300" />
+                    <span className="font-bold">{item.before}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="food-reveal-right">
+              <p className="text-sm font-black uppercase tracking-[0.22em] text-emerald-300">Depois</p>
+              <h2 className="mt-3 font-heading text-3xl font-black">Com a operacao digital</h2>
+              <div className="food-stagger mt-6 grid gap-3">
+                {beforeAfter.map((item) => (
+                  <div key={item.after} className="flex items-center gap-3 rounded-lg border border-emerald-300/20 bg-emerald-500/10 p-4">
+                    <CheckCircle2 className="h-5 w-5 text-emerald-300" />
+                    <span className="font-bold">{item.after}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section id="planos-food" className="border-y border-white/10 bg-[#10100e] py-20">
+          <div className="container">
+            <div className="food-reveal max-w-3xl">
+              <p className="text-sm font-black uppercase tracking-[0.22em] text-amber-300">Planos HappyCashFood</p>
+              <h2 className="mt-3 font-heading text-3xl font-black md:text-5xl">
+                Escolha entre operar online ou vender mesmo sem internet.
+              </h2>
+            </div>
+
+            <div className="food-stagger mt-10 grid gap-5 lg:grid-cols-2">
+              {foodPlans.map((plan) => (
+                <article
+                  key={plan.name}
+                  className={`rounded-lg border p-6 ${
+                    plan.highlight
+                      ? "border-amber-300/45 bg-amber-400/10"
+                      : "border-white/10 bg-[#090908]"
+                  }`}
+                >
+                  <div className="flex flex-wrap items-start justify-between gap-4">
+                    <div>
+                      <h3 className="font-heading text-2xl font-black">{plan.name}</h3>
+                      <p className="mt-2 max-w-xl text-sm leading-6 text-zinc-400">{plan.description}</p>
+                    </div>
+                    <p className="font-heading text-4xl font-black text-amber-300">{plan.price}</p>
+                  </div>
+                  <div className="mt-6 grid gap-2 sm:grid-cols-2">
+                    {plan.features.map((feature) => (
+                      <div key={feature} className="flex items-center gap-2 text-sm font-bold text-zinc-200">
+                        <CheckCircle2 className="h-4 w-4 text-emerald-300" />
+                        {feature}
+                      </div>
+                    ))}
+                  </div>
+                  <Link
+                    to={plan.href}
+                    className={`mt-6 inline-flex h-12 w-full items-center justify-center rounded-lg px-4 text-sm font-black transition ${
+                      plan.highlight
+                        ? "bg-amber-400 text-zinc-950 hover:bg-amber-300"
+                        : "border border-white/15 bg-white/[0.04] text-white hover:border-amber-300"
+                    }`}
+                    style={plan.highlight ? primaryFoodButtonStyle : undefined}
+                  >
+                    Escolher {plan.name}
+                  </Link>
+                </article>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section className="container py-20">
+          <div className="food-reveal overflow-hidden rounded-lg border border-white/10 bg-[#12110f]">
+            <div className="grid gap-0 lg:grid-cols-[0.9fr_1.1fr]">
+              <div className="p-8 lg:p-10">
+                <Clock3 className="h-9 w-9 text-amber-300" />
+                <h2 className="mt-5 font-heading text-3xl font-black md:text-5xl">
+                  Coloque a operacao para rodar sem esperar meses.
+                </h2>
+                <p className="mt-4 text-lg leading-8 text-zinc-300">
+                  Comece pelo Food Web, evolua para o Offline PRO quando precisar de mais protecao,
+                  e mantenha o HappyCashFood como o centro da sua operacao de atendimento.
+                </p>
+                <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+                  <Link to="/cadastro?plan=food" className="inline-flex items-center justify-center rounded-lg bg-amber-400 px-6 py-4 text-sm font-black text-zinc-950" style={primaryFoodButtonStyle}>
+                    Testar gratis
+                  </Link>
+                  <a href="mailto:happycashsupport@gmail.com" className="inline-flex items-center justify-center gap-2 rounded-lg border border-white/15 px-6 py-4 text-sm font-black text-white">
+                    <MessageCircle className="h-4 w-4" />
+                    Falar com suporte
+                  </a>
+                </div>
+              </div>
+              <div className="relative min-h-[360px]">
+                <img src={foodCozinha} alt="Painel de cozinha do HappyCashFood" className="absolute inset-0 h-full w-full object-cover object-top" loading="lazy" decoding="async" />
+                <div className="absolute inset-0 bg-[linear-gradient(90deg,#12110f_0%,rgba(18,17,15,0.15)_55%,rgba(18,17,15,0)_100%)]" />
+              </div>
+            </div>
           </div>
         </section>
       </main>
