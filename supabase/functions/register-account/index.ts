@@ -1,5 +1,5 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { buildCorsHeaders, handleCorsPreflight, isAllowedOriginValue } from "../_shared/cors.ts";
+import { buildCorsHeaders, handleCorsPreflight } from "../_shared/cors.ts";
 import { getPasswordPolicyError } from "../_shared/passwordPolicy.ts";
 import { normalizeProductContext, resolveProductContextFromPlanId } from "../_shared/productContext.ts";
 
@@ -50,6 +50,10 @@ const registrationCorsOptions = {
 const MAX_IP_ATTEMPTS_PER_15_MIN = 5;
 const MAX_EMAIL_ATTEMPTS_PER_HOUR = 3;
 const DEFAULT_CONFIRM_REDIRECT = "https://www.happycashsite.com.br/auth/callback?plan=demo";
+const DEFAULT_CONFIRM_REDIRECT_ORIGINS = [
+  "https://www.happycashsite.com.br",
+  "https://happycashsite.com.br",
+];
 
 const jsonResponse = (request: Request, body: RegisterAccountResponse, status = 200) =>
   new Response(JSON.stringify(body), {
@@ -102,7 +106,21 @@ const resolveRedirectTo = (value?: string) => {
 
   try {
     const parsed = new URL(value);
-    return isAllowedOriginValue(parsed.origin, false) ? parsed.toString() : fallback;
+    const fallbackUrl = new URL(fallback);
+    const allowedOrigins = new Set([...DEFAULT_CONFIRM_REDIRECT_ORIGINS, fallbackUrl.origin]);
+
+    if (allowedOrigins.has(parsed.origin)) {
+      return parsed.toString();
+    }
+
+    if (parsed.pathname === "/auth/callback") {
+      fallbackUrl.pathname = parsed.pathname;
+      fallbackUrl.search = parsed.search || fallbackUrl.search;
+      fallbackUrl.hash = "";
+      return fallbackUrl.toString();
+    }
+
+    return fallback;
   } catch {
     return fallback;
   }

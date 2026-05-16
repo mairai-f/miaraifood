@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuthSession } from "@/hooks/use-auth-session";
-import { clearSiteStoredAuth } from "@/lib/authSessionPreferences";
+import { startSiteLogout } from "@/lib/authSessionPreferences";
 import { useCurrentSubscription } from "@/hooks/use-current-subscription";
 import { isCurrentSubscription } from "@/lib/subscriptionStatus";
 import { isPublicPlanId, publicPlanContent } from "@/lib/subscriptionPlans";
@@ -55,14 +55,12 @@ const Header = () => {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
-  const handleLogout = async () => {
+  const handleLogout = () => {
     if (loggingOut) return;
 
     setLoggingOut(true);
     setMobileOpen(false);
-    clearSiteStoredAuth();
-    void supabase.auth.signOut({ scope: "local" });
-    window.location.replace(loginHref);
+    startSiteLogout(supabase, loginHref);
   };
 
   const links = [
@@ -88,7 +86,6 @@ const Header = () => {
             width={768}
             height={512}
             loading="eager"
-            fetchpriority="high"
             decoding="async"
           />
         </Link>

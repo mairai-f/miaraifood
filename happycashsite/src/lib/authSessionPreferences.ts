@@ -131,6 +131,16 @@ export const clearSiteLocalSession = async (client?: ScopedSignOutClient) => {
   }
 };
 
+export const startSiteLogout = (client: ScopedSignOutClient, loginPath = '/login') => {
+  if (!isBrowser()) return;
+
+  clearSiteStoredAuth();
+  void withTimeout(client.auth.signOut({ scope: 'local' }), SIGN_OUT_TIMEOUT_MS).catch(() => {
+    // The browser is already leaving the authenticated page.
+  });
+  window.location.replace(loginPath);
+};
+
 export const enforceSiteSessionPreference = async (client: ScopedSignOutClient) => {
   if (!isBrowser()) return;
 

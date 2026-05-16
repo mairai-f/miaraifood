@@ -12,7 +12,14 @@ const LogoutSplash = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const plan = searchParams.get("plan");
-  const loginPath = plan ? `/login?plan=${encodeURIComponent(plan)}` : "/login";
+  const period = searchParams.get("period");
+  const loginParams = new URLSearchParams();
+
+  if (plan) loginParams.set("plan", plan);
+  if (period === "annual") loginParams.set("period", "annual");
+
+  const loginSearch = loginParams.toString();
+  const loginPath = loginSearch ? `/login?${loginSearch}` : "/login";
 
   useEffect(() => {
     let active = true;

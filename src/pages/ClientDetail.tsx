@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useData } from '@/contexts/DataContext';
@@ -73,6 +73,8 @@ export default function ClientDetail() {
   const [quantity, setQuantity] = useState('1');
   const [showSearch, setShowSearch] = useState(false);
   const [cart, setCart] = useState<{ id: string; name: string; price: number; quantity: number }[]>([]);
+  const [submittingCart, setSubmittingCart] = useState(false);
+  const submittingCartRef = useRef(false);
 
   const [payOpen, setPayOpen] = useState(false);
   const [payAmount, setPayAmount] = useState('');
@@ -361,6 +363,7 @@ export default function ClientDetail() {
   };
 
   const handleSubmitCart = async (sendWhatsApp: boolean = true) => {
+    if (submittingCartRef.current) return;
     if (cart.length === 0) { toast.error('Adicione pelo menos um produto'); return; }
     if (!validateCartStock()) return;
     if (clientCreditLimit !== null && cartExceedsCreditLimit) {
@@ -368,11 +371,15 @@ export default function ClientDetail() {
       return;
     }
 
+    submittingCartRef.current = true;
+    setSubmittingCart(true);
+
     const dateAdded = new Date().toISOString();
+    const submittedCart = [...cart];
 
     try {
       await data.addDebtEntries(
-        cart.map(item => ({
+        submittedCart.map(item => ({
           clientId: id,
           productId: item.id,
           productName: item.name,
@@ -386,16 +393,20 @@ export default function ClientDetail() {
       console.error('Erro ao marcar produtos:', error);
       const message = error instanceof Error ? error.message : 'Nao foi possivel marcar os produtos';
       toast.error(message);
+      submittingCartRef.current = false;
+      setSubmittingCart(false);
       return;
     }
 
     const shouldNotifyWhatsApp = sendWhatsApp && Boolean(client.phone);
 
-    toast.success(`${cart.length} item(s) adicionado(s)${shouldNotifyWhatsApp ? '!' : ' (sem notificar)!'}`);
+    toast.success(`${submittedCart.length} item(s) adicionado(s)${shouldNotifyWhatsApp ? '!' : ' (sem notificar)!'}`);
 
     if (shouldNotifyWhatsApp && isInternetUnavailable()) {
       toast.error(INTERNET_REQUIRED_MESSAGE);
       setCart([]);
+      submittingCartRef.current = false;
+      setSubmittingCart(false);
       return;
     }
 
@@ -403,9 +414,9 @@ export default function ClientDetail() {
       const storeName = companyDisplayName !== DEFAULT_COMPANY_NAME || !ownerUserId
         ? companyDisplayName
         : await fetchCompanyDisplayName(ownerUserId);
-      const cartTotal = cart.reduce((s, c) => s + c.quantity * c.price, 0);
-      const newBalance = balance + cartTotal;
-      const cartEntries = cart.map(c => ({
+      const submittedCartTotal = submittedCart.reduce((s, c) => s + c.quantity * c.price, 0);
+      const newBalance = balance + submittedCartTotal;
+      const cartEntries = submittedCart.map(c => ({
         id: '', client_id: id, product_id: c.id, product_name: c.name,
         quantity: c.quantity, unit_price: c.price, total: c.quantity * c.price,
         date_added: dateAdded, status: 'pending', deleted: false,
@@ -418,6 +429,8 @@ export default function ClientDetail() {
     }
 
     setCart([]);
+    submittingCartRef.current = false;
+    setSubmittingCart(false);
   };
 
   const handlePayment = async () => {
@@ -798,11 +811,11 @@ export default function ClientDetail() {
                       </p>
                     )}
                     <div className="flex gap-2">
-                      <Button onClick={() => handleSubmitCart(false)} variant="outline" className="flex-1" size="sm" disabled={cartExceedsCreditLimit}>
-                        <CheckCircle className="h-3 w-3 mr-1" />Marcar
+                      <Button onClick={() => handleSubmitCart(false)} variant="outline" className="flex-1" size="sm" disabled={submittingCart || cartExceedsCreditLimit}>
+                        <CheckCircle className="h-3 w-3 mr-1" />{submittingCart ? 'Marcando...' : 'Marcar'}
                       </Button>
-                      <Button onClick={() => handleSubmitCart(true)} className="flex-1" size="sm" disabled={cartExceedsCreditLimit}>
-                        <MessageCircle className="h-3 w-3 mr-1" />Marcar e Enviar
+                      <Button onClick={() => handleSubmitCart(true)} className="flex-1" size="sm" disabled={submittingCart || cartExceedsCreditLimit}>
+                        <MessageCircle className="h-3 w-3 mr-1" />{submittingCart ? 'Marcando...' : 'Marcar e Enviar'}
                       </Button>
                     </div>
                   </div>

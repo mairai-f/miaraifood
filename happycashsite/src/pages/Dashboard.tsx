@@ -1,5 +1,5 @@
 import { FunctionsFetchError, FunctionsHttpError, FunctionsRelayError } from "@supabase/supabase-js";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import {
   ArrowLeft,
@@ -18,7 +18,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { clearSiteLocalSession, enforceSiteSessionPreference } from "@/lib/authSessionPreferences";
+import { clearSiteLocalSession, enforceSiteSessionPreference, startSiteLogout } from "@/lib/authSessionPreferences";
 import { downloads } from "@/lib/desktopDownloads";
 import { getFreshSiteSession } from "@/lib/siteSession";
 import { getSubscriptionCountdown, getSubscriptionEndAt, getSubscriptionStatusLabel, isCurrentSubscription } from "@/lib/subscriptionStatus";
@@ -239,7 +239,6 @@ const Dashboard = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const isMobile = useIsMobile();
-  const intentionalLogoutRef = useRef(false);
 
   const selectedPlanId = (() => {
     const value = searchParams.get("plan");
@@ -252,7 +251,7 @@ const Dashboard = () => {
     : selectedBillingPeriod === "annual"
     ? "?period=annual"
     : "";
-  const logoutHref = selectedPlanId ? `/saindo${querySuffix}` : "/saindo";
+  const loginHref = `/login${querySuffix}`;
 
   useEffect(() => {
     if (loading || location.hash !== "#planos") return;
@@ -417,7 +416,7 @@ const Dashboard = () => {
       if (!session?.user) {
         void (async () => {
           await clearInvalidSiteSession();
-          navigate(intentionalLogoutRef.current ? logoutHref : `/login${querySuffix}`, { replace: true });
+          navigate(loginHref, { replace: true });
         })();
         return;
       }
@@ -449,7 +448,7 @@ const Dashboard = () => {
       mounted = false;
       subscription.unsubscribe();
     };
-  }, [logoutHref, navigate, querySuffix]);
+  }, [loginHref, navigate, querySuffix]);
 
   const accountProductContext = normalizeProductContext(storeAccount?.product_context);
   const productLabel = getProductContextLabel(accountProductContext);
@@ -517,9 +516,7 @@ const Dashboard = () => {
     if (loggingOut) return;
 
     setLoggingOut(true);
-    intentionalLogoutRef.current = true;
-    void clearSiteLocalSession(supabase);
-    navigate(logoutHref, { replace: true });
+    startSiteLogout(supabase, loginHref);
   };
 
   const handleDeleteAccountDialogOpenChange = (open: boolean) => {
@@ -1307,14 +1304,15 @@ const Dashboard = () => {
                 isCurrentSubscription(currentSubscription) &&
                 isPaidPlanId(plan.id);
               const content = publicPlanContent[plan.id];
-              const isPaidPlan = isPaidPlanId(plan.id);
+              const paidPlanId = isPaidPlanId(plan.id) ? plan.id : null;
+              const isPaidPlan = Boolean(paidPlanId);
               const displayPrice = selectedBillingPeriod === "annual" && isPaidPlan ? plan.annual_price : plan.price;
               const displayPeriod = selectedBillingPeriod === "annual" && isPaidPlan ? "/ano" : "/30 dias";
-              const pixActionKey = isPaidPlan ? getPlanChargeActionKey(plan.id, "pix", selectedBillingPeriod) : null;
-              const cardActionKey = isPaidPlan ? getPlanChargeActionKey(plan.id, "card", selectedBillingPeriod) : null;
+              const pixActionKey = paidPlanId ? getPlanChargeActionKey(paidPlanId, "pix", selectedBillingPeriod) : null;
+              const cardActionKey = paidPlanId ? getPlanChargeActionKey(paidPlanId, "card", selectedBillingPeriod) : null;
               const isPixLoading = pixActionKey === activatingCheckout;
               const isCardLoading = cardActionKey === activatingCheckout;
-              const isPlanActivating = isPaidPlan && Boolean(activatingCheckout?.startsWith(`${plan.id}:`));
+              const isPlanActivating = paidPlanId ? Boolean(activatingCheckout?.startsWith(`${paidPlanId}:`)) : false;
 
               return (
                 <Card
@@ -1378,8 +1376,8 @@ const Dashboard = () => {
                       <div className="grid gap-3">
                         <Button
                           className="h-12 w-full font-semibold"
-                          disabled={isCurrentPaidPlan || isPlanActivating}
-                          onClick={() => handleCreatePlanCharge(plan.id, "pix", selectedBillingPeriod)}
+                          disabled={!paidPlanId || isCurrentPaidPlan || isPlanActivating}
+                          onClick={() => paidPlanId && handleCreatePlanCharge(paidPlanId, "pix", selectedBillingPeriod)}
                         >
                           {isPixLoading ? (
                             <>
@@ -1397,8 +1395,8 @@ const Dashboard = () => {
                         <Button
                           variant="outline"
                           className="h-12 w-full font-semibold"
-                          disabled={isCurrentPaidPlan || isPlanActivating}
-                          onClick={() => handleCreatePlanCharge(plan.id, "card", selectedBillingPeriod)}
+                          disabled={!paidPlanId || isCurrentPaidPlan || isPlanActivating}
+                          onClick={() => paidPlanId && handleCreatePlanCharge(paidPlanId, "card", selectedBillingPeriod)}
                         >
                           {isCardLoading ? (
                             <>

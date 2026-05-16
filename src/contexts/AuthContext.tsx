@@ -132,6 +132,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [localOfflineSession, setLocalOfflineSession] = useState<LocalOfflineSession | null>(null);
   const [loading, setLoading] = useState(true);
   const localOfflineSessionRef = useRef<LocalOfflineSession | null>(null);
+  const currentUserIdRef = useRef<string | null>(null);
+  const loadingRef = useRef(true);
 
   const resetAuthState = useCallback(() => {
     setSession(null);
@@ -276,6 +278,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [applyLocalOfflineSession, localOfflineSession, syncProfileState, user]);
 
   useEffect(() => {
+    currentUserIdRef.current = user?.id ?? null;
+  }, [user?.id]);
+
+  useEffect(() => {
+    loadingRef.current = loading;
+  }, [loading]);
+
+  useEffect(() => {
     let isMounted = true;
     let syncRequestId = 0;
 
@@ -348,6 +358,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, nextSession) => {
       if (event === 'INITIAL_SESSION') return;
+
+      if (
+        (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED')
+        && nextSession?.access_token
+        && nextSession.user?.id === currentUserIdRef.current
+        && !loadingRef.current
+      ) {
+        window.setTimeout(() => {
+          if (!isMounted) return;
+          setSession(nextSession);
+          setUser(nextSession.user);
+        }, 0);
+        return;
+      }
 
       window.setTimeout(() => {
         void syncAuthState(nextSession);
