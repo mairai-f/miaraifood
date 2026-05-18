@@ -1,0 +1,165 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 42 34% 96%;
+    --foreground: 224 28% 10%;
+    --card: 0 0% 100%;
+    --card-foreground: 224 28% 10%;
+    --muted: 43 24% 90%;
+    --muted-foreground: 222 10% 42%;
+    --primary: 45 100% 50%;
+    --primary-foreground: 228 30% 8%;
+    --accent: 150 72% 39%;
+    --accent-foreground: 0 0% 100%;
+    --success: 150 73% 38%;
+    --success-foreground: 0 0% 100%;
+    --warning: 42 100% 52%;
+    --warning-foreground: 224 32% 14%;
+    --destructive: 0 85% 54%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 42 15% 78%;
+    --input: 42 15% 78%;
+    --ring: 45 100% 50%;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --background: 222 23% 9%;
+      --foreground: 42 25% 96%;
+      --card: 224 19% 13%;
+      --card-foreground: 42 25% 96%;
+      --muted: 225 15% 18%;
+      --muted-foreground: 220 12% 72%;
+      --primary: 45 100% 58%;
+      --primary-foreground: 228 30% 8%;
+      --accent: 150 73% 46%;
+      --accent-foreground: 0 0% 100%;
+      --success: 150 73% 46%;
+      --success-foreground: 0 0% 100%;
+      --warning: 42 100% 57%;
+      --warning-foreground: 224 32% 14%;
+      --destructive: 0 85% 64%;
+      --destructive-foreground: 42 25% 96%;
+      --border: 223 13% 28%;
+      --input: 223 13% 28%;
+      --ring: 45 100% 58%;
+    }
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply bg-background text-foreground font-body;
+    margin: 0;
+    min-width: 320px;
+    font-feature-settings: "rlig" 1, "calt" 1;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  button,
+  input,
+  textarea,
+  select {
+    font: inherit;
+  }
+}
+
+@layer components {
+  .app-shell {
+    min-height: 100dvh;
+    background:
+      radial-gradient(circle at top left, hsl(45 100% 58% / 0.16), transparent 32rem),
+      radial-gradient(circle at bottom right, hsl(190 90% 58% / 0.10), transparent 28rem),
+      linear-gradient(180deg, hsl(var(--background)) 0%, hsl(var(--muted) / 0.74) 100%);
+  }
+
+  .hc-button {
+    @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-black transition disabled:pointer-events-none disabled:opacity-50;
+  }
+
+  .hc-button-primary {
+    @apply hc-button bg-primary text-primary-foreground hover:brightness-95;
+  }
+
+  .hc-button-accent {
+    @apply hc-button bg-accent text-accent-foreground hover:brightness-95;
+  }
+
+  .hc-button-soft {
+    @apply hc-button border bg-card text-foreground hover:bg-muted;
+  }
+
+  .hc-icon-button {
+    @apply inline-flex size-11 shrink-0 items-center justify-center rounded-lg border bg-card text-foreground transition hover:bg-muted disabled:pointer-events-none disabled:opacity-50;
+  }
+
+  .hc-input {
+    @apply min-h-11 w-full rounded-lg border bg-card px-3 text-sm font-bold outline-none ring-primary transition focus:ring-2;
+  }
+
+  .hc-textarea {
+    @apply w-full rounded-lg border bg-card px-3 py-3 text-sm font-bold outline-none ring-primary transition focus:ring-2;
+  }
+
+  .hc-label {
+    @apply text-xs font-black uppercase tracking-wide text-muted-foreground;
+  }
+
+  .modal-panel {
+    width: min(100% - 1rem, 720px);
+    max-height: min(92dvh, 880px);
+    overflow: auto;
+  }
+
+  .mobile-bottom-sheet {
+    width: min(100%, 760px);
+    max-height: 92dvh;
+    overflow: auto;
+  }
+
+  .reveal-on-scroll {
+    opacity: 0;
+    transform: translateY(22px);
+  }
+
+  .reveal-on-scroll.is-visible {
+    opacity: 1;
+    transform: translateY(0);
+    transition: opacity 520ms ease, transform 520ms ease, box-shadow 200ms ease;
+  }
+}
+
+@layer utilities {
+  .safe-bottom {
+    padding-bottom: max(1rem, env(safe-area-inset-bottom));
+  }
+
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 7px;
+    height: 7px;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background: hsl(var(--border));
+    border-radius: 999px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .reveal-on-scroll,
+    .reveal-on-scroll.is-visible {
+      opacity: 1;
+      transform: none;
+      transition: none;
+    }
+  }
+}

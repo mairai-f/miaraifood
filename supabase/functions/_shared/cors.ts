@@ -8,14 +8,17 @@ const DEFAULT_ALLOWED_ORIGINS = [
   "http://localhost:8080",
   "http://localhost:8081",
   "http://localhost:8082",
+  "http://localhost:8083",
   "http://localhost:8085",
   "http://localhost:4173",
   "http://localhost:4174",
+  "http://localhost:4175",
   "https://happycash.vercel.app",
   "https://happycashsite.vercel.app",
   "https://www.happycashsite.com.br",
   "https://happycashsite.com.br",
   "https://app.happycashsite.com.br",
+  "https://menu.happycashsite.com.br",
 ];
 
 const DEFAULT_ALLOWED_HEADERS = [

@@ -186,6 +186,34 @@ Motivo:
 
 O app Android atual ainda e um `WebView` da versao web. Ele ja pode ter release separada do `HappyCashFood`, mas para cumprir `100% offline` de verdade precisa de armazenamento local e fila de sincronizacao nativos no app mobile.
 
+## HappyCash Menu
+
+Foi iniciado um app separado em `happycashmenu/` para o dominio:
+
+- `menu.happycashsite.com.br`
+
+Objetivo:
+
+- permitir que a empresa assinante do plano `food` ou `food_offline` monte o cardapio digital com o proprio nome comercial
+- manter a marca `HappyCashFood` no rodape, na vitrine e no cupom do pedido
+- publicar cardapio publico por slug da empresa
+- aceitar pedidos por QR de mesa e por delivery
+- cadastrar categorias, produtos, fotos, preco, disponibilidade, destaque, promocoes e mesas
+- permitir cadastro do cliente com email, senha, telefone e endereco sem bloquear pedido sem login
+- manter login administrador no padrao HappyCashFood com email, senha, perfil `admin` e assinatura ativa
+- usar modal interno para confirmacoes do carrinho, sem alerta nativo do navegador
+- adaptar o visual ao tema claro/escuro do dispositivo com cores do HappyCashFood
+- gravar pedidos reais nas tabelas `restaurant_orders`, `restaurant_order_items` e `restaurant_delivery_orders`
+
+Arquivos principais:
+
+- `happycashmenu/`
+- `supabase/functions/public-menu/index.ts`
+- `supabase/functions/create-public-menu-order/index.ts`
+- `supabase/migrations/20260518122000_create_happycash_menu_public_ordering.sql`
+
+O nome exibido deve vir de `store_accounts.nome_estabelecimento` quando o cliente assinar/criar a empresa. Enquanto nao houver empresa real carregada, o app usa `Cantina Bella Mesa` apenas como fallback visual local.
+
 ## Repositorio remoto de release
 
 O codigo ja foi preparado para usar:
