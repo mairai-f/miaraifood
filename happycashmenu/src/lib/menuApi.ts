@@ -10,6 +10,10 @@ import type {
   CustomerInfo,
   MenuCategory,
   MenuItem,
+  MenuOptionGroup,
+  OptionType,
+  PaymentTiming,
+  PublicMenuAction,
   MenuPromotion,
   MenuTable,
   PublicMenuPayload,
@@ -91,6 +95,25 @@ type ItemRow = {
   qr_visible: boolean;
   available_for_dine_in: boolean | null;
   available_for_delivery: boolean | null;
+};
+
+type OptionRow = {
+  id: string;
+  menu_item_id: string;
+  name: string;
+  option_type: OptionType;
+  min_selected: number | null;
+  max_selected: number | null;
+  required: boolean;
+  active: boolean;
+};
+
+type OptionValueRow = {
+  id: string;
+  option_id: string;
+  name: string;
+  price_delta: number | string;
+  active: boolean;
 };
 
 type PromotionRow = {
@@ -295,6 +318,8 @@ export const createPublicOrder = async (payload: {
   slug: string;
   tableSlug?: string | null;
   serviceType: "dine_in" | "delivery" | "takeaway";
+  paymentTiming?: PaymentTiming;
+  actionType?: PublicMenuAction;
   customer: CustomerInfo;
   items: CartItem[];
 }): Promise<CreateOrderResponse> => {
@@ -311,6 +336,22 @@ export const createPublicOrder = async (payload: {
 
   return data;
 };
+
+export const createPublicMenuAction = async (payload: {
+  slug: string;
+  tableSlug: string;
+  actionType: Exclude<PublicMenuAction, "order">;
+  customer: CustomerInfo;
+}): Promise<CreateOrderResponse> =>
+  createPublicOrder({
+    slug: payload.slug,
+    tableSlug: payload.tableSlug,
+    serviceType: "dine_in",
+    actionType: payload.actionType,
+    paymentTiming: "cashier",
+    customer: payload.customer,
+    items: [],
+  });
 
 export const loadAdminBootstrap = async () => {
   const { data: authData, error: authError } = await menuAdminSupabase.auth.getUser();
@@ -429,11 +470,63 @@ export const loadAdminBootstrap = async () => {
     throw new Error("Nao foi possivel carregar as promocoes.");
   }
 
+  const itemRows = ((itemsResult.data as ItemRow[] | null) || []);
+  const itemIds = itemRows.map((item) => item.id);
+  const { data: optionRows, error: optionsError } = itemIds.length
+    ? await menuAdminSupabase
+        .from("restaurant_menu_item_options")
+        .select("id, menu_item_id, name, option_type, min_selected, max_selected, required, active")
+        .in("menu_item_id", itemIds)
+        .order("created_at", { ascending: true })
+    : { data: [], error: null };
+
+  if (optionsError) {
+    throw new Error("Nao foi possivel carregar os adicionais.");
+  }
+
+  const optionIds = ((optionRows as OptionRow[] | null) || []).map((option) => option.id);
+  const { data: optionValueRows, error: optionValuesError } = optionIds.length
+    ? await menuAdminSupabase
+        .from("restaurant_menu_item_option_values")
+        .select("id, option_id, name, price_delta, active")
+        .in("option_id", optionIds)
+        .order("created_at", { ascending: true })
+    : { data: [], error: null };
+
+  if (optionValuesError) {
+    throw new Error("Nao foi possivel carregar os itens dos adicionais.");
+  }
+
+  const valuesByOptionId = new Map<string, OptionValueRow[]>();
+  ((optionValueRows as OptionValueRow[] | null) || []).forEach((value) => {
+    valuesByOptionId.set(value.option_id, [...(valuesByOptionId.get(value.option_id) || []), value]);
+  });
+
+  const optionsByItemId = new Map<string, MenuOptionGroup[]>();
+  ((optionRows as OptionRow[] | null) || []).forEach((option) => {
+    const group: MenuOptionGroup = {
+      id: option.id,
+      name: option.name,
+      optionType: option.option_type,
+      minSelected: option.min_selected || 0,
+      maxSelected: option.max_selected,
+      required: option.required,
+      active: option.active,
+      values: (valuesByOptionId.get(option.id) || []).map((value) => ({
+        id: value.id,
+        name: value.name,
+        priceDelta: toNumber(value.price_delta),
+        active: value.active,
+      })),
+    };
+    optionsByItemId.set(option.menu_item_id, [...(optionsByItemId.get(option.menu_item_id) || []), group]);
+  });
+
   return {
     account,
     profile: mapProfile(profileRow),
     categories: ((categoriesResult.data as CategoryRow[] | null) || []).map(mapCategory),
-    items: ((itemsResult.data as ItemRow[] | null) || []).map(mapItem),
+    items: itemRows.map((item) => ({ ...mapItem(item), options: optionsByItemId.get(item.id) || [] })),
     tables: ((tablesResult.data as TableRow[] | null) || []).map(mapTable),
     promotions: ((promotionRows as PromotionRow[] | null) || []).map(mapPromotion),
   };
@@ -528,6 +621,77 @@ export const upsertMenuItem = async (
 
   if (error || !data) throw new Error(getPublicErrorMessage(error, "Nao foi possivel salvar o produto."));
   return mapItem(data);
+};
+
+export const replaceMenuItemOptions = async (
+  account: AdminStoreAccount,
+  menuItemId: string,
+  groups: MenuOptionGroup[],
+) => {
+  const { error: deleteError } = await menuAdminSupabase
+    .from("restaurant_menu_item_options")
+    .delete()
+    .eq("menu_item_id", menuItemId);
+
+  if (deleteError) throw new Error(getPublicErrorMessage(deleteError, "Nao foi possivel limpar os adicionais."));
+
+  const savedGroups: MenuOptionGroup[] = [];
+  for (const group of groups) {
+    const { data: savedGroup, error: groupError } = await menuAdminSupabase
+      .from("restaurant_menu_item_options")
+      .insert({
+        owner_user_id: account.ownerUserId,
+        store_account_id: account.id,
+        menu_item_id: menuItemId,
+        name: group.name.trim(),
+        option_type: group.optionType,
+        min_selected: group.minSelected,
+        max_selected: group.maxSelected,
+        required: group.required,
+        active: group.active,
+      })
+      .select("id, menu_item_id, name, option_type, min_selected, max_selected, required, active")
+      .single<OptionRow>();
+
+    if (groupError || !savedGroup) throw new Error(getPublicErrorMessage(groupError, "Nao foi possivel salvar o grupo de adicionais."));
+
+    const valuesPayload = group.values
+      .filter((value) => value.name.trim())
+      .map((value) => ({
+        owner_user_id: account.ownerUserId,
+        store_account_id: account.id,
+        option_id: savedGroup.id,
+        name: value.name.trim(),
+        price_delta: value.priceDelta || 0,
+        active: value.active,
+      }));
+    const { data: savedValues, error: valuesError } = valuesPayload.length
+      ? await menuAdminSupabase
+          .from("restaurant_menu_item_option_values")
+          .insert(valuesPayload)
+          .select("id, option_id, name, price_delta, active")
+      : { data: [], error: null };
+
+    if (valuesError) throw new Error(getPublicErrorMessage(valuesError, "Nao foi possivel salvar os adicionais."));
+
+    savedGroups.push({
+      id: savedGroup.id,
+      name: savedGroup.name,
+      optionType: savedGroup.option_type,
+      minSelected: savedGroup.min_selected || 0,
+      maxSelected: savedGroup.max_selected,
+      required: savedGroup.required,
+      active: savedGroup.active,
+      values: ((savedValues as OptionValueRow[] | null) || []).map((value) => ({
+        id: value.id,
+        name: value.name,
+        priceDelta: toNumber(value.price_delta),
+        active: value.active,
+      })),
+    });
+  }
+
+  return savedGroups;
 };
 
 export const upsertTable = async (

@@ -16,6 +16,8 @@ type OrderRequest = {
   slug?: string;
   tableSlug?: string | null;
   serviceType?: "dine_in" | "delivery" | "takeaway";
+  actionType?: "order" | "call_waiter" | "request_bill";
+  paymentTiming?: "now" | "cashier";
   customer?: {
     name?: string;
     phone?: string;
@@ -26,7 +28,7 @@ type OrderRequest = {
     neighborhood?: string;
     city?: string;
     state?: string;
-    paymentMethod?: "pix" | "card" | "cash";
+    paymentMethod?: "pix" | "card" | "debit" | "credit" | "voucher" | "cash";
     loyaltyOptIn?: boolean;
   };
   items?: PublicCartItem[];
@@ -101,23 +103,29 @@ Deno.serve(async (request) => {
 
   const slug = clean(payload.slug).toLowerCase();
   const serviceType = payload.serviceType || "delivery";
+  const actionType = payload.actionType || "order";
+  const paymentTiming = payload.paymentTiming || "cashier";
   const customer = payload.customer || {};
   const items = payload.items || [];
 
-  if (!slug || !["dine_in", "delivery", "takeaway"].includes(serviceType)) {
+  if (!slug || !["dine_in", "delivery", "takeaway"].includes(serviceType) || !["order", "call_waiter", "request_bill"].includes(actionType)) {
     return jsonResponse(request, { success: false, error: "Pedido invalido." }, 400);
   }
 
-  if (!items.length || items.length > 80) {
+  if (actionType === "order" && (!items.length || items.length > 80)) {
     return jsonResponse(request, { success: false, error: "Adicione pelo menos um item." }, 400);
   }
 
-  if (!clean(customer.name)) {
+  if (actionType === "order" && !clean(customer.name)) {
     return jsonResponse(request, { success: false, error: "Informe o nome do cliente." }, 400);
   }
 
-  if (serviceType === "delivery" && (!clean(customer.phone) || !clean(customer.address) || !clean(customer.number))) {
+  if (actionType === "order" && serviceType === "delivery" && (!clean(customer.phone) || !clean(customer.address) || !clean(customer.number))) {
     return jsonResponse(request, { success: false, error: "Informe telefone e endereco de entrega." }, 400);
+  }
+
+  if (actionType !== "order" && serviceType !== "dine_in") {
+    return jsonResponse(request, { success: false, error: "Acao disponivel apenas no QR da mesa." }, 400);
   }
 
   const supabase = createClient(supabaseUrl, serviceRoleKey, {
@@ -183,6 +191,42 @@ Deno.serve(async (request) => {
     }
 
     tableId = table.id;
+  }
+
+  if (actionType !== "order") {
+    const actionLabel = actionType === "call_waiter" ? "Chamar garcom" : "Pedir conta";
+    const { data: actionOrder, error: actionError } = await supabase
+      .from("restaurant_orders")
+      .insert({
+        owner_user_id: profile.owner_user_id,
+        store_account_id: profile.store_account_id,
+        table_id: tableId,
+        client_id: null,
+        customer_name: clean(customer.name).slice(0, 120) || "Mesa QR",
+        customer_phone: clean(customer.phone).slice(0, 40),
+        service_type: "qr_menu",
+        status: "sent",
+        notes: `${actionLabel} pelo cardapio publico ${profile.display_name} + HappyCashFood`,
+        subtotal: 0,
+        service_fee_amount: 0,
+        discount_amount: 0,
+        total_amount: 0,
+      })
+      .select("id")
+      .single();
+
+    if (actionError || !actionOrder) {
+      return jsonResponse(request, { success: false, error: "Nao foi possivel avisar a equipe." }, 500);
+    }
+
+    return jsonResponse(request, {
+      success: true,
+      orderId: actionOrder.id,
+      actionType,
+      receiptNumber: actionType === "call_waiter" ? "garcom chamado" : "conta solicitada",
+      receiptTitle: actionLabel,
+      brandLine: `${profile.receipt_name} | HappyCashFood`,
+    });
   }
 
   const itemIds = items.map((item) => clean(item.itemId)).filter(Boolean);
@@ -371,7 +415,7 @@ Deno.serve(async (request) => {
       customer_phone: clean(customer.phone).slice(0, 40),
       service_type: serviceType === "dine_in" ? "qr_menu" : serviceType,
       status: "sent",
-      notes: `Pedido criado pelo cardapio publico ${profile.display_name} + HappyCashFood`,
+      notes: `Pedido criado pelo cardapio publico ${profile.display_name} + HappyCashFood | Pagamento: ${paymentTiming === "now" ? "pagar agora" : "pagar no caixa"} | Metodo: ${clean(customer.paymentMethod) || "nao informado"}`,
       subtotal,
       service_fee_amount: deliveryFee,
       discount_amount: 0,

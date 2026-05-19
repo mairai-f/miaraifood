@@ -1,6 +1,32 @@
 import { FormEvent, useEffect, useMemo, useState, type ReactNode } from "react";
-import { CalendarRange, ChartNoAxesCombined, KeyRound, PackageCheck, Plus, ReceiptText, Trash2, UsersRound } from "lucide-react";
-import type { CommissionMode, FoodClosureReceipt, FoodOrder, FoodTable, FoodWaiter, MenuProduct, PaymentMethod, Station } from "@/types";
+import {
+  AlertTriangle,
+  CalendarRange,
+  ChartNoAxesCombined,
+  ClipboardList,
+  KeyRound,
+  PackageCheck,
+  Plus,
+  ReceiptText,
+  Scale,
+  Trash2,
+  UsersRound,
+} from "lucide-react";
+import type {
+  CommissionMode,
+  FoodClosureReceipt,
+  FoodOrder,
+  FoodTable,
+  FoodWaiter,
+  InventoryItem,
+  MenuProduct,
+  PaymentMethod,
+  ProductTechnicalSheet,
+  RecipeIngredient,
+  Station,
+  StockMovement,
+  StockMovementType,
+} from "@/types";
 import { currency, normalizeSearch, occupiedTables, orderTotal, productPriceLabel, sortTablesByNumber, statusTone, waiterCommission } from "@/lib/foodMetrics";
 
 interface AdminPanelProps {
@@ -9,6 +35,9 @@ interface AdminPanelProps {
   products: MenuProduct[];
   waiters: FoodWaiter[];
   closureReceipts: FoodClosureReceipt[];
+  inventoryItems: InventoryItem[];
+  stockMovements: StockMovement[];
+  technicalSheets: ProductTechnicalSheet[];
   onAddTable: (table: { number: string; area: string; seats: number }) => void;
   onDeleteTable: (tableId: string) => void;
   onAddWaiter: (waiter: Omit<FoodWaiter, "id">) => void;
@@ -16,9 +45,18 @@ interface AdminPanelProps {
   onAddProduct: (product: Omit<MenuProduct, "id">) => void;
   onUpdateProduct: (product: MenuProduct) => void;
   onDeleteProduct: (productId: string) => void;
+  onRegisterStockMovement: (movement: {
+    inventoryItemId: string;
+    type: StockMovementType;
+    quantity: number;
+    unitCost: number;
+    reason: string;
+    source: string;
+  }) => void;
+  onUpdateTechnicalSheet: (sheet: ProductTechnicalSheet) => void;
 }
 
-type AdminSection = "resumo" | "relatorios" | "mesas" | "comissoes" | "cadastro-produto" | "editar-produto" | "excluir-produto";
+type AdminSection = "resumo" | "modulos" | "relatorios" | "estoque" | "ficha-tecnica" | "mesas" | "comissoes" | "cadastro-produto" | "editar-produto" | "excluir-produto";
 type ReportPeriod = "weekly" | "monthly" | "yearly";
 
 const emptyProductForm = {
@@ -39,10 +77,20 @@ const emptyProductForm = {
 const parseNumber = (value: string) => Number(value.replace(",", ".")) || 0;
 const paymentMethodLabel: Record<PaymentMethod, string> = {
   pix: "Pix",
+  debit: "Debito",
+  credit: "Credito",
+  voucher: "Voucher",
   card: "Cartao",
   cash: "Dinheiro",
   mixed: "Dividido",
   fiado: "Fiado",
+};
+const stockMovementLabel: Record<StockMovementType, string> = {
+  entrada: "Entrada",
+  venda: "Venda",
+  perda: "Perda",
+  producao: "Producao propria",
+  inventario: "Inventario",
 };
 const reportPeriods: Array<{ id: ReportPeriod; label: string; hint: string }> = [
   { id: "weekly", label: "Semanal", hint: "Ultimos 7 dias" },
@@ -77,6 +125,9 @@ export function AdminPanel({
   products,
   waiters,
   closureReceipts,
+  inventoryItems,
+  stockMovements,
+  technicalSheets,
   onAddTable,
   onDeleteTable,
   onAddWaiter,
@@ -84,6 +135,8 @@ export function AdminPanel({
   onAddProduct,
   onUpdateProduct,
   onDeleteProduct,
+  onRegisterStockMovement,
+  onUpdateTechnicalSheet,
 }: AdminPanelProps) {
   const [activeSection, setActiveSection] = useState<AdminSection>("resumo");
   const [reportPeriod, setReportPeriod] = useState<ReportPeriod>("weekly");
@@ -99,12 +152,41 @@ export function AdminPanel({
   const [productSearch, setProductSearch] = useState("");
   const [selectedProductId, setSelectedProductId] = useState(products[0]?.id ?? "");
   const [productToDeleteId, setProductToDeleteId] = useState(products[0]?.id ?? "");
+  const [stockForm, setStockForm] = useState({
+    inventoryItemId: inventoryItems[0]?.id ?? "",
+    type: "entrada" as StockMovementType,
+    quantity: "1",
+    unitCost: "",
+    reason: "",
+    source: "Administrador",
+  });
+  const [technicalProductId, setTechnicalProductId] = useState(products[0]?.id ?? "");
+  const [recipeDraft, setRecipeDraft] = useState("");
+  const [sheetMetaForm, setSheetMetaForm] = useState({ yieldQuantity: "1", packagingCost: "0", wastePercent: "0", notes: "" });
   const normalizedProductSearch = useMemo(() => normalizeSearch(productSearch), [productSearch]);
   const filteredProducts = useMemo(() => {
     if (!normalizedProductSearch) return products;
     return products.filter((product) => normalizeSearch(product.name).includes(normalizedProductSearch));
   }, [products, normalizedProductSearch]);
   const selectedProduct = products.find((product) => product.id === selectedProductId) ?? filteredProducts[0] ?? products[0] ?? null;
+  const selectedInventoryItem = inventoryItems.find((item) => item.id === stockForm.inventoryItemId) ?? inventoryItems[0] ?? null;
+  const selectedTechnicalProduct = products.find((product) => product.id === technicalProductId) ?? products[0] ?? null;
+  const selectedTechnicalSheet = selectedTechnicalProduct
+    ? technicalSheets.find((sheet) => sheet.productId === selectedTechnicalProduct.id)
+    : undefined;
+  const lowStockItems = useMemo(
+    () => inventoryItems.filter((item) => item.currentStock <= item.minimumStock),
+    [inventoryItems],
+  );
+  const expiringItems = useMemo(() => {
+    const limit = Date.now() + 7 * 24 * 60 * 60 * 1000;
+    return inventoryItems.filter((item) => {
+      if (!item.expirationDate) return false;
+      const expirationTime = new Date(item.expirationDate).getTime();
+      return Number.isFinite(expirationTime) && expirationTime <= limit;
+    });
+  }, [inventoryItems]);
+  const stockValue = inventoryItems.reduce((sum, item) => sum + item.currentStock * item.averageCost, 0);
   const openRevenue = orders.filter((order) => order.status !== "paid").reduce((sum, order) => sum + orderTotal(order), 0);
   const hourlySales = useMemo(() => {
     const soldItems = orders.flatMap((order) =>
@@ -283,6 +365,36 @@ export function AdminPanel({
     setProductToDeleteId(filteredProducts[0]?.id ?? "");
   }, [filteredProducts, productToDeleteId]);
 
+  useEffect(() => {
+    if (inventoryItems.some((item) => item.id === stockForm.inventoryItemId)) return;
+    setStockForm((current) => ({ ...current, inventoryItemId: inventoryItems[0]?.id ?? "" }));
+  }, [inventoryItems, stockForm.inventoryItemId]);
+
+  useEffect(() => {
+    if (products.some((product) => product.id === technicalProductId)) return;
+    setTechnicalProductId(products[0]?.id ?? "");
+  }, [products, technicalProductId]);
+
+  useEffect(() => {
+    if (!selectedTechnicalProduct) {
+      setRecipeDraft("");
+      setSheetMetaForm({ yieldQuantity: "1", packagingCost: "0", wastePercent: "0", notes: "" });
+      return;
+    }
+    const sheet = technicalSheets.find((technicalSheet) => technicalSheet.productId === selectedTechnicalProduct.id);
+    setRecipeDraft(
+      sheet?.ingredients
+        .map((ingredient) => `${ingredient.inventoryItemName} | ${ingredient.quantity} | ${ingredient.unit}`)
+        .join("\n") || "",
+    );
+    setSheetMetaForm({
+      yieldQuantity: String(sheet?.yieldQuantity || 1),
+      packagingCost: String(sheet?.packagingCost || 0),
+      wastePercent: String(sheet?.wastePercent || 0),
+      notes: sheet?.notes || "",
+    });
+  }, [selectedTechnicalProduct?.id, technicalSheets]);
+
   const productEditor = useMemo(() => {
     if (!selectedProduct) return null;
     return {
@@ -295,7 +407,10 @@ export function AdminPanel({
 
   const sections: Array<{ id: AdminSection; label: string }> = [
     { id: "resumo", label: "Resumo" },
+    { id: "modulos", label: "Modulos" },
     { id: "relatorios", label: "Relatorios" },
+    { id: "estoque", label: "Estoque" },
+    { id: "ficha-tecnica", label: "Ficha tecnica" },
     { id: "mesas", label: "Mesas" },
     { id: "comissoes", label: "Comissoes" },
     { id: "cadastro-produto", label: "Cadastrar produto" },
@@ -374,7 +489,64 @@ export function AdminPanel({
         .map((size, index) => {
           const [name, price] = size.split(":");
           return { id: selectedProduct.sizes[index]?.id ?? `size-${Date.now()}-${index}`, name: name.trim(), price: parseNumber(price ?? "0") };
-        }),
+      }),
+    });
+  };
+
+  const submitStockMovement = (event: FormEvent) => {
+    event.preventDefault();
+    if (!selectedInventoryItem) return;
+    const quantity = parseNumber(stockForm.quantity);
+    if (quantity <= 0 && stockForm.type !== "inventario") return;
+    onRegisterStockMovement({
+      inventoryItemId: selectedInventoryItem.id,
+      type: stockForm.type,
+      quantity,
+      unitCost: parseNumber(stockForm.unitCost) || selectedInventoryItem.averageCost,
+      reason: stockForm.reason,
+      source: stockForm.source,
+    });
+    setStockForm((current) => ({
+      ...current,
+      quantity: "1",
+      unitCost: "",
+      reason: "",
+      source: "Administrador",
+    }));
+  };
+
+  const parseRecipeDraft = (): RecipeIngredient[] =>
+    recipeDraft
+      .split("\n")
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .map((line) => {
+        const [name = "", quantity = "0"] = line.split("|").map((part) => part.trim());
+        const inventoryItem = inventoryItems.find((item) => normalizeSearch(item.name) === normalizeSearch(name));
+        if (!inventoryItem) return null;
+        return {
+          inventoryItemId: inventoryItem.id,
+          inventoryItemName: inventoryItem.name,
+          quantity: parseNumber(quantity),
+          unit: inventoryItem.unit,
+        };
+      })
+      .filter((ingredient): ingredient is RecipeIngredient => Boolean(ingredient && ingredient.quantity > 0));
+
+  const submitTechnicalSheet = (event: FormEvent) => {
+    event.preventDefault();
+    if (!selectedTechnicalProduct) return;
+    const ingredients = parseRecipeDraft();
+    if (!ingredients.length) return;
+    onUpdateTechnicalSheet({
+      id: selectedTechnicalSheet?.id ?? `sheet-${Date.now()}`,
+      productId: selectedTechnicalProduct.id,
+      productName: selectedTechnicalProduct.name,
+      yieldQuantity: Math.max(1, parseNumber(sheetMetaForm.yieldQuantity)),
+      packagingCost: Math.max(0, parseNumber(sheetMetaForm.packagingCost)),
+      wastePercent: Math.max(0, parseNumber(sheetMetaForm.wastePercent)),
+      notes: sheetMetaForm.notes.trim(),
+      ingredients,
     });
   };
 
@@ -515,6 +687,287 @@ export function AdminPanel({
                     : "O ranking passa a aparecer automaticamente conforme os pedidos entram."}
                 </p>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {activeSection === "modulos" && (
+        <div className="grid gap-5 xl:grid-cols-2">
+          <div className="rounded-lg border bg-card p-5 shadow-sm">
+            <div className="mb-4 flex items-center gap-2">
+              <ClipboardList className="h-5 w-5 text-primary" />
+              <h4 className="text-xl font-black">HappyCashFood: sistema interno</h4>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {[
+                "Gestao de produtos, categorias e fichas tecnicas",
+                "Estoque com entrada, perda, inventario e baixa por venda",
+                "PDV rapido, caixa, descontos, troco e multiplos pagamentos",
+                "Mesas, comandas, transferencia, fechamento e divisao de conta",
+                "KDS para cozinha, bar, pizzaria e balcao",
+                "Delivery com taxa, bairro, motoboy, tempo e WhatsApp",
+                "Relatorios, ticket medio, ranking e comissao de garcom",
+                "Operacao offline com impressao ESC/POS no desktop",
+              ].map((item) => (
+                <p key={item} className="rounded-lg border bg-background p-3 text-sm font-bold text-muted-foreground">
+                  {item}
+                </p>
+              ))}
+            </div>
+          </div>
+
+          <div className="rounded-lg border bg-card p-5 shadow-sm">
+            <div className="mb-4 flex items-center gap-2">
+              <PackageCheck className="h-5 w-5 text-primary" />
+              <h4 className="text-xl font-black">HappyCashMenu: cardapio publico</h4>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {[
+                "Cardapio bonito com logo, capa, promocoes e categorias",
+                "Produto com foto, preco, tempo, adicionais e observacao",
+                "Carrinho, editar item, remover item e confirmacao sensivel",
+                "QR Code por mesa e link de delivery organizado",
+                "Cliente pede por mesa, retirada ou delivery",
+                "Chamar garcom e pedir conta direto no QR da mesa",
+                "Login de fidelidade com email, senha e endereco",
+                "Pedido cai no HappyCashFood separado por setor",
+              ].map((item) => (
+                <p key={item} className="rounded-lg border bg-background p-3 text-sm font-bold text-muted-foreground">
+                  {item}
+                </p>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {activeSection === "estoque" && (
+        <div className="space-y-5">
+          <div className="grid gap-3 lg:grid-cols-4">
+            <article className="rounded-lg border bg-card p-4 shadow-sm">
+              <p className="text-xs font-bold uppercase text-muted-foreground">Valor em estoque</p>
+              <p className="mt-2 text-3xl font-black">{currency.format(stockValue)}</p>
+            </article>
+            <article className="rounded-lg border bg-card p-4 shadow-sm">
+              <p className="text-xs font-bold uppercase text-muted-foreground">Itens no minimo</p>
+              <p className="mt-2 text-3xl font-black text-amber-500">{lowStockItems.length}</p>
+            </article>
+            <article className="rounded-lg border bg-card p-4 shadow-sm">
+              <p className="text-xs font-bold uppercase text-muted-foreground">Validade proxima</p>
+              <p className="mt-2 text-3xl font-black text-destructive">{expiringItems.length}</p>
+            </article>
+            <article className="rounded-lg border bg-card p-4 shadow-sm">
+              <p className="text-xs font-bold uppercase text-muted-foreground">Movimentos</p>
+              <p className="mt-2 text-3xl font-black">{stockMovements.length}</p>
+            </article>
+          </div>
+
+          <div className="grid gap-5 xl:grid-cols-[380px_1fr]">
+            <form onSubmit={submitStockMovement} className="rounded-lg border bg-card p-5 shadow-sm">
+              <h4 className="text-xl font-black">Movimentar estoque</h4>
+              <p className="mt-1 text-sm text-muted-foreground">Registre entrada, perda, inventario ou producao propria sem mexer em codigo.</p>
+              <div className="mt-4 grid gap-3">
+                <Field label="Ingrediente ou insumo">
+                  <select
+                    value={stockForm.inventoryItemId}
+                    onChange={(event) => setStockForm((current) => ({ ...current, inventoryItemId: event.target.value }))}
+                    className={foodInputClassName}
+                  >
+                    {inventoryItems.map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.name}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+                <Field label="Tipo de movimento">
+                  <select
+                    value={stockForm.type}
+                    onChange={(event) => setStockForm((current) => ({ ...current, type: event.target.value as StockMovementType }))}
+                    className={foodInputClassName}
+                  >
+                    {Object.entries(stockMovementLabel).map(([type, label]) => (
+                      <option key={type} value={type}>
+                        {label}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <Field label={stockForm.type === "inventario" ? "Saldo contado" : "Quantidade"}>
+                    <input value={stockForm.quantity} onChange={(event) => setStockForm((current) => ({ ...current, quantity: event.target.value }))} className={foodInputClassName} inputMode="decimal" />
+                  </Field>
+                  <Field label="Custo unitario">
+                    <input value={stockForm.unitCost} onChange={(event) => setStockForm((current) => ({ ...current, unitCost: event.target.value }))} className={foodInputClassName} inputMode="decimal" placeholder={selectedInventoryItem ? String(selectedInventoryItem.averageCost) : "0"} />
+                  </Field>
+                </div>
+                <Field label="Motivo">
+                  <input value={stockForm.reason} onChange={(event) => setStockForm((current) => ({ ...current, reason: event.target.value }))} className={foodInputClassName} placeholder="Ex: compra, perda, validade, producao de massa" />
+                </Field>
+                <Field label="Origem">
+                  <input value={stockForm.source} onChange={(event) => setStockForm((current) => ({ ...current, source: event.target.value }))} className={foodInputClassName} placeholder="Ex: fornecedor, inventario, venda" />
+                </Field>
+              </div>
+              <button type="submit" className="mt-4 inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-black text-primary-foreground">
+                <Scale className="h-4 w-4" />
+                Registrar movimento
+              </button>
+            </form>
+
+            <div className="rounded-lg border bg-card p-5 shadow-sm">
+              <div className="mb-4 flex items-center justify-between gap-3">
+                <div>
+                  <h4 className="text-xl font-black">Controle de estoque</h4>
+                  <p className="text-sm text-muted-foreground">Unidade, validade, estoque minimo e custo medio por insumo.</p>
+                </div>
+                {lowStockItems.length > 0 ? (
+                  <span className="inline-flex items-center gap-2 rounded-full bg-amber-500/15 px-3 py-1 text-xs font-black text-amber-600">
+                    <AlertTriangle className="h-4 w-4" />
+                    Falta chegando
+                  </span>
+                ) : null}
+              </div>
+              <div className="grid gap-3 md:grid-cols-2">
+                {inventoryItems.map((item) => {
+                  const low = item.currentStock <= item.minimumStock;
+                  return (
+                    <article key={item.id} className={`rounded-lg border bg-background p-3 ${low ? "border-amber-400/50" : ""}`}>
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="font-black">{item.name}</p>
+                          <p className="text-xs font-bold text-muted-foreground">{item.supplier} - {item.productionArea || "Estoque"}</p>
+                        </div>
+                        <span className={`rounded-full px-2.5 py-1 text-xs font-black ${low ? "bg-amber-500/15 text-amber-600" : "bg-muted text-muted-foreground"}`}>
+                          {item.currentStock} {item.unit}
+                        </span>
+                      </div>
+                      <div className="mt-3 grid grid-cols-2 gap-2 text-xs font-bold text-muted-foreground">
+                        <span>Minimo: {item.minimumStock} {item.unit}</span>
+                        <span>Custo: {currency.format(item.averageCost)}</span>
+                        <span>Validade: {item.expirationDate ? new Intl.DateTimeFormat("pt-BR").format(new Date(item.expirationDate)) : "-"}</span>
+                        <span>Ultimo mov.: {new Intl.DateTimeFormat("pt-BR", { timeStyle: "short", dateStyle: "short" }).format(new Date(item.lastMovementAt))}</span>
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-lg border bg-card p-5 shadow-sm">
+            <h4 className="text-xl font-black">Historico recente de estoque</h4>
+            <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+              {stockMovements.slice(0, 9).map((movement) => (
+                <article key={movement.id} className="rounded-lg border bg-background p-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="font-black">{movement.inventoryItemName}</p>
+                      <p className="text-xs font-bold text-muted-foreground">{stockMovementLabel[movement.type]} - {movement.source}</p>
+                    </div>
+                    <span className="text-sm font-black">{movement.quantity} {movement.unit}</span>
+                  </div>
+                  <p className="mt-2 text-xs font-semibold text-muted-foreground">{movement.reason}</p>
+                </article>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {activeSection === "ficha-tecnica" && (
+        <div className="grid gap-5 xl:grid-cols-[420px_1fr]">
+          <form onSubmit={submitTechnicalSheet} className="rounded-lg border bg-card p-5 shadow-sm">
+            <h4 className="text-xl font-black">Ficha tecnica do produto</h4>
+            <p className="mt-1 text-sm text-muted-foreground">Defina os ingredientes que baixam automaticamente quando o item e vendido.</p>
+            <div className="mt-4 grid gap-3">
+              <Field label="Produto">
+                <select value={technicalProductId} onChange={(event) => setTechnicalProductId(event.target.value)} className={foodInputClassName}>
+                  {products.map((product) => (
+                    <option key={product.id} value={product.id}>
+                      {product.name}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+              <div className="grid gap-3 sm:grid-cols-3">
+                <Field label="Rende">
+                  <input value={sheetMetaForm.yieldQuantity} onChange={(event) => setSheetMetaForm((current) => ({ ...current, yieldQuantity: event.target.value }))} className={foodInputClassName} inputMode="decimal" />
+                </Field>
+                <Field label="Embalagem">
+                  <input value={sheetMetaForm.packagingCost} onChange={(event) => setSheetMetaForm((current) => ({ ...current, packagingCost: event.target.value }))} className={foodInputClassName} inputMode="decimal" />
+                </Field>
+                <Field label="Perda %">
+                  <input value={sheetMetaForm.wastePercent} onChange={(event) => setSheetMetaForm((current) => ({ ...current, wastePercent: event.target.value }))} className={foodInputClassName} inputMode="decimal" />
+                </Field>
+              </div>
+              <Field
+                label="Ingredientes"
+                hint="Uma linha por ingrediente: Nome do estoque | quantidade | unidade. Ex: Pao brioche | 1 | unidade"
+              >
+                <textarea value={recipeDraft} onChange={(event) => setRecipeDraft(event.target.value)} className="min-h-44 rounded-lg border bg-background px-3 py-2 text-sm font-semibold outline-none ring-primary focus:ring-2" />
+              </Field>
+              <Field label="Observacoes">
+                <textarea value={sheetMetaForm.notes} onChange={(event) => setSheetMetaForm((current) => ({ ...current, notes: event.target.value }))} className="min-h-20 rounded-lg border bg-background px-3 py-2 text-sm outline-none ring-primary focus:ring-2" />
+              </Field>
+            </div>
+            <button type="submit" className="mt-4 inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-black text-primary-foreground">
+              <ClipboardList className="h-4 w-4" />
+              Salvar ficha
+            </button>
+          </form>
+
+          <div className="space-y-5">
+            <div className="rounded-lg border bg-card p-5 shadow-sm">
+              <h4 className="text-xl font-black">Insumos disponiveis</h4>
+              <div className="mt-4 flex flex-wrap gap-2">
+                {inventoryItems.map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => setRecipeDraft((current) => `${current}${current ? "\n" : ""}${item.name} | 1 | ${item.unit}`)}
+                    className="rounded-full border bg-background px-3 py-1.5 text-xs font-black text-muted-foreground transition hover:border-primary hover:text-primary"
+                  >
+                    + {item.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="rounded-lg border bg-card p-5 shadow-sm">
+              <h4 className="text-xl font-black">Fichas cadastradas</h4>
+              <div className="mt-4 grid gap-3 md:grid-cols-2">
+                {technicalSheets.map((sheet) => {
+                  const product = products.find((item) => item.id === sheet.productId);
+                  const ingredientCost = sheet.ingredients.reduce((sum, ingredient) => {
+                    const inventoryItem = inventoryItems.find((item) => item.id === ingredient.inventoryItemId);
+                    return sum + (inventoryItem?.averageCost || 0) * ingredient.quantity;
+                  }, 0);
+                  const estimatedCost = ingredientCost + sheet.packagingCost;
+                  const margin = product ? product.price - estimatedCost : 0;
+                  return (
+                    <article key={sheet.id} className="rounded-lg border bg-background p-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="font-black">{sheet.productName}</p>
+                          <p className="text-xs font-bold text-muted-foreground">{sheet.ingredients.length} ingrediente(s)</p>
+                        </div>
+                        <span className="text-sm font-black text-primary">{currency.format(estimatedCost)}</span>
+                      </div>
+                      <div className="mt-3 space-y-1 text-xs font-bold text-muted-foreground">
+                        {sheet.ingredients.map((ingredient) => (
+                          <p key={`${sheet.id}-${ingredient.inventoryItemId}`}>
+                            {ingredient.quantity} {ingredient.unit} - {ingredient.inventoryItemName}
+                          </p>
+                        ))}
+                      </div>
+                      <p className="mt-3 rounded-lg bg-muted p-2 text-xs font-black text-muted-foreground">
+                        Margem estimada: {currency.format(margin)}
+                      </p>
+                    </article>
+                  );
+                })}
+              </div>
             </div>
           </div>
         </div>

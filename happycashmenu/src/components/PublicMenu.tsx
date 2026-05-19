@@ -7,6 +7,7 @@ import {
   MapPin,
   MessageSquareText,
   Minus,
+  ReceiptText,
   ShieldCheck,
   Search,
   ShoppingBag,
@@ -27,9 +28,9 @@ import {
   signUpMenuCustomer,
   upsertMenuCustomerProfile,
 } from "@/lib/customerAuth";
-import { createPublicOrder, fetchPublicMenu } from "@/lib/menuApi";
+import { createPublicMenuAction, createPublicOrder, fetchPublicMenu } from "@/lib/menuApi";
 import { currency } from "@/lib/format";
-import type { CartItem, CartOptionSelection, CustomerInfo, MenuItem, MenuOptionGroup, PublicMenuPayload } from "@/types";
+import type { CartItem, CartOptionSelection, CustomerInfo, MenuItem, MenuOptionGroup, PaymentTiming, PublicMenuPayload } from "@/types";
 import { getPublicErrorMessage } from "../../../shared/security/redaction";
 
 type PublicMenuProps = {
@@ -269,6 +270,7 @@ export function PublicMenu({ slug, tableSlug }: PublicMenuProps) {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [serviceType, setServiceType] = useState<"dine_in" | "delivery" | "takeaway">(tableSlug ? "dine_in" : "delivery");
   const [customer, setCustomer] = useState<CustomerInfo>(emptyCustomer);
+  const [paymentTiming, setPaymentTiming] = useState<PaymentTiming>("cashier");
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [loyaltyOpen, setLoyaltyOpen] = useState(false);
   const [receipt, setReceipt] = useState<{ number: string; title: string; brand: string } | null>(null);
@@ -281,6 +283,7 @@ export function PublicMenu({ slug, tableSlug }: PublicMenuProps) {
   const [customerAuthMessage, setCustomerAuthMessage] = useState<string | null>(null);
   const [customerAccountEmail, setCustomerAccountEmail] = useState("");
   const [pendingRemoval, setPendingRemoval] = useState<CartItem | null>(null);
+  const [tableActionLoading, setTableActionLoading] = useState<"call_waiter" | "request_bill" | null>(null);
   const [scrollY, setScrollY] = useState(0);
 
   useEffect(() => {
@@ -512,6 +515,38 @@ export function PublicMenu({ slug, tableSlug }: PublicMenuProps) {
     setPendingRemoval(null);
   };
 
+  const editCartItem = (item: CartItem) => {
+    const product = menu?.items.find((menuItem) => menuItem.id === item.itemId) || null;
+    if (!product) return;
+    setCart((current) => current.filter((cartItem) => cartItem.cartId !== item.cartId));
+    setSelectedProduct(product);
+  };
+
+  const submitTableAction = async (actionType: "call_waiter" | "request_bill") => {
+    if (!menu?.table || tableActionLoading) return;
+    setError(null);
+    setTableActionLoading(actionType);
+    const fallbackName = customer.name.trim() || menu.table.name || `Mesa ${menu.table.code}`;
+    const result = await createPublicMenuAction({
+      slug: menu.store.slug,
+      tableSlug: menu.table.qrSlug || tableSlug || "",
+      actionType,
+      customer: { ...customer, name: fallbackName },
+    });
+    setTableActionLoading(null);
+
+    if (!result.success) {
+      setError(result.error || "Nao foi possivel avisar a equipe.");
+      return;
+    }
+
+    setReceipt({
+      number: result.receiptNumber || (actionType === "call_waiter" ? "garcom chamado" : "conta solicitada"),
+      title: result.receiptTitle || (actionType === "call_waiter" ? "Garcom chamado" : "Conta solicitada"),
+      brand: result.brandLine || `${menu.store.receiptName} | HappyCashFood`,
+    });
+  };
+
   const submitOrder = async () => {
     if (!menu) return;
     setError(null);
@@ -529,6 +564,8 @@ export function PublicMenu({ slug, tableSlug }: PublicMenuProps) {
       slug: menu.store.slug,
       tableSlug: menu.table?.qrSlug || tableSlug || null,
       serviceType,
+      paymentTiming,
+      actionType: "order",
       customer,
       items: cart,
     });
@@ -612,6 +649,28 @@ export function PublicMenu({ slug, tableSlug }: PublicMenuProps) {
               </span>
             ) : null}
           </div>
+          {menu.table ? (
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => void submitTableAction("call_waiter")}
+                disabled={Boolean(tableActionLoading)}
+                className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-white px-4 py-2 text-sm font-black text-zinc-950 shadow-sm transition hover:bg-amber-200 disabled:cursor-wait disabled:opacity-70"
+              >
+                <MessageSquareText size={17} />
+                {tableActionLoading === "call_waiter" ? "Chamando..." : "Chamar garcom"}
+              </button>
+              <button
+                type="button"
+                onClick={() => void submitTableAction("request_bill")}
+                disabled={Boolean(tableActionLoading)}
+                className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-white/25 bg-white/12 px-4 py-2 text-sm font-black text-white backdrop-blur transition hover:border-primary disabled:cursor-wait disabled:opacity-70"
+              >
+                <ReceiptText size={17} />
+                {tableActionLoading === "request_bill" ? "Enviando..." : "Pedir conta"}
+              </button>
+            </div>
+          ) : null}
         </div>
       </header>
 
@@ -731,7 +790,7 @@ export function PublicMenu({ slug, tableSlug }: PublicMenuProps) {
             {error ? <p className="rounded-lg bg-red-50 p-3 text-sm font-bold text-red-700">{error}</p> : null}
             <button className="hc-button-primary w-full" disabled={submitting || !canCheckout} onClick={submitOrder}>
               <CreditCard size={18} />
-              {submitting ? "Enviando..." : `Enviar pedido ${currency(total)}`}
+              {submitting ? "Enviando..." : paymentTiming === "now" ? `Pagar agora ${currency(total)}` : `Pedir e pagar no caixa ${currency(total)}`}
             </button>
           </div>
         }
@@ -748,6 +807,25 @@ export function PublicMenu({ slug, tableSlug }: PublicMenuProps) {
                   <ShieldCheck size={17} />
                   {isLoyaltyCustomer ? "Editar dados" : "Entrar"}
                 </button>
+              </div>
+            </div>
+
+            <div>
+              <span className="hc-label">Como deseja pagar</span>
+              <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                {([
+                  ["cashier", "Pagar no caixa/balcao"],
+                  ["now", "Pagar agora"],
+                ] as Array<[PaymentTiming, string]>).map(([mode, label]) => (
+                  <button
+                    key={mode}
+                    type="button"
+                    className={paymentTiming === mode ? "hc-button-primary" : "hc-button-soft"}
+                    onClick={() => setPaymentTiming(mode)}
+                  >
+                    {label}
+                  </button>
+                ))}
               </div>
             </div>
 
@@ -790,13 +868,14 @@ export function PublicMenu({ slug, tableSlug }: PublicMenuProps) {
             <div>
               <span className="hc-label">Pagamento</span>
               <div className="mt-2 grid gap-2 sm:grid-cols-3">
-                {(["pix", "card", "cash"] as const).map((method) => (
+                {(["pix", "debit", "credit", "voucher", "card", "cash"] as const).map((method) => (
                   <button
+                    type="button"
                     key={method}
                     className={customer.paymentMethod === method ? "hc-button-primary" : "hc-button-soft"}
                     onClick={() => setCustomer((current) => ({ ...current, paymentMethod: method }))}
                   >
-                    {method === "pix" ? "Pix" : method === "card" ? "Cartao" : "Dinheiro"}
+                    {method === "pix" ? "Pix" : method === "debit" ? "Debito" : method === "credit" ? "Credito" : method === "voucher" ? "Voucher" : method === "card" ? "Cartao" : "Dinheiro"}
                   </button>
                 ))}
               </div>
@@ -818,6 +897,9 @@ export function PublicMenu({ slug, tableSlug }: PublicMenuProps) {
                   </div>
                   <div className="flex shrink-0 flex-col items-end gap-2">
                     <p className="text-sm font-black">{currency(cartItemTotal(item))}</p>
+                    <button className="inline-flex items-center gap-1 text-xs font-black text-primary" onClick={() => editCartItem(item)}>
+                      Editar
+                    </button>
                     <button className="inline-flex items-center gap-1 text-xs font-black text-red-600" onClick={() => removeCartItem(item.cartId)}>
                       <Trash2 size={14} /> Tirar
                     </button>

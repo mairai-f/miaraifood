@@ -11,6 +11,11 @@ interface DeliveryPanelProps {
     customerName: string;
     phone: string;
     address: string;
+    neighborhood: string;
+    courierName: string;
+    estimatedMinutes: number;
+    trackingCode: string;
+    couponCode: string;
     productId: string;
     quantity: number;
     deliveryFee: number;
@@ -35,6 +40,9 @@ const nextDelivery = (status: DeliveryStatus): DeliveryStatus => {
 
 const paymentMethodLabel: Record<PaymentMethod, string> = {
   pix: "Pix",
+  debit: "Debito",
+  credit: "Credito",
+  voucher: "Voucher",
   card: "Cartao",
   cash: "Dinheiro",
   mixed: "Dividido",
@@ -52,6 +60,11 @@ export function DeliveryPanel({ deliveries, products, onAdvanceDelivery, onCreat
     customerName: "",
     phone: "",
     address: "",
+    neighborhood: "",
+    courierName: "",
+    estimatedMinutes: "45",
+    trackingCode: "",
+    couponCode: "",
     productId: activeProducts[0]?.id ?? "",
     quantity: "1",
     deliveryFee: "8",
@@ -86,6 +99,11 @@ export function DeliveryPanel({ deliveries, products, onAdvanceDelivery, onCreat
       customerName: form.customerName.trim(),
       phone: form.phone.trim(),
       address: form.address.trim(),
+      neighborhood: form.neighborhood.trim(),
+      courierName: form.courierName.trim() || "A definir",
+      estimatedMinutes: Math.max(1, Number(form.estimatedMinutes) || 45),
+      trackingCode: form.trackingCode.trim() || `HC-${Date.now().toString().slice(-6)}`,
+      couponCode: form.couponCode.trim(),
       productId: selectedProduct.id,
       quantity,
       deliveryFee,
@@ -97,6 +115,11 @@ export function DeliveryPanel({ deliveries, products, onAdvanceDelivery, onCreat
       customerName: "",
       phone: "",
       address: "",
+      neighborhood: "",
+      courierName: "",
+      estimatedMinutes: "45",
+      trackingCode: "",
+      couponCode: "",
       productId: activeProducts[0]?.id ?? "",
       quantity: "1",
       deliveryFee: "8",
@@ -153,6 +176,17 @@ export function DeliveryPanel({ deliveries, products, onAdvanceDelivery, onCreat
                         <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
                         {delivery.address}
                       </p>
+                      <div className="mt-2 grid gap-2 text-xs font-bold text-muted-foreground sm:grid-cols-2">
+                        <span className="rounded-lg bg-muted p-2">Bairro: {delivery.neighborhood || "Nao informado"}</span>
+                        <span className="rounded-lg bg-muted p-2">Motoboy: {delivery.courierName || "A definir"}</span>
+                        <span className="rounded-lg bg-muted p-2">Previsao: {delivery.estimatedMinutes || 45} min</span>
+                        <span className="rounded-lg bg-muted p-2">Rastro: {delivery.trackingCode || delivery.id.slice(0, 8)}</span>
+                      </div>
+                      {delivery.couponCode ? (
+                        <p className="mt-2 rounded-lg border border-primary/25 bg-primary/10 p-2 text-xs font-black text-primary">
+                          Cupom: {delivery.couponCode}
+                        </p>
+                      ) : null}
 
                       <div className="mt-3 divide-y rounded-lg border bg-card">
                         {delivery.items.map((item) => (
@@ -258,6 +292,24 @@ export function DeliveryPanel({ deliveries, products, onAdvanceDelivery, onCreat
                     required
                   />
                 </label>
+                <label className="grid gap-1.5">
+                  <span className={deliveryLabelClassName}>Bairro</span>
+                  <input
+                    value={form.neighborhood}
+                    onChange={(event) => setForm((current) => ({ ...current, neighborhood: event.target.value }))}
+                    className={deliveryInputClassName}
+                    placeholder="Ex: Centro"
+                  />
+                </label>
+                <label className="grid gap-1.5">
+                  <span className={deliveryLabelClassName}>Motoboy</span>
+                  <input
+                    value={form.courierName}
+                    onChange={(event) => setForm((current) => ({ ...current, courierName: event.target.value }))}
+                    className={deliveryInputClassName}
+                    placeholder="Ex: Rafa"
+                  />
+                </label>
                 <label className="grid gap-1.5 md:col-span-2">
                   <span className={deliveryLabelClassName}>Produto do pedido</span>
                   <select
@@ -290,6 +342,34 @@ export function DeliveryPanel({ deliveries, products, onAdvanceDelivery, onCreat
                     className={deliveryInputClassName}
                     inputMode="decimal"
                     placeholder="Ex: 8"
+                  />
+                </label>
+                <label className="grid gap-1.5">
+                  <span className={deliveryLabelClassName}>Tempo estimado</span>
+                  <input
+                    value={form.estimatedMinutes}
+                    onChange={(event) => setForm((current) => ({ ...current, estimatedMinutes: event.target.value }))}
+                    className={deliveryInputClassName}
+                    inputMode="numeric"
+                    placeholder="Ex: 45"
+                  />
+                </label>
+                <label className="grid gap-1.5">
+                  <span className={deliveryLabelClassName}>Cupom</span>
+                  <input
+                    value={form.couponCode}
+                    onChange={(event) => setForm((current) => ({ ...current, couponCode: event.target.value }))}
+                    className={deliveryInputClassName}
+                    placeholder="Ex: PRIMEIRA10"
+                  />
+                </label>
+                <label className="grid gap-1.5">
+                  <span className={deliveryLabelClassName}>Rastreamento</span>
+                  <input
+                    value={form.trackingCode}
+                    onChange={(event) => setForm((current) => ({ ...current, trackingCode: event.target.value }))}
+                    className={deliveryInputClassName}
+                    placeholder="Automatico se vazio"
                   />
                 </label>
                 <label className="grid gap-1.5">

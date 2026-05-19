@@ -2,10 +2,12 @@ export type TableStatus = "free" | "occupied" | "closing";
 export type OrderStatus = "open" | "sent" | "preparing" | "ready" | "served" | "closing" | "paid";
 export type KitchenStatus = "received" | "preparing" | "ready" | "delivered" | "cancelled";
 export type Station = "kitchen" | "bar" | "counter";
-export type PaymentMethod = "pix" | "card" | "cash" | "mixed" | "fiado";
+export type PaymentMethod = "pix" | "debit" | "credit" | "voucher" | "card" | "cash" | "mixed" | "fiado";
 export type DeliveryStatus = "new" | "preparing" | "out" | "delivered";
 export type FoodRole = "admin" | "waiter" | "cashier" | "kitchen" | "customer";
 export type CommissionMode = "percent" | "cash";
+export type FoodUnit = "kg" | "litro" | "unidade" | "caixa";
+export type StockMovementType = "entrada" | "venda" | "perda" | "producao" | "inventario";
 
 export interface FoodTable {
   id: string;
@@ -98,6 +100,11 @@ export interface DeliveryOrder {
   customerName: string;
   phone: string;
   address: string;
+  neighborhood?: string;
+  courierName?: string;
+  estimatedMinutes?: number;
+  trackingCode?: string;
+  couponCode?: string;
   status: DeliveryStatus;
   createdAt: string;
   deliveryFee: number;
@@ -110,6 +117,50 @@ export interface PaymentSplit {
   label: string;
   amount: number;
   method: PaymentMethod;
+}
+
+export interface InventoryItem {
+  id: string;
+  name: string;
+  unit: FoodUnit;
+  currentStock: number;
+  minimumStock: number;
+  averageCost: number;
+  supplier: string;
+  expirationDate?: string;
+  productionArea?: string;
+  lastMovementAt: string;
+}
+
+export interface StockMovement {
+  id: string;
+  inventoryItemId: string;
+  inventoryItemName: string;
+  type: StockMovementType;
+  quantity: number;
+  unit: FoodUnit;
+  unitCost: number;
+  reason: string;
+  source: string;
+  createdAt: string;
+}
+
+export interface RecipeIngredient {
+  inventoryItemId: string;
+  inventoryItemName: string;
+  quantity: number;
+  unit: FoodUnit;
+}
+
+export interface ProductTechnicalSheet {
+  id: string;
+  productId: string;
+  productName: string;
+  yieldQuantity: number;
+  ingredients: RecipeIngredient[];
+  packagingCost: number;
+  wastePercent: number;
+  notes: string;
 }
 
 export interface FoodWaiter {

@@ -40,9 +40,26 @@ const HERO_BADGES = [
   "Mesas e comandas",
   "Cozinha/KDS",
   "Delivery",
+  "Cardapio QR Code",
   "Estoque",
   "Offline PRO",
-  "App mobile",
+];
+
+const painPoints = [
+  "Pedido anotado errado",
+  "Mesa perdida",
+  "Cozinha desorganizada",
+  "Caixa lento",
+  "Falta de controle no estoque",
+];
+
+const solutionCards = [
+  { icon: CreditCard, title: "PDV completo", text: "Venda rapida, dinheiro, Pix, debito, credito, voucher, troco e fechamento de caixa." },
+  { icon: Table2, title: "Atendimento por mesa", text: "Comandas, garcom no celular, divisao de conta e status da mesa sem papel perdido." },
+  { icon: Truck, title: "Balcao e delivery", text: "Pedido para retirada, entrega, taxa por bairro, motoboy, WhatsApp e tempo estimado." },
+  { icon: QrCode, title: "Cardapio digital QR Code", text: "O cliente escaneia na mesa, escolhe produtos, coloca observacoes e envia sozinho." },
+  { icon: ChefHat, title: "Cozinha e bar organizados", text: "Pedido cai no setor certo: cozinha, bar, pizzaria, churrasqueira ou balcao." },
+  { icon: Package, title: "Estoque e fechamento", text: "Baixa por venda, estoque minimo, inventario, custo medio, perda e producao propria." },
 ];
 
 const businessTypes = [
@@ -95,11 +112,24 @@ const featureGroups = [
 ];
 
 const qrSteps = [
-  "Cliente escaneia",
-  "Abre o cardapio",
-  "Faz o pedido",
-  "Paga ou chama o garcom",
-  "Cozinha recebe",
+  "Cliente escaneia QR Code",
+  "Escolhe o pedido",
+  "Pedido chega no painel",
+  "Cozinha/bar recebe",
+  "Caixa fecha a conta",
+];
+
+const moduleNames = [
+  "Mesas",
+  "Comandas",
+  "Garcom",
+  "Cozinha/KDS",
+  "PDV",
+  "Estoque",
+  "Relatorios",
+  "Delivery",
+  "Impressao",
+  "Cardapio digital",
 ];
 
 const beforeAfter = [
@@ -111,20 +141,28 @@ const beforeAfter = [
 
 const foodPlans = [
   {
-    name: "Food Web",
-    price: "R$ 250",
-    description: "Para restaurante que quer organizar salao, caixa, cozinha e delivery pelo navegador.",
-    features: ["Mesas e comandas", "Cozinha/KDS", "Delivery", "Caixa por mesa", "Estoque e relatorios"],
+    name: "Food Start",
+    price: "R$ 147",
+    description: "Para comecar com cardapio digital, mesas, caixa e organizacao do atendimento.",
+    features: ["Cardapio QR Code", "Mesas e comandas", "Caixa por mesa", "Produtos e categorias", "Relatorios essenciais"],
     href: "/cadastro?plan=food",
     highlight: false,
   },
   {
-    name: "Food Offline PRO",
-    price: "R$ 310",
-    description: "Para operacao que precisa continuar vendendo mesmo se a internet cair.",
-    features: ["Tudo do Food Web", "Windows", "Linux .deb", "Linux AppImage", "Android APK", "Sincronizacao depois"],
+    name: "Food Completo",
+    price: "R$ 247",
+    description: "Para restaurante que precisa de salao, delivery, estoque, cozinha/KDS e fechamento forte.",
+    features: ["Tudo do Start", "Delivery", "Cozinha/KDS", "Estoque e ficha tecnica", "Promocoes e fidelidade"],
     href: "/cadastro?plan=food_offline",
     highlight: true,
+  },
+  {
+    name: "Food PRO Offline",
+    price: "R$ 397",
+    description: "Para operacao que nao pode parar quando a internet cai e precisa de impressao local.",
+    features: ["Tudo do Completo", "PDV offline", "Impressao ESC/POS", "Windows e Linux", "Sincronizacao depois"],
+    href: "/cadastro?plan=food_offline",
+    highlight: false,
   },
 ];
 
@@ -146,6 +184,7 @@ const primaryFoodButtonStyle = {
   borderColor: "#ffcc17",
   color: "#090908",
 } as const;
+const foodWhatsAppUrl = "https://wa.me/?text=Quero%20testar%20o%20HappyCashFood";
 
 const HappyCashFood = () => {
   const pageRef = useRef<HTMLDivElement>(null);
@@ -259,12 +298,15 @@ const HappyCashFood = () => {
   return (
     <div ref={pageRef} className="min-h-screen bg-[#090908] text-white">
       <SiteSeo
-        title="HappyCashFood | Sistema para restaurante, pizzaria, hamburgueria, bar e delivery"
-        description="HappyCashFood organiza mesas, comandas, QR Code, cozinha/KDS, delivery, caixa, estoque, relatorios e operacao offline para restaurantes."
+        title="HappyCashFood | Sistema para restaurantes, bares, lanchonetes e padarias"
+        description="Sistema para restaurantes com PDV, mesas, comandas, delivery, estoque, cozinha/KDS e cardapio digital QR Code para reduzir erros e acelerar o atendimento."
         path="/happycash-food"
         image={foodLogo}
         keywords={[
           "sistema para restaurante",
+          "sistema para bar",
+          "sistema para lanchonete",
+          "sistema para padaria",
           "sistema para hamburgueria",
           "sistema para pizzaria",
           "cardapio qr code",
@@ -282,7 +324,7 @@ const HappyCashFood = () => {
             name: "HappyCashFood",
             applicationCategory: "BusinessApplication",
             operatingSystem: "Web, Windows, Linux, Android",
-            description: "Sistema para restaurantes com mesas, comandas, QR Code, cozinha/KDS, delivery, caixa por mesa, estoque e plano offline.",
+            description: "Sistema para restaurantes com PDV, mesas, comandas, cardapio QR Code, cozinha/KDS, delivery, caixa, estoque e plano offline.",
             offers: foodPlans.map((plan) => ({
               "@type": "Offer",
               name: plan.name,
@@ -319,16 +361,16 @@ const HappyCashFood = () => {
             <div className="max-w-3xl" style={{ maxWidth: "768px" }}>
               <div className="food-hero-motion inline-flex items-center gap-2 rounded-full border border-amber-400/40 bg-amber-400/10 px-3 py-1.5 text-xs font-black text-amber-200 sm:text-sm">
                 <Utensils className="h-4 w-4" />
-                Especialista em alimentacao
+                Pedido na mesa, cozinha organizada e caixa no controle
               </div>
 
               <h1 className="food-hero-motion mt-5 max-w-3xl font-heading text-3xl font-black leading-tight text-white sm:text-5xl lg:text-5xl 2xl:text-6xl" style={{ maxWidth: "760px", lineHeight: 1.08 }}>
-                Sistema para restaurantes, pizzarias, hamburguerias, bares e delivery.
+                Sistema para restaurantes, bares, lanchonetes, hamburguerias e padarias.
               </h1>
 
               <p className="food-hero-motion mt-5 max-w-2xl text-base leading-7 text-zinc-200 sm:text-lg">
-                HappyCashFood organiza atendimento, acelera a cozinha, controla mesas, comandas, delivery,
-                estoque e caixa para sua operacao vender mais com menos erro.
+                Menos erro nos pedidos, mais velocidade no atendimento e controle total do caixa.
+                HappyCashFood conecta cardapio QR Code, mesas, delivery, cozinha, estoque e PDV.
               </p>
 
               <div className="food-hero-motion mt-5 flex max-w-2xl flex-wrap gap-2">
@@ -372,6 +414,44 @@ const HappyCashFood = () => {
                 <span>{item}</span>
               </div>
             ))}
+          </div>
+        </section>
+
+        <section className="container py-20">
+          <div className="grid gap-10 lg:grid-cols-[0.8fr_1.2fr] lg:items-start">
+            <div className="food-reveal-left">
+              <p className="text-sm font-black uppercase tracking-[0.22em] text-red-300">Dor do cliente</p>
+              <h2 className="mt-3 font-heading text-3xl font-black md:text-5xl">
+                O problema do restaurante quase nunca e vender. E controlar o movimento.
+              </h2>
+              <div className="food-stagger mt-7 grid gap-3">
+                {painPoints.map((point) => (
+                  <div key={point} className="flex items-center gap-3 rounded-lg border border-red-300/20 bg-red-500/10 p-4">
+                    <XCircle className="h-5 w-5 text-red-300" />
+                    <span className="font-bold">{point}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="food-reveal-right">
+              <p className="text-sm font-black uppercase tracking-[0.22em] text-emerald-300">Solucao</p>
+              <h2 className="mt-3 font-heading text-3xl font-black md:text-5xl">
+                HappyCashFood: pedido na mesa, cozinha organizada e caixa no controle.
+              </h2>
+              <div className="food-stagger mt-7 grid gap-4 md:grid-cols-2">
+                {solutionCards.map((item) => {
+                  const Icon = item.icon;
+                  return (
+                    <article key={item.title} className="rounded-lg border border-white/10 bg-white/[0.045] p-5">
+                      <Icon className="h-6 w-6 text-amber-300" />
+                      <h3 className="mt-4 text-lg font-black">{item.title}</h3>
+                      <p className="mt-2 text-sm leading-6 text-zinc-400">{item.text}</p>
+                    </article>
+                  );
+                })}
+              </div>
+            </div>
           </div>
         </section>
 
@@ -431,11 +511,11 @@ const HappyCashFood = () => {
           <div className="food-reveal-left">
             <p className="text-sm font-black uppercase tracking-[0.22em] text-amber-300">QR Code vende sozinho</p>
             <h2 className="mt-3 font-heading text-3xl font-black md:text-5xl">
-              O cliente pede sem esperar o garcom voltar.
+              O cliente escaneia o QR Code na mesa e o pedido cai automaticamente no sistema.
             </h2>
             <p className="mt-4 text-lg leading-8 text-zinc-300">
-              O cardapio digital reduz atraso, deixa o pedido mais claro e ajuda a vender adicionais,
-              bebidas e acompanhamentos no momento certo.
+              Ele escolhe os produtos, adiciona observacoes como sem cebola ou pouco gelo, envia o pedido
+              e a cozinha/bar recebe no painel certo. O caixa fecha a conta sem redigitar tudo.
             </p>
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
               <Link to="/cadastro?plan=food" className="inline-flex items-center justify-center rounded-lg bg-amber-400 px-5 py-3 text-sm font-black text-zinc-950" style={primaryFoodButtonStyle}>
@@ -518,6 +598,14 @@ const HappyCashFood = () => {
               );
             })}
           </div>
+
+          <div className="food-stagger mt-10 flex flex-wrap gap-3">
+            {moduleNames.map((module) => (
+              <span key={module} className="rounded-full border border-white/10 bg-[#12110f] px-4 py-2 text-sm font-black text-zinc-200">
+                {module}
+              </span>
+            ))}
+          </div>
         </section>
 
         <section className="border-y border-white/10 bg-[#12110f] py-20">
@@ -598,7 +686,7 @@ const HappyCashFood = () => {
               </h2>
             </div>
 
-            <div className="food-stagger mt-10 grid gap-5 lg:grid-cols-2">
+            <div className="food-stagger mt-10 grid gap-5 lg:grid-cols-3">
               {foodPlans.map((plan) => (
                 <article
                   key={plan.name}
@@ -613,7 +701,7 @@ const HappyCashFood = () => {
                       <h3 className="font-heading text-2xl font-black">{plan.name}</h3>
                       <p className="mt-2 max-w-xl text-sm leading-6 text-zinc-400">{plan.description}</p>
                     </div>
-                    <p className="font-heading text-4xl font-black text-amber-300">{plan.price}</p>
+                    <p className="font-heading text-4xl font-black text-amber-300">{plan.price}<span className="text-base text-zinc-400">/mes</span></p>
                   </div>
                   <div className="mt-6 grid gap-2 sm:grid-cols-2">
                     {plan.features.map((feature) => (
@@ -646,19 +734,19 @@ const HappyCashFood = () => {
               <div className="p-8 lg:p-10">
                 <Clock3 className="h-9 w-9 text-amber-300" />
                 <h2 className="mt-5 font-heading text-3xl font-black md:text-5xl">
-                  Coloque a operacao para rodar sem esperar meses.
+                  Comece hoje com menos erro no pedido e mais controle no caixa.
                 </h2>
                 <p className="mt-4 text-lg leading-8 text-zinc-300">
-                  Comece pelo Food Web, evolua para o Offline PRO quando precisar de mais protecao,
-                  e mantenha o HappyCashFood como o centro da sua operacao de atendimento.
+                  Teste o HappyCashFood, veja o fluxo do QR Code ate a cozinha e coloque o restaurante
+                  em uma rotina mais rapida para mesa, delivery, estoque e fechamento.
                 </p>
                 <div className="mt-8 flex flex-col gap-3 sm:flex-row">
                   <Link to="/cadastro?plan=food" className="inline-flex items-center justify-center rounded-lg bg-amber-400 px-6 py-4 text-sm font-black text-zinc-950" style={primaryFoodButtonStyle}>
-                    Testar gratis
+                    Teste o HappyCashFood
                   </Link>
-                  <a href="mailto:happycashsupport@gmail.com" className="inline-flex items-center justify-center gap-2 rounded-lg border border-white/15 px-6 py-4 text-sm font-black text-white">
+                  <a href={foodWhatsAppUrl} target="_blank" rel="noreferrer" className="inline-flex items-center justify-center gap-2 rounded-lg border border-white/15 px-6 py-4 text-sm font-black text-white">
                     <MessageCircle className="h-4 w-4" />
-                    Falar com suporte
+                    Fale no WhatsApp
                   </a>
                 </div>
               </div>

@@ -24,6 +24,7 @@ import { Modal } from "@/components/Modal";
 import { requestMenuAdminPasswordReset, signInMenuAdmin } from "@/lib/menuAdminAuth";
 import {
   loadAdminBootstrap,
+  replaceMenuItemOptions,
   savePublicProfile,
   uploadMenuImage,
   upsertCategory,
@@ -33,7 +34,7 @@ import {
 } from "@/lib/menuApi";
 import { currency, deliveryMenuUrl, normalizeSlug, tableMenuUrl } from "@/lib/format";
 import { menuAdminSupabase } from "@/lib/supabase";
-import type { AdminPublicProfile, AdminStoreAccount, MenuCategory, MenuItem, MenuPromotion, MenuTable, Station } from "@/types";
+import type { AdminPublicProfile, AdminStoreAccount, MenuCategory, MenuItem, MenuOptionGroup, MenuPromotion, MenuTable, OptionType, Station } from "@/types";
 import { getPublicErrorMessage } from "../../../shared/security/redaction";
 
 type AdminState = {
@@ -103,6 +104,49 @@ const stationLabel: Record<Station, string> = {
   bar: "Bar",
   counter: "Pizzaria / Balcao",
 };
+
+const optionTextFromGroups = (groups?: MenuOptionGroup[]) =>
+  (groups || [])
+    .map((group) => {
+      const required = group.required ? "obrigatorio" : "opcional";
+      const values = group.values.map((value) => `${value.name}:${value.priceDelta}`).join(", ");
+      return `${group.name} | ${group.optionType} | ${required} | ${values}`;
+    })
+    .join("\n");
+
+const parseOptionText = (text: string): MenuOptionGroup[] =>
+  text
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line, index) => {
+      const [name = "", type = "single", required = "opcional", values = ""] = line.split("|").map((part) => part.trim());
+      const optionType = (["single", "multiple", "quantity"].includes(type) ? type : "single") as OptionType;
+      const parsedValues = values
+        .split(",")
+        .map((value, valueIndex) => {
+          const [valueName = "", price = "0"] = value.split(":").map((part) => part.trim());
+          return {
+            id: `option-value-${index}-${valueIndex}`,
+            name: valueName,
+            priceDelta: Number(price.replace(",", ".")) || 0,
+            active: true,
+          };
+        })
+        .filter((value) => value.name);
+
+      return {
+        id: `option-group-${index}`,
+        name,
+        optionType,
+        minSelected: required.toLowerCase().startsWith("obrig") ? 1 : 0,
+        maxSelected: optionType === "single" ? 1 : null,
+        required: required.toLowerCase().startsWith("obrig"),
+        active: true,
+        values: parsedValues,
+      };
+    })
+    .filter((group) => group.name && group.values.length);
 
 const useAdminRevealOnScroll = (watchKey: string) => {
   useEffect(() => {
@@ -489,6 +533,7 @@ function ProductsPanel({
 }) {
   const [categoryForm, setCategoryForm] = useState(emptyCategory);
   const [productForm, setProductForm] = useState(emptyProduct(state.categories[0]?.id));
+  const [optionText, setOptionText] = useState("");
   const [saving, setSaving] = useState(false);
   const [photoSavingId, setPhotoSavingId] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -518,12 +563,15 @@ function ProductsPanel({
     setSaving(true);
     setMessage(null);
     try {
-      const saved = await upsertMenuItem(state.account, productForm);
+      const savedItem = await upsertMenuItem(state.account, productForm);
+      const savedOptions = await replaceMenuItemOptions(state.account, savedItem.id, parseOptionText(optionText));
+      const saved = { ...savedItem, options: savedOptions };
       setState((current) => current ? {
         ...current,
         items: [...current.items.filter((item) => item.id !== saved.id), saved].sort((a, b) => a.sortOrder - b.sortOrder),
       } : current);
       setProductForm(emptyProduct(state.categories[0]?.id));
+      setOptionText("");
       setMessage("Produto salvo.");
     } catch (error) {
       setMessage(getPublicErrorMessage(error, "Nao foi possivel salvar."));
@@ -551,7 +599,8 @@ function ProductsPanel({
     setMessage(null);
     try {
       const url = await uploadMenuImage(state.account.id, file);
-      const saved = await upsertMenuItem(state.account, { ...item, imageUrl: url });
+      const savedItem = await upsertMenuItem(state.account, { ...item, imageUrl: url });
+      const saved = { ...savedItem, options: item.options };
       setState((current) => current ? {
         ...current,
         items: current.items.map((currentItem) => currentItem.id === item.id ? saved : currentItem),
@@ -569,7 +618,8 @@ function ProductsPanel({
     setPhotoSavingId(item.id);
     setMessage(null);
     try {
-      const saved = await upsertMenuItem(state.account, { ...item, imageUrl: null });
+      const savedItem = await upsertMenuItem(state.account, { ...item, imageUrl: null });
+      const saved = { ...savedItem, options: item.options };
       setState((current) => current ? {
         ...current,
         items: current.items.map((currentItem) => currentItem.id === item.id ? saved : currentItem),
@@ -585,6 +635,7 @@ function ProductsPanel({
 
   const startEditingProduct = (item: MenuItem) => {
     setProductForm(item);
+    setOptionText(optionTextFromGroups(item.options));
     window.requestAnimationFrame(() => {
       document.getElementById("menu-product-form")?.scrollIntoView({ behavior: "smooth", block: "start" });
     });
@@ -623,6 +674,12 @@ function ProductsPanel({
               <option value="counter">Pizzaria / Balcao</option>
             </select>
             <input value={(productForm.tags || []).join(", ")} onChange={(event) => setProductForm((current) => ({ ...current, tags: event.target.value.split(",").map((tag) => tag.trim()).filter(Boolean) }))} className="hc-input" placeholder="Tags separadas por virgula" />
+            <textarea
+              value={optionText}
+              onChange={(event) => setOptionText(event.target.value)}
+              className="hc-textarea min-h-28"
+              placeholder="Adicionais: Borda | single | opcional | Sem borda:0, Catupiry:8"
+            />
             <div className="grid gap-3 sm:grid-cols-[96px_1fr]">
               <FoodImage src={productForm.imageUrl || null} alt={productForm.displayName || "Produto"} className="aspect-square w-full rounded-lg" />
               <div>
@@ -700,7 +757,7 @@ function ProductsPanel({
                   <div>
                     <p className="font-black">{item.displayName}</p>
                     <p className="text-xs font-bold text-muted-foreground">{categoriesById.get(item.categoryId || "")?.name || "Sem categoria"}</p>
-                    <p className="text-xs font-bold text-muted-foreground">{stationLabel[item.station]}</p>
+                    <p className="text-xs font-bold text-muted-foreground">{stationLabel[item.station]} - {item.options.length} adicional(is)</p>
                   </div>
                   <p className="shrink-0 text-sm font-black text-primary">{currency(item.price)}</p>
                 </div>
@@ -771,7 +828,8 @@ function ImagesPanel({
     setMessage(null);
     try {
       const url = await uploadMenuImage(state.account.id, file);
-      const saved = await upsertMenuItem(state.account, { ...item, imageUrl: url });
+      const savedItem = await upsertMenuItem(state.account, { ...item, imageUrl: url });
+      const saved = { ...savedItem, options: item.options };
       setState((current) => current ? {
         ...current,
         items: current.items.map((currentItem) => currentItem.id === saved.id ? saved : currentItem),
@@ -788,7 +846,8 @@ function ImagesPanel({
     setSavingId(item.id);
     setMessage(null);
     try {
-      const saved = await upsertMenuItem(state.account, { ...item, imageUrl: null });
+      const savedItem = await upsertMenuItem(state.account, { ...item, imageUrl: null });
+      const saved = { ...savedItem, options: item.options };
       setState((current) => current ? {
         ...current,
         items: current.items.map((currentItem) => currentItem.id === saved.id ? saved : currentItem),
@@ -1035,6 +1094,20 @@ function TablesPanel({
 
       <div className="rounded-lg border bg-card p-4">
         <h2 className="text-xl font-black">QR Codes das mesas</h2>
+        <div className="mt-4 rounded-lg border border-primary/25 bg-primary/10 p-3">
+          <div className="grid gap-3 md:grid-cols-[132px_1fr] md:items-center">
+            <img
+              src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(deliveryMenuUrl(state.profile.slug))}`}
+              alt="QR delivery"
+              className="mx-auto size-32 rounded-lg border bg-white p-2"
+            />
+            <div>
+              <p className="font-black">QR geral do delivery</p>
+              <p className="mt-1 text-sm font-semibold text-muted-foreground">Use este QR em redes sociais, balcão e embalagem. As mesas usam QR proprio abaixo.</p>
+              <input className="hc-input mt-3 text-xs" readOnly value={deliveryMenuUrl(state.profile.slug)} onFocus={(event) => event.currentTarget.select()} />
+            </div>
+          </div>
+        </div>
         <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
           {state.tables.map((table) => {
             const url = tableMenuUrl(state.profile.slug, table.qrSlug);

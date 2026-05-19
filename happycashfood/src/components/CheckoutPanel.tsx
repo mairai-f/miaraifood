@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { Banknote, CheckCircle2, CreditCard, Percent, QrCode, ReceiptText, Scissors, X } from "lucide-react";
-import type { FoodOrder, FoodTable, PaymentMethod } from "@/types";
+import { Banknote, CheckCircle2, CreditCard, Percent, Plus, QrCode, ReceiptText, Scissors, Trash2, X } from "lucide-react";
+import type { FoodOrder, FoodTable, PaymentMethod, PaymentSplit } from "@/types";
 import {
   currency,
   itemTotal,
@@ -21,16 +21,25 @@ interface CheckoutPanelProps {
   onCloseOrder: (
     orderId: string,
     method: PaymentMethod,
-    details: { discount: number; cashReceived: number; paidBy: string },
+    details: { discount: number; cashReceived: number; paidBy: string; paymentSplits?: PaymentSplit[] },
   ) => void;
 }
 
 const paymentMethods: Array<{ id: PaymentMethod; label: string; icon: typeof Banknote }> = [
   { id: "pix", label: "Pix", icon: QrCode },
-  { id: "card", label: "Cartao", icon: CreditCard },
+  { id: "debit", label: "Debito", icon: CreditCard },
+  { id: "credit", label: "Credito", icon: CreditCard },
+  { id: "voucher", label: "Voucher", icon: ReceiptText },
   { id: "cash", label: "Dinheiro", icon: Banknote },
   { id: "mixed", label: "Dividido", icon: Scissors },
   { id: "fiado", label: "Fiado", icon: ReceiptText },
+];
+const splitMethods: Array<{ id: PaymentMethod; label: string }> = [
+  { id: "cash", label: "Dinheiro" },
+  { id: "pix", label: "Pix" },
+  { id: "debit", label: "Debito" },
+  { id: "credit", label: "Credito" },
+  { id: "voucher", label: "Voucher" },
 ];
 
 export function CheckoutPanel({
@@ -51,6 +60,10 @@ export function CheckoutPanel({
   const [confirmExitOpen, setConfirmExitOpen] = useState(false);
   const [checkoutModalOpen, setCheckoutModalOpen] = useState(false);
   const [itemsPage, setItemsPage] = useState(0);
+  const [paymentParts, setPaymentParts] = useState<PaymentSplit[]>([
+    { id: "part-cash", label: "Dinheiro", method: "cash", amount: 0 },
+    { id: "part-pix", label: "Pix", method: "pix", amount: 0 },
+  ]);
   const payableOrders = useMemo(
     () => sortOrdersByTableNumber(orders.filter((order) => order.status !== "paid"), tables),
     [orders, tables],
@@ -68,7 +81,14 @@ export function CheckoutPanel({
   const splitValue = splitCount > 0 ? total / splitCount : total;
   const cashReceived = Number(cashReceivedInput.replace(",", ".")) || 0;
   const change = paymentMethod === "cash" ? Math.max(0, cashReceived - total) : 0;
-  const canClose = Boolean(selectedOrder && paymentMethod && (paymentMethod !== "cash" || cashReceived >= total));
+  const mixedPaid = paymentParts.reduce((sum, part) => sum + part.amount, 0);
+  const mixedRemaining = Math.max(0, total - mixedPaid);
+  const canClose = Boolean(
+    selectedOrder &&
+      paymentMethod &&
+      (paymentMethod !== "cash" || cashReceived >= total) &&
+      (paymentMethod !== "mixed" || mixedPaid >= total),
+  );
   const selectedOrderItems = selectedOrder?.items ?? [];
   const itemsPerPage = 3;
   const totalItemPages = Math.max(1, Math.ceil(selectedOrderItems.length / itemsPerPage));
@@ -99,12 +119,36 @@ export function CheckoutPanel({
     setConfirmExitOpen(true);
   };
 
+  const updatePaymentPart = (partId: string, patch: Partial<PaymentSplit>) => {
+    setPaymentParts((currentParts) =>
+      currentParts.map((part) => (part.id === partId ? { ...part, ...patch } : part)),
+    );
+  };
+
+  const addPaymentPart = () => {
+    const method = splitMethods[0];
+    setPaymentParts((currentParts) => [
+      ...currentParts,
+      {
+        id: `part-${Date.now()}`,
+        label: method.label,
+        method: method.id,
+        amount: mixedRemaining,
+      },
+    ]);
+  };
+
+  const removePaymentPart = (partId: string) => {
+    setPaymentParts((currentParts) => currentParts.filter((part) => part.id !== partId));
+  };
+
   const handleClose = () => {
     if (!selectedOrder || !canClose) return;
     onCloseOrder(selectedOrder.id, paymentMethod, {
       discount: checkoutDiscount,
-      cashReceived: paymentMethod === "cash" ? cashReceived : total,
+      cashReceived: paymentMethod === "cash" ? cashReceived : paymentMethod === "mixed" ? mixedPaid : total,
       paidBy: paidBy.trim() || selectedOrder.customerName,
+      paymentSplits: paymentMethod === "mixed" ? paymentParts.filter((part) => part.amount > 0) : undefined,
     });
     setConfirming(false);
     setConfirmExitOpen(false);
@@ -113,6 +157,10 @@ export function CheckoutPanel({
     setPaymentMethod("pix");
     setCashReceivedInput("");
     setPaidBy("");
+    setPaymentParts([
+      { id: "part-cash", label: "Dinheiro", method: "cash", amount: 0 },
+      { id: "part-pix", label: "Pix", method: "pix", amount: 0 },
+    ]);
     setItemsPage(0);
   };
 
@@ -368,6 +416,52 @@ export function CheckoutPanel({
                       placeholder="0,00"
                     />
                     <p className="mt-2 text-sm font-black text-primary">Troco: {currency.format(change)}</p>
+                  </div>
+                )}
+
+                {paymentMethod === "mixed" && (
+                  <div className="rounded-lg border bg-background p-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-xs font-bold uppercase text-muted-foreground">Multiplos pagamentos</p>
+                      <button type="button" onClick={addPaymentPart} className="inline-flex items-center gap-1 rounded-lg border px-2.5 py-1 text-xs font-black">
+                        <Plus className="h-3.5 w-3.5" />
+                        Adicionar
+                      </button>
+                    </div>
+                    <div className="mt-3 space-y-2">
+                      {paymentParts.map((part) => (
+                        <div key={part.id} className="grid grid-cols-[1fr_96px_auto] gap-2">
+                          <select
+                            value={part.method}
+                            onChange={(event) => {
+                              const method = splitMethods.find((entry) => entry.id === event.target.value) || splitMethods[0];
+                              updatePaymentPart(part.id, { method: method.id, label: method.label });
+                            }}
+                            className="h-10 rounded-lg border bg-card px-2 text-xs font-black outline-none ring-primary focus:ring-2"
+                          >
+                            {splitMethods.map((method) => (
+                              <option key={method.id} value={method.id}>
+                                {method.label}
+                              </option>
+                            ))}
+                          </select>
+                          <input
+                            value={part.amount || ""}
+                            onChange={(event) => updatePaymentPart(part.id, { amount: Number(event.target.value.replace(",", ".")) || 0 })}
+                            className="h-10 rounded-lg border bg-card px-2 text-sm font-black outline-none ring-primary focus:ring-2"
+                            inputMode="decimal"
+                            placeholder="0,00"
+                          />
+                          <button type="button" onClick={() => removePaymentPart(part.id)} className="grid h-10 w-10 place-items-center rounded-lg border bg-card text-muted-foreground" aria-label="Remover forma">
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="mt-3 grid grid-cols-2 gap-2 text-sm font-black">
+                      <p className="rounded-lg bg-muted p-2">Pago: {currency.format(mixedPaid)}</p>
+                      <p className="rounded-lg bg-muted p-2">Falta: {currency.format(mixedRemaining)}</p>
+                    </div>
                   </div>
                 )}
 

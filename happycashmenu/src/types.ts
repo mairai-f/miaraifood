@@ -1,6 +1,8 @@
 export type MenuServiceType = "dine_in" | "delivery" | "takeaway";
 export type Station = "kitchen" | "bar" | "counter";
 export type OptionType = "single" | "multiple" | "quantity";
+export type PublicMenuAction = "order" | "call_waiter" | "request_bill";
+export type PaymentTiming = "now" | "cashier";
 
 export type PublicStore = {
   id: string;
@@ -138,7 +140,7 @@ export type CustomerInfo = {
   neighborhood: string;
   city: string;
   state: string;
-  paymentMethod: "pix" | "card" | "cash";
+  paymentMethod: "pix" | "card" | "debit" | "credit" | "voucher" | "cash";
   loyaltyOptIn: boolean;
 };
 
@@ -163,6 +165,7 @@ export type AdminPublicProfile = PublicStore & {
 export type CreateOrderResponse = {
   success: boolean;
   orderId?: string;
+  actionType?: PublicMenuAction;
   receiptNumber?: string;
   receiptTitle?: string;
   brandLine?: string;

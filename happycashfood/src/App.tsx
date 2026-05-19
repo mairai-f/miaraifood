@@ -12,8 +12,11 @@ import {
   demoUsers,
   initialClosureReceipts,
   initialDeliveries,
+  initialInventoryItems,
   initialOrders,
+  initialStockMovements,
   initialTables,
+  initialTechnicalSheets,
   initialWaiters,
   menuProducts,
   userPins as defaultUserPins,
@@ -42,11 +45,15 @@ import type {
   FoodTable,
   FoodUser,
   FoodWaiter,
+  InventoryItem,
   KitchenStatus,
   KitchenTicket,
   MenuProduct,
   PaymentMethod,
+  ProductTechnicalSheet,
   Station,
+  StockMovement,
+  StockMovementType,
 } from "@/types";
 
 const activeItems = (items: FoodOrderItem[]) => items.filter((item) => item.status !== "cancelled");
@@ -143,6 +150,9 @@ export default function App() {
   const [deliveries, setDeliveries] = useState<DeliveryOrder[]>(initialDeliveries);
   const [paymentRequests, setPaymentRequests] = useState<CustomerPaymentRequest[]>([]);
   const [closureReceipts, setClosureReceipts] = useState<FoodClosureReceipt[]>(initialClosureReceipts);
+  const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>(initialInventoryItems);
+  const [stockMovements, setStockMovements] = useState<StockMovement[]>(initialStockMovements);
+  const [technicalSheets, setTechnicalSheets] = useState<ProductTechnicalSheet[]>(initialTechnicalSheets);
   const [selectedTableId, setSelectedTableId] = useState(initialTables[0].id);
   const [note, setNote] = useState("");
   const [transferTargetId, setTransferTargetId] = useState("");
@@ -250,6 +260,90 @@ export default function App() {
     }
   };
 
+  const registerStockMovement = (movement: {
+    inventoryItemId: string;
+    type: StockMovementType;
+    quantity: number;
+    unitCost: number;
+    reason: string;
+    source: string;
+  }) => {
+    const item = inventoryItems.find((inventoryItem) => inventoryItem.id === movement.inventoryItemId);
+    if (!item) return;
+
+    const quantity = Math.max(0, movement.quantity);
+    const now = new Date().toISOString();
+    const nextMovement: StockMovement = {
+      id: `mov-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      inventoryItemId: item.id,
+      inventoryItemName: item.name,
+      type: movement.type,
+      quantity,
+      unit: item.unit,
+      unitCost: Math.max(0, movement.unitCost),
+      reason: movement.reason.trim() || "Movimento de estoque",
+      source: movement.source.trim() || "Administrador",
+      createdAt: now,
+    };
+
+    setInventoryItems((currentItems) =>
+      currentItems.map((currentItem) => {
+        if (currentItem.id !== item.id) return currentItem;
+
+        const nextStock = (() => {
+          if (movement.type === "entrada" || movement.type === "producao") return currentItem.currentStock + quantity;
+          if (movement.type === "inventario") return quantity;
+          return Math.max(0, currentItem.currentStock - quantity);
+        })();
+        const nextAverageCost = movement.type === "entrada" || movement.type === "producao"
+          ? movement.unitCost > 0
+            ? ((currentItem.currentStock * currentItem.averageCost) + (quantity * movement.unitCost)) / Math.max(1, currentItem.currentStock + quantity)
+            : currentItem.averageCost
+          : currentItem.averageCost;
+
+        return {
+          ...currentItem,
+          currentStock: Number(nextStock.toFixed(3)),
+          averageCost: Number(nextAverageCost.toFixed(2)),
+          lastMovementAt: now,
+        };
+      }),
+    );
+    setStockMovements((currentMovements) => [nextMovement, ...currentMovements]);
+  };
+
+  const consumeProductInventory = (product: MenuProduct, quantity: number, source: string) => {
+    const sheet = technicalSheets.find((technicalSheet) => technicalSheet.productId === product.id);
+    if (!sheet) return;
+    const safeQuantity = Math.max(1, quantity);
+    const portion = Math.max(1, sheet.yieldQuantity || 1);
+
+    sheet.ingredients.forEach((ingredient) => {
+      registerStockMovement({
+        inventoryItemId: ingredient.inventoryItemId,
+        type: "venda",
+        quantity: Number(((ingredient.quantity / portion) * safeQuantity).toFixed(3)),
+        unitCost: 0,
+        reason: `${safeQuantity}x ${product.name}`,
+        source,
+      });
+    });
+  };
+
+  const updateTechnicalSheet = (sheet: ProductTechnicalSheet) => {
+    setTechnicalSheets((currentSheets) => {
+      const nextSheet = {
+        ...sheet,
+        id: sheet.id || `sheet-${Date.now()}`,
+      };
+      const exists = currentSheets.some((currentSheet) => currentSheet.id === nextSheet.id || currentSheet.productId === nextSheet.productId);
+      if (!exists) return [nextSheet, ...currentSheets];
+      return currentSheets.map((currentSheet) =>
+        currentSheet.id === nextSheet.id || currentSheet.productId === nextSheet.productId ? nextSheet : currentSheet,
+      );
+    });
+  };
+
   const openTable = (tableId: string) => {
     if (!currentUser) return;
     const now = new Date().toISOString();
@@ -348,10 +442,11 @@ export default function App() {
     setProducts((currentProducts) =>
       currentProducts.map((currentProduct) =>
         currentProduct.id === product.id
-          ? { ...currentProduct, stock: Math.max(0, currentProduct.stock - 1) }
+          ? { ...currentProduct, stock: Math.max(0, currentProduct.stock - item.quantity) }
           : currentProduct,
       ),
     );
+    consumeProductInventory(product, item.quantity, `Mesa ${selectedTable?.number ?? tableId}`);
     setNote("");
   };
 
@@ -453,7 +548,7 @@ export default function App() {
   const closeOrder = (
     orderId: string,
     method: PaymentMethod,
-    details: { discount: number; cashReceived: number; paidBy: string },
+    details: { discount: number; cashReceived: number; paidBy: string; paymentSplits?: unknown[] },
   ) => {
     const order = orders.find((item) => item.id === orderId);
     if (!order) return;
@@ -530,6 +625,11 @@ export default function App() {
     customerName: string;
     phone: string;
     address: string;
+    neighborhood: string;
+    courierName: string;
+    estimatedMinutes: number;
+    trackingCode: string;
+    couponCode: string;
     productId: string;
     quantity: number;
     deliveryFee: number;
@@ -551,6 +651,11 @@ export default function App() {
         customerName: delivery.customerName,
         phone: delivery.phone,
         address: delivery.address,
+        neighborhood: delivery.neighborhood,
+        courierName: delivery.courierName,
+        estimatedMinutes: delivery.estimatedMinutes,
+        trackingCode: delivery.trackingCode,
+        couponCode: delivery.couponCode,
         status: "new",
         createdAt: new Date().toISOString(),
         deliveryFee: delivery.deliveryFee,
@@ -567,6 +672,7 @@ export default function App() {
           : currentProduct,
       ),
     );
+    consumeProductInventory(product, quantity, `Delivery ${delivery.customerName}`);
   };
 
   const cancelOrderItem = (orderId: string, itemId: string) => {
@@ -732,6 +838,9 @@ export default function App() {
           products={products}
           waiters={waiters}
           closureReceipts={closureReceipts}
+          inventoryItems={inventoryItems}
+          stockMovements={stockMovements}
+          technicalSheets={technicalSheets}
           onAddTable={addTable}
           onDeleteTable={deleteTable}
           onAddWaiter={addWaiter}
@@ -739,6 +848,8 @@ export default function App() {
           onAddProduct={addProduct}
           onUpdateProduct={updateProduct}
           onDeleteProduct={deleteProduct}
+          onRegisterStockMovement={registerStockMovement}
+          onUpdateTechnicalSheet={updateTechnicalSheet}
         />
       );
     }
