@@ -128,6 +128,7 @@ export interface FoodUser {
   username: string;
   role: FoodRole;
   tableId?: string;
+  ownerUserId?: string;
 }
 
 export interface CustomerPaymentRequest {

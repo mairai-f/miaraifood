@@ -849,7 +849,7 @@ export function AdminPanel({
               <select value={productForm.station} onChange={(event) => setProductForm((current) => ({ ...current, station: event.target.value as Station }))} className={foodInputClassName}>
                 <option value="kitchen">Cozinha</option>
                 <option value="bar">Bar</option>
-                <option value="counter">Balcao</option>
+                <option value="counter">Pizzaria / Balcao</option>
               </select>
             </Field>
             <Field label="Estoque atual" hint="Quantidade disponivel para venda.">

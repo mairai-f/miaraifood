@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { Bell, CheckCircle2, ChefHat, Clock3, X } from "lucide-react";
 import type { FoodOrder, FoodTable, KitchenStatus, KitchenTicket, Station } from "@/types";
 import { formatElapsed, nextKitchenStatus, statusLabel } from "@/lib/foodMetrics";
@@ -15,7 +15,7 @@ const columns: KitchenStatus[] = ["received", "preparing", "ready", "delivered"]
 const stationLabel: Record<Station, string> = {
   kitchen: "Cozinha",
   bar: "Bar",
-  counter: "Balcao",
+  counter: "Pizzaria / Balcao",
 };
 
 const columnTone: Record<KitchenStatus, string> = {
@@ -28,7 +28,7 @@ const columnTone: Record<KitchenStatus, string> = {
 
 const statusHint: Record<KitchenStatus, string> = {
   received: "Pedidos novos aguardando inicio.",
-  preparing: "Pedidos em preparo na cozinha, bar ou balcao.",
+  preparing: "Pedidos em preparo na cozinha, bar ou pizzaria.",
   ready: "Pedidos prontos para retirada ou entrega na mesa.",
   delivered: "Pedidos ja entregues ao cliente.",
   cancelled: "Pedidos cancelados e removidos da operacao.",
@@ -50,12 +50,12 @@ export function KitchenDisplay({ tickets, orders, tables, onAdvanceTicket }: Kit
     [tables],
   );
 
-  const resolveOrigin = (ticket: KitchenTicket) => {
+  const resolveOrigin = useCallback((ticket: KitchenTicket) => {
     if (ticket.tableNumber === "Delivery") return "Delivery";
     const order = orderById.get(ticket.orderId);
     const table = order ? tableById.get(order.tableId) : null;
     return table?.area || "Salao";
-  };
+  }, [orderById, tableById]);
 
   const summaries = useMemo(
     () =>
@@ -91,7 +91,7 @@ export function KitchenDisplay({ tickets, orders, tables, onAdvanceTicket }: Kit
             .slice(0, 3),
         };
       }),
-    [tickets, orderById, tableById],
+    [tickets, resolveOrigin],
   );
 
   const activeSummary = summaries.find((summary) => summary.status === activeStatus) ?? null;
@@ -110,7 +110,7 @@ export function KitchenDisplay({ tickets, orders, tables, onAdvanceTicket }: Kit
     <section className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h3 className="text-2xl font-black">KDS cozinha e bar</h3>
+          <h3 className="text-2xl font-black">KDS cozinha, bar e pizzaria</h3>
           <p className="text-sm text-muted-foreground">Clique no status para abrir o modal com os pedidos sem depender de rolagem.</p>
         </div>
         <div className="inline-flex items-center gap-2 rounded-lg border bg-card px-3 py-2 text-sm font-bold">
@@ -154,7 +154,7 @@ export function KitchenDisplay({ tickets, orders, tables, onAdvanceTicket }: Kit
                     <span className="font-black">Bar:</span> {summary.stationCounts.bar} item(ns)
                   </div>
                   <div className="rounded-lg border bg-background px-3 py-2 text-sm">
-                    <span className="font-black">Balcao:</span> {summary.stationCounts.counter} item(ns)
+                    <span className="font-black">Pizzaria:</span> {summary.stationCounts.counter} item(ns)
                   </div>
                   <div className="rounded-lg border bg-background px-3 py-2 text-sm">
                     <span className="font-black">Origem:</span>{" "}
@@ -211,7 +211,7 @@ export function KitchenDisplay({ tickets, orders, tables, onAdvanceTicket }: Kit
                 <div className="rounded-lg border bg-background p-3 text-sm">
                   <p><span className="font-black">Cozinha:</span> {activeSummary.stationCounts.kitchen} item(ns)</p>
                   <p className="mt-2"><span className="font-black">Bar:</span> {activeSummary.stationCounts.bar} item(ns)</p>
-                  <p className="mt-2"><span className="font-black">Balcao:</span> {activeSummary.stationCounts.counter} item(ns)</p>
+                  <p className="mt-2"><span className="font-black">Pizzaria:</span> {activeSummary.stationCounts.counter} item(ns)</p>
                 </div>
                 <div className="rounded-lg border bg-background p-3 text-sm">
                   <p className="font-black">Atalhos do modal</p>

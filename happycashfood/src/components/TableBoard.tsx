@@ -505,7 +505,7 @@ export function TableBoard({
                       <div className="min-w-0">
                         <p className="truncate text-sm font-bold">{product.name}</p>
                         <p className="text-xs text-muted-foreground">
-                          {product.station === "bar" ? "Bar" : product.station === "counter" ? "Balcao" : "Cozinha"} • Cod. {product.code}
+                          {product.station === "bar" ? "Bar" : product.station === "counter" ? "Pizzaria / Balcao" : "Cozinha"} • Cod. {product.code}
                         </p>
                         <p className="mt-1 truncate text-xs text-muted-foreground">{product.ingredients.join(", ")}</p>
                         {product.sizes.length > 0 && (

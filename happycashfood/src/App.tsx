@@ -25,6 +25,11 @@ import {
   orderTotal,
   tableOrder,
 } from "@/lib/foodMetrics";
+import {
+  loadFoodRemoteSnapshot,
+  updateFoodDeliveryStatus,
+  updateFoodOrderItemStatuses,
+} from "@/lib/foodRemote";
 import type {
   CustomerPaymentRequest,
   DeliveryOrder,
@@ -57,8 +62,10 @@ const resolveOrderStatus = (items: FoodOrderItem[], currentStatus: FoodOrder["st
 const groupTickets = (
   orders: FoodOrder[],
   deliveries: DeliveryOrder[],
+  tables: FoodTable[],
 ): KitchenTicket[] => {
   const grouped = new Map<string, KitchenTicket>();
+  const tableById = new Map(tables.map((table) => [table.id, table]));
 
   const appendItems = (
     orderId: string,
@@ -84,7 +91,7 @@ const groupTickets = (
   };
 
   for (const order of orders.filter((item) => item.status !== "paid")) {
-    const tableNumber = order.tableId.replace("table-", "").toUpperCase();
+    const tableNumber = tableById.get(order.tableId)?.number || order.tableId.replace("table-", "").toUpperCase();
     (["kitchen", "bar", "counter"] as Station[]).forEach((station) => {
       (["received", "preparing", "ready", "delivered"] as KitchenStatus[]).forEach((status) => {
         appendItems(order.id, tableNumber, station, status, order.items);
@@ -118,6 +125,8 @@ const firstViewForRole = (user: FoodUser): FoodView => {
   return "floor";
 };
 
+const foodOwnerStorageKey = "happycash:food:owner-user-id";
+
 export default function App() {
   const [currentUser, setCurrentUser] = useState<FoodUser | null>(null);
   const [appUsers, setAppUsers] = useState<FoodUser[]>(demoUsers);
@@ -139,7 +148,7 @@ export default function App() {
   const [adminPassword, setAdminPassword] = useState("");
   const [adminPasswordError, setAdminPasswordError] = useState("");
 
-  const tickets = useMemo(() => groupTickets(orders, deliveries), [orders, deliveries]);
+  const tickets = useMemo(() => groupTickets(orders, deliveries, tables), [deliveries, orders, tables]);
   const pendingRemovalOrder = pendingRemoval
     ? orders.find((order) => order.id === pendingRemoval.orderId)
     : undefined;
@@ -160,17 +169,50 @@ export default function App() {
       document.body.style.overflow = previousOverflow;
     };
   }, [pendingRemoval]);
+
+  useEffect(() => {
+    if (!currentUser?.ownerUserId) return undefined;
+    let active = true;
+
+    const sync = async () => {
+      try {
+        const snapshot = await loadFoodRemoteSnapshot();
+        if (!active || !snapshot) return;
+        setTables(snapshot.tables.length ? snapshot.tables : initialTables);
+        setOrders(snapshot.orders);
+        setDeliveries(snapshot.deliveries);
+        if (snapshot.products.length) setProducts(snapshot.products);
+      } catch {
+        // Mantem a operacao local caso a rede falhe.
+      }
+    };
+
+    void sync();
+    const interval = window.setInterval(() => void sync(), 8000);
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+    };
+  }, [currentUser?.ownerUserId]);
   const readyItems = tickets
     .filter((ticket) => ticket.status === "ready")
     .reduce((sum, ticket) => sum + ticket.items.reduce((subtotal, item) => subtotal + item.quantity, 0), 0);
 
   const login = (user: FoodUser) => {
-    setCurrentUser(user);
-    setActiveView(firstViewForRole(user));
+    const storedOwnerUserId = window.localStorage.getItem(foodOwnerStorageKey) || undefined;
+    const nextUser = {
+      ...user,
+      ownerUserId: user.ownerUserId || storedOwnerUserId,
+    };
+    if (nextUser.ownerUserId) {
+      window.localStorage.setItem(foodOwnerStorageKey, nextUser.ownerUserId);
+    }
+    setCurrentUser(nextUser);
+    setActiveView(firstViewForRole(nextUser));
     window.requestAnimationFrame(() => window.scrollTo({ top: 0, left: 0 }));
-    if (user.tableId) {
-      setSelectedTableId(user.tableId);
-      const order = tableOrder(orders, user.tableId);
+    if (nextUser.tableId) {
+      setSelectedTableId(nextUser.tableId);
+      const order = tableOrder(orders, nextUser.tableId);
       if (order) setSelectedOrderId(order.id);
     }
   };
@@ -350,6 +392,7 @@ export default function App() {
     if (!ticket || ticket.status === "delivered") return;
     const nextStatus = nextKitchenStatus(ticket.status);
     const itemIds = new Set(ticket.items.map((item) => item.id));
+    void updateFoodOrderItemStatuses(Array.from(itemIds), nextStatus);
 
     setOrders((currentOrders) =>
       currentOrders.map((order) => {
@@ -436,6 +479,11 @@ export default function App() {
   };
 
   const advanceDelivery = (deliveryId: string) => {
+    const delivery = deliveries.find((item) => item.id === deliveryId);
+    if (delivery) {
+      void updateFoodDeliveryStatus(deliveryId, nextDeliveryStatus(delivery.status));
+    }
+
     setDeliveries((currentDeliveries) =>
       currentDeliveries.map((delivery) =>
         delivery.id === deliveryId

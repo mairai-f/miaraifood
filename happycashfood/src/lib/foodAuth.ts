@@ -28,7 +28,7 @@ type FoodSubscriptionRow = {
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string | undefined;
 const supabasePublishableKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string | undefined;
 
-const foodSupabase = supabaseUrl && supabasePublishableKey
+export const foodSupabase = supabaseUrl && supabasePublishableKey
   ? createClient(supabaseUrl, supabasePublishableKey, {
       auth: {
         persistSession: true,
@@ -145,6 +145,7 @@ export const signInFoodAdmin = async (
     name: profile.username || normalizedEmail,
     username: profile.username || normalizedEmail,
     role: "admin",
+    ownerUserId,
   };
 };
 

@@ -44,7 +44,7 @@ type AdminState = {
   promotions: MenuPromotion[];
 };
 
-type AdminTab = "vitrine" | "produtos" | "promocoes" | "mesas";
+type AdminTab = "vitrine" | "imagens" | "produtos" | "promocoes" | "mesas";
 
 const emptyProduct = (categoryId?: string): Partial<MenuItem> & { displayName: string; price: number } => ({
   displayName: "",
@@ -96,6 +96,12 @@ const emptyPromotion = (menuItemId?: string): Partial<MenuPromotion> & { menuIte
   showOnMenu: true,
   sortOrder: 0,
 });
+
+const stationLabel: Record<Station, string> = {
+  kitchen: "Cozinha",
+  bar: "Bar",
+  counter: "Pizzaria / Balcao",
+};
 
 function LoginPanel({ onLogin }: { onLogin: () => void }) {
   const [email, setEmail] = useState("");
@@ -513,7 +519,7 @@ function ProductsPanel({
             <select value={productForm.station || "kitchen"} onChange={(event) => setProductForm((current) => ({ ...current, station: event.target.value as Station }))} className="hc-input">
               <option value="kitchen">Cozinha</option>
               <option value="bar">Bar</option>
-              <option value="counter">Balcao</option>
+              <option value="counter">Pizzaria / Balcao</option>
             </select>
             <input value={(productForm.tags || []).join(", ")} onChange={(event) => setProductForm((current) => ({ ...current, tags: event.target.value.split(",").map((tag) => tag.trim()).filter(Boolean) }))} className="hc-input" placeholder="Tags separadas por virgula" />
             <div className="grid gap-3 sm:grid-cols-[96px_1fr]">
@@ -560,6 +566,7 @@ function ProductsPanel({
                   <div>
                     <p className="font-black">{item.displayName}</p>
                     <p className="text-xs font-bold text-muted-foreground">{categoriesById.get(item.categoryId || "")?.name || "Sem categoria"}</p>
+                    <p className="text-xs font-bold text-muted-foreground">{stationLabel[item.station]}</p>
                   </div>
                   <p className="shrink-0 text-sm font-black text-primary">{currency(item.price)}</p>
                 </div>
@@ -571,6 +578,161 @@ function ProductsPanel({
             </div>
           ))}
           {state.items.length === 0 ? <p className="rounded-lg border bg-background p-6 text-center text-sm font-bold text-muted-foreground">Cadastre o primeiro produto com foto e preco.</p> : null}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function ImagesPanel({
+  state,
+  setState,
+}: {
+  state: AdminState;
+  setState: React.Dispatch<React.SetStateAction<AdminState | null>>;
+}) {
+  const [savingId, setSavingId] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+
+  const updateProfileImage = async (field: "logoUrl" | "coverUrl", file: File | null) => {
+    if (!file) return;
+    setSavingId(field);
+    setMessage(null);
+    try {
+      const url = await uploadMenuImage(state.account.id, file);
+      const saved = await savePublicProfile({ ...state.profile, [field]: url });
+      setState((current) => current ? { ...current, profile: saved } : current);
+      setMessage(field === "logoUrl" ? "Logo atualizado." : "Capa atualizada.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Nao foi possivel enviar a imagem.");
+    } finally {
+      setSavingId(null);
+    }
+  };
+
+  const clearProfileImage = async (field: "logoUrl" | "coverUrl") => {
+    setSavingId(field);
+    setMessage(null);
+    try {
+      const saved = await savePublicProfile({ ...state.profile, [field]: null });
+      setState((current) => current ? { ...current, profile: saved } : current);
+      setMessage(field === "logoUrl" ? "Logo removido." : "Capa removida.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Nao foi possivel remover a imagem.");
+    } finally {
+      setSavingId(null);
+    }
+  };
+
+  const updateProductImage = async (item: MenuItem, file: File | null) => {
+    if (!file) return;
+    setSavingId(item.id);
+    setMessage(null);
+    try {
+      const url = await uploadMenuImage(state.account.id, file);
+      const saved = await upsertMenuItem(state.account, { ...item, imageUrl: url });
+      setState((current) => current ? {
+        ...current,
+        items: current.items.map((currentItem) => currentItem.id === saved.id ? saved : currentItem),
+      } : current);
+      setMessage(`Foto de ${item.displayName} atualizada.`);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Nao foi possivel enviar a foto.");
+    } finally {
+      setSavingId(null);
+    }
+  };
+
+  const clearProductImage = async (item: MenuItem) => {
+    setSavingId(item.id);
+    setMessage(null);
+    try {
+      const saved = await upsertMenuItem(state.account, { ...item, imageUrl: null });
+      setState((current) => current ? {
+        ...current,
+        items: current.items.map((currentItem) => currentItem.id === saved.id ? saved : currentItem),
+      } : current);
+      setMessage(`Foto de ${item.displayName} removida.`);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Nao foi possivel remover a foto.");
+    } finally {
+      setSavingId(null);
+    }
+  };
+
+  return (
+    <section className="space-y-4">
+      <div className="rounded-lg border bg-card p-4">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h2 className="text-xl font-black">Imagens do cardapio</h2>
+            <p className="text-sm font-semibold text-muted-foreground">Altere logo, capa e fotos dos produtos direto por upload. Salvamento automatico.</p>
+          </div>
+          {message ? <p className="rounded-lg bg-muted px-3 py-2 text-sm font-bold text-muted-foreground">{message}</p> : null}
+        </div>
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <div className="rounded-lg border bg-card p-4">
+          <p className="text-sm font-black">Logo da empresa</p>
+          <div className="mt-3 grid gap-3 sm:grid-cols-[120px_1fr]">
+            <FoodImage src={state.profile.logoUrl} alt={state.profile.displayName} className="aspect-square w-full rounded-lg" />
+            <div className="space-y-2">
+              <input className="hidden" id="images-logo-upload" type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => void updateProfileImage("logoUrl", event.target.files?.[0] || null)} />
+              <label htmlFor="images-logo-upload" className="hc-button-primary w-full cursor-pointer">
+                {savingId === "logoUrl" ? <Loader2 className="animate-spin" size={18} /> : <Upload size={18} />}
+                Enviar logo
+              </label>
+              <button className="hc-button-soft w-full" onClick={() => void clearProfileImage("logoUrl")} disabled={savingId === "logoUrl"}>
+                <Trash2 size={18} /> Remover logo
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div className="rounded-lg border bg-card p-4">
+          <p className="text-sm font-black">Capa do cardapio</p>
+          <div className="mt-3 grid gap-3 sm:grid-cols-[180px_1fr]">
+            <FoodImage src={state.profile.coverUrl} alt={state.profile.displayName} className="aspect-[16/9] w-full rounded-lg" />
+            <div className="space-y-2">
+              <input className="hidden" id="images-cover-upload" type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => void updateProfileImage("coverUrl", event.target.files?.[0] || null)} />
+              <label htmlFor="images-cover-upload" className="hc-button-primary w-full cursor-pointer">
+                {savingId === "coverUrl" ? <Loader2 className="animate-spin" size={18} /> : <Upload size={18} />}
+                Enviar capa
+              </label>
+              <button className="hc-button-soft w-full" onClick={() => void clearProfileImage("coverUrl")} disabled={savingId === "coverUrl"}>
+                <Trash2 size={18} /> Remover capa
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="rounded-lg border bg-card p-4">
+        <h3 className="text-lg font-black">Fotos dos produtos</h3>
+        <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+          {state.items.map((item) => (
+            <div key={item.id} className="rounded-lg border bg-background p-3">
+              <FoodImage src={item.imageUrl} alt={item.imageAlt || item.displayName} className="aspect-[4/3] w-full rounded-lg" />
+              <div className="mt-3">
+                <p className="font-black">{item.displayName}</p>
+                <p className="text-xs font-bold text-muted-foreground">{stationLabel[item.station]}</p>
+              </div>
+              <div className="mt-3 grid gap-2">
+                <input className="hidden" id={`images-product-${item.id}`} type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => void updateProductImage(item, event.target.files?.[0] || null)} />
+                <label htmlFor={`images-product-${item.id}`} className="hc-button-primary w-full cursor-pointer">
+                  {savingId === item.id ? <Loader2 className="animate-spin" size={18} /> : <ImagePlus size={18} />}
+                  Trocar foto
+                </label>
+                <button className="hc-button-soft w-full" onClick={() => void clearProductImage(item)} disabled={savingId === item.id}>
+                  <Trash2 size={18} /> Remover foto
+                </button>
+              </div>
+            </div>
+          ))}
+          {state.items.length === 0 ? (
+            <p className="rounded-lg border bg-background p-6 text-center text-sm font-bold text-muted-foreground">Cadastre produtos antes de enviar fotos.</p>
+          ) : null}
         </div>
       </div>
     </section>
@@ -840,6 +1002,7 @@ export function AdminApp() {
         <div className="mb-5 flex gap-2 overflow-x-auto pb-1 scrollbar-thin">
           {([
             ["vitrine", "Vitrine"],
+            ["imagens", "Imagens"],
             ["produtos", "Produtos"],
             ["promocoes", "Promocoes"],
             ["mesas", "Mesas e QR"],
@@ -862,6 +1025,7 @@ export function AdminApp() {
         ) : state ? (
           <>
             {tab === "vitrine" ? <ProfilePanel state={state} onUpdate={(profile) => setState((current) => current ? { ...current, profile } : current)} /> : null}
+            {tab === "imagens" ? <ImagesPanel state={state} setState={setState} /> : null}
             {tab === "produtos" ? <ProductsPanel state={state} setState={setState} /> : null}
             {tab === "promocoes" ? <PromotionsPanel state={state} setState={setState} /> : null}
             {tab === "mesas" ? <TablesPanel state={state} setState={setState} /> : null}

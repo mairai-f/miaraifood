@@ -26,6 +26,11 @@ type StoreAccountRow = {
   estado: string | null;
 };
 
+type AuthProfileRow = {
+  role: string | null;
+  owner_user_id: string | null;
+};
+
 type SubscriptionRow = {
   plan_id: string;
   status: string;
@@ -312,9 +317,22 @@ export const loadAdminBootstrap = async () => {
     throw new Error("Entre com a conta que assinou o HappyCashFood.");
   }
 
+  const { data: authProfile, error: authProfileError } = await menuAdminSupabase
+    .from("profiles")
+    .select("role, owner_user_id")
+    .eq("user_id", authData.user.id)
+    .maybeSingle<AuthProfileRow>();
+
+  if (authProfileError || authProfile?.role !== "admin") {
+    throw new Error("Este login nao possui perfil administrador do HappyCashFood.");
+  }
+
+  const ownerUserId = authProfile.owner_user_id ?? authData.user.id;
+
   const { data: accountRow, error: accountError } = await menuAdminSupabase
     .from("store_accounts")
     .select("id, owner_user_id, product_context, nome_estabelecimento, email, telefone, endereco, cidade, estado")
+    .eq("owner_user_id", ownerUserId)
     .maybeSingle<StoreAccountRow>();
 
   if (accountError || !accountRow) {
