@@ -34,6 +34,7 @@ import {
 import { currency, deliveryMenuUrl, normalizeSlug, tableMenuUrl } from "@/lib/format";
 import { menuAdminSupabase } from "@/lib/supabase";
 import type { AdminPublicProfile, AdminStoreAccount, MenuCategory, MenuItem, MenuPromotion, MenuTable, Station } from "@/types";
+import { getPublicErrorMessage } from "../../../shared/security/redaction";
 
 type AdminState = {
   account: AdminStoreAccount;
@@ -157,7 +158,7 @@ function LoginPanel({ onLogin }: { onLogin: () => void | Promise<void> }) {
       await signInMenuAdmin(email, password);
       await onLogin();
     } catch (loginError) {
-      setError(loginError instanceof Error ? loginError.message : "Nao foi possivel entrar.");
+      setError(getPublicErrorMessage(loginError, "Nao foi possivel entrar."));
     } finally {
       setLoading(false);
     }
@@ -172,7 +173,7 @@ function LoginPanel({ onLogin }: { onLogin: () => void | Promise<void> }) {
       await requestMenuAdminPasswordReset(resetEmail);
       setResetFeedback("Enviamos o link para redefinir sua senha no email informado.");
     } catch (resetError) {
-      setResetFeedback(resetError instanceof Error ? resetError.message : "Nao foi possivel enviar o email agora.");
+      setResetFeedback(getPublicErrorMessage(resetError, "Nao foi possivel enviar o email agora."));
     } finally {
       setResettingPassword(false);
     }
@@ -310,7 +311,7 @@ function ProfilePanel({
       onUpdate(saved);
       setMessage("Vitrine salva.");
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Nao foi possivel salvar.");
+      setMessage(getPublicErrorMessage(error, "Nao foi possivel salvar."));
     } finally {
       setSaving(false);
     }
@@ -323,7 +324,7 @@ function ProfilePanel({
       const url = await uploadMenuImage(state.account.id, file);
       setProfile((current) => ({ ...current, coverUrl: url }));
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Imagem nao enviada.");
+      setMessage(getPublicErrorMessage(error, "Imagem nao enviada."));
     } finally {
       setSaving(false);
     }
@@ -336,7 +337,7 @@ function ProfilePanel({
       const url = await uploadMenuImage(state.account.id, file);
       setProfile((current) => ({ ...current, logoUrl: url }));
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Imagem nao enviada.");
+      setMessage(getPublicErrorMessage(error, "Imagem nao enviada."));
     } finally {
       setSaving(false);
     }
@@ -507,7 +508,7 @@ function ProductsPanel({
       setCategoryForm(emptyCategory());
       setMessage("Categoria salva.");
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Nao foi possivel salvar.");
+      setMessage(getPublicErrorMessage(error, "Nao foi possivel salvar."));
     } finally {
       setSaving(false);
     }
@@ -525,7 +526,7 @@ function ProductsPanel({
       setProductForm(emptyProduct(state.categories[0]?.id));
       setMessage("Produto salvo.");
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Nao foi possivel salvar.");
+      setMessage(getPublicErrorMessage(error, "Nao foi possivel salvar."));
     } finally {
       setSaving(false);
     }
@@ -538,7 +539,7 @@ function ProductsPanel({
       const url = await uploadMenuImage(state.account.id, file);
       setProductForm((current) => ({ ...current, imageUrl: url }));
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Imagem nao enviada.");
+      setMessage(getPublicErrorMessage(error, "Imagem nao enviada."));
     } finally {
       setSaving(false);
     }
@@ -558,7 +559,7 @@ function ProductsPanel({
       setProductForm((current) => current.id === saved.id ? { ...current, imageUrl: saved.imageUrl } : current);
       setMessage(`Foto de ${item.displayName} atualizada.`);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Imagem nao enviada.");
+      setMessage(getPublicErrorMessage(error, "Imagem nao enviada."));
     } finally {
       setPhotoSavingId(null);
     }
@@ -576,7 +577,7 @@ function ProductsPanel({
       setProductForm((current) => current.id === saved.id ? { ...current, imageUrl: null } : current);
       setMessage(`Foto de ${item.displayName} removida.`);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Nao foi possivel remover a foto.");
+      setMessage(getPublicErrorMessage(error, "Nao foi possivel remover a foto."));
     } finally {
       setPhotoSavingId(null);
     }
@@ -744,7 +745,7 @@ function ImagesPanel({
       setState((current) => current ? { ...current, profile: saved } : current);
       setMessage(field === "logoUrl" ? "Logo atualizado." : "Capa atualizada.");
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Nao foi possivel enviar a imagem.");
+      setMessage(getPublicErrorMessage(error, "Nao foi possivel enviar a imagem."));
     } finally {
       setSavingId(null);
     }
@@ -758,7 +759,7 @@ function ImagesPanel({
       setState((current) => current ? { ...current, profile: saved } : current);
       setMessage(field === "logoUrl" ? "Logo removido." : "Capa removida.");
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Nao foi possivel remover a imagem.");
+      setMessage(getPublicErrorMessage(error, "Nao foi possivel remover a imagem."));
     } finally {
       setSavingId(null);
     }
@@ -777,7 +778,7 @@ function ImagesPanel({
       } : current);
       setMessage(`Foto de ${item.displayName} atualizada.`);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Nao foi possivel enviar a foto.");
+      setMessage(getPublicErrorMessage(error, "Nao foi possivel enviar a foto."));
     } finally {
       setSavingId(null);
     }
@@ -794,7 +795,7 @@ function ImagesPanel({
       } : current);
       setMessage(`Foto de ${item.displayName} removida.`);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Nao foi possivel remover a foto.");
+      setMessage(getPublicErrorMessage(error, "Nao foi possivel remover a foto."));
     } finally {
       setSavingId(null);
     }
@@ -904,7 +905,7 @@ function PromotionsPanel({
       setPromotionForm(emptyPromotion(state.items[0]?.id));
       setMessage("Promocao salva.");
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Nao foi possivel salvar.");
+      setMessage(getPublicErrorMessage(error, "Nao foi possivel salvar."));
     } finally {
       setSaving(false);
     }
@@ -1009,7 +1010,7 @@ function TablesPanel({
       setTableForm(emptyTable());
       setMessage("Mesa salva.");
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Nao foi possivel salvar.");
+      setMessage(getPublicErrorMessage(error, "Nao foi possivel salvar."));
     } finally {
       setSaving(false);
     }

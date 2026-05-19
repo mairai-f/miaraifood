@@ -5,6 +5,7 @@ import {
   normalizeProductContext,
   type ProductContext,
 } from "../../../shared/productContext";
+import { getPublicErrorMessage } from "../../../shared/security/redaction";
 
 type FoodProfileRow = {
   username: string | null;
@@ -77,7 +78,7 @@ export const signInFoodAdmin = async (
   });
 
   if (authError || !authData.user) {
-    throw new Error(authError?.message || "Email ou senha invalidos.");
+    throw new Error(getPublicErrorMessage(authError, "Email ou senha invalidos."));
   }
 
   const { data: profile, error: profileError } = await foodSupabase
@@ -160,6 +161,6 @@ export const requestFoodPasswordReset = async (email: string) => {
   });
 
   if (error) {
-    throw new Error(error.message || "Nao foi possivel enviar o email de redefinicao.");
+    throw new Error(getPublicErrorMessage(error, "Nao foi possivel enviar o email de redefinicao."));
   }
 };

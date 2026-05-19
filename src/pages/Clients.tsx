@@ -11,6 +11,7 @@ import { toast } from 'sonner';
 import { getClientUniqueSlug } from '@/lib/clientSlug';
 import { sortClientsByDebt } from '@/lib/clientSorting';
 import { getClientCreditLimit, normalizeCreditLimit } from '@/lib/creditLimit';
+import { getRedactedLogValue } from '../../shared/security/redaction';
 
 export default function Clients() {
   const { clients, addClient, getClientBalance, getClientTotalSpending } = useData();
@@ -55,7 +56,7 @@ export default function Clients() {
       setName(''); setPhone(''); setCreditLimit(''); setOpen(false);
       toast.success('Cliente cadastrado!');
     } catch (error) {
-      console.error('Erro ao cadastrar cliente:', error);
+      console.error('Erro ao cadastrar cliente:', getRedactedLogValue(error));
       toast.error('Não foi possível cadastrar o cliente');
     }
   };

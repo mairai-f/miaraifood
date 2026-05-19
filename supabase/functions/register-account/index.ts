@@ -484,8 +484,7 @@ Deno.serve(async (request) => {
         userAgent,
       });
 
-      const message = signUpError?.message || "Nao foi possivel criar sua conta agora.";
-      return jsonResponse(request, { success: false, error: message }, 400);
+      return jsonResponse(request, { success: false, error: "Nao foi possivel criar sua conta agora." }, 400);
     }
 
     const createdUserId = signUpData.user.id;
@@ -553,7 +552,7 @@ Deno.serve(async (request) => {
         request,
         {
           success: false,
-          error: pendingRegistrationError.message || "Nao foi possivel preparar seu cadastro agora.",
+          error: "Nao foi possivel preparar seu cadastro agora.",
         },
         500,
       );
@@ -581,7 +580,6 @@ Deno.serve(async (request) => {
       userAgent,
     });
 
-    const message = error instanceof Error ? error.message : "Nao foi possivel concluir o cadastro.";
-    return jsonResponse(request, { success: false, error: message }, 400);
+    return jsonResponse(request, { success: false, error: "Nao foi possivel concluir o cadastro." }, 400);
   }
 });

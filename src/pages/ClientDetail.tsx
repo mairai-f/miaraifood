@@ -34,6 +34,7 @@ import { getAvailableClientCredit, getClientCreditLimit, getCreditLimitExceededM
 import { verifyStoreAdminApproval } from '@/lib/adminApproval';
 import { getDebtPaymentCreditedAmount, getDebtPaymentMaxAmount, getDebtPaymentValidationMessage } from '@/lib/debtPayment';
 import { parseDecimalInput } from '@/lib/numberInput';
+import { getPublicErrorMessage, getRedactedLogValue } from '../../shared/security/redaction';
 
 type ClientEditPayload = {
   name: string;
@@ -390,8 +391,8 @@ export default function ClientDetail() {
         }))
       );
     } catch (error) {
-      console.error('Erro ao marcar produtos:', error);
-      const message = error instanceof Error ? error.message : 'Nao foi possivel marcar os produtos';
+      console.error('Erro ao marcar produtos:', getRedactedLogValue(error));
+      const message = getPublicErrorMessage(error, 'Nao foi possivel marcar os produtos');
       toast.error(message);
       submittingCartRef.current = false;
       setSubmittingCart(false);
@@ -508,7 +509,7 @@ export default function ClientDetail() {
             toast.error('Não foi possível abrir o WhatsApp.');
           }
         } catch (error) {
-          console.error('Erro ao preparar cobranca do WhatsApp:', error);
+          console.error('Erro ao preparar cobranca do WhatsApp:', getRedactedLogValue(error));
           toast.error('Pagamento registrado, mas nao foi possivel preparar a mensagem do WhatsApp.');
         }
       }
@@ -521,8 +522,8 @@ export default function ClientDetail() {
       setDiscountOpen(false);
       setPayOpen(false);
     } catch (error) {
-      console.error('Erro ao registrar pagamento:', error);
-      const message = error instanceof Error ? error.message : 'Não foi possível registrar o pagamento';
+      console.error('Erro ao registrar pagamento:', getRedactedLogValue(error));
+      const message = getPublicErrorMessage(error, 'Não foi possível registrar o pagamento');
       toast.error(message);
       return;
     } finally {
@@ -652,7 +653,7 @@ export default function ClientDetail() {
       setProtectedAction(null);
       setDeleteAuthPassword('');
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Não foi possível concluir a operação.');
+      toast.error(getPublicErrorMessage(error, 'Não foi possível concluir a operação.'));
     } finally {
       setDeletingProtectedItem(false);
     }

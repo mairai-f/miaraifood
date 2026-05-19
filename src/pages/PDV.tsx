@@ -33,6 +33,7 @@ import { getAvailableClientCredit, getClientCreditLimit, getCreditLimitExceededM
 import { enqueueOfflineOperation, isOfflineConcentratorAvailable } from '@/lib/offlineConcentrator';
 import { readScopedCashSession, writeScopedCashSession, type ScopedCashSession } from '@/lib/cashSessionStorage';
 import { parseDecimalInput, parseOptionalDecimalInput } from '@/lib/numberInput';
+import { getPublicErrorMessage, getRedactedLogValue } from '../../shared/security/redaction';
 import {
   type FiscalDocumentRecord,
   type FiscalRuntimeStatus,
@@ -393,7 +394,7 @@ export default function PDV() {
       try {
         const payload = await error.context.json();
         if (payload && typeof payload === 'object' && 'error' in payload && typeof payload.error === 'string') {
-          return payload.error;
+          return getPublicErrorMessage(payload.error, 'O servidor recusou o envio do relatório por e-mail.');
         }
       } catch {
         return 'O servidor recusou o envio do relatório por e-mail.';
@@ -410,7 +411,7 @@ export default function PDV() {
     }
 
     if (error instanceof Error && error.message.trim()) {
-      return error.message;
+      return getPublicErrorMessage(error, 'Não foi possível enviar o relatório por e-mail.');
     }
 
     return 'Não foi possível enviar o relatório por e-mail.';
@@ -441,14 +442,14 @@ export default function PDV() {
     } else if (error instanceof FunctionsFetchError) {
       resolvedMessage = 'Nao foi possivel conectar ao servico fiscal agora.';
     } else if (error instanceof Error && error.message.trim()) {
-      resolvedMessage = error.message;
+      resolvedMessage = getPublicErrorMessage(error, fallbackMessage);
     }
 
     if (missingItems.length > 0) {
-      return `${resolvedMessage} Pendencias: ${missingItems.join(', ')}.`;
+      return `${getPublicErrorMessage(resolvedMessage, fallbackMessage)} Pendencias: ${missingItems.join(', ')}.`;
     }
 
-    return resolvedMessage;
+    return getPublicErrorMessage(resolvedMessage, fallbackMessage);
   }, []);
 
   const loadFiscalRuntime = useCallback(async () => {
@@ -575,7 +576,7 @@ export default function PDV() {
       if (!active) return;
 
       if (error) {
-        console.error('Erro ao sincronizar caixa aberto:', error);
+        console.error('Erro ao sincronizar caixa aberto:', getRedactedLogValue(error));
         if (storedSession) {
           setCashSession(storedSession);
         }
@@ -1949,7 +1950,7 @@ export default function PDV() {
         void issueFiscalDocumentInHomologation(sale.id);
       }
     } catch (error) {
-      const message = error instanceof Error ? error.message : translateCurrentText('Erro ao finalizar venda');
+      const message = getPublicErrorMessage(error, translateCurrentText('Erro ao finalizar venda'));
       silentToast.error(message);
     } finally {
       finalizeLockRef.current = false;
@@ -2119,7 +2120,7 @@ export default function PDV() {
       .single();
 
     if (error || !data) {
-      console.error('Erro ao abrir caixa:', error);
+      console.error('Erro ao abrir caixa:', getRedactedLogValue(error));
       silentToast.error('Não foi possível abrir o caixa');
       return;
     }
@@ -2184,7 +2185,7 @@ export default function PDV() {
         .eq('id', cashSession.id);
 
       if (error) {
-        console.error('Erro ao fechar caixa:', error);
+        console.error('Erro ao fechar caixa:', getRedactedLogValue(error));
         silentToast.error('Não foi possível registrar o fechamento do caixa');
         return;
       }
@@ -2271,7 +2272,7 @@ export default function PDV() {
         // Ignore localStorage persistence failures for email recipients.
       }
     } catch (error) {
-      console.error('Erro ao enviar relatório de fechamento por e-mail:', error);
+      console.error('Erro ao enviar relatório de fechamento por e-mail:', getRedactedLogValue(error));
       setCloseCashEmailStatus('error');
       setCloseCashEmailMessage(await getCloseCashEmailErrorMessage(error));
       setCloseCashEmailRecipients([]);
@@ -2397,7 +2398,7 @@ export default function PDV() {
       setAdminPassword('');
       await handleCloseCash(adminDb);
     } catch (error) {
-      console.error('Erro ao validar senha para fechamento do caixa:', error);
+      console.error('Erro ao validar senha para fechamento do caixa:', getRedactedLogValue(error));
       setCloseCashAuthError('Não foi possível validar as credenciais do administrador.');
     } finally {
       await adminVerificationClient.auth.signOut();
@@ -2425,7 +2426,7 @@ export default function PDV() {
       setShowCashOut(false);
       silentToast.success('Saída de caixa registrada!');
     } catch (error) {
-      console.error('Erro ao registrar saída de caixa:', error);
+      console.error('Erro ao registrar saída de caixa:', getRedactedLogValue(error));
       silentToast.error('Não foi possível registrar a saída de caixa');
     }
   };
@@ -2440,8 +2441,8 @@ export default function PDV() {
       setCancelReason('');
       silentToast.success('Venda cancelada!');
     } catch (error) {
-      console.error('Erro ao cancelar venda:', error);
-      const message = error instanceof Error ? error.message : 'Não foi possível cancelar a venda';
+      console.error('Erro ao cancelar venda:', getRedactedLogValue(error));
+      const message = getPublicErrorMessage(error, 'Não foi possível cancelar a venda');
       silentToast.error(message);
     }
   };

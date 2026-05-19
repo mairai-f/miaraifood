@@ -203,7 +203,7 @@ Deno.serve(async (request) => {
     if (createError || !createdUser.user) {
       const errorMessage = createError?.message?.toLowerCase().includes('already')
         ? 'Esse usuário já está em uso. Escolha outro.'
-        : createError?.message || 'Não foi possível criar o operador.';
+        : 'Não foi possível criar o operador.';
 
       return jsonResponse(request, { error: errorMessage }, 400);
     }
@@ -230,7 +230,6 @@ Deno.serve(async (request) => {
         user_id: createdUser.user.id,
         username: normalizedUsername,
       },
-      temporaryPassword: password,
     });
   }
 
@@ -267,7 +266,7 @@ Deno.serve(async (request) => {
     });
 
     if (resetError) {
-      return jsonResponse(request, { error: resetError.message || 'Não foi possível redefinir a senha.' }, 400);
+      return jsonResponse(request, { error: 'Não foi possível redefinir a senha.' }, 400);
     }
 
     return jsonResponse(request, {
@@ -276,7 +275,6 @@ Deno.serve(async (request) => {
         user_id: targetProfile.user_id,
         username: targetProfile.username,
       },
-      temporaryPassword: password,
     });
   }
 
@@ -339,7 +337,7 @@ Deno.serve(async (request) => {
       .single();
 
     if (createCashSessionError || !createdCashSession) {
-      return jsonResponse(request, { error: createCashSessionError?.message || 'Não foi possível abrir o caixa para este operador.' }, 400);
+      return jsonResponse(request, { error: 'Não foi possível abrir o caixa para este operador.' }, 400);
     }
 
     return jsonResponse(request, {
@@ -393,7 +391,7 @@ Deno.serve(async (request) => {
       .eq('user_id', operatorUserId);
 
     if (deleteProfileError) {
-      return jsonResponse(request, { error: deleteProfileError.message || 'Não foi possível remover o perfil do operador.' }, 400);
+      return jsonResponse(request, { error: 'Não foi possível remover o perfil do operador.' }, 400);
     }
 
     const { error: deleteUserError } = await serviceClient.auth.admin.deleteUser(operatorUserId);
@@ -402,7 +400,7 @@ Deno.serve(async (request) => {
         .from('profiles')
         .upsert(targetProfile, { onConflict: 'user_id' });
 
-      return jsonResponse(request, { error: deleteUserError.message || 'Não foi possível excluir o acesso do operador.' }, 400);
+      return jsonResponse(request, { error: 'Não foi possível excluir o acesso do operador.' }, 400);
     }
 
     return jsonResponse(request, {
@@ -480,13 +478,13 @@ Deno.serve(async (request) => {
 
       const { error: deleteOperatorError } = await serviceClient.auth.admin.deleteUser(operatorProfile.user_id);
       if (deleteOperatorError) {
-        return jsonResponse(request, { error: deleteOperatorError.message || 'Não foi possível excluir os operadores desta conta.' }, 400);
+        return jsonResponse(request, { error: 'Não foi possível excluir os operadores desta conta.' }, 400);
       }
     }
 
     const { error: deleteUserError } = await serviceClient.auth.admin.deleteUser(user.id);
     if (deleteUserError) {
-      return jsonResponse(request, { error: deleteUserError.message || 'Não foi possível apagar sua conta.' }, 400);
+      return jsonResponse(request, { error: 'Não foi possível apagar sua conta.' }, 400);
     }
 
     return jsonResponse(request, {

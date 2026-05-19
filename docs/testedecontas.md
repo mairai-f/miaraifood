@@ -19,7 +19,7 @@ SUPABASE_SERVICE_ROLE_KEY="sua-service-role" npm run demo:create-accounts
 Opcionalmente, defina uma senha fixa para as tres contas:
 
 ```bash
-SUPABASE_SERVICE_ROLE_KEY="sua-service-role" DEMO_ACCOUNT_PASSWORD="HappyCashDemo2026!" npm run demo:create-accounts
+SUPABASE_SERVICE_ROLE_KEY="sua-service-role" DEMO_ACCOUNT_PASSWORD=<senha-forte-gerada> npm run demo:create-accounts
 ```
 
 Se `DEMO_ACCOUNT_PASSWORD` nao for informado, o script gera uma senha e mostra no final.
@@ -83,8 +83,9 @@ Use OBS Studio:
 - Video curto: 1 a 3 minutos por plano.
 - Comece logado para video comercial.
 - Evite mostrar chaves, painel Supabase, dados reais ou URL interna de admin.
-#CONTAS e senhas 
+# Contas de teste
 teste-fiado@happycashsite.com.br
 teste-completo@happycashsite.com.br
 teste-pro@happycashsite.com.br
-HappyCashDemo2026!
+
+Use a senha gerada pelo script no momento da criacao das contas. Nao deixe senha fixa salva na documentacao.

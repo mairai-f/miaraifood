@@ -4,6 +4,7 @@ import { Eye, EyeOff, Loader2, LogIn, Mail, UserRound, X } from "lucide-react";
 import foodLogo from "@/assets/happycashfood.webp";
 import { requestFoodPasswordReset, signInFoodAdmin } from "@/lib/foodAuth";
 import type { FoodUser } from "@/types";
+import { getPublicErrorMessage } from "../../../shared/security/redaction";
 
 interface LoginScreenProps {
   users: FoodUser[];
@@ -72,7 +73,7 @@ export function LoginScreen({ users, loginPins, onLogin }: LoginScreenProps) {
 
       onLogin(operatorUser);
     } catch (loginError) {
-      setError(loginError instanceof Error ? loginError.message : "Nao foi possivel entrar agora.");
+      setError(getPublicErrorMessage(loginError, "Nao foi possivel entrar agora."));
     } finally {
       setSubmitting(false);
     }
@@ -87,7 +88,7 @@ export function LoginScreen({ users, loginPins, onLogin }: LoginScreenProps) {
       await requestFoodPasswordReset(resetEmail);
       setResetFeedback("Enviamos o link para redefinir sua senha no email informado.");
     } catch (resetError) {
-      setResetFeedback(resetError instanceof Error ? resetError.message : "Nao foi possivel enviar o email agora.");
+      setResetFeedback(getPublicErrorMessage(resetError, "Nao foi possivel enviar o email agora."));
     } finally {
       setResettingPassword(false);
     }

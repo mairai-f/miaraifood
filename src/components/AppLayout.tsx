@@ -13,6 +13,7 @@ import { hasOfflineAdminAccess, saveOfflineAdminAccess } from '@/lib/offlineAdmi
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { DesktopOfflineAdminSetupDialog } from '@/components/DesktopOfflineAdminSetupDialog';
+import { getPublicErrorMessage } from '../../shared/security/redaction';
 import {
   Dialog,
   DialogContent,
@@ -354,7 +355,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
       setOfflineAdminSetupOpen(false);
       toast.success('Acesso offline do administrador configurado e dados locais atualizados.');
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Nao foi possivel salvar o acesso offline do administrador.');
+      toast.error(getPublicErrorMessage(error, 'Nao foi possivel salvar o acesso offline do administrador.'));
     } finally {
       setSavingOfflineAdminSetup(false);
     }

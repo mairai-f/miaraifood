@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Building2, Copy, FileBadge2, KeyRound, Loader2, Save } from 'lucide-react';
+import { Building2, FileBadge2, KeyRound, Loader2, Save } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { useAuth } from '@/contexts/AuthContext';
@@ -20,6 +20,7 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { maskDocument } from '../../shared/security/redaction';
 
 interface CompanyForm {
   legalName: string;
@@ -60,10 +61,8 @@ export function CompanyProfileCard() {
   const [form, setForm] = useState<CompanyForm>(defaultForm);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [desktopLicenseKey, setDesktopLicenseKey] = useState<string | null>(null);
   const isDemoMode = planId === 'demo';
   const isDesktopRuntime = typeof window !== 'undefined' && Boolean(window.electronAPI);
-  const shouldRevealDesktopLicenseKey = !isDesktopRuntime;
 
   useEffect(() => {
     if (!isAdmin) return;
@@ -71,13 +70,11 @@ export function CompanyProfileCard() {
     if (isDemoMode) {
       setSavedForm(defaultForm);
       setForm(defaultForm);
-      setDesktopLicenseKey(null);
       setLoading(false);
       return;
     }
 
     if (!ownerUserId) {
-      setDesktopLicenseKey(null);
       setLoading(false);
       return;
     }
@@ -89,15 +86,11 @@ export function CompanyProfileCard() {
 
     const loadCompany = async () => {
       setLoading(true);
-      const storeAccountSelect = shouldRevealDesktopLicenseKey
-        ? 'nome_estabelecimento, cnpj, desktop_license_key'
-        : 'nome_estabelecimento, cnpj';
-
       const [
         { data: storeAccountData, error: storeAccountError },
         { data: fiscalSettingsData, error: fiscalSettingsError },
       ] = await Promise.all([
-        db.from('store_accounts').select(storeAccountSelect).eq('owner_user_id', ownerUserId).maybeSingle(),
+        db.from('store_accounts').select('nome_estabelecimento, cnpj').eq('owner_user_id', ownerUserId).maybeSingle(),
         db.from('store_fiscal_settings').select('issuer_legal_name, issuer_trade_name, issuer_cnpj, issuer_state_registration').eq('owner_user_id', ownerUserId).maybeSingle(),
       ]);
 
@@ -106,7 +99,6 @@ export function CompanyProfileCard() {
       if (storeAccountError || fiscalSettingsError) {
         setSavedForm(defaultForm);
         setForm(defaultForm);
-        setDesktopLicenseKey(null);
         setLoading(false);
         return;
       }
@@ -127,11 +119,6 @@ export function CompanyProfileCard() {
         stateRegistration,
       };
 
-      setDesktopLicenseKey(
-        shouldRevealDesktopLicenseKey && storeAccountData?.desktop_license_key
-          ? String(storeAccountData.desktop_license_key)
-          : null,
-      );
       setSavedForm(nextForm);
       setForm(nextForm);
       setLoading(false);
@@ -142,43 +129,27 @@ export function CompanyProfileCard() {
     return () => {
       active = false;
     };
-  }, [isAdmin, isDemoMode, ownerUserId, shouldRevealDesktopLicenseKey]);
+  }, [isAdmin, isDemoMode, ownerUserId]);
 
   const companyDisplayName = useMemo(
     () => savedForm.tradeName.trim() || savedForm.legalName.trim() || 'Empresa nao cadastrada',
     [savedForm.legalName, savedForm.tradeName],
   );
   const desktopKeyUnlocked = (subscription?.plan_id === 'pro' || subscription?.plan_id === 'food_offline') && subscription.status === 'active';
-  const desktopKeyStatusMessage = !shouldRevealDesktopLicenseKey
-    ? 'A chave desktop continua salva para esta empresa, mas fica visivel somente no painel web do administrador.'
-    : loadingSubscription
+  const desktopKeyStatusMessage = loadingSubscription
       ? 'Verificando a liberacao da chave desktop desta conta...'
       : desktopKeyUnlocked
-        ? 'Use esta chave em cada nova maquina para reconhecer a empresa antes do login com usuario e PIN.'
+        ? 'A chave desktop existe, mas nao e exibida na tela. Use o fluxo de ativacao protegido para novas maquinas.'
         : subscription?.plan_id !== 'pro' && subscription?.plan_id !== 'food_offline'
-          ? 'A chave desktop aparece somente para contas com plano PRO ou HappyCashFood Offline.'
+          ? 'A chave desktop fica disponivel somente para contas com plano PRO ou HappyCashFood Offline.'
           : subscription?.status === 'pending'
-            ? 'A chave desktop aparece quando o pagamento do plano for confirmado no Asaas.'
-            : 'A chave desktop aparece somente com plano PRO ou HappyCashFood Offline em status ativo.';
+            ? 'A chave desktop fica liberada quando o pagamento do plano for confirmado no Asaas.'
+            : 'A chave desktop fica protegida e liberada somente com plano PRO ou HappyCashFood Offline ativo.';
 
   if (!isAdmin) return null;
 
   const updateField = <K extends keyof CompanyForm>(field: K, value: CompanyForm[K]) => {
     setForm(current => ({ ...current, [field]: value }));
-  };
-
-  const handleCopyDesktopLicenseKey = async () => {
-    if (!desktopLicenseKey) {
-      toast.error('A chave desktop desta empresa ainda nao esta disponivel.');
-      return;
-    }
-
-    try {
-      await navigator.clipboard.writeText(desktopLicenseKey);
-      toast.success('Chave desktop copiada.');
-    } catch {
-      toast.error('Nao foi possivel copiar a chave agora.');
-    }
   };
 
   const handleSave = async () => {
@@ -354,28 +325,15 @@ export function CompanyProfileCard() {
                     Chave Desktop
                   </p>
                   <p className="font-mono text-sm text-foreground">
-                    {!shouldRevealDesktopLicenseKey
-                      ? 'Oculta neste executavel'
-                      : desktopKeyUnlocked
-                        ? (desktopLicenseKey ?? 'Chave indisponivel no momento')
-                        : 'Disponivel apos PRO ativo'}
+                    {desktopKeyUnlocked ? 'Protegida' : 'Disponivel apos plano ativo'}
                   </p>
                   <p className="text-sm text-muted-foreground">
                     {desktopKeyStatusMessage}
                   </p>
                 </div>
 
-                {shouldRevealDesktopLicenseKey && (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="gap-2"
-                    onClick={() => void handleCopyDesktopLicenseKey()}
-                    disabled={!desktopKeyUnlocked || !desktopLicenseKey}
-                  >
-                    <Copy className="h-4 w-4" />
-                    Copiar chave
-                  </Button>
+                {isDesktopRuntime ? null : (
+                  <Badge variant="outline">Nao exibida no navegador</Badge>
                 )}
               </div>
             </div>
@@ -383,10 +341,10 @@ export function CompanyProfileCard() {
             <div className="flex flex-wrap gap-2">
               <Badge variant="outline" className="gap-2">
                 <FileBadge2 className="h-3.5 w-3.5" />
-                {savedForm.cnpj.trim() ? savedForm.cnpj : 'CNPJ pendente'}
+                {savedForm.cnpj.trim() ? maskDocument(savedForm.cnpj) : 'CNPJ pendente'}
               </Badge>
               <Badge variant="secondary">
-                {savedForm.stateRegistration.trim() ? `IE ${savedForm.stateRegistration}` : 'IE pendente'}
+                {savedForm.stateRegistration.trim() ? 'IE protegida' : 'IE pendente'}
               </Badge>
             </div>
           </>

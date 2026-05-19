@@ -1,4 +1,5 @@
 import { supabase } from '@/integrations/supabase/client';
+import { getPublicErrorMessage } from '../../shared/security/redaction';
 
 interface ApprovalResponse {
   success?: boolean;
@@ -48,6 +49,6 @@ export const verifyStoreAdminApproval = async (
 
   return {
     success: false as const,
-    error: message,
+    error: getPublicErrorMessage(message, 'Nao foi possivel validar a autorizacao do administrador.'),
   };
 };

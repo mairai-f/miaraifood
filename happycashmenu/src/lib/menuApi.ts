@@ -1,6 +1,7 @@
 import { fallbackMenu } from "@/data/fallback";
 import { menuAdminSupabase, menuCustomerSupabase } from "@/lib/supabase";
 import { digitsOnly, normalizeSlug, titleCaseFallback } from "@/lib/format";
+import { getPublicErrorMessage } from "../../../shared/security/redaction";
 import type {
   AdminPublicProfile,
   AdminStoreAccount,
@@ -268,7 +269,7 @@ export const fetchPublicMenu = async (slug: string, tableSlug?: string | null): 
 
   if (error || !data?.store) {
     if (!import.meta.env.DEV) {
-      throw new Error(error?.message || "Cardapio indisponivel.");
+      throw new Error(getPublicErrorMessage(error, "Cardapio indisponivel."));
     }
 
     return {
@@ -304,7 +305,7 @@ export const createPublicOrder = async (payload: {
   if (error || !data?.success) {
     return {
       success: false,
-      error: data?.error || error?.message || "Nao foi possivel enviar o pedido.",
+      error: getPublicErrorMessage(data?.error || error, "Nao foi possivel enviar o pedido."),
     };
   }
 
@@ -465,7 +466,7 @@ export const savePublicProfile = async (profile: AdminPublicProfile) => {
     .select("*")
     .single<ProfileRow>();
 
-  if (error || !data) throw new Error(error?.message || "Nao foi possivel salvar a vitrine.");
+  if (error || !data) throw new Error(getPublicErrorMessage(error, "Nao foi possivel salvar a vitrine."));
   return mapProfile(data);
 };
 
@@ -488,7 +489,7 @@ export const upsertCategory = async (
     : menuAdminSupabase.from("restaurant_menu_categories").insert(payload);
 
   const { data, error } = await query.select("id, name, description, sort_order, active, qr_visible").single<CategoryRow>();
-  if (error || !data) throw new Error(error?.message || "Nao foi possivel salvar a categoria.");
+  if (error || !data) throw new Error(getPublicErrorMessage(error, "Nao foi possivel salvar a categoria."));
   return mapCategory(data);
 };
 
@@ -525,7 +526,7 @@ export const upsertMenuItem = async (
     .select("id, category_id, display_name, description, price, compare_at_price, image_url, image_alt, station, prep_minutes, tags, sort_order, featured, active, qr_visible, available_for_dine_in, available_for_delivery")
     .single<ItemRow>();
 
-  if (error || !data) throw new Error(error?.message || "Nao foi possivel salvar o produto.");
+  if (error || !data) throw new Error(getPublicErrorMessage(error, "Nao foi possivel salvar o produto."));
   return mapItem(data);
 };
 
@@ -551,7 +552,7 @@ export const upsertTable = async (
     .select("id, code, name, area, seats, qr_slug, active")
     .single<TableRow>();
 
-  if (error || !data) throw new Error(error?.message || "Nao foi possivel salvar a mesa.");
+  if (error || !data) throw new Error(getPublicErrorMessage(error, "Nao foi possivel salvar a mesa."));
   return mapTable(data);
 };
 
@@ -583,7 +584,7 @@ export const upsertPromotion = async (
     .select("id, menu_item_id, title, description, badge_label, discount_type, discount_value, starts_at, ends_at, active, show_on_menu, sort_order")
     .single<PromotionRow>();
 
-  if (error || !data) throw new Error(error?.message || "Nao foi possivel salvar a promocao.");
+  if (error || !data) throw new Error(getPublicErrorMessage(error, "Nao foi possivel salvar a promocao."));
   return mapPromotion(data);
 };
 
@@ -597,7 +598,7 @@ export const uploadMenuImage = async (accountId: string, file: File) => {
       upsert: false,
     });
 
-  if (error || !data) throw new Error(error?.message || "Nao foi possivel enviar a imagem.");
+  if (error || !data) throw new Error(getPublicErrorMessage(error, "Nao foi possivel enviar a imagem."));
 
   const { data: publicData } = menuAdminSupabase.storage.from("restaurant-menu-images").getPublicUrl(data.path);
   return publicData.publicUrl;

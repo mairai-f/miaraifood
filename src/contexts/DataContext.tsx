@@ -42,6 +42,7 @@ import {
 import { shouldUseOfflineSnapshotFallback } from '@/lib/offlineSnapshotPolicy';
 import { buildSaleItemPricingMetrics, normalizeProductPricing, normalizePricingRoundingRule } from '@/lib/pricing';
 import { getClientCreditLimit, getCreditLimitExceededMessage, normalizeCreditLimit } from '@/lib/creditLimit';
+import { getPublicErrorMessage, getRedactedLogValue } from '../../shared/security/redaction';
 
 // Generated Supabase types are behind the current schema for these operational tables.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -424,7 +425,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         }
       }
 
-      console.error('Falha ao atualizar os dados remotos; mantendo o ultimo estado em memoria.', remoteErrors);
+      console.error('Falha ao atualizar os dados remotos; mantendo o ultimo estado em memoria.', getRedactedLogValue(remoteErrors));
       if (canUseOfflineConcentrator && !silent) {
         setOfflinePreparationStatus('error');
         setOfflinePreparationMessage('Nao foi possivel baixar os dados para uso offline agora. Verifique a internet e tente novamente.');
@@ -479,7 +480,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
           setOfflinePreparationStatus('ready');
           setOfflineSnapshotUpdatedAt(snapshot.savedAt);
         }).catch(error => {
-          console.error('Falha ao atualizar o snapshot offline em segundo plano:', error);
+          console.error('Falha ao atualizar o snapshot offline em segundo plano:', getRedactedLogValue(error));
         });
       } else {
         await replaceOfflineSnapshot(ownerUserId, snapshot);
@@ -517,7 +518,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         setOfflinePreparationStatus('ready');
         setOfflineSnapshotUpdatedAt(snapshot.savedAt);
       }).catch(error => {
-        console.error('Falha ao atualizar o snapshot offline em segundo plano:', error);
+        console.error('Falha ao atualizar o snapshot offline em segundo plano:', getRedactedLogValue(error));
       });
     }, 750);
 
@@ -1297,13 +1298,13 @@ export function DataProvider({ children }: { children: ReactNode }) {
             await updateOfflineQueueItem({
               id: queueItem.id,
               status: 'conflict',
-              lastError: error.message,
+              lastError: getPublicErrorMessage(error, 'Falha ao sincronizar a fila offline.'),
             });
             await recordOfflineConflict(
               ownerUserId,
               queueItem.id,
               queueItem.operationType,
-              error.message,
+              getPublicErrorMessage(error, 'Falha ao sincronizar a fila offline.'),
               (queueItem.payload ?? null) as OfflineOperationPayload,
             );
             continue;
@@ -1312,7 +1313,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
           await updateOfflineQueueItem({
             id: queueItem.id,
             status: 'pending',
-            lastError: error instanceof Error ? error.message : 'Falha ao sincronizar a fila offline.',
+            lastError: getPublicErrorMessage(error, 'Falha ao sincronizar a fila offline.'),
           });
         }
       }
@@ -2001,7 +2002,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         details,
       } as never);
     } catch (error) {
-      console.warn('Nao foi possivel registrar auditoria:', error);
+      console.warn('Nao foi possivel registrar auditoria:', getRedactedLogValue(error));
     }
   };
 

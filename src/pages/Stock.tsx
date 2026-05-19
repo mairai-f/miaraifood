@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Search, Plus, AlertTriangle, Package } from 'lucide-react';
 import { toast } from 'sonner';
 import { formatDateTime } from '../../shared/locale/format';
+import { getRedactedLogValue } from '../../shared/security/redaction';
 
 export default function Stock() {
   const { products, stockMovements, addStockMovement, clearAllStock } = useData();
@@ -47,7 +48,7 @@ export default function Stock() {
       await clearAllStock('Limpeza geral de estoque');
       toast.success('Estoque zerado!');
     } catch (error) {
-      console.error('Erro ao limpar estoque:', error);
+      console.error('Erro ao limpar estoque:', getRedactedLogValue(error));
       toast.error('Não foi possível limpar o estoque');
     } finally {
       setClearingStock(false);

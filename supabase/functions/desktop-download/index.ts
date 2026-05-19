@@ -128,7 +128,7 @@ Deno.serve(async (request) => {
     return jsonResponse(
       request,
       {
-        error: license.message,
+        error: "Nao foi possivel liberar o download desktop para esta conta.",
         code: license.code,
         planId: license.planId,
         validUntil: license.validUntil,

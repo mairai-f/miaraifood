@@ -26,6 +26,7 @@ import { Eye, KeyRound, Plus, Trash2, Users, Wallet } from 'lucide-react';
 import type { Expense, Sale } from '@/types';
 import { formatDateTime } from '../../shared/locale/format';
 import { getOperatorCredentialError, operatorCredentialHint } from '../../shared/security/operatorCredential';
+import { getPublicErrorMessage, getRedactedLogValue } from '../../shared/security/redaction';
 import { readDesktopActivation } from '@/lib/desktopActivation';
 import { saveOfflineOperatorAccess } from '@/lib/offlineOperatorAccess';
 
@@ -80,7 +81,6 @@ interface OperatorFunctionResponse {
     user_id: string;
     username: string;
   };
-  temporaryPassword?: string;
   error?: string;
 }
 
@@ -131,7 +131,6 @@ export function OperatorManagementPanel({
   const [closeCashError, setCloseCashError] = useState('');
   const [latestCredential, setLatestCredential] = useState<{
     username: string;
-    temporaryPassword: string;
   } | null>(null);
   const [internalCreateDialogOpen, setInternalCreateDialogOpen] = useState(false);
 
@@ -169,7 +168,7 @@ export function OperatorManagementPanel({
       }
     }
 
-    return functionErrorMessage;
+    return getPublicErrorMessage(functionErrorMessage, fallbackMessage);
   }, []);
 
   const saveOperatorOfflineAccessIfPossible = useCallback(async (
@@ -194,7 +193,7 @@ export function OperatorManagementPanel({
         secret,
       });
     } catch (error) {
-      console.error('Nao foi possivel salvar o acesso offline do operador:', error);
+      console.error('Nao foi possivel salvar o acesso offline do operador:', getRedactedLogValue(error));
       toast.warning('Operador salvo online, mas nao foi possivel preparar o login offline nesta maquina.');
     }
   }, [ownerUserId]);
@@ -225,12 +224,12 @@ export function OperatorManagementPanel({
     ]);
 
     if (operatorError) {
-      console.error('Erro ao carregar operadores:', operatorError);
+      console.error('Erro ao carregar operadores:', getRedactedLogValue(operatorError));
       toast.error('Não foi possível carregar os operadores');
     }
 
     if (openError) {
-      console.error('Erro ao carregar caixas abertos:', openError);
+      console.error('Erro ao carregar caixas abertos:', getRedactedLogValue(openError));
       toast.error('Não foi possível carregar os caixas abertos');
     }
 
@@ -338,21 +337,7 @@ export function OperatorManagementPanel({
       },
     });
 
-    if (error || !data?.success || !data.operator || !data.temporaryPassword) {
-      let functionErrorMessage = data?.error || 'Não foi possível criar o operador';
-
-      if (error && typeof error === 'object' && 'context' in error && error.context instanceof Response) {
-        try {
-          const errorPayload = await error.context.clone().json() as { error?: string; message?: string };
-          functionErrorMessage = errorPayload.error || errorPayload.message || functionErrorMessage;
-        } catch {
-          functionErrorMessage = error.context.status === 401
-            ? 'Sua sessão expirou ou não foi enviada corretamente. Entre novamente e tente de novo.'
-            : functionErrorMessage;
-        }
-      }
-
-      console.error('Erro ao criar operador:', error);
+    if (error || !data?.success || !data.operator) {
       toast.error(await resolveFunctionErrorMessage(error, 'Não foi possível criar o operador', data));
       setCreating(false);
       return;
@@ -360,9 +345,8 @@ export function OperatorManagementPanel({
 
     setLatestCredential({
       username: data.operator.username,
-      temporaryPassword: data.temporaryPassword,
     });
-    await saveOperatorOfflineAccessIfPossible(data.operator, data.temporaryPassword);
+    await saveOperatorOfflineAccessIfPossible(data.operator, password.trim());
     resetCreateForm();
     handleCreateDialogOpenChange(false);
     toast.success('Operador criado com sucesso');
@@ -400,21 +384,7 @@ export function OperatorManagementPanel({
       },
     });
 
-    if (error || !data?.success || !data.operator || !data.temporaryPassword) {
-      let functionErrorMessage = data?.error || 'Não foi possível redefinir a senha';
-
-      if (error && typeof error === 'object' && 'context' in error && error.context instanceof Response) {
-        try {
-          const errorPayload = await error.context.clone().json() as { error?: string; message?: string };
-          functionErrorMessage = errorPayload.error || errorPayload.message || functionErrorMessage;
-        } catch {
-          functionErrorMessage = error.context.status === 401
-            ? 'Sua sessão expirou ou não foi enviada corretamente. Entre novamente e tente de novo.'
-            : functionErrorMessage;
-        }
-      }
-
-      console.error('Erro ao redefinir senha do operador:', error);
+    if (error || !data?.success || !data.operator) {
       toast.error(await resolveFunctionErrorMessage(error, 'Não foi possível redefinir a senha', data));
       setResetting(false);
       return;
@@ -422,9 +392,8 @@ export function OperatorManagementPanel({
 
     setLatestCredential({
       username: data.operator.username,
-      temporaryPassword: data.temporaryPassword,
     });
-    await saveOperatorOfflineAccessIfPossible(data.operator, data.temporaryPassword);
+    await saveOperatorOfflineAccessIfPossible(data.operator, resetPassword.trim());
     setResetPassword('');
     setSelectedOperator(null);
     setResetDialogOpen(false);
@@ -461,7 +430,7 @@ export function OperatorManagementPanel({
     });
 
     if (error || !data?.success || !data.cashSession) {
-      console.error('Erro ao abrir caixa do operador:', error);
+      console.error('Erro ao abrir caixa do operador:', getRedactedLogValue(error));
       toast.error(await resolveFunctionErrorMessage(error, 'Não foi possível abrir o caixa para este operador', data));
       setOpeningCash(false);
       return;
@@ -546,7 +515,7 @@ export function OperatorManagementPanel({
         .eq('id', cashSessionToClose.session.id);
 
       if (closeError) {
-        console.error('Erro ao fechar caixa pelas configurações:', closeError);
+        console.error('Erro ao fechar caixa pelas configurações:', getRedactedLogValue(closeError));
         setCloseCashError('Não foi possível registrar o fechamento do caixa.');
         return;
       }
@@ -555,7 +524,7 @@ export function OperatorManagementPanel({
       resetCloseCashState();
       await loadData();
     } catch (error) {
-      console.error('Erro ao validar administrador para fechar caixa:', error);
+      console.error('Erro ao validar administrador para fechar caixa:', getRedactedLogValue(error));
       setCloseCashError('Não foi possível validar o administrador.');
     } finally {
       await adminVerificationClient.auth.signOut();
@@ -582,7 +551,7 @@ export function OperatorManagementPanel({
     });
 
     if (error || !data?.success) {
-      console.error('Erro ao excluir operador:', error);
+      console.error('Erro ao excluir operador:', getRedactedLogValue(error));
       toast.error(await resolveFunctionErrorMessage(error, 'Não foi possível excluir o operador', data));
       setDeletingOperatorId(null);
       return;
@@ -635,22 +604,22 @@ export function OperatorManagementPanel({
           <div className="space-y-3 rounded-lg border border-border p-4">
             <div className="flex items-center gap-2">
               <Eye className="h-4 w-4 text-primary" />
-              <h3 className="font-semibold">Credencial exibida na hora</h3>
+              <h3 className="font-semibold">Credencial protegida</h3>
             </div>
 
             {latestCredential ? (
               <div className="space-y-2 rounded-lg border border-primary/20 bg-primary/5 p-4 text-sm">
                 <p><strong>Usuário:</strong> {latestCredential.username}</p>
-                <p><strong>Senha ou PIN provisório:</strong> {latestCredential.temporaryPassword}</p>
+                <p>A credencial foi definida e nao sera exibida novamente.</p>
               </div>
             ) : (
               <p className="text-sm text-muted-foreground">
-                O usuário e a credencial aparecem apenas quando o operador e criado ou quando voce redefine a senha dele.
+                O usuário aparece apos criar ou redefinir um operador. Credenciais internas nunca aparecem nesta tela.
               </p>
             )}
 
             <p className="text-xs text-muted-foreground">
-              Por seguranca, o sistema nao mostra a senha ou PIN atual depois que ele e salvo no Auth.
+              Por seguranca, o sistema mostra apenas o usuario operacional nesta confirmacao.
             </p>
           </div>
 

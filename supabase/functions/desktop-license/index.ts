@@ -79,7 +79,7 @@ Deno.serve(async (request) => {
       request,
       {
         licensed: false,
-        error: license.message,
+        error: "Nao foi possivel validar sua licenca desktop agora.",
         code: license.code,
         planId: license.planId,
         status: license.status,

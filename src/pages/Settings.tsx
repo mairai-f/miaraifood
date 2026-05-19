@@ -39,6 +39,7 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import { toast } from 'sonner';
+import { getPublicErrorMessage, getRedactedLogValue } from '../../shared/security/redaction';
 
 const CREATE_OPERATOR_MODAL = 'cadastrar-operador';
 const RESET_CONFIRM_TEXT = 'ZERAR';
@@ -216,7 +217,7 @@ export default function Settings() {
       }
     }
 
-    return functionErrorMessage;
+    return getPublicErrorMessage(functionErrorMessage, fallbackMessage);
   }, []);
 
   const resetResetDialogState = useCallback(() => {
@@ -563,8 +564,8 @@ export default function Settings() {
       toast.success('Backup restaurado com sucesso.');
       handleRestoreDialogOpenChange(false);
     } catch (error) {
-      console.error('Erro ao restaurar backup:', error);
-      setRestoreError(error instanceof Error ? error.message : 'Não foi possível restaurar o backup.');
+      console.error('Erro ao restaurar backup:', getRedactedLogValue(error));
+      setRestoreError(getPublicErrorMessage(error, 'Não foi possível restaurar o backup.'));
       toast.error('Não foi possível restaurar o backup.');
     } finally {
       setRestoringBackup(false);
@@ -811,7 +812,9 @@ export default function Settings() {
                   {pendingOfflineConflicts.slice(0, 5).map(conflict => (
                     <div key={conflict.id} className="rounded-lg border border-border/70 bg-background/80 p-3 text-sm">
                       <p className="font-medium text-foreground">{conflict.operationType}</p>
-                      <p className="mt-1 text-muted-foreground">{conflict.message}</p>
+                      <p className="mt-1 text-muted-foreground">
+                        {getPublicErrorMessage(conflict.message, 'Falha ao sincronizar a fila offline.')}
+                      </p>
                       <p className="mt-2 text-xs text-muted-foreground">
                         Registrado em {new Date(conflict.createdAt).toLocaleString('pt-BR')}
                       </p>
@@ -852,7 +855,9 @@ export default function Settings() {
                   {resolvedOfflineConflicts.slice(0, 5).map(conflict => (
                     <div key={conflict.id} className="rounded-lg border border-border/70 bg-background/80 p-3 text-sm">
                       <p className="font-medium text-foreground">{conflict.operationType}</p>
-                      <p className="mt-1 text-muted-foreground">{conflict.message}</p>
+                      <p className="mt-1 text-muted-foreground">
+                        {getPublicErrorMessage(conflict.message, 'Falha ao sincronizar a fila offline.')}
+                      </p>
                       <p className="mt-2 text-xs text-muted-foreground">
                         Registrado em {new Date(conflict.createdAt).toLocaleString('pt-BR')}
                         {conflict.resolvedAt ? ` • resolvido em ${new Date(conflict.resolvedAt).toLocaleString('pt-BR')}` : ''}

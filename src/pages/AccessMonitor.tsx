@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { getPublicErrorMessage, maskEmail, maskIpAddress } from '../../shared/security/redaction';
 
 type QueryError = { message: string } | null;
 
@@ -115,7 +116,7 @@ export default function AccessMonitor() {
     ]);
 
     if (sessionsError || logsError) {
-      setError(sessionsError?.message || logsError?.message || 'Não foi possível carregar os acessos.');
+      setError(getPublicErrorMessage(sessionsError?.message || logsError?.message, 'Não foi possível carregar os acessos.'));
       setRefreshing(false);
       setLoading(false);
       return;
@@ -218,8 +219,8 @@ export default function AccessMonitor() {
                     </Badge>
                   </div>
                   <div>
-                    <p className="font-semibold">{session.username || session.email || 'Usuário sem nome'}</p>
-                    <p className="text-sm text-muted-foreground">{session.email || 'Sem email'}</p>
+                    <p className="font-semibold">{session.username || maskEmail(session.email) || 'Usuário sem nome'}</p>
+                    <p className="text-sm text-muted-foreground">{maskEmail(session.email) || 'Email protegido'}</p>
                   </div>
                 </div>
                 <div className="text-sm text-muted-foreground sm:text-right">
@@ -229,7 +230,7 @@ export default function AccessMonitor() {
               </div>
               <div className="mt-3 grid gap-2 text-sm text-muted-foreground md:grid-cols-3">
                 <p>Dispositivo: {session.browser_name || 'N/D'} • {session.os_name || 'N/D'}</p>
-                <p>IP: {session.ip_address || 'Não disponível'}</p>
+                <p>IP: {maskIpAddress(session.ip_address) || 'Não disponível'}</p>
                 <p>País: {session.country_code || 'Não disponível'}</p>
               </div>
             </div>
@@ -252,11 +253,11 @@ export default function AccessMonitor() {
                   <Badge variant="secondary">{deviceLabel[session.device_type]}</Badge>
                   <Badge variant="outline">{sourceLabel[session.source]}</Badge>
                 </div>
-                <p className="mt-2 font-medium">{session.username || session.email || 'Usuário sem nome'}</p>
+                <p className="mt-2 font-medium">{session.username || maskEmail(session.email) || 'Usuário sem nome'}</p>
                 <div className="mt-2 space-y-1 text-sm text-muted-foreground">
                   <p>Última atividade: {formatDateTime(session.last_seen_at)}</p>
                   <p>Encerrada em: {session.ended_at ? formatDateTime(session.ended_at) : 'Sem logout registrado'}</p>
-                  <p>{session.browser_name || 'N/D'} • {session.os_name || 'N/D'} • {session.ip_address || 'IP indisponível'}</p>
+                  <p>{session.browser_name || 'N/D'} • {session.os_name || 'N/D'} • {maskIpAddress(session.ip_address) || 'IP indisponível'}</p>
                 </div>
               </div>
             ))}
@@ -277,7 +278,7 @@ export default function AccessMonitor() {
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
-                    <p className="font-medium">{log.username || log.email || 'Usuário sem nome'}</p>
+                    <p className="font-medium">{log.username || maskEmail(log.email) || 'Usuário sem nome'}</p>
                     <Badge variant={log.event_type === 'login' ? 'default' : 'outline'}>
                       {log.event_type === 'login' ? 'Login' : 'Logout'}
                     </Badge>
@@ -286,7 +287,7 @@ export default function AccessMonitor() {
                     {roleLabel[log.role]} • {sourceLabel[log.source]} • {deviceLabel[log.device_type]}
                   </p>
                   <p className="text-sm text-muted-foreground">
-                    {log.browser_name || 'N/D'} • {log.os_name || 'N/D'} • {log.ip_address || 'IP indisponível'}
+                    {log.browser_name || 'N/D'} • {log.os_name || 'N/D'} • {maskIpAddress(log.ip_address) || 'IP indisponível'}
                   </p>
                 </div>
                 <p className="text-xs text-muted-foreground">{formatDateTime(log.occurred_at)}</p>

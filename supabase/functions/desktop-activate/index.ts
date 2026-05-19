@@ -126,7 +126,7 @@ Deno.serve(async (request) => {
     return jsonResponse(
       request,
       {
-        error: license.message || "A empresa desta chave nao possui licenca desktop ativa.",
+        error: "A empresa desta chave nao possui licenca desktop ativa.",
         code: license.code,
         planId: license.planId,
         validUntil: license.validUntil,

@@ -197,7 +197,9 @@ const normalizeCheckoutError = (error: unknown, paymentMethod: CheckoutPaymentMe
 
   return {
     code: undefined,
-    message: rawMessage,
+    message: rawMessage.startsWith("O cadastro da loja")
+      ? rawMessage
+      : fallbackMessage,
   };
 };
 
@@ -697,7 +699,7 @@ Deno.serve(async (request) => {
       userId: user.id,
       planId,
       paymentMethod,
-      error: error instanceof Error ? error.message : String(error),
+      error: "redacted",
     });
 
     const providerError = normalizeCheckoutError(error, paymentMethod);

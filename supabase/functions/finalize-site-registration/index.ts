@@ -231,7 +231,7 @@ Deno.serve(async (request) => {
   if (existingStoreAccountError) {
     return jsonResponse(
       request,
-      { error: existingStoreAccountError.message || "Nao foi possivel consultar a conta da loja." },
+      { error: "Nao foi possivel consultar a conta da loja." },
       500,
     );
   }
@@ -270,7 +270,7 @@ Deno.serve(async (request) => {
   if (registrationError) {
     return jsonResponse(
       request,
-      { error: registrationError.message || "Nao foi possivel consultar o cadastro pendente." },
+      { error: "Nao foi possivel consultar o cadastro pendente." },
       500,
     );
   }
@@ -410,14 +410,14 @@ Deno.serve(async (request) => {
     });
   } catch (error) {
     await updatePendingRegistration(serviceClient, registration.id, {
-      failure_reason: error instanceof Error ? error.message : "Falha ao finalizar o cadastro.",
+      failure_reason: "Falha ao finalizar o cadastro.",
       status: "pending",
     });
 
     return jsonResponse(
       request,
       {
-        error: error instanceof Error ? error.message : "Nao foi possivel finalizar a conta agora.",
+        error: "Nao foi possivel finalizar a conta agora.",
       },
       400,
     );

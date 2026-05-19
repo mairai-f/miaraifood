@@ -4,6 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { formatDateTime } from '../../shared/locale/format';
+import { formatRedactedJson, maskEmail } from '../../shared/security/redaction';
 
 type AuditLogRow = {
   id: string;
@@ -51,6 +52,11 @@ export default function AuditLog() {
     };
   }, []);
 
+  const getSafeActorLabel = (actorLabel: string | null) => {
+    if (!actorLabel) return 'Usuário';
+    return actorLabel.includes('@') ? maskEmail(actorLabel) : actorLabel;
+  };
+
   return (
     <div className="space-y-4">
       <div>
@@ -78,14 +84,14 @@ export default function AuditLog() {
                     <div>
                       <p className="font-medium">{actionLabel[log.action] || log.action}</p>
                       <p className="text-xs text-muted-foreground">
-                        {formatDateTime(log.created_at)} • {log.actor_label || 'Usuário'}
+                        {formatDateTime(log.created_at)} • {getSafeActorLabel(log.actor_label)}
                       </p>
                     </div>
                     <Badge variant="outline">{log.entity_type}</Badge>
                   </div>
                   {Object.keys(log.details || {}).length > 0 && (
                     <pre className="mt-2 max-h-28 overflow-auto rounded bg-background/70 p-2 text-[11px] text-muted-foreground">
-                      {JSON.stringify(log.details, null, 2)}
+                      {formatRedactedJson(log.details)}
                     </pre>
                   )}
                 </div>

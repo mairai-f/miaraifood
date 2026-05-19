@@ -30,6 +30,7 @@ import {
 import { createPublicOrder, fetchPublicMenu } from "@/lib/menuApi";
 import { currency } from "@/lib/format";
 import type { CartItem, CartOptionSelection, CustomerInfo, MenuItem, MenuOptionGroup, PublicMenuPayload } from "@/types";
+import { getPublicErrorMessage } from "../../../shared/security/redaction";
 
 type PublicMenuProps = {
   slug: string;
@@ -339,7 +340,7 @@ export function PublicMenu({ slug, tableSlug }: PublicMenuProps) {
         if (!active) return;
         setMenu(null);
         setLoading(false);
-        setLoadError(error instanceof Error ? error.message : "Cardapio indisponivel.");
+        setLoadError(getPublicErrorMessage(error, "Cardapio indisponivel."));
       });
     return () => {
       active = false;
@@ -416,7 +417,7 @@ export function PublicMenu({ slug, tableSlug }: PublicMenuProps) {
       setCustomerAuthMessage("Cadastro salvo.");
       setLoyaltyOpen(false);
     } catch (error) {
-      setLoyaltyError(error instanceof Error ? error.message : "Nao foi possivel salvar o cadastro.");
+      setLoyaltyError(getPublicErrorMessage(error, "Nao foi possivel salvar o cadastro."));
     } finally {
       setCustomerAuthLoading(false);
     }
@@ -478,7 +479,7 @@ export function PublicMenu({ slug, tableSlug }: PublicMenuProps) {
         setLoyaltyOpen(false);
       }
     } catch (error) {
-      setLoyaltyError(error instanceof Error ? error.message : "Nao foi possivel entrar agora.");
+      setLoyaltyError(getPublicErrorMessage(error, "Nao foi possivel entrar agora."));
     } finally {
       setCustomerAuthLoading(false);
     }

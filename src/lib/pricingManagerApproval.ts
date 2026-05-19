@@ -1,4 +1,5 @@
 import { supabase } from '@/integrations/supabase/client';
+import { getPublicErrorMessage } from '../../shared/security/redaction';
 
 interface ApprovalResponse {
   success?: boolean;
@@ -46,6 +47,6 @@ export const verifyPricingManagerApproval = async (
 
   return {
     success: false as const,
-    error: message,
+    error: getPublicErrorMessage(message, 'Não foi possível validar a autorização do gerente.'),
   };
 };

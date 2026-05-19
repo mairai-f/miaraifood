@@ -1,4 +1,5 @@
 import { supabase } from '@/integrations/supabase/client';
+import { getPublicErrorMessage } from '../../shared/security/redaction';
 
 export interface DesktopActivationRecord {
   ownerUserId: string;
@@ -98,7 +99,7 @@ export const activateDesktopWithLicenseKey = async (licenseKey: string) => {
 
     return {
       success: false as const,
-      error: functionErrorMessage,
+      error: getPublicErrorMessage(functionErrorMessage, 'Nao foi possivel validar a chave desta empresa.'),
     };
   }
 

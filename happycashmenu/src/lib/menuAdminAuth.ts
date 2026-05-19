@@ -1,4 +1,5 @@
 import { menuAdminSupabase } from "@/lib/supabase";
+import { getPublicErrorMessage } from "../../../shared/security/redaction";
 
 type MenuProfileRow = {
   username: string | null;
@@ -53,7 +54,7 @@ export const signInMenuAdmin = async (email: string, password: string) => {
   });
 
   if (authError || !authData.user) {
-    throw new Error(authError?.message || "Email ou senha invalidos.");
+    throw new Error(getPublicErrorMessage(authError, "Email ou senha invalidos."));
   }
 
   const { data: profile, error: profileError } = await menuAdminSupabase
@@ -116,6 +117,6 @@ export const requestMenuAdminPasswordReset = async (email: string) => {
   });
 
   if (error) {
-    throw new Error(error.message || "Nao foi possivel enviar o email de redefinicao.");
+    throw new Error(getPublicErrorMessage(error, "Nao foi possivel enviar o email de redefinicao."));
   }
 };

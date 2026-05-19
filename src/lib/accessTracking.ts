@@ -1,3 +1,5 @@
+import { getRedactedLogValue } from '../../shared/security/redaction';
+
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 
@@ -57,7 +59,7 @@ export const trackSystemAccessEvent = async (
 
     return response.ok;
   } catch (error) {
-    console.error("Erro ao registrar evento de acesso:", error);
+    console.error("Erro ao registrar evento de acesso:", getRedactedLogValue(error));
     return false;
   }
 };

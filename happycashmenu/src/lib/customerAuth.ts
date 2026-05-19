@@ -1,5 +1,6 @@
 import { menuCustomerSupabase } from "@/lib/supabase";
 import type { CustomerInfo } from "@/types";
+import { getPublicErrorMessage } from "../../../shared/security/redaction";
 
 export type MenuCustomerAccount = {
   email: string;
@@ -68,7 +69,7 @@ export const signInMenuCustomer = async (
   });
 
   if (error || !data.user) {
-    throw new Error(error?.message || "Email ou senha invalidos.");
+    throw new Error(getPublicErrorMessage(error, "Email ou senha invalidos."));
   }
 
   return getMenuCustomerSession(storeAccountId, current);
@@ -94,7 +95,7 @@ export const signUpMenuCustomer = async (
   });
 
   if (error) {
-    throw new Error(error.message || "Nao foi possivel criar a conta.");
+    throw new Error(getPublicErrorMessage(error, "Nao foi possivel criar a conta."));
   }
 
   if (data.user && data.session) {
@@ -139,7 +140,7 @@ export const upsertMenuCustomerProfile = async (
     });
 
   if (error) {
-    throw new Error(error.message || "Nao foi possivel salvar seu cadastro.");
+    throw new Error(getPublicErrorMessage(error, "Nao foi possivel salvar seu cadastro."));
   }
 };
 

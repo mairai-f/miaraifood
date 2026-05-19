@@ -171,7 +171,7 @@ Deno.serve(async (request) => {
     .maybeSingle();
 
   if (profileError) {
-    return jsonResponse(request, { error: profileError.message || "Não foi possível identificar o usuário." }, 500);
+    return jsonResponse(request, { error: "Não foi possível identificar o usuário." }, 500);
   }
 
   const profile = (profileData as AccessProfileRow | null) || null;
@@ -198,7 +198,7 @@ Deno.serve(async (request) => {
     .maybeSingle();
 
   if (existingSessionError) {
-    return jsonResponse(request, { error: existingSessionError.message || "Não foi possível carregar a sessão de acesso." }, 500);
+    return jsonResponse(request, { error: "Não foi possível carregar a sessão de acesso." }, 500);
   }
 
   const existingSession = (existingSessionData as AccessSessionRow | null) || null;
@@ -236,7 +236,7 @@ Deno.serve(async (request) => {
       .single();
 
     if (insertSessionError || !insertedSession) {
-      return jsonResponse(request, { error: insertSessionError?.message || "Não foi possível criar a sessão de acesso." }, 500);
+      return jsonResponse(request, { error: "Não foi possível criar a sessão de acesso." }, 500);
     }
 
     accessSessionId = (insertedSession as { id: string }).id;
@@ -263,7 +263,7 @@ Deno.serve(async (request) => {
       });
 
     if (insertLogError) {
-      return jsonResponse(request, { error: insertLogError.message || "Não foi possível registrar o login." }, 500);
+      return jsonResponse(request, { error: "Não foi possível registrar o login." }, 500);
     }
 
     return jsonResponse(request, { success: true, eventType: "login" });
@@ -288,7 +288,7 @@ Deno.serve(async (request) => {
     .eq("id", existingSession.id);
 
   if (updateSessionError) {
-    return jsonResponse(request, { error: updateSessionError.message || "Não foi possível atualizar a sessão de acesso." }, 500);
+    return jsonResponse(request, { error: "Não foi possível atualizar a sessão de acesso." }, 500);
   }
 
   if (eventType === "logout") {
@@ -314,7 +314,7 @@ Deno.serve(async (request) => {
       });
 
     if (logoutLogError) {
-      return jsonResponse(request, { error: logoutLogError.message || "Não foi possível registrar o logout." }, 500);
+      return jsonResponse(request, { error: "Não foi possível registrar o logout." }, 500);
     }
   }
 

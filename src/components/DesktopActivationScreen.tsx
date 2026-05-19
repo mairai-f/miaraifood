@@ -1,5 +1,5 @@
 import { useMemo, useState, type FormEvent } from 'react';
-import { Building2, KeyRound, Loader2 } from 'lucide-react';
+import { Building2, Eye, EyeOff, KeyRound, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 import happyCashLogo from '@/assets/happycash-logo.webp';
@@ -11,25 +11,15 @@ import {
   activateDesktopWithLicenseKey,
   type DesktopActivationRecord,
 } from '@/lib/desktopActivation';
+import { getPublicErrorMessage, maskDocument } from '../../shared/security/redaction';
 
 interface DesktopActivationScreenProps {
   onActivated: (activation: DesktopActivationRecord) => void | Promise<void>;
 }
 
-const formatDocument = (value: string | null) => {
-  if (!value) return null;
-  const digits = value.replace(/\D/g, '');
-  if (digits.length !== 14) return value;
-
-  return digits
-    .replace(/^(\d{2})(\d)/, '$1.$2')
-    .replace(/^(\d{2})\.(\d{3})(\d)/, '$1.$2.$3')
-    .replace(/\.(\d{3})(\d)/, '.$1/$2')
-    .replace(/(\d{4})(\d)/, '$1-$2');
-};
-
 export function DesktopActivationScreen({ onActivated }: DesktopActivationScreenProps) {
   const [licenseKey, setLicenseKey] = useState('');
+  const [showLicenseKey, setShowLicenseKey] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [recognizedCompany, setRecognizedCompany] = useState<DesktopActivationRecord | null>(null);
 
@@ -52,7 +42,7 @@ export function DesktopActivationScreen({ onActivated }: DesktopActivationScreen
     try {
       const result = await activateDesktopWithLicenseKey(normalizedKey);
       if (!result.success) {
-        toast.error(result.error);
+        toast.error(getPublicErrorMessage(result.error, 'Nao foi possivel validar a chave desta empresa.'));
         return;
       }
 
@@ -98,16 +88,27 @@ export function DesktopActivationScreen({ onActivated }: DesktopActivationScreen
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="desktop-license-key">Chave da empresa</Label>
-                <Input
-                  id="desktop-license-key"
-                  value={normalizedKey}
-                  onChange={(event) => setLicenseKey(event.target.value)}
-                  placeholder="Ex: HC-AB12-CD34-EF56"
-                  autoCapitalize="characters"
-                  autoCorrect="off"
-                  spellCheck={false}
-                  className="h-11 tracking-[0.18em] uppercase"
-                />
+                  <div className="relative">
+                    <Input
+                      id="desktop-license-key"
+                      type={showLicenseKey ? 'text' : 'password'}
+                      value={normalizedKey}
+                      onChange={(event) => setLicenseKey(event.target.value)}
+                      placeholder="Informe a chave recebida"
+                      autoCapitalize="characters"
+                      autoCorrect="off"
+                      spellCheck={false}
+                      className="h-11 pr-11 tracking-[0.18em] uppercase"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowLicenseKey(current => !current)}
+                      className="absolute inset-y-0 right-0 grid w-11 place-items-center text-muted-foreground transition hover:text-foreground"
+                      aria-label={showLicenseKey ? 'Ocultar chave' : 'Mostrar chave'}
+                    >
+                      {showLicenseKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
               </div>
 
               <Button type="submit" className="h-11 w-full bg-yellow-400 font-semibold text-black hover:bg-yellow-300" disabled={submitting}>
@@ -129,7 +130,7 @@ export function DesktopActivationScreen({ onActivated }: DesktopActivationScreen
                   <p className="font-medium">{recognizedCompany.companyName}</p>
                 </div>
                 {recognizedCompany.cnpj && (
-                  <p className="mt-2">CNPJ: {formatDocument(recognizedCompany.cnpj)}</p>
+                  <p className="mt-2">CNPJ: {maskDocument(recognizedCompany.cnpj)}</p>
                 )}
                 <p className="mt-1">
                   Empresa reconhecida. Agora o admin entra com email e senha para configurar usuario/PIN e preparar o banco local desta maquina.

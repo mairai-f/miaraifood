@@ -292,11 +292,11 @@ Deno.serve(async (request) => {
       .eq("provider", "asaas")
       .eq("provider_event_id", body.id);
 
-    console.error("Falha ao processar webhook do Asaas:", error);
+    console.error("Falha ao processar webhook do Asaas.");
     return jsonResponse(
       request,
       {
-        error: error instanceof Error ? error.message : "Não foi possível processar o webhook.",
+        error: "Não foi possível processar o webhook.",
       },
       500,
     );

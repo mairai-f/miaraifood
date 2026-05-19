@@ -13,6 +13,7 @@ import { verifyOfflineAdminAccess } from '@/lib/offlineAdminAccess';
 import { saveOfflineOperatorAccess, verifyOfflineOperatorAccess } from '@/lib/offlineOperatorAccess';
 import { isDesktopRuntime, isProbablyOfflineError } from '@/lib/offlineConcentrator';
 import { getPasswordPolicyError } from '../../shared/security/passwordPolicy';
+import { getPublicErrorMessage, getRedactedLogValue } from '../../shared/security/redaction';
 import { normalizeProductContext, type ProductContext } from '../../shared/productContext';
 import { retryAsync } from '../../shared/network/retry';
 
@@ -206,7 +207,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .maybeSingle();
 
       if (error) {
-        console.error('Erro ao carregar perfil do usuário:', error);
+        console.error('Erro ao carregar perfil do usuário:', getRedactedLogValue(error));
       }
 
       const profile = (data ?? null) as ProfileQueryRow | null;
@@ -241,7 +242,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         throw error;
       }
 
-      console.error('Erro inesperado ao carregar perfil do usuário:', error);
+      console.error('Erro inesperado ao carregar perfil do usuário:', getRedactedLogValue(error));
 
       const cachedProfile = readCachedProfile(currentUser.id);
       if (cachedProfile && isDesktopRuntime() && isProbablyOfflineError(error)) {
@@ -328,7 +329,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             return;
           }
 
-          console.error('Erro ao validar sessão do Supabase:', error);
+          console.error('Erro ao validar sessão do Supabase:', getRedactedLogValue(error));
           resetAuthState();
           clearLocalSession();
           return;
@@ -341,7 +342,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       } catch (error) {
         if (!isMounted || currentRequestId !== syncRequestId) return;
 
-        console.error('Erro ao sincronizar autenticação:', error);
+        console.error('Erro ao sincronizar autenticação:', getRedactedLogValue(error));
         resetAuthState();
         if (
           error instanceof Error
@@ -392,7 +393,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (!isMounted) return;
 
         if (error) {
-          console.error('Erro ao recuperar sessão do Supabase:', error);
+          console.error('Erro ao recuperar sessão do Supabase:', getRedactedLogValue(error));
           resetAuthState();
           setLoading(false);
           return;
@@ -402,7 +403,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       } catch (error) {
         if (!isMounted) return;
 
-        console.error('Erro ao inicializar autenticação:', error);
+        console.error('Erro ao inicializar autenticação:', getRedactedLogValue(error));
         resetAuthState();
         if (
           error instanceof Error
@@ -452,7 +453,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = async (email: string, password: string): Promise<string | true> => {
     const activation = readDesktopActivation();
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error || !data.user) return error ? error.message : 'Nao foi possivel iniciar a sessao.';
+    if (error || !data.user) return getPublicErrorMessage(error, 'Nao foi possivel iniciar a sessao.');
 
     try {
       const profile = await fetchProfile(data.user);
@@ -580,7 +581,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       }
 
-      return functionErrorMessage;
+      return getPublicErrorMessage(functionErrorMessage, 'Usuário ou senha incorretos.');
     }
 
     const { error: setSessionError } = await supabase.auth.setSession({
@@ -589,7 +590,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
 
     if (setSessionError) {
-      return setSessionError.message;
+      return getPublicErrorMessage(setSessionError, 'Nao foi possivel iniciar a sessao do operador.');
     }
 
     try {
@@ -628,7 +629,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           secret: password,
         });
       } catch (offlineAccessError) {
-        console.error('Nao foi possivel salvar o acesso offline do operador:', offlineAccessError);
+        console.error('Nao foi possivel salvar o acesso offline do operador:', getRedactedLogValue(offlineAccessError));
       }
     }
 
@@ -651,7 +652,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       password,
       options: { data: { username: uname, role: 'admin' } }
     });
-    if (error) return error.message;
+    if (error) return getPublicErrorMessage(error, 'Nao foi possivel criar o administrador.');
     return true;
   };
 

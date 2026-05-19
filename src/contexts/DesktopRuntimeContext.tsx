@@ -3,6 +3,7 @@ import { createContext, useCallback, useContext, useEffect, useState, type React
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { isProbablyOfflineError } from '@/lib/offlineConcentrator';
+import { getPublicErrorMessage } from '../../shared/security/redaction';
 
 interface DesktopLicenseResponse {
   licensed?: boolean;
@@ -280,7 +281,7 @@ export function DesktopRuntimeProvider({ children }: { children: ReactNode }) {
       }
 
       setLicensed(false);
-      setError(message);
+      setError(getPublicErrorMessage(message, 'Nao foi possivel validar sua licenca desktop agora.'));
       setCode(nextCode);
       setValidationExpiresAt(cachedValidationExpiresAt);
       setUsingOfflineValidationCache(false);

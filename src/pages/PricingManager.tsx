@@ -37,6 +37,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { getPublicErrorMessage, getRedactedLogValue } from '../../shared/security/redaction';
 import {
   Table,
   TableBody,
@@ -670,8 +671,8 @@ export default function PricingManager() {
       resetProductForm();
       resetManagerApprovalState();
     } catch (error) {
-      console.error('Erro ao salvar produto na precificação:', error);
-      toast.error(typeof error === 'object' && error && 'message' in error ? String(error.message) : 'Não foi possível salvar a precificação do produto.');
+      console.error('Erro ao salvar produto na precificação:', getRedactedLogValue(error));
+      toast.error(getPublicErrorMessage(error, 'Não foi possível salvar a precificação do produto.'));
     }
   };
 
@@ -698,7 +699,7 @@ export default function PricingManager() {
       resetRuleForm();
       resetManagerApprovalState();
     } catch (error) {
-      console.error('Erro ao salvar regra de precificação:', error);
+      console.error('Erro ao salvar regra de precificação:', getRedactedLogValue(error));
       toast.error('Não foi possível salvar a regra.');
     }
   };
@@ -808,7 +809,7 @@ export default function PricingManager() {
         resetRuleForm();
       }
     } catch (error) {
-      console.error('Erro ao excluir regra:', error);
+      console.error('Erro ao excluir regra:', getRedactedLogValue(error));
       toast.error('Não foi possível excluir a regra.');
     }
   };
@@ -821,7 +822,7 @@ export default function PricingManager() {
       await updateProduct(product.id, { price: nextPrice });
       toast.success(`Preço sugerido aplicado em ${product.name}.`);
     } catch (error) {
-      console.error('Erro ao aplicar preço sugerido:', error);
+      console.error('Erro ao aplicar preço sugerido:', getRedactedLogValue(error));
       toast.error('Não foi possível aplicar o preço sugerido.');
     }
   };

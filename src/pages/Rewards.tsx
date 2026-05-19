@@ -14,6 +14,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Plus, Edit, Trash2, Gift, Percent, Coins, Ticket } from 'lucide-react';
 import { toast } from 'sonner';
+import { getRedactedLogValue } from '../../shared/security/redaction';
 
 type RewardType = NonNullable<Reward['reward_type']>;
 
@@ -135,7 +136,7 @@ export default function Rewards() {
       resetForm();
     } catch (error) {
       toast.error('Erro ao salvar recompensa');
-      console.error(error);
+      console.error(getRedactedLogValue(error));
     }
   };
 

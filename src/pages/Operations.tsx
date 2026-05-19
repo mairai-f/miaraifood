@@ -16,6 +16,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useData } from '@/contexts/DataContext';
 import { supabase } from '@/integrations/supabase/client';
 import { parseDecimalInput } from '@/lib/numberInput';
+import { getRedactedLogValue } from '../../shared/security/redaction';
 
 type PurchaseOrder = {
   id: string;
@@ -255,7 +256,7 @@ export default function Operations() {
 
     const error = purchaseResult.error || accountResult.error || promotionResult.error || batchResult.error;
     if (error) {
-      console.error('Erro ao carregar operações:', error);
+      console.error('Erro ao carregar operações:', getRedactedLogValue(error));
       toast.error('Não foi possível carregar os módulos operacionais.');
       return;
     }
@@ -306,7 +307,7 @@ export default function Operations() {
       .single();
 
     if (orderError) {
-      console.error('Erro ao salvar compra:', orderError);
+      console.error('Erro ao salvar compra:', getRedactedLogValue(orderError));
       toast.error('Não foi possível registrar a compra.');
       return;
     }
@@ -322,7 +323,7 @@ export default function Operations() {
     });
 
     if (itemError) {
-      console.error('Erro ao salvar item da compra:', itemError);
+      console.error('Erro ao salvar item da compra:', getRedactedLogValue(itemError));
       toast.error('Compra criada, mas o item não foi registrado.');
     }
 
@@ -383,7 +384,7 @@ export default function Operations() {
     });
 
     if (error) {
-      console.error('Erro ao salvar conta:', error);
+      console.error('Erro ao salvar conta:', getRedactedLogValue(error));
       toast.error('Não foi possível salvar a conta.');
       return;
     }

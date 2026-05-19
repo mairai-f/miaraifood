@@ -17,6 +17,7 @@ import { canManageProducts } from '@/lib/access';
 import { getMarginPercent, getMarkupPercent, getPriceFromMarkup, getUnitProfit } from '@/lib/pricing';
 import { verifyPricingManagerApproval } from '@/lib/pricingManagerApproval';
 import { parseDecimalInput } from '@/lib/numberInput';
+import { getPublicErrorMessage, getRedactedLogValue } from '../../shared/security/redaction';
 
 const LOW_MARGIN_WARNING_PCT = 15;
 
@@ -73,8 +74,8 @@ export default function Products() {
         await updateProduct(targetEditId, data);
         toast.success('Produto atualizado!');
       } catch (error) {
-        console.error('Erro ao atualizar produto:', error);
-        toast.error(typeof error === 'object' && error && 'message' in error ? String(error.message) : 'Não foi possível atualizar o produto');
+        console.error('Erro ao atualizar produto:', getRedactedLogValue(error));
+        toast.error(getPublicErrorMessage(error, 'Não foi possível atualizar o produto'));
         return;
       }
     } else {
@@ -82,8 +83,8 @@ export default function Products() {
         await addProduct(data.name ?? '', data.price ?? 0, data.category ?? '', data);
         toast.success('Produto cadastrado!');
       } catch (error) {
-        console.error('Erro ao cadastrar produto:', error);
-        toast.error(typeof error === 'object' && error && 'message' in error ? String(error.message) : 'Não foi possível cadastrar o produto');
+        console.error('Erro ao cadastrar produto:', getRedactedLogValue(error));
+        toast.error(getPublicErrorMessage(error, 'Não foi possível cadastrar o produto'));
         return;
       }
     }
