@@ -14,6 +14,7 @@ import {
   initialDeliveries,
   initialInventoryItems,
   initialOrders,
+  initialServiceRequests,
   initialStockMovements,
   initialTables,
   initialTechnicalSheets,
@@ -31,8 +32,11 @@ import {
 } from "@/lib/foodMetrics";
 import {
   loadFoodRemoteSnapshot,
+  persistFoodStockMovement,
+  persistFoodTechnicalSheet,
   updateFoodDeliveryStatus,
   updateFoodOrderItemStatuses,
+  updateFoodServiceRequestStatus,
 } from "@/lib/foodRemote";
 import { hasSeenFoodSplash, markFoodSplashSeen } from "@/lib/appSplash";
 import type {
@@ -54,6 +58,8 @@ import type {
   Station,
   StockMovement,
   StockMovementType,
+  TableServiceRequest,
+  TableServiceRequestStatus,
 } from "@/types";
 
 const activeItems = (items: FoodOrderItem[]) => items.filter((item) => item.status !== "cancelled");
@@ -153,6 +159,7 @@ export default function App() {
   const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>(initialInventoryItems);
   const [stockMovements, setStockMovements] = useState<StockMovement[]>(initialStockMovements);
   const [technicalSheets, setTechnicalSheets] = useState<ProductTechnicalSheet[]>(initialTechnicalSheets);
+  const [serviceRequests, setServiceRequests] = useState<TableServiceRequest[]>(initialServiceRequests);
   const [selectedTableId, setSelectedTableId] = useState(initialTables[0].id);
   const [note, setNote] = useState("");
   const [transferTargetId, setTransferTargetId] = useState("");
@@ -214,6 +221,10 @@ export default function App() {
         setOrders(snapshot.orders);
         setDeliveries(snapshot.deliveries);
         if (snapshot.products.length) setProducts(snapshot.products);
+        setServiceRequests(snapshot.serviceRequests);
+        if (snapshot.inventoryItems.length) setInventoryItems(snapshot.inventoryItems);
+        if (snapshot.stockMovements.length) setStockMovements(snapshot.stockMovements);
+        if (snapshot.technicalSheets.length) setTechnicalSheets(snapshot.technicalSheets);
       } catch {
         // Mantem a operacao local caso a rede falhe.
       }
@@ -273,6 +284,16 @@ export default function App() {
 
     const quantity = Math.max(0, movement.quantity);
     const now = new Date().toISOString();
+    const nextStock = (() => {
+      if (movement.type === "entrada" || movement.type === "producao") return item.currentStock + quantity;
+      if (movement.type === "inventario") return quantity;
+      return Math.max(0, item.currentStock - quantity);
+    })();
+    const nextAverageCost = movement.type === "entrada" || movement.type === "producao"
+      ? movement.unitCost > 0
+        ? ((item.currentStock * item.averageCost) + (quantity * movement.unitCost)) / Math.max(1, item.currentStock + quantity)
+        : item.averageCost
+      : item.averageCost;
     const nextMovement: StockMovement = {
       id: `mov-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       inventoryItemId: item.id,
@@ -285,31 +306,27 @@ export default function App() {
       source: movement.source.trim() || "Administrador",
       createdAt: now,
     };
+    const nextItemPatch = {
+      id: item.id,
+      currentStock: Number(nextStock.toFixed(3)),
+      averageCost: Number(nextAverageCost.toFixed(2)),
+      lastMovementAt: now,
+    };
 
     setInventoryItems((currentItems) =>
       currentItems.map((currentItem) => {
         if (currentItem.id !== item.id) return currentItem;
 
-        const nextStock = (() => {
-          if (movement.type === "entrada" || movement.type === "producao") return currentItem.currentStock + quantity;
-          if (movement.type === "inventario") return quantity;
-          return Math.max(0, currentItem.currentStock - quantity);
-        })();
-        const nextAverageCost = movement.type === "entrada" || movement.type === "producao"
-          ? movement.unitCost > 0
-            ? ((currentItem.currentStock * currentItem.averageCost) + (quantity * movement.unitCost)) / Math.max(1, currentItem.currentStock + quantity)
-            : currentItem.averageCost
-          : currentItem.averageCost;
-
         return {
           ...currentItem,
-          currentStock: Number(nextStock.toFixed(3)),
-          averageCost: Number(nextAverageCost.toFixed(2)),
+          currentStock: nextItemPatch.currentStock,
+          averageCost: nextItemPatch.averageCost,
           lastMovementAt: now,
         };
       }),
     );
     setStockMovements((currentMovements) => [nextMovement, ...currentMovements]);
+    void persistFoodStockMovement(currentUser?.ownerUserId || currentUser?.id, nextMovement, nextItemPatch);
   };
 
   const consumeProductInventory = (product: MenuProduct, quantity: number, source: string) => {
@@ -342,6 +359,7 @@ export default function App() {
         currentSheet.id === nextSheet.id || currentSheet.productId === nextSheet.productId ? nextSheet : currentSheet,
       );
     });
+    void persistFoodTechnicalSheet(currentUser?.ownerUserId || currentUser?.id, sheet);
   };
 
   const openTable = (tableId: string) => {
@@ -728,6 +746,25 @@ export default function App() {
     setTableClosing(tableId, false);
   };
 
+  const updateServiceRequest = (requestId: string, status: TableServiceRequestStatus) => {
+    void updateFoodServiceRequestStatus(requestId, status);
+    setServiceRequests((currentRequests) =>
+      currentRequests.map((request) => request.id === requestId ? { ...request, status } : request),
+    );
+  };
+
+  const openServiceRequest = (requestId: string) => {
+    const request = serviceRequests.find((item) => item.id === requestId);
+    if (!request) return;
+    setSelectedTableId(request.tableId);
+    if (request.status === "new") updateServiceRequest(requestId, "acknowledged");
+    if (request.type === "request_bill") {
+      setTableClosing(request.tableId, true);
+      return;
+    }
+    setActiveView("floor");
+  };
+
   const openPaymentRequest = (requestId: string) => {
     const request = paymentRequests.find((item) => item.id === requestId);
     if (!request) return;
@@ -882,9 +919,12 @@ export default function App() {
       tables={tables}
       orders={orders}
       paymentRequests={paymentRequests}
+      serviceRequests={serviceRequests}
       onViewChange={setActiveView}
       onLogout={() => setCurrentUser(null)}
       onOpenPaymentRequest={openPaymentRequest}
+      onOpenServiceRequest={openServiceRequest}
+      onResolveServiceRequest={(requestId) => updateServiceRequest(requestId, "done")}
     >
       <div className="space-y-5">
         {showOperationalSummary && <MetricStrip tables={tables} orders={orders} readyItems={readyItems} />}

@@ -1,5 +1,22 @@
 import { foodSupabase } from "@/lib/foodAuth";
-import type { DeliveryOrder, DeliveryStatus, FoodOrder, FoodOrderItem, FoodTable, KitchenStatus, MenuProduct, Station } from "@/types";
+import type {
+  DeliveryOrder,
+  DeliveryStatus,
+  FoodOrder,
+  FoodOrderItem,
+  FoodTable,
+  FoodUnit,
+  InventoryItem,
+  KitchenStatus,
+  MenuProduct,
+  ProductTechnicalSheet,
+  Station,
+  StockMovement,
+  StockMovementType,
+  TableServiceRequest,
+  TableServiceRequestStatus,
+  TableServiceRequestType,
+} from "@/types";
 
 type TableRow = {
   id: string;
@@ -67,9 +84,68 @@ type DeliveryRow = {
   neighborhood: string | null;
   city: string | null;
   state: string | null;
+  courier_name: string | null;
+  tracking_code: string | null;
+  coupon_code: string | null;
+  estimated_minutes: number | null;
   delivery_fee: number | string | null;
   status: DeliveryStatus | "cancelled";
   created_at: string;
+};
+
+type ServiceRequestRow = {
+  id: string;
+  table_id: string;
+  request_type: TableServiceRequestType;
+  customer_name: string | null;
+  customer_phone: string | null;
+  note: string | null;
+  status: TableServiceRequestStatus;
+  requested_at: string;
+};
+
+type InventoryItemRow = {
+  id: string;
+  name: string;
+  unit: FoodUnit;
+  current_stock: number | string;
+  minimum_stock: number | string;
+  average_cost: number | string;
+  supplier: string | null;
+  expiration_date: string | null;
+  production_area: string | null;
+  last_movement_at: string;
+};
+
+type StockMovementRow = {
+  id: string;
+  inventory_item_id: string;
+  movement_type: StockMovementType;
+  quantity: number | string;
+  unit: FoodUnit;
+  unit_cost: number | string;
+  reason: string | null;
+  source: string | null;
+  created_at: string;
+  restaurant_inventory_items: { name: string } | Array<{ name: string }> | null;
+};
+
+type TechnicalSheetRow = {
+  id: string;
+  menu_item_id: string;
+  yield_quantity: number | string;
+  packaging_cost: number | string;
+  waste_percent: number | string;
+  notes: string | null;
+};
+
+type TechnicalSheetIngredientRow = {
+  id: string;
+  technical_sheet_id: string;
+  inventory_item_id: string;
+  quantity: number | string;
+  unit: FoodUnit;
+  restaurant_inventory_items: { name: string } | Array<{ name: string }> | null;
 };
 
 const toNumber = (value: unknown) => {
@@ -105,7 +181,17 @@ const mapOrderItem = (row: OrderItemRow): FoodOrderItem => ({
 export const loadFoodRemoteSnapshot = async () => {
   if (!foodSupabase) return null;
 
-  const [tablesResult, categoriesResult, productsResult, ordersResult, deliveriesResult] = await Promise.all([
+  const [
+    tablesResult,
+    categoriesResult,
+    productsResult,
+    ordersResult,
+    deliveriesResult,
+    serviceRequestsResult,
+    inventoryItemsResult,
+    stockMovementsResult,
+    technicalSheetsResult,
+  ] = await Promise.all([
     foodSupabase
       .from("restaurant_tables")
       .select("id, code, name, area, seats, status")
@@ -126,13 +212,42 @@ export const loadFoodRemoteSnapshot = async () => {
       .limit(80),
     foodSupabase
       .from("restaurant_delivery_orders")
-      .select("id, order_id, customer_name, customer_phone, address, number, complement, neighborhood, city, state, delivery_fee, status, created_at")
+      .select("id, order_id, customer_name, customer_phone, address, number, complement, neighborhood, city, state, courier_name, tracking_code, coupon_code, estimated_minutes, delivery_fee, status, created_at")
       .neq("status", "cancelled")
       .order("created_at", { ascending: false })
       .limit(80),
+    foodSupabase
+      .from("restaurant_table_service_requests")
+      .select("id, table_id, request_type, customer_name, customer_phone, note, status, requested_at")
+      .in("status", ["new", "acknowledged"])
+      .order("requested_at", { ascending: false })
+      .limit(50),
+    foodSupabase
+      .from("restaurant_inventory_items")
+      .select("id, name, unit, current_stock, minimum_stock, average_cost, supplier, expiration_date, production_area, last_movement_at")
+      .eq("active", true)
+      .order("name", { ascending: true }),
+    foodSupabase
+      .from("restaurant_stock_movements")
+      .select("id, inventory_item_id, movement_type, quantity, unit, unit_cost, reason, source, created_at, restaurant_inventory_items(name)")
+      .order("created_at", { ascending: false })
+      .limit(80),
+    foodSupabase
+      .from("restaurant_product_technical_sheets")
+      .select("id, menu_item_id, yield_quantity, packaging_cost, waste_percent, notes"),
   ]);
 
-  if (tablesResult.error || categoriesResult.error || productsResult.error || ordersResult.error || deliveriesResult.error) {
+  if (
+    tablesResult.error ||
+    categoriesResult.error ||
+    productsResult.error ||
+    ordersResult.error ||
+    deliveriesResult.error ||
+    serviceRequestsResult.error ||
+    inventoryItemsResult.error ||
+    stockMovementsResult.error ||
+    technicalSheetsResult.error
+  ) {
     throw new Error("Nao foi possivel sincronizar os pedidos do HappyCashFood.");
   }
 
@@ -188,6 +303,7 @@ export const loadFoodRemoteSnapshot = async () => {
     sizes: [],
     options: [],
   }));
+  const productById = new Map(products.map((product) => [product.id, product]));
 
   const orders: FoodOrder[] = ((ordersResult.data as OrderRow[] | null) || [])
     .filter((order) => order.status !== "cancelled" && order.service_type !== "delivery")
@@ -222,6 +338,11 @@ export const loadFoodRemoteSnapshot = async () => {
         delivery.city,
         delivery.state,
       ].filter(Boolean).join(", "),
+      neighborhood: delivery.neighborhood || "",
+      courierName: delivery.courier_name || "A definir",
+      estimatedMinutes: delivery.estimated_minutes || 45,
+      trackingCode: delivery.tracking_code || delivery.id.slice(0, 8),
+      couponCode: delivery.coupon_code || "",
       status: delivery.status as DeliveryStatus,
       createdAt: delivery.created_at,
       deliveryFee: toNumber(delivery.delivery_fee),
@@ -229,7 +350,99 @@ export const loadFoodRemoteSnapshot = async () => {
       items: itemsByOrderId.get(delivery.order_id) || [],
     }));
 
-  return { tables, products, orders, deliveries };
+  const serviceRequests: TableServiceRequest[] = ((serviceRequestsResult.data as ServiceRequestRow[] | null) || [])
+    .map((request) => {
+      const table = tableById.get(request.table_id);
+      return {
+        id: request.id,
+        tableId: request.table_id,
+        tableNumber: table?.code || "?",
+        type: request.request_type,
+        status: request.status,
+        customerName: request.customer_name || table?.name || `Mesa ${table?.code || ""}`.trim(),
+        customerPhone: request.customer_phone || "",
+        note: request.note || "",
+        requestedAt: request.requested_at,
+      };
+    });
+
+  const inventoryItems: InventoryItem[] = ((inventoryItemsResult.data as InventoryItemRow[] | null) || []).map((item) => ({
+    id: item.id,
+    name: item.name,
+    unit: item.unit,
+    currentStock: toNumber(item.current_stock),
+    minimumStock: toNumber(item.minimum_stock),
+    averageCost: toNumber(item.average_cost),
+    supplier: item.supplier || "",
+    expirationDate: item.expiration_date || undefined,
+    productionArea: item.production_area || "",
+    lastMovementAt: item.last_movement_at,
+  }));
+
+  const stockMovements: StockMovement[] = ((stockMovementsResult.data as StockMovementRow[] | null) || []).map((movement) => {
+    const inventoryRecord = Array.isArray(movement.restaurant_inventory_items)
+      ? movement.restaurant_inventory_items[0]
+      : movement.restaurant_inventory_items;
+    return {
+      id: movement.id,
+      inventoryItemId: movement.inventory_item_id,
+      inventoryItemName: inventoryRecord?.name || movement.inventory_item_id,
+      type: movement.movement_type,
+      quantity: toNumber(movement.quantity),
+      unit: movement.unit,
+      unitCost: toNumber(movement.unit_cost),
+      reason: movement.reason || "",
+      source: movement.source || "",
+      createdAt: movement.created_at,
+    };
+  });
+
+  const sheetRows = (technicalSheetsResult.data as TechnicalSheetRow[] | null) || [];
+  const sheetIds = sheetRows.map((sheet) => sheet.id);
+  const { data: ingredientRows, error: ingredientsError } = sheetIds.length
+    ? await foodSupabase
+        .from("restaurant_product_technical_sheet_ingredients")
+        .select("id, technical_sheet_id, inventory_item_id, quantity, unit, restaurant_inventory_items(name)")
+        .in("technical_sheet_id", sheetIds)
+    : { data: [], error: null };
+
+  if (ingredientsError) {
+    throw new Error("Nao foi possivel sincronizar as fichas tecnicas.");
+  }
+
+  const ingredientsBySheetId = new Map<string, TechnicalSheetIngredientRow[]>();
+  ((ingredientRows as TechnicalSheetIngredientRow[] | null) || []).forEach((ingredient) => {
+    ingredientsBySheetId.set(ingredient.technical_sheet_id, [
+      ...(ingredientsBySheetId.get(ingredient.technical_sheet_id) || []),
+      ingredient,
+    ]);
+  });
+
+  const technicalSheets: ProductTechnicalSheet[] = sheetRows.map((sheet) => {
+    const product = productById.get(sheet.menu_item_id);
+    return {
+      id: sheet.id,
+      productId: sheet.menu_item_id,
+      productName: product?.name || sheet.menu_item_id,
+      yieldQuantity: toNumber(sheet.yield_quantity) || 1,
+      packagingCost: toNumber(sheet.packaging_cost),
+      wastePercent: toNumber(sheet.waste_percent),
+      notes: sheet.notes || "",
+      ingredients: (ingredientsBySheetId.get(sheet.id) || []).map((ingredient) => {
+        const inventoryRecord = Array.isArray(ingredient.restaurant_inventory_items)
+          ? ingredient.restaurant_inventory_items[0]
+          : ingredient.restaurant_inventory_items;
+        return {
+          inventoryItemId: ingredient.inventory_item_id,
+          inventoryItemName: inventoryRecord?.name || ingredient.inventory_item_id,
+          quantity: toNumber(ingredient.quantity),
+          unit: ingredient.unit,
+        };
+      }),
+    };
+  });
+
+  return { tables, products, orders, deliveries, serviceRequests, inventoryItems, stockMovements, technicalSheets };
 };
 
 export const updateFoodOrderItemStatuses = async (itemIds: string[], status: KitchenStatus) => {
@@ -246,4 +459,115 @@ export const updateFoodDeliveryStatus = async (deliveryId: string, status: Deliv
     .from("restaurant_delivery_orders")
     .update({ status })
     .eq("id", deliveryId);
+};
+
+export const updateFoodServiceRequestStatus = async (
+  requestId: string,
+  status: TableServiceRequestStatus,
+) => {
+  if (!foodSupabase) return;
+  const timestampPatch = status === "acknowledged"
+    ? { acknowledged_at: new Date().toISOString() }
+    : status === "done" || status === "cancelled"
+      ? { resolved_at: new Date().toISOString() }
+      : {};
+  await foodSupabase
+    .from("restaurant_table_service_requests")
+    .update({ status, ...timestampPatch })
+    .eq("id", requestId);
+};
+
+export const persistFoodStockMovement = async (
+  ownerUserId: string | undefined,
+  movement: StockMovement,
+  itemPatch: Pick<InventoryItem, "id" | "currentStock" | "averageCost" | "lastMovementAt">,
+) => {
+  if (!foodSupabase || !ownerUserId) return;
+
+  try {
+    await foodSupabase
+      .from("restaurant_inventory_items")
+      .update({
+        current_stock: itemPatch.currentStock,
+        average_cost: itemPatch.averageCost,
+        last_movement_at: itemPatch.lastMovementAt,
+      })
+      .eq("id", itemPatch.id);
+
+    await foodSupabase
+      .from("restaurant_stock_movements")
+      .insert({
+        owner_user_id: ownerUserId,
+        inventory_item_id: movement.inventoryItemId,
+        movement_type: movement.type,
+        quantity: movement.quantity,
+        unit: movement.unit,
+        unit_cost: movement.unitCost,
+        reason: movement.reason,
+        source: movement.source,
+        created_at: movement.createdAt,
+      });
+  } catch {
+    // Mantem a operação local quando a sincronização falhar.
+  }
+};
+
+export const persistFoodTechnicalSheet = async (
+  ownerUserId: string | undefined,
+  sheet: ProductTechnicalSheet,
+) => {
+  if (!foodSupabase || !ownerUserId) return;
+
+  try {
+    const { data: existingSheet } = await foodSupabase
+      .from("restaurant_product_technical_sheets")
+      .select("id")
+      .eq("menu_item_id", sheet.productId)
+      .maybeSingle<{ id: string }>();
+
+    const payload = {
+      owner_user_id: ownerUserId,
+      menu_item_id: sheet.productId,
+      yield_quantity: sheet.yieldQuantity,
+      packaging_cost: sheet.packagingCost,
+      waste_percent: sheet.wastePercent,
+      notes: sheet.notes,
+    };
+
+    const { data: savedSheet, error: sheetError } = existingSheet?.id
+      ? await foodSupabase
+          .from("restaurant_product_technical_sheets")
+          .update(payload)
+          .eq("id", existingSheet.id)
+          .select("id")
+          .single<{ id: string }>()
+      : await foodSupabase
+          .from("restaurant_product_technical_sheets")
+          .insert(payload)
+          .select("id")
+          .single<{ id: string }>();
+
+    if (sheetError || !savedSheet) return;
+
+    await foodSupabase
+      .from("restaurant_product_technical_sheet_ingredients")
+      .delete()
+      .eq("technical_sheet_id", savedSheet.id);
+
+    const ingredientRows = sheet.ingredients.map((ingredient) => ({
+      owner_user_id: ownerUserId,
+      technical_sheet_id: savedSheet.id,
+      inventory_item_id: ingredient.inventoryItemId,
+      quantity: ingredient.quantity,
+      unit: ingredient.unit,
+    }));
+
+    if (ingredientRows.length) {
+      await foodSupabase
+        .from("restaurant_product_technical_sheet_ingredients")
+        .insert(ingredientRows);
+    }
+  } catch {
+    // Mantem a operação local quando a sincronização falhar.
+  }
 };

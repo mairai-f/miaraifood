@@ -75,6 +75,7 @@ export type MenuItem = {
   station: Station;
   prepMinutes: number;
   tags: string[];
+  removableIngredients: string[];
   sortOrder: number;
   featured: boolean;
   active: boolean;
@@ -126,6 +127,7 @@ export type CartItem = {
   unitPrice: number;
   quantity: number;
   notes: string;
+  removedIngredients: string[];
   station: Station;
   options: CartOptionSelection[];
 };

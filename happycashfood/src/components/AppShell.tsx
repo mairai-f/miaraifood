@@ -2,13 +2,15 @@ import { useEffect, useState, type ReactNode } from "react";
 import {
   BadgeDollarSign,
   BarChart3,
+  BellRing,
   ChefHat,
+  CheckCircle2,
   LayoutDashboard,
   LogOut,
   Truck,
 } from "lucide-react";
 import foodLogo from "@/assets/happycashfood.webp";
-import type { CustomerPaymentRequest, FoodOrder, FoodRole, FoodTable, FoodUser } from "@/types";
+import type { CustomerPaymentRequest, FoodOrder, FoodRole, FoodTable, FoodUser, TableServiceRequest } from "@/types";
 import { currency, orderTotal, tableOrder } from "@/lib/foodMetrics";
 
 export type FoodView = "floor" | "kitchen" | "checkout" | "delivery" | "admin";
@@ -27,9 +29,12 @@ interface AppShellProps {
   tables: FoodTable[];
   orders: FoodOrder[];
   paymentRequests: CustomerPaymentRequest[];
+  serviceRequests: TableServiceRequest[];
   onViewChange: (view: FoodView) => void;
   onLogout: () => void;
   onOpenPaymentRequest: (requestId: string) => void;
+  onOpenServiceRequest: (requestId: string) => void;
+  onResolveServiceRequest: (requestId: string) => void;
   children: ReactNode;
 }
 
@@ -47,9 +52,12 @@ export function AppShell({
   tables,
   orders,
   paymentRequests,
+  serviceRequests,
   onViewChange,
   onLogout,
   onOpenPaymentRequest,
+  onOpenServiceRequest,
+  onResolveServiceRequest,
   children,
 }: AppShellProps) {
   const [isOnline, setIsOnline] = useState(() => (typeof navigator === "undefined" ? true : navigator.onLine));
@@ -61,6 +69,9 @@ export function AppShell({
   }));
   const newPaymentRequests = currentUser.role === "admin" || currentUser.role === "cashier"
     ? paymentRequests.filter((request) => request.status === "new")
+    : [];
+  const visibleServiceRequests = currentUser.role === "admin" || currentUser.role === "cashier" || currentUser.role === "waiter"
+    ? serviceRequests.filter((request) => request.status === "new" || request.status === "acknowledged")
     : [];
 
   useEffect(() => {
@@ -259,6 +270,60 @@ export function AppShell({
                   {order?.items.length ?? 0} itens na comanda. Toque para abrir no caixa.
                 </p>
               </button>
+            );
+          })}
+        </div>
+      )}
+
+      {visibleServiceRequests.length > 0 && (
+        <div className="fixed bottom-4 left-4 z-40 grid w-[calc(100vw-2rem)] max-w-md gap-3 lg:left-[17rem]">
+          {visibleServiceRequests.slice(0, 4).map((request) => {
+            const isBill = request.type === "request_bill";
+            const title = isBill ? "Mesa quer fechar a conta" : "Mesa chamou o garcom";
+            const table = tables.find((item) => item.id === request.tableId);
+            const order = tableOrder(orders, request.tableId);
+            return (
+              <article
+                key={request.id}
+                className={`rounded-lg border bg-card p-4 shadow-panel ring-2 ${
+                  isBill ? "border-warning/50 ring-warning/20" : "border-primary/40 ring-primary/15"
+                }`}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="inline-flex items-center gap-2 text-xs font-black uppercase text-primary">
+                      <BellRing className="h-4 w-4" />
+                      Atendimento solicitado
+                    </p>
+                    <p className="mt-1 text-lg font-black">Mesa {table?.number ?? request.tableNumber} - {title}</p>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      {request.note || (isBill ? "Cliente quer falar com o garcom para pagar e fechar a conta." : "Cliente precisa falar com a equipe.")}
+                    </p>
+                  </div>
+                  {isBill ? (
+                    <span className="rounded-lg bg-warning px-3 py-1 text-sm font-black text-warning-foreground">
+                      {order ? currency.format(orderTotal(order)) : "Conta"}
+                    </span>
+                  ) : null}
+                </div>
+                <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_auto]">
+                  <button
+                    type="button"
+                    onClick={() => onOpenServiceRequest(request.id)}
+                    className="rounded-lg bg-primary px-3 py-2 text-sm font-black text-primary-foreground"
+                  >
+                    {isBill ? "Abrir fechamento" : "Abrir mesa"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onResolveServiceRequest(request.id)}
+                    className="inline-flex items-center justify-center gap-2 rounded-lg border bg-background px-3 py-2 text-sm font-black"
+                  >
+                    <CheckCircle2 className="h-4 w-4" />
+                    Concluir
+                  </button>
+                </div>
+              </article>
             );
           })}
         </div>

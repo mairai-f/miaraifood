@@ -5,6 +5,7 @@ type PublicCartItem = {
   itemId?: string;
   quantity?: number;
   notes?: string;
+  removedIngredients?: string[];
   options?: Array<{
     groupId?: string;
     valueId?: string;
@@ -18,6 +19,7 @@ type OrderRequest = {
   serviceType?: "dine_in" | "delivery" | "takeaway";
   actionType?: "order" | "call_waiter" | "request_bill";
   paymentTiming?: "now" | "cashier";
+  note?: string;
   customer?: {
     name?: string;
     phone?: string;
@@ -107,6 +109,7 @@ Deno.serve(async (request) => {
   const paymentTiming = payload.paymentTiming || "cashier";
   const customer = payload.customer || {};
   const items = payload.items || [];
+  const actionNote = clean(payload.note).slice(0, 280);
 
   if (!slug || !["dine_in", "delivery", "takeaway"].includes(serviceType) || !["order", "call_waiter", "request_bill"].includes(actionType)) {
     return jsonResponse(request, { success: false, error: "Pedido invalido." }, 400);
@@ -194,34 +197,31 @@ Deno.serve(async (request) => {
   }
 
   if (actionType !== "order") {
-    const actionLabel = actionType === "call_waiter" ? "Chamar garcom" : "Pedir conta";
-    const { data: actionOrder, error: actionError } = await supabase
-      .from("restaurant_orders")
+    const actionLabel = actionType === "call_waiter" ? "Chamar garcom" : "Fechar conta";
+    const { data: serviceRequest, error: actionError } = await supabase
+      .from("restaurant_table_service_requests")
       .insert({
         owner_user_id: profile.owner_user_id,
         store_account_id: profile.store_account_id,
         table_id: tableId,
-        client_id: null,
+        request_type: actionType,
         customer_name: clean(customer.name).slice(0, 120) || "Mesa QR",
         customer_phone: clean(customer.phone).slice(0, 40),
-        service_type: "qr_menu",
-        status: "sent",
-        notes: `${actionLabel} pelo cardapio publico ${profile.display_name} + HappyCashFood`,
-        subtotal: 0,
-        service_fee_amount: 0,
-        discount_amount: 0,
-        total_amount: 0,
+        note: actionNote || (actionType === "request_bill"
+          ? "Cliente quer falar com o garcom para pagar e fechar a conta."
+          : "Cliente chamou o garcom pela mesa."),
+        status: "new",
       })
       .select("id")
       .single();
 
-    if (actionError || !actionOrder) {
+    if (actionError || !serviceRequest) {
       return jsonResponse(request, { success: false, error: "Nao foi possivel avisar a equipe." }, 500);
     }
 
     return jsonResponse(request, {
       success: true,
-      orderId: actionOrder.id,
+      orderId: serviceRequest.id,
       actionType,
       receiptNumber: actionType === "call_waiter" ? "garcom chamado" : "conta solicitada",
       receiptTitle: actionLabel,
@@ -232,7 +232,7 @@ Deno.serve(async (request) => {
   const itemIds = items.map((item) => clean(item.itemId)).filter(Boolean);
   const { data: menuItems, error: menuItemsError } = await supabase
     .from("restaurant_menu_items")
-    .select("id, product_id, display_name, price, station, available_for_delivery, available_for_dine_in")
+    .select("id, product_id, display_name, price, station, removable_ingredients, available_for_delivery, available_for_dine_in")
     .eq("store_account_id", profile.store_account_id)
     .eq("active", true)
     .eq("qr_visible", true)
@@ -299,6 +299,13 @@ Deno.serve(async (request) => {
     const quantity = clampQuantity(cartItem.quantity);
     const selectedOptions = [];
     let optionTotal = 0;
+    const allowedRemovals = Array.isArray(menuItem.removable_ingredients)
+      ? menuItem.removable_ingredients.map((ingredient) => clean(String(ingredient))).filter(Boolean)
+      : [];
+    const allowedRemovalLookup = new Map(allowedRemovals.map((ingredient) => [ingredient.toLowerCase(), ingredient]));
+    const removedIngredients = Array.from(new Set((cartItem.removedIngredients || [])
+      .map((ingredient) => allowedRemovalLookup.get(clean(ingredient).toLowerCase()))
+      .filter((ingredient): ingredient is string => Boolean(ingredient))));
 
     for (const selectedOption of cartItem.options || []) {
       const optionValue = optionValueById.get(clean(selectedOption.valueId));
@@ -319,6 +326,17 @@ Deno.serve(async (request) => {
       });
     }
 
+    removedIngredients.forEach((ingredient) => {
+      selectedOptions.push({
+        valueId: `remove:${ingredient.toLowerCase()}`,
+        valueName: `Sem ${ingredient}`,
+        groupId: "removable_ingredients",
+        groupName: "Retirar ingredientes",
+        priceDelta: 0,
+        quantity: 1,
+      });
+    });
+
     const basePrice = toNumber(menuItem.price);
     const promotion = promotionByItemId.get(menuItem.id);
     const productPrice = promotion ? calculatePromotionalPrice(basePrice, promotion) : basePrice;
@@ -335,7 +353,10 @@ Deno.serve(async (request) => {
       quantity,
       unit_price: unitPrice,
       total_amount: totalAmount,
-      notes: clean(cartItem.notes).slice(0, 300),
+      notes: [
+        removedIngredients.length ? `Sem: ${removedIngredients.join(", ")}` : "",
+        clean(cartItem.notes),
+      ].filter(Boolean).join(" | ").slice(0, 300),
       selected_options: selectedOptions,
       status: "received",
     });

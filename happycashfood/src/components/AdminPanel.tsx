@@ -729,7 +729,7 @@ export function AdminPanel({
                 "Carrinho, editar item, remover item e confirmacao sensivel",
                 "QR Code por mesa e link de delivery organizado",
                 "Cliente pede por mesa, retirada ou delivery",
-                "Chamar garcom e pedir conta direto no QR da mesa",
+                "QR abre o cardapio; dentro dele o cliente chama garcom ou fecha conta",
                 "Login de fidelidade com email, senha e endereco",
                 "Pedido cai no HappyCashFood separado por setor",
               ].map((item) => (

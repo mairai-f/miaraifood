@@ -60,6 +60,12 @@ const cartItemTotal = (item: CartItem) =>
 
 const optionKey = (groupId: string, valueId: string) => `${groupId}:${valueId}`;
 const customerStorageKey = (storeId: string) => `happycash:menu:customer:${storeId}`;
+const waiterReasons = [
+  "Falar com o garcom",
+  "Pedir talheres ou guardanapo",
+  "Limpar a mesa",
+  "Duvida sobre o pedido",
+] as const;
 
 const useRevealOnScroll = (watchKey: string) => {
   useEffect(() => {
@@ -97,11 +103,13 @@ function ProductModal({
   const [quantity, setQuantity] = useState(1);
   const [notes, setNotes] = useState("");
   const [selected, setSelected] = useState<Record<string, CartOptionSelection>>({});
+  const [removedIngredients, setRemovedIngredients] = useState<string[]>([]);
 
   useEffect(() => {
     setQuantity(1);
     setNotes("");
     setSelected({});
+    setRemovedIngredients([]);
   }, [product?.id]);
 
   if (!product) return null;
@@ -156,6 +164,15 @@ function ProductModal({
     if (!group.required) return false;
     return !Object.values(selected).some((option) => option.groupId === group.id);
   });
+  const removableIngredients = (product.removableIngredients || []).map((ingredient) => ingredient.trim()).filter(Boolean);
+
+  const toggleRemovedIngredient = (ingredient: string) => {
+    setRemovedIngredients((current) => (
+      current.includes(ingredient)
+        ? current.filter((item) => item !== ingredient)
+        : [...current, ingredient]
+    ));
+  };
 
   return (
     <Modal
@@ -179,6 +196,7 @@ function ProductModal({
                 unitPrice: product.price,
                 quantity,
                 notes,
+                removedIngredients,
                 station: product.station,
                 options: selectedOptions,
               });
@@ -245,13 +263,33 @@ function ProductModal({
             </div>
           ))}
 
+          {removableIngredients.length > 0 ? (
+            <div className="rounded-lg border bg-background p-3">
+              <div className="mb-3">
+                <p className="text-sm font-black">Tirar ingredientes</p>
+                <p className="text-xs font-bold text-muted-foreground">Nao altera o valor do produto.</p>
+              </div>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {removableIngredients.map((ingredient) => {
+                  const checked = removedIngredients.includes(ingredient);
+                  return (
+                    <label key={ingredient} className="flex min-h-11 cursor-pointer items-center gap-3 rounded-lg border bg-card px-3 py-2">
+                      <input type="checkbox" checked={checked} onChange={() => toggleRemovedIngredient(ingredient)} />
+                      <span className="text-sm font-bold">Sem {ingredient}</span>
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+          ) : null}
+
           <label className="block">
             <span className="hc-label">Observacao</span>
             <textarea
               value={notes}
               onChange={(event) => setNotes(event.target.value)}
               className="hc-textarea mt-2 min-h-24"
-              placeholder="Ex: sem cebola, pouco molho, talher descartavel"
+              placeholder="Ex: ponto da carne, pouco molho, talher descartavel"
             />
           </label>
         </div>
@@ -273,7 +311,7 @@ export function PublicMenu({ slug, tableSlug }: PublicMenuProps) {
   const [paymentTiming, setPaymentTiming] = useState<PaymentTiming>("cashier");
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [loyaltyOpen, setLoyaltyOpen] = useState(false);
-  const [receipt, setReceipt] = useState<{ number: string; title: string; brand: string } | null>(null);
+  const [receipt, setReceipt] = useState<{ number: string; title: string; brand: string; kind: "order" | "service" } | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loyaltyError, setLoyaltyError] = useState<string | null>(null);
@@ -284,6 +322,9 @@ export function PublicMenu({ slug, tableSlug }: PublicMenuProps) {
   const [customerAccountEmail, setCustomerAccountEmail] = useState("");
   const [pendingRemoval, setPendingRemoval] = useState<CartItem | null>(null);
   const [tableActionLoading, setTableActionLoading] = useState<"call_waiter" | "request_bill" | null>(null);
+  const [waiterModalOpen, setWaiterModalOpen] = useState(false);
+  const [waiterReason, setWaiterReason] = useState<(typeof waiterReasons)[number]>("Falar com o garcom");
+  const [waiterNote, setWaiterNote] = useState("");
   const [scrollY, setScrollY] = useState(0);
 
   useEffect(() => {
@@ -522,7 +563,7 @@ export function PublicMenu({ slug, tableSlug }: PublicMenuProps) {
     setSelectedProduct(product);
   };
 
-  const submitTableAction = async (actionType: "call_waiter" | "request_bill") => {
+  const submitTableAction = async (actionType: "call_waiter" | "request_bill", note?: string) => {
     if (!menu?.table || tableActionLoading) return;
     setError(null);
     setTableActionLoading(actionType);
@@ -531,6 +572,7 @@ export function PublicMenu({ slug, tableSlug }: PublicMenuProps) {
       slug: menu.store.slug,
       tableSlug: menu.table.qrSlug || tableSlug || "",
       actionType,
+      note,
       customer: { ...customer, name: fallbackName },
     });
     setTableActionLoading(null);
@@ -542,9 +584,15 @@ export function PublicMenu({ slug, tableSlug }: PublicMenuProps) {
 
     setReceipt({
       number: result.receiptNumber || (actionType === "call_waiter" ? "garcom chamado" : "conta solicitada"),
-      title: result.receiptTitle || (actionType === "call_waiter" ? "Garcom chamado" : "Conta solicitada"),
+      title: result.receiptTitle || (actionType === "call_waiter" ? "Garcom chamado" : "Fechar conta"),
       brand: result.brandLine || `${menu.store.receiptName} | HappyCashFood`,
+      kind: "service",
     });
+    if (actionType === "call_waiter") {
+      setWaiterModalOpen(false);
+      setWaiterReason("Falar com o garcom");
+      setWaiterNote("");
+    }
   };
 
   const submitOrder = async () => {
@@ -581,6 +629,7 @@ export function PublicMenu({ slug, tableSlug }: PublicMenuProps) {
       number: result.receiptNumber || "pedido enviado",
       title: result.receiptTitle || menu.store.receiptName,
       brand: result.brandLine || `Emitido por ${menu.store.receiptName} com HappyCashFood`,
+      kind: "order",
     });
     setCart([]);
   };
@@ -650,25 +699,31 @@ export function PublicMenu({ slug, tableSlug }: PublicMenuProps) {
             ) : null}
           </div>
           {menu.table ? (
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={() => void submitTableAction("call_waiter")}
-                disabled={Boolean(tableActionLoading)}
-                className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-white px-4 py-2 text-sm font-black text-zinc-950 shadow-sm transition hover:bg-amber-200 disabled:cursor-wait disabled:opacity-70"
-              >
-                <MessageSquareText size={17} />
-                {tableActionLoading === "call_waiter" ? "Chamando..." : "Chamar garcom"}
-              </button>
-              <button
-                type="button"
-                onClick={() => void submitTableAction("request_bill")}
-                disabled={Boolean(tableActionLoading)}
-                className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-white/25 bg-white/12 px-4 py-2 text-sm font-black text-white backdrop-blur transition hover:border-primary disabled:cursor-wait disabled:opacity-70"
-              >
-                <ReceiptText size={17} />
-                {tableActionLoading === "request_bill" ? "Enviando..." : "Pedir conta"}
-              </button>
+            <div className="space-y-2">
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setError(null);
+                    setWaiterModalOpen(true);
+                  }}
+                  disabled={Boolean(tableActionLoading)}
+                  className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-white px-4 py-2 text-sm font-black text-zinc-950 shadow-sm transition hover:bg-amber-200 disabled:cursor-wait disabled:opacity-70"
+                >
+                  <MessageSquareText size={17} />
+                  {tableActionLoading === "call_waiter" ? "Chamando..." : "Chamar garcom"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void submitTableAction("request_bill")}
+                  disabled={Boolean(tableActionLoading)}
+                  className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-white/25 bg-white/12 px-4 py-2 text-sm font-black text-white backdrop-blur transition hover:border-primary disabled:cursor-wait disabled:opacity-70"
+                >
+                  <ReceiptText size={17} />
+                  {tableActionLoading === "request_bill" ? "Chamando..." : "Fechar conta"}
+                </button>
+              </div>
+              {error && !checkoutOpen ? <p className="rounded-lg bg-red-500/20 px-3 py-2 text-sm font-black text-red-100">{error}</p> : null}
             </div>
           ) : null}
         </div>
@@ -893,6 +948,7 @@ export function PublicMenu({ slug, tableSlug }: PublicMenuProps) {
                     {item.options.map((option) => (
                       <p key={`${item.cartId}-${option.valueId}`} className="text-xs font-bold text-muted-foreground">{option.valueName}</p>
                     ))}
+                    {(item.removedIngredients || []).length > 0 ? <p className="text-xs font-black text-primary">Sem: {item.removedIngredients.join(", ")}</p> : null}
                     {item.notes ? <p className="text-xs font-bold text-muted-foreground">Obs: {item.notes}</p> : null}
                   </div>
                   <div className="flex shrink-0 flex-col items-end gap-2">
@@ -913,6 +969,70 @@ export function PublicMenu({ slug, tableSlug }: PublicMenuProps) {
               <div className="flex justify-between text-base font-black"><span>Total</span><span>{currency(total)}</span></div>
             </div>
           </aside>
+        </div>
+      </Modal>
+
+      <Modal
+        title="Chamar garcom"
+        subtitle={menu.table ? `${menu.table.name || "Mesa " + menu.table.code} | HappyCashFood` : "HappyCashFood"}
+        open={waiterModalOpen}
+        onClose={() => {
+          if (tableActionLoading !== "call_waiter") setWaiterModalOpen(false);
+        }}
+        size="sm"
+        disableEscape={tableActionLoading === "call_waiter"}
+        footer={
+          <div className="grid gap-2 sm:grid-cols-2">
+            <button
+              type="button"
+              className="hc-button-soft"
+              disabled={tableActionLoading === "call_waiter"}
+              onClick={() => setWaiterModalOpen(false)}
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
+              className="hc-button-primary"
+              disabled={tableActionLoading === "call_waiter"}
+              onClick={() => {
+                const note = [waiterReason, waiterNote.trim()].filter(Boolean).join(" - ");
+                void submitTableAction("call_waiter", note);
+              }}
+            >
+              <MessageSquareText size={18} />
+              {tableActionLoading === "call_waiter" ? "Chamando..." : "Chamar garcom"}
+            </button>
+          </div>
+        }
+      >
+        <div className="space-y-4">
+          <p className="text-sm font-semibold leading-6 text-muted-foreground">
+            Confirme para avisar a equipe da mesa. Essa acao nao cria pedido na cozinha.
+          </p>
+          <div className="grid gap-2">
+            {waiterReasons.map((reason) => (
+              <button
+                key={reason}
+                type="button"
+                className={waiterReason === reason ? "hc-button-primary justify-start" : "hc-button-soft justify-start"}
+                onClick={() => setWaiterReason(reason)}
+              >
+                {reason}
+              </button>
+            ))}
+          </div>
+          <label className="block">
+            <span className="hc-label">Observacao para o atendente</span>
+            <textarea
+              value={waiterNote}
+              onChange={(event) => setWaiterNote(event.target.value)}
+              className="hc-textarea mt-2 min-h-24"
+              maxLength={180}
+              placeholder="Ex: estou na area externa, preciso falar sobre a conta"
+            />
+          </label>
+          {error ? <p className="rounded-lg bg-red-50 p-3 text-sm font-bold text-red-700">{error}</p> : null}
         </div>
       </Modal>
 
@@ -1070,7 +1190,7 @@ export function PublicMenu({ slug, tableSlug }: PublicMenuProps) {
               <p className="mt-1 text-lg font-black">{receipt.number}</p>
             </div>
             <p className="inline-flex items-center justify-center gap-2 text-sm font-bold text-muted-foreground">
-              <MessageSquareText size={16} /> A loja recebeu seu pedido.
+              <MessageSquareText size={16} /> {receipt.kind === "service" ? "A equipe foi avisada." : "A loja recebeu seu pedido."}
             </p>
           </div>
         ) : null}

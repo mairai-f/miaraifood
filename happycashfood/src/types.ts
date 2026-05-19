@@ -8,6 +8,8 @@ export type FoodRole = "admin" | "waiter" | "cashier" | "kitchen" | "customer";
 export type CommissionMode = "percent" | "cash";
 export type FoodUnit = "kg" | "litro" | "unidade" | "caixa";
 export type StockMovementType = "entrada" | "venda" | "perda" | "producao" | "inventario";
+export type TableServiceRequestType = "call_waiter" | "request_bill" | "talk_to_staff";
+export type TableServiceRequestStatus = "new" | "acknowledged" | "done" | "cancelled";
 
 export interface FoodTable {
   id: string;
@@ -188,6 +190,18 @@ export interface CustomerPaymentRequest {
   orderId: string;
   requestedAt: string;
   status: "new" | "acknowledged";
+}
+
+export interface TableServiceRequest {
+  id: string;
+  tableId: string;
+  tableNumber: string;
+  type: TableServiceRequestType;
+  status: TableServiceRequestStatus;
+  customerName: string;
+  customerPhone: string;
+  note: string;
+  requestedAt: string;
 }
 
 export interface FoodClosureReceipt {

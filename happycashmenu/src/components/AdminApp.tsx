@@ -59,6 +59,7 @@ const emptyProduct = (categoryId?: string): Partial<MenuItem> & { displayName: s
   station: "kitchen",
   prepMinutes: 12,
   tags: [],
+  removableIngredients: [],
   sortOrder: 0,
   featured: false,
   active: true,
@@ -675,6 +676,15 @@ function ProductsPanel({
             </select>
             <input value={(productForm.tags || []).join(", ")} onChange={(event) => setProductForm((current) => ({ ...current, tags: event.target.value.split(",").map((tag) => tag.trim()).filter(Boolean) }))} className="hc-input" placeholder="Tags separadas por virgula" />
             <textarea
+              value={(productForm.removableIngredients || []).join(", ")}
+              onChange={(event) => setProductForm((current) => ({
+                ...current,
+                removableIngredients: event.target.value.split(",").map((ingredient) => ingredient.trim()).filter(Boolean),
+              }))}
+              className="hc-textarea min-h-20"
+              placeholder="Ingredientes que o cliente pode tirar: pao, hamburguer, queijo, cebola"
+            />
+            <textarea
               value={optionText}
               onChange={(event) => setOptionText(event.target.value)}
               className="hc-textarea min-h-28"
@@ -757,7 +767,9 @@ function ProductsPanel({
                   <div>
                     <p className="font-black">{item.displayName}</p>
                     <p className="text-xs font-bold text-muted-foreground">{categoriesById.get(item.categoryId || "")?.name || "Sem categoria"}</p>
-                    <p className="text-xs font-bold text-muted-foreground">{stationLabel[item.station]} - {item.options.length} adicional(is)</p>
+                    <p className="text-xs font-bold text-muted-foreground">
+                      {stationLabel[item.station]} - {item.options.length} adicional(is) - {item.removableIngredients.length} removivel(is)
+                    </p>
                   </div>
                   <p className="shrink-0 text-sm font-black text-primary">{currency(item.price)}</p>
                 </div>
@@ -1094,6 +1106,9 @@ function TablesPanel({
 
       <div className="rounded-lg border bg-card p-4">
         <h2 className="text-xl font-black">QR Codes das mesas</h2>
+        <p className="mt-1 text-sm font-bold text-muted-foreground">
+          O QR Code apenas abre o cardapio digital. Pedidos, chamada do garcom e fechamento de conta acontecem pelos botoes dentro do cardapio.
+        </p>
         <div className="mt-4 rounded-lg border border-primary/25 bg-primary/10 p-3">
           <div className="grid gap-3 md:grid-cols-[132px_1fr] md:items-center">
             <img

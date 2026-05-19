@@ -117,7 +117,7 @@ Deno.serve(async (request) => {
       .order("sort_order", { ascending: true }),
     supabase
       .from("restaurant_menu_items")
-      .select("id, category_id, display_name, description, price, compare_at_price, image_url, image_alt, station, prep_minutes, tags, sort_order, featured, active, qr_visible, available_for_dine_in, available_for_delivery")
+      .select("id, category_id, display_name, description, price, compare_at_price, image_url, image_alt, station, prep_minutes, tags, removable_ingredients, sort_order, featured, active, qr_visible, available_for_dine_in, available_for_delivery")
       .eq("store_account_id", profile.store_account_id)
       .eq("active", true)
       .eq("qr_visible", true)
@@ -219,6 +219,7 @@ Deno.serve(async (request) => {
       station: item.station,
       prepMinutes: item.prep_minutes || 0,
       tags: item.tags || [],
+      removableIngredients: item.removable_ingredients || [],
       sortOrder: item.sort_order || 0,
       featured: Boolean(item.featured),
       active: item.active,

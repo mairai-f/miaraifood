@@ -9,6 +9,7 @@ import type {
   MenuProduct,
   ProductTechnicalSheet,
   StockMovement,
+  TableServiceRequest,
 } from "@/types";
 
 const ago = (minutes: number) => new Date(Date.now() - minutes * 60000).toISOString();
@@ -548,6 +549,20 @@ export const initialTechnicalSheets: ProductTechnicalSheet[] = [
     ingredients: [
       { inventoryItemId: "inv-lata-coca", inventoryItemName: "Coca-Cola lata 350ml", quantity: 1, unit: "unidade" },
     ],
+  },
+];
+
+export const initialServiceRequests: TableServiceRequest[] = [
+  {
+    id: "service-01",
+    tableId: "table-03",
+    tableNumber: "03",
+    type: "request_bill",
+    status: "new",
+    customerName: "Rafael",
+    customerPhone: "",
+    note: "Cliente quer fechar a conta com o garcom.",
+    requestedAt: ago(2),
   },
 ];
 

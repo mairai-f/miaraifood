@@ -89,6 +89,7 @@ type ItemRow = {
   station: "kitchen" | "bar" | "counter";
   prep_minutes: number | null;
   tags: string[] | null;
+  removable_ingredients: string[] | null;
   sort_order: number | null;
   featured: boolean | null;
   active: boolean;
@@ -178,6 +179,7 @@ const mapItem = (row: ItemRow): MenuItem => ({
   station: row.station,
   prepMinutes: row.prep_minutes || 0,
   tags: row.tags || [],
+  removableIngredients: row.removable_ingredients || [],
   sortOrder: row.sort_order || 0,
   featured: Boolean(row.featured),
   active: row.active,
@@ -320,6 +322,7 @@ export const createPublicOrder = async (payload: {
   serviceType: "dine_in" | "delivery" | "takeaway";
   paymentTiming?: PaymentTiming;
   actionType?: PublicMenuAction;
+  note?: string;
   customer: CustomerInfo;
   items: CartItem[];
 }): Promise<CreateOrderResponse> => {
@@ -341,6 +344,7 @@ export const createPublicMenuAction = async (payload: {
   slug: string;
   tableSlug: string;
   actionType: Exclude<PublicMenuAction, "order">;
+  note?: string;
   customer: CustomerInfo;
 }): Promise<CreateOrderResponse> =>
   createPublicOrder({
@@ -349,6 +353,7 @@ export const createPublicMenuAction = async (payload: {
     serviceType: "dine_in",
     actionType: payload.actionType,
     paymentTiming: "cashier",
+    note: payload.note,
     customer: payload.customer,
     items: [],
   });
@@ -446,7 +451,7 @@ export const loadAdminBootstrap = async () => {
       .order("sort_order", { ascending: true }),
     menuAdminSupabase
       .from("restaurant_menu_items")
-      .select("id, category_id, display_name, description, price, compare_at_price, image_url, image_alt, station, prep_minutes, tags, sort_order, featured, active, qr_visible, available_for_dine_in, available_for_delivery")
+      .select("id, category_id, display_name, description, price, compare_at_price, image_url, image_alt, station, prep_minutes, tags, removable_ingredients, sort_order, featured, active, qr_visible, available_for_dine_in, available_for_delivery")
       .eq("store_account_id", account.id)
       .order("sort_order", { ascending: true }),
     menuAdminSupabase
@@ -603,6 +608,7 @@ export const upsertMenuItem = async (
     station: item.station || "kitchen",
     prep_minutes: item.prepMinutes || 10,
     tags: item.tags || [],
+    removable_ingredients: item.removableIngredients || [],
     sort_order: item.sortOrder || 0,
     featured: item.featured ?? false,
     active: item.active ?? true,
@@ -616,7 +622,7 @@ export const upsertMenuItem = async (
     : menuAdminSupabase.from("restaurant_menu_items").insert(payload);
 
   const { data, error } = await query
-    .select("id, category_id, display_name, description, price, compare_at_price, image_url, image_alt, station, prep_minutes, tags, sort_order, featured, active, qr_visible, available_for_dine_in, available_for_delivery")
+    .select("id, category_id, display_name, description, price, compare_at_price, image_url, image_alt, station, prep_minutes, tags, removable_ingredients, sort_order, featured, active, qr_visible, available_for_dine_in, available_for_delivery")
     .single<ItemRow>();
 
   if (error || !data) throw new Error(getPublicErrorMessage(error, "Nao foi possivel salvar o produto."));
