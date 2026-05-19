@@ -4,6 +4,7 @@ import {
   ExternalLink,
   ImagePlus,
   Loader2,
+  LogIn,
   LogOut,
   Mail,
   MapPin,
@@ -11,7 +12,6 @@ import {
   Plus,
   QrCode,
   Save,
-  Store,
   Trash2,
   Upload,
 } from "lucide-react";
@@ -103,7 +103,29 @@ const stationLabel: Record<Station, string> = {
   counter: "Pizzaria / Balcao",
 };
 
-function LoginPanel({ onLogin }: { onLogin: () => void }) {
+const useAdminRevealOnScroll = (watchKey: string) => {
+  useEffect(() => {
+    const elements = Array.from(document.querySelectorAll<HTMLElement>("[data-reveal]"));
+    if (!elements.length) return undefined;
+
+    const observer = new IntersectionObserver((entries) => {
+      for (const entry of entries) {
+        if (entry.isIntersecting) {
+          entry.target.classList.add("is-visible");
+          observer.unobserve(entry.target);
+        }
+      }
+    }, {
+      threshold: 0.12,
+      rootMargin: "0px 0px -8% 0px",
+    });
+
+    elements.forEach((element) => observer.observe(element));
+    return () => observer.disconnect();
+  }, [watchKey]);
+};
+
+function LoginPanel({ onLogin }: { onLogin: () => void | Promise<void> }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -133,7 +155,7 @@ function LoginPanel({ onLogin }: { onLogin: () => void }) {
     setLoading(true);
     try {
       await signInMenuAdmin(email, password);
-      onLogin();
+      await onLogin();
     } catch (loginError) {
       setError(loginError instanceof Error ? loginError.message : "Nao foi possivel entrar.");
     } finally {
@@ -157,65 +179,96 @@ function LoginPanel({ onLogin }: { onLogin: () => void }) {
   };
 
   return (
-    <main className="relative grid min-h-dvh place-items-center overflow-hidden bg-zinc-950 p-4 text-foreground">
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(250,204,21,0.18),_transparent_35%),radial-gradient(circle_at_bottom_right,_rgba(34,211,238,0.12),_transparent_42%)]" />
-      <form onSubmit={submit} className="relative w-full max-w-md rounded-lg border border-yellow-400/15 bg-black/45 p-5 shadow-panel backdrop-blur-md">
-        <img src="/happycashfood.webp" alt="HappyCashFood" className="mx-auto h-auto w-44 max-w-full object-contain" />
-        <div className="mt-4 space-y-1 text-center">
-          <h1 className="text-lg font-black text-yellow-300">Entrar</h1>
-          <p className="text-xs font-semibold text-muted-foreground">Administrador entra com email e senha do HappyCashFood.</p>
-        </div>
-        <div className="mt-5 space-y-4">
-          <div className="rounded-lg bg-zinc-900/70 p-1">
-            <div className="rounded-md bg-primary px-3 py-2 text-center text-sm font-black text-primary-foreground">
-              Administrador
-            </div>
+    <main className="relative h-[100svh] overflow-hidden bg-[#050505] px-3 py-2 text-foreground sm:px-4 sm:py-3">
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(250,204,21,0.18),_transparent_35%),radial-gradient(circle_at_bottom_right,_rgba(245,158,11,0.12),_transparent_42%)]" />
+      <section className="relative mx-auto flex h-full w-full max-w-[23rem] items-center justify-center sm:max-w-sm">
+        <div className="splash-card-enter w-full">
+          <div className="mb-3 text-center">
+            <img
+              src="/happycashfood.webp"
+              alt="HappyCashFood"
+              className="splash-logo-float mx-auto h-auto w-[clamp(9.25rem,34vw,14.5rem)] max-w-full object-contain"
+              width={1536}
+              height={1024}
+              loading="eager"
+              decoding="async"
+            />
           </div>
-          <label className="block">
-            <span className="hc-label">Email</span>
-            <input value={email} onChange={(event) => setEmail(event.target.value)} className="hc-input mt-2 bg-zinc-950/70" type="email" autoComplete="email" required />
-          </label>
-          <label className="block">
-            <div className="flex items-center justify-between gap-3">
-              <span className="hc-label">Senha</span>
-              <button
-                type="button"
-                onClick={() => {
-                  setResetEmail(email.trim());
-                  setResetFeedback("");
-                  setResetOpen(true);
-                }}
-                className="text-xs font-semibold text-muted-foreground transition hover:text-primary"
-              >
-                Esqueci minha senha
-              </button>
+
+          <form onSubmit={submit} className="rounded-lg border border-yellow-400/15 bg-black/45 p-4 shadow-panel backdrop-blur-md sm:p-5">
+            <div className="space-y-1 text-center">
+              <h1 className="text-base font-bold tracking-wide text-yellow-300 sm:text-lg">Entrar</h1>
+              <p className="text-[11px] text-muted-foreground">Mesmo email e senha do administrador HappyCashFood.</p>
             </div>
-            <span className="relative mt-2 block">
-              <input
-                value={password}
-                onChange={(event) => setPassword(event.target.value)}
-                className="hc-input bg-zinc-950/70 pr-11"
-                type={showPassword ? "text" : "password"}
-                autoComplete="current-password"
-                required
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword((current) => !current)}
-                className="absolute inset-y-0 right-0 grid w-11 place-items-center text-muted-foreground transition hover:text-primary"
-                aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"}
-              >
-                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-              </button>
-            </span>
-          </label>
-          {error ? <p className="rounded-lg bg-red-500/10 p-3 text-sm font-bold text-red-300">{error}</p> : null}
-          <button className="hc-button-primary w-full" disabled={loading}>
-            {loading ? <Loader2 className="animate-spin" size={18} /> : <Store size={18} />}
-            Entrar como administrador
-          </button>
+
+            <div className="mt-4 rounded-lg bg-zinc-900/70 p-1">
+              <div className="rounded-md bg-primary px-3 py-2 text-center text-sm font-bold text-primary-foreground">
+                Administrador
+              </div>
+            </div>
+
+            <div className="mt-4 space-y-4">
+              <label className="block">
+                <span className="text-xs font-black uppercase tracking-[0.16em] text-muted-foreground">Email</span>
+                <input
+                  value={email}
+                  onChange={(event) => setEmail(event.target.value)}
+                  className="mt-2 h-11 w-full rounded-lg border border-border bg-zinc-950/70 px-3 text-sm font-semibold outline-none ring-primary transition focus:ring-2"
+                  type="email"
+                  autoComplete="email"
+                  inputMode="email"
+                  required
+                />
+              </label>
+              <label className="block">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-xs font-black uppercase tracking-[0.16em] text-muted-foreground">Senha</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setResetEmail(email.trim());
+                      setResetFeedback("");
+                      setResetOpen(true);
+                    }}
+                    className="text-xs font-semibold text-muted-foreground transition hover:text-primary"
+                  >
+                    Esqueci minha senha
+                  </button>
+                </div>
+                <span className="relative mt-2 block">
+                  <input
+                    value={password}
+                    onChange={(event) => setPassword(event.target.value)}
+                    className="h-11 w-full rounded-lg border border-border bg-zinc-950/70 px-3 pr-11 text-sm font-semibold outline-none ring-primary transition focus:ring-2"
+                    type={showPassword ? "text" : "password"}
+                    autoComplete="current-password"
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((current) => !current)}
+                    className="absolute inset-y-0 right-0 grid w-11 place-items-center text-muted-foreground transition hover:text-primary"
+                    aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"}
+                  >
+                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </span>
+              </label>
+            </div>
+
+            {error ? <p className="mt-4 rounded-lg border border-destructive/35 bg-destructive/10 p-3 text-sm font-bold text-destructive">{error}</p> : null}
+
+            <button
+              type="submit"
+              className="mt-5 inline-flex h-12 w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 text-sm font-black text-primary-foreground transition hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-70"
+              disabled={loading}
+            >
+              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogIn className="h-4 w-4" />}
+              Entrar como administrador
+            </button>
+          </form>
         </div>
-      </form>
+      </section>
 
       <Modal title="Redefinir senha" subtitle="Conta HappyCashFood" open={resetOpen} onClose={() => setResetOpen(false)} size="sm">
         <div className="space-y-4">
@@ -436,9 +489,11 @@ function ProductsPanel({
   const [categoryForm, setCategoryForm] = useState(emptyCategory);
   const [productForm, setProductForm] = useState(emptyProduct(state.categories[0]?.id));
   const [saving, setSaving] = useState(false);
+  const [photoSavingId, setPhotoSavingId] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
 
   const categoriesById = useMemo(() => new Map(state.categories.map((category) => [category.id, category])), [state.categories]);
+  useAdminRevealOnScroll(state.items.map((item) => item.id).join(","));
 
   const saveCategory = async () => {
     setSaving(true);
@@ -489,6 +544,51 @@ function ProductsPanel({
     }
   };
 
+  const saveExistingProductImage = async (item: MenuItem, file: File | null) => {
+    if (!file) return;
+    setPhotoSavingId(item.id);
+    setMessage(null);
+    try {
+      const url = await uploadMenuImage(state.account.id, file);
+      const saved = await upsertMenuItem(state.account, { ...item, imageUrl: url });
+      setState((current) => current ? {
+        ...current,
+        items: current.items.map((currentItem) => currentItem.id === item.id ? saved : currentItem),
+      } : current);
+      setProductForm((current) => current.id === saved.id ? { ...current, imageUrl: saved.imageUrl } : current);
+      setMessage(`Foto de ${item.displayName} atualizada.`);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Imagem nao enviada.");
+    } finally {
+      setPhotoSavingId(null);
+    }
+  };
+
+  const clearExistingProductImage = async (item: MenuItem) => {
+    setPhotoSavingId(item.id);
+    setMessage(null);
+    try {
+      const saved = await upsertMenuItem(state.account, { ...item, imageUrl: null });
+      setState((current) => current ? {
+        ...current,
+        items: current.items.map((currentItem) => currentItem.id === item.id ? saved : currentItem),
+      } : current);
+      setProductForm((current) => current.id === saved.id ? { ...current, imageUrl: null } : current);
+      setMessage(`Foto de ${item.displayName} removida.`);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Nao foi possivel remover a foto.");
+    } finally {
+      setPhotoSavingId(null);
+    }
+  };
+
+  const startEditingProduct = (item: MenuItem) => {
+    setProductForm(item);
+    window.requestAnimationFrame(() => {
+      document.getElementById("menu-product-form")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  };
+
   return (
     <section className="grid gap-4 xl:grid-cols-[390px_minmax(0,1fr)]">
       <div className="space-y-4">
@@ -503,7 +603,7 @@ function ProductsPanel({
           </div>
         </div>
 
-        <div className="rounded-lg border bg-card p-4">
+        <div id="menu-product-form" className="scroll-mt-24 rounded-lg border bg-card p-4">
           <h2 className="text-lg font-black">Produto</h2>
           <div className="mt-4 space-y-3">
             <input value={productForm.displayName} onChange={(event) => setProductForm((current) => ({ ...current, displayName: event.target.value }))} className="hc-input" placeholder="Nome do produto" />
@@ -525,7 +625,16 @@ function ProductsPanel({
             <div className="grid gap-3 sm:grid-cols-[96px_1fr]">
               <FoodImage src={productForm.imageUrl || null} alt={productForm.displayName || "Produto"} className="aspect-square w-full rounded-lg" />
               <div>
-                <input className="hidden" id="product-image-upload" type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => uploadProductImage(event.target.files?.[0] || null)} />
+                <input
+                  className="hidden"
+                  id="product-image-upload"
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp"
+                  onChange={(event) => {
+                    void uploadProductImage(event.target.files?.[0] || null);
+                    event.currentTarget.value = "";
+                  }}
+                />
                 <label htmlFor="product-image-upload" className="hc-button-soft w-full cursor-pointer">
                   <ImagePlus size={18} /> Foto do produto
                 </label>
@@ -558,9 +667,33 @@ function ProductsPanel({
           </div>
         </div>
         <div className="grid gap-3 md:grid-cols-2">
-          {state.items.map((item) => (
-            <div key={item.id} className="flex gap-3 rounded-lg border bg-background p-3">
-              <FoodImage src={item.imageUrl} alt={item.imageAlt} className="size-20 rounded-lg" />
+          {state.items.map((item, index) => (
+            <div
+              key={item.id}
+              data-reveal
+              style={{ transitionDelay: `${Math.min(index * 45, 260)}ms` }}
+              className="reveal-on-scroll flex gap-3 rounded-lg border bg-background p-3"
+            >
+              <div className="relative size-20 shrink-0 overflow-hidden rounded-lg">
+                <FoodImage src={item.imageUrl} alt={item.imageAlt} className="size-full rounded-lg" />
+                <input
+                  className="hidden"
+                  id={`product-card-image-${item.id}`}
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp"
+                  onChange={(event) => {
+                    void saveExistingProductImage(item, event.target.files?.[0] || null);
+                    event.currentTarget.value = "";
+                  }}
+                />
+                <label
+                  htmlFor={`product-card-image-${item.id}`}
+                  className="absolute bottom-1 right-1 grid size-8 cursor-pointer place-items-center rounded-lg bg-primary text-primary-foreground shadow-sm transition hover:brightness-95"
+                  title="Trocar foto"
+                >
+                  {photoSavingId === item.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImagePlus className="h-4 w-4" />}
+                </label>
+              </div>
               <div className="min-w-0 flex-1">
                 <div className="flex items-start justify-between gap-3">
                   <div>
@@ -571,9 +704,16 @@ function ProductsPanel({
                   <p className="shrink-0 text-sm font-black text-primary">{currency(item.price)}</p>
                 </div>
                 <p className="mt-2 line-clamp-2 text-xs font-semibold text-muted-foreground">{item.description}</p>
-                <button className="mt-3 inline-flex items-center gap-2 text-xs font-black text-primary" onClick={() => setProductForm(item)}>
-                  Editar
-                </button>
+                <div className="mt-3 flex flex-wrap items-center gap-3">
+                  <button className="inline-flex items-center gap-2 text-xs font-black text-primary" onClick={() => startEditingProduct(item)}>
+                    Editar
+                  </button>
+                  {item.imageUrl ? (
+                    <button className="inline-flex items-center gap-1 text-xs font-black text-muted-foreground" onClick={() => void clearExistingProductImage(item)} disabled={photoSavingId === item.id}>
+                      <Trash2 size={13} /> Remover foto
+                    </button>
+                  ) : null}
+                </div>
               </div>
             </div>
           ))}
@@ -956,6 +1096,12 @@ export function AdminApp() {
     }
   };
 
+  const finishLogin = async () => {
+    const { data } = await menuAdminSupabase.auth.getSession();
+    setSession(data.session);
+    if (data.session) await reload();
+  };
+
   useEffect(() => {
     menuAdminSupabase.auth.getSession().then(({ data }) => {
       setSession(data.session);
@@ -980,7 +1126,7 @@ export function AdminApp() {
     );
   }
 
-  if (!session) return <LoginPanel onLogin={reload} />;
+  if (!session) return <LoginPanel onLogin={finishLogin} />;
 
   return (
     <main className="app-shell min-h-dvh">
@@ -1015,7 +1161,10 @@ export function AdminApp() {
 
         {loadingState ? (
           <div className="grid min-h-72 place-items-center rounded-lg border bg-card">
-            <Loader2 className="animate-spin text-primary" size={34} />
+            <div className="text-center">
+              <Loader2 className="mx-auto animate-spin text-primary" size={34} />
+              <p className="mt-3 text-sm font-black text-muted-foreground">Carregando administracao do cardapio</p>
+            </div>
           </div>
         ) : error ? (
           <div className="rounded-lg border bg-card p-6">

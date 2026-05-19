@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { AppShell, type FoodView } from "@/components/AppShell";
 import { AdminPanel } from "@/components/AdminPanel";
+import { AppSplash } from "@/components/AppSplash";
 import { CheckoutPanel } from "@/components/CheckoutPanel";
 import { DeliveryPanel } from "@/components/DeliveryPanel";
 import { KitchenDisplay } from "@/components/KitchenDisplay";
@@ -30,6 +31,7 @@ import {
   updateFoodDeliveryStatus,
   updateFoodOrderItemStatuses,
 } from "@/lib/foodRemote";
+import { hasSeenFoodSplash, markFoodSplashSeen } from "@/lib/appSplash";
 import type {
   CustomerPaymentRequest,
   DeliveryOrder,
@@ -128,6 +130,8 @@ const firstViewForRole = (user: FoodUser): FoodView => {
 const foodOwnerStorageKey = "happycash:food:owner-user-id";
 
 export default function App() {
+  const [splashProgress, setSplashProgress] = useState(() => (hasSeenFoodSplash() ? 100 : 0));
+  const [showSplash, setShowSplash] = useState(() => !hasSeenFoodSplash());
   const [currentUser, setCurrentUser] = useState<FoodUser | null>(null);
   const [appUsers, setAppUsers] = useState<FoodUser[]>(demoUsers);
   const [loginPins, setLoginPins] = useState<Record<string, string>>(defaultUserPins);
@@ -158,6 +162,24 @@ export default function App() {
   const pendingRemovalTable = pendingRemovalOrder
     ? tables.find((table) => table.id === pendingRemovalOrder.tableId)
     : undefined;
+
+  useEffect(() => {
+    if (hasSeenFoodSplash()) return undefined;
+
+    const stepValues = [24, 52, 78, 100];
+    const timerIds = stepValues.map((stepValue, index) =>
+      window.setTimeout(() => setSplashProgress(stepValue), (index + 1) * 320),
+    );
+    const doneTimer = window.setTimeout(() => {
+      markFoodSplashSeen();
+      setShowSplash(false);
+    }, 1520);
+
+    return () => {
+      timerIds.forEach((timerId) => window.clearTimeout(timerId));
+      window.clearTimeout(doneTimer);
+    };
+  }, []);
 
   useEffect(() => {
     if (!pendingRemoval) return undefined;
@@ -194,6 +216,17 @@ export default function App() {
       window.clearInterval(interval);
     };
   }, [currentUser?.ownerUserId]);
+
+  if (showSplash && !currentUser) {
+    return (
+      <AppSplash
+        progress={splashProgress}
+        title="HappyCashFood"
+        subtitle="Atendimento | cozinha | delivery | caixa"
+      />
+    );
+  }
+
   const readyItems = tickets
     .filter((ticket) => ticket.status === "ready")
     .reduce((sum, ticket) => sum + ticket.items.reduce((subtotal, item) => subtotal + item.quantity, 0), 0);

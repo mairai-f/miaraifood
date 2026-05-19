@@ -373,7 +373,9 @@ export function PublicMenu({ slug, tableSlug }: PublicMenuProps) {
   const saveLoyaltyProfile = () => {
     setLoyaltyError(null);
     if (!menu || !customer.name.trim() || !customer.phone.trim()) {
-      setLoyaltyError("Informe nome e telefone para entrar na fidelidade.");
+      setCustomerMode("profile");
+      setCustomerAccountEmail((current) => current || customer.email);
+      setLoyaltyError("Preencha nome e telefone para usar a fidelidade sem senha.");
       return;
     }
 
@@ -425,8 +427,13 @@ export function PublicMenu({ slug, tableSlug }: PublicMenuProps) {
     setLoyaltyError(null);
     setCustomerAuthMessage(null);
 
-    if (!customer.email.trim() || !customerPassword.trim()) {
-      setLoyaltyError("Informe email e senha.");
+    if (!customer.email.trim()) {
+      setLoyaltyError("Informe o email para entrar.");
+      return;
+    }
+
+    if (!customerPassword.trim()) {
+      setLoyaltyError("Digite a senha ou use o botao sem senha para salvar seus dados.");
       return;
     }
 
@@ -650,8 +657,14 @@ export function PublicMenu({ slug, tableSlug }: PublicMenuProps) {
           </div>
         ) : (
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {visibleItems.map((item) => (
-              <button key={item.id} data-reveal className="reveal-on-scroll group overflow-hidden rounded-lg border bg-card text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-panel" onClick={() => setSelectedProduct(item)}>
+            {visibleItems.map((item, index) => (
+              <button
+                key={item.id}
+                data-reveal
+                style={{ transitionDelay: `${Math.min(index * 45, 260)}ms` }}
+                className="reveal-on-scroll group overflow-hidden rounded-lg border bg-card text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-panel"
+                onClick={() => setSelectedProduct(item)}
+              >
                 <div className="relative overflow-hidden">
                   <FoodImage src={item.imageUrl} alt={item.imageAlt} className="aspect-[16/10] w-full transition duration-500 group-hover:scale-[1.04]" />
                   {item.promotion ? (
