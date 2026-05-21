@@ -371,7 +371,7 @@ export const loadAdminBootstrap = async () => {
     .maybeSingle<AuthProfileRow>();
 
   if (authProfileError || authProfile?.role !== "admin") {
-    throw new Error("Este login nao possui perfil administrador do HappyCashFood.");
+    throw new Error("Este email nao tem acesso a gestao do cardapio.");
   }
 
   const ownerUserId = authProfile.owner_user_id ?? authData.user.id;

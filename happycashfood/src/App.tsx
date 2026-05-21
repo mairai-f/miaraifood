@@ -31,7 +31,9 @@ import {
   tableOrder,
 } from "@/lib/foodMetrics";
 import {
+  deleteFoodMenuProduct,
   loadFoodRemoteSnapshot,
+  persistFoodMenuProduct,
   persistFoodStockMovement,
   persistFoodTechnicalSheet,
   updateFoodDeliveryStatus,
@@ -806,16 +808,42 @@ export default function App() {
   };
 
   const addProduct = (product: Omit<MenuProduct, "id">) => {
-    setProducts((currentProducts) => [
-      { ...product, id: `prod-${Date.now()}` },
-      ...currentProducts,
-    ]);
+    const draftProduct: MenuProduct = { ...product, id: `prod-${Date.now()}` };
+    setProducts((currentProducts) => [draftProduct, ...currentProducts]);
+    void persistFoodMenuProduct(currentUser?.ownerUserId || currentUser?.id, draftProduct).then((savedProduct) => {
+      setProducts((currentProducts) =>
+        currentProducts.map((currentProduct) => currentProduct.id === draftProduct.id ? savedProduct : currentProduct),
+      );
+    });
   };
 
   const updateProduct = (product: MenuProduct) => {
     setProducts((currentProducts) =>
       currentProducts.map((currentProduct) => currentProduct.id === product.id ? product : currentProduct),
     );
+    void persistFoodMenuProduct(currentUser?.ownerUserId || currentUser?.id, product).then((savedProduct) => {
+      if (savedProduct.id === product.id) return;
+      setProducts((currentProducts) =>
+        currentProducts.map((currentProduct) => currentProduct.id === product.id ? savedProduct : currentProduct),
+      );
+    });
+  };
+
+  const renameCategory = (currentCategory: string, nextCategory: string) => {
+    const normalizedNextCategory = nextCategory.trim();
+    if (!currentCategory.trim() || !normalizedNextCategory || currentCategory === normalizedNextCategory) return;
+
+    setProducts((currentProducts) => {
+      const nextProducts = currentProducts.map((product) =>
+        product.category === currentCategory ? { ...product, category: normalizedNextCategory } : product,
+      );
+      nextProducts
+        .filter((product) => product.category === normalizedNextCategory)
+        .forEach((product) => {
+          void persistFoodMenuProduct(currentUser?.ownerUserId || currentUser?.id, product);
+        });
+      return nextProducts;
+    });
   };
 
   const deleteTable = (tableId: string) => {
@@ -829,6 +857,7 @@ export default function App() {
 
   const deleteProduct = (productId: string) => {
     setProducts((currentProducts) => currentProducts.filter((product) => product.id !== productId));
+    void deleteFoodMenuProduct(productId);
   };
 
   if (!currentUser) {
@@ -885,6 +914,7 @@ export default function App() {
           onAddProduct={addProduct}
           onUpdateProduct={updateProduct}
           onDeleteProduct={deleteProduct}
+          onRenameCategory={renameCategory}
           onRegisterStockMovement={registerStockMovement}
           onUpdateTechnicalSheet={updateTechnicalSheet}
         />

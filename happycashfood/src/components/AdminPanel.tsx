@@ -45,6 +45,7 @@ interface AdminPanelProps {
   onAddProduct: (product: Omit<MenuProduct, "id">) => void;
   onUpdateProduct: (product: MenuProduct) => void;
   onDeleteProduct: (productId: string) => void;
+  onRenameCategory: (currentCategory: string, nextCategory: string) => void;
   onRegisterStockMovement: (movement: {
     inventoryItemId: string;
     type: StockMovementType;
@@ -56,7 +57,7 @@ interface AdminPanelProps {
   onUpdateTechnicalSheet: (sheet: ProductTechnicalSheet) => void;
 }
 
-type AdminSection = "resumo" | "modulos" | "relatorios" | "estoque" | "ficha-tecnica" | "mesas" | "comissoes" | "cadastro-produto" | "editar-produto" | "excluir-produto";
+type AdminSection = "resumo" | "relatorios" | "estoque" | "ficha-tecnica" | "mesas" | "comissoes" | "categorias" | "cadastro-produto" | "editar-produto" | "excluir-produto";
 type ReportPeriod = "weekly" | "monthly" | "yearly";
 
 const emptyProductForm = {
@@ -135,6 +136,7 @@ export function AdminPanel({
   onAddProduct,
   onUpdateProduct,
   onDeleteProduct,
+  onRenameCategory,
   onRegisterStockMovement,
   onUpdateTechnicalSheet,
 }: AdminPanelProps) {
@@ -152,6 +154,8 @@ export function AdminPanel({
   const [productSearch, setProductSearch] = useState("");
   const [selectedProductId, setSelectedProductId] = useState(products[0]?.id ?? "");
   const [productToDeleteId, setProductToDeleteId] = useState(products[0]?.id ?? "");
+  const [selectedCategoryName, setSelectedCategoryName] = useState(products[0]?.category ?? "");
+  const [nextCategoryName, setNextCategoryName] = useState(products[0]?.category ?? "");
   const [stockForm, setStockForm] = useState({
     inventoryItemId: inventoryItems[0]?.id ?? "",
     type: "entrada" as StockMovementType,
@@ -354,6 +358,46 @@ export function AdminPanel({
     return Array.from(ranking.values()).sort((left, right) => right.total - left.total || right.count - left.count);
   }, [receiptsInPeriod]);
   const highlightedWaiter = reportWaiters[0];
+  const categorySummaries = useMemo(() => {
+    const summaries = new Map<string, { name: string; products: number; activeProducts: number; averagePrice: number; soldQuantity: number; revenue: number }>();
+    const soldByCategory = new Map<string, { quantity: number; revenue: number }>();
+    const productCategoryById = new Map(products.map((product) => [product.id, product.category || "Cardapio"]));
+
+    orders.forEach((order) => {
+      order.items
+        .filter((item) => item.status !== "cancelled")
+        .forEach((item) => {
+          const category = productCategoryById.get(item.productId) || "Cardapio";
+          const current = soldByCategory.get(category) ?? { quantity: 0, revenue: 0 };
+          current.quantity += item.quantity;
+          current.revenue += item.quantity * item.unitPrice;
+          soldByCategory.set(category, current);
+        });
+    });
+
+    products.forEach((product) => {
+      const name = product.category || "Cardapio";
+      const current = summaries.get(name) ?? {
+        name,
+        products: 0,
+        activeProducts: 0,
+        averagePrice: 0,
+        soldQuantity: soldByCategory.get(name)?.quantity ?? 0,
+        revenue: soldByCategory.get(name)?.revenue ?? 0,
+      };
+      current.products += 1;
+      current.activeProducts += product.active ? 1 : 0;
+      current.averagePrice += product.price;
+      summaries.set(name, current);
+    });
+
+    return Array.from(summaries.values())
+      .map((summary) => ({
+        ...summary,
+        averagePrice: summary.products > 0 ? summary.averagePrice / summary.products : 0,
+      }))
+      .sort((left, right) => left.name.localeCompare(right.name));
+  }, [orders, products]);
 
   useEffect(() => {
     if (filteredProducts.some((product) => product.id === selectedProductId)) return;
@@ -376,6 +420,13 @@ export function AdminPanel({
   }, [products, technicalProductId]);
 
   useEffect(() => {
+    if (categorySummaries.some((category) => category.name === selectedCategoryName)) return;
+    const fallbackCategory = categorySummaries[0]?.name ?? "";
+    setSelectedCategoryName(fallbackCategory);
+    setNextCategoryName(fallbackCategory);
+  }, [categorySummaries, selectedCategoryName]);
+
+  useEffect(() => {
     if (!selectedTechnicalProduct) {
       setRecipeDraft("");
       setSheetMetaForm({ yieldQuantity: "1", packagingCost: "0", wastePercent: "0", notes: "" });
@@ -393,7 +444,7 @@ export function AdminPanel({
       wastePercent: String(sheet?.wastePercent || 0),
       notes: sheet?.notes || "",
     });
-  }, [selectedTechnicalProduct?.id, technicalSheets]);
+  }, [selectedTechnicalProduct, technicalSheets]);
 
   const productEditor = useMemo(() => {
     if (!selectedProduct) return null;
@@ -407,12 +458,12 @@ export function AdminPanel({
 
   const sections: Array<{ id: AdminSection; label: string }> = [
     { id: "resumo", label: "Resumo" },
-    { id: "modulos", label: "Modulos" },
     { id: "relatorios", label: "Relatorios" },
     { id: "estoque", label: "Estoque" },
     { id: "ficha-tecnica", label: "Ficha tecnica" },
     { id: "mesas", label: "Mesas" },
     { id: "comissoes", label: "Comissoes" },
+    { id: "categorias", label: "Categorias" },
     { id: "cadastro-produto", label: "Cadastrar produto" },
     { id: "editar-produto", label: "Editar produto" },
     { id: "excluir-produto", label: "Excluir produto" },
@@ -468,6 +519,12 @@ export function AdminPanel({
       options: [],
     });
     setProductForm(emptyProductForm);
+  };
+
+  const submitCategoryRename = (event: FormEvent) => {
+    event.preventDefault();
+    if (!selectedCategoryName || !nextCategoryName.trim()) return;
+    onRenameCategory(selectedCategoryName, nextCategoryName.trim());
   };
 
   const updateSelectedProductText = (field: "ingredients" | "sizes" | "tags", value: string) => {
@@ -687,56 +744,6 @@ export function AdminPanel({
                     : "O ranking passa a aparecer automaticamente conforme os pedidos entram."}
                 </p>
               )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {activeSection === "modulos" && (
-        <div className="grid gap-5 xl:grid-cols-2">
-          <div className="rounded-lg border bg-card p-5 shadow-sm">
-            <div className="mb-4 flex items-center gap-2">
-              <ClipboardList className="h-5 w-5 text-primary" />
-              <h4 className="text-xl font-black">HappyCashFood: sistema interno</h4>
-            </div>
-            <div className="grid gap-3 sm:grid-cols-2">
-              {[
-                "Gestao de produtos, categorias e fichas tecnicas",
-                "Estoque com entrada, perda, inventario e baixa por venda",
-                "PDV rapido, caixa, descontos, troco e multiplos pagamentos",
-                "Mesas, comandas, transferencia, fechamento e divisao de conta",
-                "KDS para cozinha, bar, pizzaria e balcao",
-                "Delivery com taxa, bairro, motoboy, tempo e WhatsApp",
-                "Relatorios, ticket medio, ranking e comissao de garcom",
-                "Operacao offline com impressao ESC/POS no desktop",
-              ].map((item) => (
-                <p key={item} className="rounded-lg border bg-background p-3 text-sm font-bold text-muted-foreground">
-                  {item}
-                </p>
-              ))}
-            </div>
-          </div>
-
-          <div className="rounded-lg border bg-card p-5 shadow-sm">
-            <div className="mb-4 flex items-center gap-2">
-              <PackageCheck className="h-5 w-5 text-primary" />
-              <h4 className="text-xl font-black">HappyCashMenu: cardapio publico</h4>
-            </div>
-            <div className="grid gap-3 sm:grid-cols-2">
-              {[
-                "Cardapio bonito com logo, capa, promocoes e categorias",
-                "Produto com foto, preco, tempo, adicionais e observacao",
-                "Carrinho, editar item, remover item e confirmacao sensivel",
-                "QR Code por mesa e link de delivery organizado",
-                "Cliente pede por mesa, retirada ou delivery",
-                "QR abre o cardapio; dentro dele o cliente chama garcom ou fecha conta",
-                "Login de fidelidade com email, senha e endereco",
-                "Pedido cai no HappyCashFood separado por setor",
-              ].map((item) => (
-                <p key={item} className="rounded-lg border bg-background p-3 text-sm font-bold text-muted-foreground">
-                  {item}
-                </p>
-              ))}
             </div>
           </div>
         </div>
@@ -1273,6 +1280,78 @@ export function AdminPanel({
                   </div>
                 </article>
               ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {activeSection === "categorias" && (
+        <div className="grid gap-5 xl:grid-cols-[360px_1fr]">
+          <form onSubmit={submitCategoryRename} className="rounded-lg border bg-card p-5 shadow-sm">
+            <h4 className="text-xl font-black">Editar categoria</h4>
+            <div className="mt-4 grid gap-3">
+              <Field label="Categoria atual">
+                <select
+                  value={selectedCategoryName}
+                  onChange={(event) => {
+                    setSelectedCategoryName(event.target.value);
+                    setNextCategoryName(event.target.value);
+                  }}
+                  className={foodInputClassName}
+                >
+                  {categorySummaries.map((category) => (
+                    <option key={category.name} value={category.name}>
+                      {category.name}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+              <Field label="Novo nome">
+                <input
+                  value={nextCategoryName}
+                  onChange={(event) => setNextCategoryName(event.target.value)}
+                  className={foodInputClassName}
+                  placeholder="Ex: Pizzas especiais"
+                />
+              </Field>
+            </div>
+            <button
+              type="submit"
+              disabled={!selectedCategoryName || !nextCategoryName.trim()}
+              className="mt-4 inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-black text-primary-foreground disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <PackageCheck className="h-4 w-4" />
+              Salvar categoria
+            </button>
+          </form>
+
+          <div className="rounded-lg border bg-card p-5 shadow-sm">
+            <h4 className="text-xl font-black">Categorias em uso</h4>
+            <div className="mt-4 grid gap-3 md:grid-cols-2">
+              {categorySummaries.map((category) => (
+                <article key={category.name} className="rounded-lg border bg-background p-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="font-black">{category.name}</p>
+                      <p className="text-xs font-bold text-muted-foreground">
+                        {category.activeProducts} ativo(s) de {category.products} produto(s)
+                      </p>
+                    </div>
+                    <span className="rounded-full bg-muted px-3 py-1 text-xs font-black text-muted-foreground">
+                      {currency.format(category.averagePrice)}
+                    </span>
+                  </div>
+                  <div className="mt-3 grid grid-cols-2 gap-2 text-xs font-bold text-muted-foreground">
+                    <span>Saidas: {category.soldQuantity}</span>
+                    <span>Vendas: {currency.format(category.revenue)}</span>
+                  </div>
+                </article>
+              ))}
+              {categorySummaries.length === 0 ? (
+                <p className="rounded-lg border bg-background p-4 text-sm text-muted-foreground">
+                  Cadastre produtos para organizar as categorias do cardapio.
+                </p>
+              ) : null}
             </div>
           </div>
         </div>

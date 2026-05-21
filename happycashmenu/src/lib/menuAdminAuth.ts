@@ -70,7 +70,7 @@ export const signInMenuAdmin = async (email: string, password: string) => {
 
   if (profile?.role !== "admin") {
     await menuAdminSupabase.auth.signOut();
-    throw new Error("Este login nao possui perfil administrador do HappyCashFood.");
+    throw new Error("Este email nao tem acesso a gestao do cardapio.");
   }
 
   const ownerUserId = profile.owner_user_id ?? authData.user.id;

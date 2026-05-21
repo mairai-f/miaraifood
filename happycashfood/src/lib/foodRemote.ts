@@ -153,6 +153,9 @@ const toNumber = (value: unknown) => {
   return Number.isFinite(parsed) ? parsed : 0;
 };
 
+const isUuid = (value: string) =>
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+
 const selectedOptionNames = (value: unknown) => {
   if (!Array.isArray(value)) return [];
   return value
@@ -569,5 +572,84 @@ export const persistFoodTechnicalSheet = async (
     }
   } catch {
     // Mantem a operação local quando a sincronização falhar.
+  }
+};
+
+export const persistFoodMenuProduct = async (
+  ownerUserId: string | undefined,
+  product: MenuProduct,
+) => {
+  if (!foodSupabase || !ownerUserId) return product;
+
+  try {
+    const categoryName = product.category.trim() || "Cardapio";
+    const { data: existingCategory } = await foodSupabase
+      .from("restaurant_menu_categories")
+      .select("id, name")
+      .eq("owner_user_id", ownerUserId)
+      .eq("name", categoryName)
+      .maybeSingle<Pick<CategoryRow, "id" | "name">>();
+
+    const categoryId = existingCategory?.id || (await (async () => {
+      const { data: savedCategory, error: categoryError } = await foodSupabase
+        .from("restaurant_menu_categories")
+        .insert({
+          owner_user_id: ownerUserId,
+          name: categoryName,
+          description: "",
+          sort_order: 0,
+          active: true,
+          qr_visible: true,
+        })
+        .select("id")
+        .single<{ id: string }>();
+
+      if (categoryError || !savedCategory) return null;
+      return savedCategory.id;
+    })());
+
+    const payload = {
+      owner_user_id: ownerUserId,
+      category_id: categoryId,
+      display_name: product.name.trim(),
+      description: product.description.trim(),
+      price: product.price,
+      station: product.station,
+      prep_minutes: product.prepMinutes,
+      tags: product.tags,
+      active: product.active,
+      qr_visible: product.qrVisible,
+    };
+
+    const { data: savedProduct, error: productError } = isUuid(product.id)
+      ? await foodSupabase
+          .from("restaurant_menu_items")
+          .update(payload)
+          .eq("id", product.id)
+          .select("id")
+          .single<{ id: string }>()
+      : await foodSupabase
+          .from("restaurant_menu_items")
+          .insert(payload)
+          .select("id")
+          .single<{ id: string }>();
+
+    if (productError || !savedProduct) return product;
+    return { ...product, id: savedProduct.id, category: categoryName };
+  } catch {
+    return product;
+  }
+};
+
+export const deleteFoodMenuProduct = async (productId: string) => {
+  if (!foodSupabase || !isUuid(productId)) return;
+
+  try {
+    await foodSupabase
+      .from("restaurant_menu_items")
+      .delete()
+      .eq("id", productId);
+  } catch {
+    // Mantem a remoção local se a sincronização falhar.
   }
 };

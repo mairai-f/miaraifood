@@ -50,7 +50,7 @@ Arquivos principais:
 - `desktop-download` ja reconhece `food_offline` e busca os arquivos do contexto `happycashfood`
 - `mobile-download` agora tambem reconhece `food_offline`
 - o APK Android do food pode vir de URL direta, storage privado ou GitHub Release
-- foi criada migration para remover `restaurant.qr_menu` e restaurar o e-mail de teste do Celio ao `HappyCash` principal
+- a migration antiga removeu `restaurant.qr_menu`; a migration `20260520210500_restore_happycash_menu_public_access.sql` restaura essa feature para `food` e `food_offline`
 
 Arquivos principais:
 
@@ -211,6 +211,16 @@ Arquivos principais:
 - `supabase/functions/public-menu/index.ts`
 - `supabase/functions/create-public-menu-order/index.ts`
 - `supabase/migrations/20260518122000_create_happycash_menu_public_ordering.sql`
+- `supabase/migrations/20260520210500_restore_happycash_menu_public_access.sql`
+
+Como operar:
+
+- `menu.happycashsite.com.br` ou `menu.happycashsite.com.br/admin` abre a administracao do cardapio para o administrador HappyCashFood
+- `menu.happycashsite.com.br/<slug-da-empresa>` abre o cardapio publico do delivery/retirada
+- `menu.happycashsite.com.br/<slug-da-empresa>/mesa/<slug-da-mesa>` abre o QR da mesa
+- o botao `Fidelidade` dentro do cardapio publico e login do cliente, nao do administrador
+- a administracao tem abas `Vitrine`, `Imagens`, `Produtos`, `Promocoes` e `Mesas e QR`; uploads usam o bucket `restaurant-menu-images`
+- o plano `food` ou `food_offline` precisa da feature `restaurant.qr_menu` ativa para criar vitrine, produtos, promocoes, mesas e imagens
 
 O nome exibido deve vir de `store_accounts.nome_estabelecimento` quando o cliente assinar/criar a empresa. Enquanto nao houver empresa real carregada, o app usa `Cantina Bella Mesa` apenas como fallback visual local.
 

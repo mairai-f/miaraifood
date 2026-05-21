@@ -18,7 +18,7 @@ const parseRoute = (): RouteState => {
 
   if (!first || first === "admin" || first === "login") {
     return {
-      mode: first ? "admin" : "public",
+      mode: "admin",
       slug: fallbackMenu.store.slug,
       tableSlug: null,
     };

@@ -413,34 +413,14 @@ export function PublicMenu({ slug, tableSlug }: PublicMenuProps) {
   const estimatedWaitLabel = serviceType === "delivery"
     ? `${menu?.store.estimatedDeliveryMinutes || 0} min para entrega`
     : `${menu?.store.estimatedDeliveryMinutes || 0} min de espera`;
-  const isLoyaltyCustomer = customer.loyaltyOptIn && customer.name.trim() && customer.phone.trim();
-
-  const saveLoyaltyProfile = () => {
-    setLoyaltyError(null);
-    if (!menu || !customer.name.trim() || !customer.phone.trim()) {
-      setCustomerMode("profile");
-      setCustomerAccountEmail((current) => current || customer.email);
-      setLoyaltyError("Preencha nome e telefone para usar a fidelidade sem senha.");
-      return;
-    }
-
-    const profile: CustomerInfo = {
-      ...customer,
-      city: customer.city || menu.store.city,
-      state: customer.state || menu.store.state,
-      loyaltyOptIn: true,
-    };
-    window.localStorage.setItem(customerStorageKey(menu.store.id), JSON.stringify(profile));
-    setCustomer(profile);
-    setLoyaltyOpen(false);
-    setError(null);
-    setLoyaltyError(null);
-  };
+  const isCustomerSignedIn = Boolean(customerAccountEmail.trim() && customer.loyaltyOptIn);
+  const customerDisplayName = customer.name.trim() || customerAccountEmail;
 
   const saveCustomerProfile = async () => {
     setLoyaltyError(null);
     if (!menu || !customerAccountEmail.trim()) {
-      saveLoyaltyProfile();
+      setCustomerMode("signin");
+      setLoyaltyError("Entre com email e senha antes de alterar seus dados.");
       return;
     }
 
@@ -478,7 +458,7 @@ export function PublicMenu({ slug, tableSlug }: PublicMenuProps) {
     }
 
     if (!customerPassword.trim()) {
-      setLoyaltyError("Digite a senha ou use o botao sem senha para salvar seus dados.");
+      setLoyaltyError("Digite a senha para entrar.");
       return;
     }
 
@@ -598,6 +578,12 @@ export function PublicMenu({ slug, tableSlug }: PublicMenuProps) {
   const submitOrder = async () => {
     if (!menu) return;
     setError(null);
+    if (!isCustomerSignedIn) {
+      setError("Entre com email e senha para enviar o pedido.");
+      setCustomerMode("signin");
+      setLoyaltyOpen(true);
+      return;
+    }
     if (serviceType === "delivery" && (!customer.name.trim() || !customer.phone.trim() || !customer.address.trim() || !customer.number.trim())) {
       setError("Preencha nome, telefone e endereco para entrega.");
       return;
@@ -674,7 +660,7 @@ export function PublicMenu({ slug, tableSlug }: PublicMenuProps) {
             <div className="flex flex-wrap items-center justify-end gap-2">
               <button className="rounded-full bg-white/12 px-3 py-2 text-xs font-black text-white backdrop-blur" onClick={() => setLoyaltyOpen(true)}>
                 <ShieldCheck className="mr-1 inline" size={14} />
-                {isLoyaltyCustomer ? customer.name : "Entrar"}
+                {isCustomerSignedIn ? customerDisplayName : "Entrar"}
               </button>
             <span className={`rounded-full px-3 py-2 text-xs font-black ${menu.store.isOpen ? "bg-success text-success-foreground" : "bg-slate-200 text-slate-900"}`}>
                 {menu.store.isOpen ? "Aberto" : "Fechado"}
@@ -855,12 +841,12 @@ export function PublicMenu({ slug, tableSlug }: PublicMenuProps) {
             <div className="rounded-lg border bg-background p-3">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                  <p className="text-sm font-black">{isLoyaltyCustomer ? `Fidelidade: ${customer.name}` : "Pedido sem login"}</p>
+                  <p className="text-sm font-black">{isCustomerSignedIn ? `Cliente: ${customerDisplayName}` : "Entre para enviar o pedido"}</p>
                   <p className="text-xs font-bold text-muted-foreground">{estimatedWaitLabel}</p>
                 </div>
                 <button className="hc-button-soft" onClick={() => setLoyaltyOpen(true)}>
                   <ShieldCheck size={17} />
-                  {isLoyaltyCustomer ? "Editar dados" : "Entrar"}
+                  {isCustomerSignedIn ? "Editar dados" : "Entrar"}
                 </button>
               </div>
             </div>
@@ -1037,18 +1023,18 @@ export function PublicMenu({ slug, tableSlug }: PublicMenuProps) {
       </Modal>
 
       <Modal
-        title="Conta e fidelidade"
-        subtitle={`${menu.store.receiptName} + HappyCashFood`}
+        title="Entrar no cardapio"
+        subtitle="Cliente usa email e senha para salvar dados e pedidos."
         open={loyaltyOpen}
         onClose={() => setLoyaltyOpen(false)}
         size="sm"
       >
         <div className="space-y-4">
-          <div className="grid grid-cols-3 rounded-lg bg-muted p-1">
+          <div className={`grid rounded-lg bg-muted p-1 ${isCustomerSignedIn ? "grid-cols-3" : "grid-cols-2"}`}>
             {([
               ["signin", "Entrar"],
               ["signup", "Criar"],
-              ["profile", "Dados"],
+              ...(isCustomerSignedIn ? [["profile", "Dados"] as const] : []),
             ] as const).map(([mode, label]) => (
               <button
                 key={mode}
@@ -1142,13 +1128,9 @@ export function PublicMenu({ slug, tableSlug }: PublicMenuProps) {
                 <ShieldCheck size={18} /> {customerAuthLoading ? "Salvando..." : "Salvar dados"}
               </button>
             ) : null}
-            {isLoyaltyCustomer ? (
+            {isCustomerSignedIn ? (
               <button className="hc-button-soft" onClick={() => void logoutLoyaltyProfile()}>
                 <Minus size={18} /> Sair
-              </button>
-            ) : customerMode !== "profile" ? (
-              <button className="hc-button-soft" onClick={saveLoyaltyProfile}>
-                <ShieldCheck size={18} /> Usar sem senha
               </button>
             ) : null}
           </div>

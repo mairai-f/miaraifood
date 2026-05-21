@@ -243,14 +243,8 @@ function LoginPanel({ onLogin }: { onLogin: () => void | Promise<void> }) {
 
           <form onSubmit={submit} className="rounded-lg border border-yellow-400/15 bg-black/45 p-4 shadow-panel backdrop-blur-md sm:p-5">
             <div className="space-y-1 text-center">
-              <h1 className="text-base font-bold tracking-wide text-yellow-300 sm:text-lg">Entrar</h1>
-              <p className="text-[11px] text-muted-foreground">Mesmo email e senha do administrador HappyCashFood.</p>
-            </div>
-
-            <div className="mt-4 rounded-lg bg-zinc-900/70 p-1">
-              <div className="rounded-md bg-primary px-3 py-2 text-center text-sm font-bold text-primary-foreground">
-                Administrador
-              </div>
+              <h1 className="text-base font-bold tracking-wide text-yellow-300 sm:text-lg">Entrar no cardapio</h1>
+              <p className="text-[11px] text-muted-foreground">Use seu email e senha HappyCashFood.</p>
             </div>
 
             <div className="mt-4 space-y-4">
@@ -310,7 +304,7 @@ function LoginPanel({ onLogin }: { onLogin: () => void | Promise<void> }) {
               disabled={loading}
             >
               {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogIn className="h-4 w-4" />}
-              Entrar como administrador
+              Entrar
             </button>
           </form>
         </div>
@@ -1221,7 +1215,7 @@ export function AdminApp() {
     <main className="app-shell min-h-dvh">
       <header className="border-b bg-card/95 backdrop-blur">
         <div className="container flex flex-col gap-4 py-4 md:flex-row md:items-center md:justify-between">
-          <BrandMark name={state?.profile.displayName || "HappyCash Menu"} logoUrl={state?.profile.logoUrl} />
+          <BrandMark name={state?.profile.displayName || "HappyCashMenu Admin"} logoUrl={state?.profile.logoUrl} />
           <div className="flex flex-wrap items-center gap-2">
             <a className="hc-button-soft" href={state ? deliveryMenuUrl(state.profile.slug) : "#"} target="_blank" rel="noreferrer">
               <ExternalLink size={18} /> Publico
@@ -1234,19 +1228,21 @@ export function AdminApp() {
       </header>
 
       <section className="container py-5">
-        <div className="mb-5 flex gap-2 overflow-x-auto pb-1 scrollbar-thin">
-          {([
-            ["vitrine", "Vitrine"],
-            ["imagens", "Imagens"],
-            ["produtos", "Produtos"],
-            ["promocoes", "Promocoes"],
-            ["mesas", "Mesas e QR"],
-          ] as Array<[AdminTab, string]>).map(([id, label]) => (
-            <button key={id} className={tab === id ? "hc-button-primary whitespace-nowrap" : "hc-button-soft whitespace-nowrap"} onClick={() => setTab(id)}>
-              {label}
-            </button>
-          ))}
-        </div>
+        {state && !loadingState && !error ? (
+          <div className="mb-5 flex gap-2 overflow-x-auto pb-1 scrollbar-thin">
+            {([
+              ["vitrine", "Vitrine"],
+              ["imagens", "Imagens"],
+              ["produtos", "Produtos"],
+              ["promocoes", "Promocoes"],
+              ["mesas", "Mesas e QR"],
+            ] as Array<[AdminTab, string]>).map(([id, label]) => (
+              <button key={id} className={tab === id ? "hc-button-primary whitespace-nowrap" : "hc-button-soft whitespace-nowrap"} onClick={() => setTab(id)}>
+                {label}
+              </button>
+            ))}
+          </div>
+        ) : null}
 
         {loadingState ? (
           <div className="grid min-h-72 place-items-center rounded-lg border bg-card">

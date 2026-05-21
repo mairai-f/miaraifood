@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Banknote, CheckCircle2, CreditCard, Percent, Plus, QrCode, ReceiptText, Scissors, Trash2, X } from "lucide-react";
+import { Banknote, CheckCircle2, CreditCard, Percent, Plus, Printer, QrCode, ReceiptText, Scissors, Trash2, X } from "lucide-react";
 import type { FoodOrder, FoodTable, PaymentMethod, PaymentSplit } from "@/types";
 import {
   currency,
@@ -42,6 +42,155 @@ const splitMethods: Array<{ id: PaymentMethod; label: string }> = [
   { id: "voucher", label: "Voucher" },
 ];
 
+const paymentMethodLabels = Object.fromEntries(paymentMethods.map((method) => [method.id, method.label])) as Record<
+  PaymentMethod,
+  string
+>;
+
+const stationLabels: Record<FoodOrder["items"][number]["station"], string> = {
+  kitchen: "Cozinha",
+  bar: "Bar",
+  counter: "Balcao",
+};
+
+const escapeHtml = (value: string | number | null | undefined) =>
+  String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+
+const receiptDate = (iso?: string) =>
+  new Intl.DateTimeFormat("pt-BR", {
+    dateStyle: "short",
+    timeStyle: "short",
+  }).format(new Date(iso ?? Date.now()));
+
+const buildCheckoutReceiptHtml = ({
+  order,
+  table,
+  subtotal,
+  serviceFee,
+  discount,
+  total,
+  splitCount,
+  splitValue,
+  method,
+  paidBy,
+  cashReceived,
+  change,
+  paymentSplits,
+}: {
+  order: FoodOrder;
+  table: FoodTable | null;
+  subtotal: number;
+  serviceFee: number;
+  discount: number;
+  total: number;
+  splitCount: number;
+  splitValue: number;
+  method: PaymentMethod;
+  paidBy: string;
+  cashReceived: number;
+  change: number;
+  paymentSplits?: PaymentSplit[];
+}) => {
+  const activeItems = order.items.filter((item) => item.status !== "cancelled");
+  const sectors = Array.from(new Set(activeItems.map((item) => stationLabels[item.station]))).join(", ") || "Balcao";
+  const paymentLines =
+    method === "mixed" && paymentSplits?.length
+      ? paymentSplits
+          .map(
+            (part) => `
+              <div class="row">
+                <span>${escapeHtml(paymentMethodLabels[part.method] ?? part.label)}</span>
+                <strong>${currency.format(part.amount)}</strong>
+              </div>
+            `,
+          )
+          .join("")
+      : `
+        <div class="row">
+          <span>${escapeHtml(paymentMethodLabels[method] ?? method)}</span>
+          <strong>${currency.format(method === "cash" ? cashReceived : total)}</strong>
+        </div>
+      `;
+  const itemRows = activeItems
+    .map(
+      (item) => `
+        <section class="item">
+          <div class="row item-title">
+            <strong>${escapeHtml(`${item.quantity}x ${item.productName}`)}</strong>
+            <strong>${currency.format(itemTotal(item))}</strong>
+          </div>
+          <div class="muted">${escapeHtml(stationLabels[item.station])} | ${currency.format(item.unitPrice)} un.</div>
+          ${item.selectedOptions.length ? `<div class="muted">${escapeHtml(item.selectedOptions.join(" | "))}</div>` : ""}
+          ${item.notes ? `<div class="muted">Obs: ${escapeHtml(item.notes)}</div>` : ""}
+        </section>
+      `,
+    )
+    .join("");
+
+  return `<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <title>Cupom HappyCashFood</title>
+    <style>
+      @page { size: 80mm auto; margin: 4mm; }
+      * { box-sizing: border-box; }
+      body {
+        width: 72mm;
+        margin: 0 auto;
+        background: #fff;
+        color: #111;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+        font-size: 11px;
+        line-height: 1.35;
+      }
+      .center { text-align: center; }
+      .brand { font-size: 17px; font-weight: 900; letter-spacing: 0; }
+      .muted { color: #555; }
+      .divider { border-top: 1px dashed #111; margin: 8px 0; }
+      .row { display: flex; justify-content: space-between; gap: 8px; }
+      .row span:first-child, .row strong:first-child { min-width: 0; overflow-wrap: anywhere; }
+      .item { padding: 5px 0; border-bottom: 1px dotted #999; }
+      .item-title { align-items: flex-start; }
+      .total { font-size: 15px; font-weight: 900; }
+      .footer { margin-top: 10px; text-align: center; }
+    </style>
+  </head>
+  <body>
+    <header class="center">
+      <div class="brand">HappyCashFood</div>
+      <div class="muted">Cupom interno de fechamento</div>
+    </header>
+    <div class="divider"></div>
+    <div class="row"><span>Mesa</span><strong>${escapeHtml(table?.number ?? "?")}</strong></div>
+    <div class="row"><span>Cliente</span><strong>${escapeHtml(order.customerName || `Mesa ${table?.number ?? "?"}`)}</strong></div>
+    <div class="row"><span>Garcom</span><strong>${escapeHtml(order.waiterName || "-")}</strong></div>
+    <div class="row"><span>Pago por</span><strong>${escapeHtml(paidBy)}</strong></div>
+    <div class="row"><span>Abertura</span><strong>${escapeHtml(receiptDate(order.openedAt))}</strong></div>
+    <div class="row"><span>Fechamento</span><strong>${escapeHtml(receiptDate())}</strong></div>
+    <div class="row"><span>Setores</span><strong>${escapeHtml(sectors)}</strong></div>
+    <div class="divider"></div>
+    ${itemRows || '<div class="center muted">Nenhum item ativo.</div>'}
+    <div class="divider"></div>
+    <div class="row"><span>Subtotal</span><strong>${currency.format(subtotal)}</strong></div>
+    <div class="row"><span>Servico</span><strong>${currency.format(serviceFee)}</strong></div>
+    <div class="row"><span>Desconto</span><strong>${currency.format(discount)}</strong></div>
+    <div class="row"><span>Divisao</span><strong>${splitCount}x ${currency.format(splitValue)}</strong></div>
+    <div class="row total"><span>Total</span><strong>${currency.format(total)}</strong></div>
+    <div class="divider"></div>
+    <strong>Pagamento</strong>
+    ${paymentLines}
+    ${method === "cash" ? `<div class="row"><span>Troco</span><strong>${currency.format(change)}</strong></div>` : ""}
+    <div class="footer muted">Operacao registrada no HappyCashFood</div>
+  </body>
+</html>`;
+};
+
 export function CheckoutPanel({
   orders,
   tables,
@@ -59,6 +208,9 @@ export function CheckoutPanel({
   const [confirming, setConfirming] = useState(false);
   const [confirmExitOpen, setConfirmExitOpen] = useState(false);
   const [checkoutModalOpen, setCheckoutModalOpen] = useState(false);
+  const [printReceiptEnabled, setPrintReceiptEnabled] = useState(true);
+  const [printStatus, setPrintStatus] = useState("");
+  const [closingOrder, setClosingOrder] = useState(false);
   const [itemsPage, setItemsPage] = useState(0);
   const [paymentParts, setPaymentParts] = useState<PaymentSplit[]>([
     { id: "part-cash", label: "Dinheiro", method: "cash", amount: 0 },
@@ -103,6 +255,8 @@ export function CheckoutPanel({
     setCheckoutModalOpen(false);
     setConfirming(false);
     setConfirmExitOpen(false);
+    setPrintStatus("");
+    setClosingOrder(false);
     setItemsPage(0);
   };
 
@@ -111,6 +265,8 @@ export function CheckoutPanel({
     setCheckoutModalOpen(true);
     setConfirming(false);
     setConfirmExitOpen(false);
+    setPrintStatus("");
+    setClosingOrder(false);
     setItemsPage(0);
   };
 
@@ -142,14 +298,53 @@ export function CheckoutPanel({
     setPaymentParts((currentParts) => currentParts.filter((part) => part.id !== partId));
   };
 
-  const handleClose = () => {
-    if (!selectedOrder || !canClose) return;
-    onCloseOrder(selectedOrder.id, paymentMethod, {
+  const printCheckoutReceipt = async (paymentSplits?: PaymentSplit[]) => {
+    if (!selectedOrder) return false;
+    const receiptHtml = buildCheckoutReceiptHtml({
+      order: selectedOrder,
+      table: selectedTable,
+      subtotal,
+      serviceFee,
       discount: checkoutDiscount,
-      cashReceived: paymentMethod === "cash" ? cashReceived : paymentMethod === "mixed" ? mixedPaid : total,
+      total,
+      splitCount,
+      splitValue,
+      method: paymentMethod,
       paidBy: paidBy.trim() || selectedOrder.customerName,
-      paymentSplits: paymentMethod === "mixed" ? paymentParts.filter((part) => part.amount > 0) : undefined,
+      cashReceived: paymentMethod === "cash" ? cashReceived : total,
+      change,
+      paymentSplits,
     });
+
+    setPrintStatus("Enviando cupom para impressao...");
+
+    try {
+      if (typeof window.electronAPI?.printHtml === "function") {
+        const printed = await window.electronAPI.printHtml(receiptHtml);
+        setPrintStatus(printed ? "Cupom enviado para a impressora." : "Nao foi possivel imprimir no desktop.");
+        return printed;
+      }
+
+      const printWindow = window.open("", "_blank", "width=420,height=720");
+      if (!printWindow) {
+        setPrintStatus("O navegador bloqueou a janela de impressao.");
+        return false;
+      }
+
+      printWindow.document.open();
+      printWindow.document.write(receiptHtml);
+      printWindow.document.close();
+      printWindow.focus();
+      printWindow.print();
+      setPrintStatus("Cupom aberto para impressao no navegador.");
+      return true;
+    } catch {
+      setPrintStatus("Nao foi possivel preparar o cupom para impressao.");
+      return false;
+    }
+  };
+
+  const resetCheckoutForm = () => {
     setConfirming(false);
     setConfirmExitOpen(false);
     setCheckoutModalOpen(false);
@@ -161,7 +356,32 @@ export function CheckoutPanel({
       { id: "part-cash", label: "Dinheiro", method: "cash", amount: 0 },
       { id: "part-pix", label: "Pix", method: "pix", amount: 0 },
     ]);
+    setPrintStatus("");
+    setClosingOrder(false);
     setItemsPage(0);
+  };
+
+  const handleClose = async () => {
+    if (!selectedOrder || !canClose) return;
+    const paymentSplits = paymentMethod === "mixed" ? paymentParts.filter((part) => part.amount > 0) : undefined;
+    const details = {
+      discount: checkoutDiscount,
+      cashReceived: paymentMethod === "cash" ? cashReceived : paymentMethod === "mixed" ? mixedPaid : total,
+      paidBy: paidBy.trim() || selectedOrder.customerName,
+      paymentSplits,
+    };
+
+    setClosingOrder(true);
+    if (printReceiptEnabled) {
+      const printed = await printCheckoutReceipt(paymentSplits);
+      if (!printed) {
+        setClosingOrder(false);
+        return;
+      }
+    }
+
+    onCloseOrder(selectedOrder.id, paymentMethod, details);
+    resetCheckoutForm();
   };
 
   return (
@@ -491,10 +711,38 @@ export function CheckoutPanel({
                   Esc fecha o modal. Tab percorre os campos. O menu lateral continua com atalhos numericos.
                 </div>
 
+                <div className="rounded-lg border bg-background p-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="inline-flex items-center gap-2 text-sm font-black">
+                      <Printer className="h-4 w-4" />
+                      Cupom
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setPrintReceiptEnabled((current) => !current)}
+                      className={`rounded-lg border px-3 py-1.5 text-xs font-black ${
+                        printReceiptEnabled ? "border-primary bg-primary text-primary-foreground" : "bg-card text-muted-foreground"
+                      }`}
+                    >
+                      {printReceiptEnabled ? "Imprimir ao fechar" : "Sem impressao"}
+                    </button>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => void printCheckoutReceipt(paymentMethod === "mixed" ? paymentParts.filter((part) => part.amount > 0) : undefined)}
+                    disabled={closingOrder}
+                    className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-lg border bg-card px-3 py-2 text-sm font-black disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <Printer className="h-4 w-4" />
+                    Imprimir agora
+                  </button>
+                  {printStatus && <p className="mt-2 text-xs font-bold text-muted-foreground">{printStatus}</p>}
+                </div>
+
                 <button
                   type="button"
                   onClick={() => setConfirming(true)}
-                  disabled={!canClose}
+                  disabled={!canClose || closingOrder}
                   className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 py-3 text-sm font-black text-primary-foreground disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <CheckCircle2 className="h-4 w-4" />
@@ -519,21 +767,24 @@ export function CheckoutPanel({
             <p className="mt-2 text-sm text-muted-foreground">
               Confirma o pagamento de {currency.format(total)} em {paymentMethods.find((method) => method.id === paymentMethod)?.label}?
             </p>
+            {printStatus && <p className="mt-3 rounded-lg border bg-background p-3 text-xs font-bold text-muted-foreground">{printStatus}</p>}
             <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
               <button
                 type="button"
                 onClick={() => setConfirming(false)}
                 data-modal-close="true"
-                className="rounded-lg border bg-background px-4 py-2 text-sm font-black"
+                disabled={closingOrder}
+                className="rounded-lg border bg-background px-4 py-2 text-sm font-black disabled:cursor-not-allowed disabled:opacity-50"
               >
                 Voltar
               </button>
               <button
                 type="button"
-                onClick={handleClose}
-                className="rounded-lg bg-primary px-4 py-2 text-sm font-black text-primary-foreground"
+                onClick={() => void handleClose()}
+                disabled={closingOrder}
+                className="rounded-lg bg-primary px-4 py-2 text-sm font-black text-primary-foreground disabled:cursor-not-allowed disabled:opacity-50"
               >
-                Confirmar pagamento
+                {closingOrder ? "Finalizando..." : printReceiptEnabled ? "Confirmar e imprimir" : "Confirmar pagamento"}
               </button>
             </div>
           </div>
