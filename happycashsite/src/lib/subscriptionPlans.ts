@@ -127,8 +127,8 @@ export const publicPlanContent: Record<PublicPlanId, PublicPlanContent> = {
   agenda: {
     id: "agenda",
     name: "HappyCash Agenda",
-    price: 197,
-    priceLabel: "R$ 197",
+    price: 80,
+    priceLabel: "R$ 80",
     durationLabel: "30 dias",
     summary: "Agenda online para servicos com profissionais, WhatsApp, QR Code, pagamentos e relatorios.",
     description: "Modulo de agendamentos para barbearias, saloes, clinicas, pet shops, oficinas, consultorias e servicos em geral.",
