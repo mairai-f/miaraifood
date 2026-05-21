@@ -41,11 +41,12 @@ interface StoreAccountRow {
 }
 
 type AttemptStatus = "blocked" | "config_error" | "created" | "failed" | "honeypot" | "invalid";
+type ServiceClient = ReturnType<typeof createClient<any, "public", any>>;
 
 const registrationCorsOptions = {
   allowedMethods: ["POST", "OPTIONS"],
   allowOriginless: false,
-} as const;
+};
 
 const MAX_IP_ATTEMPTS_PER_15_MIN = 5;
 const MAX_EMAIL_ATTEMPTS_PER_HOUR = 3;
@@ -184,7 +185,7 @@ const validatePayload = (payload: RegisterAccountRequest) => {
 };
 
 const logAttempt = async (
-  serviceClient: ReturnType<typeof createClient>,
+  serviceClient: ServiceClient,
   details: {
     emailHash: string | null;
     ipHash: string | null;
@@ -203,7 +204,7 @@ const logAttempt = async (
 };
 
 const getAttemptCounts = async (
-  serviceClient: ReturnType<typeof createClient>,
+  serviceClient: ServiceClient,
   details: {
     emailHash: string | null;
     ipHash: string | null;

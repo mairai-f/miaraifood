@@ -1,0 +1,10 @@
+# Compatibilidade legada: o Supabase canonico do HappyCash fica em /supabase.
+# Mantemos este arquivo alinhado ao projeto principal para evitar apontar
+# acidentalmente o HappyCash Agenda para outro projeto Supabase/Auth.
+project_id = "ymffclntmynwfdiarlaw"
+
+[functions.send-whatsapp-notification]
+verify_jwt = true
+
+[functions.create-payment]
+verify_jwt = true

@@ -176,6 +176,8 @@ const SITE_SESSION_EXPIRED_MESSAGE = "Sua sessao expirou. Entre novamente para c
 const DELETE_ACCOUNT_CONFIRM_TEXT = "APAGAR";
 const SYSTEM_APP_URL = "https://app.happycashsite.com.br/";
 const FOOD_SYSTEM_APP_URL = "https://food.happycashsite.com.br/?site_access=1";
+const AGENDA_SYSTEM_APP_URL =
+  import.meta.env.VITE_HAPPYCASH_AGENDA_URL || "https://agenda.happycashsite.com.br/?site_access=1";
 const SITE_REGISTRATION_FUNCTION_MISSING_MESSAGE =
   "A funcao finalize-site-registration nao esta publicada ou acessivel neste projeto do Supabase. Publique a function para abrir o dashboard.";
 const SITE_REGISTRATION_FETCH_MESSAGE =
@@ -209,11 +211,17 @@ const getPaymentMethodLabel = (paymentMethod: CheckoutPaymentMethod) =>
 const getPlanChargeActionKey = (planId: PaidPlanId, paymentMethod: CheckoutPaymentMethod, billingPeriod: CheckoutBillingPeriod) =>
   `${planId}:${paymentMethod}:${billingPeriod}`;
 
-const getSystemUrlForProductContext = (productContext: ProductContext) =>
-  productContext === "happycashfood" ? FOOD_SYSTEM_APP_URL : SYSTEM_APP_URL;
+const getSystemUrlForProductContext = (productContext: ProductContext) => {
+  if (productContext === "happycashfood") return FOOD_SYSTEM_APP_URL;
+  if (productContext === "happycashagenda") return AGENDA_SYSTEM_APP_URL;
+  return SYSTEM_APP_URL;
+};
 
-const getSystemLabelForProductContext = (productContext: ProductContext) =>
-  productContext === "happycashfood" ? "Abrir sistema HappyCashFood" : "Abrir sistema HappyCash";
+const getSystemLabelForProductContext = (productContext: ProductContext) => {
+  if (productContext === "happycashfood") return "Abrir sistema HappyCashFood";
+  if (productContext === "happycashagenda") return "Abrir HappyCash Agenda";
+  return "Abrir sistema HappyCash";
+};
 
 const Dashboard = () => {
   const location = useLocation();
@@ -631,17 +639,19 @@ const Dashboard = () => {
     if (currentSubscription?.plan_id === planCheckout.planId && isCurrentSubscription(currentSubscription)) {
       const checkoutProductContext = resolveProductContextFromPlanId(planCheckout.planId);
       const checkoutSystemUrl = getSystemUrlForProductContext(checkoutProductContext);
+      const checkoutProductLabel = getProductContextLabel(checkoutProductContext);
+      const shouldOpenSystemAfterPayment = checkoutProductContext !== "happycash";
 
       setCheckoutDialogOpen(false);
       setPlanCheckout(null);
       toast({
         title: `${publicPlanContent[planCheckout.planId].name} liberado`,
-        description: checkoutProductContext === "happycashfood"
-          ? "Pagamento confirmado. Vamos abrir o HappyCashFood."
+        description: shouldOpenSystemAfterPayment
+          ? `Pagamento confirmado. Vamos abrir o ${checkoutProductLabel}.`
           : "Pagamento confirmado. Seu plano ja esta ativo por 30 dias.",
       });
 
-      if (checkoutProductContext === "happycashfood") {
+      if (shouldOpenSystemAfterPayment) {
         window.setTimeout(() => {
           window.location.assign(checkoutSystemUrl);
         }, 600);
@@ -657,9 +667,7 @@ const Dashboard = () => {
     if (!isPaidPlanAllowedForProductContext(accountProductContext, planId)) {
       toast({
         title: "Plano bloqueado",
-        description: isFoodAccount
-          ? "Esta conta foi designada para o HappyCashFood e aceita apenas os planos HappyCashFood."
-          : "Esta conta foi designada para o HappyCash e aceita apenas os planos HappyCash.",
+        description: `Esta conta foi designada para o ${productLabel} e aceita apenas os planos ${productLabel}.`,
         variant: "destructive",
       });
       return;

@@ -13,15 +13,17 @@ import {
 } from "../_shared/asaas.ts";
 import { buildCorsHeaders, handleCorsPreflight } from "../_shared/cors.ts";
 import {
+  getProductContextLabel,
   isPaidPlanAllowedForProductContext,
   normalizeProductContext,
   type ProductContext,
 } from "../_shared/productContext.ts";
 
-type SupportedPaidPlan = "fiado" | "completo" | "pro" | "food" | "food_offline";
+type SupportedPaidPlan = "fiado" | "completo" | "pro" | "food" | "food_offline" | "agenda";
 type CheckoutPaymentMethod = "pix" | "card";
 type SupportedBillingType = "PIX" | "CREDIT_CARD";
 type BillingPeriod = "monthly" | "annual";
+type ServiceClient = ReturnType<typeof createClient<any, "public", any>>;
 
 interface CreatePlanChargeRequest {
   planId?: SupportedPaidPlan;
@@ -89,7 +91,7 @@ const extractAccessToken = (authorization: string | null) => {
   return matchedToken?.[1]?.trim() || null;
 };
 
-const supportedPlans = new Set<SupportedPaidPlan>(["fiado", "completo", "pro", "food", "food_offline"]);
+const supportedPlans = new Set<SupportedPaidPlan>(["fiado", "completo", "pro", "food", "food_offline", "agenda"]);
 const supportedPaymentMethods = new Set<CheckoutPaymentMethod>(["pix", "card"]);
 const supportedBillingPeriods = new Set<BillingPeriod>(["monthly", "annual"]);
 const awaitingPaymentStatuses = new Set(["PENDING", "OVERDUE", "AWAITING_RISK_ANALYSIS"]);
@@ -121,6 +123,7 @@ const buildAsaasCustomerPayload = (
   storeAccount: StoreAccountRow,
 ): CreateAsaasCustomerInput => {
   const customerName = trimToUndefined(storeAccount.nome_cliente);
+  const customerEmail = trimToUndefined(storeAccount.email);
   const cpfCnpj = normalizeDigits(storeAccount.cnpj);
   const mobilePhone = normalizeDigits(storeAccount.telefone);
   const postalCode = normalizeDigits(storeAccount.cep);
@@ -133,11 +136,19 @@ const buildAsaasCustomerPayload = (
     throw new Error("O cadastro da loja precisa de um CPF ou CNPJ valido para gerar a cobranca.");
   }
 
+  if (!customerEmail) {
+    throw new Error("O cadastro da loja precisa de um e-mail valido para gerar a cobranca.");
+  }
+
+  if (mobilePhone.length < 10) {
+    throw new Error("O cadastro da loja precisa de um telefone valido para gerar a cobranca.");
+  }
+
   return {
     name: customerName,
-    email: trimToUndefined(storeAccount.email),
+    email: customerEmail,
     cpfCnpj,
-    mobilePhone: mobilePhone.length >= 10 ? mobilePhone : undefined,
+    mobilePhone,
     address: trimToUndefined(storeAccount.nome_rua),
     addressNumber: trimToUndefined(storeAccount.numero),
     complement: trimToUndefined(storeAccount.complemento),
@@ -245,7 +256,7 @@ const updateSubscriptionMetadata = (
 });
 
 const ensureBillingCustomer = async (
-  serviceClient: ReturnType<typeof createClient>,
+  serviceClient: ServiceClient,
   ownerUserId: string,
   storeAccount: StoreAccountRow,
 ) => {
@@ -486,7 +497,7 @@ Deno.serve(async (request) => {
   const plan = planData as SubscriptionPlanRow;
   const storeAccount = storeAccountData as StoreAccountRow;
   const accountProductContext = normalizeProductContext(storeAccount.product_context);
-  const productDisplayName = accountProductContext === "happycashfood" ? "HappyCashFood" : "HappyCash";
+  const productDisplayName = getProductContextLabel(accountProductContext);
   const billingType = resolveBillingType(paymentMethod);
   const chargeValue = billingPeriod === "annual"
     ? Number(plan.annual_price || 0)
@@ -501,9 +512,7 @@ Deno.serve(async (request) => {
     return jsonResponse(
       request,
       {
-        error: accountProductContext === "happycashfood"
-          ? "Esta conta foi criada para o HappyCashFood e aceita apenas os planos HappyCashFood."
-          : "Esta conta foi criada para o HappyCash e aceita apenas os planos HappyCash.",
+        error: `Esta conta foi criada para o ${productDisplayName} e aceita apenas os planos ${productDisplayName}.`,
       },
       403,
     );

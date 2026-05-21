@@ -1,0 +1,357 @@
+/**
+ * ==============================================================
+ * ARQUIVO: src/index.css
+ * ==============================================================
+ *
+ * PROPÓSITO:
+ * Este arquivo define o sistema de design (design system) completo da aplicação.
+ * Contém todas as variáveis CSS, tokens de cor, tipografia e animações.
+ *
+ * ESTRUTURA:
+ * 1. Importação de fontes (Google Fonts)
+ * 2. Diretivas Tailwind
+ * 3. Variáveis CSS do tema claro (:root)
+ * 4. Variáveis CSS do tema escuro (.dark)
+ * 5. Estilos base globais
+ * 6. Componentes customizados
+ * 7. Utilitários de animação
+ *
+ * COMO PERSONALIZAR:
+ * - Cores: Modifique os valores HSL nas variáveis --primary, --secondary, etc.
+ * - Tipografia: Altere as fontes importadas e as classes font-family
+ * - Animações: Adicione novos @keyframes na seção de utilities
+ *
+ * ==============================================================
+ */
+
+/* Importação de fontes do Google Fonts */
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap');
+
+/* Diretivas Tailwind - Importa os estilos base, componentes e utilitários */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/**
+ * ==============================================================
+ * TEMA CLARO - Variáveis CSS
+ * ==============================================================
+ *
+ * Cores definidas em formato HSL (Hue, Saturation, Lightness)
+ * para facilitar manipulação e consistência.
+ */
+@layer base {
+  :root {
+    /* Background - Tema claro com cor de fundo elegante */
+    --background: 220 20% 97%;
+    --foreground: 220 30% 12%;
+
+    /* Card surfaces - Superfícies de cards com leve tom azulado */
+    --card: 220 25% 100%;
+    --card-foreground: 220 30% 12%;
+
+    /* Popover - Menus dropdown e tooltips */
+    --popover: 220 25% 100%;
+    --popover-foreground: 220 30% 12%;
+
+    /* Primary - Cor principal da marca (Azul escuro elegante) */
+    --primary: 220 60% 25%;
+    --primary-foreground: 220 10% 98%;
+
+    /* Secondary - Cor secundária (Cinza azulado suave) */
+    --secondary: 220 20% 92%;
+    --secondary-foreground: 220 30% 20%;
+
+    /* Muted - Superfícies sutis e textos desativados */
+    --muted: 220 15% 94%;
+    --muted-foreground: 220 15% 45%;
+
+    /* Accent - Cor de destaque (Dourado/Âmbar premium) */
+    --accent: 38 80% 55%;
+    --accent-foreground: 38 90% 15%;
+
+    /* Destructive - Ações destrutivas (vermelho) */
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 98%;
+
+    /* Borders and inputs - Bordas e campos de input */
+    --border: 220 20% 88%;
+    --input: 220 20% 88%;
+    --ring: 220 60% 35%;
+
+    /* Raio de borda padrão */
+    --radius: 0.75rem;
+
+    /* Cores customizadas para elementos específicos */
+    --silver: 220 10% 70%;
+    --silver-light: 220 15% 92%;
+    --gold: 38 85% 52%;
+    --gold-muted: 38 45% 70%;
+
+    /* Gradientes para elementos visuais */
+    --gradient-silver: linear-gradient(135deg, hsl(220 15% 88%), hsl(220 20% 95%));
+    --gradient-hero: linear-gradient(180deg, hsl(220 20% 97%) 0%, hsl(220 25% 93%) 100%);
+    --gradient-card: linear-gradient(145deg, hsl(220 25% 100%) 0%, hsl(220 20% 96%) 100%);
+
+    /* Sombras para profundidade visual */
+    --shadow-sm: 0 1px 2px 0 hsl(220 30% 20% / 0.05);
+    --shadow-md: 0 4px 6px -1px hsl(220 30% 20% / 0.1), 0 2px 4px -2px hsl(220 30% 20% / 0.1);
+    --shadow-lg: 0 10px 15px -3px hsl(220 30% 20% / 0.1), 0 4px 6px -4px hsl(220 30% 20% / 0.1);
+    --shadow-xl: 0 20px 25px -5px hsl(220 30% 20% / 0.15), 0 8px 10px -6px hsl(220 30% 20% / 0.1);
+    --shadow-glow: 0 0 30px hsl(38 85% 52% / 0.15);
+
+    /* Sidebar - Cores da barra lateral administrativa */
+    --sidebar-background: 220 30% 12%;
+    --sidebar-foreground: 220 10% 90%;
+    --sidebar-primary: 220 10% 98%;
+    --sidebar-primary-foreground: 220 30% 12%;
+    --sidebar-accent: 220 25% 20%;
+    --sidebar-accent-foreground: 220 10% 90%;
+    --sidebar-border: 220 25% 22%;
+    --sidebar-ring: 220 20% 40%;
+  }
+
+  /**
+   * ==============================================================
+   * TEMA ESCURO - Variáveis CSS
+   * ==============================================================
+   *
+   * Esquema de cores para modo escuro, mantendo a identidade visual
+   * com tons mais profundos e contraste adequado.
+   */
+  .dark {
+    /* Background - Fundo escuro rico */
+    --background: 220 25% 6%;
+    --foreground: 220 10% 95%;
+
+    /* Card surfaces */
+    --card: 220 25% 9%;
+    --card-foreground: 220 10% 95%;
+
+    /* Popover */
+    --popover: 220 25% 9%;
+    --popover-foreground: 220 10% 95%;
+
+    /* Primary - Prata/branco no escuro */
+    --primary: 220 10% 95%;
+    --primary-foreground: 220 30% 8%;
+
+    /* Secondary - Prata escuro */
+    --secondary: 220 20% 15%;
+    --secondary-foreground: 220 10% 90%;
+
+    /* Muted */
+    --muted: 220 20% 15%;
+    --muted-foreground: 220 10% 55%;
+
+    /* Accent - Metálico quente */
+    --accent: 38 60% 35%;
+    --accent-foreground: 38 10% 95%;
+
+    /* Destructive */
+    --destructive: 0 62% 40%;
+    --destructive-foreground: 0 0% 98%;
+
+    /* Borders */
+    --border: 220 20% 18%;
+    --input: 220 20% 18%;
+    --ring: 220 15% 80%;
+
+    /* Custom colors */
+    --silver: 220 10% 70%;
+    --silver-light: 220 10% 85%;
+    --gold: 38 80% 55%;
+    --gold-muted: 38 40% 45%;
+
+    /* Gradients */
+    --gradient-silver: linear-gradient(135deg, hsl(220 20% 20%), hsl(220 25% 12%));
+    --gradient-hero: linear-gradient(180deg, hsl(220 25% 6%) 0%, hsl(220 25% 10%) 100%);
+    --gradient-card: linear-gradient(145deg, hsl(220 25% 12%) 0%, hsl(220 25% 8%) 100%);
+
+    /* Shadows */
+    --shadow-sm: 0 1px 2px 0 hsl(0 0% 0% / 0.3);
+    --shadow-md: 0 4px 6px -1px hsl(0 0% 0% / 0.4), 0 2px 4px -2px hsl(0 0% 0% / 0.3);
+    --shadow-lg: 0 10px 15px -3px hsl(0 0% 0% / 0.4), 0 4px 6px -4px hsl(0 0% 0% / 0.3);
+    --shadow-xl: 0 20px 25px -5px hsl(0 0% 0% / 0.5), 0 8px 10px -6px hsl(0 0% 0% / 0.4);
+    --shadow-glow: 0 0 40px hsl(38 80% 55% / 0.15);
+
+    /* Sidebar */
+    --sidebar-background: 220 30% 4%;
+    --sidebar-foreground: 220 10% 90%;
+    --sidebar-primary: 220 10% 95%;
+    --sidebar-primary-foreground: 220 30% 8%;
+    --sidebar-accent: 220 25% 12%;
+    --sidebar-accent-foreground: 220 10% 90%;
+    --sidebar-border: 220 25% 15%;
+    --sidebar-ring: 220 15% 50%;
+  }
+}
+
+/**
+ * ==============================================================
+ * ESTILOS BASE GLOBAIS
+ * ==============================================================
+ *
+ * Estilos aplicados a todos os elementos da página.
+ */
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: 'Inter', sans-serif;
+  }
+
+  /* Tipografia - Títulos usam fonte serifada para elegância */
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Playfair Display', serif;
+  }
+}
+
+/**
+ * ==============================================================
+ * COMPONENTES CUSTOMIZADOS
+ * ==============================================================
+ *
+ * Classes CSS reutilizáveis para componentes específicos.
+ */
+@layer components {
+  /* Card com efeito de vidro (glassmorphism) */
+  .glass-card {
+    @apply backdrop-blur-xl border border-border/50;
+    background: linear-gradient(
+      135deg,
+      hsl(var(--card) / 0.8) 0%,
+      hsl(var(--card) / 0.6) 100%
+    );
+  }
+
+  /* Gradiente de texto prateado */
+  .text-gradient-silver {
+    @apply bg-clip-text text-transparent;
+    background-image: linear-gradient(
+      135deg,
+      hsl(var(--foreground)) 0%,
+      hsl(var(--muted-foreground)) 50%,
+      hsl(var(--foreground)) 100%
+    );
+  }
+
+  /* Gradiente de texto dourado */
+  .text-gradient-gold {
+    @apply bg-clip-text text-transparent;
+    background-image: linear-gradient(
+      135deg,
+      hsl(var(--gold)) 0%,
+      hsl(var(--gold-muted)) 100%
+    );
+  }
+
+  /* Borda com gradiente */
+  .border-gradient {
+    border-image: linear-gradient(
+      135deg,
+      hsl(var(--border)) 0%,
+      hsl(var(--silver)) 50%,
+      hsl(var(--border)) 100%
+    ) 1;
+  }
+
+  /* Efeito shimmer (brilho deslizante) */
+  .shimmer {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .shimmer::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      hsl(var(--gold) / 0.2) 50%,
+      transparent 100%
+    );
+    animation: shimmer 3s infinite;
+  }
+
+  @keyframes shimmer {
+    0% { left: -100%; }
+    100% { left: 100%; }
+  }
+
+  /* Classes de status */
+  .status-open {
+    @apply text-emerald-600 dark:text-emerald-400;
+  }
+
+  .status-closed {
+    @apply text-rose-600 dark:text-rose-400;
+  }
+
+  /* Card premium com hover effect */
+  .premium-card {
+    @apply rounded-xl border border-border bg-card transition-all duration-300;
+    @apply hover:border-accent/50 hover:shadow-lg;
+  }
+
+  /* Badge accent */
+  .accent-badge {
+    @apply inline-flex items-center px-3 py-1 rounded-full text-xs font-medium;
+    @apply bg-accent/10 text-accent border border-accent/20;
+  }
+}
+
+/**
+ * ==============================================================
+ * UTILITÁRIOS DE ANIMAÇÃO
+ * ==============================================================
+ *
+ * Classes de animação reutilizáveis para transições e efeitos.
+ */
+@layer utilities {
+  .animate-fade-in {
+    animation: fadeIn 0.5s ease-out forwards;
+  }
+
+  .animate-slide-up {
+    animation: slideUp 0.6s ease-out forwards;
+  }
+
+  .animate-scale-in {
+    animation: scaleIn 0.4s ease-out forwards;
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
+  @keyframes slideUp {
+    from {
+      opacity: 0;
+      transform: translateY(20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes scaleIn {
+    from {
+      opacity: 0;
+      transform: scale(0.95);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+}

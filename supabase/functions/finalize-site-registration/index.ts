@@ -7,6 +7,7 @@ import {
 } from "../_shared/asaas.ts";
 import { buildCorsHeaders, handleCorsPreflight } from "../_shared/cors.ts";
 import {
+  getProductContextLabel,
   normalizeProductContext,
   type ProductContext,
 } from "../_shared/productContext.ts";
@@ -53,6 +54,8 @@ interface StoreSubscriptionRow {
   product_context: ProductContext;
 }
 
+type ServiceClient = ReturnType<typeof createClient<any, "public", any>>;
+
 const jsonResponse = (request: Request, body: Record<string, unknown>, status = 200) =>
   new Response(JSON.stringify(body), {
     status,
@@ -75,7 +78,7 @@ const isAsaasConfigured = () => Boolean(Deno.env.get("ASAAS_API_KEY"));
 const normalizeDigits = (value?: string | null) => (value || "").replace(/\D/g, "");
 
 const updatePendingRegistration = async (
-  serviceClient: ReturnType<typeof createClient>,
+  serviceClient: ServiceClient,
   registrationId: string,
   updates: Record<string, unknown>,
 ) => {
@@ -86,7 +89,7 @@ const updatePendingRegistration = async (
 };
 
 const ensureBillingCustomer = async (
-  serviceClient: ReturnType<typeof createClient>,
+  serviceClient: ServiceClient,
   ownerUserId: string,
   storeAccountId: string,
   registration: PendingRegistrationRow,
@@ -299,7 +302,8 @@ Deno.serve(async (request) => {
       existingStoreAccount
       && normalizeProductContext(existingStoreAccount.product_context) !== normalizeProductContext(registration.product_context)
     ) {
-      throw new Error("Esta conta ja esta designada para outro produto. Use um cadastro separado para HappyCash e HappyCashFood.");
+      const existingProductLabel = getProductContextLabel(normalizeProductContext(existingStoreAccount.product_context));
+      throw new Error(`Esta conta ja esta designada para ${existingProductLabel}. Use um cadastro separado para outro produto.`);
     }
 
     if (!storeAccountId) {
