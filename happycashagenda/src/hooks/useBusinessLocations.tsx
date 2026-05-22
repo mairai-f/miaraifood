@@ -9,22 +9,29 @@ interface BusinessLocation {
   google_maps_embed_url: string | null;
 }
 
-export function useBusinessLocations() {
+export function useBusinessLocations(storeAccountId?: string) {
   const [locations, setLocations] = useState<BusinessLocation[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetch = async () => {
+      if (!storeAccountId) {
+        setLocations([]);
+        setLoading(false);
+        return;
+      }
+
       const { data } = await supabase
         .from('business_locations')
         .select('*')
+        .eq('store_account_id', storeAccountId)
         .eq('is_active', true)
         .order('created_at');
       if (data) setLocations(data);
       setLoading(false);
     };
     fetch();
-  }, []);
+  }, [storeAccountId]);
 
   return { locations, loading };
 }

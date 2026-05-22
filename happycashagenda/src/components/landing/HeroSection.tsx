@@ -6,6 +6,7 @@ import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/useAuth';
 import { useAgendaBranding } from '@/hooks/useAgendaBranding';
+import { withAgendaPublicSearch } from '@/lib/agendaPublicLink';
 import heroImage from '@/assets/hero-barbershop.jpg';
 
 gsap.registerPlugin(ScrollTrigger);
@@ -15,6 +16,7 @@ export function HeroSection() {
   const { user } = useAuth();
   const { settings } = useAgendaBranding();
   const sectionRef = useRef<HTMLElement>(null);
+  const publicPath = (path: string) => withAgendaPublicSearch(path, settings);
 
   const scrollToSection = (id: string) => {
     const el = document.getElementById(id);
@@ -74,12 +76,12 @@ export function HeroSection() {
           </p>
 
           <div className="hero-cta flex flex-col sm:flex-row gap-3 md:gap-4 mb-6 md:mb-10" style={{ opacity: 0 }}>
-            <Button size="lg" onClick={() => navigate('/agendamento')} className="group text-sm md:text-base px-6 md:px-8 py-5 md:py-6 bg-white text-black hover:bg-white/90 rounded-full">
+            <Button size="lg" onClick={() => navigate(publicPath('/agendamento'))} className="group text-sm md:text-base px-6 md:px-8 py-5 md:py-6 bg-white text-black hover:bg-white/90 rounded-full">
               Agendar Agora
               <ArrowRight className="w-4 h-4 md:w-5 md:h-5 ml-2 group-hover:translate-x-1 transition-transform" />
             </Button>
             {!user && (
-              <Button size="lg" variant="outline" onClick={() => navigate('/login')} className="text-sm md:text-base px-6 md:px-8 py-5 md:py-6 border-white/30 text-white hover:bg-white/10 rounded-full">
+              <Button size="lg" variant="outline" onClick={() => navigate(publicPath('/login'))} className="text-sm md:text-base px-6 md:px-8 py-5 md:py-6 border-white/30 text-white hover:bg-white/10 rounded-full">
                 Criar Conta
               </Button>
             )}

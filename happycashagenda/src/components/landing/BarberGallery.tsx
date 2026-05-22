@@ -116,16 +116,23 @@ export function BarberGallery() {
   const { settings } = useAgendaBranding();
 
   useEffect(() => {
+    if (!settings.storeAccountId) {
+      setBarbers([]);
+      setLoading(false);
+      return;
+    }
+
     supabase
       .from('barbers')
       .select('id, name, bio, photo_url, is_active')
+      .eq('store_account_id', settings.storeAccountId)
       .eq('is_active', true)
       .order('name')
       .then(({ data }) => {
         if (data) setBarbers(data);
         setLoading(false);
       });
-  }, []);
+  }, [settings.storeAccountId]);
 
   const scrollManual = useCallback((direction: 'left' | 'right') => {
     if (!trackRef.current) return;

@@ -12,6 +12,8 @@ import { useAuth } from "@/hooks/useAuth";
 
 export type AgendaBrandingSettings = {
   id?: string;
+  ownerUserId?: string;
+  storeAccountId?: string;
   slug: string;
   displayName: string;
   businessType: string;
@@ -35,6 +37,8 @@ type AgendaBrandingContextType = {
 
 type AgendaBusinessSettingsRow = {
   id: string;
+  owner_user_id: string;
+  store_account_id: string | null;
   slug: string;
   display_name: string;
   business_type: string;
@@ -93,6 +97,8 @@ type AgendaSettingsClient = {
 };
 
 const DEFAULT_BRANDING: AgendaBrandingSettings = {
+  ownerUserId: undefined,
+  storeAccountId: undefined,
   slug: "happycash-agenda",
   displayName: "HappyCash Agenda",
   businessType: "Serviços em geral",
@@ -148,6 +154,8 @@ const sanitizeSettings = (settings: AgendaBrandingSettings): AgendaBrandingSetti
 
 const rowToSettings = (row: AgendaBusinessSettingsRow): AgendaBrandingSettings => ({
   id: row.id,
+  ownerUserId: row.owner_user_id,
+  storeAccountId: row.store_account_id ?? undefined,
   slug: row.slug,
   displayName: row.display_name,
   businessType: row.business_type,
@@ -231,7 +239,7 @@ export function AgendaBrandingProvider({ children }: { children: ReactNode }) {
     const client = getSettingsClient();
     const table = client.from("agenda_business_settings");
     const columns =
-      "id, slug, display_name, business_type, professional_label, service_label, tagline, logo_url, primary_hsl, accent_hsl, success_hsl, public_booking_enabled";
+      "id, owner_user_id, store_account_id, slug, display_name, business_type, professional_label, service_label, tagline, logo_url, primary_hsl, accent_hsl, success_hsl, public_booking_enabled";
 
     const response = publicSlug
       ? await table.select(columns).eq("slug", publicSlug).eq("public_booking_enabled", true).maybeSingle()
@@ -275,7 +283,7 @@ export function AgendaBrandingProvider({ children }: { children: ReactNode }) {
         .from("agenda_business_settings")
         .upsert(settingsToUpsert(sanitized, user.id), { onConflict: "owner_user_id" })
         .select(
-          "id, slug, display_name, business_type, professional_label, service_label, tagline, logo_url, primary_hsl, accent_hsl, success_hsl, public_booking_enabled",
+          "id, owner_user_id, store_account_id, slug, display_name, business_type, professional_label, service_label, tagline, logo_url, primary_hsl, accent_hsl, success_hsl, public_booking_enabled",
         )
         .single();
 

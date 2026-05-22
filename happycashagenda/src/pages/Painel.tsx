@@ -231,7 +231,7 @@ export default function AdminDashboard() {
   }, [user, isAdmin, authLoading, navigate]);
 
   useEffect(() => {
-    if (isAdmin) {
+    if (isAdmin && settings.storeAccountId) {
       fetchAllData();
 
       // Subscribe to realtime changes in appointments
@@ -242,7 +242,8 @@ export default function AdminDashboard() {
           {
             event: 'INSERT',
             schema: 'public',
-            table: 'appointments'
+            table: 'appointments',
+            filter: `store_account_id=eq.${settings.storeAccountId}`,
           },
           (payload) => {
             const newApt = payload.new as AppointmentRealtimeRow;
@@ -266,7 +267,8 @@ export default function AdminDashboard() {
           {
             event: 'UPDATE',
             schema: 'public',
-            table: 'appointments'
+            table: 'appointments',
+            filter: `store_account_id=eq.${settings.storeAccountId}`,
           },
           (payload) => {
             const updatedApt = payload.new as AppointmentRealtimeRow;
@@ -327,7 +329,8 @@ export default function AdminDashboard() {
           {
             event: 'INSERT',
             schema: 'public',
-            table: 'appointment_services'
+            table: 'appointment_services',
+            filter: `store_account_id=eq.${settings.storeAccountId}`,
           },
           async (payload) => {
             const newService = payload.new as AppointmentServiceRealtimeRow;
@@ -374,7 +377,8 @@ export default function AdminDashboard() {
           {
             event: 'UPDATE',
             schema: 'public',
-            table: 'appointment_services'
+            table: 'appointment_services',
+            filter: `store_account_id=eq.${settings.storeAccountId}`,
           },
           () => {
             fetchAppointments();
@@ -385,7 +389,8 @@ export default function AdminDashboard() {
           {
             event: 'DELETE',
             schema: 'public',
-            table: 'appointment_services'
+            table: 'appointment_services',
+            filter: `store_account_id=eq.${settings.storeAccountId}`,
           },
           () => {
             fetchAppointments();
@@ -398,7 +403,7 @@ export default function AdminDashboard() {
         supabase.removeChannel(servicesChannel);
       };
     }
-  }, [isAdmin]);
+  }, [isAdmin, settings.storeAccountId]);
 
   const fetchAllData = async () => {
     await Promise.all([fetchAppointments(), fetchBarbers(), fetchServices(), fetchProducts()]);
@@ -406,6 +411,7 @@ export default function AdminDashboard() {
   };
 
   const fetchAppointments = async () => {
+    if (!settings.storeAccountId) return;
     const { data } = await supabase
       .from('appointments')
       .select(`
@@ -420,6 +426,7 @@ export default function AdminDashboard() {
         barber:barbers(id, name),
         service:services(id, name, price, duration_minutes)
       `)
+      .eq('store_account_id', settings.storeAccountId)
       .order('appointment_date', { ascending: false })
       .order('appointment_time', { ascending: false });
 
@@ -456,25 +463,31 @@ export default function AdminDashboard() {
   };
 
   const fetchBarbers = async () => {
+    if (!settings.storeAccountId) return;
     const { data } = await supabase
       .from('barbers')
       .select('*')
+      .eq('store_account_id', settings.storeAccountId)
       .order('name');
     if (data) setBarbers(data);
   };
 
   const fetchServices = async () => {
+    if (!settings.storeAccountId) return;
     const { data } = await supabase
       .from('services')
       .select('*')
+      .eq('store_account_id', settings.storeAccountId)
       .order('name');
     if (data) setServices(data);
   };
 
   const fetchProducts = async () => {
+    if (!settings.storeAccountId) return;
     const { data } = await supabase
-      .from('products')
+      .from('agenda_products')
       .select('*')
+      .eq('store_account_id', settings.storeAccountId)
       .order('name');
     if (data) setProducts(data);
   };
@@ -1012,7 +1025,7 @@ export default function AdminDashboard() {
 
     if (editingProduct) {
       const { error } = await supabase
-        .from('products')
+        .from('agenda_products')
         .update(productData)
         .eq('id', editingProduct.id);
 
@@ -1023,7 +1036,7 @@ export default function AdminDashboard() {
       }
     } else {
       const { error } = await supabase
-        .from('products')
+        .from('agenda_products')
         .insert(productData);
 
       if (error) {
@@ -1042,7 +1055,7 @@ export default function AdminDashboard() {
 
   const toggleProductActive = async (product: Product) => {
     const { error } = await supabase
-      .from('products')
+      .from('agenda_products')
       .update({ is_active: !product.is_active })
       .eq('id', product.id);
 
@@ -1058,7 +1071,7 @@ export default function AdminDashboard() {
     }
 
     const { error } = await supabase
-      .from('products')
+      .from('agenda_products')
       .delete()
       .eq('id', product.id);
 

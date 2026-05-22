@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
+import { useAgendaBranding } from "@/hooks/useAgendaBranding";
 import { supabase } from "@/integrations/supabase/client";
 import {
   Dialog,
@@ -42,6 +43,8 @@ import {
 
 interface Client {
   id: string;
+  store_account_id: string;
+  owner_user_id: string;
   name: string;
   phone: string | null;
   email: string | null;
@@ -64,15 +67,27 @@ export function ClientsTab() {
   const [notes, setNotes] = useState("");
 
   const { toast } = useToast();
+  const { settings } = useAgendaBranding();
 
   useEffect(() => {
+    if (!settings.storeAccountId) {
+      setClients([]);
+      setLoading(false);
+      return;
+    }
+
     fetchClients();
 
     const channel = supabase
-      .channel("public:clients")
+      .channel(`agenda:clients:${settings.storeAccountId}`)
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "clients" },
+        {
+          event: "*",
+          schema: "public",
+          table: "agenda_clients",
+          filter: `store_account_id=eq.${settings.storeAccountId}`,
+        },
         (payload) => {
           if (payload.eventType === "INSERT" && payload.new) {
             setClients((prev) => {
@@ -103,10 +118,16 @@ export function ClientsTab() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, []);
+  }, [settings.storeAccountId]);
 
   const fetchClients = async () => {
-    const { data } = await supabase.from("clients").select("*").order("name");
+    if (!settings.storeAccountId) return;
+
+    const { data } = await supabase
+      .from("agenda_clients")
+      .select("*")
+      .eq("store_account_id", settings.storeAccountId)
+      .order("name");
     if (data) setClients(data);
     setLoading(false);
   };
@@ -149,7 +170,7 @@ export function ClientsTab() {
 
     if (editing) {
       const { error } = await supabase
-        .from("clients")
+        .from("agenda_clients")
         .update(data)
         .eq("id", editing.id);
       if (error) {
@@ -162,7 +183,7 @@ export function ClientsTab() {
         toast({ title: "Cliente atualizado" });
       }
     } else {
-      const { error } = await supabase.from("clients").insert(data);
+      const { error } = await supabase.from("agenda_clients").insert(data);
       if (error) {
         toast({
           title: "Erro",
@@ -182,7 +203,7 @@ export function ClientsTab() {
   const confirmRemove = async () => {
     if (!deleteTarget) return;
     const { error } = await supabase
-      .from("clients")
+      .from("agenda_clients")
       .delete()
       .eq("id", deleteTarget.id);
     if (!error) {

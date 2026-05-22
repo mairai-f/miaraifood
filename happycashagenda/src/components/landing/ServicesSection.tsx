@@ -6,6 +6,8 @@ import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { supabase } from '@/integrations/supabase/client';
+import { useAgendaBranding } from '@/hooks/useAgendaBranding';
+import { withAgendaPublicSearch } from '@/lib/agendaPublicLink';
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -35,13 +37,27 @@ export function ServicesSection() {
   const sectionRef = useRef<HTMLElement>(null);
   const [services, setServices] = useState<Service[]>([]);
   const [loading, setLoading] = useState(true);
+  const { settings } = useAgendaBranding();
+  const publicPath = (path: string) => withAgendaPublicSearch(path, settings);
 
   useEffect(() => {
-    supabase.from('services').select('id, name, price, duration_minutes, description').eq('is_active', true).order('price').then(({ data }) => {
+    if (!settings.storeAccountId) {
+      setServices([]);
+      setLoading(false);
+      return;
+    }
+
+    supabase
+      .from('services')
+      .select('id, name, price, duration_minutes, description')
+      .eq('store_account_id', settings.storeAccountId)
+      .eq('is_active', true)
+      .order('price')
+      .then(({ data }) => {
       if (data) setServices(data);
       setLoading(false);
     });
-  }, []);
+  }, [settings.storeAccountId]);
 
   useEffect(() => {
     if (loading || !services.length) return;
@@ -97,7 +113,7 @@ export function ServicesSection() {
                 key={service.id}
                 className="service-card p-4 md:p-7 rounded-2xl bg-card border border-border hover:border-primary/50 transition-colors duration-300 cursor-pointer shadow-sm hover:shadow-xl"
                 style={{ opacity: 0 }}
-                onClick={() => navigate('/agendamento')}
+                onClick={() => navigate(publicPath('/agendamento'))}
               >
                 <div className="flex justify-between items-start mb-3 md:mb-5">
                   <span className="text-2xl md:text-3xl">{getIcon(service.name)}</span>
@@ -114,7 +130,7 @@ export function ServicesSection() {
         )}
 
         <div className="text-center mt-8 md:mt-12">
-          <Button variant="outline" size="lg" onClick={() => navigate('/agendamento')} className="rounded-full px-6 md:px-8 text-sm md:text-base">
+          <Button variant="outline" size="lg" onClick={() => navigate(publicPath('/agendamento'))} className="rounded-full px-6 md:px-8 text-sm md:text-base">
             Agendar Agora
             <ArrowRight className="w-4 h-4 md:w-5 md:h-5 ml-2" />
           </Button>

@@ -113,7 +113,7 @@ Via painel admin:
 
 ```typescript
 const { data } = await supabase
-  .from('products')
+  .from('agenda_products')
   .select('*')
   .eq('is_active', true)
   .order('name');
@@ -123,7 +123,7 @@ const { data } = await supabase
 
 ```typescript
 const { data } = await supabase
-  .from('products')
+  .from('agenda_products')
   .select('*')
   .order('name');
 ```
@@ -152,11 +152,11 @@ Simplesmente cadastre produtos com a categoria desejada - o filtro detecta autom
 ```sql
 -- Público pode ver produtos ativos
 CREATE POLICY "Public can view active products"
-ON public.products FOR SELECT
+ON public.agenda_products FOR SELECT
 USING (is_active = true);
 
 -- Administradores podem gerenciar tudo
 CREATE POLICY "Admins can manage products"
-ON public.products FOR ALL
+ON public.agenda_products FOR ALL
 USING (has_role(auth.uid(), 'admin'));
 ```

@@ -11,6 +11,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { Loader2 } from 'lucide-react';
 import { useCart } from '@/hooks/useCart';
 import { useAuth } from '@/hooks/useAuth';
+import { useAgendaBranding } from '@/hooks/useAgendaBranding';
+import { withAgendaPublicSearch } from '@/lib/agendaPublicLink';
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -33,9 +35,11 @@ export default function Products() {
   const headerRef = useRef<HTMLDivElement>(null);
   const { addItem, setIsOpen, itemCount } = useCart();
   const { user } = useAuth();
+  const { settings } = useAgendaBranding();
   const navigate = useNavigate();
+  const publicPath = (path: string) => withAgendaPublicSearch(path, settings);
 
-  useEffect(() => { fetchProducts(); }, []);
+  useEffect(() => { fetchProducts(); }, [settings.storeAccountId]);
 
   useEffect(() => {
     if (loading || !products.length) return;
@@ -53,7 +57,18 @@ export default function Products() {
   }, [loading, products, selectedCategory]);
 
   const fetchProducts = async () => {
-    const { data } = await supabase.from('products').select('*').eq('is_active', true).order('name');
+    if (!settings.storeAccountId) {
+      setProducts([]);
+      setLoading(false);
+      return;
+    }
+
+    const { data } = await supabase
+      .from('agenda_products')
+      .select('*')
+      .eq('store_account_id', settings.storeAccountId)
+      .eq('is_active', true)
+      .order('name');
     if (data) setProducts(data);
     setLoading(false);
   };
@@ -157,7 +172,7 @@ export default function Products() {
                       {product.stock_quantity <= 0 ? 'Indisponível' : 'Adicionar'}
                     </Button>
                   ) : (
-                    <Button size="sm" variant="outline" className="w-full mt-1 rounded-full gap-2" onClick={() => navigate('/login')}>
+                    <Button size="sm" variant="outline" className="w-full mt-1 rounded-full gap-2" onClick={() => navigate(publicPath('/login'))}>
                       Faça login para comprar
                     </Button>
                   )}

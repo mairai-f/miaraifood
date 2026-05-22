@@ -20,6 +20,8 @@ type CustomerProfileRow = {
 };
 
 const normalizeEmail = (value: string) => value.trim().toLowerCase();
+const isUuid = (value: string) =>
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 
 const mergeCustomerProfile = (
   current: CustomerInfo,
@@ -45,6 +47,7 @@ export const getMenuCustomerSession = async (storeAccountId: string, current: Cu
   const { data: sessionData } = await menuCustomerSupabase.auth.getSession();
   const email = sessionData.session?.user.email;
   if (!sessionData.session?.user || !email) return null;
+  if (!isUuid(storeAccountId)) return mergeCustomerProfile(current, email, null);
 
   const { data: profile } = await menuCustomerSupabase
     .from("restaurant_menu_customers")
@@ -120,6 +123,7 @@ export const upsertMenuCustomerProfile = async (
 ) => {
   const { data: sessionData } = await menuCustomerSupabase.auth.getSession();
   if (!sessionData.session?.user) return;
+  if (!isUuid(storeAccountId)) return;
 
   const { error } = await menuCustomerSupabase
     .from("restaurant_menu_customers")

@@ -11,9 +11,11 @@ import { StatusBadge } from '@/components/ui/status-badge';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
 import { usePushNotifications } from '@/hooks/usePushNotifications';
+import { useAgendaBranding } from '@/hooks/useAgendaBranding';
 import { supabase } from '@/integrations/supabase/client';
 import { LoyaltyTab } from '@/components/admin/LoyaltyTab';
 import { parseLocalDate } from '@/lib/utils';
+import { withAgendaPublicSearch } from '@/lib/agendaPublicLink';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -45,6 +47,7 @@ interface Appointment {
 
 interface AppointmentRealtimeRow {
   id?: string;
+  store_account_id?: string;
   status?: Appointment['status'];
   appointment_date?: string;
   appointment_time?: string;
@@ -73,7 +76,10 @@ export default function MyAppointments() {
   const { user, loading: authLoading } = useAuth();
   const { toast } = useToast();
   const { requestPermission, sendNotification, permission } = usePushNotifications();
+  const { settings } = useAgendaBranding();
   const navigate = useNavigate();
+  const publicLoginPath = withAgendaPublicSearch('/login', settings);
+  const publicBookingPath = withAgendaPublicSearch('/agendamento', settings);
 
   // Cache para saber quais agendamentos pertencem ao cliente (usado no realtime de serviços)
   const appointmentIdsRef = useRef<Set<string>>(new Set());
@@ -87,12 +93,12 @@ export default function MyAppointments() {
 
   useEffect(() => {
     if (!authLoading && !user) {
-      navigate('/auth');
+      navigate(publicLoginPath);
     }
-  }, [user, authLoading, navigate]);
+  }, [user, authLoading, navigate, publicLoginPath]);
 
   useEffect(() => {
-    if (user) {
+    if (user && settings.storeAccountId) {
       fetchAppointments();
       fetchProfileName();
 
@@ -110,6 +116,12 @@ export default function MyAppointments() {
           (payload) => {
             const updatedApt = payload.new as AppointmentRealtimeRow;
             const oldApt = payload.old as AppointmentRealtimeRow;
+            if (
+              updatedApt.store_account_id &&
+              updatedApt.store_account_id !== settings.storeAccountId
+            ) {
+              return;
+            }
 
             // Otimista: tira instantaneamente de "Próximos" ao cancelar/concluir
             if (updatedApt?.id) {
@@ -179,11 +191,14 @@ export default function MyAppointments() {
         supabase.removeChannel(appointmentsChannel);
         supabase.removeChannel(servicesChannel);
       };
+    } else if (user && !settings.storeAccountId) {
+      setAppointments([]);
+      setLoading(false);
     }
-  }, [user]);
+  }, [settings.storeAccountId, user]);
 
   const fetchAppointments = async () => {
-    if (!user) return;
+    if (!user || !settings.storeAccountId) return;
 
     const { data, error } = await supabase
       .from('appointments')
@@ -197,6 +212,7 @@ export default function MyAppointments() {
         service:services(name, price, duration_minutes)
       `)
       .eq('client_id', user.id)
+      .eq('store_account_id', settings.storeAccountId)
       .order('appointment_date', { ascending: false })
       .order('appointment_time', { ascending: false });
 
@@ -342,7 +358,7 @@ export default function MyAppointments() {
                 Gerencie seus horários marcados
               </p>
             </div>
-            <Button onClick={() => navigate('/booking')}>
+            <Button onClick={() => navigate(publicBookingPath)}>
               Novo Agendamento
             </Button>
           </div>
@@ -357,7 +373,7 @@ export default function MyAppointments() {
                 <p className="text-muted-foreground mb-6">
                   Você ainda não tem nenhum horário marcado.
                 </p>
-                <Button onClick={() => navigate('/booking')}>
+                <Button onClick={() => navigate(publicBookingPath)}>
                   Agendar Agora
                 </Button>
               </CardContent>

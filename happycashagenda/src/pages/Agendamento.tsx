@@ -17,6 +17,7 @@ import { useAgendaBranding } from '@/hooks/useAgendaBranding';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { cn } from '@/lib/utils';
+import { withAgendaPublicSearch } from '@/lib/agendaPublicLink';
 
 // Validation schema for booking form
 const bookingSchema = z.object({
@@ -67,9 +68,11 @@ export default function Booking() {
 
   const { user } = useAuth();
   const { settings } = useAgendaBranding();
-  const { getAvailableTimeSlots, getAllBusinessSlots, getHoursForDay, canBookServiceAtTime } = useBusinessHours();
+  const { getAvailableTimeSlots, getAllBusinessSlots, getHoursForDay, canBookServiceAtTime } = useBusinessHours(settings.storeAccountId);
   const { toast } = useToast();
   const navigate = useNavigate();
+  const publicLoginPath = withAgendaPublicSearch('/login', settings);
+  const publicAppointmentsPath = withAgendaPublicSearch('/meus-agendamentos', settings);
 
   // Redireciona para login se não estiver autenticado
   useEffect(() => {
@@ -79,17 +82,19 @@ export default function Booking() {
         description: 'Você precisa estar logado para agendar um horário.',
         variant: 'destructive',
       });
-      navigate('/login');
+      navigate(publicLoginPath);
     }
-  }, [user, navigate, toast]);
+  }, [navigate, publicLoginPath, toast, user]);
 
   useEffect(() => {
-    fetchServices();
-    fetchBarbers();
+    if (settings.storeAccountId) {
+      fetchServices();
+      fetchBarbers();
+    }
     if (user) {
       fetchUserProfile();
     }
-  }, [user]);
+  }, [settings.storeAccountId, user]);
 
   // Calculate total duration and price from selected services
   const totalDuration = selectedServices.reduce((sum, s) => sum + s.duration_minutes, 0);
@@ -128,18 +133,22 @@ export default function Booking() {
   }, [selectedBarber, selectedDate, selectedServices]);
 
   const fetchServices = async () => {
+    if (!settings.storeAccountId) return;
     const { data } = await supabase
       .from('services')
       .select('*')
+      .eq('store_account_id', settings.storeAccountId)
       .eq('is_active', true)
       .order('name');
     if (data) setServices(data);
   };
 
   const fetchBarbers = async () => {
+    if (!settings.storeAccountId) return;
     const { data } = await supabase
       .from('barbers')
       .select('*')
+      .eq('store_account_id', settings.storeAccountId)
       .eq('is_active', true)
       .order('name');
     if (data) setBarbers(data);
@@ -249,7 +258,7 @@ export default function Booking() {
         description: 'Para confirmar um horário, entre com sua conta.',
         variant: 'destructive',
       });
-      navigate('/login');
+      navigate(publicLoginPath);
       return;
     }
 
@@ -314,7 +323,7 @@ export default function Booking() {
         title: 'Agendamento confirmado!',
         description: `${format(selectedDate, "dd 'de' MMMM", { locale: ptBR })} às ${selectedTime}. Pagamento: ${paymentMethod === 'pix' ? 'PIX' : 'No local'}`,
       });
-      navigate('/meus-agendamentos');
+      navigate(publicAppointmentsPath);
     }
   };
 

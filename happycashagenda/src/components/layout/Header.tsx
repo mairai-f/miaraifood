@@ -39,6 +39,7 @@ import { useTheme } from "@/hooks/useTheme";
 import { useToast } from "@/hooks/use-toast";
 import { useCart } from "@/hooks/useCart";
 import { useAgendaBranding } from "@/hooks/useAgendaBranding";
+import { withAgendaPublicSearch } from "@/lib/agendaPublicLink";
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -68,6 +69,7 @@ export function Header() {
   const { theme, toggleTheme } = useTheme();
   const { toast } = useToast();
   const navigate = useNavigate();
+  const publicPath = (path: string) => withAgendaPublicSearch(path, settings);
 
   // Estados para modal de senha
   const [showPasswordModal, setShowPasswordModal] = useState(false);
@@ -153,7 +155,7 @@ export function Header() {
       // Faz logoff para que o usuário entre novamente com a nova senha
       setTimeout(async () => {
         await signOut();
-        navigate("/login");
+        navigate(publicPath("/login"));
       }, 1500);
     }
   };
@@ -287,20 +289,20 @@ export function Header() {
                     Início
                   </Link>
                   <Link
-                    to="/agendamento"
+                    to={publicPath("/agendamento")}
                     className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
                   >
                     Agendar
                   </Link>
                   <Link
-                    to="/produtos"
+                    to={publicPath("/produtos")}
                     className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
                   >
                     Produtos
                   </Link>
                   {user && (
                     <Link
-                      to="/meus-agendamentos"
+                      to={publicPath("/meus-agendamentos")}
                       className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
                     >
                       Meus Agendamentos
@@ -377,7 +379,7 @@ export function Header() {
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem
-                      onClick={() => navigate("/meus-agendamentos")}
+                      onClick={() => navigate(publicPath("/meus-agendamentos"))}
                     >
                       Meus Agendamentos
                     </DropdownMenuItem>
@@ -446,7 +448,7 @@ export function Header() {
                 <Button
                   variant="default"
                   size="sm"
-                  onClick={() => navigate("/login")}
+                  onClick={() => navigate(publicPath("/login"))}
                 >
                   Entrar
                 </Button>

@@ -91,16 +91,19 @@ type BillingCustomerRow = {
 
 type DashboardQueryError = { message: string } | null;
 
+type StoreAccountQueryBuilder = {
+  eq(column: string, value: string): StoreAccountQueryBuilder;
+  order(column: string, options: { ascending: boolean }): StoreAccountQueryBuilder;
+  limit(count: number): StoreAccountQueryBuilder;
+  maybeSingle(): Promise<{
+    data: StoreAccountRow | null;
+    error: DashboardQueryError;
+  }>;
+};
+
 type DashboardQueryClient = {
   from(table: "store_accounts"): {
-    select(columns: string): {
-      eq(column: string, value: string): {
-        maybeSingle(): Promise<{
-          data: StoreAccountRow | null;
-          error: DashboardQueryError;
-        }>;
-      };
-    };
+    select(columns: string): StoreAccountQueryBuilder;
   };
   from(table: "subscription_plans"): {
     select(columns: string): {
@@ -326,6 +329,7 @@ const Dashboard = () => {
 
   const loadDashboard = async (userId: string) => {
     const db = supabase as unknown as DashboardQueryClient;
+    const selectedProductContext = selectedPlanId ? resolveProductContextFromPlanId(selectedPlanId) : null;
     setRefreshing(true);
     setLoadError(null);
 
@@ -336,8 +340,17 @@ const Dashboard = () => {
       { data: billingCustomerData, error: billingCustomerError },
     ] = await retryAsync(
       async () => {
+        let storeAccountQuery = db
+          .from("store_accounts")
+          .select("id, nome_cliente, nome_estabelecimento, email, product_context")
+          .eq("owner_user_id", userId);
+
+        if (selectedProductContext) {
+          storeAccountQuery = storeAccountQuery.eq("product_context", selectedProductContext);
+        }
+
         const responses = await Promise.all([
-          db.from("store_accounts").select("id, nome_cliente, nome_estabelecimento, email, product_context").eq("owner_user_id", userId).maybeSingle(),
+          storeAccountQuery.order("created_at", { ascending: false }).limit(1).maybeSingle(),
           db.from("subscription_plans").select("id, name, description, price, annual_price, duration_days, sort_order").eq("is_public", true).eq("is_active", true).order("sort_order", { ascending: true }),
           db.from("store_subscriptions").select("id, plan_id, status, billing_type, provider, provider_payment_id, current_period_starts_at, current_period_ends_at, trial_started_at, trial_ends_at, metadata, created_at").eq("owner_user_id", userId).order("created_at", { ascending: false }),
           db.from("billing_customers").select("provider, provider_customer_id").eq("owner_user_id", userId).maybeSingle(),

@@ -14,6 +14,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Progress } from '@/components/ui/progress';
 import { useToast } from '@/hooks/use-toast';
+import { useAgendaBranding } from '@/hooks/useAgendaBranding';
 import { supabase } from '@/integrations/supabase/client';
 import {
   Dialog,
@@ -44,6 +45,7 @@ interface LoyaltyProgram {
 interface LoyaltyProgress {
   id: string;
   program_id: string;
+  agenda_client_id: string | null;
   client_name: string;
   client_phone: string | null;
   current_count: number;
@@ -91,27 +93,37 @@ export function LoyaltyTab({ isAdmin, clientName }: LoyaltyTabProps) {
 
   const [submitting, setSubmitting] = useState(false);
   const { toast } = useToast();
+  const { settings } = useAgendaBranding();
 
   useEffect(() => {
+    if (!settings.storeAccountId) return;
+
     fetchData();
 
     // Realtime for loyalty_progress changes
     const channel = supabase
       .channel('loyalty-progress-realtime')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'loyalty_progress' }, () => {
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'loyalty_progress',
+        filter: `store_account_id=eq.${settings.storeAccountId}`,
+      }, () => {
         fetchData();
       })
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
-  }, []);
+  }, [settings.storeAccountId]);
 
   const fetchData = async () => {
+    if (!settings.storeAccountId) return;
+
     const [programsRes, progressRes, servicesRes, clientsRes] = await Promise.all([
-      supabase.from('loyalty_programs').select('*, service:services(name)').order('created_at', { ascending: false }),
-      supabase.from('loyalty_progress').select('*').order('client_name'),
-      supabase.from('services').select('id, name').eq('is_active', true).order('name'),
-      supabase.from('clients').select('id, name, phone').order('name'),
+      supabase.from('loyalty_programs').select('*, service:services(name)').eq('store_account_id', settings.storeAccountId).order('created_at', { ascending: false }),
+      supabase.from('loyalty_progress').select('*').eq('store_account_id', settings.storeAccountId).order('client_name'),
+      supabase.from('services').select('id, name').eq('store_account_id', settings.storeAccountId).eq('is_active', true).order('name'),
+      supabase.from('agenda_clients').select('id, name, phone').eq('store_account_id', settings.storeAccountId).order('name'),
     ]);
 
     if (programsRes.data) {
@@ -213,9 +225,9 @@ export function LoyaltyTab({ isAdmin, clientName }: LoyaltyTabProps) {
 
     const { error } = await supabase.from('loyalty_progress').insert({
       program_id: selectedProgramId,
+      agenda_client_id: client.id,
       client_name: client.name,
       client_phone: client.phone || null,
-      client_id: client.id,
       current_count: 0,
     });
 

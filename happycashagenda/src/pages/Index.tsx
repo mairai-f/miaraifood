@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { Layout } from '@/components/layout/Layout';
 import { SplashScreen } from '@/components/SplashScreen';
 import { HeroSection } from '@/components/landing/HeroSection';
@@ -15,10 +15,11 @@ export default function Index() {
     return !!sessionStorage.getItem('happycash_agenda_visited');
   });
   const navigate = useNavigate();
+  const location = useLocation();
 
   const handleSplashComplete = () => {
     setSplashDone(true);
-    navigate('/login');
+    navigate(`/login${location.search}`);
   };
 
   if (!splashDone) {

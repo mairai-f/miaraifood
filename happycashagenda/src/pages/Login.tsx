@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { z } from "zod";
 import {
@@ -131,12 +131,16 @@ export default function Login() {
   const { settings } = useAgendaBranding();
   const { toast } = useToast();
   const navigate = useNavigate();
+  const location = useLocation();
+  const hasPublicAgendaContext = new URLSearchParams(location.search).has("empresa")
+    || new URLSearchParams(location.search).has("agenda");
+  const postLoginPath = hasPublicAgendaContext ? `/agendamento${location.search}` : "/";
 
   useEffect(() => {
     if (user) {
-      navigate("/");
+      navigate(postLoginPath);
     }
-  }, [user, navigate]);
+  }, [user, navigate, postLoginPath]);
 
   const handleGoogle = async () => {
     setLoading(true);
@@ -277,7 +281,7 @@ export default function Login() {
           title: "Bem-vindo de volta!",
           description: "Login realizado com sucesso.",
         });
-        navigate("/");
+        navigate(postLoginPath);
       }
     } else {
       // Clean phone digits for checking/storing
@@ -317,7 +321,7 @@ export default function Login() {
           title: "Conta criada!",
           description: "Sua conta foi criada com sucesso.",
         });
-        navigate("/");
+        navigate(postLoginPath);
       }
     }
 

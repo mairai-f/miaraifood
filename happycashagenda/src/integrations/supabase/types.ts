@@ -20,21 +20,27 @@ export type Database = {
           added_by_barber: boolean
           appointment_id: string
           id: string
+          owner_user_id: string | null
           service_id: string
+          store_account_id: string | null
         }
         Insert: {
           added_at?: string
           added_by_barber?: boolean
           appointment_id: string
           id?: string
+          owner_user_id?: string | null
           service_id: string
+          store_account_id?: string | null
         }
         Update: {
           added_at?: string
           added_by_barber?: boolean
           appointment_id?: string
           id?: string
+          owner_user_id?: string | null
           service_id?: string
+          store_account_id?: string | null
         }
         Relationships: [
           {
@@ -58,10 +64,12 @@ export type Database = {
           created_by: string | null
           id: string
           notes: string | null
+          owner_user_id: string | null
           payment_method: string | null
           payment_status: string | null
           service_id: string
           status: Database["public"]["Enums"]["appointment_status"]
+          store_account_id: string | null
           updated_at: string
         }
         Insert: {
@@ -75,10 +83,12 @@ export type Database = {
           created_by?: string | null
           id?: string
           notes?: string | null
+          owner_user_id?: string | null
           payment_method?: string | null
           payment_status?: string | null
           service_id: string
           status?: Database["public"]["Enums"]["appointment_status"]
+          store_account_id?: string | null
           updated_at?: string
         }
         Update: {
@@ -92,10 +102,12 @@ export type Database = {
           created_by?: string | null
           id?: string
           notes?: string | null
+          owner_user_id?: string | null
           payment_method?: string | null
           payment_status?: string | null
           service_id?: string
           status?: Database["public"]["Enums"]["appointment_status"]
+          store_account_id?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -124,9 +136,11 @@ export type Database = {
           id: string
           is_active: boolean
           name: string
+          owner_user_id: string | null
           password_hash: string | null
           phone: string | null
           photo_url: string | null
+          store_account_id: string | null
           updated_at: string
           user_id: string | null
           username: string | null
@@ -139,9 +153,11 @@ export type Database = {
           id?: string
           is_active?: boolean
           name: string
+          owner_user_id?: string | null
           password_hash?: string | null
           phone?: string | null
           photo_url?: string | null
+          store_account_id?: string | null
           updated_at?: string
           user_id?: string | null
           username?: string | null
@@ -154,9 +170,11 @@ export type Database = {
           id?: string
           is_active?: boolean
           name?: string
+          owner_user_id?: string | null
           password_hash?: string | null
           phone?: string | null
           photo_url?: string | null
+          store_account_id?: string | null
           updated_at?: string
           user_id?: string | null
           username?: string | null
@@ -170,6 +188,8 @@ export type Database = {
           id: string
           is_open: boolean
           open_time: string
+          owner_user_id: string | null
+          store_account_id: string | null
         }
         Insert: {
           close_time?: string
@@ -177,6 +197,8 @@ export type Database = {
           id?: string
           is_open?: boolean
           open_time?: string
+          owner_user_id?: string | null
+          store_account_id?: string | null
         }
         Update: {
           close_time?: string
@@ -184,6 +206,8 @@ export type Database = {
           id?: string
           is_open?: boolean
           open_time?: string
+          owner_user_id?: string | null
+          store_account_id?: string | null
         }
         Relationships: []
       }
@@ -197,7 +221,9 @@ export type Database = {
           latitude: number | null
           longitude: number | null
           name: string
+          owner_user_id: string | null
           phone: string | null
+          store_account_id: string | null
           updated_at: string
         }
         Insert: {
@@ -209,7 +235,9 @@ export type Database = {
           latitude?: number | null
           longitude?: number | null
           name: string
+          owner_user_id?: string | null
           phone?: string | null
+          store_account_id?: string | null
           updated_at?: string
         }
         Update: {
@@ -221,7 +249,9 @@ export type Database = {
           latitude?: number | null
           longitude?: number | null
           name?: string
+          owner_user_id?: string | null
           phone?: string | null
+          store_account_id?: string | null
           updated_at?: string
         }
         Relationships: []
@@ -267,8 +297,10 @@ export type Database = {
           id: string
           is_active: boolean
           name: string
+          owner_user_id: string | null
           reward_description: string
           service_id: string | null
+          store_account_id: string | null
           updated_at: string
         }
         Insert: {
@@ -278,8 +310,10 @@ export type Database = {
           id?: string
           is_active?: boolean
           name: string
+          owner_user_id?: string | null
           reward_description?: string
           service_id?: string | null
+          store_account_id?: string | null
           updated_at?: string
         }
         Update: {
@@ -289,8 +323,10 @@ export type Database = {
           id?: string
           is_active?: boolean
           name?: string
+          owner_user_id?: string | null
           reward_description?: string
           service_id?: string | null
+          store_account_id?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -305,6 +341,7 @@ export type Database = {
       }
       loyalty_progress: {
         Row: {
+          agenda_client_id: string | null
           client_id: string | null
           client_name: string
           client_phone: string | null
@@ -312,11 +349,14 @@ export type Database = {
           created_at: string
           current_count: number
           id: string
+          owner_user_id: string | null
           program_id: string
           reward_claimed: boolean
+          store_account_id: string | null
           updated_at: string
         }
         Insert: {
+          agenda_client_id?: string | null
           client_id?: string | null
           client_name: string
           client_phone?: string | null
@@ -324,11 +364,14 @@ export type Database = {
           created_at?: string
           current_count?: number
           id?: string
+          owner_user_id?: string | null
           program_id: string
           reward_claimed?: boolean
+          store_account_id?: string | null
           updated_at?: string
         }
         Update: {
+          agenda_client_id?: string | null
           client_id?: string | null
           client_name?: string
           client_phone?: string | null
@@ -336,8 +379,10 @@ export type Database = {
           created_at?: string
           current_count?: number
           id?: string
+          owner_user_id?: string | null
           program_id?: string
           reward_claimed?: boolean
+          store_account_id?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -356,6 +401,87 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      agenda_clients: {
+        Row: {
+          created_at: string
+          email: string | null
+          id: string
+          name: string
+          notes: string | null
+          owner_user_id: string
+          phone: string
+          store_account_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          email?: string | null
+          id?: string
+          name: string
+          notes?: string | null
+          owner_user_id?: string
+          phone?: string
+          store_account_id?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          email?: string | null
+          id?: string
+          name?: string
+          notes?: string | null
+          owner_user_id?: string
+          phone?: string
+          store_account_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      agenda_products: {
+        Row: {
+          category: string | null
+          created_at: string
+          description: string | null
+          id: string
+          image_url: string | null
+          is_active: boolean
+          name: string
+          owner_user_id: string
+          price: number
+          stock_quantity: number
+          store_account_id: string
+          updated_at: string
+        }
+        Insert: {
+          category?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          image_url?: string | null
+          is_active?: boolean
+          name: string
+          owner_user_id?: string
+          price?: number
+          stock_quantity?: number
+          store_account_id?: string
+          updated_at?: string
+        }
+        Update: {
+          category?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          image_url?: string | null
+          is_active?: boolean
+          name?: string
+          owner_user_id?: string
+          price?: number
+          stock_quantity?: number
+          store_account_id?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       products: {
         Row: {
@@ -431,7 +557,9 @@ export type Database = {
           id: string
           is_active: boolean
           name: string
+          owner_user_id: string | null
           price: number
+          store_account_id: string | null
           updated_at: string
         }
         Insert: {
@@ -441,7 +569,9 @@ export type Database = {
           id?: string
           is_active?: boolean
           name: string
+          owner_user_id?: string | null
           price: number
+          store_account_id?: string | null
           updated_at?: string
         }
         Update: {
@@ -451,7 +581,9 @@ export type Database = {
           id?: string
           is_active?: boolean
           name?: string
+          owner_user_id?: string | null
           price?: number
+          store_account_id?: string | null
           updated_at?: string
         }
         Relationships: []

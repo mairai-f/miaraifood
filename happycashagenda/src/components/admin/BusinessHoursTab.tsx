@@ -12,6 +12,7 @@ import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
+import { useAgendaBranding } from '@/hooks/useAgendaBranding';
 import { supabase } from '@/integrations/supabase/client';
 
 interface BusinessHour {
@@ -34,13 +35,24 @@ export function BusinessHoursTab({ isAdmin, onUpdate }: BusinessHoursTabProps) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const { toast } = useToast();
+  const { settings } = useAgendaBranding();
 
   useEffect(() => {
     fetchHours();
-  }, []);
+  }, [settings.storeAccountId]);
 
   const fetchHours = async () => {
-    const { data } = await supabase.from('business_hours').select('*').order('day_of_week');
+    if (!settings.storeAccountId) {
+      setHours([]);
+      setLoading(false);
+      return;
+    }
+
+    const { data } = await supabase
+      .from('business_hours')
+      .select('*')
+      .eq('store_account_id', settings.storeAccountId)
+      .order('day_of_week');
     if (data) setHours(data);
     setLoading(false);
   };

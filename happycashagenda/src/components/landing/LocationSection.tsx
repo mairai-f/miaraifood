@@ -19,9 +19,9 @@ const normalizeEmbedUrl = (raw: string) => {
 };
 
 export function LocationSection() {
-  const { locations, loading: locLoading } = useBusinessLocations();
-  const { businessHours, loading: hoursLoading } = useBusinessHours();
   const { settings } = useAgendaBranding();
+  const { locations, loading: locLoading } = useBusinessLocations(settings.storeAccountId);
+  const { businessHours, loading: hoursLoading } = useBusinessHours(settings.storeAccountId);
   const sectionRef = useRef<HTMLElement>(null);
 
   const DAY_NAMES = [

@@ -16,6 +16,7 @@ import {
   getProductContextLabel,
   isPaidPlanAllowedForProductContext,
   normalizeProductContext,
+  resolveProductContextFromPlanId,
   type ProductContext,
 } from "../_shared/productContext.ts";
 
@@ -473,6 +474,8 @@ Deno.serve(async (request) => {
     return jsonResponse(request, { error: "Periodo de cobranca inválido." }, 400);
   }
 
+  const requestedProductContext = resolveProductContextFromPlanId(planId);
+
   const { data: planData, error: planError } = await serviceClient
     .from("subscription_plans")
     .select("id, name, price, annual_price, currency, duration_days")
@@ -488,10 +491,15 @@ Deno.serve(async (request) => {
     .from("store_accounts")
     .select("id, nome_cliente, email, telefone, cnpj, nome_estabelecimento, nome_rua, numero, complemento, bairro, cep, product_context")
     .eq("owner_user_id", user.id)
-    .single();
+    .eq("product_context", requestedProductContext)
+    .maybeSingle();
 
   if (storeAccountError || !storeAccountData) {
-    return jsonResponse(request, { error: "Conta da loja não encontrada." }, 404);
+    return jsonResponse(
+      request,
+      { error: `Conta ${getProductContextLabel(requestedProductContext)} nao encontrada para este usuario.` },
+      404,
+    );
   }
 
   const plan = planData as SubscriptionPlanRow;

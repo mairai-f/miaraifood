@@ -376,6 +376,8 @@ Deno.serve(async (request) => {
       .from("clients")
       .select("id, name")
       .eq("user_id", profile.owner_user_id)
+      .eq("store_account_id", profile.store_account_id)
+      .eq("product_context", "happycashfood")
       .eq("phone", normalizedPhone)
       .eq("deleted", false)
       .limit(1);
@@ -387,13 +389,17 @@ Deno.serve(async (request) => {
         await supabase
           .from("clients")
           .update({ name: clean(customer.name).slice(0, 120) })
-          .eq("id", existingClient.id);
+          .eq("id", existingClient.id)
+          .eq("store_account_id", profile.store_account_id)
+          .eq("product_context", "happycashfood");
       }
     } else {
       const { data: insertedClient } = await supabase
         .from("clients")
         .insert({
           user_id: profile.owner_user_id,
+          store_account_id: profile.store_account_id,
+          product_context: "happycashfood",
           name: clean(customer.name).slice(0, 120),
           phone: normalizedPhone,
         })

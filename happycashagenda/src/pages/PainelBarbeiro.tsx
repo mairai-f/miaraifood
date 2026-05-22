@@ -36,6 +36,7 @@ import { Label } from '@/components/ui/label';
 import { Layout } from '@/components/layout/Layout';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { useAuth } from '@/hooks/useAuth';
+import { useAgendaBranding } from '@/hooks/useAgendaBranding';
 import { useToast } from '@/hooks/use-toast';
 import { usePushNotifications } from '@/hooks/usePushNotifications';
 import { supabase } from '@/integrations/supabase/client';
@@ -119,13 +120,16 @@ export default function BarberDashboard() {
   const [detailsAppointment, setDetailsAppointment] = useState<Appointment | null>(null);
 
   const { user, loading: authLoading } = useAuth();
+  const { settings } = useAgendaBranding();
   const { toast } = useToast();
   const { requestPermission, sendNotification, permission } = usePushNotifications();
   const navigate = useNavigate();
-  const { businessHours } = useBusinessHours();
+  const { businessHours } = useBusinessHours(settings.storeAccountId);
   const previousAppointmentsRef = useRef<Appointment[]>([]);
 
   useEffect(() => {
+    if (!settings.storeAccountId) return;
+
     // Check for barber session from login
     const sessionBarberId = sessionStorage.getItem('barber_id');
     const sessionBarberName = sessionStorage.getItem('barber_name');
@@ -138,7 +142,7 @@ export default function BarberDashboard() {
     } else if (user) {
       checkBarberAccess();
     }
-  }, [user, authLoading, navigate]);
+  }, [settings.storeAccountId, user, authLoading, navigate]);
 
   // Request notification permission on mount
   useEffect(() => {
@@ -289,6 +293,7 @@ export default function BarberDashboard() {
       .from('barbers')
       .select('id, name, commission, photo_url')
       .eq('id', barberId)
+      .eq('store_account_id', settings.storeAccountId || '')
       .maybeSingle();
 
     if (barber) {
@@ -325,6 +330,7 @@ export default function BarberDashboard() {
       .from('barbers')
       .select('id, name, commission, photo_url')
       .eq('user_id', user!.id)
+      .eq('store_account_id', settings.storeAccountId || '')
       .maybeSingle();
 
     if (barber) {
@@ -395,9 +401,11 @@ export default function BarberDashboard() {
   };
 
   const fetchServices = async () => {
+    if (!settings.storeAccountId) return;
     const { data } = await supabase
       .from('services')
       .select('id, name, price, duration_minutes')
+      .eq('store_account_id', settings.storeAccountId)
       .eq('is_active', true)
       .order('name');
     if (data) setServices(data);

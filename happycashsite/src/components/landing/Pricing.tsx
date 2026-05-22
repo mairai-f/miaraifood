@@ -122,6 +122,24 @@ const plans = [
       "Pagamento da assinatura via Pix ou débito / crédito",
     ],
   },
+  {
+    id: "agenda",
+    name: "HappyCash Agenda",
+    subtitle: "Agendamentos",
+    price: 80,
+    annualPrice: 800,
+    description: "Agenda online para serviços com profissionais, clientes, WhatsApp e QR Code",
+    popular: false,
+    features: [
+      "Plano com validade de 30 dias",
+      "Agenda por profissional",
+      "Serviços com preço e duração",
+      "Link público e QR Code",
+      "Clientes e histórico de agendamentos",
+      "Produtos separados do PDV e do Food",
+      "Pagamento da assinatura via Pix ou débito / crédito",
+    ],
+  },
 ];
 
 const formatPrice = (value: number) => value.toLocaleString("pt-BR", { minimumFractionDigits: 0, maximumFractionDigits: 0 });

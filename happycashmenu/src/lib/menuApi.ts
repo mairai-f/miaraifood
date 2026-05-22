@@ -267,8 +267,29 @@ const mapProfile = (row: ProfileRow): AdminPublicProfile => ({
   happyCashBrand: "HappyCashFood",
 });
 
+const isFallbackPublicMenu = (slug: string) =>
+  import.meta.env.DEV && (!slug || slug === "menu" || slug === fallbackMenu.store.slug);
+
+const fallbackOrderResponse = (payload: { actionType?: PublicMenuAction }): CreateOrderResponse => {
+  const actionType = payload.actionType || "order";
+  const receiptNumber = actionType === "call_waiter"
+    ? "garcom chamado"
+    : actionType === "request_bill"
+      ? "conta solicitada"
+      : `#LOCAL-${Date.now().toString().slice(-6)}`;
+
+  return {
+    success: true,
+    orderId: `fallback-${Date.now()}`,
+    actionType,
+    receiptNumber,
+    receiptTitle: actionType === "order" ? fallbackMenu.store.receiptName : actionType === "call_waiter" ? "Garcom chamado" : "Fechar conta",
+    brandLine: `${fallbackMenu.store.receiptName} | HappyCashFood`,
+  };
+};
+
 export const fetchPublicMenu = async (slug: string, tableSlug?: string | null): Promise<PublicMenuPayload> => {
-  if (import.meta.env.DEV && (!slug || slug === fallbackMenu.store.slug)) {
+  if (isFallbackPublicMenu(slug)) {
     return {
       ...fallbackMenu,
       table: tableSlug
@@ -326,6 +347,10 @@ export const createPublicOrder = async (payload: {
   customer: CustomerInfo;
   items: CartItem[];
 }): Promise<CreateOrderResponse> => {
+  if (isFallbackPublicMenu(payload.slug)) {
+    return fallbackOrderResponse(payload);
+  }
+
   const { data, error } = await menuCustomerSupabase.functions.invoke<CreateOrderResponse>("create-public-menu-order", {
     body: payload,
   });

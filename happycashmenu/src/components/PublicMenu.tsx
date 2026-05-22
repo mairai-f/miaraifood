@@ -1052,7 +1052,14 @@ export function PublicMenu({ slug, tableSlug }: PublicMenuProps) {
           </div>
 
           {customerMode !== "profile" ? (
-            <div className="space-y-3">
+            <form
+              id="menu-customer-auth-form"
+              className="space-y-3"
+              onSubmit={(event) => {
+                event.preventDefault();
+                void submitCustomerAuth();
+              }}
+            >
               <label className="block">
                 <span className="hc-label">Email</span>
                 <input
@@ -1073,7 +1080,7 @@ export function PublicMenu({ slug, tableSlug }: PublicMenuProps) {
                   autoComplete={customerMode === "signin" ? "current-password" : "new-password"}
                 />
               </label>
-            </div>
+            </form>
           ) : null}
 
           {customerMode !== "signin" ? (
@@ -1114,22 +1121,22 @@ export function PublicMenu({ slug, tableSlug }: PublicMenuProps) {
 
           <div className="flex flex-col gap-2 sm:flex-row">
             {customerMode === "signin" ? (
-              <button className="hc-button-primary flex-1" onClick={submitCustomerAuth} disabled={customerAuthLoading}>
+              <button type="submit" form="menu-customer-auth-form" className="hc-button-primary flex-1" disabled={customerAuthLoading}>
                 <LogIn size={18} /> {customerAuthLoading ? "Entrando..." : "Entrar"}
               </button>
             ) : null}
             {customerMode === "signup" ? (
-              <button className="hc-button-primary flex-1" onClick={submitCustomerAuth} disabled={customerAuthLoading}>
+              <button type="submit" form="menu-customer-auth-form" className="hc-button-primary flex-1" disabled={customerAuthLoading}>
                 <UserPlus size={18} /> {customerAuthLoading ? "Criando..." : "Criar conta"}
               </button>
             ) : null}
             {customerMode === "profile" ? (
-              <button className="hc-button-primary flex-1" onClick={saveCustomerProfile} disabled={customerAuthLoading}>
+              <button type="button" className="hc-button-primary flex-1" onClick={saveCustomerProfile} disabled={customerAuthLoading}>
                 <ShieldCheck size={18} /> {customerAuthLoading ? "Salvando..." : "Salvar dados"}
               </button>
             ) : null}
             {isCustomerSignedIn ? (
-              <button className="hc-button-soft" onClick={() => void logoutLoyaltyProfile()}>
+              <button type="button" className="hc-button-soft" onClick={() => void logoutLoyaltyProfile()}>
                 <Minus size={18} /> Sair
               </button>
             ) : null}

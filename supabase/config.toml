@@ -44,3 +44,9 @@ verify_jwt = false
 
 [functions.authorize-store-admin]
 verify_jwt = false
+
+[functions.public-menu]
+verify_jwt = false
+
+[functions.create-public-menu-order]
+verify_jwt = false

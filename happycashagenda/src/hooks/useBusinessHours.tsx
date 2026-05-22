@@ -11,14 +11,14 @@ interface BusinessHour {
 
 const CLOSING_TOLERANCE_MINUTES = 20; // Tolerância após o horário de fechamento
 
-export function useBusinessHours() {
+export function useBusinessHours(storeAccountId?: string) {
   const [businessHours, setBusinessHours] = useState<BusinessHour[]>([]);
   const [loading, setLoading] = useState(true);
   const [isCurrentlyOpen, setIsCurrentlyOpen] = useState(false);
 
   useEffect(() => {
     fetchBusinessHours();
-  }, []);
+  }, [storeAccountId]);
 
   useEffect(() => {
     const checkIfOpen = () => {
@@ -41,9 +41,16 @@ export function useBusinessHours() {
   }, [businessHours]);
 
   const fetchBusinessHours = async () => {
+    if (!storeAccountId) {
+      setBusinessHours([]);
+      setLoading(false);
+      return;
+    }
+
     const { data, error } = await supabase
       .from('business_hours')
       .select('*')
+      .eq('store_account_id', storeAccountId)
       .order('day_of_week');
 
     if (!error && data) {
