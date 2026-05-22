@@ -36,6 +36,7 @@ import { ClientsTab } from '@/components/admin/ClientsTab';
 import { LocationsTab } from '@/components/admin/LocationsTab';
 import { BusinessHoursTab } from '@/components/admin/BusinessHoursTab';
 import { BrandingTab } from '@/components/admin/BrandingTab';
+import { PublicPageSettingsTab } from '@/components/admin/PublicPageSettingsTab';
 import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, isWithinInterval, subDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Button } from '@/components/ui/button';
@@ -96,7 +97,9 @@ interface Appointment {
   appointment_date: string;
   appointment_time: string;
   status: 'scheduled' | 'completed' | 'cancelled';
-  barber: { name: string; id?: string };
+  payment_method: string | null;
+  payment_status: string | null;
+  barber: { name: string; id?: string; phone?: string | null };
   service: { name: string; price: number; id?: string; duration_minutes?: number };
   barber_id: string;
   service_id: string;
@@ -231,8 +234,19 @@ export default function AdminDashboard() {
   }, [user, isAdmin, authLoading, navigate]);
 
   useEffect(() => {
-    if (isAdmin && settings.storeAccountId) {
-      fetchAllData();
+    if (authLoading) return;
+
+    if (!isAdmin) {
+      setLoading(false);
+      return;
+    }
+
+    if (!settings.storeAccountId) {
+      setLoading(false);
+      return;
+    }
+
+    fetchAllData();
 
       // Subscribe to realtime changes in appointments
       const appointmentsChannel = supabase
@@ -402,8 +416,28 @@ export default function AdminDashboard() {
         supabase.removeChannel(appointmentsChannel);
         supabase.removeChannel(servicesChannel);
       };
+  }, [authLoading, isAdmin, settings.storeAccountId]);
+
+  const confirmAppointmentPayment = async (appointmentId: string) => {
+    const { error } = await supabase.rpc('confirm_agenda_appointment_payment', {
+      p_appointment_id: appointmentId,
+    });
+
+    if (error) {
+      toast({
+        title: 'Erro ao confirmar pagamento',
+        description: error.message,
+        variant: 'destructive',
+      });
+      return;
     }
-  }, [isAdmin, settings.storeAccountId]);
+
+    toast({
+      title: 'Pagamento confirmado',
+      description: 'O agendamento foi marcado como pago.',
+    });
+    fetchAppointments();
+  };
 
   const fetchAllData = async () => {
     await Promise.all([fetchAppointments(), fetchBarbers(), fetchServices(), fetchProducts()]);
@@ -421,9 +455,11 @@ export default function AdminDashboard() {
         appointment_date,
         appointment_time,
         status,
+        payment_method,
+        payment_status,
         barber_id,
         service_id,
-        barber:barbers(id, name),
+        barber:barbers(id, name, phone),
         service:services(id, name, price, duration_minutes)
       `)
       .eq('store_account_id', settings.storeAccountId)
@@ -1131,11 +1167,15 @@ export default function AdminDashboard() {
               <TabsTrigger value="locations" className="text-xs sm:text-sm px-2 sm:px-3">Localizações</TabsTrigger>
               <TabsTrigger value="hours" className="text-xs sm:text-sm px-2 sm:px-3">Horários</TabsTrigger>
               <TabsTrigger value="branding" className="text-xs sm:text-sm px-2 sm:px-3">Identidade</TabsTrigger>
+              <TabsTrigger value="public-page" className="text-xs sm:text-sm px-2 sm:px-3">Pagina publica</TabsTrigger>
             </TabsList>
 
             {/* Queue Tab */}
             <TabsContent value="queue">
-              <AppointmentQueueTab appointments={appointments} />
+              <AppointmentQueueTab
+                appointments={appointments}
+                onConfirmPayment={confirmAppointmentPayment}
+              />
             </TabsContent>
 
             {/* Product Sales Tab */}
@@ -1145,6 +1185,10 @@ export default function AdminDashboard() {
 
             <TabsContent value="branding">
               <BrandingTab />
+            </TabsContent>
+
+            <TabsContent value="public-page">
+              <PublicPageSettingsTab />
             </TabsContent>
 
             <TabsContent value="overview">

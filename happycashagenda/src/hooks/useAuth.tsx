@@ -7,6 +7,7 @@ import {
 } from "react";
 import { User, Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
+import { validateAgendaAdminAccess } from "@/lib/agendaAuth";
 
 interface AuthContextType {
   user: User | null;
@@ -27,22 +28,61 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+const isAgendaAdminProfile = async (userId: string) => {
+  const { data: profileAdmin } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("role", "admin")
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (profileAdmin) return true;
+
+  const { data: roleAdmin } = await supabase
+    .from("user_roles")
+    .select("role")
+    .eq("user_id", userId)
+    .eq("role", "admin")
+    .maybeSingle();
+
+  return !!roleAdmin;
+};
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
 
+  const syncAdminAccess = async (userId: string) => {
+    const adminProfile = await isAgendaAdminProfile(userId);
+    if (!adminProfile) {
+      setIsAdmin(false);
+      return;
+    }
+
+    const access = await validateAgendaAdminAccess(userId);
+    if (!access.ok) {
+      await supabase.auth.signOut();
+      setUser(null);
+      setSession(null);
+      setIsAdmin(false);
+      return;
+    }
+
+    setIsAdmin(true);
+  };
+
   useEffect(() => {
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((event, session) => {
-      setSession(session);
-      setUser(session?.user ?? null);
+    } = supabase.auth.onAuthStateChange((event, nextSession) => {
+      setSession(nextSession);
+      setUser(nextSession?.user ?? null);
 
-      if (session?.user) {
+      if (nextSession?.user) {
         setTimeout(() => {
-          checkAdminRole(session.user.id);
+          void syncAdminAccess(nextSession.user.id);
         }, 0);
       } else {
         setIsAdmin(false);
@@ -50,11 +90,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setLoading(false);
     });
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        checkAdminRole(session.user.id);
+    supabase.auth.getSession().then(({ data: { session: nextSession } }) => {
+      setSession(nextSession);
+      setUser(nextSession?.user ?? null);
+      if (nextSession?.user) {
+        void syncAdminAccess(nextSession.user.id);
       }
       setLoading(false);
     });
@@ -62,23 +102,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => subscription.unsubscribe();
   }, []);
 
-  const checkAdminRole = async (userId: string) => {
-    const { data } = await supabase
-      .from("profiles")
-      .select("role")
-      .eq("role", "admin")
-      .eq("user_id", userId)
-      .maybeSingle();
-
-    setIsAdmin(!!data);
-  };
-
   const signIn = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({
+    const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
-    return { error };
+
+    if (error || !data.user) {
+      return { error: error ?? new Error("Nao foi possivel entrar.") };
+    }
+
+    const adminProfile = await isAgendaAdminProfile(data.user.id);
+    if (adminProfile) {
+      const access = await validateAgendaAdminAccess(data.user.id);
+      if (!access.ok) {
+        await supabase.auth.signOut();
+        return { error: new Error(access.message) };
+      }
+    }
+
+    return { error: null };
   };
 
   const signUp = async (
@@ -97,7 +140,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       },
     });
 
-    // Atualiza o telefone no perfil se fornecido
     if (!error && data.user && phone) {
       await supabase.from("profiles").update({ phone }).eq("user_id", data.user.id);
     }

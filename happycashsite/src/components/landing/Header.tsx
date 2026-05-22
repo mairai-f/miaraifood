@@ -67,6 +67,7 @@ const Header = () => {
     { label: "Fiado Digital", href: "/caderneta-de-fiado-digital" },
     { label: "Sistema PDV", href: "/sistema-pdv" },
     { label: "HappyCashFood", href: "/happycash-food" },
+    { label: "HappyCash Agenda", href: "/happycash-agenda" },
     { label: "Estoque", href: "/controle-de-estoque" },
     { label: "Planos", href: buildHomeSectionHref("planos") },
   ];

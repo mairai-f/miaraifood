@@ -207,7 +207,9 @@ export function BrandingTab() {
               onChange={(event) => updateDraft({ slug: event.target.value })}
               placeholder="minha-empresa"
             />
-            <p className="text-xs text-muted-foreground">Use no site como ?empresa={draft.slug}</p>
+            <p className="text-xs text-muted-foreground">
+              URL publica: agenda.happycashsite.com.br/{draft.slug}
+            </p>
           </div>
 
           <div className="space-y-2">

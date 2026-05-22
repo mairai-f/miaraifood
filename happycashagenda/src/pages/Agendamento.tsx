@@ -18,6 +18,12 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { cn } from '@/lib/utils';
 import { withAgendaPublicSearch } from '@/lib/agendaPublicLink';
+import { PixPaymentDialog } from '@/components/booking/PixPaymentDialog';
+import {
+  buildAdminConfirmWhatsAppMessage,
+  buildClientPaymentWhatsAppMessage,
+  openAgendaWhatsAppTargets,
+} from '@/lib/agendaWhatsApp';
 
 // Validation schema for booking form
 const bookingSchema = z.object({
@@ -28,6 +34,7 @@ const bookingSchema = z.object({
 interface Barber {
   id: string;
   name: string;
+  phone: string | null;
   photo_url: string | null;
   bio: string | null;
 }
@@ -65,6 +72,7 @@ export default function Booking() {
   const [clientPhone, setClientPhone] = useState('');
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [pixDialogOpen, setPixDialogOpen] = useState(false);
 
   const { user } = useAuth();
   const { settings } = useAgendaBranding();
@@ -251,7 +259,7 @@ export default function Booking() {
     setLoading(false);
   };
 
-  const handleSubmit = async (paymentMethod: 'local' | 'pix') => {
+  const validateBookingForm = () => {
     if (!user) {
       toast({
         title: 'Faça login para agendar',
@@ -259,7 +267,7 @@ export default function Booking() {
         variant: 'destructive',
       });
       navigate(publicLoginPath);
-      return;
+      return null;
     }
 
     if (selectedServices.length === 0 || !selectedBarber || !selectedDate || !selectedTime || !clientName) {
@@ -268,12 +276,11 @@ export default function Booking() {
         description: 'Por favor, preencha todos os campos.',
         variant: 'destructive',
       });
-      return;
+      return null;
     }
 
-    // Validate input with zod schema
     const validationResult = bookingSchema.safeParse({
-      clientName: clientName,
+      clientName,
       clientPhone: clientPhone || '',
     });
 
@@ -284,28 +291,32 @@ export default function Booking() {
         description: firstError.message,
         variant: 'destructive',
       });
-      return;
+      return null;
     }
 
-    setSubmitting(true);
-
-    // Use validated and trimmed values
-    const validatedData = validationResult.data;
-
-    // Usar componentes de data local para evitar problemas de UTC
     const year = selectedDate.getFullYear();
     const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
     const day = String(selectedDate.getDate()).padStart(2, '0');
-    const dateString = `${year}-${month}-${day}`;
 
-    // Cria o agendamento de forma atômica (1 agendamento + N serviços) e já valida conflito no backend
+    return {
+      validatedData: validationResult.data,
+      dateString: `${year}-${month}-${day}`,
+    };
+  };
+
+  const createBooking = async (paymentMethod: 'local' | 'pix') => {
+    const payload = validateBookingForm();
+    if (!payload || !selectedBarber || !selectedDate) return;
+
+    setSubmitting(true);
+
     const { data: appointmentId, error } = await supabase.rpc('create_appointment_with_services', {
       p_barber_id: selectedBarber.id,
-      p_appointment_date: dateString,
+      p_appointment_date: payload.dateString,
       p_appointment_time: `${selectedTime}:00`,
-      p_service_ids: selectedServices.map(s => s.id),
-      p_client_name: validatedData.clientName.trim(),
-      p_client_phone: validatedData.clientPhone?.trim() || null,
+      p_service_ids: selectedServices.map((s) => s.id),
+      p_client_name: payload.validatedData.clientName.trim(),
+      p_client_phone: payload.validatedData.clientPhone?.trim() || null,
       p_payment_method: paymentMethod,
       p_notes: null,
     });
@@ -318,13 +329,60 @@ export default function Booking() {
         description: 'Não foi possível realizar o agendamento. Tente novamente.',
         variant: 'destructive',
       });
-    } else {
-      toast({
-        title: 'Agendamento confirmado!',
-        description: `${format(selectedDate, "dd 'de' MMMM", { locale: ptBR })} às ${selectedTime}. Pagamento: ${paymentMethod === 'pix' ? 'PIX' : 'No local'}`,
+      return;
+    }
+
+    if (paymentMethod === 'pix') {
+      const whatsappPayload = {
+        businessName: settings.displayName,
+        clientName: payload.validatedData.clientName.trim(),
+        professionalName: selectedBarber.name,
+        serviceNames: selectedServices.map((s) => s.name),
+        appointmentDate: payload.dateString,
+        appointmentTime: `${selectedTime}:00`,
+        totalAmount: totalPrice,
+        paymentStatus: 'pending' as const,
+      };
+
+      openAgendaWhatsAppTargets({
+        professionalPhone: selectedBarber.phone,
+        adminPhone: settings.adminWhatsapp || settings.whatsapp,
+        clientMessage: buildClientPaymentWhatsAppMessage(whatsappPayload),
+        adminMessage: buildAdminConfirmWhatsAppMessage(whatsappPayload),
       });
+    }
+
+    toast({
+      title: paymentMethod === 'pix' ? 'Aguardando confirmacao do Pix' : 'Agendamento confirmado!',
+      description:
+        paymentMethod === 'pix'
+          ? 'Enviamos os dados pelo WhatsApp. O administrador confirmara o pagamento no painel.'
+          : `${format(selectedDate, "dd 'de' MMMM", { locale: ptBR })} às ${selectedTime}. Pagamento no local.`,
+    });
+
+    if (appointmentId) {
       navigate(publicAppointmentsPath);
     }
+  };
+
+  const handleSubmit = (paymentMethod: 'local' | 'pix') => {
+    const payload = validateBookingForm();
+    if (!payload) return;
+
+    if (paymentMethod === 'pix') {
+      if (!settings.pixKey) {
+        toast({
+          title: 'Pix nao configurado',
+          description: 'A empresa ainda nao cadastrou a chave Pix. Escolha pagar no local.',
+          variant: 'destructive',
+        });
+        return;
+      }
+      setPixDialogOpen(true);
+      return;
+    }
+
+    void createBooking('local');
   };
 
   const steps = [
@@ -378,6 +436,15 @@ export default function Booking() {
 
   return (
     <Layout>
+      <PixPaymentDialog
+        open={pixDialogOpen}
+        onOpenChange={setPixDialogOpen}
+        pixKey={settings.pixKey}
+        merchantName={settings.pixMerchantName || settings.displayName}
+        amount={totalPrice}
+        loading={submitting}
+        onConfirmSent={() => void createBooking('pix')}
+      />
       <div className="container mx-auto px-4 py-12">
         <motion.div
           initial={{ opacity: 0, y: 20 }}

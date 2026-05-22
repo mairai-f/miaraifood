@@ -51,7 +51,11 @@ export function HeroSection() {
   return (
     <section ref={sectionRef} className="relative min-h-[100svh] flex items-center justify-center overflow-hidden -mt-24">
       <div className="absolute inset-0">
-        <img src={heroImage} alt={settings.displayName} className="hero-image w-full h-full object-cover scale-110" />
+        <img
+          src={settings.heroImageUrl || heroImage}
+          alt={settings.displayName}
+          className="hero-image w-full h-full object-cover scale-110"
+        />
         <div className="absolute inset-0 bg-gradient-to-r from-black/90 via-black/70 to-black/40" />
         <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/30" />
       </div>
@@ -64,15 +68,19 @@ export function HeroSection() {
           </span>
 
           <h1 className="hero-title font-serif text-3xl sm:text-5xl md:text-7xl lg:text-8xl font-bold mb-5 md:mb-8 leading-[0.95] text-white" style={{ opacity: 0 }}>
-            {settings.displayName.split(' ')[0]}{' '}
-            <span className="bg-gradient-to-r from-amber-300 via-amber-100 to-amber-300 bg-clip-text text-transparent">
-              Agenda
-            </span>
-            <br />para seu negócio
+            {settings.heroTitle || (
+              <>
+                {settings.displayName.split(' ')[0]}{' '}
+                <span className="bg-gradient-to-r from-amber-300 via-amber-100 to-amber-300 bg-clip-text text-transparent">
+                  Agenda
+                </span>
+                <br />para seu negócio
+              </>
+            )}
           </h1>
 
           <p className="hero-subtitle text-sm md:text-xl text-white/70 mb-6 md:mb-10 max-w-xl leading-relaxed" style={{ opacity: 0 }}>
-            {settings.tagline}
+            {settings.heroSubtitle || settings.tagline}
           </p>
 
           <div className="hero-cta flex flex-col sm:flex-row gap-3 md:gap-4 mb-6 md:mb-10" style={{ opacity: 0 }}>

@@ -67,6 +67,9 @@ const Footer = () => {
               <Link to="/happycash-food" className="text-sm text-muted-foreground hover:text-primary transition-colors">
                 HappyCashFood
               </Link>
+              <Link to="/happycash-agenda" className="text-sm text-muted-foreground hover:text-primary transition-colors">
+                HappyCash Agenda
+              </Link>
               <Link to="/controle-de-estoque" className="text-sm text-muted-foreground hover:text-primary transition-colors">
                 Controle de estoque
               </Link>

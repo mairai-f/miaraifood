@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
-import { Briefcase, Clock, User } from 'lucide-react';
+import { Briefcase, CheckCircle2, Clock, User } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { format } from 'date-fns';
@@ -21,7 +22,9 @@ interface Appointment {
   appointment_date: string;
   appointment_time: string;
   status: 'scheduled' | 'completed' | 'cancelled';
-  barber: { name: string; id?: string };
+  payment_method: string | null;
+  payment_status: string | null;
+  barber: { name: string; id?: string; phone?: string | null };
   service: { name: string; price: number; id?: string; duration_minutes?: number };
   barber_id: string;
   service_id: string;
@@ -30,9 +33,10 @@ interface Appointment {
 
 interface AppointmentQueueTabProps {
   appointments: Appointment[];
+  onConfirmPayment?: (appointmentId: string) => void | Promise<void>;
 }
 
-export function AppointmentQueueTab({ appointments }: AppointmentQueueTabProps) {
+export function AppointmentQueueTab({ appointments, onConfirmPayment }: AppointmentQueueTabProps) {
   const { settings } = useAgendaBranding();
   const todayStr = format(new Date(), 'yyyy-MM-dd');
 
@@ -95,7 +99,17 @@ export function AppointmentQueueTab({ appointments }: AppointmentQueueTabProps) 
                         </div>
                       </div>
                     </div>
-                    <div className="text-right shrink-0">
+                    <div className="text-right shrink-0 space-y-2">
+                      {apt.payment_method === 'pix' && apt.payment_status === 'pending' && onConfirmPayment ? (
+                        <Button
+                          size="sm"
+                          className="h-8 text-xs"
+                          onClick={() => onConfirmPayment(apt.id)}
+                        >
+                          <CheckCircle2 className="mr-1 h-3.5 w-3.5" />
+                          Confirmar Pix
+                        </Button>
+                      ) : null}
                       <div className="text-sm font-medium">
                         {isToday ? 'Hoje' : format(parseLocalDate(apt.appointment_date), "dd/MM", { locale: ptBR })} às {apt.appointment_time.slice(0, 5)}
                       </div>

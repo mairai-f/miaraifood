@@ -18,20 +18,19 @@ import Painel from "./pages/Painel";
 import PainelBarbeiro from "./pages/PainelBarbeiro";
 import Produtos from "./pages/Produtos";
 import NotFound from "./pages/NotFound";
-
 const queryClient = new QueryClient();
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <ThemeProvider>
       <AuthProvider>
-        <AgendaBrandingProvider>
-          <CartProvider>
-            <TooltipProvider>
-              <Toaster />
-              <Sonner />
-              <CartDrawer />
-              <BrowserRouter>
+        <BrowserRouter>
+          <AgendaBrandingProvider>
+            <CartProvider>
+              <TooltipProvider>
+                <Toaster />
+                <Sonner />
+                <CartDrawer />
                 <Seo />
                 <Routes>
                   <Route path="/" element={<Index />} />
@@ -53,12 +52,17 @@ const App = () => (
                   <Route path="/professional" element={<PainelBarbeiro />} />
                   <Route path="/products" element={<Produtos />} />
                   <Route path="/reset-password" element={<ResetPassword />} />
+                  <Route path="/:businessSlug" element={<Index />} />
+                  <Route path="/:businessSlug/agendamento" element={<Agendamento />} />
+                  <Route path="/:businessSlug/login" element={<Login />} />
+                  <Route path="/:businessSlug/meus-agendamentos" element={<MeusAgendamentos />} />
+                  <Route path="/:businessSlug/produtos" element={<Produtos />} />
                   <Route path="*" element={<NotFound />} />
                 </Routes>
-              </BrowserRouter>
-            </TooltipProvider>
-          </CartProvider>
-        </AgendaBrandingProvider>
+              </TooltipProvider>
+            </CartProvider>
+          </AgendaBrandingProvider>
+        </BrowserRouter>
       </AuthProvider>
     </ThemeProvider>
   </QueryClientProvider>

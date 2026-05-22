@@ -643,11 +643,16 @@ ALTER TABLE public.loyalty_progress
   ADD COLUMN IF NOT EXISTS store_account_id uuid REFERENCES public.store_accounts(id) ON DELETE CASCADE,
   ADD COLUMN IF NOT EXISTS agenda_client_id uuid REFERENCES public.agenda_clients(id) ON DELETE SET NULL;
 
-WITH single_agenda_account AS (
-  SELECT min(id) AS store_account_id, min(owner_user_id) AS owner_user_id
+WITH agenda_accounts AS (
+  SELECT id AS store_account_id, owner_user_id
   FROM public.store_accounts
   WHERE product_context = 'happycashagenda'
-  HAVING count(*) = 1
+),
+single_agenda_account AS (
+  SELECT store_account_id, owner_user_id
+  FROM agenda_accounts
+  WHERE (SELECT count(*) FROM agenda_accounts) = 1
+  LIMIT 1
 )
 UPDATE public.barbers AS record
 SET
@@ -656,11 +661,16 @@ SET
 FROM single_agenda_account AS account
 WHERE record.store_account_id IS NULL;
 
-WITH single_agenda_account AS (
-  SELECT min(id) AS store_account_id, min(owner_user_id) AS owner_user_id
+WITH agenda_accounts AS (
+  SELECT id AS store_account_id, owner_user_id
   FROM public.store_accounts
   WHERE product_context = 'happycashagenda'
-  HAVING count(*) = 1
+),
+single_agenda_account AS (
+  SELECT store_account_id, owner_user_id
+  FROM agenda_accounts
+  WHERE (SELECT count(*) FROM agenda_accounts) = 1
+  LIMIT 1
 )
 UPDATE public.services AS record
 SET
@@ -669,11 +679,16 @@ SET
 FROM single_agenda_account AS account
 WHERE record.store_account_id IS NULL;
 
-WITH single_agenda_account AS (
-  SELECT min(id) AS store_account_id, min(owner_user_id) AS owner_user_id
+WITH agenda_accounts AS (
+  SELECT id AS store_account_id, owner_user_id
   FROM public.store_accounts
   WHERE product_context = 'happycashagenda'
-  HAVING count(*) = 1
+),
+single_agenda_account AS (
+  SELECT store_account_id, owner_user_id
+  FROM agenda_accounts
+  WHERE (SELECT count(*) FROM agenda_accounts) = 1
+  LIMIT 1
 )
 UPDATE public.business_hours AS record
 SET
@@ -682,11 +697,16 @@ SET
 FROM single_agenda_account AS account
 WHERE record.store_account_id IS NULL;
 
-WITH single_agenda_account AS (
-  SELECT min(id) AS store_account_id, min(owner_user_id) AS owner_user_id
+WITH agenda_accounts AS (
+  SELECT id AS store_account_id, owner_user_id
   FROM public.store_accounts
   WHERE product_context = 'happycashagenda'
-  HAVING count(*) = 1
+),
+single_agenda_account AS (
+  SELECT store_account_id, owner_user_id
+  FROM agenda_accounts
+  WHERE (SELECT count(*) FROM agenda_accounts) = 1
+  LIMIT 1
 )
 UPDATE public.business_locations AS record
 SET
@@ -695,11 +715,16 @@ SET
 FROM single_agenda_account AS account
 WHERE record.store_account_id IS NULL;
 
-WITH single_agenda_account AS (
-  SELECT min(id) AS store_account_id, min(owner_user_id) AS owner_user_id
+WITH agenda_accounts AS (
+  SELECT id AS store_account_id, owner_user_id
   FROM public.store_accounts
   WHERE product_context = 'happycashagenda'
-  HAVING count(*) = 1
+),
+single_agenda_account AS (
+  SELECT store_account_id, owner_user_id
+  FROM agenda_accounts
+  WHERE (SELECT count(*) FROM agenda_accounts) = 1
+  LIMIT 1
 )
 UPDATE public.loyalty_programs AS record
 SET
