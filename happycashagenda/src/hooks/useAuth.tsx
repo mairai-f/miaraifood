@@ -15,13 +15,6 @@ interface AuthContextType {
   loading: boolean;
   isAdmin: boolean;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
-  signInWithGoogle: () => Promise<{ error: Error | null }>;
-  signUp: (
-    email: string,
-    password: string,
-    fullName: string,
-    phone?: string,
-  ) => Promise<{ error: Error | null }>;
   resetPassword: (email: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
 }
@@ -124,42 +117,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return { error: null };
   };
 
-  const signUp = async (
-    email: string,
-    password: string,
-    fullName: string,
-    phone?: string,
-  ) => {
-    const redirectUrl = `${window.location.origin}/`;
-    const { error, data } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        emailRedirectTo: redirectUrl,
-        data: { full_name: fullName, phone },
-      },
-    });
-
-    if (!error && data.user && phone) {
-      await supabase.from("profiles").update({ phone }).eq("user_id", data.user.id);
-    }
-
-    return { error };
-  };
-
   const resetPassword = async (email: string) => {
     const redirectUrl = `${window.location.origin}/reset-password`;
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
       redirectTo: redirectUrl,
-    });
-    return { error };
-  };
-
-  const signInWithGoogle = async () => {
-    const redirectUrl = `${window.location.origin}/`;
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: { redirectTo: redirectUrl },
     });
     return { error };
   };
@@ -179,8 +140,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         loading,
         isAdmin,
         signIn,
-        signInWithGoogle,
-        signUp,
         resetPassword,
         signOut,
       }}

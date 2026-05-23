@@ -20,7 +20,7 @@ const ROUTE_SEO: Record<string, SeoConfig> = {
       "Sistema de agendamentos para empresas de servicos com clientes, profissionais, pagamentos e WhatsApp.",
   },
   "/auth": {
-    title: "Entrar ou criar conta | HappyCash Agenda",
+    title: "Entrar | HappyCash Agenda",
     description:
       "Acesse sua conta HappyCash Agenda para agendar horarios e gerenciar atendimentos.",
   },
