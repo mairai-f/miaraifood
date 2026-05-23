@@ -776,7 +776,7 @@ export default function Booking() {
 
                   <div className="bg-secondary/50 rounded-xl p-4 space-y-3">
                     <div>
-                      <span className="text-muted-foreground text-sm">{settings.serviceLabel}s</span>
+                      <span className="text-muted-foreground text-sm">{settings.serviceLabel}</span>
                       <div className="mt-1 space-y-1">
                         {selectedServices.map(s => (
                           <div key={s.id} className="flex justify-between text-sm">

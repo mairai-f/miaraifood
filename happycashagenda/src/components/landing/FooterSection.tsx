@@ -94,7 +94,15 @@ export function FooterSection() {
 
         <div className="flex flex-col items-center gap-6">
           <div className="footer-logo p-3 bg-primary rounded-xl shadow-lg" style={{ opacity: 0 }}>
-            <CalendarDays className="w-6 h-6 text-primary-foreground" />
+            {settings.logoUrl ? (
+              <img
+                src={settings.logoUrl}
+                alt={settings.displayName}
+                className="h-6 w-6 rounded object-cover"
+              />
+            ) : (
+              <CalendarDays className="w-6 h-6 text-primary-foreground" />
+            )}
           </div>
 
           <div className="flex items-center" style={{ perspective: '600px' }}>

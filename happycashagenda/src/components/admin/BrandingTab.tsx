@@ -297,11 +297,11 @@ export function BrandingTab() {
             <p className="mt-4 text-sm text-muted-foreground">{draft.tagline}</p>
             <div className="mt-4 grid grid-cols-2 gap-2 text-xs">
               <div className="rounded-lg bg-primary/10 p-3 text-primary">
-                {draft.professionalLabel}s
+                {draft.professionalLabel}
                 <strong className="mt-1 block text-lg text-foreground">8</strong>
               </div>
               <div className="rounded-lg bg-accent/15 p-3 text-accent-foreground">
-                {draft.serviceLabel}s
+                {draft.serviceLabel}
                 <strong className="mt-1 block text-lg text-foreground">24</strong>
               </div>
             </div>

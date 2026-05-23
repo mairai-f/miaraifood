@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Bell } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -8,6 +8,7 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover';
 import { useAuth } from '@/hooks/useAuth';
+import { useAgendaBranding } from '@/hooks/useAgendaBranding';
 import { supabase } from '@/integrations/supabase/client';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -21,32 +22,95 @@ interface Notification {
   read: boolean;
 }
 
+type AppointmentNotificationRow = {
+  id: string;
+  client_name: string | null;
+  appointment_date: string;
+  appointment_time: string | null;
+  status: string | null;
+  created_at: string;
+  updated_at: string | null;
+};
+
+const getReadIds = (storageKey: string) => {
+  try {
+    const raw = localStorage.getItem(storageKey);
+    return raw ? (JSON.parse(raw) as string[]) : [];
+  } catch {
+    return [];
+  }
+};
+
+const playNotificationSound = () => {
+  try {
+    const audioWindow = window as Window & typeof globalThis & {
+      webkitAudioContext?: typeof AudioContext;
+    };
+    const AudioContextConstructor = audioWindow.AudioContext || audioWindow.webkitAudioContext;
+    if (!AudioContextConstructor) return;
+
+    const context = new AudioContextConstructor();
+    const now = context.currentTime;
+    const gain = context.createGain();
+    gain.gain.setValueAtTime(0.0001, now);
+    gain.gain.exponentialRampToValueAtTime(0.22, now + 0.03);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.65);
+    gain.connect(context.destination);
+
+    [880, 1175].forEach((frequency, index) => {
+      const oscillator = context.createOscillator();
+      oscillator.type = 'sine';
+      oscillator.frequency.setValueAtTime(frequency, now + index * 0.12);
+      oscillator.connect(gain);
+      oscillator.start(now + index * 0.12);
+      oscillator.stop(now + 0.5 + index * 0.12);
+    });
+
+    window.setTimeout(() => {
+      void context.close();
+    }, 900);
+  } catch {
+    // Browsers can block sound until the first user interaction.
+  }
+};
+
 export function NotificationBell() {
-  const { user } = useAuth();
+  const { user, isAdmin } = useAuth();
+  const { settings } = useAgendaBranding();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [open, setOpen] = useState(false);
+  const hasLoadedRef = useRef(false);
+  const previousUnreadRef = useRef(0);
+  const readStorageKey = `happycash_agenda_read_notifs:${user?.id || 'anon'}:${isAdmin ? settings.storeAccountId || 'admin' : 'client'}`;
 
   const fetchNotifications = useCallback(async () => {
     if (!user) return;
+    if (isAdmin && !settings.storeAccountId) return;
 
-    // Fetch recent appointments for user
-    const { data: appointments } = await supabase
+    const query = supabase
       .from('appointments')
       .select('id, client_name, appointment_date, appointment_time, status, created_at, updated_at')
-      .eq('client_id', user.id)
       .order('updated_at', { ascending: false })
       .limit(20);
+
+    const { data: appointments } = isAdmin
+      ? await query.eq('store_account_id', settings.storeAccountId)
+      : await query.eq('client_id', user.id);
 
     const notifs: Notification[] = [];
 
     if (appointments) {
-      appointments.forEach((apt) => {
+      (appointments as AppointmentNotificationRow[]).forEach((apt) => {
+        const time = apt.appointment_time?.slice(0, 5);
+        const appointmentInfo = `${apt.appointment_date}${time ? ` às ${time}` : ''}`;
+        const clientInfo = apt.client_name ? `${apt.client_name} - ${appointmentInfo}` : appointmentInfo;
+
         if (apt.status === 'scheduled') {
           notifs.push({
             id: `apt-${apt.id}`,
             type: 'appointment_scheduled',
-            title: '📅 Agendamento confirmado',
-            description: `${apt.appointment_date} às ${apt.appointment_time}`,
+            title: isAdmin ? '📅 Novo agendamento' : '📅 Agendamento confirmado',
+            description: isAdmin ? clientInfo : appointmentInfo,
             created_at: apt.created_at,
             read: false,
           });
@@ -55,8 +119,8 @@ export function NotificationBell() {
             id: `cancel-${apt.id}`,
             type: 'appointment_cancelled',
             title: '❌ Agendamento cancelado',
-            description: `${apt.appointment_date} às ${apt.appointment_time}`,
-            created_at: apt.updated_at,
+            description: isAdmin ? clientInfo : appointmentInfo,
+            created_at: apt.updated_at || apt.created_at,
             read: false,
           });
         }
@@ -66,14 +130,20 @@ export function NotificationBell() {
     // Sort by date
     notifs.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
-    // Check read state from localStorage
-    const readIds = JSON.parse(localStorage.getItem('barberpro_read_notifs') || '[]');
+    const readIds = getReadIds(readStorageKey);
     notifs.forEach(n => {
       if (readIds.includes(n.id)) n.read = true;
     });
 
+    const unreadCount = notifs.filter(n => !n.read).length;
+    if (hasLoadedRef.current && unreadCount > previousUnreadRef.current) {
+      playNotificationSound();
+    }
+
+    previousUnreadRef.current = unreadCount;
+    hasLoadedRef.current = true;
     setNotifications(notifs);
-  }, [user]);
+  }, [isAdmin, readStorageKey, settings.storeAccountId, user]);
 
   useEffect(() => {
     fetchNotifications();
@@ -82,16 +152,19 @@ export function NotificationBell() {
   // Realtime subscription for appointments
   useEffect(() => {
     if (!user) return;
+    if (isAdmin && !settings.storeAccountId) return;
 
     const channel = supabase
-      .channel('user-appointments')
+      .channel(`agenda-notifications-${user.id}-${isAdmin ? settings.storeAccountId : 'client'}`)
       .on(
         'postgres_changes',
         {
           event: '*',
           schema: 'public',
           table: 'appointments',
-          filter: `client_id=eq.${user.id}`,
+          filter: isAdmin
+            ? `store_account_id=eq.${settings.storeAccountId}`
+            : `client_id=eq.${user.id}`,
         },
         () => {
           fetchNotifications();
@@ -102,13 +175,14 @@ export function NotificationBell() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [user, fetchNotifications]);
+  }, [fetchNotifications, isAdmin, settings.storeAccountId, user]);
 
   const unreadCount = notifications.filter(n => !n.read).length;
 
   const markAllRead = () => {
     const ids = notifications.map(n => n.id);
-    localStorage.setItem('barberpro_read_notifs', JSON.stringify(ids));
+    localStorage.setItem(readStorageKey, JSON.stringify(ids));
+    previousUnreadRef.current = 0;
     setNotifications(prev => prev.map(n => ({ ...n, read: true })));
   };
 

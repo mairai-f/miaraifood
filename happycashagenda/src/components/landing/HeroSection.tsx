@@ -98,7 +98,7 @@ export function HeroSection() {
           {/* Section Navigation Pills */}
           <div className="hero-nav-pills flex flex-wrap gap-2 md:gap-3 mb-6 md:mb-8" style={{ opacity: 0 }}>
             {[
-              { label: `${settings.professionalLabel}s`, id: 'equipe' },
+              { label: settings.professionalLabel, id: 'equipe' },
               { label: 'Sobre Nós', id: 'sobre' },
               { label: 'Localização', id: 'localizacao' },
             ].map(item => (

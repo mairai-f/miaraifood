@@ -8,7 +8,6 @@ import {
   Lock,
   Loader2,
   CalendarDays,
-  ExternalLink,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -207,7 +206,15 @@ export default function Login() {
           <div className="text-center mb-8">
             <div className="inline-flex items-center gap-2 mb-4">
               <div className="p-2 bg-primary rounded-lg">
-                <CalendarDays className="w-6 h-6 text-primary-foreground" />
+                {settings.logoUrl ? (
+                  <img
+                    src={settings.logoUrl}
+                    alt={settings.displayName}
+                    className="h-6 w-6 rounded object-cover"
+                  />
+                ) : (
+                  <CalendarDays className="w-6 h-6 text-primary-foreground" />
+                )}
               </div>
               <span className="font-serif text-2xl font-semibold">
                 {settings.displayName}
@@ -217,7 +224,7 @@ export default function Login() {
               Acesse sua agenda
             </h1>
             <p className="text-muted-foreground">
-              Entre com a conta liberada pelo HappyCashSite.
+              Entre com seu email e senha.
             </p>
           </div>
 
@@ -289,24 +296,6 @@ export default function Login() {
                       )}
                     </Button>
                   </form>
-
-                  <div className="mt-5 rounded-md border border-primary/20 bg-primary/5 p-4 text-sm text-muted-foreground">
-                    <p>
-                      O acesso ao HappyCash Agenda e liberado pelo HappyCashSite
-                      conforme o plano Agenda pago no Asaas.
-                    </p>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className="mt-3 w-full gap-2"
-                      onClick={() => {
-                        window.location.href = "https://www.happycashsite.com.br/cadastro?plan=agenda";
-                      }}
-                    >
-                      Ir para o HappyCashSite
-                      <ExternalLink className="h-4 w-4" />
-                    </Button>
-                  </div>
 
                   <Dialog open={forgotOpen} onOpenChange={setForgotOpen}>
                     <DialogContent>

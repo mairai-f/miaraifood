@@ -11,16 +11,17 @@ import { useToast } from "@/hooks/use-toast";
 import { uploadAgendaBrandingImage } from "@/lib/agendaStorage";
 import { buildAgendaPublicHomePath } from "@/lib/agendaPublicLink";
 
-type ImageField = "logoUrl" | "heroImageUrl" | "aboutImageUrl" | "teamImageUrl" | "locationImageUrl";
-type UploadKind = "logo" | "hero" | "about" | "team" | "location";
+type ImageField = "logoUrl" | "heroImageUrl" | "aboutImageUrl" | "locationImageUrl";
+type UploadKind = "logo" | "hero" | "about" | "location";
 
 const imageFieldMap: Record<ImageField, UploadKind> = {
   logoUrl: "logo",
   heroImageUrl: "hero",
   aboutImageUrl: "about",
-  teamImageUrl: "team",
   locationImageUrl: "location",
 };
+
+const imageAccept = "image/*,.avif,.bmp,.gif,.heic,.heif,.ico,.jpg,.jpeg,.png,.svg,.tif,.tiff,.webp";
 
 export function PublicPageSettingsTab() {
   const { settings, loading, updatePreview, saveSettings } = useAgendaBranding();
@@ -116,12 +117,6 @@ export function PublicPageSettingsTab() {
           uploading={uploadingField === "aboutImageUrl"}
           onPick={(file) => void handleUpload("aboutImageUrl", file)}
         />
-        <ImageUploadField
-          label="Imagem equipe"
-          value={draft.teamImageUrl}
-          uploading={uploadingField === "teamImageUrl"}
-          onPick={(file) => void handleUpload("teamImageUrl", file)}
-        />
 
         <div className="space-y-2 md:col-span-2">
           <Label htmlFor="heroTitle">Titulo da pagina inicial</Label>
@@ -147,6 +142,14 @@ export function PublicPageSettingsTab() {
             id="closedMessage"
             value={draft.closedMessage}
             onChange={(e) => updateDraft({ closedMessage: e.target.value })}
+          />
+        </div>
+        <div className="space-y-2 md:col-span-2">
+          <Label htmlFor="aboutTitle">Titulo sobre nos</Label>
+          <Input
+            id="aboutTitle"
+            value={draft.aboutTitle}
+            onChange={(e) => updateDraft({ aboutTitle: e.target.value })}
           />
         </div>
         <div className="space-y-2 md:col-span-2">
@@ -250,9 +253,12 @@ function ImageUploadField({
           {uploading ? "Enviando..." : "Enviar imagem"}
           <input
             type="file"
-            accept="image/*"
+            accept={imageAccept}
             className="hidden"
-            onChange={(e) => onPick(e.target.files?.[0])}
+            onChange={(e) => {
+              onPick(e.target.files?.[0]);
+              e.currentTarget.value = "";
+            }}
           />
         </label>
       </Button>

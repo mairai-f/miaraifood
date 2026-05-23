@@ -265,7 +265,15 @@ export function Header() {
           <div className="flex items-center justify-between h-16">
             <Link to="/" className="flex items-center gap-2">
               <div className="p-2 bg-primary rounded-lg">
-                <CalendarDays className="w-5 h-5 text-primary-foreground" />
+                {settings.logoUrl ? (
+                  <img
+                    src={settings.logoUrl}
+                    alt={settings.displayName}
+                    className="h-5 w-5 rounded object-cover"
+                  />
+                ) : (
+                  <CalendarDays className="w-5 h-5 text-primary-foreground" />
+                )}
               </div>
               <span className="font-serif text-xl font-semibold">{settings.displayName}</span>
             </Link>
