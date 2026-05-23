@@ -1,6 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import {
-  isCurrentSubscriptionPlanAllowedForProductContext,
+  isPaidPlanAllowedForProductContext,
   normalizeProductContext,
   type ProductContext,
 } from "../../../shared/productContext";
@@ -13,25 +13,21 @@ type SubscriptionRow = {
   plan_id: string;
   status: string;
   current_period_ends_at: string | null;
-  trial_ends_at: string | null;
   created_at: string;
 };
 
 const AGENDA_CONTEXT: ProductContext = "happycashagenda";
-const activeSubscriptionStatuses = new Set(["trialing", "active", "past_due"]);
+const activeSubscriptionStatuses = new Set(["active"]);
 
 export const AGENDA_PRODUCT_CONTEXT_MISMATCH =
   "Esta conta pertence a outro sistema HappyCash. Entre no modulo correto.";
 
 export const AGENDA_SUBSCRIPTION_INACTIVE =
-  "Esta conta nao possui acesso ativo ao HappyCash Agenda.";
+  "Esta conta nao possui plano Agenda pago e ativo.";
 
 const getSubscriptionEndAt = (subscription: SubscriptionRow | null | undefined) => {
   if (!subscription) return null;
-  if (subscription.status === "trialing") {
-    return subscription.trial_ends_at ?? subscription.current_period_ends_at ?? null;
-  }
-  return subscription.current_period_ends_at ?? subscription.trial_ends_at ?? null;
+  return subscription.current_period_ends_at ?? null;
 };
 
 const isCurrentSubscription = (subscription: SubscriptionRow | null | undefined) => {
@@ -64,7 +60,7 @@ export async function validateAgendaStoreAccess(ownerUserId: string) {
       .maybeSingle<StoreAccountRow>(),
     supabase
       .from("store_subscriptions")
-      .select("plan_id, status, current_period_ends_at, trial_ends_at, created_at")
+      .select("plan_id, status, current_period_ends_at, created_at")
       .eq("owner_user_id", ownerUserId)
       .eq("product_context", AGENDA_CONTEXT)
       .order("created_at", { ascending: false }),
@@ -80,7 +76,7 @@ export async function validateAgendaStoreAccess(ownerUserId: string) {
   }
 
   const subscriptionRows = ((subscriptions as SubscriptionRow[] | null) || []).filter((subscription) =>
-    isCurrentSubscriptionPlanAllowedForProductContext(AGENDA_CONTEXT, subscription.plan_id),
+    isPaidPlanAllowedForProductContext(AGENDA_CONTEXT, subscription.plan_id),
   );
   const currentSubscription = subscriptionRows.find(isCurrentSubscription) ?? subscriptionRows[0] ?? null;
 

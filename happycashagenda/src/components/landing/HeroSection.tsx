@@ -90,7 +90,7 @@ export function HeroSection() {
             </Button>
             {!user && (
               <Button size="lg" variant="outline" onClick={() => navigate(publicPath('/login'))} className="text-sm md:text-base px-6 md:px-8 py-5 md:py-6 border-white/30 text-white hover:bg-white/10 rounded-full">
-                Criar Conta
+                Entrar
               </Button>
             )}
           </div>
