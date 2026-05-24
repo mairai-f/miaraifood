@@ -24,7 +24,7 @@ type SupportedPaidPlan = "fiado" | "completo" | "pro" | "food" | "food_offline" 
 type CheckoutPaymentMethod = "pix" | "card";
 type SupportedBillingType = "PIX" | "CREDIT_CARD";
 type BillingPeriod = "monthly" | "annual";
-type ServiceClient = ReturnType<typeof createClient<any, "public", any>>;
+type ServiceClient = ReturnType<typeof createClient>;
 
 interface CreatePlanChargeRequest {
   planId?: SupportedPaidPlan;
