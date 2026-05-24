@@ -83,7 +83,7 @@ export function FloatingDock({ items, className }: FloatingDockProps) {
       href: whatsappUrl || "",
       icon: <Phone className="w-4 h-4" />,
     },
-  ].filter((link) => !!link.href);
+  ];
 
   return (
     <div
@@ -163,11 +163,11 @@ export function FloatingDock({ items, className }: FloatingDockProps) {
                 initial={{ opacity: 0, y: 6, scale: 0.96 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: 6, scale: 0.96 }}
-                className="absolute bottom-full right-0 mb-2 z-50 w-44 rounded-xl border border-border/50 bg-background/90 p-3 shadow-xl backdrop-blur-xl"
+                className="absolute bottom-full right-0 mb-2 z-50 w-48 rounded-xl border border-border/50 bg-background/90 p-3 shadow-xl backdrop-blur-xl"
               >
-                {socialLinks.length > 0 ? (
-                  <div className="flex flex-col gap-2">
-                    {socialLinks.map(({ label, href, icon }) => (
+                <div className="flex flex-col gap-2">
+                  {socialLinks.map(({ label, href, icon }) =>
+                    href ? (
                       <a
                         key={label}
                         href={href}
@@ -178,13 +178,21 @@ export function FloatingDock({ items, className }: FloatingDockProps) {
                         {icon}
                         {label}
                       </a>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="px-2 py-1 text-xs text-muted-foreground">
-                    Redes sociais nao cadastradas.
-                  </p>
-                )}
+                    ) : (
+                      <button
+                        key={label}
+                        type="button"
+                        disabled
+                        className="flex cursor-not-allowed items-center gap-2 rounded-lg px-3 py-2 text-sm text-muted-foreground/60"
+                        title={`${label} nao cadastrado`}
+                        aria-label={`${label} nao cadastrado`}
+                      >
+                        {icon}
+                        {label}
+                      </button>
+                    ),
+                  )}
+                </div>
               </motion.div>
             )}
           </AnimatePresence>
