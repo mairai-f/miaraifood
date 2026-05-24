@@ -90,6 +90,44 @@ interface Service {
   duration_minutes: number;
 }
 
+type AppointmentRealtimeRow = {
+  id?: string;
+  client_name?: string;
+  appointment_date?: string;
+  appointment_time?: string | null;
+  status?: Appointment['status'];
+  payment_method?: string | null;
+  payment_status?: string | null;
+};
+
+type BarberAppointmentRpcRow = {
+  id: string;
+  client_name: string;
+  client_phone: string | null;
+  appointment_date: string;
+  appointment_time: string;
+  status: Appointment['status'];
+  payment_method: string | null;
+  payment_status: string | null;
+  service_id: string;
+  service_name: string;
+  service_price: number | string | null;
+  service_duration: number | string | null;
+};
+
+type BarberExtraServiceRpcRow = {
+  appointment_id: string;
+  service_id: string;
+  service_name: string;
+  service_price: number | string | null;
+  service_duration?: number | string | null;
+};
+
+type BookedSlotRpcRow = {
+  appointment_time: string | null;
+  duration_minutes: number | string | null;
+};
+
 const CHART_COLORS = ['hsl(220, 60%, 35%)', 'hsl(38, 80%, 55%)', 'hsl(160, 60%, 45%)', 'hsl(280, 60%, 50%)', 'hsl(350, 60%, 50%)'];
 
 export default function BarberDashboard() {
@@ -167,7 +205,7 @@ export default function BarberDashboard() {
         },
         (payload) => {
           setRealtimeActive(true);
-          const newApt = payload.new as any;
+          const newApt = payload.new as AppointmentRealtimeRow;
           toast({
             title: '📅 Novo Agendamento!',
             description: `${newApt.client_name} agendou para ${format(parseLocalDate(newApt.appointment_date), "dd/MM")} às ${newApt.appointment_time?.slice(0, 5)}`,
@@ -189,8 +227,8 @@ export default function BarberDashboard() {
         },
         (payload) => {
           setRealtimeActive(true);
-          const updatedApt = payload.new as any;
-          const oldApt = payload.old as any;
+          const updatedApt = payload.new as AppointmentRealtimeRow;
+          const oldApt = payload.old as AppointmentRealtimeRow;
 
           // Atualização otimista (evita “pendente” ficar visível até o refetch)
           if (updatedApt?.id) {
@@ -199,7 +237,7 @@ export default function BarberDashboard() {
                 a.id === updatedApt.id
                   ? {
                       ...a,
-                      status: updatedApt.status,
+                      status: updatedApt.status ?? a.status,
                       appointment_date: updatedApt.appointment_date ?? a.appointment_date,
                       appointment_time: updatedApt.appointment_time ?? a.appointment_time,
                       payment_method: updatedApt.payment_method ?? a.payment_method,
@@ -354,7 +392,7 @@ export default function BarberDashboard() {
     }
 
     if (data) {
-      const formatted = data.map((apt: any) => ({
+      const formatted: Appointment[] = (data as BarberAppointmentRpcRow[]).map((apt) => ({
         id: apt.id,
         client_name: apt.client_name,
         client_phone: apt.client_phone,
@@ -366,14 +404,14 @@ export default function BarberDashboard() {
         service: {
           id: apt.service_id,
           name: apt.service_name,
-          price: apt.service_price,
-          duration_minutes: apt.service_duration
+          price: Number(apt.service_price) || 0,
+          duration_minutes: Number(apt.service_duration) || 0
         }
       }));
       setAppointments(formatted);
 
       // Fetch extra services for each appointment using RPC
-      const appointmentIds = formatted.map((a: any) => a.id);
+      const appointmentIds = formatted.map((a) => a.id);
       if (appointmentIds.length > 0) {
         // IMPORTANTE: barbeiro pode estar logado via sessão (sem auth.uid()).
         // Esta RPC é SECURITY DEFINER e valida por barber_id, garantindo acesso apenas aos próprios agendamentos.
@@ -383,15 +421,16 @@ export default function BarberDashboard() {
         });
 
         if (extraData) {
+          const extraRows = extraData as BarberExtraServiceRpcRow[];
           const groupedExtras = appointmentIds.map((aptId: string) => ({
             appointment_id: aptId,
-            services: extraData
-              .filter((e: any) => e.appointment_id === aptId)
-              .map((e: any) => ({
+            services: extraRows
+              .filter((e) => e.appointment_id === aptId)
+              .map((e) => ({
                 id: e.service_id,
                 name: e.service_name,
-                price: e.service_price,
-                duration_minutes: e.service_duration || 0
+                price: Number(e.service_price) || 0,
+                duration_minutes: Number(e.service_duration) || 0
               }))
           }));
           setExtraServices(groupedExtras);
@@ -508,7 +547,7 @@ export default function BarberDashboard() {
 
     const bookedTimesWithDuration: { time: string; duration: number }[] = [];
     if (existingApts) {
-      for (const row of existingApts as any[]) {
+      for (const row of existingApts as BookedSlotRpcRow[]) {
         const timeStr = String(row.appointment_time).slice(0, 5);
         const duration = Number(row.duration_minutes) || 0;
         if (timeStr && duration > 0) {

@@ -4,7 +4,7 @@
  * - Toggle para aberto/fechado
  */
 
-import { useState, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Clock, Save } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -37,11 +37,7 @@ export function BusinessHoursTab({ isAdmin, onUpdate }: BusinessHoursTabProps) {
   const { toast } = useToast();
   const { settings } = useAgendaBranding();
 
-  useEffect(() => {
-    fetchHours();
-  }, [settings.storeAccountId]);
-
-  const fetchHours = async () => {
+  const fetchHours = useCallback(async () => {
     if (!settings.storeAccountId) {
       setHours([]);
       setLoading(false);
@@ -55,9 +51,13 @@ export function BusinessHoursTab({ isAdmin, onUpdate }: BusinessHoursTabProps) {
       .order('day_of_week');
     if (data) setHours(data);
     setLoading(false);
-  };
+  }, [settings.storeAccountId]);
 
-  const updateHour = (id: string, field: keyof BusinessHour, value: any) => {
+  useEffect(() => {
+    void fetchHours();
+  }, [fetchHours]);
+
+  const updateHour = <Field extends keyof BusinessHour>(id: string, field: Field, value: BusinessHour[Field]) => {
     setHours(prev => prev.map(h => h.id === id ? { ...h, [field]: value } : h));
   };
 

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
@@ -39,7 +39,33 @@ export default function Products() {
   const navigate = useNavigate();
   const publicPath = (path: string) => withAgendaPublicSearch(path, settings);
 
-  useEffect(() => { fetchProducts(); }, [settings.storeAccountId]);
+  const fetchProducts = useCallback(async () => {
+    if (!settings.storeAccountId) {
+      setProducts([]);
+      setLoading(false);
+      return;
+    }
+
+    const { data } = await supabase
+      .from('agenda_products')
+      .select('*')
+      .eq('store_account_id', settings.storeAccountId)
+      .eq('is_active', true)
+      .order('name');
+    if (data) setProducts(data);
+    setLoading(false);
+  }, [settings.storeAccountId]);
+
+  useEffect(() => { void fetchProducts(); }, [fetchProducts]);
+
+  useEffect(() => {
+    const handleProductsUpdated = () => {
+      void fetchProducts();
+    };
+
+    window.addEventListener('agenda-products-updated', handleProductsUpdated);
+    return () => window.removeEventListener('agenda-products-updated', handleProductsUpdated);
+  }, [fetchProducts]);
 
   useEffect(() => {
     if (loading || !products.length) return;
@@ -55,23 +81,6 @@ export default function Products() {
     }, 100);
     return () => clearTimeout(timer);
   }, [loading, products, selectedCategory]);
-
-  const fetchProducts = async () => {
-    if (!settings.storeAccountId) {
-      setProducts([]);
-      setLoading(false);
-      return;
-    }
-
-    const { data } = await supabase
-      .from('agenda_products')
-      .select('*')
-      .eq('store_account_id', settings.storeAccountId)
-      .eq('is_active', true)
-      .order('name');
-    if (data) setProducts(data);
-    setLoading(false);
-  };
 
   const handleBuy = (product: Product) => {
     if (!user) return;

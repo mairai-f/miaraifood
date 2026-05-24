@@ -205,17 +205,18 @@ export default function Login() {
         >
           <div className="text-center mb-8">
             <div className="inline-flex items-center gap-2 mb-4">
-              <div className="p-2 bg-primary rounded-lg">
-                {settings.logoUrl ? (
-                  <img
-                    src={settings.logoUrl}
-                    alt={settings.displayName}
-                    className="h-6 w-6 rounded object-cover"
-                  />
-                ) : (
+              {settings.logoUrl ? (
+                <img
+                  src={settings.logoUrl}
+                  alt={settings.displayName}
+                  className="rounded object-contain"
+                  style={{ width: settings.logoSize, height: settings.logoSize }}
+                />
+              ) : (
+                <div className="p-2 bg-primary rounded-lg">
                   <CalendarDays className="w-6 h-6 text-primary-foreground" />
-                )}
-              </div>
+                </div>
+              )}
               <span className="font-serif text-2xl font-semibold">
                 {settings.displayName}
               </span>

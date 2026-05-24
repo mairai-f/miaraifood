@@ -54,7 +54,12 @@ export function HeroSection() {
         <img
           src={settings.heroImageUrl || heroImage}
           alt={settings.displayName}
-          className="hero-image w-full h-full object-cover scale-110"
+          className="hero-image w-full h-full object-cover"
+          style={{
+            objectPosition: `${settings.heroImagePositionX}% ${settings.heroImagePositionY}%`,
+            transform: `scale(${settings.heroImageScale})`,
+            transformOrigin: `${settings.heroImagePositionX}% ${settings.heroImagePositionY}%`,
+          }}
         />
         <div className="absolute inset-0 bg-gradient-to-r from-black/90 via-black/70 to-black/40" />
         <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/30" />

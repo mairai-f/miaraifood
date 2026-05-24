@@ -45,6 +45,11 @@ export function AboutSection() {
                 alt={settings.aboutTitle || settings.displayName}
                 className="aspect-[4/3] w-full object-cover"
                 loading="lazy"
+                style={{
+                  objectPosition: `${settings.aboutImagePositionX}% ${settings.aboutImagePositionY}%`,
+                  transform: `scale(${settings.aboutImageScale})`,
+                  transformOrigin: `${settings.aboutImagePositionX}% ${settings.aboutImagePositionY}%`,
+                }}
               />
             </div>
           )}

@@ -264,17 +264,18 @@ export function Header() {
         <div className="container mx-auto px-4">
           <div className="flex items-center justify-between h-16">
             <Link to="/" className="flex items-center gap-2">
-              <div className="p-2 bg-primary rounded-lg">
-                {settings.logoUrl ? (
-                  <img
-                    src={settings.logoUrl}
-                    alt={settings.displayName}
-                    className="h-5 w-5 rounded object-cover"
-                  />
-                ) : (
+              {settings.logoUrl ? (
+                <img
+                  src={settings.logoUrl}
+                  alt={settings.displayName}
+                  className="rounded object-contain"
+                  style={{ width: settings.logoSize, height: settings.logoSize }}
+                />
+              ) : (
+                <div className="p-2 bg-primary rounded-lg">
                   <CalendarDays className="w-5 h-5 text-primary-foreground" />
-                )}
-              </div>
+                </div>
+              )}
               <span className="font-serif text-xl font-semibold">{settings.displayName}</span>
             </Link>
 

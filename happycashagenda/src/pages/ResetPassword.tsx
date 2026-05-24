@@ -17,7 +17,7 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 
 const passwordRegex =
-  /^(?=.*[A-Z])(?=.*[!@#$%^&*()_+\-=[\]{};'\\:\"|<>?,./`~]).{8,}$/;
+  /^(?=.*[A-Z])(?=.*[!@#$%^&*()_+\-=[\]{};'\\:"|<>?,./`~]).{8,}$/;
 
 const resetSchema = z
   .object({

@@ -483,6 +483,102 @@ export type Database = {
         }
         Relationships: []
       }
+      agenda_product_orders: {
+        Row: {
+          client_id: string | null
+          client_name: string
+          client_phone: string | null
+          created_at: string
+          id: string
+          notes: string | null
+          order_status: string
+          owner_user_id: string
+          payment_method: string
+          payment_status: string
+          store_account_id: string
+          total_amount: number
+          updated_at: string
+        }
+        Insert: {
+          client_id?: string | null
+          client_name: string
+          client_phone?: string | null
+          created_at?: string
+          id?: string
+          notes?: string | null
+          order_status?: string
+          owner_user_id: string
+          payment_method?: string
+          payment_status?: string
+          store_account_id: string
+          total_amount?: number
+          updated_at?: string
+        }
+        Update: {
+          client_id?: string | null
+          client_name?: string
+          client_phone?: string | null
+          created_at?: string
+          id?: string
+          notes?: string | null
+          order_status?: string
+          owner_user_id?: string
+          payment_method?: string
+          payment_status?: string
+          store_account_id?: string
+          total_amount?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      agenda_product_order_items: {
+        Row: {
+          created_at: string
+          id: string
+          line_total: number
+          order_id: string
+          product_id: string
+          product_name: string
+          quantity: number
+          unit_price: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          line_total: number
+          order_id: string
+          product_id: string
+          product_name: string
+          quantity: number
+          unit_price: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          line_total?: number
+          order_id?: string
+          product_id?: string
+          product_name?: string
+          quantity?: number
+          unit_price?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agenda_product_order_items_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "agenda_product_orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agenda_product_order_items_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "agenda_products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       products: {
         Row: {
           category: string | null
@@ -655,6 +751,17 @@ export type Database = {
           p_notes?: string
           p_payment_method?: string
           p_service_ids: string[]
+        }
+        Returns: string
+      }
+      create_agenda_product_order: {
+        Args: {
+          p_client_name: string
+          p_client_phone?: string | null
+          p_items: Json
+          p_notes?: string | null
+          p_payment_method?: string
+          p_store_account_id: string
         }
         Returns: string
       }

@@ -32,6 +32,15 @@ type AppointmentNotificationRow = {
   updated_at: string | null;
 };
 
+type ProductOrderNotificationRow = {
+  id: string;
+  client_name: string | null;
+  payment_method: string | null;
+  payment_status: string | null;
+  total_amount: number | null;
+  created_at: string;
+};
+
 const getReadIds = (storageKey: string) => {
   try {
     const raw = localStorage.getItem(storageKey);
@@ -87,15 +96,25 @@ export function NotificationBell() {
     if (!user) return;
     if (isAdmin && !settings.storeAccountId) return;
 
-    const query = supabase
+    const appointmentQuery = supabase
       .from('appointments')
       .select('id, client_name, appointment_date, appointment_time, status, created_at, updated_at')
       .order('updated_at', { ascending: false })
       .limit(20);
 
     const { data: appointments } = isAdmin
-      ? await query.eq('store_account_id', settings.storeAccountId)
-      : await query.eq('client_id', user.id);
+      ? await appointmentQuery.eq('store_account_id', settings.storeAccountId)
+      : await appointmentQuery.eq('client_id', user.id);
+
+    const orderQuery = supabase
+      .from('agenda_product_orders')
+      .select('id, client_name, payment_method, payment_status, total_amount, created_at')
+      .order('created_at', { ascending: false })
+      .limit(20);
+
+    const { data: productOrders } = isAdmin
+      ? await orderQuery.eq('store_account_id', settings.storeAccountId)
+      : await orderQuery.eq('client_id', user.id);
 
     const notifs: Notification[] = [];
 
@@ -127,6 +146,33 @@ export function NotificationBell() {
       });
     }
 
+    if (productOrders) {
+      (productOrders as ProductOrderNotificationRow[]).forEach((order) => {
+        const paymentInfo = order.payment_method === 'pix'
+          ? order.payment_status === 'paid'
+            ? 'Pix confirmado'
+            : 'Pix aguardando confirmacao'
+          : 'Pagar no local';
+        const total = Number(order.total_amount || 0).toFixed(2);
+        const date = new Date(order.created_at);
+        const timeInfo = `${date.toLocaleDateString('pt-BR')} às ${date.toLocaleTimeString('pt-BR', {
+          hour: '2-digit',
+          minute: '2-digit',
+        })}`;
+
+        notifs.push({
+          id: `order-${order.id}`,
+          type: 'purchase',
+          title: isAdmin ? '🛍️ Novo pedido de produto' : '🛍️ Pedido registrado',
+          description: isAdmin
+            ? `${order.client_name || 'Cliente'} - R$ ${total} - ${paymentInfo}`
+            : `${settings.displayName} - ${timeInfo} - ${paymentInfo}`,
+          created_at: order.created_at,
+          read: false,
+        });
+      });
+    }
+
     // Sort by date
     notifs.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
@@ -143,13 +189,13 @@ export function NotificationBell() {
     previousUnreadRef.current = unreadCount;
     hasLoadedRef.current = true;
     setNotifications(notifs);
-  }, [isAdmin, readStorageKey, settings.storeAccountId, user]);
+  }, [isAdmin, readStorageKey, settings.displayName, settings.storeAccountId, user]);
 
   useEffect(() => {
     fetchNotifications();
   }, [fetchNotifications]);
 
-  // Realtime subscription for appointments
+  // Realtime subscription for appointments and product orders
   useEffect(() => {
     if (!user) return;
     if (isAdmin && !settings.storeAccountId) return;
@@ -162,6 +208,20 @@ export function NotificationBell() {
           event: '*',
           schema: 'public',
           table: 'appointments',
+          filter: isAdmin
+            ? `store_account_id=eq.${settings.storeAccountId}`
+            : `client_id=eq.${user.id}`,
+        },
+        () => {
+          fetchNotifications();
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'agenda_product_orders',
           filter: isAdmin
             ? `store_account_id=eq.${settings.storeAccountId}`
             : `client_id=eq.${user.id}`,

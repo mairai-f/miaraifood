@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 
 interface BusinessHour {
@@ -16,9 +16,28 @@ export function useBusinessHours(storeAccountId?: string) {
   const [loading, setLoading] = useState(true);
   const [isCurrentlyOpen, setIsCurrentlyOpen] = useState(false);
 
-  useEffect(() => {
-    fetchBusinessHours();
+  const fetchBusinessHours = useCallback(async () => {
+    if (!storeAccountId) {
+      setBusinessHours([]);
+      setLoading(false);
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from('business_hours')
+      .select('*')
+      .eq('store_account_id', storeAccountId)
+      .order('day_of_week');
+
+    if (!error && data) {
+      setBusinessHours(data);
+    }
+    setLoading(false);
   }, [storeAccountId]);
+
+  useEffect(() => {
+    void fetchBusinessHours();
+  }, [fetchBusinessHours]);
 
   useEffect(() => {
     const checkIfOpen = () => {
@@ -39,25 +58,6 @@ export function useBusinessHours(storeAccountId?: string) {
     const interval = setInterval(checkIfOpen, 60000);
     return () => clearInterval(interval);
   }, [businessHours]);
-
-  const fetchBusinessHours = async () => {
-    if (!storeAccountId) {
-      setBusinessHours([]);
-      setLoading(false);
-      return;
-    }
-
-    const { data, error } = await supabase
-      .from('business_hours')
-      .select('*')
-      .eq('store_account_id', storeAccountId)
-      .order('day_of_week');
-
-    if (!error && data) {
-      setBusinessHours(data);
-    }
-    setLoading(false);
-  };
 
   const getHoursForDay = (dayOfWeek: number) => {
     return businessHours.find(h => h.day_of_week === dayOfWeek);

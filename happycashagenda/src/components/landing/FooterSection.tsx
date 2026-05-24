@@ -93,12 +93,16 @@ export function FooterSection() {
         <div className="footer-line h-px bg-gradient-to-r from-transparent via-primary/30 to-transparent mb-10 origin-center" />
 
         <div className="flex flex-col items-center gap-6">
-          <div className="footer-logo p-3 bg-primary rounded-xl shadow-lg" style={{ opacity: 0 }}>
+          <div
+            className={`footer-logo flex items-center justify-center ${settings.logoUrl ? "" : "rounded-xl bg-primary p-3 shadow-lg"}`}
+            style={{ opacity: 0 }}
+          >
             {settings.logoUrl ? (
               <img
                 src={settings.logoUrl}
                 alt={settings.displayName}
-                className="h-6 w-6 rounded object-cover"
+                className="rounded object-contain"
+                style={{ width: settings.logoSize, height: settings.logoSize }}
               />
             ) : (
               <CalendarDays className="w-6 h-6 text-primary-foreground" />

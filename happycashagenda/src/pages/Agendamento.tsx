@@ -423,9 +423,6 @@ export default function Booking() {
     today.setHours(0, 0, 0, 0);
     if (date < today) return true;
 
-    // Domingo (0) não é permitido
-    if (date.getDay() === 0) return true;
-
     const dayHours = getHoursForDay(date.getDay());
     return !dayHours?.is_open;
   };
@@ -636,7 +633,7 @@ export default function Booking() {
                 >
                   <CardHeader className="p-0 mb-4">
                     <CardTitle className="font-serif">Escolha Data e Horário</CardTitle>
-                    <CardDescription>Selecione quando deseja ser atendido (domingos não disponíveis)</CardDescription>
+                    <CardDescription>Selecione um dia aberto e o horário disponível</CardDescription>
                   </CardHeader>
 
                   <div className="grid md:grid-cols-2 gap-6">

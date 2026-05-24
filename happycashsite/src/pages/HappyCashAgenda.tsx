@@ -19,7 +19,9 @@ import Footer from "@/components/landing/Footer";
 import SiteSeo from "@/components/seo/SiteSeo";
 import { Button } from "@/components/ui/button";
 import { createSiteUrl } from "@/lib/siteSeo";
-import agendaPreview from "@/assets/screenshot-4.webp";
+import agendaBookingPreview from "@/assets/happycashagenda-booking-real.jpg";
+import agendaProductsPreview from "@/assets/happycashagenda-products-real.jpg";
+import agendaPublicPreview from "@/assets/happycashagenda-public-real.jpg";
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -37,8 +39,26 @@ const features = [
   { icon: Users, title: "Clientes separados", text: "Cada empresa acessa apenas seus proprios clientes, agendamentos e historico." },
   { icon: Scissors, title: "Profissionais e servicos", text: "Cadastro de profissionais, comissao, duracao, preco e servicos extras." },
   { icon: QrCode, title: "Link e QR Code", text: "Compartilhe agenda.happycashsite.com.br/sua-empresa para clientes marcarem horario." },
-  { icon: MessageCircle, title: "WhatsApp", text: "Confirmacao com valor, horario e servico para o profissional e administrador." },
+  { icon: MessageCircle, title: "Mensagens completas", text: "Confirmacao com empresa, data, hora, valor, Pix ou pagamento no local." },
   { icon: CreditCard, title: "Assinatura no site", text: "Plano Agenda no HappyCashSite com Asaas (Pix ou cartao) e redirect automatico." },
+];
+
+const agendaScreens = [
+  {
+    src: agendaPublicPreview,
+    title: "Pagina publica por empresa",
+    text: "Logo, nome, fundo, horario de funcionamento e link proprio para cada cliente.",
+  },
+  {
+    src: agendaBookingPreview,
+    title: "Fluxo de agendamento real",
+    text: "Cliente escolhe servico, profissional, dia aberto e horario disponivel.",
+  },
+  {
+    src: agendaProductsPreview,
+    title: "Produtos do modulo Agenda",
+    text: "Produtos separados do PDV e do Food, com compra por Pix ou pagamento no local.",
+  },
 ];
 
 const agendaPlans = [
@@ -132,17 +152,20 @@ export default function HappyCashAgenda() {
   return (
     <div ref={pageRef} className="min-h-screen bg-background">
       <SiteSeo
-        title="HappyCash Agenda | Sistema de agendamento online para servicos"
-        description="HappyCash Agenda e o sistema de agendamento online para empresas de servicos, com profissionais, clientes, QR Code Pix, WhatsApp e pagina publica por empresa."
+        title="HappyCash Agenda | Sistema de agendamento online com Pix e pagina publica"
+        description="HappyCash Agenda e o sistema de agendamento online para barbearias, saloes, clinicas e servicos, com pagina publica por empresa, horarios reais, produtos, QR Code Pix e WhatsApp."
         keywords={[
           "sistema de agendamento",
           "agenda online",
           "agenda para barbearia",
           "agenda para salao",
+          "agendamento online com Pix",
+          "agenda para clinica",
+          "agenda para prestador de servico",
           "HappyCash Agenda",
         ]}
         path="/happycash-agenda"
-        image={createSiteUrl("/favicon.png")}
+        image={agendaPublicPreview}
         jsonLd={{
           "@context": "https://schema.org",
           "@type": "SoftwareApplication",
@@ -150,6 +173,7 @@ export default function HappyCashAgenda() {
           applicationCategory: "BusinessApplication",
           operatingSystem: "Web",
           url: createSiteUrl("/happycash-agenda"),
+          image: createSiteUrl(agendaPublicPreview),
           offers: {
             "@type": "Offer",
             price: "80",
@@ -171,7 +195,7 @@ export default function HappyCashAgenda() {
                 Agenda online para servicos, profissionais e clientes no mesmo fluxo
               </h1>
               <p className="agenda-hero-motion mt-5 max-w-2xl text-lg leading-8 text-muted-foreground">
-                Organize horarios, servicos, Pix com QR Code e WhatsApp sem misturar dados do PDV ou do HappyCashFood.
+                Organize horarios, servicos, produtos, Pix com QR Code e WhatsApp sem misturar dados do PDV ou do HappyCashFood.
               </p>
               <div className="agenda-hero-motion mt-5 flex flex-wrap gap-2">
                 {HERO_BADGES.map((item) => (
@@ -195,8 +219,8 @@ export default function HappyCashAgenda() {
 
             <div className="agenda-hero-motion overflow-hidden rounded-lg border bg-card shadow-xl">
               <img
-                src={agendaPreview}
-                alt="Painel HappyCash Agenda"
+                src={agendaPublicPreview}
+                alt="Pagina publica real do HappyCash Agenda"
                 className="aspect-[16/10] w-full object-cover object-top"
               />
             </div>
@@ -216,6 +240,37 @@ export default function HappyCashAgenda() {
                   </article>
                 );
               })}
+            </div>
+          </div>
+        </section>
+
+        <section className="py-16 md:py-20">
+          <div className="container">
+            <div className="agenda-reveal max-w-3xl">
+              <p className="text-sm font-bold uppercase tracking-[0.24em] text-primary">Telas reais</p>
+              <h2 className="mt-4 font-heading text-3xl font-bold md:text-4xl">
+                O cliente ve o sistema que vai contratar
+              </h2>
+              <p className="mt-4 text-muted-foreground">
+                A pagina do plano mostra imagens reais do HappyCash Agenda: vitrine publica, agendamento e produtos do modulo.
+              </p>
+            </div>
+
+            <div className="agenda-stagger mt-10 grid gap-6 lg:grid-cols-3">
+              {agendaScreens.map((screen) => (
+                <article key={screen.title} className="overflow-hidden rounded-lg border bg-card">
+                  <img
+                    src={screen.src}
+                    alt={screen.title}
+                    className="aspect-[16/10] w-full object-cover object-top"
+                    loading="lazy"
+                  />
+                  <div className="p-5">
+                    <h3 className="font-heading text-lg font-semibold">{screen.title}</h3>
+                    <p className="mt-2 text-sm leading-6 text-muted-foreground">{screen.text}</p>
+                  </div>
+                </article>
+              ))}
             </div>
           </div>
         </section>
