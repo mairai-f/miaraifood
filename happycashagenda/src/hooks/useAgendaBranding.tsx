@@ -43,6 +43,8 @@ export type AgendaBrandingSettings = {
   address: string;
   whatsapp: string;
   adminWhatsapp: string;
+  facebookUrl: string;
+  instagramUrl: string;
   pixKey: string;
   pixMerchantName: string;
   primaryHsl: string;
@@ -89,6 +91,8 @@ type AgendaBusinessSettingsRow = {
   address: string | null;
   whatsapp: string | null;
   admin_whatsapp: string | null;
+  facebook_url: string | null;
+  instagram_url: string | null;
   pix_key: string | null;
   pix_merchant_name: string | null;
   primary_hsl: string;
@@ -125,6 +129,8 @@ type AgendaBusinessSettingsUpsert = {
   address: string | null;
   whatsapp: string | null;
   admin_whatsapp: string | null;
+  facebook_url: string | null;
+  instagram_url: string | null;
   pix_key: string | null;
   pix_merchant_name: string | null;
   primary_hsl: string;
@@ -137,7 +143,7 @@ const SETTINGS_COLUMNS_BASE =
   "id, owner_user_id, store_account_id, slug, display_name, business_type, professional_label, service_label, tagline, logo_url, primary_hsl, accent_hsl, success_hsl, public_booking_enabled";
 
 const SETTINGS_COLUMNS_EXTENDED =
-  `${SETTINGS_COLUMNS_BASE}, logo_size, hero_image_url, hero_image_position_x, hero_image_position_y, hero_image_scale, about_image_url, about_image_position_x, about_image_position_y, about_image_scale, team_image_url, location_image_url, hero_title, hero_subtitle, closed_message, about_title, about_text, address, whatsapp, admin_whatsapp, pix_key, pix_merchant_name`;
+  `${SETTINGS_COLUMNS_BASE}, logo_size, hero_image_url, hero_image_position_x, hero_image_position_y, hero_image_scale, about_image_url, about_image_position_x, about_image_position_y, about_image_scale, team_image_url, location_image_url, hero_title, hero_subtitle, closed_message, about_title, about_text, address, whatsapp, admin_whatsapp, facebook_url, instagram_url, pix_key, pix_merchant_name`;
 
 const isMissingColumnError = (message: string) =>
   /column|schema cache|does not exist|PGRST204/i.test(message);
@@ -171,6 +177,8 @@ const DEFAULT_BRANDING: AgendaBrandingSettings = {
   address: "",
   whatsapp: "",
   adminWhatsapp: "",
+  facebookUrl: "",
+  instagramUrl: "",
   pixKey: "",
   pixMerchantName: "",
   primaryHsl: "258 84% 58%",
@@ -237,6 +245,8 @@ const sanitizeSettings = (settings: AgendaBrandingSettings): AgendaBrandingSetti
   address: (settings.address || "").trim(),
   whatsapp: (settings.whatsapp || "").trim(),
   adminWhatsapp: (settings.adminWhatsapp || "").trim(),
+  facebookUrl: (settings.facebookUrl || "").trim(),
+  instagramUrl: (settings.instagramUrl || "").trim(),
   pixKey: (settings.pixKey || "").trim(),
   pixMerchantName: (settings.pixMerchantName || "").trim() || (settings.displayName || "").trim(),
   primaryHsl: sanitizeHsl(settings.primaryHsl, DEFAULT_BRANDING.primaryHsl),
@@ -274,6 +284,8 @@ const rowToSettings = (row: AgendaBusinessSettingsRow): AgendaBrandingSettings =
   address: row.address ?? "",
   whatsapp: row.whatsapp ?? "",
   adminWhatsapp: row.admin_whatsapp ?? "",
+  facebookUrl: row.facebook_url ?? "",
+  instagramUrl: row.instagram_url ?? "",
   pixKey: row.pix_key ?? "",
   pixMerchantName: row.pix_merchant_name ?? row.display_name,
   primaryHsl: row.primary_hsl,
@@ -313,6 +325,8 @@ const settingsToUpsert = (
   address: settings.address || null,
   whatsapp: settings.whatsapp || null,
   admin_whatsapp: settings.adminWhatsapp || null,
+  facebook_url: settings.facebookUrl || null,
+  instagram_url: settings.instagramUrl || null,
   pix_key: settings.pixKey || null,
   pix_merchant_name: settings.pixMerchantName || null,
   primary_hsl: settings.primaryHsl,
@@ -429,7 +443,7 @@ export function AgendaBrandingProvider({ children }: { children: ReactNode }) {
         .single();
 
       if (response.error && isMissingColumnError(response.error.message)) {
-        const { logo_size, hero_image_url, hero_image_position_x, hero_image_position_y, hero_image_scale, about_image_url, about_image_position_x, about_image_position_y, about_image_scale, team_image_url, location_image_url, hero_title, hero_subtitle, closed_message, about_title, about_text, address, whatsapp, admin_whatsapp, pix_key, pix_merchant_name, ...basePayload } = upsertPayload;
+        const { logo_size, hero_image_url, hero_image_position_x, hero_image_position_y, hero_image_scale, about_image_url, about_image_position_x, about_image_position_y, about_image_scale, team_image_url, location_image_url, hero_title, hero_subtitle, closed_message, about_title, about_text, address, whatsapp, admin_whatsapp, facebook_url, instagram_url, pix_key, pix_merchant_name, ...basePayload } = upsertPayload;
         void logo_size;
         void hero_image_url;
         void hero_image_position_x;
@@ -449,6 +463,8 @@ export function AgendaBrandingProvider({ children }: { children: ReactNode }) {
         void address;
         void whatsapp;
         void admin_whatsapp;
+        void facebook_url;
+        void instagram_url;
         void pix_key;
         void pix_merchant_name;
 

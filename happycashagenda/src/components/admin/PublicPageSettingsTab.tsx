@@ -1,5 +1,5 @@
 import { type CSSProperties, useEffect, useState } from "react";
-import { ImagePlus, Link2, MapPin, MessageCircle, Palette, Save } from "lucide-react";
+import { Facebook, ImagePlus, Instagram, Link2, MapPin, MessageCircle, Palette, Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -79,7 +79,7 @@ export function PublicPageSettingsTab() {
 
     toast({
       title: "Pagina publica salva",
-      description: "Logo, textos e Pix da agenda foram atualizados.",
+      description: "Logo, textos, redes sociais e Pix da agenda foram atualizados.",
     });
     setEditing(false);
   };
@@ -242,6 +242,30 @@ export function PublicPageSettingsTab() {
             value={draft.adminWhatsapp}
             onChange={(e) => updateDraft({ adminWhatsapp: e.target.value })}
             placeholder="Recebe confirmacao de todos os agendamentos"
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="facebookUrl" className="flex items-center gap-1">
+            <Facebook className="h-4 w-4" />
+            Facebook
+          </Label>
+          <Input
+            id="facebookUrl"
+            value={draft.facebookUrl}
+            onChange={(e) => updateDraft({ facebookUrl: e.target.value })}
+            placeholder="https://facebook.com/suaempresa"
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="instagramUrl" className="flex items-center gap-1">
+            <Instagram className="h-4 w-4" />
+            Instagram
+          </Label>
+          <Input
+            id="instagramUrl"
+            value={draft.instagramUrl}
+            onChange={(e) => updateDraft({ instagramUrl: e.target.value })}
+            placeholder="@suaempresa ou https://instagram.com/suaempresa"
           />
         </div>
         <div className="space-y-2">

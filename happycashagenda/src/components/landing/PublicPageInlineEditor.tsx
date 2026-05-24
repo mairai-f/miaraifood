@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ImagePlus, Pencil, Save, X } from "lucide-react";
+import { Facebook, ImagePlus, Instagram, Pencil, Save, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -216,6 +216,34 @@ export function PublicPageInlineEditor() {
                   aboutImageScale: next.scale ?? draft.aboutImageScale,
                 })}
               />
+            </section>
+
+            <section className="space-y-3">
+              <h3 className="text-xs font-semibold uppercase text-muted-foreground">Redes sociais</h3>
+              <div className="space-y-2">
+                <Label htmlFor="inlineFacebookUrl" className="flex items-center gap-1">
+                  <Facebook className="h-4 w-4" />
+                  Facebook
+                </Label>
+                <Input
+                  id="inlineFacebookUrl"
+                  value={draft.facebookUrl}
+                  onChange={(event) => updateDraft({ facebookUrl: event.target.value })}
+                  placeholder="https://facebook.com/suaempresa"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="inlineInstagramUrl" className="flex items-center gap-1">
+                  <Instagram className="h-4 w-4" />
+                  Instagram
+                </Label>
+                <Input
+                  id="inlineInstagramUrl"
+                  value={draft.instagramUrl}
+                  onChange={(event) => updateDraft({ instagramUrl: event.target.value })}
+                  placeholder="@suaempresa"
+                />
+              </div>
             </section>
           </div>
 

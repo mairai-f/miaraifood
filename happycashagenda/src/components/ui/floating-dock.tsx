@@ -2,7 +2,9 @@ import React, { useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 import { Link, useLocation } from "react-router-dom";
-import { Facebook, Instagram, Share2, Phone, X } from "lucide-react";
+import { Facebook, Instagram, Share2, Phone } from "lucide-react";
+import { useAgendaBranding } from "@/hooks/useAgendaBranding";
+import { buildWhatsAppUrl } from "@/lib/agendaWhatsApp";
 
 export interface DockItem {
   title: string;
@@ -15,8 +17,21 @@ interface FloatingDockProps {
   className?: string;
 }
 
+const normalizeSocialUrl = (value: string, baseUrl: string) => {
+  const raw = value.trim();
+  if (!raw) return "";
+  if (/^https?:\/\//i.test(raw)) return raw;
+  if (raw.startsWith("www.")) return `https://${raw}`;
+  if (raw.includes("/")) return `https://${raw.replace(/^\/+/, "")}`;
+
+  const handle = raw.replace(/^@+/, "").replace(/^\/+/, "");
+  if (!handle) return "";
+  return `${baseUrl.replace(/\/$/, "")}/${handle}`;
+};
+
 export function FloatingDock({ items, className }: FloatingDockProps) {
   const location = useLocation();
+  const { settings } = useAgendaBranding();
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
   const [socialOpen, setSocialOpen] = useState(false);
   const socialRef = useRef<HTMLDivElement | null>(null);
@@ -48,24 +63,27 @@ export function FloatingDock({ items, className }: FloatingDockProps) {
     };
   }, [socialOpen]);
 
+  const whatsappUrl = settings.whatsapp
+    ? buildWhatsAppUrl(settings.whatsapp, `Ola, vim pela agenda da ${settings.displayName}.`)
+    : null;
+
   const socialLinks = [
     {
       label: "Facebook",
-      href: "https://www.facebook.com",
+      href: normalizeSocialUrl(settings.facebookUrl, "https://www.facebook.com"),
       icon: <Facebook className="w-4 h-4" />,
     },
     {
       label: "Instagram",
-      href: "https://www.instagram.com",
+      href: normalizeSocialUrl(settings.instagramUrl, "https://www.instagram.com"),
       icon: <Instagram className="w-4 h-4" />,
     },
-    { label: "X", href: "https://x.com", icon: <X className="w-4 h-4" /> },
     {
       label: "WhatsApp",
-      href: "https://wa.me/",
+      href: whatsappUrl || "",
       icon: <Phone className="w-4 h-4" />,
     },
-  ];
+  ].filter((link) => !!link.href);
 
   return (
     <div
@@ -147,20 +165,26 @@ export function FloatingDock({ items, className }: FloatingDockProps) {
                 exit={{ opacity: 0, y: 6, scale: 0.96 }}
                 className="absolute bottom-full right-0 mb-2 z-50 w-44 rounded-xl border border-border/50 bg-background/90 p-3 shadow-xl backdrop-blur-xl"
               >
-                <div className="flex flex-col gap-2">
-                  {socialLinks.map(({ label, href, icon }) => (
-                    <a
-                      key={label}
-                      href={href}
-                      target="_blank"
-                      rel="noreferrer noopener"
-                      className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-muted-foreground hover:bg-primary/10 hover:text-foreground transition-colors"
-                    >
-                      {icon}
-                      {label}
-                    </a>
-                  ))}
-                </div>
+                {socialLinks.length > 0 ? (
+                  <div className="flex flex-col gap-2">
+                    {socialLinks.map(({ label, href, icon }) => (
+                      <a
+                        key={label}
+                        href={href}
+                        target="_blank"
+                        rel="noreferrer noopener"
+                        className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-muted-foreground hover:bg-primary/10 hover:text-foreground transition-colors"
+                      >
+                        {icon}
+                        {label}
+                      </a>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="px-2 py-1 text-xs text-muted-foreground">
+                    Redes sociais nao cadastradas.
+                  </p>
+                )}
               </motion.div>
             )}
           </AnimatePresence>
