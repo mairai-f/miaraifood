@@ -202,7 +202,7 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-[100svh] overflow-y-auto bg-background [webkit-overflow-scrolling:touch]">
+    <div className="min-h-[100svh] overflow-y-auto bg-background [webkit-overflow-scrolling:touch] lg:flex">
       {/* Left side - Form */}
       <div className="flex min-h-[100svh] touch-pan-y items-start justify-center px-4 pb-[calc(env(safe-area-inset-bottom)+1.5rem)] pt-[calc(env(safe-area-inset-top)+1rem)] [@media(max-height:640px)]:pt-3 sm:items-center sm:p-8 lg:w-1/2">
         <motion.div
@@ -418,7 +418,7 @@ export default function Login() {
       </div>
 
       {/* Right side - Decorative */}
-      <div className="hidden flex-1 items-center justify-center bg-primary p-12 lg:flex">
+      <div className="hidden flex-1 items-center justify-center bg-primary p-12 lg:flex lg:min-h-[100svh]">
         <div className="text-center text-primary-foreground max-w-md">
           <CalendarDays className="w-16 h-16 mx-auto mb-6 opacity-80" />
           <h2 className="font-serif text-4xl font-bold mb-4">
