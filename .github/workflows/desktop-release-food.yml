@@ -3,7 +3,7 @@ name: Desktop Release Food
 on:
   push:
     tags:
-      - 'v*.*.*'
+      - 'happycashfood-v*.*.*'
   workflow_dispatch:
     inputs:
       version:
@@ -43,8 +43,9 @@ jobs:
         env:
           REQUESTED_VERSION: ${{ github.event_name == 'workflow_dispatch' && inputs.version || github.ref_name }}
         run: |
-          PACKAGE_VERSION=$(node -p "require('./package.json').version")
-          RELEASE_VERSION="${REQUESTED_VERSION#v}"
+          PACKAGE_VERSION=$(node -p "require('./happycashfood/package.json').version")
+          RELEASE_VERSION="${REQUESTED_VERSION#happycashfood-v}"
+          RELEASE_VERSION="${RELEASE_VERSION#v}"
 
           if [ -z "$RELEASE_VERSION" ]; then
             RELEASE_VERSION="$PACKAGE_VERSION"

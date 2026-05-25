@@ -17,6 +17,10 @@ import { LoyaltyTab } from '@/components/admin/LoyaltyTab';
 import { parseLocalDate } from '@/lib/utils';
 import { withAgendaPublicSearch } from '@/lib/agendaPublicLink';
 import {
+  buildAppointmentCancellationWhatsAppMessage,
+  openAgendaWhatsAppTargets,
+} from '@/lib/agendaWhatsApp';
+import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -40,7 +44,7 @@ interface Appointment {
   appointment_date: string;
   appointment_time: string;
   status: 'scheduled' | 'completed' | 'cancelled';
-  barber: { name: string };
+  barber: { name: string; phone?: string | null };
   service: { name: string; price: number; duration_minutes: number };
   extraServices: ExtraService[];
 }
@@ -208,7 +212,7 @@ export default function MyAppointments() {
         appointment_date,
         appointment_time,
         status,
-        barber:barbers(name),
+        barber:barbers(name, phone),
         service:services(name, price, duration_minutes)
       `)
       .eq('client_id', user.id)
@@ -242,7 +246,7 @@ export default function MyAppointments() {
 
       const formatted = data.map((apt) => ({
         ...apt,
-        barber: apt.barber as unknown as { name: string },
+        barber: apt.barber as unknown as { name: string; phone?: string | null },
         service: apt.service as unknown as { name: string; price: number; duration_minutes: number },
         extraServices: extraServicesMap[apt.id] || [],
       }));
@@ -289,9 +293,30 @@ export default function MyAppointments() {
       // Recarrega para reverter caso o update falhe
       fetchAppointments();
     } else {
+      const serviceNames = [
+        selectedAppointment.service?.name,
+        ...selectedAppointment.extraServices.map((service) => service.name),
+      ].filter((serviceName): serviceName is string => Boolean(serviceName));
+      const cancellationMessage = buildAppointmentCancellationWhatsAppMessage({
+        businessName: settings.displayName,
+        clientName: selectedAppointment.client_name,
+        professionalName: selectedAppointment.barber?.name || settings.professionalLabel,
+        serviceNames,
+        appointmentDate: selectedAppointment.appointment_date,
+        appointmentTime: selectedAppointment.appointment_time,
+        totalAmount: getTotalPrice(selectedAppointment),
+      });
+
+      openAgendaWhatsAppTargets({
+        professionalPhone: selectedAppointment.barber?.phone,
+        adminPhone: settings.adminWhatsapp || settings.whatsapp,
+        clientMessage: cancellationMessage,
+        adminMessage: cancellationMessage,
+      });
+
       toast({
         title: 'Agendamento cancelado',
-        description: 'Seu agendamento foi cancelado com sucesso.',
+        description: 'Seu agendamento foi cancelado e o WhatsApp foi aberto para avisar a empresa.',
       });
       fetchAppointments();
     }

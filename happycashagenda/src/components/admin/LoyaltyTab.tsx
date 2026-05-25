@@ -6,7 +6,7 @@
  * - Usa clientes cadastrados do banco
  */
 
-import { useState, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Plus, Edit, Trash2, Trophy, Target, Gift, UserPlus, Minus, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -95,28 +95,7 @@ export function LoyaltyTab({ isAdmin, clientName }: LoyaltyTabProps) {
   const { toast } = useToast();
   const { settings } = useAgendaBranding();
 
-  useEffect(() => {
-    if (!settings.storeAccountId) return;
-
-    fetchData();
-
-    // Realtime for loyalty_progress changes
-    const channel = supabase
-      .channel('loyalty-progress-realtime')
-      .on('postgres_changes', {
-        event: '*',
-        schema: 'public',
-        table: 'loyalty_progress',
-        filter: `store_account_id=eq.${settings.storeAccountId}`,
-      }, () => {
-        fetchData();
-      })
-      .subscribe();
-
-    return () => { supabase.removeChannel(channel); };
-  }, [settings.storeAccountId]);
-
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     if (!settings.storeAccountId) return;
 
     const [programsRes, progressRes, servicesRes, clientsRes] = await Promise.all([
@@ -136,7 +115,28 @@ export function LoyaltyTab({ isAdmin, clientName }: LoyaltyTabProps) {
     if (servicesRes.data) setServices(servicesRes.data);
     if (clientsRes.data) setClients(clientsRes.data);
     setLoading(false);
-  };
+  }, [settings.storeAccountId]);
+
+  useEffect(() => {
+    if (!settings.storeAccountId) return;
+
+    void fetchData();
+
+    // Realtime for loyalty_progress changes
+    const channel = supabase
+      .channel('loyalty-progress-realtime')
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'loyalty_progress',
+        filter: `store_account_id=eq.${settings.storeAccountId}`,
+      }, () => {
+        void fetchData();
+      })
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [fetchData, settings.storeAccountId]);
 
   const openProgramDialog = (program?: LoyaltyProgram) => {
     if (program) {

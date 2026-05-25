@@ -7,6 +7,7 @@ import { BarberGallery } from '@/components/landing/BarberGallery';
 import { AboutSection } from '@/components/landing/AboutSection';
 import { LocationSection } from '@/components/landing/LocationSection';
 import { FooterSection } from '@/components/landing/FooterSection';
+import { PublicPageInlineEditor } from '@/components/landing/PublicPageInlineEditor';
 import { SectionNav } from '@/components/landing/SectionNav';
 import { SwipeSections } from '@/components/landing/SwipeSections';
 
@@ -36,6 +37,7 @@ export default function Index() {
         <div id="localizacao"><LocationSection /></div>
       </SwipeSections>
       <FooterSection />
+      <PublicPageInlineEditor />
     </Layout>
   );
 }

@@ -28,7 +28,7 @@ export function Layout({ children, showHeader = true }: LayoutProps) {
   ];
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-[100svh] bg-background">
       {showHeader && <Header />}
 
       {/* Status Banner */}
@@ -36,7 +36,7 @@ export function Layout({ children, showHeader = true }: LayoutProps) {
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          className={`fixed top-16 left-0 right-0 z-40 py-1.5 text-center text-xs font-medium ${
+          className={`fixed left-0 right-0 top-16 z-40 px-3 py-1.5 text-center text-[11px] font-medium sm:text-xs ${
             isCurrentlyOpen
               ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-b border-emerald-500/20'
               : 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-b border-rose-500/20'
@@ -48,7 +48,7 @@ export function Layout({ children, showHeader = true }: LayoutProps) {
         </motion.div>
       )}
 
-      <main className={showHeader ? 'pt-24 pb-20' : ''}>
+      <main className={showHeader ? 'pt-24 pb-[calc(env(safe-area-inset-bottom)+6rem)]' : ''}>
         {children}
       </main>
 

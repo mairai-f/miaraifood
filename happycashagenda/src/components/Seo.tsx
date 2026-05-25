@@ -77,7 +77,7 @@ export default function Seo() {
 
   useEffect(() => {
     const config = ROUTE_SEO[location.pathname] ?? DEFAULT_SEO;
-    const title = config.title.replace("HappyCash Agenda", settings.displayName);
+    const title = `Agenda - ${settings.displayName}`;
     const description = config.description.replace("HappyCash Agenda", settings.displayName);
 
     document.title = title;

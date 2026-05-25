@@ -54,7 +54,7 @@ interface StoreSubscriptionRow {
   product_context: ProductContext;
 }
 
-type ServiceClient = ReturnType<typeof createClient<any, "public", any>>;
+type ServiceClient = ReturnType<typeof createClient>;
 
 const jsonResponse = (request: Request, body: Record<string, unknown>, status = 200) =>
   new Response(JSON.stringify(body), {

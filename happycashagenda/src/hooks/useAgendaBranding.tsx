@@ -24,8 +24,15 @@ export type AgendaBrandingSettings = {
   serviceLabel: string;
   tagline: string;
   logoUrl: string;
+  logoSize: number;
   heroImageUrl: string;
+  heroImagePositionX: number;
+  heroImagePositionY: number;
+  heroImageScale: number;
   aboutImageUrl: string;
+  aboutImagePositionX: number;
+  aboutImagePositionY: number;
+  aboutImageScale: number;
   teamImageUrl: string;
   locationImageUrl: string;
   heroTitle: string;
@@ -36,12 +43,16 @@ export type AgendaBrandingSettings = {
   address: string;
   whatsapp: string;
   adminWhatsapp: string;
+  facebookUrl: string;
+  instagramUrl: string;
   pixKey: string;
   pixMerchantName: string;
   primaryHsl: string;
   accentHsl: string;
   successHsl: string;
   publicBookingEnabled: boolean;
+  serviceMode: "appointment" | "walk_in" | "both";
+  publicQueueVisible: boolean;
 };
 
 type AgendaBrandingContextType = {
@@ -63,8 +74,15 @@ type AgendaBusinessSettingsRow = {
   service_label: string;
   tagline: string;
   logo_url: string | null;
+  logo_size: number | null;
   hero_image_url: string | null;
+  hero_image_position_x: number | null;
+  hero_image_position_y: number | null;
+  hero_image_scale: number | null;
   about_image_url: string | null;
+  about_image_position_x: number | null;
+  about_image_position_y: number | null;
+  about_image_scale: number | null;
   team_image_url: string | null;
   location_image_url: string | null;
   hero_title: string | null;
@@ -75,12 +93,16 @@ type AgendaBusinessSettingsRow = {
   address: string | null;
   whatsapp: string | null;
   admin_whatsapp: string | null;
+  facebook_url: string | null;
+  instagram_url: string | null;
   pix_key: string | null;
   pix_merchant_name: string | null;
   primary_hsl: string;
   accent_hsl: string;
   success_hsl: string;
   public_booking_enabled: boolean;
+  service_mode?: "appointment" | "walk_in" | "both" | null;
+  public_queue_visible?: boolean | null;
 };
 
 type AgendaBusinessSettingsUpsert = {
@@ -92,8 +114,15 @@ type AgendaBusinessSettingsUpsert = {
   service_label: string;
   tagline: string;
   logo_url: string | null;
+  logo_size: number;
   hero_image_url: string | null;
+  hero_image_position_x: number;
+  hero_image_position_y: number;
+  hero_image_scale: number;
   about_image_url: string | null;
+  about_image_position_x: number;
+  about_image_position_y: number;
+  about_image_scale: number;
   team_image_url: string | null;
   location_image_url: string | null;
   hero_title: string | null;
@@ -104,19 +133,23 @@ type AgendaBusinessSettingsUpsert = {
   address: string | null;
   whatsapp: string | null;
   admin_whatsapp: string | null;
+  facebook_url: string | null;
+  instagram_url: string | null;
   pix_key: string | null;
   pix_merchant_name: string | null;
   primary_hsl: string;
   accent_hsl: string;
   success_hsl: string;
   public_booking_enabled: boolean;
+  service_mode: "appointment" | "walk_in" | "both";
+  public_queue_visible: boolean;
 };
 
 const SETTINGS_COLUMNS_BASE =
   "id, owner_user_id, store_account_id, slug, display_name, business_type, professional_label, service_label, tagline, logo_url, primary_hsl, accent_hsl, success_hsl, public_booking_enabled";
 
 const SETTINGS_COLUMNS_EXTENDED =
-  `${SETTINGS_COLUMNS_BASE}, hero_image_url, about_image_url, team_image_url, location_image_url, hero_title, hero_subtitle, closed_message, about_title, about_text, address, whatsapp, admin_whatsapp, pix_key, pix_merchant_name`;
+  `${SETTINGS_COLUMNS_BASE}, logo_size, hero_image_url, hero_image_position_x, hero_image_position_y, hero_image_scale, about_image_url, about_image_position_x, about_image_position_y, about_image_scale, team_image_url, location_image_url, hero_title, hero_subtitle, closed_message, about_title, about_text, address, whatsapp, admin_whatsapp, facebook_url, instagram_url, pix_key, pix_merchant_name, service_mode, public_queue_visible`;
 
 const isMissingColumnError = (message: string) =>
   /column|schema cache|does not exist|PGRST204/i.test(message);
@@ -131,8 +164,15 @@ const DEFAULT_BRANDING: AgendaBrandingSettings = {
   serviceLabel: "Servico",
   tagline: "Agenda, pagamentos, clientes e WhatsApp no mesmo fluxo.",
   logoUrl: "",
+  logoSize: 36,
   heroImageUrl: "",
+  heroImagePositionX: 50,
+  heroImagePositionY: 50,
+  heroImageScale: 1.1,
   aboutImageUrl: "",
+  aboutImagePositionX: 50,
+  aboutImagePositionY: 50,
+  aboutImageScale: 1,
   teamImageUrl: "",
   locationImageUrl: "",
   heroTitle: "",
@@ -143,12 +183,16 @@ const DEFAULT_BRANDING: AgendaBrandingSettings = {
   address: "",
   whatsapp: "",
   adminWhatsapp: "",
+  facebookUrl: "",
+  instagramUrl: "",
   pixKey: "",
   pixMerchantName: "",
   primaryHsl: "258 84% 58%",
   accentHsl: "44 96% 56%",
   successHsl: "151 74% 43%",
   publicBookingEnabled: true,
+  serviceMode: "appointment",
+  publicQueueVisible: false,
 };
 
 const STORAGE_KEY = "happycash_agenda_branding_preview";
@@ -174,6 +218,15 @@ const sanitizeHsl = (value: string, fallback: string) => {
   return /^\d{1,3}\s+\d{1,3}%\s+\d{1,3}%$/.test(normalized) ? normalized : fallback;
 };
 
+const sanitizeNumber = (value: unknown, fallback: number, min: number, max: number) => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.min(Math.max(parsed, min), max);
+};
+
+const sanitizeServiceMode = (value: unknown): AgendaBrandingSettings["serviceMode"] =>
+  value === "walk_in" || value === "both" ? value : "appointment";
+
 const sanitizeSettings = (settings: AgendaBrandingSettings): AgendaBrandingSettings => ({
   ...DEFAULT_BRANDING,
   ...settings,
@@ -184,8 +237,15 @@ const sanitizeSettings = (settings: AgendaBrandingSettings): AgendaBrandingSetti
   serviceLabel: (settings.serviceLabel || "").trim() || DEFAULT_BRANDING.serviceLabel,
   tagline: (settings.tagline || "").trim() || DEFAULT_BRANDING.tagline,
   logoUrl: (settings.logoUrl || "").trim(),
+  logoSize: sanitizeNumber(settings.logoSize, DEFAULT_BRANDING.logoSize, 24, 64),
   heroImageUrl: (settings.heroImageUrl || "").trim(),
+  heroImagePositionX: sanitizeNumber(settings.heroImagePositionX, DEFAULT_BRANDING.heroImagePositionX, 0, 100),
+  heroImagePositionY: sanitizeNumber(settings.heroImagePositionY, DEFAULT_BRANDING.heroImagePositionY, 0, 100),
+  heroImageScale: sanitizeNumber(settings.heroImageScale, DEFAULT_BRANDING.heroImageScale, 1, 2),
   aboutImageUrl: (settings.aboutImageUrl || "").trim(),
+  aboutImagePositionX: sanitizeNumber(settings.aboutImagePositionX, DEFAULT_BRANDING.aboutImagePositionX, 0, 100),
+  aboutImagePositionY: sanitizeNumber(settings.aboutImagePositionY, DEFAULT_BRANDING.aboutImagePositionY, 0, 100),
+  aboutImageScale: sanitizeNumber(settings.aboutImageScale, DEFAULT_BRANDING.aboutImageScale, 1, 2),
   teamImageUrl: (settings.teamImageUrl || "").trim(),
   locationImageUrl: (settings.locationImageUrl || "").trim(),
   heroTitle: (settings.heroTitle || "").trim(),
@@ -196,11 +256,15 @@ const sanitizeSettings = (settings: AgendaBrandingSettings): AgendaBrandingSetti
   address: (settings.address || "").trim(),
   whatsapp: (settings.whatsapp || "").trim(),
   adminWhatsapp: (settings.adminWhatsapp || "").trim(),
+  facebookUrl: (settings.facebookUrl || "").trim(),
+  instagramUrl: (settings.instagramUrl || "").trim(),
   pixKey: (settings.pixKey || "").trim(),
   pixMerchantName: (settings.pixMerchantName || "").trim() || (settings.displayName || "").trim(),
   primaryHsl: sanitizeHsl(settings.primaryHsl, DEFAULT_BRANDING.primaryHsl),
   accentHsl: sanitizeHsl(settings.accentHsl, DEFAULT_BRANDING.accentHsl),
   successHsl: sanitizeHsl(settings.successHsl, DEFAULT_BRANDING.successHsl),
+  serviceMode: sanitizeServiceMode(settings.serviceMode),
+  publicQueueVisible: Boolean(settings.publicQueueVisible),
 });
 
 const rowToSettings = (row: AgendaBusinessSettingsRow): AgendaBrandingSettings => ({
@@ -214,8 +278,15 @@ const rowToSettings = (row: AgendaBusinessSettingsRow): AgendaBrandingSettings =
   serviceLabel: row.service_label,
   tagline: row.tagline,
   logoUrl: row.logo_url ?? "",
+  logoSize: row.logo_size ?? DEFAULT_BRANDING.logoSize,
   heroImageUrl: row.hero_image_url ?? "",
+  heroImagePositionX: row.hero_image_position_x ?? DEFAULT_BRANDING.heroImagePositionX,
+  heroImagePositionY: row.hero_image_position_y ?? DEFAULT_BRANDING.heroImagePositionY,
+  heroImageScale: row.hero_image_scale ?? DEFAULT_BRANDING.heroImageScale,
   aboutImageUrl: row.about_image_url ?? "",
+  aboutImagePositionX: row.about_image_position_x ?? DEFAULT_BRANDING.aboutImagePositionX,
+  aboutImagePositionY: row.about_image_position_y ?? DEFAULT_BRANDING.aboutImagePositionY,
+  aboutImageScale: row.about_image_scale ?? DEFAULT_BRANDING.aboutImageScale,
   teamImageUrl: row.team_image_url ?? "",
   locationImageUrl: row.location_image_url ?? "",
   heroTitle: row.hero_title ?? "",
@@ -226,12 +297,16 @@ const rowToSettings = (row: AgendaBusinessSettingsRow): AgendaBrandingSettings =
   address: row.address ?? "",
   whatsapp: row.whatsapp ?? "",
   adminWhatsapp: row.admin_whatsapp ?? "",
+  facebookUrl: row.facebook_url ?? "",
+  instagramUrl: row.instagram_url ?? "",
   pixKey: row.pix_key ?? "",
   pixMerchantName: row.pix_merchant_name ?? row.display_name,
   primaryHsl: row.primary_hsl,
   accentHsl: row.accent_hsl,
   successHsl: row.success_hsl,
   publicBookingEnabled: row.public_booking_enabled,
+  serviceMode: sanitizeServiceMode(row.service_mode),
+  publicQueueVisible: Boolean(row.public_queue_visible),
 });
 
 const settingsToUpsert = (
@@ -246,8 +321,15 @@ const settingsToUpsert = (
   service_label: settings.serviceLabel,
   tagline: settings.tagline,
   logo_url: settings.logoUrl || null,
+  logo_size: settings.logoSize,
   hero_image_url: settings.heroImageUrl || null,
+  hero_image_position_x: settings.heroImagePositionX,
+  hero_image_position_y: settings.heroImagePositionY,
+  hero_image_scale: settings.heroImageScale,
   about_image_url: settings.aboutImageUrl || null,
+  about_image_position_x: settings.aboutImagePositionX,
+  about_image_position_y: settings.aboutImagePositionY,
+  about_image_scale: settings.aboutImageScale,
   team_image_url: settings.teamImageUrl || null,
   location_image_url: settings.locationImageUrl || null,
   hero_title: settings.heroTitle || null,
@@ -258,12 +340,16 @@ const settingsToUpsert = (
   address: settings.address || null,
   whatsapp: settings.whatsapp || null,
   admin_whatsapp: settings.adminWhatsapp || null,
+  facebook_url: settings.facebookUrl || null,
+  instagram_url: settings.instagramUrl || null,
   pix_key: settings.pixKey || null,
   pix_merchant_name: settings.pixMerchantName || null,
   primary_hsl: settings.primaryHsl,
   accent_hsl: settings.accentHsl,
   success_hsl: settings.successHsl,
   public_booking_enabled: settings.publicBookingEnabled,
+  service_mode: settings.serviceMode,
+  public_queue_visible: settings.publicQueueVisible,
 });
 
 const readPreview = () => {
@@ -374,9 +460,16 @@ export function AgendaBrandingProvider({ children }: { children: ReactNode }) {
         .single();
 
       if (response.error && isMissingColumnError(response.error.message)) {
-        const { hero_image_url, about_image_url, team_image_url, location_image_url, hero_title, hero_subtitle, closed_message, about_title, about_text, address, whatsapp, admin_whatsapp, pix_key, pix_merchant_name, ...basePayload } = upsertPayload;
+        const { logo_size, hero_image_url, hero_image_position_x, hero_image_position_y, hero_image_scale, about_image_url, about_image_position_x, about_image_position_y, about_image_scale, team_image_url, location_image_url, hero_title, hero_subtitle, closed_message, about_title, about_text, address, whatsapp, admin_whatsapp, facebook_url, instagram_url, pix_key, pix_merchant_name, service_mode, public_queue_visible, ...basePayload } = upsertPayload;
+        void logo_size;
         void hero_image_url;
+        void hero_image_position_x;
+        void hero_image_position_y;
+        void hero_image_scale;
         void about_image_url;
+        void about_image_position_x;
+        void about_image_position_y;
+        void about_image_scale;
         void team_image_url;
         void location_image_url;
         void hero_title;
@@ -387,8 +480,12 @@ export function AgendaBrandingProvider({ children }: { children: ReactNode }) {
         void address;
         void whatsapp;
         void admin_whatsapp;
+        void facebook_url;
+        void instagram_url;
         void pix_key;
         void pix_merchant_name;
+        void service_mode;
+        void public_queue_visible;
 
         response = await supabase
           .from("agenda_business_settings")

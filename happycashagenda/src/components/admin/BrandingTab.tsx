@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { useAgendaBranding, type AgendaBrandingSettings } from "@/hooks/useAgendaBranding";
@@ -84,15 +85,17 @@ const hslToHex = (hsl: string) => {
 export function BrandingTab() {
   const { settings, loading, updatePreview, saveSettings, resetPreview } = useAgendaBranding();
   const [draft, setDraft] = useState<AgendaBrandingSettings>(settings);
+  const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
-    setDraft(settings);
-  }, [settings]);
+    if (!editing) setDraft(settings);
+  }, [editing, settings]);
 
   const updateDraft = (next: Partial<AgendaBrandingSettings>) => {
     const nextDraft = { ...draft, ...next };
+    setEditing(true);
     setDraft(nextDraft);
     updatePreview(nextDraft);
   };
@@ -115,9 +118,11 @@ export function BrandingTab() {
       title: "Identidade salva",
       description: "Nome, segmento e cores do HappyCash Agenda foram atualizados.",
     });
+    setEditing(false);
   };
 
   const handleReset = () => {
+    setEditing(false);
     resetPreview();
     toast({
       title: "Previa restaurada",
@@ -213,12 +218,17 @@ export function BrandingTab() {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="logoUrl">Logo URL</Label>
-            <Input
-              id="logoUrl"
-              value={draft.logoUrl}
-              onChange={(event) => updateDraft({ logoUrl: event.target.value })}
-              placeholder="https://..."
+            <div className="flex items-center justify-between gap-3">
+              <Label htmlFor="logoSize">Tamanho do logo</Label>
+              <span className="text-xs font-medium text-muted-foreground">{Math.round(draft.logoSize)}px</span>
+            </div>
+            <Slider
+              id="logoSize"
+              value={[draft.logoSize]}
+              min={24}
+              max={64}
+              step={1}
+              onValueChange={([logoSize]) => updateDraft({ logoSize })}
             />
           </div>
 
@@ -282,11 +292,18 @@ export function BrandingTab() {
         <CardContent>
           <div className="rounded-lg border bg-background p-4 shadow-sm">
             <div className="flex items-center gap-3">
-              <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+              <div className="flex min-h-12 min-w-12 items-center justify-center">
                 {draft.logoUrl ? (
-                  <img src={draft.logoUrl} alt="" className="h-full w-full rounded-lg object-cover" />
+                  <img
+                    src={draft.logoUrl}
+                    alt=""
+                    className="rounded object-contain"
+                    style={{ width: draft.logoSize, height: draft.logoSize }}
+                  />
                 ) : (
+                  <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary text-primary-foreground">
                   <CalendarDays className="h-6 w-6" />
+                  </div>
                 )}
               </div>
               <div>
@@ -297,11 +314,11 @@ export function BrandingTab() {
             <p className="mt-4 text-sm text-muted-foreground">{draft.tagline}</p>
             <div className="mt-4 grid grid-cols-2 gap-2 text-xs">
               <div className="rounded-lg bg-primary/10 p-3 text-primary">
-                {draft.professionalLabel}s
+                {draft.professionalLabel}
                 <strong className="mt-1 block text-lg text-foreground">8</strong>
               </div>
               <div className="rounded-lg bg-accent/15 p-3 text-accent-foreground">
-                {draft.serviceLabel}s
+                {draft.serviceLabel}
                 <strong className="mt-1 block text-lg text-foreground">24</strong>
               </div>
             </div>

@@ -4,7 +4,7 @@
  * - Listagem com busca
  */
 
-import { useState, useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Plus, Edit, Trash2, Users, Search, Phone, Mail } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -69,6 +69,22 @@ export function ClientsTab() {
   const { toast } = useToast();
   const { settings } = useAgendaBranding();
 
+  const fetchClients = useCallback(async () => {
+    if (!settings.storeAccountId) {
+      setClients([]);
+      setLoading(false);
+      return;
+    }
+
+    const { data } = await supabase
+      .from("agenda_clients")
+      .select("*")
+      .eq("store_account_id", settings.storeAccountId)
+      .order("name");
+    if (data) setClients(data);
+    setLoading(false);
+  }, [settings.storeAccountId]);
+
   useEffect(() => {
     if (!settings.storeAccountId) {
       setClients([]);
@@ -76,7 +92,7 @@ export function ClientsTab() {
       return;
     }
 
-    fetchClients();
+    void fetchClients();
 
     const channel = supabase
       .channel(`agenda:clients:${settings.storeAccountId}`)
@@ -118,19 +134,7 @@ export function ClientsTab() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [settings.storeAccountId]);
-
-  const fetchClients = async () => {
-    if (!settings.storeAccountId) return;
-
-    const { data } = await supabase
-      .from("agenda_clients")
-      .select("*")
-      .eq("store_account_id", settings.storeAccountId)
-      .order("name");
-    if (data) setClients(data);
-    setLoading(false);
-  };
+  }, [fetchClients, settings.storeAccountId]);
 
   const openDialog = (client?: Client) => {
     if (client) {

@@ -263,11 +263,20 @@ export function Header() {
       >
         <div className="container mx-auto px-4">
           <div className="flex items-center justify-between h-16">
-            <Link to="/" className="flex items-center gap-2">
-              <div className="p-2 bg-primary rounded-lg">
-                <CalendarDays className="w-5 h-5 text-primary-foreground" />
-              </div>
-              <span className="font-serif text-xl font-semibold">{settings.displayName}</span>
+            <Link to="/" className="flex min-w-0 flex-1 items-center gap-2 sm:flex-none">
+              {settings.logoUrl ? (
+                <img
+                  src={settings.logoUrl}
+                  alt={settings.displayName}
+                  className="max-h-10 max-w-10 rounded object-contain sm:max-h-none sm:max-w-none"
+                  style={{ width: settings.logoSize, height: settings.logoSize }}
+                />
+              ) : (
+                <div className="p-2 bg-primary rounded-lg">
+                  <CalendarDays className="w-5 h-5 text-primary-foreground" />
+                </div>
+              )}
+              <span className="min-w-0 truncate font-serif text-base font-semibold sm:text-xl">{settings.displayName}</span>
             </Link>
 
             {/* Desktop Navigation */}
@@ -328,7 +337,7 @@ export function Header() {
               )}
             </nav>
 
-            <div className="flex items-center gap-2">
+            <div className="flex shrink-0 items-center gap-1 sm:gap-2">
               <Button
                 variant="ghost"
                 size="icon"

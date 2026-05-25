@@ -54,7 +54,12 @@ export function HeroSection() {
         <img
           src={settings.heroImageUrl || heroImage}
           alt={settings.displayName}
-          className="hero-image w-full h-full object-cover scale-110"
+          className="hero-image w-full h-full object-cover"
+          style={{
+            objectPosition: `${settings.heroImagePositionX}% ${settings.heroImagePositionY}%`,
+            transform: `scale(${settings.heroImageScale})`,
+            transformOrigin: `${settings.heroImagePositionX}% ${settings.heroImagePositionY}%`,
+          }}
         />
         <div className="absolute inset-0 bg-gradient-to-r from-black/90 via-black/70 to-black/40" />
         <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/30" />
@@ -98,7 +103,7 @@ export function HeroSection() {
           {/* Section Navigation Pills */}
           <div className="hero-nav-pills flex flex-wrap gap-2 md:gap-3 mb-6 md:mb-8" style={{ opacity: 0 }}>
             {[
-              { label: `${settings.professionalLabel}s`, id: 'equipe' },
+              { label: settings.professionalLabel, id: 'equipe' },
               { label: 'Sobre Nós', id: 'sobre' },
               { label: 'Localização', id: 'localizacao' },
             ].map(item => (

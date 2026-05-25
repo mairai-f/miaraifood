@@ -2,7 +2,9 @@ import React, { useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 import { Link, useLocation } from "react-router-dom";
-import { Facebook, Instagram, Share2, Phone, X } from "lucide-react";
+import { Facebook, Instagram, Share2, Phone } from "lucide-react";
+import { useAgendaBranding } from "@/hooks/useAgendaBranding";
+import { buildWhatsAppUrl } from "@/lib/agendaWhatsApp";
 
 export interface DockItem {
   title: string;
@@ -15,8 +17,21 @@ interface FloatingDockProps {
   className?: string;
 }
 
+const normalizeSocialUrl = (value: string, baseUrl: string) => {
+  const raw = value.trim();
+  if (!raw) return "";
+  if (/^https?:\/\//i.test(raw)) return raw;
+  if (raw.startsWith("www.")) return `https://${raw}`;
+  if (raw.includes("/")) return `https://${raw.replace(/^\/+/, "")}`;
+
+  const handle = raw.replace(/^@+/, "").replace(/^\/+/, "");
+  if (!handle) return "";
+  return `${baseUrl.replace(/\/$/, "")}/${handle}`;
+};
+
 export function FloatingDock({ items, className }: FloatingDockProps) {
   const location = useLocation();
+  const { settings } = useAgendaBranding();
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
   const [socialOpen, setSocialOpen] = useState(false);
   const socialRef = useRef<HTMLDivElement | null>(null);
@@ -48,34 +63,37 @@ export function FloatingDock({ items, className }: FloatingDockProps) {
     };
   }, [socialOpen]);
 
+  const whatsappUrl = settings.whatsapp
+    ? buildWhatsAppUrl(settings.whatsapp, `Ola, vim pela agenda da ${settings.displayName}.`)
+    : null;
+
   const socialLinks = [
     {
       label: "Facebook",
-      href: "https://www.facebook.com",
+      href: normalizeSocialUrl(settings.facebookUrl, "https://www.facebook.com"),
       icon: <Facebook className="w-4 h-4" />,
     },
     {
       label: "Instagram",
-      href: "https://www.instagram.com",
+      href: normalizeSocialUrl(settings.instagramUrl, "https://www.instagram.com"),
       icon: <Instagram className="w-4 h-4" />,
     },
-    { label: "X", href: "https://x.com", icon: <X className="w-4 h-4" /> },
     {
       label: "WhatsApp",
-      href: "https://wa.me/",
+      href: whatsappUrl || "",
       icon: <Phone className="w-4 h-4" />,
     },
   ];
 
   return (
     <div
-      className={cn("fixed bottom-6 left-1/2 z-50 -translate-x-1/2", className)}
+      className={cn("fixed bottom-[calc(env(safe-area-inset-bottom)+1rem)] left-1/2 z-50 w-[calc(100vw-1rem)] max-w-max -translate-x-1/2", className)}
     >
       <motion.div
         initial={{ y: 80, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ type: "spring", stiffness: 260, damping: 20, delay: 0.3 }}
-        className="flex items-end gap-2 rounded-2xl border border-border/50 bg-background/80 px-3 py-2 shadow-xl backdrop-blur-xl"
+        className="mx-auto flex max-w-full items-end justify-center gap-1 overflow-x-auto rounded-2xl border border-border/50 bg-background/85 px-2 py-2 shadow-xl backdrop-blur-xl sm:gap-2 sm:px-3"
       >
         {items.map((item, idx) => {
           const isActive = location.pathname === item.href;
@@ -110,7 +128,7 @@ export function FloatingDock({ items, className }: FloatingDockProps) {
                   animate={{ scale }}
                   transition={{ type: "spring", stiffness: 400, damping: 17 }}
                   className={cn(
-                    "flex h-10 w-10 items-center justify-center rounded-xl transition-colors duration-200",
+                    "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition-colors duration-200",
                     isActive
                       ? "bg-primary text-primary-foreground shadow-md"
                       : "text-muted-foreground hover:bg-accent hover:text-foreground",
@@ -145,21 +163,35 @@ export function FloatingDock({ items, className }: FloatingDockProps) {
                 initial={{ opacity: 0, y: 6, scale: 0.96 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: 6, scale: 0.96 }}
-                className="absolute bottom-full right-0 mb-2 z-50 w-44 rounded-xl border border-border/50 bg-background/90 p-3 shadow-xl backdrop-blur-xl"
+                className="absolute bottom-full right-0 mb-2 z-50 w-48 rounded-xl border border-border/50 bg-background/90 p-3 shadow-xl backdrop-blur-xl"
               >
                 <div className="flex flex-col gap-2">
-                  {socialLinks.map(({ label, href, icon }) => (
-                    <a
-                      key={label}
-                      href={href}
-                      target="_blank"
-                      rel="noreferrer noopener"
-                      className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-muted-foreground hover:bg-primary/10 hover:text-foreground transition-colors"
-                    >
-                      {icon}
-                      {label}
-                    </a>
-                  ))}
+                  {socialLinks.map(({ label, href, icon }) =>
+                    href ? (
+                      <a
+                        key={label}
+                        href={href}
+                        target="_blank"
+                        rel="noreferrer noopener"
+                        className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-muted-foreground hover:bg-primary/10 hover:text-foreground transition-colors"
+                      >
+                        {icon}
+                        {label}
+                      </a>
+                    ) : (
+                      <button
+                        key={label}
+                        type="button"
+                        disabled
+                        className="flex cursor-not-allowed items-center gap-2 rounded-lg px-3 py-2 text-sm text-muted-foreground/60"
+                        title={`${label} nao cadastrado`}
+                        aria-label={`${label} nao cadastrado`}
+                      >
+                        {icon}
+                        {label}
+                      </button>
+                    ),
+                  )}
                 </div>
               </motion.div>
             )}

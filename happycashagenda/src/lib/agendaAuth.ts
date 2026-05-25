@@ -17,7 +17,7 @@ type SubscriptionRow = {
 };
 
 const AGENDA_CONTEXT: ProductContext = "happycashagenda";
-const activeSubscriptionStatuses = new Set(["active", "past_due"]);
+const activeSubscriptionStatuses = new Set(["active"]);
 
 export const AGENDA_PRODUCT_CONTEXT_MISMATCH =
   "Esta conta pertence a outro sistema HappyCash. Entre no modulo correto.";

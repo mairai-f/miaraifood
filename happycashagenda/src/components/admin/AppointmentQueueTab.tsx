@@ -21,6 +21,7 @@ interface Appointment {
   client_phone: string | null;
   appointment_date: string;
   appointment_time: string;
+  appointment_type?: 'appointment' | 'queue';
   status: 'scheduled' | 'completed' | 'cancelled';
   payment_method: string | null;
   payment_status: string | null;
@@ -28,6 +29,7 @@ interface Appointment {
   service: { name: string; price: number; id?: string; duration_minutes?: number };
   barber_id: string;
   service_id: string;
+  created_at?: string;
   extraServices: ExtraService[];
 }
 
@@ -44,6 +46,9 @@ export function AppointmentQueueTab({ appointments, onConfirmPayment }: Appointm
     return appointments
       .filter(a => a.status === 'scheduled' && a.appointment_date >= todayStr)
       .sort((a, b) => {
+        if (a.appointment_type === 'queue' || b.appointment_type === 'queue') {
+          return (a.created_at || '').localeCompare(b.created_at || '');
+        }
         if (a.appointment_date !== b.appointment_date) return a.appointment_date.localeCompare(b.appointment_date);
         return a.appointment_time.localeCompare(b.appointment_time);
       });
@@ -78,6 +83,7 @@ export function AppointmentQueueTab({ appointments, onConfirmPayment }: Appointm
         <div className="space-y-3">
           {queue.map((apt, index) => {
             const isToday = apt.appointment_date === todayStr;
+            const isWalkIn = apt.appointment_type === 'queue';
             const allServices = [apt.service?.name, ...apt.extraServices.map(e => e.name)].filter(Boolean);
 
             return (
@@ -93,6 +99,7 @@ export function AppointmentQueueTab({ appointments, onConfirmPayment }: Appointm
                           <User className="w-4 h-4 text-muted-foreground" />
                           <span className="font-semibold">{apt.client_name}</span>
                           {index === 0 && isToday && <Badge className="text-[10px] px-1.5 py-0">Próximo</Badge>}
+                          {isWalkIn && <Badge variant="outline" className="text-[10px] px-1.5 py-0">Ordem de chegada</Badge>}
                         </div>
                         <div className="text-sm text-muted-foreground mt-1">
                           {settings.professionalLabel}: <span className="font-medium text-foreground">{apt.barber?.name}</span>
@@ -111,7 +118,9 @@ export function AppointmentQueueTab({ appointments, onConfirmPayment }: Appointm
                         </Button>
                       ) : null}
                       <div className="text-sm font-medium">
-                        {isToday ? 'Hoje' : format(parseLocalDate(apt.appointment_date), "dd/MM", { locale: ptBR })} às {apt.appointment_time.slice(0, 5)}
+                        {isWalkIn
+                          ? `Entrada ${apt.created_at ? format(new Date(apt.created_at), 'HH:mm') : apt.appointment_time.slice(0, 5)}`
+                          : `${isToday ? 'Hoje' : format(parseLocalDate(apt.appointment_date), "dd/MM", { locale: ptBR })} às ${apt.appointment_time.slice(0, 5)}`}
                       </div>
                       <div className="text-lg font-bold text-primary">R$ {getTotalPrice(apt).toFixed(0)}</div>
                     </div>

@@ -26,6 +26,25 @@ export type AgendaBookingWhatsAppInput = {
   paymentStatus: "pending" | "paid";
 };
 
+export type AgendaCancellationWhatsAppInput = {
+  businessName: string;
+  clientName: string;
+  professionalName: string;
+  serviceNames: string[];
+  appointmentDate: string;
+  appointmentTime: string;
+  totalAmount: number;
+};
+
+export type AgendaProductOrderWhatsAppInput = {
+  businessName: string;
+  clientName: string;
+  orderDate: Date;
+  items: { name: string; quantity: number; price: number }[];
+  totalAmount: number;
+  paymentMethod: "local" | "pix";
+};
+
 export function buildClientPaymentWhatsAppMessage(input: AgendaBookingWhatsAppInput) {
   const dateLabel = format(new Date(`${input.appointmentDate}T12:00:00`), "dd/MM/yyyy", { locale: ptBR });
   const timeLabel = input.appointmentTime.slice(0, 5);
@@ -58,6 +77,47 @@ export function buildAdminConfirmWhatsAppMessage(input: AgendaBookingWhatsAppInp
     `Horario: ${dateLabel} as ${timeLabel}`,
     `Valor: R$ ${input.totalAmount.toFixed(2)}`,
     "Confirme o horario e o pagamento no painel.",
+  ].join("\n");
+}
+
+export function buildAppointmentCancellationWhatsAppMessage(input: AgendaCancellationWhatsAppInput) {
+  const dateLabel = format(new Date(`${input.appointmentDate}T12:00:00`), "dd/MM/yyyy", { locale: ptBR });
+  const timeLabel = input.appointmentTime.slice(0, 5);
+  const services = input.serviceNames.join(", ");
+
+  return [
+    `*${input.businessName}* - agendamento cancelado`,
+    "",
+    `Cliente: ${input.clientName}`,
+    `Profissional: ${input.professionalName}`,
+    `Servicos: ${services}`,
+    `Horario cancelado: ${dateLabel} as ${timeLabel}`,
+    `Valor: R$ ${input.totalAmount.toFixed(2)}`,
+    "Cancelamento feito pelo cliente.",
+  ].join("\n");
+}
+
+export function buildProductOrderWhatsAppMessage(input: AgendaProductOrderWhatsAppInput) {
+  const dateLabel = format(input.orderDate, "dd/MM/yyyy", { locale: ptBR });
+  const timeLabel = format(input.orderDate, "HH:mm", { locale: ptBR });
+  const paymentLabel =
+    input.paymentMethod === "pix"
+      ? "Pix informado como pago, aguardando confirmacao da empresa"
+      : "Pagar no local";
+  const items = input.items
+    .map((item) => `- ${item.quantity}x ${item.name} - R$ ${(item.price * item.quantity).toFixed(2)}`)
+    .join("\n");
+
+  return [
+    `*${input.businessName}* - pedido de produto`,
+    "",
+    `Cliente: ${input.clientName}`,
+    `Data: ${dateLabel}`,
+    `Hora: ${timeLabel}`,
+    "Itens:",
+    items,
+    `Total: R$ ${input.totalAmount.toFixed(2)}`,
+    `Pagamento: ${paymentLabel}`,
   ].join("\n");
 }
 

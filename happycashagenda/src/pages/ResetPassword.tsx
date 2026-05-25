@@ -17,7 +17,7 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 
 const passwordRegex =
-  /^(?=.*[A-Z])(?=.*[!@#$%^&*()_+\-=[\]{};'\\:\"|<>?,./`~]).{8,}$/;
+  /^(?=.*[A-Z])(?=.*[!@#$%^&*()_+\-=[\]{};'\\:"|<>?,./`~]).{8,}$/;
 
 const resetSchema = z
   .object({
@@ -87,7 +87,7 @@ export default function ResetPassword() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-8">
+    <div className="flex min-h-[100svh] items-start justify-center overflow-y-auto bg-background px-4 pb-[calc(env(safe-area-inset-bottom)+1.5rem)] pt-[calc(env(safe-area-inset-top)+1rem)] sm:items-center sm:p-8">
       <Card className="w-full max-w-md">
         <CardHeader className="pb-4">
           <CardTitle>Nova senha</CardTitle>

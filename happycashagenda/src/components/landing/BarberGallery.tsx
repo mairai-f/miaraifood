@@ -174,7 +174,7 @@ export function BarberGallery() {
               Equipe
             </span>
             <h2 className="font-serif text-2xl md:text-5xl font-bold mt-2">
-              Conheça Nossos {settings.professionalLabel}s
+              Conheça {settings.professionalLabel}
             </h2>
           </div>
         </div>

@@ -53,6 +53,8 @@ import { usePushNotifications } from '@/hooks/usePushNotifications';
 import { useAgendaBranding } from '@/hooks/useAgendaBranding';
 import { supabase } from '@/integrations/supabase/client';
 import { cn, parseLocalDate } from '@/lib/utils';
+import { withAgendaPublicSearch } from '@/lib/agendaPublicLink';
+import { playNotificationSound } from '@/lib/notificationSound';
 import {
   Dialog,
   DialogContent,
@@ -96,6 +98,7 @@ interface Appointment {
   client_phone: string | null;
   appointment_date: string;
   appointment_time: string;
+  appointment_type?: 'appointment' | 'queue';
   status: 'scheduled' | 'completed' | 'cancelled';
   payment_method: string | null;
   payment_status: string | null;
@@ -103,6 +106,7 @@ interface Appointment {
   service: { name: string; price: number; id?: string; duration_minutes?: number };
   barber_id: string;
   service_id: string;
+  created_at?: string;
   extraServices: ExtraService[];
 }
 
@@ -143,6 +147,7 @@ type AppointmentRealtimeRow = {
   client_name?: string;
   appointment_date?: string;
   appointment_time?: string | null;
+  appointment_type?: Appointment['appointment_type'];
   status?: Appointment['status'];
 };
 
@@ -216,6 +221,7 @@ export default function AdminDashboard() {
 
   const { user, isAdmin, loading: authLoading } = useAuth();
   const { settings } = useAgendaBranding();
+  const publicBookingPath = withAgendaPublicSearch('/agendamento', settings);
   const { toast } = useToast();
   const { requestPermission, sendNotification, permission } = usePushNotifications();
   const navigate = useNavigate();
@@ -298,6 +304,7 @@ export default function AdminDashboard() {
                         status: updatedApt.status,
                         appointment_date: updatedApt.appointment_date ?? a.appointment_date,
                         appointment_time: updatedApt.appointment_time ?? a.appointment_time,
+                        appointment_type: updatedApt.appointment_type ?? a.appointment_type,
                         client_name: updatedApt.client_name ?? a.client_name,
                         client_phone: updatedApt.client_phone ?? a.client_phone,
                       }
@@ -309,9 +316,10 @@ export default function AdminDashboard() {
             fetchAppointments();
 
             if (oldApt.status !== 'cancelled' && updatedApt.status === 'cancelled') {
+              playNotificationSound();
               toast({
                 title: '❌ Agendamento Cancelado',
-                description: `${updatedApt.client_name} cancelou o agendamento.`,
+                description: `${updatedApt.client_name} cancelou o agendamento de ${format(parseLocalDate(updatedApt.appointment_date), "dd/MM")} às ${updatedApt.appointment_time?.slice(0, 5)}.`,
                 variant: 'destructive',
               });
 
@@ -454,6 +462,8 @@ export default function AdminDashboard() {
         client_phone,
         appointment_date,
         appointment_time,
+        appointment_type,
+        created_at,
         status,
         payment_method,
         payment_status,
@@ -1158,8 +1168,8 @@ export default function AdminDashboard() {
               <TabsTrigger value="queue" className="text-xs sm:text-sm px-2 sm:px-3">Fila</TabsTrigger>
               <TabsTrigger value="appointments" className="text-xs sm:text-sm px-2 sm:px-3">Agendamentos</TabsTrigger>
               <TabsTrigger value="commissions" className="text-xs sm:text-sm px-2 sm:px-3">Comissões</TabsTrigger>
-              <TabsTrigger value="barbers" className="text-xs sm:text-sm px-2 sm:px-3">{settings.professionalLabel}s</TabsTrigger>
-              <TabsTrigger value="services" className="text-xs sm:text-sm px-2 sm:px-3">{settings.serviceLabel}s</TabsTrigger>
+              <TabsTrigger value="barbers" className="text-xs sm:text-sm px-2 sm:px-3">{settings.professionalLabel}</TabsTrigger>
+              <TabsTrigger value="services" className="text-xs sm:text-sm px-2 sm:px-3">{settings.serviceLabel}</TabsTrigger>
               <TabsTrigger value="products" className="text-xs sm:text-sm px-2 sm:px-3">Produtos</TabsTrigger>
               <TabsTrigger value="product-sales" className="text-xs sm:text-sm px-2 sm:px-3">Vendas</TabsTrigger>
               <TabsTrigger value="clients" className="text-xs sm:text-sm px-2 sm:px-3">Clientes</TabsTrigger>
@@ -1280,7 +1290,7 @@ export default function AdminDashboard() {
                 {/* Service Distribution */}
                 <Card className="overflow-hidden">
                   <CardHeader className="pb-2 p-3 sm:p-4">
-                    <CardTitle className="font-serif text-sm sm:text-base">{settings.serviceLabel}s Mais Solicitados</CardTitle>
+                    <CardTitle className="font-serif text-sm sm:text-base">{settings.serviceLabel} Mais Solicitados</CardTitle>
                     <CardDescription className="text-xs">Distribuição neste mês</CardDescription>
                   </CardHeader>
                   <CardContent className="p-2 sm:p-4">
@@ -1328,7 +1338,7 @@ export default function AdminDashboard() {
               {/* Barber Performance */}
               <Card className="mb-6 overflow-hidden">
                 <CardHeader className="pb-2 p-3 sm:p-4">
-                  <CardTitle className="font-serif text-sm sm:text-base">Desempenho dos {settings.professionalLabel}s</CardTitle>
+                  <CardTitle className="font-serif text-sm sm:text-base">Desempenho de {settings.professionalLabel}</CardTitle>
                   <CardDescription className="text-xs">Agendamentos por {settings.professionalLabel.toLowerCase()} neste mês</CardDescription>
                 </CardHeader>
                 <CardContent className="p-2 sm:p-4">
@@ -1505,7 +1515,7 @@ export default function AdminDashboard() {
                         <SelectValue placeholder={settings.professionalLabel} />
                       </SelectTrigger>
                       <SelectContent className="bg-popover border-border z-50">
-                        <SelectItem value="all">Todos os {settings.professionalLabel}s</SelectItem>
+                        <SelectItem value="all">Todos</SelectItem>
                         {barbers.filter(b => b.is_active).map((b) => (
                           <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
                         ))}
@@ -1516,7 +1526,7 @@ export default function AdminDashboard() {
                         <SelectValue placeholder={settings.serviceLabel} />
                       </SelectTrigger>
                       <SelectContent className="bg-popover border-border z-50">
-                        <SelectItem value="all">Todos os {settings.serviceLabel}s</SelectItem>
+                        <SelectItem value="all">Todos</SelectItem>
                         {services.filter(s => s.is_active).map((s) => (
                           <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
                         ))}
@@ -1611,6 +1621,17 @@ export default function AdminDashboard() {
                                     </Button>
                                   </div>
                                 )}
+                                {apt.status === 'cancelled' && (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => navigate(publicBookingPath)}
+                                    className="gap-1"
+                                  >
+                                    <CalendarDays className="w-3.5 h-3.5" />
+                                    Encaixe
+                                  </Button>
+                                )}
                               </div>
                             </div>
                           </div>
@@ -1627,7 +1648,7 @@ export default function AdminDashboard() {
                           <TableHead className="w-[100px]">Data/Hora</TableHead>
                           <TableHead>Cliente</TableHead>
                           <TableHead className="hidden sm:table-cell">Telefone</TableHead>
-                          <TableHead>{settings.serviceLabel}s</TableHead>
+                          <TableHead>{settings.serviceLabel}</TableHead>
                           <TableHead>{settings.professionalLabel}</TableHead>
                           <TableHead>Valor Total</TableHead>
                           <TableHead>Status</TableHead>
@@ -1710,6 +1731,16 @@ export default function AdminDashboard() {
                                       </Button>
                                     </div>
                                   )}
+                                  {apt.status === 'cancelled' && (
+                                    <Button
+                                      size="sm"
+                                      variant="ghost"
+                                      onClick={() => navigate(publicBookingPath)}
+                                      title="Criar encaixe neste horario liberado"
+                                    >
+                                      <CalendarDays className="w-4 h-4 text-primary" />
+                                    </Button>
+                                  )}
                                 </TableCell>
                               </TableRow>
                             );
@@ -1772,7 +1803,7 @@ export default function AdminDashboard() {
                     <CardContent className="pt-6">
                       <div className="flex items-center justify-between">
                         <div>
-                          <p className="text-sm text-muted-foreground">{settings.serviceLabel}s Concluídos</p>
+                          <p className="text-sm text-muted-foreground">{settings.serviceLabel} Concluídos</p>
                           <p className="text-2xl font-bold">
                             {getBarberCommissions().reduce((sum, c) => sum + c.totalServices, 0)}
                           </p>
@@ -1808,7 +1839,7 @@ export default function AdminDashboard() {
                   <CardHeader>
                     <CardTitle className="font-serif">Comissões por {settings.professionalLabel}</CardTitle>
                     <CardDescription>
-                      {format(today, "MMMM 'de' yyyy", { locale: ptBR })} - Baseado em {settings.serviceLabel.toLowerCase()}s concluídos
+                      {format(today, "MMMM 'de' yyyy", { locale: ptBR })} - Baseado em {settings.serviceLabel.toLowerCase()} concluídos
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
@@ -1881,7 +1912,7 @@ export default function AdminDashboard() {
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between">
                   <div>
-                    <CardTitle className="font-serif">{settings.professionalLabel}s</CardTitle>
+                    <CardTitle className="font-serif">{settings.professionalLabel}</CardTitle>
                     <CardDescription>Gerencie a equipe</CardDescription>
                   </div>
                   <Button onClick={() => openBarberDialog()}>
@@ -1995,7 +2026,7 @@ export default function AdminDashboard() {
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between p-3 sm:p-6">
                   <div>
-                    <CardTitle className="font-serif text-base sm:text-lg">{settings.serviceLabel}s</CardTitle>
+                    <CardTitle className="font-serif text-base sm:text-lg">{settings.serviceLabel}</CardTitle>
                     <CardDescription className="text-xs sm:text-sm">Gerencie as opções oferecidas</CardDescription>
                   </div>
                   <Button onClick={() => openServiceDialog()} size="sm" className="text-xs sm:text-sm">

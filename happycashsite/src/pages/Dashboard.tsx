@@ -23,6 +23,7 @@ import { downloads } from "@/lib/desktopDownloads";
 import { getFreshSiteSession } from "@/lib/siteSession";
 import { getSubscriptionCountdown, getSubscriptionEndAt, getSubscriptionStatusLabel, isCurrentSubscription } from "@/lib/subscriptionStatus";
 import { publicPlanContent, publicPlanList, isPaidPlanId, isPublicPlanId, type PaidPlanId, type PublicPlanId } from "@/lib/subscriptionPlans";
+import { HAPPYCASH_AGENDA_SYSTEM_APP_URL, HAPPYCASH_FOOD_SYSTEM_APP_URL, HAPPYCASH_SYSTEM_APP_URL } from "@/lib/systemUrls";
 import {
   getProductContextLabel,
   getPublicPlanIdsForProductContext,
@@ -177,10 +178,6 @@ type DeleteAccountResponse = {
 
 const SITE_SESSION_EXPIRED_MESSAGE = "Sua sessao expirou. Entre novamente para continuar.";
 const DELETE_ACCOUNT_CONFIRM_TEXT = "APAGAR";
-const SYSTEM_APP_URL = "https://app.happycashsite.com.br/";
-const FOOD_SYSTEM_APP_URL = "https://food.happycashsite.com.br/?site_access=1";
-const AGENDA_SYSTEM_APP_URL =
-  import.meta.env.VITE_HAPPYCASH_AGENDA_URL || "https://agenda.happycashsite.com.br/?site_access=1";
 const SITE_REGISTRATION_FUNCTION_MISSING_MESSAGE =
   "A funcao finalize-site-registration nao esta publicada ou acessivel neste projeto do Supabase. Publique a function para abrir o dashboard.";
 const SITE_REGISTRATION_FETCH_MESSAGE =
@@ -215,9 +212,9 @@ const getPlanChargeActionKey = (planId: PaidPlanId, paymentMethod: CheckoutPayme
   `${planId}:${paymentMethod}:${billingPeriod}`;
 
 const getSystemUrlForProductContext = (productContext: ProductContext) => {
-  if (productContext === "happycashfood") return FOOD_SYSTEM_APP_URL;
-  if (productContext === "happycashagenda") return AGENDA_SYSTEM_APP_URL;
-  return SYSTEM_APP_URL;
+  if (productContext === "happycashfood") return HAPPYCASH_FOOD_SYSTEM_APP_URL;
+  if (productContext === "happycashagenda") return HAPPYCASH_AGENDA_SYSTEM_APP_URL;
+  return HAPPYCASH_SYSTEM_APP_URL;
 };
 
 const getSystemLabelForProductContext = (productContext: ProductContext) => {

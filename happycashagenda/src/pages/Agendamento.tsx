@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Briefcase, Calendar, Clock, User, ArrowRight, ArrowLeft, Check, Loader2, AlertCircle } from 'lucide-react';
+import { Briefcase, Calendar, Clock, User, ArrowRight, ArrowLeft, Check, Loader2, AlertCircle, Users } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { z } from 'zod';
@@ -53,6 +53,16 @@ type BookedSlotRow = {
 };
 
 type Step = 'service' | 'barber' | 'datetime' | 'confirm';
+type BookingFlow = 'appointment' | 'queue';
+
+interface WaitingQueueItem {
+  id: string;
+  position: number;
+  client_name: string;
+  barber_name: string;
+  service_name: string;
+  created_at: string;
+}
 
 const SLOT_BUFFER_MINUTES = 45; // Buffer entre agendamentos
 
@@ -61,6 +71,7 @@ export default function Booking() {
   const [services, setServices] = useState<Service[]>([]);
   const [barbers, setBarbers] = useState<Barber[]>([]);
   const [selectedServices, setSelectedServices] = useState<Service[]>([]);
+  const [bookingFlow, setBookingFlow] = useState<BookingFlow>('appointment');
   const [selectedBarber, setSelectedBarber] = useState<Barber | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
   const [selectedTime, setSelectedTime] = useState<string>('');
@@ -73,6 +84,7 @@ export default function Booking() {
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [pixDialogOpen, setPixDialogOpen] = useState(false);
+  const [waitingQueue, setWaitingQueue] = useState<WaitingQueueItem[]>([]);
 
   const { user } = useAuth();
   const { settings } = useAgendaBranding();
@@ -81,6 +93,9 @@ export default function Booking() {
   const navigate = useNavigate();
   const publicLoginPath = withAgendaPublicSearch('/login', settings);
   const publicAppointmentsPath = withAgendaPublicSearch('/meus-agendamentos', settings);
+  const canUseAppointment = settings.serviceMode !== 'walk_in';
+  const canUseQueue = settings.serviceMode !== 'appointment';
+  const isQueueFlow = bookingFlow === 'queue';
 
   // Redireciona para login se não estiver autenticado
   useEffect(() => {
@@ -95,6 +110,15 @@ export default function Booking() {
   }, [navigate, publicLoginPath, toast, user]);
 
   useEffect(() => {
+    if (settings.serviceMode === 'walk_in') {
+      setBookingFlow('queue');
+      if (step === 'datetime') setStep('confirm');
+    } else if (settings.serviceMode === 'appointment') {
+      setBookingFlow('appointment');
+    }
+  }, [settings.serviceMode, step]);
+
+  useEffect(() => {
     if (settings.storeAccountId) {
       fetchServices();
       fetchBarbers();
@@ -103,6 +127,35 @@ export default function Booking() {
       fetchUserProfile();
     }
   }, [settings.storeAccountId, user]);
+
+  useEffect(() => {
+    if (!user || !settings.storeAccountId || !settings.publicQueueVisible || !canUseQueue) {
+      setWaitingQueue([]);
+      return;
+    }
+
+    fetchWaitingQueue();
+
+    const channel = supabase
+      .channel(`public-waiting-queue-${settings.storeAccountId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'appointments',
+          filter: `store_account_id=eq.${settings.storeAccountId}`,
+        },
+        () => {
+          fetchWaitingQueue();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [canUseQueue, settings.publicQueueVisible, settings.storeAccountId, user]);
 
   // Calculate total duration and price from selected services
   const totalDuration = selectedServices.reduce((sum, s) => sum + s.duration_minutes, 0);
@@ -172,6 +225,20 @@ export default function Booking() {
     if (data) {
       setClientName(data.full_name || data.username || '');
       setClientPhone(data.phone || '');
+    }
+  };
+
+  const fetchWaitingQueue = async () => {
+    if (!settings.storeAccountId) return;
+    const { data, error } = await supabase.rpc('get_public_waiting_queue', {
+      p_store_account_id: settings.storeAccountId,
+    });
+
+    if (!error && data) {
+      setWaitingQueue((data as WaitingQueueItem[]).map((item) => ({
+        ...item,
+        position: Number(item.position),
+      })));
     }
   };
 
@@ -270,7 +337,12 @@ export default function Booking() {
       return null;
     }
 
-    if (selectedServices.length === 0 || !selectedBarber || !selectedDate || !selectedTime || !clientName) {
+    if (
+      selectedServices.length === 0 ||
+      !selectedBarber ||
+      !clientName ||
+      (!isQueueFlow && (!selectedDate || !selectedTime))
+    ) {
       toast({
         title: 'Campos obrigatórios',
         description: 'Por favor, preencha todos os campos.',
@@ -294,9 +366,10 @@ export default function Booking() {
       return null;
     }
 
-    const year = selectedDate.getFullYear();
-    const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
-    const day = String(selectedDate.getDate()).padStart(2, '0');
+    const bookingDate = selectedDate ?? new Date();
+    const year = bookingDate.getFullYear();
+    const month = String(bookingDate.getMonth() + 1).padStart(2, '0');
+    const day = String(bookingDate.getDate()).padStart(2, '0');
 
     return {
       validatedData: validationResult.data,
@@ -306,20 +379,26 @@ export default function Booking() {
 
   const createBooking = async (paymentMethod: 'local' | 'pix') => {
     const payload = validateBookingForm();
-    if (!payload || !selectedBarber || !selectedDate) return;
+    if (!payload || !selectedBarber) return;
 
     setSubmitting(true);
 
-    const { data: appointmentId, error } = await supabase.rpc('create_appointment_with_services', {
+    const rpcPayload = {
       p_barber_id: selectedBarber.id,
-      p_appointment_date: payload.dateString,
-      p_appointment_time: `${selectedTime}:00`,
       p_service_ids: selectedServices.map((s) => s.id),
       p_client_name: payload.validatedData.clientName.trim(),
       p_client_phone: payload.validatedData.clientPhone?.trim() || null,
       p_payment_method: paymentMethod,
-      p_notes: null,
-    });
+      p_notes: isQueueFlow ? 'Ordem de chegada' : null,
+    };
+
+    const { data: appointmentId, error } = isQueueFlow
+      ? await supabase.rpc('create_walk_in_queue_entry', rpcPayload)
+      : await supabase.rpc('create_appointment_with_services', {
+          ...rpcPayload,
+          p_appointment_date: payload.dateString,
+          p_appointment_time: `${selectedTime}:00`,
+        });
 
     setSubmitting(false);
 
@@ -339,7 +418,7 @@ export default function Booking() {
         professionalName: selectedBarber.name,
         serviceNames: selectedServices.map((s) => s.name),
         appointmentDate: payload.dateString,
-        appointmentTime: `${selectedTime}:00`,
+        appointmentTime: isQueueFlow ? format(new Date(), 'HH:mm:ss') : `${selectedTime}:00`,
         totalAmount: totalPrice,
         paymentStatus: 'pending' as const,
       };
@@ -353,11 +432,15 @@ export default function Booking() {
     }
 
     toast({
-      title: paymentMethod === 'pix' ? 'Aguardando confirmacao do Pix' : 'Agendamento confirmado!',
+      title: isQueueFlow
+        ? 'Voce entrou na fila'
+        : paymentMethod === 'pix' ? 'Aguardando confirmacao do Pix' : 'Agendamento confirmado!',
       description:
-        paymentMethod === 'pix'
+        isQueueFlow
+          ? `${settings.displayName} recebeu sua entrada por ordem de chegada.`
+          : paymentMethod === 'pix'
           ? 'Enviamos os dados pelo WhatsApp. O administrador confirmara o pagamento no painel.'
-          : `${format(selectedDate, "dd 'de' MMMM", { locale: ptBR })} às ${selectedTime}. Pagamento no local.`,
+          : `${selectedDate ? format(selectedDate, "dd 'de' MMMM", { locale: ptBR }) : ''} às ${selectedTime}. Pagamento no local.`,
     });
 
     if (appointmentId) {
@@ -388,7 +471,7 @@ export default function Booking() {
   const steps = [
     { key: 'service', label: settings.serviceLabel, icon: Briefcase },
     { key: 'barber', label: settings.professionalLabel, icon: User },
-    { key: 'datetime', label: 'Data e Hora', icon: Calendar },
+    ...(!isQueueFlow ? [{ key: 'datetime' as const, label: 'Data e Hora', icon: Calendar }] : []),
     { key: 'confirm', label: 'Confirmar', icon: Check },
   ];
 
@@ -398,7 +481,7 @@ export default function Booking() {
     switch (step) {
       case 'service': return selectedServices.length > 0;
       case 'barber': return !!selectedBarber;
-      case 'datetime': return !!selectedDate && !!selectedTime;
+      case 'datetime': return isQueueFlow || (!!selectedDate && !!selectedTime);
       case 'confirm': return !!clientName;
       default: return false;
     }
@@ -422,9 +505,6 @@ export default function Booking() {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     if (date < today) return true;
-
-    // Domingo (0) não é permitido
-    if (date.getDay() === 0) return true;
 
     const dayHours = getHoursForDay(date.getDay());
     return !dayHours?.is_open;
@@ -455,8 +535,43 @@ export default function Booking() {
             Agendar Horário
           </h1>
           <p className="text-muted-foreground text-center mb-8">
-            Escolha {settings.serviceLabel.toLowerCase()}, {settings.professionalLabel.toLowerCase()} e horário ideal para você
+            {isQueueFlow
+              ? `Escolha ${settings.serviceLabel.toLowerCase()} e entre na fila de atendimento`
+              : `Escolha ${settings.serviceLabel.toLowerCase()}, ${settings.professionalLabel.toLowerCase()} e horário ideal para você`}
           </p>
+
+          {settings.publicQueueVisible && canUseQueue && (
+            <Card className="mb-6 border-primary/20">
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <Users className="h-4 w-4 text-primary" />
+                  Fila de espera de hoje
+                </CardTitle>
+                <CardDescription>Visivel apenas para clientes logados.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {waitingQueue.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">Nenhum cliente na fila agora.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {waitingQueue.map((item) => (
+                      <div key={item.id} className="flex items-center justify-between gap-3 rounded-md border p-3 text-sm">
+                        <div className="min-w-0">
+                          <p className="truncate font-medium">#{item.position} - {item.client_name}</p>
+                          <p className="truncate text-xs text-muted-foreground">
+                            {item.service_name} com {item.barber_name}
+                          </p>
+                        </div>
+                        <span className="shrink-0 text-xs text-muted-foreground">
+                          {format(new Date(item.created_at), 'HH:mm')}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
 
           {/* Progress Steps */}
           <div className="flex justify-between mb-12 relative">
@@ -503,6 +618,33 @@ export default function Booking() {
                     <CardTitle className="font-serif">Escolha {settings.serviceLabel}</CardTitle>
                     <CardDescription>Selecione uma ou mais opções</CardDescription>
                   </CardHeader>
+
+                  {canUseAppointment && canUseQueue && (
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <Button
+                        type="button"
+                        variant={bookingFlow === 'appointment' ? 'default' : 'outline'}
+                        className="h-auto justify-start gap-3 p-4"
+                        onClick={() => setBookingFlow('appointment')}
+                      >
+                        <Calendar className="h-5 w-5" />
+                        <span className="text-left">Agendar horario</span>
+                      </Button>
+                      <Button
+                        type="button"
+                        variant={bookingFlow === 'queue' ? 'default' : 'outline'}
+                        className="h-auto justify-start gap-3 p-4"
+                        onClick={() => {
+                          setBookingFlow('queue');
+                          setSelectedDate(undefined);
+                          setSelectedTime('');
+                        }}
+                      >
+                        <Users className="h-5 w-5" />
+                        <span className="text-left">Ordem de chegada</span>
+                      </Button>
+                    </div>
+                  )}
 
                   {services.length === 0 ? (
                     <p className="text-center text-muted-foreground py-8">
@@ -636,7 +778,7 @@ export default function Booking() {
                 >
                   <CardHeader className="p-0 mb-4">
                     <CardTitle className="font-serif">Escolha Data e Horário</CardTitle>
-                    <CardDescription>Selecione quando deseja ser atendido (domingos não disponíveis)</CardDescription>
+                    <CardDescription>Selecione um dia aberto e o horário disponível</CardDescription>
                   </CardHeader>
 
                   <div className="grid md:grid-cols-2 gap-6">
@@ -776,7 +918,7 @@ export default function Booking() {
 
                   <div className="bg-secondary/50 rounded-xl p-4 space-y-3">
                     <div>
-                      <span className="text-muted-foreground text-sm">{settings.serviceLabel}s</span>
+                      <span className="text-muted-foreground text-sm">{settings.serviceLabel}</span>
                       <div className="mt-1 space-y-1">
                         {selectedServices.map(s => (
                           <div key={s.id} className="flex justify-between text-sm">
@@ -798,16 +940,25 @@ export default function Booking() {
                       <span className="text-muted-foreground">{settings.professionalLabel}</span>
                       <span className="font-medium">{selectedBarber?.name}</span>
                     </div>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-muted-foreground">Data</span>
-                      <span className="font-medium">
-                        {selectedDate && format(selectedDate, "dd 'de' MMMM, yyyy", { locale: ptBR })}
-                      </span>
-                    </div>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-muted-foreground">Horário</span>
-                      <span className="font-medium">{selectedTime}</span>
-                    </div>
+                    {isQueueFlow ? (
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Atendimento</span>
+                        <span className="font-medium">Ordem de chegada</span>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="flex justify-between text-sm">
+                          <span className="text-muted-foreground">Data</span>
+                          <span className="font-medium">
+                            {selectedDate && format(selectedDate, "dd 'de' MMMM, yyyy", { locale: ptBR })}
+                          </span>
+                        </div>
+                        <div className="flex justify-between text-sm">
+                          <span className="text-muted-foreground">Horário</span>
+                          <span className="font-medium">{selectedTime}</span>
+                        </div>
+                      </>
+                    )}
                     <div className="flex justify-between pt-3 border-t border-border">
                       <span className="text-muted-foreground font-medium">Valor Total</span>
                       <span className="font-bold text-lg text-primary">
