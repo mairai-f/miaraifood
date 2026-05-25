@@ -149,6 +149,43 @@ const parseOptionText = (text: string): MenuOptionGroup[] =>
     })
     .filter((group) => group.name && group.values.length);
 
+type MenuAdminLoginPreferences = {
+  rememberAccount: boolean;
+  email: string;
+};
+
+const menuAdminLoginStorageKeys = {
+  rememberAccount: "happycash:menu-admin:remember-account",
+  email: "happycash:menu-admin:remembered-email",
+} as const;
+
+const isBrowser = () => typeof window !== "undefined";
+const normalizeEmail = (value: string) => value.trim().toLowerCase();
+
+const readMenuAdminStorage = (key: string) => {
+  if (!isBrowser()) return null;
+  return window.localStorage.getItem(key);
+};
+
+const getMenuAdminLoginPreferences = (): MenuAdminLoginPreferences => ({
+  rememberAccount: readMenuAdminStorage(menuAdminLoginStorageKeys.rememberAccount) === "1",
+  email: readMenuAdminStorage(menuAdminLoginStorageKeys.email) ?? "",
+});
+
+const saveMenuAdminLoginPreferences = ({ rememberAccount, email }: MenuAdminLoginPreferences) => {
+  if (!isBrowser()) return;
+
+  window.localStorage.setItem(menuAdminLoginStorageKeys.rememberAccount, rememberAccount ? "1" : "0");
+
+  const normalizedEmail = normalizeEmail(email);
+  if (rememberAccount && normalizedEmail) {
+    window.localStorage.setItem(menuAdminLoginStorageKeys.email, normalizedEmail);
+    return;
+  }
+
+  window.localStorage.removeItem(menuAdminLoginStorageKeys.email);
+};
+
 const useAdminRevealOnScroll = (watchKey: string) => {
   useEffect(() => {
     const elements = Array.from(document.querySelectorAll<HTMLElement>("[data-reveal]"));
@@ -172,9 +209,11 @@ const useAdminRevealOnScroll = (watchKey: string) => {
 };
 
 function LoginPanel({ onLogin }: { onLogin: () => void | Promise<void> }) {
-  const [email, setEmail] = useState("");
+  const [initialPreferences] = useState(getMenuAdminLoginPreferences);
+  const [email, setEmail] = useState(initialPreferences.email);
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [rememberAccount, setRememberAccount] = useState(initialPreferences.rememberAccount);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [resetOpen, setResetOpen] = useState(false);
@@ -201,6 +240,7 @@ function LoginPanel({ onLogin }: { onLogin: () => void | Promise<void> }) {
     setLoading(true);
     try {
       await signInMenuAdmin(email, password);
+      saveMenuAdminLoginPreferences({ rememberAccount, email });
       await onLogin();
     } catch (loginError) {
       setError(getPublicErrorMessage(loginError, "Nao foi possivel entrar."));
@@ -293,6 +333,16 @@ function LoginPanel({ onLogin }: { onLogin: () => void | Promise<void> }) {
                     {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </button>
                 </span>
+              </label>
+
+              <label className="flex items-center gap-2 pt-1 text-xs font-semibold text-muted-foreground sm:text-sm">
+                <input
+                  type="checkbox"
+                  checked={rememberAccount}
+                  onChange={(event) => setRememberAccount(event.target.checked)}
+                  className="h-4 w-4 rounded border-border bg-zinc-950 accent-yellow-400"
+                />
+                <span>Lembrar minha conta</span>
               </label>
             </div>
 

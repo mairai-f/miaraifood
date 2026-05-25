@@ -13,6 +13,7 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import {
   applySiteSessionPreference,
+  getSiteLoginPreferences,
   saveSiteLoginPreferences,
 } from '@/lib/authSessionPreferences';
 import { isPublicPlanId, publicPlanContent } from '@/lib/subscriptionPlans';
@@ -31,11 +32,12 @@ const resolveSafeNextPath = (value: string | null) => {
 };
 
 const Login = () => {
-  const [email, setEmail] = useState('');
+  const [initialPreferences] = useState(getSiteLoginPreferences);
+  const [email, setEmail] = useState(initialPreferences.email);
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [rememberAccount, setRememberAccount] = useState(false);
-  const [keepConnected, setKeepConnected] = useState(false);
+  const [rememberAccount, setRememberAccount] = useState(initialPreferences.rememberAccount);
+  const [keepConnected, setKeepConnected] = useState(initialPreferences.keepConnected);
   const [loading, setLoading] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
   const [resetOpen, setResetOpen] = useState(false);
@@ -246,7 +248,7 @@ const Login = () => {
                       htmlFor="site-remember-account"
                       className="cursor-pointer text-xs leading-none text-foreground sm:text-sm"
                     >
-                      Lembrar conta
+                      Lembrar minha conta
                     </Label>
                   </div>
                   <div className="flex min-w-0 items-center gap-2">

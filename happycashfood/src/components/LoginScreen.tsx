@@ -14,16 +14,70 @@ interface LoginScreenProps {
 
 type LoginMode = "admin" | "operator";
 
+type FoodLoginPreferences = {
+  loginMode: LoginMode;
+  rememberAccount: boolean;
+  adminEmail: string;
+  operatorUsername: string;
+};
+
+const foodLoginStorageKeys = {
+  loginMode: "happycash:food:last-login-mode",
+  rememberAccount: "happycash:food:remember-account",
+  adminEmail: "happycash:food:remembered-admin-email",
+  operatorUsername: "happycash:food:remembered-operator-username",
+} as const;
+
+const isBrowser = () => typeof window !== "undefined";
+const normalizeEmail = (value: string) => value.trim().toLowerCase();
 const normalizeUsername = (value: string) => value.trim().toLowerCase();
 
+const readFoodStorage = (key: string) => {
+  if (!isBrowser()) return null;
+  return window.localStorage.getItem(key);
+};
+
+const getFoodLoginPreferences = (): FoodLoginPreferences => ({
+  loginMode: readFoodStorage(foodLoginStorageKeys.loginMode) === "operator" ? "operator" : "admin",
+  rememberAccount: readFoodStorage(foodLoginStorageKeys.rememberAccount) === "1",
+  adminEmail: readFoodStorage(foodLoginStorageKeys.adminEmail) ?? "",
+  operatorUsername: readFoodStorage(foodLoginStorageKeys.operatorUsername) ?? "",
+});
+
+const saveFoodLoginPreferences = (preferences: FoodLoginPreferences) => {
+  if (!isBrowser()) return;
+
+  window.localStorage.setItem(foodLoginStorageKeys.loginMode, preferences.loginMode);
+  window.localStorage.setItem(foodLoginStorageKeys.rememberAccount, preferences.rememberAccount ? "1" : "0");
+
+  if (preferences.rememberAccount) {
+    const adminEmail = normalizeEmail(preferences.adminEmail);
+    const operatorUsername = normalizeUsername(preferences.operatorUsername);
+
+    if (adminEmail) {
+      window.localStorage.setItem(foodLoginStorageKeys.adminEmail, adminEmail);
+    }
+
+    if (operatorUsername) {
+      window.localStorage.setItem(foodLoginStorageKeys.operatorUsername, operatorUsername);
+    }
+    return;
+  }
+
+  window.localStorage.removeItem(foodLoginStorageKeys.adminEmail);
+  window.localStorage.removeItem(foodLoginStorageKeys.operatorUsername);
+};
+
 export function LoginScreen({ users, loginPins, onLogin }: LoginScreenProps) {
-  const [loginMode, setLoginMode] = useState<LoginMode>("admin");
-  const [email, setEmail] = useState("");
+  const [initialPreferences] = useState(getFoodLoginPreferences);
+  const [loginMode, setLoginMode] = useState<LoginMode>(initialPreferences.loginMode);
+  const [email, setEmail] = useState(initialPreferences.adminEmail);
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [username, setUsername] = useState("");
+  const [username, setUsername] = useState(initialPreferences.operatorUsername);
   const [pin, setPin] = useState("");
   const [showPin, setShowPin] = useState(false);
+  const [rememberAccount, setRememberAccount] = useState(initialPreferences.rememberAccount);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [resetOpen, setResetOpen] = useState(false);
@@ -58,6 +112,12 @@ export function LoginScreen({ users, loginPins, onLogin }: LoginScreenProps) {
       if (loginMode === "admin") {
         if (!email.trim() || !password.trim()) return;
         const adminUser = await signInFoodAdmin(email, password, users);
+        saveFoodLoginPreferences({
+          loginMode: "admin",
+          rememberAccount,
+          adminEmail: email,
+          operatorUsername: username,
+        });
         onLogin(adminUser);
         return;
       }
@@ -71,6 +131,12 @@ export function LoginScreen({ users, loginPins, onLogin }: LoginScreenProps) {
         throw new Error("Usuario ou PIN invalidos.");
       }
 
+      saveFoodLoginPreferences({
+        loginMode: "operator",
+        rememberAccount,
+        adminEmail: email,
+        operatorUsername: normalizedUsername,
+      });
       onLogin(operatorUser);
     } catch (loginError) {
       setError(getPublicErrorMessage(loginError, "Nao foi possivel entrar agora."));
@@ -205,6 +271,16 @@ export function LoginScreen({ users, loginPins, onLogin }: LoginScreenProps) {
                     </button>
                   </span>
                 </label>
+
+                <label className="flex items-center gap-2 pt-1 text-xs font-semibold text-muted-foreground sm:text-sm">
+                  <input
+                    type="checkbox"
+                    checked={rememberAccount}
+                    onChange={(event) => setRememberAccount(event.target.checked)}
+                    className="h-4 w-4 rounded border-border bg-zinc-950 accent-yellow-400"
+                  />
+                  <span>Lembrar minha conta</span>
+                </label>
               </div>
             ) : (
               <div className="mt-4 space-y-4">
@@ -247,6 +323,16 @@ export function LoginScreen({ users, loginPins, onLogin }: LoginScreenProps) {
                       {showPin ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                     </button>
                   </span>
+                </label>
+
+                <label className="flex items-center gap-2 pt-1 text-xs font-semibold text-muted-foreground sm:text-sm">
+                  <input
+                    type="checkbox"
+                    checked={rememberAccount}
+                    onChange={(event) => setRememberAccount(event.target.checked)}
+                    className="h-4 w-4 rounded border-border bg-zinc-950 accent-yellow-400"
+                  />
+                  <span>Lembrar minha conta</span>
                 </label>
 
                 {operatorUsers.length === 0 && (
