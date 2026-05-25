@@ -41,6 +41,7 @@ import { useToast } from '@/hooks/use-toast';
 import { usePushNotifications } from '@/hooks/usePushNotifications';
 import { supabase } from '@/integrations/supabase/client';
 import { parseLocalDate } from '@/lib/utils';
+import { playNotificationSound } from '@/lib/notificationSound';
 import {
   Dialog,
   DialogContent,
@@ -250,9 +251,10 @@ export default function BarberDashboard() {
 
           // Notifica cancelamentos
           if (oldApt.status !== 'cancelled' && updatedApt.status === 'cancelled') {
+            playNotificationSound();
             toast({
               title: '❌ Agendamento Cancelado',
-              description: `${updatedApt.client_name} - agendamento de ${format(parseLocalDate(updatedApt.appointment_date), "dd/MM")} foi cancelado`,
+              description: `${updatedApt.client_name} - agendamento de ${format(parseLocalDate(updatedApt.appointment_date), "dd/MM")} às ${updatedApt.appointment_time?.slice(0, 5)} foi cancelado`,
               variant: 'destructive',
             });
             sendNotification('❌ Agendamento Cancelado', {

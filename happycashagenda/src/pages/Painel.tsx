@@ -54,6 +54,7 @@ import { useAgendaBranding } from '@/hooks/useAgendaBranding';
 import { supabase } from '@/integrations/supabase/client';
 import { cn, parseLocalDate } from '@/lib/utils';
 import { withAgendaPublicSearch } from '@/lib/agendaPublicLink';
+import { playNotificationSound } from '@/lib/notificationSound';
 import {
   Dialog,
   DialogContent,
@@ -315,9 +316,10 @@ export default function AdminDashboard() {
             fetchAppointments();
 
             if (oldApt.status !== 'cancelled' && updatedApt.status === 'cancelled') {
+              playNotificationSound();
               toast({
                 title: '❌ Agendamento Cancelado',
-                description: `${updatedApt.client_name} cancelou o agendamento.`,
+                description: `${updatedApt.client_name} cancelou o agendamento de ${format(parseLocalDate(updatedApt.appointment_date), "dd/MM")} às ${updatedApt.appointment_time?.slice(0, 5)}.`,
                 variant: 'destructive',
               });
 

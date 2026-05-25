@@ -26,6 +26,16 @@ export type AgendaBookingWhatsAppInput = {
   paymentStatus: "pending" | "paid";
 };
 
+export type AgendaCancellationWhatsAppInput = {
+  businessName: string;
+  clientName: string;
+  professionalName: string;
+  serviceNames: string[];
+  appointmentDate: string;
+  appointmentTime: string;
+  totalAmount: number;
+};
+
 export type AgendaProductOrderWhatsAppInput = {
   businessName: string;
   clientName: string;
@@ -67,6 +77,23 @@ export function buildAdminConfirmWhatsAppMessage(input: AgendaBookingWhatsAppInp
     `Horario: ${dateLabel} as ${timeLabel}`,
     `Valor: R$ ${input.totalAmount.toFixed(2)}`,
     "Confirme o horario e o pagamento no painel.",
+  ].join("\n");
+}
+
+export function buildAppointmentCancellationWhatsAppMessage(input: AgendaCancellationWhatsAppInput) {
+  const dateLabel = format(new Date(`${input.appointmentDate}T12:00:00`), "dd/MM/yyyy", { locale: ptBR });
+  const timeLabel = input.appointmentTime.slice(0, 5);
+  const services = input.serviceNames.join(", ");
+
+  return [
+    `*${input.businessName}* - agendamento cancelado`,
+    "",
+    `Cliente: ${input.clientName}`,
+    `Profissional: ${input.professionalName}`,
+    `Servicos: ${services}`,
+    `Horario cancelado: ${dateLabel} as ${timeLabel}`,
+    `Valor: R$ ${input.totalAmount.toFixed(2)}`,
+    "Cancelamento feito pelo cliente.",
   ].join("\n");
 }
 
