@@ -53,6 +53,7 @@ import { usePushNotifications } from '@/hooks/usePushNotifications';
 import { useAgendaBranding } from '@/hooks/useAgendaBranding';
 import { supabase } from '@/integrations/supabase/client';
 import { cn, parseLocalDate } from '@/lib/utils';
+import { withAgendaPublicSearch } from '@/lib/agendaPublicLink';
 import {
   Dialog,
   DialogContent,
@@ -96,6 +97,7 @@ interface Appointment {
   client_phone: string | null;
   appointment_date: string;
   appointment_time: string;
+  appointment_type?: 'appointment' | 'queue';
   status: 'scheduled' | 'completed' | 'cancelled';
   payment_method: string | null;
   payment_status: string | null;
@@ -103,6 +105,7 @@ interface Appointment {
   service: { name: string; price: number; id?: string; duration_minutes?: number };
   barber_id: string;
   service_id: string;
+  created_at?: string;
   extraServices: ExtraService[];
 }
 
@@ -143,6 +146,7 @@ type AppointmentRealtimeRow = {
   client_name?: string;
   appointment_date?: string;
   appointment_time?: string | null;
+  appointment_type?: Appointment['appointment_type'];
   status?: Appointment['status'];
 };
 
@@ -216,6 +220,7 @@ export default function AdminDashboard() {
 
   const { user, isAdmin, loading: authLoading } = useAuth();
   const { settings } = useAgendaBranding();
+  const publicBookingPath = withAgendaPublicSearch('/agendamento', settings);
   const { toast } = useToast();
   const { requestPermission, sendNotification, permission } = usePushNotifications();
   const navigate = useNavigate();
@@ -298,6 +303,7 @@ export default function AdminDashboard() {
                         status: updatedApt.status,
                         appointment_date: updatedApt.appointment_date ?? a.appointment_date,
                         appointment_time: updatedApt.appointment_time ?? a.appointment_time,
+                        appointment_type: updatedApt.appointment_type ?? a.appointment_type,
                         client_name: updatedApt.client_name ?? a.client_name,
                         client_phone: updatedApt.client_phone ?? a.client_phone,
                       }
@@ -454,6 +460,8 @@ export default function AdminDashboard() {
         client_phone,
         appointment_date,
         appointment_time,
+        appointment_type,
+        created_at,
         status,
         payment_method,
         payment_status,
@@ -1611,6 +1619,17 @@ export default function AdminDashboard() {
                                     </Button>
                                   </div>
                                 )}
+                                {apt.status === 'cancelled' && (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => navigate(publicBookingPath)}
+                                    className="gap-1"
+                                  >
+                                    <CalendarDays className="w-3.5 h-3.5" />
+                                    Encaixe
+                                  </Button>
+                                )}
                               </div>
                             </div>
                           </div>
@@ -1709,6 +1728,16 @@ export default function AdminDashboard() {
                                         <X className="w-4 h-4 text-destructive" />
                                       </Button>
                                     </div>
+                                  )}
+                                  {apt.status === 'cancelled' && (
+                                    <Button
+                                      size="sm"
+                                      variant="ghost"
+                                      onClick={() => navigate(publicBookingPath)}
+                                      title="Criar encaixe neste horario liberado"
+                                    >
+                                      <CalendarDays className="w-4 h-4 text-primary" />
+                                    </Button>
                                   )}
                                 </TableCell>
                               </TableRow>

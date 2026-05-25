@@ -1,10 +1,12 @@
 import { type CSSProperties, useEffect, useState } from "react";
-import { Facebook, ImagePlus, Instagram, Link2, MapPin, MessageCircle, Palette, Save } from "lucide-react";
+import { Facebook, ImagePlus, Instagram, Link2, MapPin, MessageCircle, Palette, Save, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
+import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { useAgendaBranding, type AgendaBrandingSettings } from "@/hooks/useAgendaBranding";
 import { useAuth } from "@/hooks/useAuth";
@@ -194,6 +196,41 @@ export function PublicPageSettingsTab() {
             value={draft.closedMessage}
             onChange={(e) => updateDraft({ closedMessage: e.target.value })}
           />
+        </div>
+        <div className="space-y-3 rounded-lg border p-3 md:col-span-2">
+          <div className="flex items-center gap-2">
+            <Users className="h-4 w-4 text-primary" />
+            <p className="text-sm font-medium">Modo de atendimento</p>
+          </div>
+          <div className="grid gap-3 md:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="serviceMode">Como a empresa atende</Label>
+              <Select
+                value={draft.serviceMode}
+                onValueChange={(serviceMode: AgendaBrandingSettings["serviceMode"]) => updateDraft({ serviceMode })}
+              >
+                <SelectTrigger id="serviceMode">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="appointment">Somente agendamento</SelectItem>
+                  <SelectItem value="walk_in">Somente ordem de chegada</SelectItem>
+                  <SelectItem value="both">Agendamento e ordem de chegada</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-center justify-between gap-4 rounded-md border p-3">
+              <div>
+                <Label htmlFor="publicQueueVisible">Fila visivel para clientes logados</Label>
+                <p className="text-xs text-muted-foreground">A fila aparece apenas depois do login.</p>
+              </div>
+              <Switch
+                id="publicQueueVisible"
+                checked={draft.publicQueueVisible}
+                onCheckedChange={(publicQueueVisible) => updateDraft({ publicQueueVisible })}
+              />
+            </div>
+          </div>
         </div>
         <div className="space-y-2 md:col-span-2">
           <Label htmlFor="aboutTitle">Titulo sobre nos</Label>

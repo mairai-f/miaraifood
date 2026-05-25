@@ -51,6 +51,8 @@ export type AgendaBrandingSettings = {
   accentHsl: string;
   successHsl: string;
   publicBookingEnabled: boolean;
+  serviceMode: "appointment" | "walk_in" | "both";
+  publicQueueVisible: boolean;
 };
 
 type AgendaBrandingContextType = {
@@ -99,6 +101,8 @@ type AgendaBusinessSettingsRow = {
   accent_hsl: string;
   success_hsl: string;
   public_booking_enabled: boolean;
+  service_mode?: "appointment" | "walk_in" | "both" | null;
+  public_queue_visible?: boolean | null;
 };
 
 type AgendaBusinessSettingsUpsert = {
@@ -137,13 +141,15 @@ type AgendaBusinessSettingsUpsert = {
   accent_hsl: string;
   success_hsl: string;
   public_booking_enabled: boolean;
+  service_mode: "appointment" | "walk_in" | "both";
+  public_queue_visible: boolean;
 };
 
 const SETTINGS_COLUMNS_BASE =
   "id, owner_user_id, store_account_id, slug, display_name, business_type, professional_label, service_label, tagline, logo_url, primary_hsl, accent_hsl, success_hsl, public_booking_enabled";
 
 const SETTINGS_COLUMNS_EXTENDED =
-  `${SETTINGS_COLUMNS_BASE}, logo_size, hero_image_url, hero_image_position_x, hero_image_position_y, hero_image_scale, about_image_url, about_image_position_x, about_image_position_y, about_image_scale, team_image_url, location_image_url, hero_title, hero_subtitle, closed_message, about_title, about_text, address, whatsapp, admin_whatsapp, facebook_url, instagram_url, pix_key, pix_merchant_name`;
+  `${SETTINGS_COLUMNS_BASE}, logo_size, hero_image_url, hero_image_position_x, hero_image_position_y, hero_image_scale, about_image_url, about_image_position_x, about_image_position_y, about_image_scale, team_image_url, location_image_url, hero_title, hero_subtitle, closed_message, about_title, about_text, address, whatsapp, admin_whatsapp, facebook_url, instagram_url, pix_key, pix_merchant_name, service_mode, public_queue_visible`;
 
 const isMissingColumnError = (message: string) =>
   /column|schema cache|does not exist|PGRST204/i.test(message);
@@ -185,6 +191,8 @@ const DEFAULT_BRANDING: AgendaBrandingSettings = {
   accentHsl: "44 96% 56%",
   successHsl: "151 74% 43%",
   publicBookingEnabled: true,
+  serviceMode: "appointment",
+  publicQueueVisible: false,
 };
 
 const STORAGE_KEY = "happycash_agenda_branding_preview";
@@ -215,6 +223,9 @@ const sanitizeNumber = (value: unknown, fallback: number, min: number, max: numb
   if (!Number.isFinite(parsed)) return fallback;
   return Math.min(Math.max(parsed, min), max);
 };
+
+const sanitizeServiceMode = (value: unknown): AgendaBrandingSettings["serviceMode"] =>
+  value === "walk_in" || value === "both" ? value : "appointment";
 
 const sanitizeSettings = (settings: AgendaBrandingSettings): AgendaBrandingSettings => ({
   ...DEFAULT_BRANDING,
@@ -252,6 +263,8 @@ const sanitizeSettings = (settings: AgendaBrandingSettings): AgendaBrandingSetti
   primaryHsl: sanitizeHsl(settings.primaryHsl, DEFAULT_BRANDING.primaryHsl),
   accentHsl: sanitizeHsl(settings.accentHsl, DEFAULT_BRANDING.accentHsl),
   successHsl: sanitizeHsl(settings.successHsl, DEFAULT_BRANDING.successHsl),
+  serviceMode: sanitizeServiceMode(settings.serviceMode),
+  publicQueueVisible: Boolean(settings.publicQueueVisible),
 });
 
 const rowToSettings = (row: AgendaBusinessSettingsRow): AgendaBrandingSettings => ({
@@ -292,6 +305,8 @@ const rowToSettings = (row: AgendaBusinessSettingsRow): AgendaBrandingSettings =
   accentHsl: row.accent_hsl,
   successHsl: row.success_hsl,
   publicBookingEnabled: row.public_booking_enabled,
+  serviceMode: sanitizeServiceMode(row.service_mode),
+  publicQueueVisible: Boolean(row.public_queue_visible),
 });
 
 const settingsToUpsert = (
@@ -333,6 +348,8 @@ const settingsToUpsert = (
   accent_hsl: settings.accentHsl,
   success_hsl: settings.successHsl,
   public_booking_enabled: settings.publicBookingEnabled,
+  service_mode: settings.serviceMode,
+  public_queue_visible: settings.publicQueueVisible,
 });
 
 const readPreview = () => {
@@ -443,7 +460,7 @@ export function AgendaBrandingProvider({ children }: { children: ReactNode }) {
         .single();
 
       if (response.error && isMissingColumnError(response.error.message)) {
-        const { logo_size, hero_image_url, hero_image_position_x, hero_image_position_y, hero_image_scale, about_image_url, about_image_position_x, about_image_position_y, about_image_scale, team_image_url, location_image_url, hero_title, hero_subtitle, closed_message, about_title, about_text, address, whatsapp, admin_whatsapp, facebook_url, instagram_url, pix_key, pix_merchant_name, ...basePayload } = upsertPayload;
+        const { logo_size, hero_image_url, hero_image_position_x, hero_image_position_y, hero_image_scale, about_image_url, about_image_position_x, about_image_position_y, about_image_scale, team_image_url, location_image_url, hero_title, hero_subtitle, closed_message, about_title, about_text, address, whatsapp, admin_whatsapp, facebook_url, instagram_url, pix_key, pix_merchant_name, service_mode, public_queue_visible, ...basePayload } = upsertPayload;
         void logo_size;
         void hero_image_url;
         void hero_image_position_x;
@@ -467,6 +484,8 @@ export function AgendaBrandingProvider({ children }: { children: ReactNode }) {
         void instagram_url;
         void pix_key;
         void pix_merchant_name;
+        void service_mode;
+        void public_queue_visible;
 
         response = await supabase
           .from("agenda_business_settings")
