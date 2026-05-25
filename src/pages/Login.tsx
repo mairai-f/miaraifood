@@ -371,7 +371,7 @@ export default function Login() {
                           className="mt-0.5 border-yellow-400/60 data-[state=checked]:bg-yellow-400 data-[state=checked]:text-black"
                         />
                         <Label htmlFor="remember-admin-account" className="cursor-pointer text-xs leading-none text-foreground sm:text-sm">
-                          Lembrar conta
+                          Lembrar minha conta
                         </Label>
                       </div>
                       <div className="flex min-w-0 items-center gap-2">
@@ -451,7 +451,7 @@ export default function Login() {
                           className="mt-0.5 border-yellow-400/60 data-[state=checked]:bg-yellow-400 data-[state=checked]:text-black"
                         />
                         <Label htmlFor="remember-operator-account" className="cursor-pointer text-xs leading-none text-foreground sm:text-sm">
-                          Lembrar conta
+                          Lembrar minha conta
                         </Label>
                       </div>
                       <div className="flex min-w-0 items-center gap-2">

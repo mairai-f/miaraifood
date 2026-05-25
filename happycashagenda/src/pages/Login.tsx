@@ -12,6 +12,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import {
   Dialog,
@@ -46,15 +47,69 @@ const barberLoginSchema = z.object({
   password: z.string().min(1, "Senha obrigatória"),
 });
 
+type AgendaLoginPreferences = {
+  loginType: "client" | "barber";
+  rememberAccount: boolean;
+  clientEmail: string;
+  barberUsername: string;
+};
+
+const agendaLoginStorageKeys = {
+  loginType: "happycash:agenda:last-login-type",
+  rememberAccount: "happycash:agenda:remember-account",
+  clientEmail: "happycash:agenda:remembered-client-email",
+  barberUsername: "happycash:agenda:remembered-professional-username",
+} as const;
+
+const isBrowser = () => typeof window !== "undefined";
+
+const readAgendaStorage = (key: string) => {
+  if (!isBrowser()) return null;
+  return window.localStorage.getItem(key);
+};
+
+const getAgendaLoginPreferences = (): AgendaLoginPreferences => ({
+  loginType: readAgendaStorage(agendaLoginStorageKeys.loginType) === "barber" ? "barber" : "client",
+  rememberAccount: readAgendaStorage(agendaLoginStorageKeys.rememberAccount) === "1",
+  clientEmail: readAgendaStorage(agendaLoginStorageKeys.clientEmail) ?? "",
+  barberUsername: readAgendaStorage(agendaLoginStorageKeys.barberUsername) ?? "",
+});
+
+const saveAgendaLoginPreferences = (preferences: AgendaLoginPreferences) => {
+  if (!isBrowser()) return;
+
+  window.localStorage.setItem(agendaLoginStorageKeys.loginType, preferences.loginType);
+  window.localStorage.setItem(agendaLoginStorageKeys.rememberAccount, preferences.rememberAccount ? "1" : "0");
+
+  if (preferences.rememberAccount) {
+    const clientEmail = preferences.clientEmail.trim();
+    const barberUsername = preferences.barberUsername.trim();
+
+    if (clientEmail) {
+      window.localStorage.setItem(agendaLoginStorageKeys.clientEmail, clientEmail);
+    }
+
+    if (barberUsername) {
+      window.localStorage.setItem(agendaLoginStorageKeys.barberUsername, barberUsername);
+    }
+    return;
+  }
+
+  window.localStorage.removeItem(agendaLoginStorageKeys.clientEmail);
+  window.localStorage.removeItem(agendaLoginStorageKeys.barberUsername);
+};
+
 export default function Login() {
-  const [loginType, setLoginType] = useState<"client" | "barber">("client");
-  const [email, setEmail] = useState("");
+  const [initialPreferences] = useState(getAgendaLoginPreferences);
+  const [loginType, setLoginType] = useState<"client" | "barber">(initialPreferences.loginType);
+  const [email, setEmail] = useState(initialPreferences.clientEmail);
   const [password, setPassword] = useState("");
   const [resetLoading, setResetLoading] = useState(false);
   const [forgotOpen, setForgotOpen] = useState(false);
   const [forgotEmail, setForgotEmail] = useState("");
-  const [barberUsername, setBarberUsername] = useState("");
+  const [barberUsername, setBarberUsername] = useState(initialPreferences.barberUsername);
   const [barberPassword, setBarberPassword] = useState("");
+  const [rememberAccount, setRememberAccount] = useState(initialPreferences.rememberAccount);
   const [loading, setLoading] = useState(false);
 
   const { user, signIn, resetPassword } = useAuth();
@@ -112,6 +167,12 @@ export default function Login() {
     // Store barber info in session storage for the dashboard
     sessionStorage.setItem("barber_id", barberData.barber_id);
     sessionStorage.setItem("barber_name", barberData.barber_name);
+    saveAgendaLoginPreferences({
+      loginType: "barber",
+      rememberAccount,
+      clientEmail: email,
+      barberUsername,
+    });
 
     toast({
       title: `Bem-vindo, ${barberData.barber_name}!`,
@@ -148,6 +209,12 @@ export default function Login() {
       toast({
         title: "Bem-vindo de volta!",
         description: "Login realizado com sucesso.",
+      });
+      saveAgendaLoginPreferences({
+        loginType: "client",
+        rememberAccount,
+        clientEmail: email,
+        barberUsername,
       });
       navigate(postLoginPath);
     }
@@ -295,6 +362,20 @@ export default function Login() {
                       </div>
                     </div>
 
+                    <div className="flex items-center gap-2 pt-1">
+                      <Checkbox
+                        id="agenda-client-remember-account"
+                        checked={rememberAccount}
+                        onCheckedChange={(checked) => setRememberAccount(checked === true)}
+                      />
+                      <Label
+                        htmlFor="agenda-client-remember-account"
+                        className="cursor-pointer text-xs leading-none text-foreground sm:text-sm"
+                      >
+                        Lembrar minha conta
+                      </Label>
+                    </div>
+
                     <Button type="submit" className="w-full" disabled={loading}>
                       {loading ? (
                         <>
@@ -393,6 +474,20 @@ export default function Login() {
                         onFocus={keepFocusedFieldVisible}
                         iconLeft={<Lock className="w-4 h-4" />}
                       />
+                    </div>
+
+                    <div className="flex items-center gap-2 pt-1">
+                      <Checkbox
+                        id="agenda-professional-remember-account"
+                        checked={rememberAccount}
+                        onCheckedChange={(checked) => setRememberAccount(checked === true)}
+                      />
+                      <Label
+                        htmlFor="agenda-professional-remember-account"
+                        className="cursor-pointer text-xs leading-none text-foreground sm:text-sm"
+                      >
+                        Lembrar minha conta
+                      </Label>
                     </div>
 
                     <Button type="submit" className="w-full" disabled={loading}>
