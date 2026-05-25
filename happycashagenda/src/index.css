@@ -202,6 +202,8 @@
   body {
     @apply bg-background text-foreground antialiased;
     font-family: 'Inter', sans-serif;
+    overflow-x: hidden;
+    min-height: 100svh;
   }
 
   /* Tipografia - Títulos usam fonte serifada para elegância */

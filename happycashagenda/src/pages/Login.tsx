@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, type FocusEvent } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { z } from "zod";
@@ -160,6 +160,13 @@ export default function Login() {
     setForgotOpen(true);
   };
 
+  const keepFocusedFieldVisible = (event: FocusEvent<HTMLInputElement>) => {
+    const field = event.currentTarget;
+    window.setTimeout(() => {
+      field.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 120);
+  };
+
   const handleSendReset = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -195,21 +202,21 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen flex">
+    <div className="min-h-[100svh] overflow-y-auto bg-background [webkit-overflow-scrolling:touch]">
       {/* Left side - Form */}
-      <div className="flex-1 flex items-center justify-center p-8">
+      <div className="flex min-h-[100svh] touch-pan-y items-start justify-center px-4 pb-[calc(env(safe-area-inset-bottom)+1.5rem)] pt-[calc(env(safe-area-inset-top)+1rem)] [@media(max-height:640px)]:pt-3 sm:items-center sm:p-8 lg:w-1/2">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           className="w-full max-w-md"
         >
-          <div className="text-center mb-8">
-            <div className="inline-flex items-center gap-2 mb-4">
+          <div className="mb-5 text-center [@media(max-height:640px)]:mb-3 sm:mb-8">
+            <div className="mb-3 inline-flex max-w-full items-center justify-center gap-2 sm:mb-4">
               {settings.logoUrl ? (
                 <img
                   src={settings.logoUrl}
                   alt={settings.displayName}
-                  className="rounded object-contain"
+                  className="max-h-14 max-w-14 rounded object-contain sm:max-h-none sm:max-w-none"
                   style={{ width: settings.logoSize, height: settings.logoSize }}
                 />
               ) : (
@@ -217,14 +224,14 @@ export default function Login() {
                   <CalendarDays className="w-6 h-6 text-primary-foreground" />
                 </div>
               )}
-              <span className="font-serif text-2xl font-semibold">
+              <span className="min-w-0 break-words font-serif text-xl font-semibold sm:text-2xl">
                 {settings.displayName}
               </span>
             </div>
-            <h1 className="font-serif text-3xl font-bold mb-2">
+            <h1 className="mb-1 font-serif text-2xl font-bold sm:mb-2 sm:text-3xl">
               Acesse sua agenda
             </h1>
-            <p className="text-muted-foreground">
+            <p className="text-sm text-muted-foreground [@media(max-height:560px)]:hidden sm:text-base">
               Entre com seu email e senha.
             </p>
           </div>
@@ -232,23 +239,23 @@ export default function Login() {
           <Tabs
             value={loginType}
             onValueChange={(v) => setLoginType(v as "client" | "barber")}
-            className="mb-6"
+            className="mb-4 [@media(max-height:640px)]:mb-2 sm:mb-6"
           >
             <TabsList className="grid w-full grid-cols-2">
               <TabsTrigger value="client">Cliente</TabsTrigger>
-              <TabsTrigger value="barber">Sou {settings.professionalLabel}</TabsTrigger>
+              <TabsTrigger value="barber" className="truncate">Sou {settings.professionalLabel}</TabsTrigger>
             </TabsList>
 
             <TabsContent value="client">
-              <Card>
-                <CardHeader className="pb-4">
+              <Card className="shadow-sm">
+                <CardHeader className="space-y-1 pb-3 [@media(max-height:640px)]:pb-2 sm:pb-4">
                   <CardTitle className="text-lg">Login de Cliente</CardTitle>
-                  <CardDescription>
+                  <CardDescription className="text-sm [@media(max-height:560px)]:hidden">
                     Entre com o email e senha da conta ja autorizada.
                   </CardDescription>
                 </CardHeader>
-                <CardContent>
-                  <form onSubmit={handleSubmit} className="space-y-4">
+                <CardContent className="[@media(max-height:640px)]:pt-0">
+                  <form onSubmit={handleSubmit} className="space-y-4 [@media(max-height:640px)]:space-y-3">
                     <div className="space-y-2">
                       <Label htmlFor="email">Email</Label>
                       <div className="relative">
@@ -259,6 +266,7 @@ export default function Login() {
                           placeholder="seu@email.com"
                           value={email}
                           onChange={(e) => setEmail(e.target.value)}
+                          onFocus={keepFocusedFieldVisible}
                           className="pl-10"
                         />
                       </div>
@@ -271,6 +279,7 @@ export default function Login() {
                         placeholder="••••••••"
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
+                        onFocus={keepFocusedFieldVisible}
                         iconLeft={<Lock className="w-4 h-4" />}
                       />
 
@@ -318,6 +327,7 @@ export default function Login() {
                               placeholder="seu@email.com"
                               value={forgotEmail}
                               onChange={(e) => setForgotEmail(e.target.value)}
+                              onFocus={keepFocusedFieldVisible}
                               className="pl-10"
                             />
                           </div>
@@ -348,15 +358,15 @@ export default function Login() {
             </TabsContent>
 
             <TabsContent value="barber">
-              <Card>
-                <CardHeader className="pb-4">
+              <Card className="shadow-sm">
+                <CardHeader className="space-y-1 pb-3 [@media(max-height:640px)]:pb-2 sm:pb-4">
                   <CardTitle className="text-lg">Login de {settings.professionalLabel}</CardTitle>
-                  <CardDescription>
+                  <CardDescription className="text-sm [@media(max-height:560px)]:hidden">
                     Entre com as credenciais fornecidas pelo administrador
                   </CardDescription>
                 </CardHeader>
-                <CardContent>
-                  <form onSubmit={handleBarberLogin} className="space-y-4">
+                <CardContent className="[@media(max-height:640px)]:pt-0">
+                  <form onSubmit={handleBarberLogin} className="space-y-4 [@media(max-height:640px)]:space-y-3">
                     <div className="space-y-2">
                       <Label htmlFor="barberUsername">Usuário</Label>
                       <div className="relative">
@@ -367,6 +377,7 @@ export default function Login() {
                           placeholder="seu.usuario"
                           value={barberUsername}
                           onChange={(e) => setBarberUsername(e.target.value)}
+                          onFocus={keepFocusedFieldVisible}
                           className="pl-10"
                         />
                       </div>
@@ -379,6 +390,7 @@ export default function Login() {
                         placeholder="••••••••"
                         value={barberPassword}
                         onChange={(e) => setBarberPassword(e.target.value)}
+                        onFocus={keepFocusedFieldVisible}
                         iconLeft={<Lock className="w-4 h-4" />}
                       />
                     </div>
@@ -406,7 +418,7 @@ export default function Login() {
       </div>
 
       {/* Right side - Decorative */}
-      <div className="hidden lg:flex flex-1 bg-primary items-center justify-center p-12">
+      <div className="hidden flex-1 items-center justify-center bg-primary p-12 lg:flex">
         <div className="text-center text-primary-foreground max-w-md">
           <CalendarDays className="w-16 h-16 mx-auto mb-6 opacity-80" />
           <h2 className="font-serif text-4xl font-bold mb-4">

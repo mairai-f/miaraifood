@@ -29,7 +29,7 @@ export const InteractiveHoverButton = React.forwardRef<
       {/* Sliding background */}
       <span
         className={cn(
-          "absolute inset-0 flex items-center justify-center gap-3 bg-primary text-primary-foreground transition-all duration-500 ease-out",
+          "absolute inset-0 hidden items-center justify-center gap-3 bg-primary text-primary-foreground transition-all duration-500 ease-out sm:flex",
           hovered ? "translate-x-0" : "-translate-x-full"
         )}
       >

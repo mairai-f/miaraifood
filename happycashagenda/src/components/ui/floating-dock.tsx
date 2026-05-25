@@ -87,13 +87,13 @@ export function FloatingDock({ items, className }: FloatingDockProps) {
 
   return (
     <div
-      className={cn("fixed bottom-6 left-1/2 z-50 -translate-x-1/2", className)}
+      className={cn("fixed bottom-[calc(env(safe-area-inset-bottom)+1rem)] left-1/2 z-50 w-[calc(100vw-1rem)] max-w-max -translate-x-1/2", className)}
     >
       <motion.div
         initial={{ y: 80, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ type: "spring", stiffness: 260, damping: 20, delay: 0.3 }}
-        className="flex items-end gap-2 rounded-2xl border border-border/50 bg-background/80 px-3 py-2 shadow-xl backdrop-blur-xl"
+        className="mx-auto flex max-w-full items-end justify-center gap-1 overflow-x-auto rounded-2xl border border-border/50 bg-background/85 px-2 py-2 shadow-xl backdrop-blur-xl sm:gap-2 sm:px-3"
       >
         {items.map((item, idx) => {
           const isActive = location.pathname === item.href;
@@ -128,7 +128,7 @@ export function FloatingDock({ items, className }: FloatingDockProps) {
                   animate={{ scale }}
                   transition={{ type: "spring", stiffness: 400, damping: 17 }}
                   className={cn(
-                    "flex h-10 w-10 items-center justify-center rounded-xl transition-colors duration-200",
+                    "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition-colors duration-200",
                     isActive
                       ? "bg-primary text-primary-foreground shadow-md"
                       : "text-muted-foreground hover:bg-accent hover:text-foreground",
