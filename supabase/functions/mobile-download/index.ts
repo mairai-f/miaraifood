@@ -14,7 +14,6 @@ interface MobileDownloadResponse {
   assetName?: string;
   error?: string;
   code?: string;
-  requiredEnv?: string[];
   validUntil?: string | null;
 }
 
@@ -171,7 +170,6 @@ Deno.serve(async (request) => {
         {
           error: "O link do TestFlight iOS não foi configurado.",
           code: "DOWNLOAD_NOT_CONFIGURED",
-          requiredEnv: [directUrlKey],
         },
         503,
       );
@@ -226,7 +224,6 @@ Deno.serve(async (request) => {
       {
         error: "O release desta plataforma ainda não foi configurado.",
         code: "DOWNLOAD_NOT_CONFIGURED",
-        requiredEnv: [bucketEnvKey, storagePathKey, directUrlKey],
       },
       503,
     );
@@ -247,7 +244,6 @@ Deno.serve(async (request) => {
       {
         error: "O arquivo protegido não foi encontrado no storage.",
         code: "DOWNLOAD_FILE_MISSING",
-        requiredEnv: [bucketEnvKey, storagePathKey],
       },
       404,
     );

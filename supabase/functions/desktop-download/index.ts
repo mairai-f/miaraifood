@@ -170,7 +170,6 @@ Deno.serve(async (request) => {
       {
         error: "O release desta plataforma ainda nao foi configurado.",
         code: "DOWNLOAD_NOT_CONFIGURED",
-        requiredEnv: [bucketEnvKey, objectPathKey],
       },
       503,
     );
@@ -191,7 +190,6 @@ Deno.serve(async (request) => {
       {
         error: "O arquivo protegido não foi encontrado no storage.",
         code: "DOWNLOAD_FILE_MISSING",
-        requiredEnv: [bucketEnvKey, objectPathKey],
       },
       404,
     );

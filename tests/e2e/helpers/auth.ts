@@ -72,6 +72,10 @@ export const installAuthenticatedSession = async (page: Page) => {
     await json(route, 'demo');
   });
 
+  await page.route('**/rest/v1/rpc/get_current_store_product_context**', async route => {
+    await json(route, 'happycash');
+  });
+
   await page.route('**/rest/v1/profiles**', async route => {
     await json(route, {
       username: 'Admin E2E',

@@ -9,6 +9,7 @@ import { usePlanAccess } from '@/contexts/PlanContext';
 import happyCashLogo from '@/assets/happycash-logo.webp';
 import { roleLabel } from '@/lib/access';
 import { readDesktopActivation } from '@/lib/desktopActivation';
+import { FISCAL_DOCUMENTS_ENABLED } from '@/lib/fiscalFeature';
 import { hasOfflineAdminAccess, saveOfflineAdminAccess } from '@/lib/offlineAdminAccess';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
@@ -118,7 +119,11 @@ export function AppLayout({ children }: { children: ReactNode }) {
   const [scrollHints, setScrollHints] = useState({ top: false, bottom: false });
   const isPdvMode = location.pathname === '/pdv';
   const desktopActivation = readDesktopActivation();
-  const visibleNavItems = navItems.filter(item => item.roles.includes(role) && hasFeature(item.featureKey));
+  const visibleNavItems = navItems.filter(item =>
+    (FISCAL_DOCUMENTS_ENABLED || item.path !== '/notas')
+    && item.roles.includes(role)
+    && hasFeature(item.featureKey)
+  );
   const canOpenSettings = role === 'admin' && hasFeature('settings.manage');
   const fallbackValidationStartedAt = user?.id ? readOfflineValidationStartedAt(user.id) : null;
   const offlineValidationExpiresAt = desktopValidationExpiresAt

@@ -51,7 +51,7 @@ test('keeps remembered login mode without pre-filling auth fields', async ({ pag
 
   await expect(page.getByRole('tab', { name: 'Operador' })).toHaveAttribute('aria-selected', 'true');
   await expect(page.getByPlaceholder('Ex: operador.caixa')).toHaveValue('');
-  await expect(page.getByLabel('Lembrar conta')).not.toBeChecked();
+  await expect(page.getByLabel('Lembrar minha conta')).not.toBeChecked();
   await expect(page.getByLabel('Manter conectado')).not.toBeChecked();
 });
 

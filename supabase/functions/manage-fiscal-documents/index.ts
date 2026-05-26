@@ -89,6 +89,9 @@ interface FiscalDocumentRow {
 
 const HOMOLOGATION_MESSAGE = 'EMITIDA EM AMBIENTE DE HOMOLOGACAO - SEM VALOR FISCAL';
 const SP_UF_CODE = '35';
+const FISCAL_DOCUMENTS_TEMPORARILY_DISABLED = true;
+const FISCAL_DOCUMENTS_DISABLED_MESSAGE =
+  'Notas fiscais temporariamente desativadas. O PDV esta operando apenas com cupom nao fiscal.';
 
 const jsonResponse = (request: Request, body: Record<string, unknown>, status = 200) =>
   new Response(JSON.stringify(body), {
@@ -295,6 +298,32 @@ Deno.serve(async (request) => {
   const body = await getBody(request);
   if (!body?.action) {
     return jsonResponse(request, { error: 'Acao invalida.' }, 400);
+  }
+
+  if (FISCAL_DOCUMENTS_TEMPORARILY_DISABLED) {
+    if (body.action === 'runtime_status') {
+      return jsonResponse(request, {
+        success: true,
+        message: FISCAL_DOCUMENTS_DISABLED_MESSAGE,
+        runtime: {
+          enabled: false,
+          environment: 'homologacao',
+          ready: false,
+          series: 1,
+          nextNumber: 1,
+          operationNature: null,
+          issuerName: null,
+          printCustomerCopy: true,
+          contingencyOfflineEnabled: false,
+          missingItems: [FISCAL_DOCUMENTS_DISABLED_MESSAGE],
+        },
+      });
+    }
+
+    return jsonResponse(request, {
+      error: FISCAL_DOCUMENTS_DISABLED_MESSAGE,
+      code: 'FISCAL_TEMPORARILY_DISABLED',
+    }, 503);
   }
 
   const { data: callerProfile, error: callerProfileError } = await serviceClient

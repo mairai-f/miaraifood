@@ -33,6 +33,7 @@ import { getAvailableClientCredit, getClientCreditLimit, getCreditLimitExceededM
 import { enqueueOfflineOperation, isOfflineConcentratorAvailable } from '@/lib/offlineConcentrator';
 import { readScopedCashSession, writeScopedCashSession, type ScopedCashSession } from '@/lib/cashSessionStorage';
 import { parseDecimalInput, parseOptionalDecimalInput } from '@/lib/numberInput';
+import { FISCAL_DOCUMENTS_ENABLED } from '@/lib/fiscalFeature';
 import { getPublicErrorMessage, getRedactedLogValue } from '../../shared/security/redaction';
 import {
   type FiscalDocumentRecord,
@@ -270,6 +271,7 @@ export default function PDV() {
   const canUseDesktopOffline = isDesktop && offlineEnabled && isOfflineConcentratorAvailable();
   const searchInputRef = useRef<HTMLInputElement>(null);
   const cashReceivedInputRef = useRef<HTMLInputElement>(null);
+  const checkoutClientTriggerRef = useRef<HTMLButtonElement>(null);
   const finalizeLockRef = useRef(false);
   const cartItemSelectionRefs = useRef<Array<HTMLDivElement | null>>([]);
   const [search, setSearch] = useState('');
@@ -323,7 +325,7 @@ export default function PDV() {
   const [lastSaleData, setLastSaleData] = useState<LastSaleReceiptData | null>(null);
   const [isFinalizingSale, setIsFinalizingSale] = useState(false);
   const [fiscalRuntime, setFiscalRuntime] = useState<FiscalRuntimeStatus | null>(null);
-  const [loadingFiscalRuntime, setLoadingFiscalRuntime] = useState(true);
+  const [loadingFiscalRuntime, setLoadingFiscalRuntime] = useState(FISCAL_DOCUMENTS_ENABLED);
   const [fiscalRuntimeError, setFiscalRuntimeError] = useState('');
   const [issuingFiscalDocument, setIssuingFiscalDocument] = useState(false);
   const [lastFiscalDocument, setLastFiscalDocument] = useState<FiscalDocumentRecord | null>(null);
@@ -453,6 +455,13 @@ export default function PDV() {
   }, []);
 
   const loadFiscalRuntime = useCallback(async () => {
+    if (!FISCAL_DOCUMENTS_ENABLED) {
+      setFiscalRuntime(null);
+      setFiscalRuntimeError('');
+      setLoadingFiscalRuntime(false);
+      return;
+    }
+
     if (!session?.access_token) {
       setFiscalRuntime(null);
       setFiscalRuntimeError('');
@@ -488,6 +497,8 @@ export default function PDV() {
   }, [getFiscalFunctionErrorMessage, session?.access_token]);
 
   const issueFiscalDocumentInHomologation = async (saleId: string) => {
+    if (!FISCAL_DOCUMENTS_ENABLED) return;
+
     fiscalIssuanceSaleIdRef.current = saleId;
 
     if (!session?.access_token) {
@@ -694,7 +705,8 @@ export default function PDV() {
     && !fiadoExceedsCreditLimit
     && (paymentMethod !== 'cartao_credito' || Boolean(creditInstallments && creditInstallments > 0));
   const canIssueFiscalDocumentInHomologation = Boolean(
-    isAdmin
+    FISCAL_DOCUMENTS_ENABLED
+    && isAdmin
     && session?.access_token
     && fiscalRuntime?.enabled
     && fiscalRuntime.environment === 'homologacao'
@@ -1788,6 +1800,12 @@ export default function PDV() {
       });
       return;
     }
+    if (method === 'fiado') {
+      requestAnimationFrame(() => {
+        checkoutClientTriggerRef.current?.focus();
+      });
+      return;
+    }
     requestAnimationFrame(() => {
       cashReceivedInputRef.current?.blur();
     });
@@ -2054,6 +2072,7 @@ export default function PDV() {
   };
 
   const retryFiscalIssuance = () => {
+    if (!FISCAL_DOCUMENTS_ENABLED) return;
     if (!lastSaleData?.saleId || issuingFiscalDocument) return;
     void issueFiscalDocumentInHomologation(lastSaleData.saleId);
   };
@@ -2559,6 +2578,12 @@ export default function PDV() {
           if (event.key === '3') {
             event.preventDefault();
             handlePaymentMethodChange('fiado');
+            return;
+          }
+
+          if (event.key.toLowerCase() === 'c') {
+            event.preventDefault();
+            checkoutClientTriggerRef.current?.focus();
             return;
           }
 
@@ -3108,7 +3133,9 @@ export default function PDV() {
                   )}
                 </div>
                 <Select value={selectedClientId} onValueChange={setSelectedClientId}>
-                  <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Selecione..." /></SelectTrigger>
+                  <SelectTrigger ref={checkoutClientTriggerRef} className="h-9 text-sm" aria-label="Selecionar cliente do fiado">
+                    <SelectValue placeholder="Selecione..." />
+                  </SelectTrigger>
                   <SelectContent>
                     {activeClients.map(c => {
                       const creditLimit = getClientCreditLimit(c);
@@ -3162,7 +3189,7 @@ export default function PDV() {
                 </div>
               )}
 
-              {isAdmin && (
+              {FISCAL_DOCUMENTS_ENABLED && isAdmin && (
                 <div className="rounded-lg border border-border bg-card p-3 space-y-2 lg:bg-transparent">
                   <div className="flex items-start justify-between gap-2">
                     <div>
@@ -3815,7 +3842,7 @@ export default function PDV() {
                 <div className="flex items-center gap-2">
                   <Printer className="h-4 w-4 text-primary" />
                   <div>
-                    <p className="text-sm font-semibold">Cupom fiscal</p>
+                    <p className="text-sm font-semibold">Cupom nao fiscal</p>
                     <p className="text-xs text-muted-foreground">
                       Documento de venda rápida de varejo ao consumidor final.
                     </p>
@@ -3835,7 +3862,7 @@ export default function PDV() {
               </div>
             )}
 
-            {isAdmin && (
+            {FISCAL_DOCUMENTS_ENABLED && isAdmin && (
               <div className="space-y-3 rounded-lg border border-border p-4">
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
@@ -3935,7 +3962,7 @@ export default function PDV() {
 
           <DialogFooter className="gap-2">
             <Button variant="outline" onClick={() => setShowReceipt(false)}>Fechar</Button>
-            {isAdmin && (
+            {FISCAL_DOCUMENTS_ENABLED && isAdmin && (
               <Button variant="outline" onClick={() => void loadFiscalRuntime()} disabled={loadingFiscalRuntime}>
                 {loadingFiscalRuntime ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />

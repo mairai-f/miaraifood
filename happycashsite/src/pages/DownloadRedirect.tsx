@@ -20,7 +20,6 @@ type DesktopDownloadResponse = {
   validUntil?: string | null;
   error?: string;
   code?: string;
-  requiredEnv?: string[];
 };
 
 const resolveLoginRedirect = (platformRoute: string) =>
@@ -35,7 +34,6 @@ const DownloadRedirect = () => {
   const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
   const [downloadMeta, setDownloadMeta] = useState<DesktopDownloadResponse | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [requiredEnv, setRequiredEnv] = useState<string[]>([]);
   const loginRedirect = selectedPlatform ? resolveLoginRedirect(`/downloads/${selectedPlatform}`) : "/login";
 
   useEffect(() => {
@@ -49,7 +47,6 @@ const DownloadRedirect = () => {
     const prepareDownload = async () => {
       setLoading(true);
       setErrorMessage(null);
-      setRequiredEnv([]);
       setDownloadMeta(null);
 
       const session = await getFreshSiteSession();
@@ -76,13 +73,16 @@ const DownloadRedirect = () => {
 
       if (error || !data?.success || !data.downloadUrl) {
         let functionErrorMessage = data?.error || "Nao foi possivel preparar o download agora.";
-        let envKeys = data?.requiredEnv || [];
+        let functionErrorCode = data?.code;
+        let functionStatus: number | null = null;
 
         if (error && typeof error === "object" && "context" in error && error.context instanceof Response) {
+          functionStatus = error.context.status;
+
           try {
             const errorPayload = await error.context.clone().json() as DesktopDownloadResponse;
             functionErrorMessage = errorPayload.error || functionErrorMessage;
-            envKeys = errorPayload.requiredEnv || envKeys;
+            functionErrorCode = errorPayload.code || functionErrorCode;
           } catch {
             functionErrorMessage = error.context.status === 401
               ? "Sua sessao expirou. Entre novamente para continuar."
@@ -95,8 +95,16 @@ const DownloadRedirect = () => {
           }
         }
 
-        setErrorMessage(functionErrorMessage);
-        setRequiredEnv(envKeys);
+        const shouldUseGenericDownloadConfigMessage =
+          functionErrorCode === "DOWNLOAD_NOT_CONFIGURED"
+          || functionErrorCode === "DOWNLOAD_FILE_MISSING"
+          || functionStatus === 503;
+
+        setErrorMessage(
+          shouldUseGenericDownloadConfigMessage
+            ? "Download indisponivel por configuracao pendente. Contate o suporte."
+            : functionErrorMessage,
+        );
         setLoading(false);
         return;
       }
@@ -166,16 +174,6 @@ const DownloadRedirect = () => {
                   <ShieldCheck className="h-4 w-4" />
                   <p className="font-medium">{errorMessage}</p>
                 </div>
-                {requiredEnv.length > 0 && (
-                  <>
-                    <p className="mt-4 text-sm text-muted-foreground">
-                      Configure estas variaveis no Supabase para liberar esse download:
-                    </p>
-                    <div className="mt-3 rounded-xl border border-border/70 bg-muted/20 p-4 font-mono text-sm">
-                      {requiredEnv.join("\n")}
-                    </div>
-                  </>
-                )}
               </div>
             ) : (
               <div className="rounded-2xl border border-primary/20 bg-primary/5 p-5">

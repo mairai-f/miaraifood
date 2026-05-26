@@ -14,13 +14,14 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { FISCAL_DOCUMENTS_DISABLED_MESSAGE, FISCAL_DOCUMENTS_ENABLED } from '@/lib/fiscalFeature';
 import { formatDateTime } from '../../shared/locale/format';
 
 // Generated Supabase types are behind the current fiscal schema.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
 
-export default function Notes() {
+function FiscalNotesPanel() {
   const [documents, setDocuments] = useState<FiscalDocumentRecord[]>([]);
   const [loadingDocuments, setLoadingDocuments] = useState(true);
   const [documentsError, setDocumentsError] = useState('');
@@ -157,4 +158,36 @@ export default function Notes() {
       </Card>
     </div>
   );
+}
+
+export default function Notes() {
+  if (!FISCAL_DOCUMENTS_ENABLED) {
+    return (
+      <div className="space-y-6">
+        <div className="page-header">
+          <h1 className="page-title flex items-center gap-3">
+            <FileText className="h-6 w-6 text-primary" />
+            Notas
+          </h1>
+          <p className="page-subtitle">
+            A area de nota fiscal esta pausada temporariamente.
+          </p>
+        </div>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Nota fiscal temporariamente desativada</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3 text-sm text-muted-foreground">
+            <p>{FISCAL_DOCUMENTS_DISABLED_MESSAGE}</p>
+            <p>
+              As vendas continuam gerando apenas o cupom nao fiscal para impressao no PDV.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  return <FiscalNotesPanel />;
 }

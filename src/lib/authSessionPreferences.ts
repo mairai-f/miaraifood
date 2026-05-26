@@ -39,18 +39,12 @@ const readLocalStorage = (key: string) => {
   return window.localStorage.getItem(key);
 };
 
-const readBoolean = (key: string, fallback: boolean) => {
-  const value = readLocalStorage(key);
-  if (value === null) return fallback;
-  return value === '1';
-};
-
 export const getSystemLoginPreferences = (): SystemLoginPreferences => ({
   loginMode: readLocalStorage(storageKeys.loginMode) === 'operator' ? 'operator' : 'admin',
-  rememberAccount: readBoolean(storageKeys.rememberAccount, false),
-  keepConnected: readBoolean(storageKeys.keepConnected, false),
-  adminEmail: readLocalStorage(storageKeys.adminEmail) ?? '',
-  operatorUsername: readLocalStorage(storageKeys.operatorUsername) ?? '',
+  rememberAccount: false,
+  keepConnected: false,
+  adminEmail: '',
+  operatorUsername: '',
 });
 
 export const saveSystemLoginPreferences = ({
