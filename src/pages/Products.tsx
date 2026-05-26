@@ -179,14 +179,14 @@ export default function Products() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-4 gap-3">
+      <div className="flex items-center justify-between mb-4 gap-3" data-tour-id="products-header">
         <div>
           <h1 className="text-xl sm:text-2xl font-bold">Produtos</h1>
           {readOnly && <p className="text-sm text-muted-foreground">Modo operador: consulta liberada, edição bloqueada.</p>}
         </div>
         {!readOnly && (
           <Dialog open={open} onOpenChange={v => { if (!v) resetForm(); setOpen(v); }}>
-            <DialogTrigger asChild><Button size="sm"><Plus className="h-4 w-4 mr-1" />Novo</Button></DialogTrigger>
+            <DialogTrigger asChild><Button size="sm" data-tour-id="products-new"><Plus className="h-4 w-4 mr-1" />Novo</Button></DialogTrigger>
             <DialogContent>
               <DialogHeader><DialogTitle>{editId ? 'Editar Produto' : 'Cadastrar Produto'}</DialogTitle></DialogHeader>
               <div className="space-y-3 max-h-[60vh] overflow-auto">
@@ -284,12 +284,12 @@ export default function Products() {
         </DialogContent>
       </Dialog>
 
-      <div className="relative mb-4">
+      <div className="relative mb-4" data-tour-id="products-search">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         <Input className="pl-10" placeholder="Buscar produto..." value={search} onChange={e => setSearch(e.target.value)} />
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3" data-tour-id="products-list">
         {filtered.map(p => {
           const markup = getMarkupPercent(p.price, p.cost_price);
           const margin = getMarginPercent(p.price, p.cost_price);

@@ -63,13 +63,13 @@ export default function Clients() {
 
   return (
     <div>
-      <div className="page-header flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="page-header flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between" data-tour-id="clients-header">
         <div>
           <h1 className="page-title">Clientes</h1>
           <p className="page-subtitle">Consulte saldos e acesse rapidamente cada cliente.</p>
         </div>
         <Dialog open={open} onOpenChange={setOpen}>
-          <DialogTrigger asChild><Button className="mobile-full-btn"><Plus className="h-4 w-4 mr-2" />Novo Cliente</Button></DialogTrigger>
+          <DialogTrigger asChild><Button className="mobile-full-btn" data-tour-id="clients-new"><Plus className="h-4 w-4 mr-2" />Novo Cliente</Button></DialogTrigger>
           <DialogContent>
             <DialogHeader><DialogTitle>Cadastrar Cliente</DialogTitle></DialogHeader>
             <div className="space-y-4">
@@ -92,12 +92,12 @@ export default function Clients() {
         </Dialog>
       </div>
 
-      <div className="relative mb-6">
+      <div className="relative mb-6" data-tour-id="clients-search">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         <Input className="pl-10" placeholder="Buscar cliente..." value={search} onChange={e => setSearch(e.target.value)} />
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" data-tour-id="clients-list">
         {filtered.map(c => {
           const balance = getClientBalance(c.id);
           const clientCreditLimit = getClientCreditLimit(c);

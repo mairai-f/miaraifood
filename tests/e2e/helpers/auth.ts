@@ -29,7 +29,14 @@ const json = async (route: Route, body: unknown, status = 200) => {
   });
 };
 
-export const installAuthenticatedSession = async (page: Page) => {
+interface InstallAuthenticatedSessionOptions {
+  planId?: string;
+}
+
+export const installAuthenticatedSession = async (
+  page: Page,
+  { planId = 'demo' }: InstallAuthenticatedSessionOptions = {},
+) => {
   await page.addInitScript(({ user }) => {
     const expiresAt = Math.floor(Date.now() / 1000) + 60 * 60;
     const session = {
@@ -69,7 +76,7 @@ export const installAuthenticatedSession = async (page: Page) => {
   });
 
   await page.route('**/rest/v1/rpc/get_current_store_plan_id**', async route => {
-    await json(route, 'demo');
+    await json(route, planId);
   });
 
   await page.route('**/rest/v1/rpc/get_current_store_product_context**', async route => {

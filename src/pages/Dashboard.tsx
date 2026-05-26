@@ -74,11 +74,17 @@ export default function Dashboard() {
 
   return (
     <div>
-      <div className="page-header">
+      <div className="page-header" data-tour-id="dashboard-header">
         <h1 className="page-title">Painel de Controle</h1>
         <p className="page-subtitle">Visao geral de clientes, dividas e pagamentos do dia.</p>
       </div>
-      <motion.div variants={container} initial="hidden" animate="show" className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6 sm:mb-8">
+      <motion.div
+        variants={container}
+        initial="hidden"
+        animate="show"
+        className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6 sm:mb-8"
+        data-tour-id="dashboard-stats"
+      >
         {stats.map((s, i) => (
           <motion.div 
             key={i} 
@@ -155,7 +161,7 @@ export default function Dashboard() {
         </DialogContent>
       </Dialog>
 
-      <div id="clients-list">
+      <div id="clients-list" data-tour-id="dashboard-clients-list">
         <h2 className="mb-4 text-lg font-semibold">
           {showDebtorsOnly ? 'Devedores' : 'Todos os Clientes'}
         </h2>

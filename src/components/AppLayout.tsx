@@ -1,6 +1,6 @@
 import { ReactNode, useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Clock3, Home, Users, Package, Gift, Trash2, LogOut, Menu, X, UserCircle, Receipt, BarChart3, DollarSign, Boxes, ChevronDown, ChevronUp, FileText, Shield, Calculator, ShieldCheck, Database, Loader2, WifiOff, ClipboardList } from 'lucide-react';
+import { Clock3, Home, Users, Package, Gift, Trash2, LogOut, Menu, X, UserCircle, Receipt, BarChart3, DollarSign, Boxes, ChevronDown, ChevronUp, FileText, Shield, Calculator, ShieldCheck, Database, Loader2, WifiOff, ClipboardList, HelpCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import { useData } from '@/contexts/DataContext';
@@ -10,6 +10,7 @@ import happyCashLogo from '@/assets/happycash-logo.webp';
 import { roleLabel } from '@/lib/access';
 import { readDesktopActivation } from '@/lib/desktopActivation';
 import { FISCAL_DOCUMENTS_ENABLED } from '@/lib/fiscalFeature';
+import { isGuidedTourEligiblePlan, requestGuidedTourStart } from '@/lib/guidedTour';
 import { hasOfflineAdminAccess, saveOfflineAdminAccess } from '@/lib/offlineAdminAccess';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
@@ -25,20 +26,20 @@ import {
 } from '@/components/ui/dialog';
 
 const navItems = [
-  { path: '/', label: 'Painel', icon: Home, shortcut: '1', roles: ['admin', 'operator'], featureKey: 'dashboard.view' },
-  { path: '/pdv', label: 'PDV 🧾', icon: Receipt, shortcut: '2', roles: ['admin', 'operator'], featureKey: 'pdv.use' },
-  { path: '/clientes', label: 'Clientes', icon: Users, shortcut: '3', roles: ['admin', 'operator'], featureKey: 'clients.manage' },
-  { path: '/produtos', label: 'Produtos', icon: Package, shortcut: '4', roles: ['admin', 'operator'], featureKey: 'products.manage' },
-  { path: '/estoque', label: 'Estoque', icon: Boxes, shortcut: '5', roles: ['admin'], featureKey: 'stock.manage' },
-  { path: '/relatorios', label: 'Relatórios', icon: BarChart3, shortcut: '6', roles: ['admin'], featureKey: 'reports.view' },
-  { path: '/financeiro', label: 'Financeiro', icon: DollarSign, shortcut: '7', roles: ['admin'], featureKey: 'financial.manage' },
-  { path: '/operacoes', label: 'Operações', icon: ClipboardList, roles: ['admin'], featureKey: 'financial.manage' },
-  { path: '/notas', label: 'Notas', icon: FileText, shortcut: '8', roles: ['admin'], featureKey: 'notes.manage' },
-  { path: '/precificacao', label: 'Precificação', icon: Calculator, roles: ['admin'], featureKey: 'pricing.manage' },
-  { path: '/acessos', label: 'Acessos', icon: Shield, roles: ['admin'], featureKey: 'settings.manage' },
-  { path: '/auditoria', label: 'Auditoria', icon: ShieldCheck, roles: ['admin'], featureKey: 'settings.manage' },
-  { path: '/recompensas', label: 'Recompensas', icon: Gift, roles: ['admin'], featureKey: 'rewards.manage' },
-  { path: '/excluidos', label: 'Excluídos', icon: Trash2, roles: ['admin'], featureKey: 'deleted.view' },
+  { path: '/', label: 'Painel', icon: Home, shortcut: '1', roles: ['admin', 'operator'], featureKey: 'dashboard.view', tourId: 'nav-dashboard' },
+  { path: '/pdv', label: 'PDV 🧾', icon: Receipt, shortcut: '2', roles: ['admin', 'operator'], featureKey: 'pdv.use', tourId: 'nav-pdv' },
+  { path: '/clientes', label: 'Clientes', icon: Users, shortcut: '3', roles: ['admin', 'operator'], featureKey: 'clients.manage', tourId: 'nav-clients' },
+  { path: '/produtos', label: 'Produtos', icon: Package, shortcut: '4', roles: ['admin', 'operator'], featureKey: 'products.manage', tourId: 'nav-products' },
+  { path: '/estoque', label: 'Estoque', icon: Boxes, shortcut: '5', roles: ['admin'], featureKey: 'stock.manage', tourId: 'nav-stock' },
+  { path: '/relatorios', label: 'Relatórios', icon: BarChart3, shortcut: '6', roles: ['admin'], featureKey: 'reports.view', tourId: 'nav-reports' },
+  { path: '/financeiro', label: 'Financeiro', icon: DollarSign, shortcut: '7', roles: ['admin'], featureKey: 'financial.manage', tourId: 'nav-financial' },
+  { path: '/operacoes', label: 'Operações', icon: ClipboardList, roles: ['admin'], featureKey: 'financial.manage', tourId: 'nav-operations' },
+  { path: '/notas', label: 'Notas', icon: FileText, shortcut: '8', roles: ['admin'], featureKey: 'notes.manage', tourId: 'nav-notes' },
+  { path: '/precificacao', label: 'Precificação', icon: Calculator, roles: ['admin'], featureKey: 'pricing.manage', tourId: 'nav-pricing' },
+  { path: '/acessos', label: 'Acessos', icon: Shield, roles: ['admin'], featureKey: 'settings.manage', tourId: 'nav-access' },
+  { path: '/auditoria', label: 'Auditoria', icon: ShieldCheck, roles: ['admin'], featureKey: 'settings.manage', tourId: 'nav-audit' },
+  { path: '/recompensas', label: 'Recompensas', icon: Gift, roles: ['admin'], featureKey: 'rewards.manage', tourId: 'nav-rewards' },
+  { path: '/excluidos', label: 'Excluídos', icon: Trash2, roles: ['admin'], featureKey: 'deleted.view', tourId: 'nav-deleted' },
 ];
 
 const OFFLINE_VALIDATION_GRACE_DAYS = 5;
@@ -106,7 +107,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
     validationExpiresAt: desktopValidationExpiresAt,
     usingOfflineValidationCache,
   } = useDesktopRuntime();
-  const { hasFeature } = usePlanAccess();
+  const { hasFeature, planId } = usePlanAccess();
   const location = useLocation();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
@@ -125,6 +126,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
     && hasFeature(item.featureKey)
   );
   const canOpenSettings = role === 'admin' && hasFeature('settings.manage');
+  const canUseGuidedTour = isGuidedTourEligiblePlan(planId);
   const fallbackValidationStartedAt = user?.id ? readOfflineValidationStartedAt(user.id) : null;
   const offlineValidationExpiresAt = desktopValidationExpiresAt
     || buildOfflineValidationExpiresAt(offlineValidationStartedAt || fallbackValidationStartedAt, desktopValidUntil);
@@ -520,6 +522,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
               const active = location.pathname === item.path;
               return (
                 <Link key={item.path} to={item.path} onClick={() => setOpen(false)}
+                  data-tour-id={item.tourId}
                   className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 ${active ? 'bg-primary text-primary-foreground shadow-lg' : 'text-muted-foreground hover:bg-secondary hover:text-foreground'}`}>
                   <item.icon className="h-5 w-5" />
                   <span className="font-medium">{item.label}</span>
@@ -546,6 +549,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
               <button
                 type="button"
                 onClick={handleAccountClick}
+                data-tour-id="account-settings"
                 className="w-full rounded-lg px-4 py-2 text-left text-sm text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
               >
                 <div className="flex items-center gap-2">
@@ -567,6 +571,20 @@ export function AppLayout({ children }: { children: ReactNode }) {
                 </p>
               </div>
             )
+          )}
+          {canUseGuidedTour && (
+            <Button
+              type="button"
+              variant="outline"
+              className="h-10 w-full justify-start gap-3 px-4"
+              onClick={() => {
+                setOpen(false);
+                requestGuidedTourStart();
+              }}
+            >
+              <HelpCircle className="h-5 w-5" />
+              Ver tutorial
+            </Button>
           )}
           <button onClick={logout} className="flex items-center gap-3 px-4 py-3 rounded-lg text-muted-foreground hover:bg-destructive/10 hover:text-destructive w-full transition-colors">
             <LogOut className="h-5 w-5" /><span>Sair</span>

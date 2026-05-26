@@ -57,7 +57,7 @@ export default function Stock() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between" data-tour-id="stock-header">
         <h1 className="text-xl font-bold">📦 Estoque</h1>
         <div className="flex items-center gap-2">
           <AlertDialog>
@@ -83,7 +83,7 @@ export default function Stock() {
           </AlertDialog>
 
           <Dialog open={open} onOpenChange={setOpen}>
-            <DialogTrigger asChild><Button size="sm"><Plus className="h-4 w-4 mr-1" />Movimentar</Button></DialogTrigger>
+            <DialogTrigger asChild><Button size="sm" data-tour-id="stock-move"><Plus className="h-4 w-4 mr-1" />Movimentar</Button></DialogTrigger>
             <DialogContent>
               <DialogHeader><DialogTitle>Movimentação de Estoque</DialogTitle></DialogHeader>
               <div className="space-y-3">
@@ -116,7 +116,7 @@ export default function Stock() {
 
       {/* Low stock alert */}
       {lowStock.length > 0 && (
-        <Card className="border-destructive/50 bg-destructive/5">
+        <Card className="border-destructive/50 bg-destructive/5" data-tour-id="stock-low">
           <CardHeader className="pb-2 px-4 pt-3"><CardTitle className="text-sm flex items-center gap-2 text-destructive"><AlertTriangle className="h-4 w-4" />Estoque Baixo</CardTitle></CardHeader>
           <CardContent className="px-4 pb-3">
             <div className="space-y-1">
@@ -128,7 +128,7 @@ export default function Stock() {
         </Card>
       )}
 
-      <div className="relative">
+      <div className="relative" data-tour-id="stock-search">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         <Input className="pl-10" placeholder="Buscar produto..." value={search} onChange={e => setSearch(e.target.value)} />
       </div>
@@ -158,7 +158,7 @@ export default function Stock() {
       </div>
 
       {/* Recent movements */}
-      <Card className="border-border/50">
+      <Card className="border-border/50" data-tour-id="stock-movements">
         <CardHeader><CardTitle className="text-sm">Movimentações Recentes</CardTitle></CardHeader>
         <CardContent>
           {stockMovements.length === 0 ? <p className="text-xs text-muted-foreground">Nenhuma movimentação</p> : (
