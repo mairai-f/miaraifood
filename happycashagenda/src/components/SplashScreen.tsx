@@ -148,7 +148,7 @@ export function SplashScreen({ onComplete }: SplashScreenProps) {
   return (
     <div
       ref={containerRef}
-      className="fixed inset-0 z-[9999] overflow-hidden bg-[#080814] text-white"
+      className="fixed inset-0 z-[9999] overflow-x-hidden overflow-y-auto bg-[#080814] text-white [webkit-overflow-scrolling:touch]"
     >
       <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(124,58,237,0.24),transparent_32%),linear-gradient(315deg,rgba(14,165,233,0.2),transparent_34%),linear-gradient(180deg,rgba(250,204,21,0.12),transparent_46%)]" />
       <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.055)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.055)_1px,transparent_1px)] bg-[size:56px_56px]" />
@@ -156,8 +156,8 @@ export function SplashScreen({ onComplete }: SplashScreenProps) {
 
       <div className="splash-wipe absolute inset-y-0 left-0 z-20 w-full origin-left scale-x-0 bg-background" />
 
-      <div className="splash-content relative z-10 flex min-h-screen items-center justify-center px-5 py-10">
-        <div className="grid w-full max-w-5xl items-center gap-8 md:grid-cols-[0.9fr_1.1fr]">
+      <div className="splash-content relative z-10 flex min-h-[100svh] items-start justify-center px-5 py-6 sm:items-center sm:py-10">
+        <div className="grid w-full max-w-5xl items-center gap-5 sm:gap-8 md:grid-cols-[0.9fr_1.1fr]">
           <div className="splash-panel rounded-lg border border-white/10 bg-white/[0.06] p-4 shadow-2xl backdrop-blur md:p-5">
             <div className="rounded-lg bg-[#101024] p-4">
               <div className="mb-4 flex items-center justify-between">
@@ -184,14 +184,14 @@ export function SplashScreen({ onComplete }: SplashScreenProps) {
             <div className="brand-line inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.07] px-3 py-1 text-xs font-semibold uppercase tracking-[0.24em] text-white/70">
               HappyCash
             </div>
-            <h1 className="brand-line mt-5 max-w-xl text-4xl font-black leading-tight md:text-6xl">
+            <h1 className="brand-line mt-5 max-w-xl text-3xl font-black leading-tight sm:text-4xl md:text-6xl">
               {settings.displayName}
             </h1>
-            <p className="brand-line mt-4 max-w-lg text-base leading-7 text-white/70 md:text-lg">
+            <p className="brand-line mt-3 max-w-lg text-sm leading-6 text-white/70 sm:mt-4 sm:text-base md:text-lg md:leading-7">
               {settings.tagline}
             </p>
 
-            <div className="mt-6 grid max-w-xl grid-cols-3 gap-2">
+            <div className="mt-5 grid max-w-xl grid-cols-3 gap-2 sm:mt-6">
               {[
                 { icon: QrCode, label: "QR" },
                 { icon: CreditCard, label: "Pix" },
@@ -199,7 +199,7 @@ export function SplashScreen({ onComplete }: SplashScreenProps) {
               ].map((item) => {
                 const Icon = item.icon;
                 return (
-                  <div key={item.label} className="module-chip rounded-lg border border-white/10 bg-white/[0.06] p-3">
+                  <div key={item.label} className="module-chip rounded-lg border border-white/10 bg-white/[0.06] p-2.5 sm:p-3">
                     <Icon className="h-5 w-5 text-accent" />
                     <span className="mt-2 block text-sm font-semibold text-white/85">{item.label}</span>
                   </div>
@@ -211,7 +211,7 @@ export function SplashScreen({ onComplete }: SplashScreenProps) {
               <InteractiveHoverButton
                 onClick={handleEnter}
                 text="Abrir agenda"
-                className="mt-8 splash-enter-btn border-white/20 bg-white text-[#080814] hover:text-[#080814]"
+                className="mt-6 splash-enter-btn border-white/20 bg-white text-[#080814] hover:text-[#080814] sm:mt-8"
               />
             )}
           </div>
