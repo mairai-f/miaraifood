@@ -148,8 +148,11 @@ type AgendaBusinessSettingsUpsert = {
 const SETTINGS_COLUMNS_BASE =
   "id, owner_user_id, store_account_id, slug, display_name, business_type, professional_label, service_label, tagline, logo_url, primary_hsl, accent_hsl, success_hsl, public_booking_enabled";
 
+const SETTINGS_COLUMNS_PUBLIC_PAGE =
+  `${SETTINGS_COLUMNS_BASE}, logo_size, hero_image_url, hero_image_position_x, hero_image_position_y, hero_image_scale, about_image_url, about_image_position_x, about_image_position_y, about_image_scale, team_image_url, location_image_url, hero_title, hero_subtitle, closed_message, about_title, about_text, address, whatsapp, admin_whatsapp, facebook_url, instagram_url, pix_key, pix_merchant_name`;
+
 const SETTINGS_COLUMNS_EXTENDED =
-  `${SETTINGS_COLUMNS_BASE}, logo_size, hero_image_url, hero_image_position_x, hero_image_position_y, hero_image_scale, about_image_url, about_image_position_x, about_image_position_y, about_image_scale, team_image_url, location_image_url, hero_title, hero_subtitle, closed_message, about_title, about_text, address, whatsapp, admin_whatsapp, facebook_url, instagram_url, pix_key, pix_merchant_name, service_mode, public_queue_visible`;
+  `${SETTINGS_COLUMNS_PUBLIC_PAGE}, service_mode, public_queue_visible`;
 
 const isMissingColumnError = (message: string) =>
   /column|schema cache|does not exist|PGRST204/i.test(message);
@@ -352,6 +355,13 @@ const settingsToUpsert = (
   public_queue_visible: settings.publicQueueVisible,
 });
 
+const withoutServiceModeColumns = (payload: AgendaBusinessSettingsUpsert) => {
+  const { service_mode, public_queue_visible, ...publicPagePayload } = payload;
+  void service_mode;
+  void public_queue_visible;
+  return publicPagePayload;
+};
+
 const readPreview = () => {
   if (!isBrowser()) return null;
 
@@ -409,6 +419,18 @@ export function AgendaBrandingProvider({ children }: { children: ReactNode }) {
     let response = await scopedQuery.maybeSingle();
 
     if (response.error && isMissingColumnError(response.error.message)) {
+      const publicPageQuery = publicSlug
+        ? table.select(SETTINGS_COLUMNS_PUBLIC_PAGE).eq("slug", publicSlug).eq("public_booking_enabled", true)
+        : user?.id
+          ? table.select(SETTINGS_COLUMNS_PUBLIC_PAGE).eq("owner_user_id", user.id)
+          : table
+              .select(SETTINGS_COLUMNS_PUBLIC_PAGE)
+              .eq("slug", DEFAULT_BRANDING.slug)
+              .eq("public_booking_enabled", true);
+      response = await publicPageQuery.maybeSingle();
+    }
+
+    if (response.error && isMissingColumnError(response.error.message)) {
       const fallbackQuery = publicSlug
         ? table.select(SETTINGS_COLUMNS_BASE).eq("slug", publicSlug).eq("public_booking_enabled", true)
         : user?.id
@@ -460,42 +482,19 @@ export function AgendaBrandingProvider({ children }: { children: ReactNode }) {
         .single();
 
       if (response.error && isMissingColumnError(response.error.message)) {
-        const { logo_size, hero_image_url, hero_image_position_x, hero_image_position_y, hero_image_scale, about_image_url, about_image_position_x, about_image_position_y, about_image_scale, team_image_url, location_image_url, hero_title, hero_subtitle, closed_message, about_title, about_text, address, whatsapp, admin_whatsapp, facebook_url, instagram_url, pix_key, pix_merchant_name, service_mode, public_queue_visible, ...basePayload } = upsertPayload;
-        void logo_size;
-        void hero_image_url;
-        void hero_image_position_x;
-        void hero_image_position_y;
-        void hero_image_scale;
-        void about_image_url;
-        void about_image_position_x;
-        void about_image_position_y;
-        void about_image_scale;
-        void team_image_url;
-        void location_image_url;
-        void hero_title;
-        void hero_subtitle;
-        void closed_message;
-        void about_title;
-        void about_text;
-        void address;
-        void whatsapp;
-        void admin_whatsapp;
-        void facebook_url;
-        void instagram_url;
-        void pix_key;
-        void pix_merchant_name;
-        void service_mode;
-        void public_queue_visible;
-
         response = await supabase
           .from("agenda_business_settings")
-          .upsert(basePayload, { onConflict: "owner_user_id" })
-          .select(SETTINGS_COLUMNS_BASE)
+          .upsert(withoutServiceModeColumns(upsertPayload), { onConflict: "owner_user_id" })
+          .select(SETTINGS_COLUMNS_PUBLIC_PAGE)
           .single();
       }
 
       if (response.error) {
-        return { error: response.error.message };
+        return {
+          error: isMissingColumnError(response.error.message)
+            ? "A base da Agenda esta sem colunas da pagina publica. Aplique as migrations antes de salvar Pix, redes sociais e textos."
+            : response.error.message,
+        };
       }
 
       if (response.data) {
