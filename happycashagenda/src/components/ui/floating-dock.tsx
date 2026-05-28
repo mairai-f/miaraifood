@@ -93,7 +93,7 @@ export function FloatingDock({ items, className }: FloatingDockProps) {
         initial={{ y: 80, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ type: "spring", stiffness: 260, damping: 20, delay: 0.3 }}
-        className="mx-auto flex max-w-full items-end justify-center gap-1 overflow-x-auto rounded-2xl border border-border/50 bg-background/85 px-2 py-2 shadow-xl backdrop-blur-xl sm:gap-2 sm:px-3"
+        className="mx-auto flex max-w-full items-end justify-center gap-1 overflow-visible rounded-2xl border border-border/50 bg-background/85 px-2 py-2 shadow-xl backdrop-blur-xl sm:gap-2 sm:px-3"
       >
         {items.map((item, idx) => {
           const isActive = location.pathname === item.href;
