@@ -11,6 +11,7 @@ import { PublicPageInlineEditor } from '@/components/landing/PublicPageInlineEdi
 import { SectionNav } from '@/components/landing/SectionNav';
 import { SwipeSections } from '@/components/landing/SwipeSections';
 import { slugFromPathname } from '@/lib/agendaSlug';
+import { useAuth } from '@/hooks/useAuth';
 
 const isMobileViewport = () => {
   if (typeof window === 'undefined') return false;
@@ -24,9 +25,14 @@ export default function Index() {
   const [isMobile, setIsMobile] = useState(isMobileViewport);
   const navigate = useNavigate();
   const location = useLocation();
+  const { user, isAdmin, loading: authLoading } = useAuth();
   const mobileLoginPath = useMemo(() => {
     const slug = slugFromPathname(location.pathname);
     return `${slug ? `/${slug}` : ''}/login${location.search}`;
+  }, [location.pathname, location.search]);
+  const mobileAppointmentsPath = useMemo(() => {
+    const slug = slugFromPathname(location.pathname);
+    return `${slug ? `/${slug}` : ''}/meus-agendamentos${location.search}`;
   }, [location.pathname, location.search]);
 
   useEffect(() => {
@@ -39,10 +45,16 @@ export default function Index() {
   }, []);
 
   useEffect(() => {
-    if (!isMobile) return;
+    if (!isMobile || authLoading) return;
     sessionStorage.setItem('happycash_agenda_visited', 'true');
+
+    if (user) {
+      navigate(isAdmin ? '/painel' : mobileAppointmentsPath, { replace: true });
+      return;
+    }
+
     navigate(mobileLoginPath, { replace: true });
-  }, [isMobile, mobileLoginPath, navigate]);
+  }, [authLoading, user, isAdmin, isMobile, mobileAppointmentsPath, mobileLoginPath, navigate]);
 
   const handleSplashComplete = () => {
     setSplashDone(true);

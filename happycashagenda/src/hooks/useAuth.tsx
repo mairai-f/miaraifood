@@ -14,7 +14,7 @@ interface AuthContextType {
   session: Session | null;
   loading: boolean;
   isAdmin: boolean;
-  signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
+  signIn: (email: string, password: string) => Promise<{ error: Error | null; isAdmin: boolean }>;
   resetPassword: (email: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
 }
@@ -51,7 +51,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const adminProfile = await isAgendaAdminProfile(userId);
     if (!adminProfile) {
       setIsAdmin(false);
-      return;
+      return false;
     }
 
     const access = await validateAgendaAdminAccess(userId);
@@ -60,36 +60,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(null);
       setSession(null);
       setIsAdmin(false);
-      return;
+      return false;
     }
 
     setIsAdmin(true);
+    return true;
   };
 
   useEffect(() => {
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((event, nextSession) => {
+    const applySession = async (nextSession: Session | null) => {
       setSession(nextSession);
       setUser(nextSession?.user ?? null);
 
       if (nextSession?.user) {
-        setTimeout(() => {
-          void syncAdminAccess(nextSession.user.id);
-        }, 0);
+        await syncAdminAccess(nextSession.user.id);
       } else {
         setIsAdmin(false);
       }
       setLoading(false);
+    };
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event, nextSession) => {
+      setLoading(true);
+      setTimeout(() => {
+        void applySession(nextSession);
+      }, 0);
     });
 
     supabase.auth.getSession().then(({ data: { session: nextSession } }) => {
-      setSession(nextSession);
-      setUser(nextSession?.user ?? null);
-      if (nextSession?.user) {
-        void syncAdminAccess(nextSession.user.id);
-      }
-      setLoading(false);
+      void applySession(nextSession);
     });
 
     return () => subscription.unsubscribe();
@@ -103,7 +104,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
 
     if (error || !data.user) {
-      return { error: error ?? new Error("Nao foi possivel entrar.") };
+      setIsAdmin(false);
+      return { error: error ?? new Error("Nao foi possivel entrar."), isAdmin: false };
     }
 
     const adminProfile = await isAgendaAdminProfile(data.user.id);
@@ -111,11 +113,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const access = await validateAgendaAdminAccess(data.user.id);
       if (!access.ok) {
         await supabase.auth.signOut();
-        return { error: new Error(access.message) };
+        setIsAdmin(false);
+        return { error: new Error(access.message), isAdmin: false };
       }
     }
 
-    return { error: null };
+    setIsAdmin(adminProfile);
+    return { error: null, isAdmin: adminProfile };
   };
 
   const resetPassword = async (email: string) => {
