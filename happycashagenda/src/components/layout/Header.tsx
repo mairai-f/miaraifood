@@ -70,6 +70,7 @@ export function Header() {
   const { toast } = useToast();
   const navigate = useNavigate();
   const publicPath = (path: string) => withAgendaPublicSearch(path, settings);
+  const publicHomePath = publicPath("/");
 
   // Estados para modal de senha
   const [showPasswordModal, setShowPasswordModal] = useState(false);
@@ -263,7 +264,7 @@ export function Header() {
       >
         <div className="container mx-auto px-4">
           <div className="flex items-center justify-between h-16">
-            <Link to="/" className="flex min-w-0 flex-1 items-center gap-2 sm:flex-none">
+            <Link to={publicHomePath} className="flex min-w-0 flex-1 items-center gap-2 sm:flex-none">
               {settings.logoUrl ? (
                 <img
                   src={settings.logoUrl}
@@ -292,7 +293,7 @@ export function Header() {
               ) : (
                 <>
                   <Link
-                    to="/"
+                    to={publicHomePath}
                     className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
                   >
                     Início

@@ -1,5 +1,5 @@
 import { useState, useEffect, type FocusEvent } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { z } from "zod";
 import {
@@ -26,7 +26,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { slugFromPathname } from "@/lib/agendaSlug";
+import { withAgendaPublicSearch } from "@/lib/agendaPublicLink";
 import {
   Card,
   CardContent,
@@ -123,22 +123,17 @@ export default function Login() {
   const [rememberAccount, setRememberAccount] = useState(initialPreferences.rememberAccount);
   const [loading, setLoading] = useState(false);
 
-  const { user, isAdmin, loading: authLoading, signIn, resetPassword } = useAuth();
+  const { user, loading: authLoading, signIn, resetPassword } = useAuth();
   const { settings } = useAgendaBranding();
   const { toast } = useToast();
   const navigate = useNavigate();
-  const location = useLocation();
-  const hasPublicAgendaContext = new URLSearchParams(location.search).has("empresa")
-    || new URLSearchParams(location.search).has("agenda");
-  const businessSlug = slugFromPathname(location.pathname);
-  const clientAppointmentsPath = `${businessSlug ? `/${businessSlug}` : ""}/meus-agendamentos`;
-  const postClientLoginPath = hasPublicAgendaContext ? `/agendamento${location.search}` : clientAppointmentsPath;
+  const postLoginHomePath = withAgendaPublicSearch("/", settings);
 
   useEffect(() => {
     if (!authLoading && user) {
-      navigate(isAdmin ? "/painel" : postClientLoginPath);
+      navigate(postLoginHomePath);
     }
-  }, [authLoading, user, isAdmin, navigate, postClientLoginPath]);
+  }, [authLoading, user, navigate, postLoginHomePath]);
 
   const handleBarberLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -216,7 +211,7 @@ export default function Login() {
 
     setLoading(true);
 
-    const { error, isAdmin: signedInAsAdmin } = await signIn(normalizedEmail, password);
+    const { error } = await signIn(normalizedEmail, password);
     if (error) {
       toast({
         title: "Erro ao entrar",
@@ -234,7 +229,7 @@ export default function Login() {
         clientEmail: normalizedEmail,
         barberUsername,
       });
-      navigate(signedInAsAdmin ? "/painel" : postClientLoginPath);
+      navigate(postLoginHomePath);
     }
 
     setLoading(false);

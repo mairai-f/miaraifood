@@ -18,9 +18,10 @@ export function Layout({ children, showHeader = true }: LayoutProps) {
   const { settings } = useAgendaBranding();
   const { isCurrentlyOpen } = useBusinessHours(settings.storeAccountId);
   const publicPath = (path: string) => withAgendaPublicSearch(path, settings);
+  const publicHomePath = publicPath('/');
 
   const dockItems: DockItem[] = [
-    { title: 'Início', icon: <Home className="h-5 w-5" />, href: '/' },
+    { title: 'Início', icon: <Home className="h-5 w-5" />, href: publicHomePath },
     { title: 'Agendar', icon: <Calendar className="h-5 w-5" />, href: publicPath('/agendamento') },
     { title: 'Produtos', icon: <ShoppingBag className="h-5 w-5" />, href: publicPath('/produtos') },
     ...(user ? [{ title: 'Agendamentos', icon: <ClipboardList className="h-5 w-5" />, href: publicPath('/meus-agendamentos') }] : []),

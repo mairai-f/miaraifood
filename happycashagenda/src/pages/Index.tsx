@@ -25,14 +25,10 @@ export default function Index() {
   const [isMobile, setIsMobile] = useState(isMobileViewport);
   const navigate = useNavigate();
   const location = useLocation();
-  const { user, isAdmin, loading: authLoading } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const mobileLoginPath = useMemo(() => {
     const slug = slugFromPathname(location.pathname);
     return `${slug ? `/${slug}` : ''}/login${location.search}`;
-  }, [location.pathname, location.search]);
-  const mobileAppointmentsPath = useMemo(() => {
-    const slug = slugFromPathname(location.pathname);
-    return `${slug ? `/${slug}` : ''}/meus-agendamentos${location.search}`;
   }, [location.pathname, location.search]);
 
   useEffect(() => {
@@ -48,20 +44,17 @@ export default function Index() {
     if (!isMobile || authLoading) return;
     sessionStorage.setItem('happycash_agenda_visited', 'true');
 
-    if (user) {
-      navigate(isAdmin ? '/painel' : mobileAppointmentsPath, { replace: true });
-      return;
+    if (!user) {
+      navigate(mobileLoginPath, { replace: true });
     }
-
-    navigate(mobileLoginPath, { replace: true });
-  }, [authLoading, user, isAdmin, isMobile, mobileAppointmentsPath, mobileLoginPath, navigate]);
+  }, [authLoading, user, isMobile, mobileLoginPath, navigate]);
 
   const handleSplashComplete = () => {
     setSplashDone(true);
     navigate(`/login${location.search}`);
   };
 
-  if (isMobile) {
+  if (isMobile && (authLoading || !user)) {
     return null;
   }
 
