@@ -1,5 +1,5 @@
-import { useState, useEffect, type FocusEvent } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState, useEffect, useMemo, type FocusEvent } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { z } from "zod";
 import {
@@ -26,7 +26,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { withAgendaPublicSearch } from "@/lib/agendaPublicLink";
+import { slugFromPathname } from "@/lib/agendaSlug";
 import {
   Card,
   CardContent,
@@ -127,7 +127,11 @@ export default function Login() {
   const { settings } = useAgendaBranding();
   const { toast } = useToast();
   const navigate = useNavigate();
-  const postLoginHomePath = withAgendaPublicSearch("/", settings);
+  const location = useLocation();
+  const postLoginHomePath = useMemo(() => {
+    const slug = slugFromPathname(location.pathname);
+    return `${slug ? `/${slug}` : "/"}${location.search}`;
+  }, [location.pathname, location.search]);
 
   useEffect(() => {
     if (!authLoading && user) {
