@@ -68,10 +68,20 @@ const readAgendaStorage = (key: string) => {
   return window.localStorage.getItem(key);
 };
 
+const normalizeLoginEmail = (value: string) => {
+  const normalized = value.trim().toLowerCase().replace(/\s+/g, "");
+
+  if (normalized === "demo.agenda@happycashsite.com") {
+    return "demo.agenda@happycashsite.com.br";
+  }
+
+  return normalized;
+};
+
 const getAgendaLoginPreferences = (): AgendaLoginPreferences => ({
   loginType: readAgendaStorage(agendaLoginStorageKeys.loginType) === "barber" ? "barber" : "client",
   rememberAccount: readAgendaStorage(agendaLoginStorageKeys.rememberAccount) === "1",
-  clientEmail: readAgendaStorage(agendaLoginStorageKeys.clientEmail) ?? "",
+  clientEmail: normalizeLoginEmail(readAgendaStorage(agendaLoginStorageKeys.clientEmail) ?? ""),
   barberUsername: readAgendaStorage(agendaLoginStorageKeys.barberUsername) ?? "",
 });
 
@@ -82,7 +92,7 @@ const saveAgendaLoginPreferences = (preferences: AgendaLoginPreferences) => {
   window.localStorage.setItem(agendaLoginStorageKeys.rememberAccount, preferences.rememberAccount ? "1" : "0");
 
   if (preferences.rememberAccount) {
-    const clientEmail = preferences.clientEmail.trim();
+    const clientEmail = normalizeLoginEmail(preferences.clientEmail);
     const barberUsername = preferences.barberUsername.trim();
 
     if (clientEmail) {
@@ -186,7 +196,8 @@ export default function Login() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    const result = loginSchema.safeParse({ email, password });
+    const normalizedEmail = normalizeLoginEmail(email);
+    const result = loginSchema.safeParse({ email: normalizedEmail, password });
     if (!result.success) {
       toast({
         title: "Dados inválidos",
@@ -196,9 +207,13 @@ export default function Login() {
       return;
     }
 
+    if (normalizedEmail !== email) {
+      setEmail(normalizedEmail);
+    }
+
     setLoading(true);
 
-    const { error } = await signIn(email, password);
+    const { error } = await signIn(normalizedEmail, password);
     if (error) {
       toast({
         title: "Erro ao entrar",
@@ -213,7 +228,7 @@ export default function Login() {
       saveAgendaLoginPreferences({
         loginType: "client",
         rememberAccount,
-        clientEmail: email,
+        clientEmail: normalizedEmail,
         barberUsername,
       });
       navigate(postLoginPath);
@@ -223,7 +238,9 @@ export default function Login() {
   };
 
   const handleForgotPassword = () => {
-    setForgotEmail(email);
+    const normalizedEmail = normalizeLoginEmail(email);
+    setEmail(normalizedEmail);
+    setForgotEmail(normalizedEmail);
     setForgotOpen(true);
   };
 
@@ -237,7 +254,8 @@ export default function Login() {
   const handleSendReset = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    const emailResult = emailSchema.safeParse(forgotEmail);
+    const normalizedEmail = normalizeLoginEmail(forgotEmail);
+    const emailResult = emailSchema.safeParse(normalizedEmail);
     if (!emailResult.success) {
       toast({
         title: "Email inválido",
@@ -247,8 +265,12 @@ export default function Login() {
       return;
     }
 
+    if (normalizedEmail !== forgotEmail) {
+      setForgotEmail(normalizedEmail);
+    }
+
     setResetLoading(true);
-    const { error } = await resetPassword(forgotEmail);
+    const { error } = await resetPassword(normalizedEmail);
     setResetLoading(false);
 
     if (error) {
@@ -330,6 +352,11 @@ export default function Login() {
                         <Input
                           id="email"
                           type="email"
+                          inputMode="email"
+                          autoComplete="email"
+                          autoCapitalize="none"
+                          autoCorrect="off"
+                          spellCheck={false}
                           placeholder="seu@email.com"
                           value={email}
                           onChange={(e) => setEmail(e.target.value)}
@@ -405,6 +432,11 @@ export default function Login() {
                             <Input
                               id="forgotEmail"
                               type="email"
+                              inputMode="email"
+                              autoComplete="email"
+                              autoCapitalize="none"
+                              autoCorrect="off"
+                              spellCheck={false}
                               placeholder="seu@email.com"
                               value={forgotEmail}
                               onChange={(e) => setForgotEmail(e.target.value)}
