@@ -166,6 +166,9 @@ type AppointmentServiceRpcRow = {
   service_duration?: number | string | null;
 };
 
+const isMissingColumnError = (message: string) =>
+  /column|schema cache|does not exist|PGRST204/i.test(message);
+
 // Cores para gráficos
 const CHART_COLORS = ['hsl(220, 60%, 35%)', 'hsl(38, 80%, 55%)', 'hsl(160, 60%, 45%)', 'hsl(280, 60%, 50%)'];
 
@@ -454,9 +457,23 @@ export default function AdminDashboard() {
 
   const fetchAppointments = async () => {
     if (!settings.storeAccountId) return;
-    const { data } = await supabase
-      .from('appointments')
-      .select(`
+
+    const appointmentsSelect = `
+        id,
+        client_name,
+        client_phone,
+        appointment_date,
+        appointment_time,
+        created_at,
+        status,
+        payment_method,
+        payment_status,
+        barber_id,
+        service_id,
+        barber:barbers(id, name, phone),
+        service:services(id, name, price, duration_minutes)
+      `;
+    const appointmentsSelectWithType = `
         id,
         client_name,
         client_phone,
@@ -471,10 +488,28 @@ export default function AdminDashboard() {
         service_id,
         barber:barbers(id, name, phone),
         service:services(id, name, price, duration_minutes)
-      `)
-      .eq('store_account_id', settings.storeAccountId)
-      .order('appointment_date', { ascending: false })
-      .order('appointment_time', { ascending: false });
+      `;
+
+    const queryAppointments = (select: string) =>
+      supabase
+        .from('appointments')
+        .select(select)
+        .eq('store_account_id', settings.storeAccountId)
+        .order('appointment_date', { ascending: false })
+        .order('appointment_time', { ascending: false });
+
+    let { data, error } = await queryAppointments(appointmentsSelectWithType);
+
+    if (error && isMissingColumnError(error.message)) {
+      const fallback = await queryAppointments(appointmentsSelect);
+      data = fallback.data;
+      error = fallback.error;
+    }
+
+    if (error) {
+      console.error('Erro ao buscar agendamentos:', error.message);
+      return;
+    }
 
     if (data) {
       // Buscar serviços extras via RPC (evita dependência de FK e mantém a soma correta)
@@ -500,6 +535,7 @@ export default function AdminDashboard() {
 
       const formatted = data.map((apt) => ({
         ...apt,
+        appointment_type: (apt as Partial<Appointment>).appointment_type ?? 'appointment',
         barber: apt.barber as unknown as { name: string; id?: string },
         service: apt.service as unknown as { name: string; price: number; id?: string; duration_minutes?: number },
         extraServices: extraServicesMap[apt.id] || [],
@@ -1574,7 +1610,7 @@ export default function AdminDashboard() {
                             <div className="flex items-start justify-between gap-3">
                               <div className="min-w-0">
                                 <p className="text-sm font-medium">
-                                  {format(new Date(apt.appointment_date), "dd/MM/yyyy")} • {apt.appointment_time.slice(0, 5)}
+                                  {format(parseLocalDate(apt.appointment_date), "dd/MM/yyyy")} • {apt.appointment_time.slice(0, 5)}
                                 </p>
                                 <p className="text-sm mt-1 truncate"><span className="font-medium">{apt.client_name}</span></p>
                                 <p className="text-xs text-muted-foreground mt-1">
@@ -1670,7 +1706,7 @@ export default function AdminDashboard() {
                               <TableRow key={apt.id} className={apt.status === 'cancelled' ? 'opacity-60' : ''}>
                                 <TableCell>
                                   <div>
-                                    <p className="font-medium text-xs sm:text-sm">{format(new Date(apt.appointment_date), "dd/MM/yyyy")}</p>
+                                    <p className="font-medium text-xs sm:text-sm">{format(parseLocalDate(apt.appointment_date), "dd/MM/yyyy")}</p>
                                     <p className="text-xs sm:text-sm text-muted-foreground">{apt.appointment_time.slice(0, 5)}</p>
                                   </div>
                                 </TableCell>

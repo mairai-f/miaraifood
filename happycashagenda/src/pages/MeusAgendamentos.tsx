@@ -519,7 +519,7 @@ export default function MyAppointments() {
                                 <div className="flex items-center gap-4 text-sm flex-wrap">
                                   <span className="flex items-center gap-1.5">
                                     <Calendar className="w-4 h-4 text-muted-foreground" />
-                                    {format(new Date(apt.appointment_date), "dd/MM/yyyy")}
+                                    {format(parseLocalDate(apt.appointment_date), "dd/MM/yyyy")}
                                   </span>
                                   <span className="flex items-center gap-1.5">
                                     <Clock className="w-4 h-4 text-muted-foreground" />
