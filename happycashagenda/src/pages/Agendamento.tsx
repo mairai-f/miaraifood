@@ -86,7 +86,7 @@ export default function Booking() {
   const [pixDialogOpen, setPixDialogOpen] = useState(false);
   const [waitingQueue, setWaitingQueue] = useState<WaitingQueueItem[]>([]);
 
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const { settings } = useAgendaBranding();
   const { getAvailableTimeSlots, getAllBusinessSlots, getHoursForDay, canBookServiceAtTime } = useBusinessHours(settings.storeAccountId);
   const { toast } = useToast();
@@ -99,7 +99,7 @@ export default function Booking() {
 
   // Redireciona para login se não estiver autenticado
   useEffect(() => {
-    if (!user) {
+    if (!authLoading && !user) {
       toast({
         title: 'Faça login para agendar',
         description: 'Você precisa estar logado para agendar um horário.',
@@ -107,7 +107,7 @@ export default function Booking() {
       });
       navigate(publicLoginPath);
     }
-  }, [navigate, publicLoginPath, toast, user]);
+  }, [authLoading, navigate, publicLoginPath, toast, user]);
 
   useEffect(() => {
     if (settings.serviceMode === 'walk_in') {
@@ -509,6 +509,16 @@ export default function Booking() {
     const dayHours = getHoursForDay(date.getDay());
     return !dayHours?.is_open;
   };
+
+  if (authLoading) {
+    return (
+      <Layout>
+        <div className="flex min-h-[60vh] items-center justify-center">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        </div>
+      </Layout>
+    );
+  }
 
   if (!user) {
     return null; // Será redirecionado pelo useEffect
