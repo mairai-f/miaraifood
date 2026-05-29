@@ -3,7 +3,7 @@ import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import { Briefcase, Star, ChevronLeft, ChevronRight } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useAgendaBranding } from '@/hooks/useAgendaBranding';
@@ -224,6 +224,9 @@ export function BarberGallery() {
         <DialogContent className="sm:max-w-md max-w-[90vw]">
           <DialogHeader>
             <DialogTitle className="font-serif text-xl md:text-2xl">{selected?.name}</DialogTitle>
+            <DialogDescription>
+              Perfil e especialidades de {selected?.name || settings.professionalLabel.toLowerCase()}.
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             {selected?.photo_url && (

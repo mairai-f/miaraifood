@@ -106,8 +106,11 @@ export function SplashScreen({ onComplete }: SplashScreenProps) {
 
   useEffect(() => {
     if (!showButton || !containerRef.current) return;
+    const enterButton = containerRef.current.querySelector(".splash-enter-btn");
+    if (!enterButton) return;
+
     gsap.fromTo(
-      containerRef.current.querySelector(".splash-enter-btn"),
+      enterButton,
       { opacity: 0, y: 16 },
       { opacity: 1, y: 0, duration: 0.5, ease: "power3.out" },
     );
@@ -123,16 +126,23 @@ export function SplashScreen({ onComplete }: SplashScreenProps) {
       return;
     }
 
+    const splashContent = container.querySelector(".splash-content");
+    const splashWipe = container.querySelector(".splash-wipe");
+    if (!splashContent || !splashWipe) {
+      completeSplash();
+      return;
+    }
+
     gsap
       .timeline({ onComplete: completeSplash })
-      .to(".splash-content", {
+      .to(splashContent, {
         y: -20,
         opacity: 0,
         duration: 0.3,
         ease: "power2.in",
       })
       .to(
-        ".splash-wipe",
+        splashWipe,
         {
           scaleX: 1,
           duration: 0.52,

@@ -83,7 +83,7 @@ import {
   ChartTooltip,
   ChartTooltipContent,
 } from '@/components/ui/chart';
-import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, LineChart, Line, PieChart, Pie, Cell } from 'recharts';
 
 interface ExtraService {
   id: string;
@@ -1311,14 +1311,12 @@ export default function AdminDashboard() {
                   </CardHeader>
                   <CardContent className="p-2 sm:p-4">
                     <ChartContainer config={chartConfig} className="h-[140px] sm:h-[200px] w-full">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={getLast7DaysData()} margin={{ left: 0, right: 5, top: 5, bottom: 5 }}>
-                          <XAxis dataKey="name" tick={{ fontSize: 9 }} tickLine={false} axisLine={false} tickMargin={5} />
-                          <YAxis tick={{ fontSize: 9 }} tickLine={false} axisLine={false} width={25} />
-                          <ChartTooltip content={<ChartTooltipContent />} />
-                          <Bar dataKey="agendamentos" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
-                        </BarChart>
-                      </ResponsiveContainer>
+                      <BarChart data={getLast7DaysData()} margin={{ left: 0, right: 5, top: 5, bottom: 5 }}>
+                        <XAxis dataKey="name" tick={{ fontSize: 9 }} tickLine={false} axisLine={false} tickMargin={5} />
+                        <YAxis tick={{ fontSize: 9 }} tickLine={false} axisLine={false} width={25} />
+                        <ChartTooltip content={<ChartTooltipContent />} />
+                        <Bar dataKey="agendamentos" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+                      </BarChart>
                     </ChartContainer>
                   </CardContent>
                 </Card>
@@ -1335,24 +1333,22 @@ export default function AdminDashboard() {
                     ) : (
                       <div className="flex items-center gap-2 sm:gap-4">
                         <ChartContainer config={chartConfig} className="h-[120px] sm:h-[160px] w-[100px] sm:w-[140px] shrink-0">
-                          <ResponsiveContainer width="100%" height="100%">
-                            <PieChart>
-                              <Pie
-                                data={getServiceDistribution()}
-                                cx="50%"
-                                cy="50%"
-                                innerRadius={25}
-                                outerRadius={45}
-                                paddingAngle={3}
-                                dataKey="value"
-                              >
-                                {getServiceDistribution().map((_, index) => (
-                                  <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
-                                ))}
-                              </Pie>
-                              <ChartTooltip content={<ChartTooltipContent />} />
-                            </PieChart>
-                          </ResponsiveContainer>
+                          <PieChart>
+                            <Pie
+                              data={getServiceDistribution()}
+                              cx="50%"
+                              cy="50%"
+                              innerRadius={25}
+                              outerRadius={45}
+                              paddingAngle={3}
+                              dataKey="value"
+                            >
+                              {getServiceDistribution().map((_, index) => (
+                                <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                              ))}
+                            </Pie>
+                            <ChartTooltip content={<ChartTooltipContent />} />
+                          </PieChart>
                         </ChartContainer>
                         <div className="flex-1 space-y-1 min-w-0">
                           {getServiceDistribution().slice(0, 4).map((item, index) => (
@@ -1379,14 +1375,12 @@ export default function AdminDashboard() {
                 </CardHeader>
                 <CardContent className="p-2 sm:p-4">
                   <ChartContainer config={chartConfig} className="h-[120px] sm:h-[180px] w-full">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={getBarberPerformance()} layout="vertical" margin={{ left: 0, right: 10, top: 5, bottom: 5 }}>
-                        <XAxis type="number" tick={{ fontSize: 9 }} tickLine={false} axisLine={false} />
-                        <YAxis type="category" dataKey="name" tick={{ fontSize: 9 }} width={70} tickLine={false} axisLine={false} tickMargin={5} />
-                        <ChartTooltip content={<ChartTooltipContent />} />
-                        <Bar dataKey="agendamentos" fill="hsl(var(--primary))" radius={[0, 4, 4, 0]} />
-                      </BarChart>
-                    </ResponsiveContainer>
+                    <BarChart data={getBarberPerformance()} layout="vertical" margin={{ left: 0, right: 10, top: 5, bottom: 5 }}>
+                      <XAxis type="number" tick={{ fontSize: 9 }} tickLine={false} axisLine={false} />
+                      <YAxis type="category" dataKey="name" tick={{ fontSize: 9 }} width={70} tickLine={false} axisLine={false} tickMargin={5} />
+                      <ChartTooltip content={<ChartTooltipContent />} />
+                      <Bar dataKey="agendamentos" fill="hsl(var(--primary))" radius={[0, 4, 4, 0]} />
+                    </BarChart>
                   </ChartContainer>
                 </CardContent>
               </Card>
@@ -2249,7 +2243,13 @@ export default function AdminDashboard() {
               Preencha os dados de {settings.professionalLabel.toLowerCase()}
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-3">
+          <form
+            className="space-y-3"
+            onSubmit={(event) => {
+              event.preventDefault();
+              void saveBarber();
+            }}
+          >
             {/* Photo Upload - Compact */}
             <div className="flex items-center gap-3">
               <div className="w-16 h-16 rounded-full bg-secondary flex items-center justify-center overflow-hidden border-2 border-dashed border-border shrink-0">
@@ -2326,6 +2326,10 @@ export default function AdminDashboard() {
                   <Input
                     value={barberUsername}
                     onChange={(e) => setBarberUsername(e.target.value)}
+                    autoComplete="username"
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    spellCheck={false}
                     placeholder="usuario"
                     className="h-9 text-sm"
                   />
@@ -2337,6 +2341,7 @@ export default function AdminDashboard() {
                     onChange={(e) => setBarberPassword(e.target.value)}
                     placeholder="••••••••"
                     type="password"
+                    autoComplete="new-password"
                     className="h-9 text-sm"
                   />
                 </div>
@@ -2350,15 +2355,15 @@ export default function AdminDashboard() {
                 </p>
               )}
             </div>
-          </div>
-          <DialogFooter className="flex-row gap-2 sm:justify-end pt-2">
-            <Button variant="outline" onClick={() => setShowBarberDialog(false)} size="sm" className="flex-1 sm:flex-none">
-              Cancelar
-            </Button>
-            <Button onClick={saveBarber} disabled={submitting} size="sm" className="flex-1 sm:flex-none">
-              {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Salvar'}
-            </Button>
-          </DialogFooter>
+            <DialogFooter className="flex-row gap-2 sm:justify-end pt-2">
+              <Button type="button" variant="outline" onClick={() => setShowBarberDialog(false)} size="sm" className="flex-1 sm:flex-none">
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={submitting} size="sm" className="flex-1 sm:flex-none">
+                {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Salvar'}
+              </Button>
+            </DialogFooter>
+          </form>
         </DialogContent>
       </Dialog>
 

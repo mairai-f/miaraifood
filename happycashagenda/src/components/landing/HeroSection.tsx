@@ -26,23 +26,28 @@ export function HeroSection() {
   useEffect(() => {
     const ctx = gsap.context(() => {
       const tl = gsap.timeline({ defaults: { ease: 'power3.out' } });
+      const heroImageElement = sectionRef.current?.querySelector('.hero-image');
+      const heroContentElement = sectionRef.current?.querySelector('.hero-content');
 
       tl.fromTo('.hero-badge', { opacity: 0, y: 40, scale: 0.9 }, { opacity: 1, y: 0, scale: 1, duration: 0.8 })
         .fromTo('.hero-title', { opacity: 0, y: 60 }, { opacity: 1, y: 0, duration: 1 }, '-=0.4')
         .fromTo('.hero-subtitle', { opacity: 0, y: 40 }, { opacity: 1, y: 0, duration: 0.8 }, '-=0.5')
         .fromTo('.hero-cta', { opacity: 0, y: 30 }, { opacity: 1, y: 0, duration: 0.7 }, '-=0.4')
-        .fromTo('.hero-nav-pills', { opacity: 0, y: 20 }, { opacity: 1, y: 0, duration: 0.6 }, '-=0.3')
-        .fromTo('.hero-status', { opacity: 0 }, { opacity: 1, duration: 0.6 }, '-=0.3');
+        .fromTo('.hero-nav-pills', { opacity: 0, y: 20 }, { opacity: 1, y: 0, duration: 0.6 }, '-=0.3');
 
-      gsap.to('.hero-image', {
-        yPercent: 20, ease: 'none',
-        scrollTrigger: { trigger: sectionRef.current, start: 'top top', end: 'bottom top', scrub: true },
-      });
+      if (heroImageElement) {
+        gsap.to(heroImageElement, {
+          yPercent: 20, ease: 'none',
+          scrollTrigger: { trigger: sectionRef.current, start: 'top top', end: 'bottom top', scrub: true },
+        });
+      }
 
-      gsap.to('.hero-content', {
-        y: -80, opacity: 0, ease: 'none',
-        scrollTrigger: { trigger: sectionRef.current, start: '30% top', end: 'bottom top', scrub: true },
-      });
+      if (heroContentElement) {
+        gsap.to(heroContentElement, {
+          y: -80, opacity: 0, ease: 'none',
+          scrollTrigger: { trigger: sectionRef.current, start: '30% top', end: 'bottom top', scrub: true },
+        });
+      }
     }, sectionRef);
 
     return () => ctx.revert();

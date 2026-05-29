@@ -19,6 +19,7 @@ import { supabase } from '@/integrations/supabase/client';
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -455,6 +456,9 @@ export function LoyaltyTab({ isAdmin, clientName }: LoyaltyTabProps) {
         <DialogContent className="max-w-[95vw] sm:max-w-md">
           <DialogHeader>
             <DialogTitle>{editingProgram ? 'Editar Meta' : 'Nova Meta de Fidelidade'}</DialogTitle>
+            <DialogDescription>
+              Configure a meta, o serviço relacionado e a recompensa para clientes fiéis.
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div>
@@ -505,6 +509,9 @@ export function LoyaltyTab({ isAdmin, clientName }: LoyaltyTabProps) {
         <DialogContent className="max-w-[95vw] sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Adicionar Cliente à Meta</DialogTitle>
+            <DialogDescription>
+              Escolha uma meta e selecione um cliente cadastrado para acompanhar o progresso.
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div>

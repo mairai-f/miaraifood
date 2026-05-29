@@ -17,6 +17,8 @@ export function SectionNav() {
   const [socialOpen, setSocialOpen] = useState(false);
 
   useEffect(() => {
+    if (!document.getElementById("equipe")) return;
+
     const triggers: ScrollTrigger[] = [];
 
     // Show nav after hero

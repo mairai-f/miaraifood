@@ -495,6 +495,7 @@ export function Header() {
               <Input
                 id="newPassword"
                 type="password"
+                autoComplete="new-password"
                 placeholder="••••••••"
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
@@ -505,6 +506,7 @@ export function Header() {
               <Input
                 id="confirmPassword"
                 type="password"
+                autoComplete="new-password"
                 placeholder="••••••••"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}

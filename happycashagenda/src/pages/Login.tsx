@@ -398,6 +398,7 @@ export default function Login() {
                       <Label htmlFor="password">Senha</Label>
                       <PasswordInput
                         id="password"
+                        autoComplete="current-password"
                         placeholder="••••••••"
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
@@ -515,6 +516,10 @@ export default function Login() {
                         <Input
                           id="barberUsername"
                           type="text"
+                          autoComplete="username"
+                          autoCapitalize="none"
+                          autoCorrect="off"
+                          spellCheck={false}
                           placeholder="seu.usuario"
                           value={barberUsername}
                           onChange={(e) => setBarberUsername(e.target.value)}
@@ -528,6 +533,7 @@ export default function Login() {
                       <Label htmlFor="barberPassword">Senha</Label>
                       <PasswordInput
                         id="barberPassword"
+                        autoComplete="current-password"
                         placeholder="••••••••"
                         value={barberPassword}
                         onChange={(e) => setBarberPassword(e.target.value)}
