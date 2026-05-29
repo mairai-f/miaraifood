@@ -109,6 +109,11 @@ export function Header() {
   }, [user]);
 
   const handleSignOut = async () => {
+    sessionStorage.removeItem("barber_id");
+    sessionStorage.removeItem("barber_name");
+    sessionStorage.removeItem("barber_session_token");
+    sessionStorage.removeItem("barber_business_slug");
+    setBarberSessionName(null);
     await signOut();
     navigate("/");
   };
@@ -444,6 +449,8 @@ export function Header() {
                       onClick={() => {
                         sessionStorage.removeItem("barber_id");
                         sessionStorage.removeItem("barber_name");
+                        sessionStorage.removeItem("barber_session_token");
+                        sessionStorage.removeItem("barber_business_slug");
                         setBarberSessionName(null);
                         navigate("/");
                       }}

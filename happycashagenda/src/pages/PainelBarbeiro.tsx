@@ -18,7 +18,7 @@
  */
 
 import { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
   Calendar, Clock, TrendingUp, Loader2, DollarSign,
@@ -131,6 +131,15 @@ type BookedSlotRpcRow = {
 
 const CHART_COLORS = ['hsl(220, 60%, 35%)', 'hsl(38, 80%, 55%)', 'hsl(160, 60%, 45%)', 'hsl(280, 60%, 50%)', 'hsl(350, 60%, 50%)'];
 
+const clearBarberSession = () => {
+  sessionStorage.removeItem('barber_id');
+  sessionStorage.removeItem('barber_name');
+  sessionStorage.removeItem('barber_session_token');
+  sessionStorage.removeItem('barber_business_slug');
+};
+
+const getBarberSessionToken = () => sessionStorage.getItem('barber_session_token') || '';
+
 export default function BarberDashboard() {
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [barberData, setBarberData] = useState<BarberData | null>(null);
@@ -163,6 +172,7 @@ export default function BarberDashboard() {
   const { toast } = useToast();
   const { requestPermission, sendNotification, permission } = usePushNotifications();
   const navigate = useNavigate();
+  const location = useLocation();
   const { businessHours } = useBusinessHours(settings.storeAccountId);
   const previousAppointmentsRef = useRef<Appointment[]>([]);
 
@@ -172,16 +182,33 @@ export default function BarberDashboard() {
     // Check for barber session from login
     const sessionBarberId = sessionStorage.getItem('barber_id');
     const sessionBarberName = sessionStorage.getItem('barber_name');
+    const sessionBarberToken = getBarberSessionToken();
+    const sessionBusinessSlug = sessionStorage.getItem('barber_business_slug');
 
-    if (sessionBarberId && sessionBarberName) {
+    if (
+      !settings.storeAccountId &&
+      sessionBarberId &&
+      sessionBarberName &&
+      sessionBarberToken &&
+      sessionBusinessSlug &&
+      !new URLSearchParams(location.search).has('empresa')
+    ) {
+      navigate(`/painel-profissional?empresa=${encodeURIComponent(sessionBusinessSlug)}`, { replace: true });
+      return;
+    }
+
+    if (sessionBarberId && sessionBarberName && sessionBarberToken) {
       setBarberIdFromSession(sessionBarberId);
       loadBarberBySession(sessionBarberId);
+    } else if (sessionBarberId || sessionBarberName || sessionBarberToken) {
+      clearBarberSession();
+      navigate('/login');
     } else if (!authLoading && !user) {
       navigate('/login');
     } else if (user) {
       checkBarberAccess();
     }
-  }, [settings.storeAccountId, user, authLoading, navigate]);
+  }, [settings.storeAccountId, user, authLoading, navigate, location.search]);
 
   // Request notification permission on mount
   useEffect(() => {
@@ -329,6 +356,19 @@ export default function BarberDashboard() {
   }, [barberData?.id, barberIdFromSession]);
 
   const loadBarberBySession = async (barberId: string) => {
+    const sessionToken = getBarberSessionToken();
+    const { data: validSession, error: sessionError } = await supabase.rpc('verify_barber_session', {
+      p_barber_id: barberId,
+      p_session_token: sessionToken,
+    });
+
+    if (sessionError || !validSession) {
+      clearBarberSession();
+      navigate('/login');
+      setLoading(false);
+      return;
+    }
+
     const { data: barber } = await supabase
       .from('barbers')
       .select('id, name, commission, photo_url')
@@ -341,8 +381,7 @@ export default function BarberDashboard() {
       setIsBarber(true);
       await Promise.all([fetchAppointments(barber.id), fetchServices()]);
     } else {
-      sessionStorage.removeItem('barber_id');
-      sessionStorage.removeItem('barber_name');
+      clearBarberSession();
       navigate('/login');
     }
     setLoading(false);
@@ -386,7 +425,10 @@ export default function BarberDashboard() {
   const fetchAppointments = async (barberId: string) => {
     // Usar RPC para buscar agendamentos (bypassa RLS para barbeiros logados via sessão)
     const { data, error } = await supabase
-      .rpc('get_barber_appointments', { p_barber_id: barberId });
+      .rpc('get_barber_appointments', {
+        p_barber_id: barberId,
+        p_session_token: getBarberSessionToken(),
+      });
 
     if (error) {
       console.error('Erro ao buscar agendamentos:', error);
@@ -420,6 +462,7 @@ export default function BarberDashboard() {
         const { data: extraData } = await supabase.rpc('get_barber_appointment_extra_services', {
           p_barber_id: barberId,
           p_appointment_ids: appointmentIds,
+          p_session_token: getBarberSessionToken(),
         });
 
         if (extraData) {
@@ -622,7 +665,8 @@ export default function BarberDashboard() {
     // Usar RPC para garantir que funciona mesmo com barbeiro logado via sessão
     const { error } = await supabase.rpc('barber_cancel_appointment', {
       p_barber_id: barberData.id,
-      p_appointment_id: appointment.id
+      p_appointment_id: appointment.id,
+      p_session_token: getBarberSessionToken(),
     });
 
     if (error) {
@@ -648,19 +692,15 @@ export default function BarberDashboard() {
 
     setSubmitting(true);
 
-    const { error } = await supabase
-      .from('appointments')
-      .insert({
-        client_name: newClientName,
-        client_phone: newClientPhone || null,
-        barber_id: barberData!.id,
-        service_id: selectedService,
-        appointment_date: selectedDate,
-        appointment_time: selectedTime,
-        status: 'scheduled',
-        payment_method: 'local',
-        payment_status: 'pending'
-      });
+    const { error } = await supabase.rpc('create_barber_appointment', {
+      p_barber_id: barberData!.id,
+      p_session_token: getBarberSessionToken(),
+      p_service_id: selectedService,
+      p_client_name: newClientName,
+      p_client_phone: newClientPhone || '',
+      p_appointment_date: selectedDate,
+      p_appointment_time: selectedTime,
+    });
 
     if (error) {
       toast({ title: 'Erro', description: 'Não foi possível criar agendamento.', variant: 'destructive' });
@@ -702,7 +742,8 @@ export default function BarberDashboard() {
     const { error } = await supabase.rpc('add_service_to_appointment', {
       p_barber_id: barberData.id,
       p_appointment_id: selectedAppointment.id,
-      p_service_id: additionalServiceId
+      p_service_id: additionalServiceId,
+      p_session_token: getBarberSessionToken(),
     });
 
     if (error) {
@@ -778,18 +819,23 @@ export default function BarberDashboard() {
                 </div>
               </div>
             </div>
+            <div className="flex items-center gap-2">
+              <Button onClick={() => setShowNewAppointmentDialog(true)} className="gap-2">
+                <Plus className="w-4 h-4" />
+                Novo Agendamento
+              </Button>
             {barberIdFromSession && (
               <Button
                 variant="outline"
                 onClick={() => {
-                  sessionStorage.removeItem('barber_id');
-                  sessionStorage.removeItem('barber_name');
+                  clearBarberSession();
                   navigate('/');
                 }}
               >
                 Sair
               </Button>
             )}
+            </div>
           </div>
 
           {/* Stats Cards - Compactos */}

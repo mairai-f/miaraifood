@@ -175,10 +175,32 @@ export default function Login() {
     }
 
     const barberData = data[0];
+    const { data: barberContext } = await supabase
+      .from("barbers")
+      .select("store_account_id")
+      .eq("id", barberData.barber_id)
+      .maybeSingle();
+
+    let barberBusinessSlug = "";
+    if (barberContext?.store_account_id) {
+      const { data: businessSettings } = await supabase
+        .from("agenda_business_settings")
+        .select("slug")
+        .eq("store_account_id", barberContext.store_account_id)
+        .maybeSingle();
+
+      barberBusinessSlug = businessSettings?.slug || "";
+    }
 
     // Store barber info in session storage for the dashboard
     sessionStorage.setItem("barber_id", barberData.barber_id);
     sessionStorage.setItem("barber_name", barberData.barber_name);
+    sessionStorage.setItem("barber_session_token", barberData.session_token);
+    if (barberBusinessSlug) {
+      sessionStorage.setItem("barber_business_slug", barberBusinessSlug);
+    } else {
+      sessionStorage.removeItem("barber_business_slug");
+    }
     saveAgendaLoginPreferences({
       loginType: "barber",
       rememberAccount,
@@ -191,7 +213,11 @@ export default function Login() {
       description: "Redirecionando para seu painel...",
     });
 
-    navigate("/painel-profissional");
+    navigate(
+      barberBusinessSlug
+        ? `/painel-profissional?empresa=${encodeURIComponent(barberBusinessSlug)}`
+        : "/painel-profissional",
+    );
     setLoading(false);
   };
 

@@ -712,6 +712,7 @@ export type Database = {
           p_appointment_id: string
           p_barber_id: string
           p_service_id: string
+          p_session_token?: string
         }
         Returns: boolean
       }
@@ -734,12 +735,29 @@ export type Database = {
         Returns: {
           barber_id: string
           barber_name: string
+          session_token: string
           user_id: string
         }[]
       }
       barber_cancel_appointment: {
-        Args: { p_appointment_id: string; p_barber_id: string }
+        Args: {
+          p_appointment_id: string
+          p_barber_id: string
+          p_session_token?: string
+        }
         Returns: boolean
+      }
+      create_barber_appointment: {
+        Args: {
+          p_appointment_date: string
+          p_appointment_time: string
+          p_barber_id: string
+          p_client_name: string
+          p_client_phone: string
+          p_service_id: string
+          p_session_token: string
+        }
+        Returns: string
       }
       create_appointment_with_services: {
         Args: {
@@ -776,7 +794,11 @@ export type Database = {
         }[]
       }
       get_barber_appointment_extra_services: {
-        Args: { p_appointment_ids: string[]; p_barber_id: string }
+        Args: {
+          p_appointment_ids: string[]
+          p_barber_id: string
+          p_session_token?: string
+        }
         Returns: {
           appointment_id: string
           service_duration: number
@@ -786,7 +808,7 @@ export type Database = {
         }[]
       }
       get_barber_appointments: {
-        Args: { p_barber_id: string }
+        Args: { p_barber_id: string; p_session_token?: string }
         Returns: {
           appointment_date: string
           appointment_time: string
@@ -818,6 +840,10 @@ export type Database = {
       }
       set_barber_password: {
         Args: { p_barber_id: string; p_password: string; p_username: string }
+        Returns: boolean
+      }
+      verify_barber_session: {
+        Args: { p_barber_id: string; p_session_token: string }
         Returns: boolean
       }
     }
