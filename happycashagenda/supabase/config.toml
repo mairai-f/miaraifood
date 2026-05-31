@@ -5,15 +5,39 @@ project_id = "ymffclntmynwfdiarlaw"
 
 [auth]
 enabled = true
-site_url = "https://agenda.happycashsite.com.br"
+site_url = "https://www.happycashsite.com.br"
 additional_redirect_urls = [
+  "https://www.happycashsite.com.br/**",
+  "https://app.happycashsite.com.br/**",
+  "https://food.happycashsite.com.br/**",
   "https://agenda.happycashsite.com.br/**",
   "http://localhost:8080/**",
+  "http://localhost:8081/**",
+  "http://localhost:8082/**",
   "http://127.0.0.1:8080/**",
+  "http://127.0.0.1:8081/**",
+  "http://127.0.0.1:8082/**",
 ]
 
+[auth.mfa.totp]
+enroll_enabled = true
+verify_enabled = true
+
+[auth.email]
+enable_signup = true
+double_confirm_changes = true
+enable_confirmations = true
+secure_password_change = false
+max_frequency = "1m0s"
+otp_length = 8
+otp_expiry = 3600
+
+[auth.external.apple]
+skip_nonce_check = true
+email_optional = true
+
 [auth.external.google]
-enabled = false
+enabled = true
 client_id = "env(SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_ID)"
 secret = "env(SUPABASE_AUTH_EXTERNAL_GOOGLE_SECRET)"
 

@@ -6,12 +6,22 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import logo from "@/assets/logo-happycash.webp";
 
+const resolveSafeNextPath = (value: string | null) => {
+  if (!value || !value.startsWith("/") || value.startsWith("//")) return null;
+  return value;
+};
+
 const AuthCallback = () => {
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
   const navigate = useNavigate();
 
   useEffect(() => {
     const finishAuth = async () => {
+      const searchParams = new URLSearchParams(window.location.search);
+      const nextPath = resolveSafeNextPath(searchParams.get("next"));
+      const dashboardParams = new URLSearchParams(searchParams);
+      dashboardParams.delete("next");
+      const dashboardSearch = dashboardParams.toString() ? `?${dashboardParams.toString()}` : "";
       const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""));
       const accessToken = hashParams.get("access_token");
       const refreshToken = hashParams.get("refresh_token");
@@ -28,11 +38,11 @@ const AuthCallback = () => {
         }
       }
 
-      const nextSearch = window.location.search || "?plan=demo";
-      window.history.replaceState(null, "", `${window.location.pathname}${nextSearch}`);
+      const { data: { session } } = await supabase.auth.getSession();
+      window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}`);
 
-      if (accessToken && refreshToken) {
-        navigate(`/dashboard${nextSearch}`, { replace: true });
+      if (session?.user) {
+        navigate(nextPath || `/dashboard${dashboardSearch}`, { replace: true });
         return;
       }
 
@@ -77,9 +87,14 @@ const AuthCallback = () => {
                   </Link>
                 </Button>
                 <Button asChild className="h-12 bg-primary text-primary-foreground font-semibold">
-                  <Link to={`/dashboard${window.location.search || "?plan=demo"}`}>
+                  <Link to={resolveSafeNextPath(new URLSearchParams(window.location.search).get("next")) || `/dashboard${(() => {
+                    const params = new URLSearchParams(window.location.search);
+                    params.delete("next");
+                    const query = params.toString();
+                    return query ? `?${query}` : "";
+                  })()}`}>
                     <ExternalLink size={18} className="mr-2" />
-                    Abrir central da conta
+                    Abrir sua conta
                   </Link>
                 </Button>
               </div>

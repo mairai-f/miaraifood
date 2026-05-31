@@ -2,7 +2,7 @@ import { type FormEvent, useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { Eye, EyeOff, Loader2, LogIn, Mail, UserRound, X } from "lucide-react";
 import foodLogo from "@/assets/happycashfood.webp";
-import { requestFoodPasswordReset, signInFoodAdmin } from "@/lib/foodAuth";
+import { requestFoodPasswordReset, signInFoodAdmin, signInFoodAdminWithGoogle } from "@/lib/foodAuth";
 import type { FoodUser } from "@/types";
 import { getPublicErrorMessage } from "../../../shared/security/redaction";
 
@@ -79,6 +79,7 @@ export function LoginScreen({ users, loginPins, onLogin }: LoginScreenProps) {
   const [showPin, setShowPin] = useState(false);
   const [rememberAccount, setRememberAccount] = useState(initialPreferences.rememberAccount);
   const [submitting, setSubmitting] = useState(false);
+  const [oauthSubmitting, setOauthSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [resetOpen, setResetOpen] = useState(false);
   const [resetEmail, setResetEmail] = useState("");
@@ -157,6 +158,25 @@ export function LoginScreen({ users, loginPins, onLogin }: LoginScreenProps) {
       setResetFeedback(getPublicErrorMessage(resetError, "Nao foi possivel enviar o email agora."));
     } finally {
       setResettingPassword(false);
+    }
+  };
+
+  const handleGoogleLogin = async () => {
+    if (oauthSubmitting || loginMode !== "admin") return;
+    setOauthSubmitting(true);
+    setError("");
+
+    try {
+      saveFoodLoginPreferences({
+        loginMode: "admin",
+        rememberAccount,
+        adminEmail: email,
+        operatorUsername: username,
+      });
+      await signInFoodAdminWithGoogle();
+    } catch (oauthError) {
+      setError(getPublicErrorMessage(oauthError, "Nao foi possivel iniciar o login com Google."));
+      setOauthSubmitting(false);
     }
   };
 
@@ -352,11 +372,22 @@ export function LoginScreen({ users, loginPins, onLogin }: LoginScreenProps) {
             <button
               type="submit"
               className="mt-5 inline-flex h-12 w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 text-sm font-black text-primary-foreground transition hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-70"
-              disabled={submitting}
+              disabled={submitting || oauthSubmitting}
             >
               {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogIn className="h-4 w-4" />}
               {loginMode === "admin" ? "Entrar como administrador" : "Entrar como operador"}
             </button>
+            {loginMode === "admin" && /^https?:$/.test(window.location.protocol) && (
+              <button
+                type="button"
+                onClick={() => void handleGoogleLogin()}
+                disabled={submitting || oauthSubmitting}
+                className="mt-3 inline-flex h-12 w-full items-center justify-center gap-2 rounded-lg border border-yellow-400/25 bg-transparent px-4 text-sm font-black text-foreground transition hover:bg-yellow-400/10 disabled:cursor-not-allowed disabled:opacity-70"
+              >
+                {oauthSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogIn className="h-4 w-4" />}
+                {oauthSubmitting ? "Redirecionando..." : "Continuar com Google"}
+              </button>
+            )}
           </form>
         </motion.div>
       </section>

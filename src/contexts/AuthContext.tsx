@@ -59,6 +59,7 @@ interface AuthContextType {
   isAdmin: boolean;
   isOperator: boolean;
   login: (email: string, password: string) => Promise<string | true>;
+  signInWithGoogle: () => Promise<string | true>;
   loginOfflineAdmin: (username: string, pin: string) => Promise<string | true>;
   loginOperator: (username: string, password: string) => Promise<string | true>;
   register: (email: string, password: string, username: string) => Promise<string | true>;
@@ -479,6 +480,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return true;
   };
 
+  const signInWithGoogle = async (): Promise<string | true> => {
+    if (typeof window === 'undefined' || !/^https?:$/.test(window.location.protocol)) {
+      return 'Login com Google disponivel apenas na versao web.';
+    }
+
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: `${window.location.origin}/login`,
+        queryParams: {
+          access_type: 'offline',
+          prompt: 'select_account',
+        },
+      },
+    });
+
+    if (error) {
+      return getPublicErrorMessage(error, 'Nao foi possivel iniciar o login com Google.');
+    }
+
+    return true;
+  };
+
   const loginOfflineAdmin = async (adminUsername: string, pin: string): Promise<string | true> => {
     const activation = readDesktopActivation();
 
@@ -692,6 +716,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isAdmin: role === 'admin',
         isOperator: role === 'operator',
         login,
+        signInWithGoogle,
         loginOfflineAdmin,
         loginOperator,
         register,

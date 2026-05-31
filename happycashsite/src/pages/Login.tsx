@@ -39,6 +39,7 @@ const Login = () => {
   const [rememberAccount, setRememberAccount] = useState(initialPreferences.rememberAccount);
   const [keepConnected, setKeepConnected] = useState(initialPreferences.keepConnected);
   const [loading, setLoading] = useState(false);
+  const [oauthLoading, setOauthLoading] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
   const [resetOpen, setResetOpen] = useState(false);
   const [resetEmail, setResetEmail] = useState('');
@@ -63,6 +64,20 @@ const Login = () => {
     ? 'period=annual'
     : '';
   const nextPath = resolveSafeNextPath(searchParams.get('next'));
+  const googleRedirectSearch = (() => {
+    const params = new URLSearchParams();
+    if (selectedPlanId) {
+      params.set('plan', selectedPlanId);
+    }
+    if (selectedBillingPeriod === 'annual') {
+      params.set('period', 'annual');
+    }
+    if (nextPath) {
+      params.set('next', nextPath);
+    }
+    const query = params.toString();
+    return query ? `?${query}` : '';
+  })();
 
   const selectedPlan = selectedPlanId ? publicPlanContent[selectedPlanId] : null;
 
@@ -137,6 +152,45 @@ const Login = () => {
       setResetEmail(normalizedResetEmail);
     } finally {
       setResettingPassword(false);
+    }
+  };
+
+  const handleGoogleLogin = async () => {
+    if (loading || oauthLoading) return;
+
+    const normalizedEmail = normalizeEmail(email);
+    saveSiteLoginPreferences({
+      rememberAccount,
+      keepConnected,
+      email: normalizedEmail,
+    });
+
+    setOauthLoading(true);
+    setLoginError(null);
+
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback${googleRedirectSearch}`,
+          queryParams: {
+            access_type: 'offline',
+            prompt: 'select_account',
+          },
+        },
+      });
+
+      if (error) {
+        const resolvedError = resolveLoginErrorMessage(error.message);
+        setLoginError(resolvedError);
+        toast({ title: 'Erro ao entrar com Google', description: resolvedError, variant: 'destructive' });
+        setOauthLoading(false);
+      }
+    } catch (error) {
+      const resolvedError = resolveLoginErrorMessage(error instanceof Error ? error.message : 'Nao foi possivel iniciar o login com Google.');
+      setLoginError(resolvedError);
+      toast({ title: 'Erro ao entrar com Google', description: resolvedError, variant: 'destructive' });
+      setOauthLoading(false);
     }
   };
 
@@ -269,7 +323,7 @@ const Login = () => {
 
                 <Button
                   type="submit"
-                  disabled={loading}
+                  disabled={loading || oauthLoading}
                   className="h-10 w-full bg-yellow-400 px-4 text-sm font-semibold text-black hover:bg-yellow-300 sm:h-11"
                 >
                   {loading ? (
@@ -279,6 +333,22 @@ const Login = () => {
                     </>
                   ) : (
                     'Entrar'
+                  )}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={loading || oauthLoading}
+                  onClick={() => void handleGoogleLogin()}
+                  className="h-10 w-full border-yellow-400/30 bg-transparent px-4 text-sm font-semibold text-foreground hover:bg-yellow-400/10 sm:h-11"
+                >
+                  {oauthLoading ? (
+                    <>
+                      <Loader2 className="mr-2 animate-spin" />
+                      Redirecionando...
+                    </>
+                  ) : (
+                    'Continuar com Google'
                   )}
                 </Button>
               </form>

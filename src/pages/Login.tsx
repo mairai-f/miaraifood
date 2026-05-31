@@ -49,9 +49,11 @@ export default function Login() {
   const [rememberAccount, setRememberAccount] = useState(initialPreferences.rememberAccount);
   const [keepConnected, setKeepConnected] = useState(initialPreferences.keepConnected);
   const [submitting, setSubmitting] = useState(false);
+  const [oauthSubmitting, setOauthSubmitting] = useState(false);
   const [resettingPassword, setResettingPassword] = useState(false);
-  const { login, loginOfflineAdmin, loginOperator, resetPassword } = useAuth();
+  const { login, signInWithGoogle, loginOfflineAdmin, loginOperator, resetPassword } = useAuth();
   const isDesktop = typeof window !== 'undefined' && Boolean(window.electronAPI);
+  const canUseGoogleLogin = adminAccessMode === 'online' && typeof window !== 'undefined' && /^https?:$/.test(window.location.protocol);
 
   const [resetOpen, setResetOpen] = useState(false);
   const [resetEmail, setResetEmail] = useState('');
@@ -161,6 +163,26 @@ export default function Login() {
       }
     } finally {
       setResettingPassword(false);
+    }
+  };
+
+  const handleGoogleLogin = async () => {
+    if (oauthSubmitting || !canUseGoogleLogin) return;
+
+    saveSystemLoginPreferences({
+      loginMode: 'admin',
+      rememberAccount,
+      keepConnected,
+      adminEmail: email,
+      operatorUsername,
+    });
+
+    setOauthSubmitting(true);
+    const result = await signInWithGoogle();
+
+    if (result !== true) {
+      setOauthSubmitting(false);
+      toast.error(result || 'Nao foi possivel iniciar o login com Google.');
     }
   };
 
@@ -389,7 +411,7 @@ export default function Login() {
                     <Button
                       type="submit"
                       className="h-9 w-full px-4 text-center text-sm font-semibold text-black hover:bg-yellow-300 sm:h-10 bg-yellow-400"
-                      disabled={submitting || (adminAccessMode === 'offline' && !offlineAdminAvailable)}
+                      disabled={submitting || oauthSubmitting || (adminAccessMode === 'offline' && !offlineAdminAvailable)}
                     >
                       {submitting ? (
                         <>
@@ -400,6 +422,24 @@ export default function Login() {
                         'Entrar'
                       )}
                     </Button>
+                    {canUseGoogleLogin && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="h-9 w-full border-yellow-400/30 bg-transparent text-sm font-semibold text-foreground hover:bg-yellow-400/10 sm:h-10"
+                        disabled={submitting || oauthSubmitting}
+                        onClick={() => void handleGoogleLogin()}
+                      >
+                        {oauthSubmitting ? (
+                          <>
+                            <Loader2 className="mr-2 animate-spin" />
+                            Redirecionando...
+                          </>
+                        ) : (
+                          'Continuar com Google'
+                        )}
+                      </Button>
+                    )}
                   </form>
                 </TabsContent>
 

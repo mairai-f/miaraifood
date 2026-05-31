@@ -40,6 +40,7 @@ import {
   updateFoodOrderItemStatuses,
   updateFoodServiceRequestStatus,
 } from "@/lib/foodRemote";
+import { foodSupabase, restoreFoodAdminSession, signOutFoodAdmin } from "@/lib/foodAuth";
 import { hasSeenFoodSplash, markFoodSplashSeen } from "@/lib/appSplash";
 import type {
   CustomerPaymentRequest,
@@ -239,6 +240,52 @@ export default function App() {
       window.clearInterval(interval);
     };
   }, [currentUser?.ownerUserId]);
+
+  useEffect(() => {
+    if (!foodSupabase) return undefined;
+
+    let active = true;
+    let restoring = false;
+
+    const restore = async () => {
+      if (restoring) return;
+      restoring = true;
+
+      try {
+        const restoredUser = await restoreFoodAdminSession(appUsers);
+        if (!active || !restoredUser) return;
+        login(restoredUser);
+      } catch {
+        // Mantem a tela de login quando a sessao social nao possui acesso ao HappyCashFood.
+      } finally {
+        restoring = false;
+      }
+    };
+
+    if (!currentUser) {
+      void restore();
+    }
+
+    const {
+      data: { subscription },
+    } = foodSupabase.auth.onAuthStateChange((event, session) => {
+      if (!active) return;
+
+      if (event === "SIGNED_OUT") {
+        setCurrentUser(null);
+        return;
+      }
+
+      if (session?.user) {
+        void restore();
+      }
+    });
+
+    return () => {
+      active = false;
+      subscription.unsubscribe();
+    };
+  }, [appUsers, currentUser]);
 
   if (showSplash && !currentUser) {
     return (
@@ -951,7 +998,10 @@ export default function App() {
       paymentRequests={paymentRequests}
       serviceRequests={serviceRequests}
       onViewChange={setActiveView}
-      onLogout={() => setCurrentUser(null)}
+      onLogout={() => {
+        void signOutFoodAdmin();
+        setCurrentUser(null);
+      }}
       onOpenPaymentRequest={openPaymentRequest}
       onOpenServiceRequest={openServiceRequest}
       onResolveServiceRequest={(requestId) => updateServiceRequest(requestId, "done")}
