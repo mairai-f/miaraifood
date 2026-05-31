@@ -289,7 +289,7 @@ export default function Login() {
         clientEmail: normalizedEmail,
         barberUsername,
       });
-      navigate(postLoginHomePath);
+      navigate(postLoginTarget, { replace: true });
     }
 
     setLoading(false);
