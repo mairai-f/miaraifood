@@ -248,6 +248,12 @@ const AgendaBrandingContext = createContext<AgendaBrandingContextType | undefine
 
 const isBrowser = () => typeof window !== "undefined";
 
+const clearPersistedPreview = () => {
+  if (!isBrowser()) return;
+  window.localStorage.removeItem(STORAGE_KEY);
+  window.sessionStorage.removeItem(STORAGE_KEY);
+};
+
 const slugify = (value: string) => {
   const slug = value
     .normalize("NFD")
@@ -472,18 +478,18 @@ const readPreview = () => {
   if (!isBrowser()) return null;
 
   try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (!raw) return null;
-    return sanitizeSettings(JSON.parse(raw) as AgendaBrandingSettings);
+    clearPersistedPreview();
+    return null;
   } catch {
-    window.localStorage.removeItem(STORAGE_KEY);
+    clearPersistedPreview();
     return null;
   }
 };
 
 const writePreview = (settings: AgendaBrandingSettings) => {
   if (!isBrowser()) return;
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
+  void settings;
+  clearPersistedPreview();
 };
 
 const applyBrandingToDocument = (settings: AgendaBrandingSettings) => {

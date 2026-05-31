@@ -67,6 +67,12 @@ const waiterReasons = [
   "Duvida sobre o pedido",
 ] as const;
 
+const clearStoredCustomerProfile = (storeId: string) => {
+  if (typeof window === "undefined" || !storeId) return;
+  window.localStorage.removeItem(customerStorageKey(storeId));
+  window.sessionStorage.removeItem(customerStorageKey(storeId));
+};
+
 const useRevealOnScroll = (watchKey: string) => {
   useEffect(() => {
     const elements = Array.from(document.querySelectorAll<HTMLElement>("[data-reveal]"));
@@ -361,24 +367,8 @@ export function PublicMenu({ slug, tableSlug }: PublicMenuProps) {
           setCustomerAccountEmail(sessionCustomer.email);
           setCustomerMode("profile");
         });
-        const savedProfile = window.localStorage.getItem(customerStorageKey(payload.store.id));
-        if (savedProfile) {
-          try {
-            const parsed = JSON.parse(savedProfile) as Partial<CustomerInfo>;
-            setCustomer((current) => ({
-              ...current,
-              ...parsed,
-              email: parsed.email || current.email,
-              city: parsed.city || current.city || payload.store.city,
-              state: parsed.state || current.state || payload.store.state,
-              loyaltyOptIn: true,
-            }));
-          } catch {
-            setCustomer((current) => ({ ...current, city: current.city || payload.store.city, state: current.state || payload.store.state }));
-          }
-        } else {
-          setCustomer((current) => ({ ...current, city: current.city || payload.store.city, state: current.state || payload.store.state }));
-        }
+        clearStoredCustomerProfile(payload.store.id);
+        setCustomer((current) => ({ ...current, city: current.city || payload.store.city, state: current.state || payload.store.state }));
       })
       .catch((error) => {
         if (!active) return;
@@ -436,7 +426,7 @@ export function PublicMenu({ slug, tableSlug }: PublicMenuProps) {
         loyaltyOptIn: true,
       });
       const profile = { ...customer, email: customerAccountEmail, loyaltyOptIn: true };
-      window.localStorage.setItem(customerStorageKey(menu.store.id), JSON.stringify(profile));
+      clearStoredCustomerProfile(menu.store.id);
       setCustomer(profile);
       setCustomerAuthMessage("Cadastro salvo.");
       setLoyaltyOpen(false);
@@ -491,7 +481,7 @@ export function PublicMenu({ slug, tableSlug }: PublicMenuProps) {
         };
         setCustomer(nextCustomer);
         setCustomerAccountEmail(result.email);
-        window.localStorage.setItem(customerStorageKey(menu.store.id), JSON.stringify(nextCustomer));
+        clearStoredCustomerProfile(menu.store.id);
         setCustomerMode("profile");
         setCustomerPassword("");
       }
@@ -512,7 +502,7 @@ export function PublicMenu({ slug, tableSlug }: PublicMenuProps) {
   const logoutLoyaltyProfile = async () => {
     if (!menu) return;
     await signOutMenuCustomer();
-    window.localStorage.removeItem(customerStorageKey(menu.store.id));
+    clearStoredCustomerProfile(menu.store.id);
     setCustomer((current) => ({
       ...emptyCustomer,
       city: current.city || menu.store.city,

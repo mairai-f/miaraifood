@@ -43,17 +43,13 @@ export const createAdaptiveStorage = (
 
       if (preferredValue !== null) return preferredValue;
 
-      // Only migrate from session to local when the user explicitly chose persistent login.
-      if (shouldPersist()) {
-        const fallbackValue = secondary.getItem(key);
-        if (fallbackValue !== null) {
-          preferred.setItem(key, fallbackValue);
-          secondary.removeItem(key);
-        }
-        return fallbackValue;
+      const fallbackValue = secondary.getItem(key);
+      if (fallbackValue !== null) {
+        preferred.setItem(key, fallbackValue);
+        secondary.removeItem(key);
       }
 
-      return null;
+      return fallbackValue;
     },
     setItem(key, value) {
       const preferred = getPreferredStorage();

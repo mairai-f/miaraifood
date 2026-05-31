@@ -6,7 +6,10 @@ import {
   normalizeProductContext,
   type ProductContext,
 } from "../../../shared/productContext";
+import { createAdaptiveStorage } from "../../../shared/security/browserStorage";
+import { createKeepConnectedReader } from "../../../shared/security/authPersistence";
 import { getPublicErrorMessage } from "../../../shared/security/redaction";
+import { cleanupLegacySupabaseAuthStorage } from "../../../shared/security/supabaseAuthStorage";
 
 type FoodProfileRow = {
   username: string | null;
@@ -29,13 +32,18 @@ type FoodSubscriptionRow = {
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string | undefined;
 const supabasePublishableKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string | undefined;
+const FOOD_AUTH_STORAGE_KEY = "happycash:food:auth";
+const shouldPersistFoodSession = createKeepConnectedReader("happycash:food:keep-connected", false);
+
+cleanupLegacySupabaseAuthStorage(FOOD_AUTH_STORAGE_KEY);
 
 export const foodSupabase = supabaseUrl && supabasePublishableKey
   ? createClient(supabaseUrl, supabasePublishableKey, {
       auth: {
+        storage: createAdaptiveStorage(shouldPersistFoodSession),
         persistSession: true,
         autoRefreshToken: true,
-        storageKey: "happycash:food:auth",
+        storageKey: FOOD_AUTH_STORAGE_KEY,
       },
     })
   : null;
@@ -135,7 +143,7 @@ const resolveFoodAdminUser = async (authUser: User, users: FoodUser[]): Promise<
 
   return {
     ...adminUser,
-    id: authData.user.id,
+    id: authUser.id,
     name: profile.username || normalizedEmail,
     username: profile.username || normalizedEmail,
     role: "admin",

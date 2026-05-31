@@ -162,28 +162,31 @@ const menuAdminLoginStorageKeys = {
 const isBrowser = () => typeof window !== "undefined";
 const normalizeEmail = (value: string) => value.trim().toLowerCase();
 
+const clearMenuAdminRememberedEmail = () => {
+  if (!isBrowser()) return;
+  window.localStorage.removeItem(menuAdminLoginStorageKeys.email);
+};
+
 const readMenuAdminStorage = (key: string) => {
   if (!isBrowser()) return null;
   return window.localStorage.getItem(key);
 };
 
-const getMenuAdminLoginPreferences = (): MenuAdminLoginPreferences => ({
-  rememberAccount: readMenuAdminStorage(menuAdminLoginStorageKeys.rememberAccount) === "1",
-  email: readMenuAdminStorage(menuAdminLoginStorageKeys.email) ?? "",
-});
+const getMenuAdminLoginPreferences = (): MenuAdminLoginPreferences => {
+  clearMenuAdminRememberedEmail();
+
+  return {
+    rememberAccount: readMenuAdminStorage(menuAdminLoginStorageKeys.rememberAccount) === "1",
+    email: "",
+  };
+};
 
 const saveMenuAdminLoginPreferences = ({ rememberAccount, email }: MenuAdminLoginPreferences) => {
   if (!isBrowser()) return;
 
   window.localStorage.setItem(menuAdminLoginStorageKeys.rememberAccount, rememberAccount ? "1" : "0");
-
-  const normalizedEmail = normalizeEmail(email);
-  if (rememberAccount && normalizedEmail) {
-    window.localStorage.setItem(menuAdminLoginStorageKeys.email, normalizedEmail);
-    return;
-  }
-
-  window.localStorage.removeItem(menuAdminLoginStorageKeys.email);
+  void email;
+  clearMenuAdminRememberedEmail();
 };
 
 const useAdminRevealOnScroll = (watchKey: string) => {

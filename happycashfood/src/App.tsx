@@ -145,6 +145,36 @@ const firstViewForRole = (user: FoodUser): FoodView => {
 
 const foodOwnerStorageKey = "happycash:food:owner-user-id";
 
+const readStoredFoodOwnerUserId = () => {
+  if (typeof window === "undefined") return undefined;
+
+  const sessionOwnerUserId = window.sessionStorage.getItem(foodOwnerStorageKey) || undefined;
+  if (sessionOwnerUserId) {
+    window.localStorage.removeItem(foodOwnerStorageKey);
+    return sessionOwnerUserId;
+  }
+
+  const legacyOwnerUserId = window.localStorage.getItem(foodOwnerStorageKey) || undefined;
+  if (legacyOwnerUserId) {
+    window.sessionStorage.setItem(foodOwnerStorageKey, legacyOwnerUserId);
+    window.localStorage.removeItem(foodOwnerStorageKey);
+  }
+
+  return legacyOwnerUserId;
+};
+
+const writeStoredFoodOwnerUserId = (ownerUserId: string | null | undefined) => {
+  if (typeof window === "undefined") return;
+
+  if (ownerUserId) {
+    window.sessionStorage.setItem(foodOwnerStorageKey, ownerUserId);
+  } else {
+    window.sessionStorage.removeItem(foodOwnerStorageKey);
+  }
+
+  window.localStorage.removeItem(foodOwnerStorageKey);
+};
+
 export default function App() {
   const [splashProgress, setSplashProgress] = useState(() => (hasSeenFoodSplash() ? 100 : 0));
   const [showSplash, setShowSplash] = useState(() => !hasSeenFoodSplash());
@@ -272,6 +302,7 @@ export default function App() {
       if (!active) return;
 
       if (event === "SIGNED_OUT") {
+        writeStoredFoodOwnerUserId(null);
         setCurrentUser(null);
         return;
       }
@@ -302,14 +333,12 @@ export default function App() {
     .reduce((sum, ticket) => sum + ticket.items.reduce((subtotal, item) => subtotal + item.quantity, 0), 0);
 
   const login = (user: FoodUser) => {
-    const storedOwnerUserId = window.localStorage.getItem(foodOwnerStorageKey) || undefined;
+    const storedOwnerUserId = readStoredFoodOwnerUserId();
     const nextUser = {
       ...user,
       ownerUserId: user.ownerUserId || storedOwnerUserId,
     };
-    if (nextUser.ownerUserId) {
-      window.localStorage.setItem(foodOwnerStorageKey, nextUser.ownerUserId);
-    }
+    writeStoredFoodOwnerUserId(nextUser.ownerUserId);
     setCurrentUser(nextUser);
     setActiveView(firstViewForRole(nextUser));
     window.requestAnimationFrame(() => window.scrollTo({ top: 0, left: 0 }));
@@ -1000,6 +1029,7 @@ export default function App() {
       onViewChange={setActiveView}
       onLogout={() => {
         void signOutFoodAdmin();
+        writeStoredFoodOwnerUserId(null);
         setCurrentUser(null);
       }}
       onOpenPaymentRequest={openPaymentRequest}

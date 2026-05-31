@@ -64,6 +64,16 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -133,6 +143,12 @@ interface Product {
   is_active: boolean;
 }
 
+type PendingDeletion =
+  | { kind: 'barber'; item: Barber }
+  | { kind: 'service'; item: Service }
+  | { kind: 'product'; item: Product }
+  | null;
+
 interface Service {
   id: string;
   name: string;
@@ -190,6 +206,8 @@ export default function AdminDashboard() {
   const [showBarberDialog, setShowBarberDialog] = useState(false);
   const [showServiceDialog, setShowServiceDialog] = useState(false);
   const [showProductDialog, setShowProductDialog] = useState(false);
+  const [pendingDeletion, setPendingDeletion] = useState<PendingDeletion>(null);
+  const [deleteSubmitting, setDeleteSubmitting] = useState(false);
   const [editingBarber, setEditingBarber] = useState<Barber | null>(null);
   const [editingService, setEditingService] = useState<Service | null>(null);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
@@ -1035,39 +1053,62 @@ export default function AdminDashboard() {
   };
 
   const deleteBarber = async (barber: Barber) => {
-    if (!confirm(`Tem certeza que deseja excluir ${settings.professionalLabel.toLowerCase()} "${barber.name}"? Esta ação não pode ser desfeita.`)) {
-      return;
-    }
-
-    const { error } = await supabase
-      .from('barbers')
-      .delete()
-      .eq('id', barber.id);
-
-    if (error) {
-      toast({ title: 'Erro', description: 'Não foi possível excluir. Verifique se não há agendamentos vinculados.', variant: 'destructive' });
-    } else {
-      toast({ title: 'Excluído', description: `${settings.professionalLabel} excluído com sucesso.` });
-      fetchBarbers();
-    }
+    setPendingDeletion({ kind: 'barber', item: barber });
   };
 
   const deleteService = async (service: Service) => {
-    if (!confirm(`Tem certeza que deseja excluir ${settings.serviceLabel.toLowerCase()} "${service.name}"? Esta ação não pode ser desfeita.`)) {
-      return;
-    }
+    setPendingDeletion({ kind: 'service', item: service });
+  };
 
-    const { error } = await supabase
-      .from('services')
-      .delete()
-      .eq('id', service.id);
+  const deleteProduct = async (product: Product) => {
+    setPendingDeletion({ kind: 'product', item: product });
+  };
 
-    if (error) {
-      toast({ title: 'Erro', description: 'Não foi possível excluir. Verifique se não há agendamentos vinculados.', variant: 'destructive' });
+  const confirmDeletion = async () => {
+    if (!pendingDeletion) return;
+
+    setDeleteSubmitting(true);
+
+    if (pendingDeletion.kind === 'barber') {
+      const { error } = await supabase
+        .from('barbers')
+        .delete()
+        .eq('id', pendingDeletion.item.id);
+
+      if (error) {
+        toast({ title: 'Erro', description: 'Não foi possível excluir. Verifique se não há agendamentos vinculados.', variant: 'destructive' });
+      } else {
+        toast({ title: 'Excluído', description: `${settings.professionalLabel} excluído com sucesso.` });
+        fetchBarbers();
+      }
+    } else if (pendingDeletion.kind === 'service') {
+      const { error } = await supabase
+        .from('services')
+        .delete()
+        .eq('id', pendingDeletion.item.id);
+
+      if (error) {
+        toast({ title: 'Erro', description: 'Não foi possível excluir. Verifique se não há agendamentos vinculados.', variant: 'destructive' });
+      } else {
+        toast({ title: 'Excluído', description: `${settings.serviceLabel} excluído com sucesso.` });
+        fetchServices();
+      }
     } else {
-      toast({ title: 'Excluído', description: `${settings.serviceLabel} excluído com sucesso.` });
-      fetchServices();
+      const { error } = await supabase
+        .from('agenda_products')
+        .delete()
+        .eq('id', pendingDeletion.item.id);
+
+      if (error) {
+        toast({ title: 'Erro', description: 'Não foi possível excluir.', variant: 'destructive' });
+      } else {
+        toast({ title: 'Excluído', description: 'Produto excluído com sucesso.' });
+        fetchProducts();
+      }
     }
+
+    setPendingDeletion(null);
+    setDeleteSubmitting(false);
   };
 
   // Product handlers
@@ -1170,24 +1211,6 @@ export default function AdminDashboard() {
 
     if (!error) {
       toast({ title: 'Atualizado', description: `Produto ${product.is_active ? 'desativado' : 'ativado'}.` });
-      fetchProducts();
-    }
-  };
-
-  const deleteProduct = async (product: Product) => {
-    if (!confirm(`Tem certeza que deseja excluir o produto "${product.name}"? Esta ação não pode ser desfeita.`)) {
-      return;
-    }
-
-    const { error } = await supabase
-      .from('agenda_products')
-      .delete()
-      .eq('id', product.id);
-
-    if (error) {
-      toast({ title: 'Erro', description: 'Não foi possível excluir.', variant: 'destructive' });
-    } else {
-      toast({ title: 'Excluído', description: 'Produto excluído com sucesso.' });
       fetchProducts();
     }
   };
@@ -2537,6 +2560,42 @@ export default function AdminDashboard() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog
+        open={!!pendingDeletion}
+        onOpenChange={(open) => {
+          if (!open && !deleteSubmitting) {
+            setPendingDeletion(null);
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {pendingDeletion?.kind === 'barber'
+                ? `Excluir ${settings.professionalLabel.toLowerCase()}?`
+                : pendingDeletion?.kind === 'service'
+                  ? `Excluir ${settings.serviceLabel.toLowerCase()}?`
+                  : 'Excluir produto?'}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {pendingDeletion?.kind === 'barber'
+                ? `Tem certeza que deseja excluir ${settings.professionalLabel.toLowerCase()} "${pendingDeletion.item.name}"? Esta ação não pode ser desfeita.`
+                : pendingDeletion?.kind === 'service'
+                  ? `Tem certeza que deseja excluir ${settings.serviceLabel.toLowerCase()} "${pendingDeletion.item.name}"? Esta ação não pode ser desfeita.`
+                  : pendingDeletion
+                    ? `Tem certeza que deseja excluir o produto "${pendingDeletion.item.name}"? Esta ação não pode ser desfeita.`
+                    : 'Confirme a exclusão.'}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleteSubmitting}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={() => void confirmDeletion()} disabled={deleteSubmitting}>
+              {deleteSubmitting ? 'Excluindo...' : 'Confirmar exclusão'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Layout>
   );
 }

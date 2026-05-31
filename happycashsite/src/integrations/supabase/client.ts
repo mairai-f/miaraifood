@@ -3,10 +3,14 @@ import { createClient } from '@supabase/supabase-js';
 import type { Database } from './types';
 import { createAdaptiveStorage } from '../../../../shared/security/browserStorage';
 import { createKeepConnectedReader } from '../../../../shared/security/authPersistence';
+import { cleanupLegacySupabaseAuthStorage } from '../../../../shared/security/supabaseAuthStorage';
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 const shouldPersistSiteSession = createKeepConnectedReader('happycash:site:keep-connected', false);
+const SITE_AUTH_STORAGE_KEY = 'happycash:site:auth';
+
+cleanupLegacySupabaseAuthStorage(SITE_AUTH_STORAGE_KEY);
 
 // Import the supabase client like this:
 // import { supabase } from "@/integrations/supabase/client";
@@ -16,6 +20,6 @@ export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABL
     storage: createAdaptiveStorage(shouldPersistSiteSession),
     persistSession: true,
     autoRefreshToken: true,
-    storageKey: 'happycash:site:auth',
+    storageKey: SITE_AUTH_STORAGE_KEY,
   }
 });

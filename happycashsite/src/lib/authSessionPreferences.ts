@@ -29,6 +29,11 @@ const SIGN_OUT_TIMEOUT_MS = 1800;
 
 const isBrowser = () => typeof window !== 'undefined';
 
+const clearSiteRememberedIdentifiers = () => {
+  if (!isBrowser()) return;
+  window.localStorage.removeItem(storageKeys.rememberedEmail);
+};
+
 const withTimeout = async <T,>(promise: Promise<T>, timeoutMs: number): Promise<T | null> => {
   let timeoutId: ReturnType<typeof setTimeout> | undefined;
 
@@ -55,11 +60,15 @@ const readBoolean = (key: string, fallback: boolean) => {
   return value === '1';
 };
 
-export const getSiteLoginPreferences = (): SiteLoginPreferences => ({
-  rememberAccount: readBoolean(storageKeys.rememberAccount, false),
-  keepConnected: readBoolean(storageKeys.keepConnected, false),
-  email: readLocalStorage(storageKeys.rememberedEmail) ?? '',
-});
+export const getSiteLoginPreferences = (): SiteLoginPreferences => {
+  clearSiteRememberedIdentifiers();
+
+  return {
+    rememberAccount: readBoolean(storageKeys.rememberAccount, false),
+    keepConnected: readBoolean(storageKeys.keepConnected, false),
+    email: '',
+  };
+};
 
 export const saveSiteLoginPreferences = ({
   rememberAccount,
@@ -70,13 +79,8 @@ export const saveSiteLoginPreferences = ({
 
   window.localStorage.setItem(storageKeys.rememberAccount, rememberAccount ? '1' : '0');
   window.localStorage.setItem(storageKeys.keepConnected, keepConnected ? '1' : '0');
-
-  if (rememberAccount && email.trim()) {
-    window.localStorage.setItem(storageKeys.rememberedEmail, email.trim());
-    return;
-  }
-
-  window.localStorage.removeItem(storageKeys.rememberedEmail);
+  void email;
+  clearSiteRememberedIdentifiers();
 };
 
 export const applySiteSessionPreference = (keepConnected: boolean) => {

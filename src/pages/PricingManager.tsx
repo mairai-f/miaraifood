@@ -26,6 +26,16 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
@@ -361,6 +371,8 @@ export default function PricingManager() {
   const [managerApprovalError, setManagerApprovalError] = useState('');
   const [managerApprovalLoading, setManagerApprovalLoading] = useState(false);
   const [pendingPricingApproval, setPendingPricingApproval] = useState<PendingPricingApproval | null>(null);
+  const [pendingRuleDeletion, setPendingRuleDeletion] = useState<ProductCategoryPricingRule | null>(null);
+  const [ruleDeletionLoading, setRuleDeletionLoading] = useState(false);
 
   const activeProducts = useMemo(
     () => products.filter((product) => !product.deleted),
@@ -798,19 +810,25 @@ export default function PricingManager() {
   };
 
   const handleDeleteRule = async (rule: ProductCategoryPricingRule) => {
-    if (!window.confirm(`Excluir a regra da categoria "${rule.category}"?`)) {
-      return;
-    }
+    setPendingRuleDeletion(rule);
+  };
+
+  const confirmDeleteRule = async () => {
+    if (!pendingRuleDeletion) return;
+    setRuleDeletionLoading(true);
 
     try {
-      await deletePricingRule(rule.id);
+      await deletePricingRule(pendingRuleDeletion.id);
       toast.success('Regra removida.');
-      if (ruleForm.id === rule.id) {
+      if (ruleForm.id === pendingRuleDeletion.id) {
         resetRuleForm();
       }
     } catch (error) {
       console.error('Erro ao excluir regra:', getRedactedLogValue(error));
       toast.error('Não foi possível excluir a regra.');
+    } finally {
+      setPendingRuleDeletion(null);
+      setRuleDeletionLoading(false);
     }
   };
 
@@ -1179,6 +1197,32 @@ export default function PricingManager() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog
+        open={!!pendingRuleDeletion}
+        onOpenChange={(open) => {
+          if (!open && !ruleDeletionLoading) {
+            setPendingRuleDeletion(null);
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir regra de categoria?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {pendingRuleDeletion
+                ? `A regra da categoria "${pendingRuleDeletion.category}" será removida permanentemente.`
+                : 'Confirme a exclusão da regra.'}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={ruleDeletionLoading}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={() => void confirmDeleteRule()} disabled={ruleDeletionLoading}>
+              {ruleDeletionLoading ? 'Excluindo...' : 'Confirmar exclusão'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         {[

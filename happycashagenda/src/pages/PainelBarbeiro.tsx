@@ -51,6 +51,16 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -167,6 +177,8 @@ export default function BarberDashboard() {
   const [realtimeActive, setRealtimeActive] = useState(false);
   const [showDetailsDialog, setShowDetailsDialog] = useState(false);
   const [detailsAppointment, setDetailsAppointment] = useState<Appointment | null>(null);
+  const [appointmentPendingCancel, setAppointmentPendingCancel] = useState<Appointment | null>(null);
+  const [cancelLoading, setCancelLoading] = useState(false);
 
   const { user, loading: authLoading } = useAuth();
   const { settings } = useAgendaBranding();
@@ -682,18 +694,24 @@ export default function BarberDashboard() {
 
   // Cancel appointment - usando RPC para bypassar RLS (barbeiros logados via sessão)
   const cancelAppointment = async (appointment: Appointment) => {
-    if (!confirm(`Cancelar agendamento de ${appointment.client_name}?`)) return;
+    setAppointmentPendingCancel(appointment);
+  };
+
+  const confirmCancelAppointment = async () => {
+    if (!appointmentPendingCancel || !barberData) return;
+
+    setCancelLoading(true);
     if (!barberData) return;
 
     // Otimista: some imediatamente da lista de pendentes
     setAppointments((prev) =>
-      prev.map((a) => (a.id === appointment.id ? { ...a, status: 'cancelled' } : a))
+      prev.map((a) => (a.id === appointmentPendingCancel.id ? { ...a, status: 'cancelled' } : a))
     );
 
     // Usar RPC para garantir que funciona mesmo com barbeiro logado via sessão
     const { error } = await supabase.rpc('barber_cancel_appointment', {
       p_barber_id: barberData.id,
-      p_appointment_id: appointment.id,
+      p_appointment_id: appointmentPendingCancel.id,
       p_session_token: getBarberSessionToken(),
     });
 
@@ -706,6 +724,9 @@ export default function BarberDashboard() {
       toast({ title: 'Cancelado', description: 'Agendamento cancelado com sucesso.' });
       fetchAppointments(barberData.id);
     }
+
+    setAppointmentPendingCancel(null);
+    setCancelLoading(false);
   };
 
   // Mark as completed - REMOVED: Barbeiros não podem marcar como concluído (apenas admin)
@@ -1480,6 +1501,32 @@ export default function BarberDashboard() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        <AlertDialog
+          open={!!appointmentPendingCancel}
+          onOpenChange={(open) => {
+            if (!open && !cancelLoading) {
+              setAppointmentPendingCancel(null);
+            }
+          }}
+        >
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Cancelar agendamento?</AlertDialogTitle>
+              <AlertDialogDescription>
+                {appointmentPendingCancel
+                  ? `O atendimento de ${appointmentPendingCancel.client_name} será cancelado e removido da agenda do profissional.`
+                  : 'Confirme o cancelamento do agendamento.'}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={cancelLoading}>Voltar</AlertDialogCancel>
+              <AlertDialogAction onClick={() => void confirmCancelAppointment()} disabled={cancelLoading}>
+                {cancelLoading ? 'Cancelando...' : 'Confirmar cancelamento'}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </Layout>
   );

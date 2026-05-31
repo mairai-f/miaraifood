@@ -34,6 +34,12 @@ const storageKeys = {
 
 const isBrowser = () => typeof window !== 'undefined';
 
+const clearSystemRememberedIdentifiers = () => {
+  if (!isBrowser()) return;
+  window.localStorage.removeItem(storageKeys.adminEmail);
+  window.localStorage.removeItem(storageKeys.operatorUsername);
+};
+
 const readLocalStorage = (key: string) => {
   if (!isBrowser()) return null;
   return window.localStorage.getItem(key);
@@ -45,13 +51,17 @@ const readBoolean = (key: string, fallback: boolean) => {
   return value === '1';
 };
 
-export const getSystemLoginPreferences = (): SystemLoginPreferences => ({
-  loginMode: readLocalStorage(storageKeys.loginMode) === 'operator' ? 'operator' : 'admin',
-  rememberAccount: readBoolean(storageKeys.rememberAccount, false),
-  keepConnected: readBoolean(storageKeys.keepConnected, false),
-  adminEmail: readLocalStorage(storageKeys.adminEmail) ?? '',
-  operatorUsername: readLocalStorage(storageKeys.operatorUsername) ?? '',
-});
+export const getSystemLoginPreferences = (): SystemLoginPreferences => {
+  clearSystemRememberedIdentifiers();
+
+  return {
+    loginMode: readLocalStorage(storageKeys.loginMode) === 'operator' ? 'operator' : 'admin',
+    rememberAccount: readBoolean(storageKeys.rememberAccount, false),
+    keepConnected: readBoolean(storageKeys.keepConnected, false),
+    adminEmail: '',
+    operatorUsername: '',
+  };
+};
 
 export const saveSystemLoginPreferences = ({
   loginMode,
@@ -65,26 +75,9 @@ export const saveSystemLoginPreferences = ({
   window.localStorage.setItem(storageKeys.loginMode, loginMode);
   window.localStorage.setItem(storageKeys.rememberAccount, rememberAccount ? '1' : '0');
   window.localStorage.setItem(storageKeys.keepConnected, keepConnected ? '1' : '0');
-
-  if (rememberAccount) {
-    const normalizedAdminEmail = adminEmail.trim();
-    const normalizedOperatorUsername = operatorUsername.trim();
-
-    if (normalizedAdminEmail) {
-      window.localStorage.setItem(storageKeys.adminEmail, normalizedAdminEmail);
-    } else {
-      window.localStorage.removeItem(storageKeys.adminEmail);
-    }
-
-    if (normalizedOperatorUsername) {
-      window.localStorage.setItem(storageKeys.operatorUsername, normalizedOperatorUsername);
-    } else {
-      window.localStorage.removeItem(storageKeys.operatorUsername);
-    }
-  } else {
-    window.localStorage.removeItem(storageKeys.adminEmail);
-    window.localStorage.removeItem(storageKeys.operatorUsername);
-  }
+  void adminEmail;
+  void operatorUsername;
+  clearSystemRememberedIdentifiers();
 };
 
 export const applySystemSessionPreference = (keepConnected: boolean) => {

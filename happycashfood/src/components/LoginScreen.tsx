@@ -32,40 +32,36 @@ const isBrowser = () => typeof window !== "undefined";
 const normalizeEmail = (value: string) => value.trim().toLowerCase();
 const normalizeUsername = (value: string) => value.trim().toLowerCase();
 
+const clearFoodRememberedIdentifiers = () => {
+  if (!isBrowser()) return;
+  window.localStorage.removeItem(foodLoginStorageKeys.adminEmail);
+  window.localStorage.removeItem(foodLoginStorageKeys.operatorUsername);
+};
+
 const readFoodStorage = (key: string) => {
   if (!isBrowser()) return null;
   return window.localStorage.getItem(key);
 };
 
-const getFoodLoginPreferences = (): FoodLoginPreferences => ({
-  loginMode: readFoodStorage(foodLoginStorageKeys.loginMode) === "operator" ? "operator" : "admin",
-  rememberAccount: readFoodStorage(foodLoginStorageKeys.rememberAccount) === "1",
-  adminEmail: readFoodStorage(foodLoginStorageKeys.adminEmail) ?? "",
-  operatorUsername: readFoodStorage(foodLoginStorageKeys.operatorUsername) ?? "",
-});
+const getFoodLoginPreferences = (): FoodLoginPreferences => {
+  clearFoodRememberedIdentifiers();
+
+  return {
+    loginMode: readFoodStorage(foodLoginStorageKeys.loginMode) === "operator" ? "operator" : "admin",
+    rememberAccount: readFoodStorage(foodLoginStorageKeys.rememberAccount) === "1",
+    adminEmail: "",
+    operatorUsername: "",
+  };
+};
 
 const saveFoodLoginPreferences = (preferences: FoodLoginPreferences) => {
   if (!isBrowser()) return;
 
   window.localStorage.setItem(foodLoginStorageKeys.loginMode, preferences.loginMode);
   window.localStorage.setItem(foodLoginStorageKeys.rememberAccount, preferences.rememberAccount ? "1" : "0");
-
-  if (preferences.rememberAccount) {
-    const adminEmail = normalizeEmail(preferences.adminEmail);
-    const operatorUsername = normalizeUsername(preferences.operatorUsername);
-
-    if (adminEmail) {
-      window.localStorage.setItem(foodLoginStorageKeys.adminEmail, adminEmail);
-    }
-
-    if (operatorUsername) {
-      window.localStorage.setItem(foodLoginStorageKeys.operatorUsername, operatorUsername);
-    }
-    return;
-  }
-
-  window.localStorage.removeItem(foodLoginStorageKeys.adminEmail);
-  window.localStorage.removeItem(foodLoginStorageKeys.operatorUsername);
+  void preferences.adminEmail;
+  void preferences.operatorUsername;
+  clearFoodRememberedIdentifiers();
 };
 
 export function LoginScreen({ users, loginPins, onLogin }: LoginScreenProps) {

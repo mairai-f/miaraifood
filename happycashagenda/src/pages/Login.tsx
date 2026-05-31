@@ -81,6 +81,12 @@ const agendaLoginStorageKeys = {
 
 const isBrowser = () => typeof window !== "undefined";
 
+const clearAgendaRememberedIdentifiers = () => {
+  if (!isBrowser()) return;
+  window.localStorage.removeItem(agendaLoginStorageKeys.clientEmail);
+  window.localStorage.removeItem(agendaLoginStorageKeys.barberUsername);
+};
+
 const readAgendaStorage = (key: string) => {
   if (!isBrowser()) return null;
   return window.localStorage.getItem(key);
@@ -98,35 +104,25 @@ const normalizeLoginEmail = (value: string) => {
   return normalized;
 };
 
-const getAgendaLoginPreferences = (): AgendaLoginPreferences => ({
-  loginType: readAgendaStorage(agendaLoginStorageKeys.loginType) === "barber" ? "barber" : "client",
-  rememberAccount: readAgendaStorage(agendaLoginStorageKeys.rememberAccount) === "1",
-  clientEmail: normalizeLoginEmail(readAgendaStorage(agendaLoginStorageKeys.clientEmail) ?? ""),
-  barberUsername: readAgendaStorage(agendaLoginStorageKeys.barberUsername) ?? "",
-});
+const getAgendaLoginPreferences = (): AgendaLoginPreferences => {
+  clearAgendaRememberedIdentifiers();
+
+  return {
+    loginType: readAgendaStorage(agendaLoginStorageKeys.loginType) === "barber" ? "barber" : "client",
+    rememberAccount: readAgendaStorage(agendaLoginStorageKeys.rememberAccount) === "1",
+    clientEmail: "",
+    barberUsername: "",
+  };
+};
 
 const saveAgendaLoginPreferences = (preferences: AgendaLoginPreferences) => {
   if (!isBrowser()) return;
 
   window.localStorage.setItem(agendaLoginStorageKeys.loginType, preferences.loginType);
   window.localStorage.setItem(agendaLoginStorageKeys.rememberAccount, preferences.rememberAccount ? "1" : "0");
-
-  if (preferences.rememberAccount) {
-    const clientEmail = normalizeLoginEmail(preferences.clientEmail);
-    const barberUsername = preferences.barberUsername.trim();
-
-    if (clientEmail) {
-      window.localStorage.setItem(agendaLoginStorageKeys.clientEmail, clientEmail);
-    }
-
-    if (barberUsername) {
-      window.localStorage.setItem(agendaLoginStorageKeys.barberUsername, barberUsername);
-    }
-    return;
-  }
-
-  window.localStorage.removeItem(agendaLoginStorageKeys.clientEmail);
-  window.localStorage.removeItem(agendaLoginStorageKeys.barberUsername);
+  void preferences.clientEmail;
+  void preferences.barberUsername;
+  clearAgendaRememberedIdentifiers();
 };
 
 export default function Login() {
