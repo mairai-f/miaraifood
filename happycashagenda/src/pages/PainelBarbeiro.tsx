@@ -41,7 +41,7 @@ import { useToast } from '@/hooks/use-toast';
 import { usePushNotifications } from '@/hooks/usePushNotifications';
 import { supabase } from '@/integrations/supabase/client';
 import { parseLocalDate } from '@/lib/utils';
-import { playNotificationSound } from '@/lib/notificationSound';
+import { playNotificationSound, shouldPlayAgendaSound } from '@/lib/notificationSound';
 import {
   Dialog,
   DialogContent,
@@ -97,6 +97,7 @@ type AppointmentRealtimeRow = {
   appointment_date?: string;
   appointment_time?: string | null;
   status?: Appointment['status'];
+  appointment_type?: 'appointment' | 'queue';
   payment_method?: string | null;
   payment_status?: string | null;
 };
@@ -234,6 +235,9 @@ export default function BarberDashboard() {
         (payload) => {
           setRealtimeActive(true);
           const newApt = payload.new as AppointmentRealtimeRow;
+          if (shouldPlayAgendaSound(settings, 'new_appointment')) {
+            playNotificationSound();
+          }
           toast({
             title: '📅 Novo Agendamento!',
             description: `${newApt.client_name} agendou para ${format(parseLocalDate(newApt.appointment_date), "dd/MM")} às ${newApt.appointment_time?.slice(0, 5)}`,
@@ -278,7 +282,9 @@ export default function BarberDashboard() {
 
           // Notifica cancelamentos
           if (oldApt.status !== 'cancelled' && updatedApt.status === 'cancelled') {
-            playNotificationSound();
+            if (shouldPlayAgendaSound(settings, 'cancellation')) {
+              playNotificationSound('alert');
+            }
             toast({
               title: '❌ Agendamento Cancelado',
               description: `${updatedApt.client_name} - agendamento de ${format(parseLocalDate(updatedApt.appointment_date), "dd/MM")} às ${updatedApt.appointment_time?.slice(0, 5)} foi cancelado`,
@@ -292,6 +298,9 @@ export default function BarberDashboard() {
 
           // Notifica quando admin marca como concluído
           if (oldApt.status !== 'completed' && updatedApt.status === 'completed') {
+            if (shouldPlayAgendaSound(settings, 'completion')) {
+              playNotificationSound('success');
+            }
             toast({
               title: '✅ Serviço Concluído',
               description: `Admin confirmou: ${updatedApt.client_name} - ${format(parseLocalDate(updatedApt.appointment_date), "dd/MM")} às ${updatedApt.appointment_time?.slice(0, 5)}`,
@@ -299,6 +308,25 @@ export default function BarberDashboard() {
             sendNotification('✅ Serviço Concluído pelo Admin', {
               body: `${updatedApt.client_name} - agendamento de ${format(parseLocalDate(updatedApt.appointment_date), "dd/MM")} às ${updatedApt.appointment_time?.slice(0, 5)} foi concluído`,
               tag: `completed-${updatedApt.id}`,
+            });
+          } else if (
+            updatedApt.status === 'scheduled' &&
+            oldApt.status === 'scheduled' &&
+            (
+              oldApt.appointment_date !== updatedApt.appointment_date ||
+              oldApt.appointment_time !== updatedApt.appointment_time
+            )
+          ) {
+            if (shouldPlayAgendaSound(settings, 'reschedule')) {
+              playNotificationSound();
+            }
+            toast({
+              title: '🔄 Agendamento Remarcado',
+              description: `${updatedApt.client_name} mudou para ${format(parseLocalDate(updatedApt.appointment_date), "dd/MM")} às ${updatedApt.appointment_time?.slice(0, 5)}.`,
+            });
+            sendNotification('🔄 Agendamento Remarcado', {
+              body: `${updatedApt.client_name} reagendou para ${format(parseLocalDate(updatedApt.appointment_date), "dd/MM")} às ${updatedApt.appointment_time?.slice(0, 5)}`,
+              tag: `rescheduled-${updatedApt.id}-${updatedApt.appointment_date}-${updatedApt.appointment_time}`,
             });
           }
 
@@ -327,7 +355,7 @@ export default function BarberDashboard() {
       supabase.removeChannel(appointmentsChannel);
       supabase.removeChannel(servicesChannel);
     };
-  }, [barberData?.id, toast, sendNotification]);
+  }, [barberData?.id, sendNotification, settings, toast]);
 
   // Fallback de sincronização: quando o barbeiro está logado via sessão (sem auth),
   // o realtime pode não entregar eventos por causa de RLS. Fazemos polling curto

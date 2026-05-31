@@ -7,7 +7,25 @@ import {
 } from "react";
 import { User, Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
-import { validateAgendaAdminAccess } from "@/lib/agendaAuth";
+import {
+  resolveAgendaOwnerUserId,
+  validateAgendaAdminAccess,
+} from "@/lib/agendaAuth";
+
+type SignUpInput = {
+  fullName: string;
+  email: string;
+  password: string;
+  phone: string;
+};
+
+type AgendaProfileRow = {
+  role?: string | null;
+  owner_user_id?: string | null;
+  full_name?: string | null;
+  phone?: string | null;
+  avatar_url?: string | null;
+};
 
 interface AuthContextType {
   user: User | null;
@@ -15,6 +33,8 @@ interface AuthContextType {
   loading: boolean;
   isAdmin: boolean;
   signIn: (email: string, password: string) => Promise<{ error: Error | null; isAdmin: boolean }>;
+  signUp: (input: SignUpInput) => Promise<{ error: Error | null; needsEmailConfirmation: boolean }>;
+  signInWithGoogle: () => Promise<{ error: Error | null }>;
   resetPassword: (email: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
 }
@@ -41,28 +61,129 @@ const isAgendaAdminProfile = async (userId: string) => {
   return !!roleAdmin;
 };
 
+const normalizePhone = (value?: string | null) => value?.replace(/\D/g, "").slice(0, 15) ?? "";
+
+const getProfileMetadata = (user: User) => {
+  const metadata = user.user_metadata ?? {};
+  return {
+    fullName:
+      typeof metadata.full_name === "string"
+        ? metadata.full_name
+        : typeof metadata.name === "string"
+          ? metadata.name
+          : "",
+    phone: typeof metadata.phone === "string" ? metadata.phone : "",
+    avatarUrl:
+      typeof metadata.avatar_url === "string"
+        ? metadata.avatar_url
+        : typeof metadata.picture === "string"
+          ? metadata.picture
+          : "",
+  };
+};
+
+const getAgendaProfile = async (userId: string) => {
+  const { data } = await supabase
+    .from("profiles")
+    .select("role, owner_user_id, full_name, phone, avatar_url")
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  return (data as AgendaProfileRow | null) ?? null;
+};
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
 
-  const syncAdminAccess = async (userId: string) => {
-    const adminProfile = await isAgendaAdminProfile(userId);
+  const syncProfileMetadata = async (
+    nextUser: User,
+    profile: AgendaProfileRow | null,
+    options?: {
+      forceClientRole?: boolean;
+      fullName?: string;
+      phone?: string;
+    },
+  ) => {
+    const metadata = getProfileMetadata(nextUser);
+    const nextFullName =
+      options?.fullName?.trim() ||
+      metadata.fullName.trim() ||
+      profile?.full_name?.trim() ||
+      nextUser.email ||
+      "";
+    const nextPhone = normalizePhone(options?.phone ?? metadata.phone ?? profile?.phone);
+    const nextAvatarUrl = metadata.avatarUrl.trim();
+    const updates: Record<string, string> = {};
+
+    if (options?.forceClientRole && profile?.role === "admin") {
+      updates.role = "client";
+    }
+
+    if (!profile?.owner_user_id) {
+      updates.owner_user_id = nextUser.id;
+    }
+
+    if (nextFullName && nextFullName !== (profile?.full_name ?? "")) {
+      updates.full_name = nextFullName;
+    }
+
+    if (nextPhone && nextPhone !== normalizePhone(profile?.phone)) {
+      updates.phone = nextPhone;
+    }
+
+    if (nextAvatarUrl && nextAvatarUrl !== (profile?.avatar_url ?? "")) {
+      updates.avatar_url = nextAvatarUrl;
+    }
+
+    if (Object.keys(updates).length === 0) return;
+
+    await supabase.from("profiles").update(updates).eq("user_id", nextUser.id);
+  };
+
+  const shouldDowngradeToClient = async (
+    nextUser: User,
+    profile: AgendaProfileRow | null,
+  ) => {
+    if (profile?.role !== "admin") return false;
+
+    const ownerUserId = profile?.owner_user_id ?? (await resolveAgendaOwnerUserId(nextUser.id));
+    if (ownerUserId !== nextUser.id) return false;
+
+    const { data: storeAccount } = await supabase
+      .from("store_accounts")
+      .select("id")
+      .eq("owner_user_id", ownerUserId)
+      .eq("product_context", "happycashagenda")
+      .maybeSingle();
+
+    return !storeAccount;
+  };
+
+  const syncUserAccess = async (nextUser: User) => {
+    const profile = await getAgendaProfile(nextUser.id);
+    const adminProfile = await isAgendaAdminProfile(nextUser.id);
+
     if (!adminProfile) {
       setIsAdmin(false);
+      await syncProfileMetadata(nextUser, profile);
       return false;
     }
 
-    const access = await validateAgendaAdminAccess(userId);
+    const access = await validateAgendaAdminAccess(nextUser.id);
     if (!access.ok) {
-      await supabase.auth.signOut();
-      setUser(null);
-      setSession(null);
+      if (await shouldDowngradeToClient(nextUser, profile)) {
+        await syncProfileMetadata(nextUser, profile, { forceClientRole: true });
+      } else {
+        await syncProfileMetadata(nextUser, profile);
+      }
       setIsAdmin(false);
       return false;
     }
 
+    await syncProfileMetadata(nextUser, profile);
     setIsAdmin(true);
     return true;
   };
@@ -73,7 +194,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(nextSession?.user ?? null);
 
       if (nextSession?.user) {
-        await syncAdminAccess(nextSession.user.id);
+        await syncUserAccess(nextSession.user);
       } else {
         setIsAdmin(false);
       }
@@ -108,18 +229,60 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return { error: error ?? new Error("Nao foi possivel entrar."), isAdmin: false };
     }
 
-    const adminProfile = await isAgendaAdminProfile(data.user.id);
-    if (adminProfile) {
-      const access = await validateAgendaAdminAccess(data.user.id);
-      if (!access.ok) {
-        await supabase.auth.signOut();
-        setIsAdmin(false);
-        return { error: new Error(access.message), isAdmin: false };
-      }
+    const adminProfile = await syncUserAccess(data.user);
+    return { error: null, isAdmin: adminProfile };
+  };
+
+  const signUp = async ({ fullName, email, password, phone }: SignUpInput) => {
+    const normalizedEmail = email.trim().toLowerCase();
+    const normalizedPhone = normalizePhone(phone);
+    const redirectUrl = `${window.location.origin}${window.location.pathname}${window.location.search}`;
+    const { data, error } = await supabase.auth.signUp({
+      email: normalizedEmail,
+      password,
+      options: {
+        emailRedirectTo: redirectUrl,
+        data: {
+          role: "client",
+          full_name: fullName.trim(),
+          phone: normalizedPhone,
+        },
+      },
+    });
+
+    if (error) {
+      return { error, needsEmailConfirmation: false };
     }
 
-    setIsAdmin(adminProfile);
-    return { error: null, isAdmin: adminProfile };
+    if (data.user && data.session) {
+      await syncProfileMetadata(data.user, await getAgendaProfile(data.user.id), {
+        forceClientRole: true,
+        fullName,
+        phone: normalizedPhone,
+      });
+      await syncUserAccess(data.user);
+    }
+
+    return {
+      error: null,
+      needsEmailConfirmation: !data.session,
+    };
+  };
+
+  const signInWithGoogle = async () => {
+    const redirectUrl = `${window.location.origin}${window.location.pathname}${window.location.search}`;
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        redirectTo: redirectUrl,
+        queryParams: {
+          access_type: "offline",
+          prompt: "select_account",
+        },
+      },
+    });
+
+    return { error };
   };
 
   const resetPassword = async (email: string) => {
@@ -145,6 +308,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         loading,
         isAdmin,
         signIn,
+        signUp,
+        signInWithGoogle,
         resetPassword,
         signOut,
       }}

@@ -54,7 +54,7 @@ import { useAgendaBranding } from '@/hooks/useAgendaBranding';
 import { supabase } from '@/integrations/supabase/client';
 import { cn, parseLocalDate } from '@/lib/utils';
 import { withAgendaPublicSearch } from '@/lib/agendaPublicLink';
-import { playNotificationSound } from '@/lib/notificationSound';
+import { playNotificationSound, shouldPlayAgendaSound } from '@/lib/notificationSound';
 import {
   Dialog,
   DialogContent,
@@ -271,6 +271,9 @@ export default function AdminDashboard() {
           (payload) => {
             const newApt = payload.new as AppointmentRealtimeRow;
             fetchAppointments();
+            if (shouldPlayAgendaSound(settings, 'new_appointment')) {
+              playNotificationSound();
+            }
 
             // In-app toast notification
             toast({
@@ -319,7 +322,9 @@ export default function AdminDashboard() {
             fetchAppointments();
 
             if (oldApt.status !== 'cancelled' && updatedApt.status === 'cancelled') {
-              playNotificationSound();
+              if (shouldPlayAgendaSound(settings, 'cancellation')) {
+                playNotificationSound('alert');
+              }
               toast({
                 title: '❌ Agendamento Cancelado',
                 description: `${updatedApt.client_name} cancelou o agendamento de ${format(parseLocalDate(updatedApt.appointment_date), "dd/MM")} às ${updatedApt.appointment_time?.slice(0, 5)}.`,
@@ -333,6 +338,9 @@ export default function AdminDashboard() {
               });
             } else if (oldApt.status !== 'completed' && updatedApt.status === 'completed') {
               // Notifica quando barbeiro conclui um agendamento
+              if (shouldPlayAgendaSound(settings, 'completion')) {
+                playNotificationSound('success');
+              }
               toast({
                 title: '✅ Agendamento Concluído',
                 description: `${updatedApt.client_name} foi atendido.`,
@@ -340,6 +348,25 @@ export default function AdminDashboard() {
               sendNotification('✅ Agendamento Concluído', {
                 body: `${updatedApt.client_name} - agendamento de ${format(parseLocalDate(updatedApt.appointment_date), "dd/MM")} às ${updatedApt.appointment_time?.slice(0, 5)} foi concluído.`,
                 tag: `completed-${updatedApt.id}`,
+              });
+            } else if (
+              updatedApt.status === 'scheduled' &&
+              oldApt.status === 'scheduled' &&
+              (
+                oldApt.appointment_date !== updatedApt.appointment_date ||
+                oldApt.appointment_time !== updatedApt.appointment_time
+              )
+            ) {
+              if (shouldPlayAgendaSound(settings, 'reschedule')) {
+                playNotificationSound();
+              }
+              toast({
+                title: '🔄 Agendamento Remarcado',
+                description: `${updatedApt.client_name} mudou para ${format(parseLocalDate(updatedApt.appointment_date), "dd/MM")} às ${updatedApt.appointment_time?.slice(0, 5)}.`,
+              });
+              sendNotification('🔄 Agendamento Remarcado', {
+                body: `${updatedApt.client_name} reagendou para ${format(parseLocalDate(updatedApt.appointment_date), "dd/MM")} às ${updatedApt.appointment_time?.slice(0, 5)}.`,
+                tag: `rescheduled-${updatedApt.id}-${updatedApt.appointment_date}-${updatedApt.appointment_time}`,
               });
             }
           }
@@ -427,7 +454,7 @@ export default function AdminDashboard() {
         supabase.removeChannel(appointmentsChannel);
         supabase.removeChannel(servicesChannel);
       };
-  }, [authLoading, isAdmin, settings.storeAccountId]);
+  }, [authLoading, isAdmin, settings, settings.storeAccountId]);
 
   const confirmAppointmentPayment = async (appointmentId: string) => {
     const { error } = await supabase.rpc('confirm_agenda_appointment_payment', {

@@ -1,5 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useState } from 'react';
 import { Layout } from '@/components/layout/Layout';
 import { SplashScreen } from '@/components/SplashScreen';
 import { HeroSection } from '@/components/landing/HeroSection';
@@ -10,53 +9,16 @@ import { FooterSection } from '@/components/landing/FooterSection';
 import { PublicPageInlineEditor } from '@/components/landing/PublicPageInlineEditor';
 import { SectionNav } from '@/components/landing/SectionNav';
 import { SwipeSections } from '@/components/landing/SwipeSections';
-import { slugFromPathname } from '@/lib/agendaSlug';
-import { useAuth } from '@/hooks/useAuth';
-
-const isMobileViewport = () => {
-  if (typeof window === 'undefined') return false;
-  return window.matchMedia('(max-width: 767px)').matches;
-};
 
 export default function Index() {
   const [splashDone, setSplashDone] = useState(() => {
     return !!sessionStorage.getItem('happycash_agenda_visited');
   });
-  const [isMobile, setIsMobile] = useState(isMobileViewport);
-  const navigate = useNavigate();
-  const location = useLocation();
-  const { user, loading: authLoading } = useAuth();
-  const mobileLoginPath = useMemo(() => {
-    const slug = slugFromPathname(location.pathname);
-    return `${slug ? `/${slug}` : ''}/login${location.search}`;
-  }, [location.pathname, location.search]);
-
-  useEffect(() => {
-    const media = window.matchMedia('(max-width: 767px)');
-    const updateMobile = () => setIsMobile(media.matches);
-
-    updateMobile();
-    media.addEventListener('change', updateMobile);
-    return () => media.removeEventListener('change', updateMobile);
-  }, []);
-
-  useEffect(() => {
-    if (!isMobile || authLoading) return;
-    sessionStorage.setItem('happycash_agenda_visited', 'true');
-
-    if (!user) {
-      navigate(mobileLoginPath, { replace: true });
-    }
-  }, [authLoading, user, isMobile, mobileLoginPath, navigate]);
 
   const handleSplashComplete = () => {
+    sessionStorage.setItem('happycash_agenda_visited', 'true');
     setSplashDone(true);
-    navigate(`/login${location.search}`);
   };
-
-  if (isMobile && (authLoading || !user)) {
-    return null;
-  }
 
   if (!splashDone) {
     return <SplashScreen onComplete={handleSplashComplete} />;

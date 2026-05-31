@@ -53,6 +53,17 @@ export type AgendaBrandingSettings = {
   publicBookingEnabled: boolean;
   serviceMode: "appointment" | "walk_in" | "both";
   publicQueueVisible: boolean;
+  rescheduleNoticeHours: number;
+  cancellationNoticeHours: number;
+  reminderEnabled: boolean;
+  reminder24hEnabled: boolean;
+  reminder2hEnabled: boolean;
+  reminder30mEnabled: boolean;
+  soundNotificationsEnabled: boolean;
+  soundNewAppointmentEnabled: boolean;
+  soundRescheduleEnabled: boolean;
+  soundCancellationEnabled: boolean;
+  soundCompletionEnabled: boolean;
 };
 
 type AgendaBrandingContextType = {
@@ -103,6 +114,17 @@ type AgendaBusinessSettingsRow = {
   public_booking_enabled: boolean;
   service_mode?: "appointment" | "walk_in" | "both" | null;
   public_queue_visible?: boolean | null;
+  reschedule_notice_hours?: number | null;
+  cancellation_notice_hours?: number | null;
+  reminder_enabled?: boolean | null;
+  reminder_24h_enabled?: boolean | null;
+  reminder_2h_enabled?: boolean | null;
+  reminder_30m_enabled?: boolean | null;
+  sound_notifications_enabled?: boolean | null;
+  sound_new_appointment_enabled?: boolean | null;
+  sound_reschedule_enabled?: boolean | null;
+  sound_cancellation_enabled?: boolean | null;
+  sound_completion_enabled?: boolean | null;
 };
 
 type AgendaBusinessSettingsUpsert = {
@@ -143,6 +165,17 @@ type AgendaBusinessSettingsUpsert = {
   public_booking_enabled: boolean;
   service_mode: "appointment" | "walk_in" | "both";
   public_queue_visible: boolean;
+  reschedule_notice_hours: number;
+  cancellation_notice_hours: number;
+  reminder_enabled: boolean;
+  reminder_24h_enabled: boolean;
+  reminder_2h_enabled: boolean;
+  reminder_30m_enabled: boolean;
+  sound_notifications_enabled: boolean;
+  sound_new_appointment_enabled: boolean;
+  sound_reschedule_enabled: boolean;
+  sound_cancellation_enabled: boolean;
+  sound_completion_enabled: boolean;
 };
 
 const SETTINGS_COLUMNS_BASE =
@@ -152,7 +185,7 @@ const SETTINGS_COLUMNS_PUBLIC_PAGE =
   `${SETTINGS_COLUMNS_BASE}, logo_size, hero_image_url, hero_image_position_x, hero_image_position_y, hero_image_scale, about_image_url, about_image_position_x, about_image_position_y, about_image_scale, team_image_url, location_image_url, hero_title, hero_subtitle, closed_message, about_title, about_text, address, whatsapp, admin_whatsapp, facebook_url, instagram_url, pix_key, pix_merchant_name`;
 
 const SETTINGS_COLUMNS_EXTENDED =
-  `${SETTINGS_COLUMNS_PUBLIC_PAGE}, service_mode, public_queue_visible`;
+  `${SETTINGS_COLUMNS_PUBLIC_PAGE}, service_mode, public_queue_visible, reschedule_notice_hours, cancellation_notice_hours, reminder_enabled, reminder_24h_enabled, reminder_2h_enabled, reminder_30m_enabled, sound_notifications_enabled, sound_new_appointment_enabled, sound_reschedule_enabled, sound_cancellation_enabled, sound_completion_enabled`;
 
 const isMissingColumnError = (message: string) =>
   /column|schema cache|does not exist|PGRST204/i.test(message);
@@ -196,6 +229,17 @@ const DEFAULT_BRANDING: AgendaBrandingSettings = {
   publicBookingEnabled: true,
   serviceMode: "appointment",
   publicQueueVisible: false,
+  rescheduleNoticeHours: 2,
+  cancellationNoticeHours: 0,
+  reminderEnabled: true,
+  reminder24hEnabled: true,
+  reminder2hEnabled: true,
+  reminder30mEnabled: false,
+  soundNotificationsEnabled: true,
+  soundNewAppointmentEnabled: true,
+  soundRescheduleEnabled: true,
+  soundCancellationEnabled: true,
+  soundCompletionEnabled: true,
 };
 
 const STORAGE_KEY = "happycash_agenda_branding_preview";
@@ -268,6 +312,17 @@ const sanitizeSettings = (settings: AgendaBrandingSettings): AgendaBrandingSetti
   successHsl: sanitizeHsl(settings.successHsl, DEFAULT_BRANDING.successHsl),
   serviceMode: sanitizeServiceMode(settings.serviceMode),
   publicQueueVisible: Boolean(settings.publicQueueVisible),
+  rescheduleNoticeHours: sanitizeNumber(settings.rescheduleNoticeHours, DEFAULT_BRANDING.rescheduleNoticeHours, 0, 72),
+  cancellationNoticeHours: sanitizeNumber(settings.cancellationNoticeHours, DEFAULT_BRANDING.cancellationNoticeHours, 0, 72),
+  reminderEnabled: Boolean(settings.reminderEnabled),
+  reminder24hEnabled: Boolean(settings.reminder24hEnabled),
+  reminder2hEnabled: Boolean(settings.reminder2hEnabled),
+  reminder30mEnabled: Boolean(settings.reminder30mEnabled),
+  soundNotificationsEnabled: Boolean(settings.soundNotificationsEnabled),
+  soundNewAppointmentEnabled: Boolean(settings.soundNewAppointmentEnabled),
+  soundRescheduleEnabled: Boolean(settings.soundRescheduleEnabled),
+  soundCancellationEnabled: Boolean(settings.soundCancellationEnabled),
+  soundCompletionEnabled: Boolean(settings.soundCompletionEnabled),
 });
 
 const rowToSettings = (row: AgendaBusinessSettingsRow): AgendaBrandingSettings => ({
@@ -310,6 +365,17 @@ const rowToSettings = (row: AgendaBusinessSettingsRow): AgendaBrandingSettings =
   publicBookingEnabled: row.public_booking_enabled,
   serviceMode: sanitizeServiceMode(row.service_mode),
   publicQueueVisible: Boolean(row.public_queue_visible),
+  rescheduleNoticeHours: row.reschedule_notice_hours ?? DEFAULT_BRANDING.rescheduleNoticeHours,
+  cancellationNoticeHours: row.cancellation_notice_hours ?? DEFAULT_BRANDING.cancellationNoticeHours,
+  reminderEnabled: row.reminder_enabled ?? DEFAULT_BRANDING.reminderEnabled,
+  reminder24hEnabled: row.reminder_24h_enabled ?? DEFAULT_BRANDING.reminder24hEnabled,
+  reminder2hEnabled: row.reminder_2h_enabled ?? DEFAULT_BRANDING.reminder2hEnabled,
+  reminder30mEnabled: row.reminder_30m_enabled ?? DEFAULT_BRANDING.reminder30mEnabled,
+  soundNotificationsEnabled: row.sound_notifications_enabled ?? DEFAULT_BRANDING.soundNotificationsEnabled,
+  soundNewAppointmentEnabled: row.sound_new_appointment_enabled ?? DEFAULT_BRANDING.soundNewAppointmentEnabled,
+  soundRescheduleEnabled: row.sound_reschedule_enabled ?? DEFAULT_BRANDING.soundRescheduleEnabled,
+  soundCancellationEnabled: row.sound_cancellation_enabled ?? DEFAULT_BRANDING.soundCancellationEnabled,
+  soundCompletionEnabled: row.sound_completion_enabled ?? DEFAULT_BRANDING.soundCompletionEnabled,
 });
 
 const settingsToUpsert = (
@@ -353,10 +419,50 @@ const settingsToUpsert = (
   public_booking_enabled: settings.publicBookingEnabled,
   service_mode: settings.serviceMode,
   public_queue_visible: settings.publicQueueVisible,
+  reschedule_notice_hours: settings.rescheduleNoticeHours,
+  cancellation_notice_hours: settings.cancellationNoticeHours,
+  reminder_enabled: settings.reminderEnabled,
+  reminder_24h_enabled: settings.reminder24hEnabled,
+  reminder_2h_enabled: settings.reminder2hEnabled,
+  reminder_30m_enabled: settings.reminder30mEnabled,
+  sound_notifications_enabled: settings.soundNotificationsEnabled,
+  sound_new_appointment_enabled: settings.soundNewAppointmentEnabled,
+  sound_reschedule_enabled: settings.soundRescheduleEnabled,
+  sound_cancellation_enabled: settings.soundCancellationEnabled,
+  sound_completion_enabled: settings.soundCompletionEnabled,
 });
 
+const withoutRulesColumns = (payload: AgendaBusinessSettingsUpsert) => {
+  const {
+    reschedule_notice_hours,
+    cancellation_notice_hours,
+    reminder_enabled,
+    reminder_24h_enabled,
+    reminder_2h_enabled,
+    reminder_30m_enabled,
+    sound_notifications_enabled,
+    sound_new_appointment_enabled,
+    sound_reschedule_enabled,
+    sound_cancellation_enabled,
+    sound_completion_enabled,
+    ...remainingPayload
+  } = payload;
+  void reschedule_notice_hours;
+  void cancellation_notice_hours;
+  void reminder_enabled;
+  void reminder_24h_enabled;
+  void reminder_2h_enabled;
+  void reminder_30m_enabled;
+  void sound_notifications_enabled;
+  void sound_new_appointment_enabled;
+  void sound_reschedule_enabled;
+  void sound_cancellation_enabled;
+  void sound_completion_enabled;
+  return remainingPayload;
+};
+
 const withoutServiceModeColumns = (payload: AgendaBusinessSettingsUpsert) => {
-  const { service_mode, public_queue_visible, ...publicPagePayload } = payload;
+  const { service_mode, public_queue_visible, ...publicPagePayload } = withoutRulesColumns(payload);
   void service_mode;
   void public_queue_visible;
   return publicPagePayload;
@@ -480,6 +586,14 @@ export function AgendaBrandingProvider({ children }: { children: ReactNode }) {
         .upsert(upsertPayload, { onConflict: "owner_user_id" })
         .select(SETTINGS_COLUMNS_EXTENDED)
         .single();
+
+      if (response.error && isMissingColumnError(response.error.message)) {
+        response = await supabase
+          .from("agenda_business_settings")
+          .upsert(withoutRulesColumns(upsertPayload), { onConflict: "owner_user_id" })
+          .select(`${SETTINGS_COLUMNS_PUBLIC_PAGE}, service_mode, public_queue_visible`)
+          .single();
+      }
 
       if (response.error && isMissingColumnError(response.error.message)) {
         response = await supabase

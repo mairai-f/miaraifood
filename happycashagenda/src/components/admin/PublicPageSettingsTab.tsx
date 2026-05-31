@@ -11,6 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useAgendaBranding, type AgendaBrandingSettings } from "@/hooks/useAgendaBranding";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 import { uploadAgendaBrandingImage } from "@/lib/agendaStorage";
 import { buildAgendaPublicHomePath } from "@/lib/agendaPublicLink";
 
@@ -32,6 +33,7 @@ export function PublicPageSettingsTab() {
   const [draft, setDraft] = useState<AgendaBrandingSettings>(settings);
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [processingReminders, setProcessingReminders] = useState(false);
   const [uploadingField, setUploadingField] = useState<ImageField | null>(null);
   const { toast } = useToast();
 
@@ -84,6 +86,31 @@ export function PublicPageSettingsTab() {
       description: "Logo, textos, redes sociais e Pix da agenda foram atualizados.",
     });
     setEditing(false);
+  };
+
+  const handleRunReminders = async () => {
+    setProcessingReminders(true);
+    const { data, error } = await supabase.functions.invoke("send-agenda-reminders", {
+      body: { limit: 25 },
+    });
+    setProcessingReminders(false);
+
+    if (error) {
+      toast({
+        title: "Falha ao processar lembretes",
+        description: error.message,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const sent = Number(data?.sentCount || 0);
+    const failed = Number(data?.failedCount || 0);
+    const processed = Number(data?.processedCount || 0);
+    toast({
+      title: "Lembretes processados",
+      description: `${processed} item(ns), ${sent} enviado(s), ${failed} com falha.`,
+    });
   };
 
   if (loading) {
@@ -325,6 +352,137 @@ export function PublicPageSettingsTab() {
             onChange={(e) => updateDraft({ slug: e.target.value })}
           />
           <p className="text-xs text-muted-foreground">{publicUrl}</p>
+        </div>
+
+        <div className="space-y-3 rounded-lg border p-3 md:col-span-2">
+          <p className="text-sm font-medium">Regras do cliente</p>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="rescheduleNoticeHours">Antecedencia minima para remarcar</Label>
+              <Input
+                id="rescheduleNoticeHours"
+                type="number"
+                min={0}
+                max={72}
+                value={draft.rescheduleNoticeHours}
+                onChange={(e) => updateDraft({ rescheduleNoticeHours: Number(e.target.value) || 0 })}
+              />
+              <p className="text-xs text-muted-foreground">Em horas. `0` libera remarcacao ate antes do horario.</p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="cancellationNoticeHours">Antecedencia minima para cancelar</Label>
+              <Input
+                id="cancellationNoticeHours"
+                type="number"
+                min={0}
+                max={72}
+                value={draft.cancellationNoticeHours}
+                onChange={(e) => updateDraft({ cancellationNoticeHours: Number(e.target.value) || 0 })}
+              />
+              <p className="text-xs text-muted-foreground">Em horas. `0` libera cancelamento ate antes do horario.</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="space-y-3 rounded-lg border p-3 md:col-span-2">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <p className="text-sm font-medium">Lembretes automaticos</p>
+              <p className="text-xs text-muted-foreground">Envio antes do atendimento. Requer provider WhatsApp configurado na Edge Function.</p>
+            </div>
+            <Switch
+              checked={draft.reminderEnabled}
+              onCheckedChange={(reminderEnabled) => updateDraft({ reminderEnabled })}
+            />
+          </div>
+          <div className="grid gap-3 sm:grid-cols-3">
+            <div className="flex items-center justify-between gap-3 rounded-md border p-3">
+              <Label htmlFor="reminder24hEnabled">24 horas antes</Label>
+              <Switch
+                id="reminder24hEnabled"
+                checked={draft.reminder24hEnabled}
+                onCheckedChange={(reminder24hEnabled) => updateDraft({ reminder24hEnabled })}
+                disabled={!draft.reminderEnabled}
+              />
+            </div>
+            <div className="flex items-center justify-between gap-3 rounded-md border p-3">
+              <Label htmlFor="reminder2hEnabled">2 horas antes</Label>
+              <Switch
+                id="reminder2hEnabled"
+                checked={draft.reminder2hEnabled}
+                onCheckedChange={(reminder2hEnabled) => updateDraft({ reminder2hEnabled })}
+                disabled={!draft.reminderEnabled}
+              />
+            </div>
+            <div className="flex items-center justify-between gap-3 rounded-md border p-3">
+              <Label htmlFor="reminder30mEnabled">30 minutos antes</Label>
+              <Switch
+                id="reminder30mEnabled"
+                checked={draft.reminder30mEnabled}
+                onCheckedChange={(reminder30mEnabled) => updateDraft({ reminder30mEnabled })}
+                disabled={!draft.reminderEnabled}
+              />
+            </div>
+          </div>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-xs text-muted-foreground">
+              Depois de salvar, voce pode executar uma varredura manual para testar os lembretes vencidos.
+            </p>
+            <Button type="button" variant="outline" onClick={handleRunReminders} disabled={processingReminders}>
+              {processingReminders ? "Processando..." : "Processar lembretes agora"}
+            </Button>
+          </div>
+        </div>
+
+        <div className="space-y-3 rounded-lg border p-3 md:col-span-2">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <p className="text-sm font-medium">Sons do sistema</p>
+              <p className="text-xs text-muted-foreground">Controla os alertas do admin, profissional e cliente.</p>
+            </div>
+            <Switch
+              checked={draft.soundNotificationsEnabled}
+              onCheckedChange={(soundNotificationsEnabled) => updateDraft({ soundNotificationsEnabled })}
+            />
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="flex items-center justify-between gap-3 rounded-md border p-3">
+              <Label htmlFor="soundNewAppointmentEnabled">Novo agendamento</Label>
+              <Switch
+                id="soundNewAppointmentEnabled"
+                checked={draft.soundNewAppointmentEnabled}
+                onCheckedChange={(soundNewAppointmentEnabled) => updateDraft({ soundNewAppointmentEnabled })}
+                disabled={!draft.soundNotificationsEnabled}
+              />
+            </div>
+            <div className="flex items-center justify-between gap-3 rounded-md border p-3">
+              <Label htmlFor="soundRescheduleEnabled">Remarcacao</Label>
+              <Switch
+                id="soundRescheduleEnabled"
+                checked={draft.soundRescheduleEnabled}
+                onCheckedChange={(soundRescheduleEnabled) => updateDraft({ soundRescheduleEnabled })}
+                disabled={!draft.soundNotificationsEnabled}
+              />
+            </div>
+            <div className="flex items-center justify-between gap-3 rounded-md border p-3">
+              <Label htmlFor="soundCancellationEnabled">Cancelamento</Label>
+              <Switch
+                id="soundCancellationEnabled"
+                checked={draft.soundCancellationEnabled}
+                onCheckedChange={(soundCancellationEnabled) => updateDraft({ soundCancellationEnabled })}
+                disabled={!draft.soundNotificationsEnabled}
+              />
+            </div>
+            <div className="flex items-center justify-between gap-3 rounded-md border p-3">
+              <Label htmlFor="soundCompletionEnabled">Conclusao</Label>
+              <Switch
+                id="soundCompletionEnabled"
+                checked={draft.soundCompletionEnabled}
+                onCheckedChange={(soundCompletionEnabled) => updateDraft({ soundCompletionEnabled })}
+                disabled={!draft.soundNotificationsEnabled}
+              />
+            </div>
+          </div>
         </div>
 
         <div className="md:col-span-2">

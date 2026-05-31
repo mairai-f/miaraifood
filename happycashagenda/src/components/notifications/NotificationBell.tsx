@@ -12,7 +12,7 @@ import { useAgendaBranding } from '@/hooks/useAgendaBranding';
 import { supabase } from '@/integrations/supabase/client';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { playNotificationSound } from '@/lib/notificationSound';
+import { playNotificationSound, shouldPlayAgendaSound } from '@/lib/notificationSound';
 
 interface Notification {
   id: string;
@@ -150,14 +150,18 @@ export function NotificationBell() {
     });
 
     const unreadCount = notifs.filter(n => !n.read).length;
-    if (hasLoadedRef.current && unreadCount > previousUnreadRef.current) {
+    if (
+      hasLoadedRef.current &&
+      unreadCount > previousUnreadRef.current &&
+      shouldPlayAgendaSound(settings, 'notification')
+    ) {
       playNotificationSound();
     }
 
     previousUnreadRef.current = unreadCount;
     hasLoadedRef.current = true;
     setNotifications(notifs);
-  }, [isAdmin, readStorageKey, settings.displayName, settings.storeAccountId, user]);
+  }, [isAdmin, readStorageKey, settings, settings.displayName, settings.storeAccountId, user]);
 
   useEffect(() => {
     fetchNotifications();

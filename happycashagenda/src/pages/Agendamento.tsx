@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Briefcase, Calendar, Clock, User, ArrowRight, ArrowLeft, Check, Loader2, AlertCircle, Users } from 'lucide-react';
@@ -18,6 +18,12 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { cn } from '@/lib/utils';
 import { withAgendaPublicSearch } from '@/lib/agendaPublicLink';
+import {
+  clearAgendaBookingDraft,
+  readAgendaBookingDraft,
+  saveAgendaBookingDraft,
+  type AgendaBookingDraft,
+} from '@/lib/agendaBookingDraft';
 import { PixPaymentDialog } from '@/components/booking/PixPaymentDialog';
 import {
   buildAdminConfirmWhatsAppMessage,
@@ -85,6 +91,7 @@ export default function Booking() {
   const [submitting, setSubmitting] = useState(false);
   const [pixDialogOpen, setPixDialogOpen] = useState(false);
   const [waitingQueue, setWaitingQueue] = useState<WaitingQueueItem[]>([]);
+  const restoredDraftRef = useRef(false);
 
   const { user, loading: authLoading } = useAuth();
   const { settings } = useAgendaBranding();
@@ -96,18 +103,6 @@ export default function Booking() {
   const canUseAppointment = settings.serviceMode !== 'walk_in';
   const canUseQueue = settings.serviceMode !== 'appointment';
   const isQueueFlow = bookingFlow === 'queue';
-
-  // Redireciona para login se não estiver autenticado
-  useEffect(() => {
-    if (!authLoading && !user) {
-      toast({
-        title: 'Faça login para agendar',
-        description: 'Você precisa estar logado para agendar um horário.',
-        variant: 'destructive',
-      });
-      navigate(publicLoginPath);
-    }
-  }, [authLoading, navigate, publicLoginPath, toast, user]);
 
   useEffect(() => {
     if (settings.serviceMode === 'walk_in') {
@@ -127,6 +122,65 @@ export default function Booking() {
       fetchUserProfile();
     }
   }, [settings.storeAccountId, user]);
+
+  useEffect(() => {
+    if (restoredDraftRef.current || services.length === 0 || barbers.length === 0) return;
+
+    const draft = readAgendaBookingDraft();
+    restoredDraftRef.current = true;
+
+    if (!draft) return;
+
+    if (draft.storeSlug && settings.slug && draft.storeSlug !== settings.slug) {
+      return;
+    }
+
+    const restoredServices = services.filter((service) => draft.serviceIds.includes(service.id));
+    const restoredBarber = draft.barberId ? barbers.find((barber) => barber.id === draft.barberId) ?? null : null;
+    const nextFlow =
+      draft.bookingFlow === 'queue' && canUseQueue
+        ? 'queue'
+        : canUseAppointment
+          ? 'appointment'
+          : bookingFlow;
+
+    setBookingFlow(nextFlow);
+    if (restoredServices.length > 0) {
+      setSelectedServices(restoredServices);
+    }
+    if (restoredBarber) {
+      setSelectedBarber(restoredBarber);
+    }
+    if (draft.appointmentDate) {
+      setSelectedDate(new Date(`${draft.appointmentDate}T12:00:00`));
+    }
+    if (draft.appointmentTime) {
+      setSelectedTime(draft.appointmentTime);
+    }
+    if (draft.clientName) {
+      setClientName((current) => current || draft.clientName);
+    }
+    if (draft.clientPhone) {
+      setClientPhone((current) => current || draft.clientPhone);
+    }
+
+    const canRestoreDatetime =
+      nextFlow === 'queue' || (!!draft.appointmentDate && !!draft.appointmentTime);
+
+    if (draft.step === 'confirm' && restoredServices.length > 0 && restoredBarber && canRestoreDatetime) {
+      setStep('confirm');
+      return;
+    }
+
+    if (draft.step === 'datetime' && restoredServices.length > 0 && restoredBarber) {
+      setStep('datetime');
+      return;
+    }
+
+    if (draft.step === 'barber' && restoredServices.length > 0) {
+      setStep('barber');
+    }
+  }, [barbers, bookingFlow, canUseAppointment, canUseQueue, services, settings.slug]);
 
   useEffect(() => {
     if (!user || !settings.storeAccountId || !settings.publicQueueVisible || !canUseQueue) {
@@ -326,6 +380,27 @@ export default function Booking() {
     setLoading(false);
   };
 
+  const buildBookingDraft = (): AgendaBookingDraft => ({
+    returnPath:
+      typeof window !== 'undefined'
+        ? `${window.location.pathname}${window.location.search}`
+        : withAgendaPublicSearch('/agendamento', settings),
+    storeSlug: settings.slug || null,
+    step,
+    bookingFlow,
+    serviceIds: selectedServices.map((service) => service.id),
+    barberId: selectedBarber?.id ?? null,
+    appointmentDate: selectedDate ? format(selectedDate, 'yyyy-MM-dd') : null,
+    appointmentTime: selectedTime || null,
+    clientName,
+    clientPhone,
+  });
+
+  const goToLoginForBooking = () => {
+    saveAgendaBookingDraft(buildBookingDraft());
+    navigate(publicLoginPath);
+  };
+
   const validateBookingForm = () => {
     if (!user) {
       toast({
@@ -333,7 +408,7 @@ export default function Booking() {
         description: 'Para confirmar um horário, entre com sua conta.',
         variant: 'destructive',
       });
-      navigate(publicLoginPath);
+      goToLoginForBooking();
       return null;
     }
 
@@ -444,6 +519,7 @@ export default function Booking() {
     });
 
     if (appointmentId) {
+      clearAgendaBookingDraft();
       navigate(publicAppointmentsPath);
     }
   };
@@ -509,20 +585,6 @@ export default function Booking() {
     const dayHours = getHoursForDay(date.getDay());
     return !dayHours?.is_open;
   };
-
-  if (authLoading) {
-    return (
-      <Layout>
-        <div className="flex min-h-[60vh] items-center justify-center">
-          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-        </div>
-      </Layout>
-    );
-  }
-
-  if (!user) {
-    return null; // Será redirecionado pelo useEffect
-  }
 
   return (
     <Layout>
@@ -998,43 +1060,67 @@ export default function Booking() {
                     </div>
                   </div>
 
-                  {/* Payment Method Selection */}
-                  <div className="space-y-3">
-                    <Label className="text-base font-semibold">Forma de Pagamento</Label>
-                    <div className="grid grid-cols-2 gap-3">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={() => handleSubmit('local')}
-                        disabled={!canProceed() || submitting}
-                        className="h-auto py-4 flex-col gap-2"
-                      >
-                        {submitting ? (
-                          <Loader2 className="w-6 h-6 animate-spin" />
-                        ) : (
-                          <>
-                            <Clock className="w-6 h-6" />
-                            <span className="text-sm">Pagar no Local</span>
-                          </>
-                        )}
-                      </Button>
-                      <Button
-                        type="button"
-                        onClick={() => handleSubmit('pix')}
-                        disabled={!canProceed() || submitting}
-                        className="h-auto py-4 flex-col gap-2"
-                      >
-                        {submitting ? (
-                          <Loader2 className="w-6 h-6 animate-spin" />
-                        ) : (
-                          <>
-                            <Check className="w-6 h-6" />
-                            <span className="text-sm">Pagar via PIX</span>
-                          </>
-                        )}
-                      </Button>
+                  {!user ? (
+                    <Card className="border-primary/20 bg-primary/5">
+                      <CardContent className="space-y-4 p-4">
+                        <div>
+                          <p className="font-medium">Entre para confirmar seu horário</p>
+                          <p className="text-sm text-muted-foreground">
+                            Você já escolheu {settings.serviceLabel.toLowerCase()}, {settings.professionalLabel.toLowerCase()}
+                            {isQueueFlow ? '' : ' e horário'}. O próximo passo é autenticar sua conta.
+                          </p>
+                        </div>
+                        <Button
+                          type="button"
+                          onClick={goToLoginForBooking}
+                          disabled={authLoading}
+                          className="w-full sm:w-auto"
+                        >
+                          {authLoading ? 'Verificando sessão...' : 'Entrar ou criar conta'}
+                        </Button>
+                        <p className="text-xs text-muted-foreground">
+                          Login com Google, email e senha estão disponíveis na tela seguinte.
+                        </p>
+                      </CardContent>
+                    </Card>
+                  ) : (
+                    <div className="space-y-3">
+                      <Label className="text-base font-semibold">Forma de Pagamento</Label>
+                      <div className="grid grid-cols-2 gap-3">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => handleSubmit('local')}
+                          disabled={!canProceed() || submitting}
+                          className="h-auto py-4 flex-col gap-2"
+                        >
+                          {submitting ? (
+                            <Loader2 className="w-6 h-6 animate-spin" />
+                          ) : (
+                            <>
+                              <Clock className="w-6 h-6" />
+                              <span className="text-sm">Pagar no Local</span>
+                            </>
+                          )}
+                        </Button>
+                        <Button
+                          type="button"
+                          onClick={() => handleSubmit('pix')}
+                          disabled={!canProceed() || submitting}
+                          className="h-auto py-4 flex-col gap-2"
+                        >
+                          {submitting ? (
+                            <Loader2 className="w-6 h-6 animate-spin" />
+                          ) : (
+                            <>
+                              <Check className="w-6 h-6" />
+                              <span className="text-sm">Pagar via PIX</span>
+                            </>
+                          )}
+                        </Button>
+                      </div>
                     </div>
-                  </div>
+                  )}
                 </motion.div>
               )}
             </CardContent>

@@ -36,6 +36,17 @@ export type AgendaCancellationWhatsAppInput = {
   totalAmount: number;
 };
 
+export type AgendaRescheduleWhatsAppInput = {
+  businessName: string;
+  clientName: string;
+  professionalName: string;
+  serviceNames: string[];
+  previousAppointmentDate: string;
+  previousAppointmentTime: string;
+  appointmentDate: string;
+  appointmentTime: string;
+};
+
 export type AgendaProductOrderWhatsAppInput = {
   businessName: string;
   clientName: string;
@@ -94,6 +105,25 @@ export function buildAppointmentCancellationWhatsAppMessage(input: AgendaCancell
     `Horario cancelado: ${dateLabel} as ${timeLabel}`,
     `Valor: R$ ${input.totalAmount.toFixed(2)}`,
     "Cancelamento feito pelo cliente.",
+  ].join("\n");
+}
+
+export function buildAppointmentRescheduleWhatsAppMessage(input: AgendaRescheduleWhatsAppInput) {
+  const previousDateLabel = format(new Date(`${input.previousAppointmentDate}T12:00:00`), "dd/MM/yyyy", { locale: ptBR });
+  const previousTimeLabel = input.previousAppointmentTime.slice(0, 5);
+  const nextDateLabel = format(new Date(`${input.appointmentDate}T12:00:00`), "dd/MM/yyyy", { locale: ptBR });
+  const nextTimeLabel = input.appointmentTime.slice(0, 5);
+  const services = input.serviceNames.join(", ");
+
+  return [
+    `*${input.businessName}* - agendamento remarcado`,
+    "",
+    `Cliente: ${input.clientName}`,
+    `Profissional: ${input.professionalName}`,
+    `Servicos: ${services}`,
+    `Horario anterior: ${previousDateLabel} as ${previousTimeLabel}`,
+    `Novo horario: ${nextDateLabel} as ${nextTimeLabel}`,
+    "Remarcacao feita pelo cliente.",
   ].join("\n");
 }
 

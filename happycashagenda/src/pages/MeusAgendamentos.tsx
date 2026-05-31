@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Calendar, Clock, User, Scissors, X, Loader2, Trophy } from 'lucide-react';
+import { Calendar, Clock, User, Scissors, X, Loader2, Trophy, CalendarSync } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Button } from '@/components/ui/button';
@@ -12,14 +12,17 @@ import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
 import { usePushNotifications } from '@/hooks/usePushNotifications';
 import { useAgendaBranding } from '@/hooks/useAgendaBranding';
+import { useBusinessHours } from '@/hooks/useBusinessHours';
 import { supabase } from '@/integrations/supabase/client';
 import { LoyaltyTab } from '@/components/admin/LoyaltyTab';
-import { parseLocalDate } from '@/lib/utils';
+import { cn, parseLocalDate } from '@/lib/utils';
 import { withAgendaPublicSearch } from '@/lib/agendaPublicLink';
 import {
   buildAppointmentCancellationWhatsAppMessage,
+  buildAppointmentRescheduleWhatsAppMessage,
   openAgendaWhatsAppTargets,
 } from '@/lib/agendaWhatsApp';
+import { playNotificationSound, shouldPlayAgendaSound } from '@/lib/notificationSound';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -30,6 +33,16 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Calendar as CalendarComponent } from '@/components/ui/calendar';
+import { Label } from '@/components/ui/label';
 
 interface ExtraService {
   id: string;
@@ -43,6 +56,8 @@ interface Appointment {
   client_name: string;
   appointment_date: string;
   appointment_time: string;
+  appointment_type?: 'appointment' | 'queue';
+  barber_id: string;
   status: 'scheduled' | 'completed' | 'cancelled';
   barber: { name: string; phone?: string | null };
   service: { name: string; price: number; duration_minutes: number };
@@ -55,6 +70,8 @@ interface AppointmentRealtimeRow {
   status?: Appointment['status'];
   appointment_date?: string;
   appointment_time?: string;
+  appointment_type?: Appointment['appointment_type'];
+  client_name?: string;
 }
 
 interface AppointmentServiceRealtimeRow {
@@ -69,21 +86,38 @@ interface AppointmentExtraServiceRow {
   service_duration?: number | string | null;
 }
 
+type BookedSlotRow = {
+  appointment_time: string | null;
+  duration_minutes: number | null;
+};
+
 export default function MyAppointments() {
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [loading, setLoading] = useState(true);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
   const [showCancelDialog, setShowCancelDialog] = useState(false);
   const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
+  const [showRescheduleDialog, setShowRescheduleDialog] = useState(false);
+  const [rescheduleAppointment, setRescheduleAppointment] = useState<Appointment | null>(null);
+  const [rescheduleDate, setRescheduleDate] = useState<Date | undefined>(undefined);
+  const [rescheduleTime, setRescheduleTime] = useState('');
+  const [rescheduleAllSlots, setRescheduleAllSlots] = useState<string[]>([]);
+  const [rescheduleBookedSlots, setRescheduleBookedSlots] = useState<string[]>([]);
+  const [rescheduleExceededSlots, setRescheduleExceededSlots] = useState<string[]>([]);
+  const [rescheduleLoadingSlots, setRescheduleLoadingSlots] = useState(false);
+  const [reschedulingId, setReschedulingId] = useState<string | null>(null);
   const [profileName, setProfileName] = useState<string | null>(null);
 
   const { user, loading: authLoading } = useAuth();
   const { toast } = useToast();
   const { requestPermission, sendNotification, permission } = usePushNotifications();
   const { settings } = useAgendaBranding();
+  const { getAvailableTimeSlots, getAllBusinessSlots, getHoursForDay } = useBusinessHours(settings.storeAccountId);
   const navigate = useNavigate();
   const publicLoginPath = withAgendaPublicSearch('/login', settings);
   const publicBookingPath = withAgendaPublicSearch('/agendamento', settings);
+  const rescheduleNoticeHours = Math.max(0, settings.rescheduleNoticeHours ?? 2);
+  const cancellationNoticeHours = Math.max(0, settings.cancellationNoticeHours ?? 0);
 
   // Cache para saber quais agendamentos pertencem ao cliente (usado no realtime de serviços)
   const appointmentIdsRef = useRef<Set<string>>(new Set());
@@ -147,6 +181,9 @@ export default function MyAppointments() {
 
             // Notify client when their appointment status changes
             if (oldApt.status !== 'completed' && updatedApt.status === 'completed') {
+              if (shouldPlayAgendaSound(settings, 'completion')) {
+                playNotificationSound('success');
+              }
               toast({
                 title: '✅ Atendimento Concluído',
                 description: `Seu agendamento de ${format(parseLocalDate(updatedApt.appointment_date), "dd/MM")} foi concluído!`,
@@ -156,6 +193,9 @@ export default function MyAppointments() {
                 tag: `completed-${updatedApt.id}`,
               });
             } else if (oldApt.status !== 'cancelled' && updatedApt.status === 'cancelled') {
+              if (shouldPlayAgendaSound(settings, 'cancellation')) {
+                playNotificationSound('alert');
+              }
               toast({
                 title: '❌ Agendamento Cancelado',
                 description: `Seu agendamento de ${format(parseLocalDate(updatedApt.appointment_date), "dd/MM")} foi cancelado.`,
@@ -164,6 +204,25 @@ export default function MyAppointments() {
               sendNotification('❌ Agendamento Cancelado', {
                 body: `Seu agendamento de ${format(parseLocalDate(updatedApt.appointment_date), "dd/MM")} às ${updatedApt.appointment_time?.slice(0, 5)} foi cancelado.`,
                 tag: `cancelled-${updatedApt.id}`,
+              });
+            } else if (
+              updatedApt.status === 'scheduled' &&
+              oldApt.status === 'scheduled' &&
+              (
+                oldApt.appointment_date !== updatedApt.appointment_date ||
+                oldApt.appointment_time !== updatedApt.appointment_time
+              )
+            ) {
+              if (shouldPlayAgendaSound(settings, 'reschedule')) {
+                playNotificationSound();
+              }
+              toast({
+                title: '🔄 Horário Remarcado',
+                description: `Seu novo horário ficou para ${format(parseLocalDate(updatedApt.appointment_date), "dd/MM")} às ${updatedApt.appointment_time?.slice(0, 5)}.`,
+              });
+              sendNotification('🔄 Horário Remarcado', {
+                body: `Novo horário: ${format(parseLocalDate(updatedApt.appointment_date), "dd/MM")} às ${updatedApt.appointment_time?.slice(0, 5)}.`,
+                tag: `rescheduled-${updatedApt.id}-${updatedApt.appointment_date}-${updatedApt.appointment_time}`,
               });
             }
           }
@@ -199,7 +258,7 @@ export default function MyAppointments() {
       setAppointments([]);
       setLoading(false);
     }
-  }, [settings.storeAccountId, user]);
+  }, [settings, settings.storeAccountId, user]);
 
   const fetchAppointments = async () => {
     if (!user || !settings.storeAccountId) return;
@@ -211,6 +270,8 @@ export default function MyAppointments() {
         client_name,
         appointment_date,
         appointment_time,
+        appointment_type,
+        barber_id,
         status,
         barber:barbers(name, phone),
         service:services(name, price, duration_minutes)
@@ -269,16 +330,9 @@ export default function MyAppointments() {
     if (!selectedAppointment) return;
 
     setCancellingId(selectedAppointment.id);
-
-    // Otimista: remove imediatamente de "Próximos" (status deixa de ser scheduled)
-    setAppointments((prev) =>
-      prev.map((a) => (a.id === selectedAppointment.id ? { ...a, status: 'cancelled' } : a))
-    );
-
-    const { error } = await supabase
-      .from('appointments')
-      .update({ status: 'cancelled' })
-      .eq('id', selectedAppointment.id);
+    const { error } = await supabase.rpc('cancel_client_appointment', {
+      p_appointment_id: selectedAppointment.id,
+    });
 
     setCancellingId(null);
     setShowCancelDialog(false);
@@ -289,8 +343,6 @@ export default function MyAppointments() {
         description: 'Não foi possível cancelar o agendamento.',
         variant: 'destructive',
       });
-
-      // Recarrega para reverter caso o update falhe
       fetchAppointments();
     } else {
       const serviceNames = [
@@ -327,6 +379,34 @@ export default function MyAppointments() {
     setShowCancelDialog(true);
   };
 
+  const getAppointmentStart = (appointment: Appointment) =>
+    new Date(`${appointment.appointment_date}T${appointment.appointment_time}`);
+
+  const canRescheduleAppointment = (appointment: Appointment) => {
+    if (appointment.status !== 'scheduled' || appointment.appointment_type === 'queue') {
+      return false;
+    }
+
+    return getAppointmentStart(appointment).getTime() - Date.now() > rescheduleNoticeHours * 60 * 60 * 1000;
+  };
+
+  const canCancelAppointment = (appointment: Appointment) => {
+    if (appointment.status !== 'scheduled') {
+      return false;
+    }
+
+    return getAppointmentStart(appointment).getTime() - Date.now() > cancellationNoticeHours * 60 * 60 * 1000;
+  };
+
+  const isDateDisabled = (date: Date) => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    if (date < today) return true;
+
+    const dayHours = getHoursForDay(date.getDay());
+    return !dayHours?.is_open;
+  };
+
   // Ordenar: Agendados primeiro, depois concluídos, depois cancelados
   const sortByStatus = (a: Appointment, b: Appointment) => {
     const statusOrder = { scheduled: 0, completed: 1, cancelled: 2 };
@@ -358,6 +438,204 @@ export default function MyAppointments() {
     return (apt.service?.duration_minutes || 0) + extrasDuration;
   };
 
+  const fetchRescheduleSlots = async (appointment: Appointment, date: Date) => {
+    setRescheduleLoadingSlots(true);
+
+    const dateString = format(date, 'yyyy-MM-dd');
+    const totalDuration = getTotalDuration(appointment);
+    const validSlots = getAvailableTimeSlots(date, totalDuration);
+    const allBusinessSlots = getAllBusinessSlots(date);
+
+    const { data: booked, error: bookedError } = await supabase.rpc('get_barber_booked_slots', {
+      p_barber_id: appointment.barber_id,
+      p_appointment_date: dateString,
+    });
+
+    const appointmentsWithDuration: { time: string; duration: number }[] = [];
+    if (!bookedError && booked) {
+      for (const row of booked as BookedSlotRow[]) {
+        const timeStr = String(row.appointment_time).slice(0, 5);
+        const duration = Number(row.duration_minutes) || 0;
+        if (timeStr && duration > 0) {
+          appointmentsWithDuration.push({ time: timeStr, duration });
+        }
+      }
+    }
+
+    const now = new Date();
+    const todayString = format(now, 'yyyy-MM-dd');
+    const isToday = dateString === todayString;
+    const currentTotalMinutes = now.getHours() * 60 + now.getMinutes();
+    const originalTime = appointment.appointment_time.slice(0, 5);
+    const sameDayAsOriginal = dateString === appointment.appointment_date;
+
+    const filterPast = (slot: string) => {
+      if (!isToday) return true;
+      const [h, m] = slot.split(':').map(Number);
+      return h * 60 + m > currentTotalMinutes;
+    };
+
+    const filteredValidSlots = validSlots.filter(filterPast);
+    const filteredAllSlots = allBusinessSlots.filter(filterPast);
+    const exceededSet = new Set(filteredAllSlots.filter((slot) => !filteredValidSlots.includes(slot)));
+
+    const occupiedSlots: string[] = [];
+    const freeSlots: string[] = [];
+
+    filteredValidSlots.forEach((slot) => {
+      const isCurrentSlot = sameDayAsOriginal && slot === originalTime;
+      if (isCurrentSlot) {
+        freeSlots.push(slot);
+        return;
+      }
+
+      const [slotHour, slotMin] = slot.split(':').map(Number);
+      const slotStartMinutes = slotHour * 60 + slotMin;
+      const slotEndMinutes = slotStartMinutes + totalDuration;
+
+      let hasConflict = false;
+      for (const bookedSlot of appointmentsWithDuration) {
+        const [bookedHour, bookedMin] = bookedSlot.time.split(':').map(Number);
+        const bookedStartMinutes = bookedHour * 60 + bookedMin;
+        const bookedEndMinutes = bookedStartMinutes + bookedSlot.duration;
+        if (slotStartMinutes < bookedEndMinutes && slotEndMinutes > bookedStartMinutes) {
+          hasConflict = true;
+          break;
+        }
+      }
+
+      if (hasConflict) {
+        occupiedSlots.push(slot);
+      } else {
+        freeSlots.push(slot);
+      }
+    });
+
+    setRescheduleAllSlots([...filteredValidSlots, ...Array.from(exceededSet)].sort());
+    setRescheduleBookedSlots(occupiedSlots);
+    setRescheduleExceededSlots(Array.from(exceededSet));
+    if (!freeSlots.includes(rescheduleTime)) {
+      setRescheduleTime((current) =>
+        current && freeSlots.includes(current) ? current : sameDayAsOriginal ? originalTime : '',
+      );
+    }
+    setRescheduleLoadingSlots(false);
+  };
+
+  useEffect(() => {
+    if (!showRescheduleDialog || !rescheduleAppointment || !rescheduleDate) {
+      return;
+    }
+
+    void fetchRescheduleSlots(rescheduleAppointment, rescheduleDate);
+  }, [showRescheduleDialog, rescheduleAppointment, rescheduleDate]);
+
+  const openRescheduleDialog = (appointment: Appointment) => {
+    setRescheduleAppointment(appointment);
+    setRescheduleDate(parseLocalDate(appointment.appointment_date));
+    setRescheduleTime(appointment.appointment_time.slice(0, 5));
+    setRescheduleAllSlots([]);
+    setRescheduleBookedSlots([]);
+    setRescheduleExceededSlots([]);
+    setShowRescheduleDialog(true);
+  };
+
+  const closeRescheduleDialog = () => {
+    setShowRescheduleDialog(false);
+    setRescheduleAppointment(null);
+    setRescheduleDate(undefined);
+    setRescheduleTime('');
+    setRescheduleAllSlots([]);
+    setRescheduleBookedSlots([]);
+    setRescheduleExceededSlots([]);
+    setRescheduleLoadingSlots(false);
+  };
+
+  const handleRescheduleAppointment = async () => {
+    if (!rescheduleAppointment || !rescheduleDate || !rescheduleTime) {
+      toast({
+        title: 'Selecione o novo horário',
+        description: 'Escolha uma data e um horário disponíveis para continuar.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    const nextDate = format(rescheduleDate, 'yyyy-MM-dd');
+    const nextTime = `${rescheduleTime}:00`;
+    if (
+      nextDate === rescheduleAppointment.appointment_date &&
+      nextTime === rescheduleAppointment.appointment_time
+    ) {
+      toast({
+        title: 'Nenhuma alteração detectada',
+        description: 'Escolha um novo horário para concluir a remarcação.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setReschedulingId(rescheduleAppointment.id);
+
+    const { error } = await supabase.rpc('reschedule_client_appointment', {
+      p_appointment_id: rescheduleAppointment.id,
+      p_appointment_date: nextDate,
+      p_appointment_time: nextTime,
+    });
+
+    setReschedulingId(null);
+
+    if (error) {
+      toast({
+        title: 'Erro ao remarcar',
+        description: error.message || 'Não foi possível alterar o horário.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    const serviceNames = [
+      rescheduleAppointment.service?.name,
+      ...rescheduleAppointment.extraServices.map((service) => service.name),
+    ].filter((serviceName): serviceName is string => Boolean(serviceName));
+    const rescheduleMessage = buildAppointmentRescheduleWhatsAppMessage({
+      businessName: settings.displayName,
+      clientName: rescheduleAppointment.client_name,
+      professionalName: rescheduleAppointment.barber?.name || settings.professionalLabel,
+      serviceNames,
+      previousAppointmentDate: rescheduleAppointment.appointment_date,
+      previousAppointmentTime: rescheduleAppointment.appointment_time,
+      appointmentDate: nextDate,
+      appointmentTime: nextTime,
+    });
+
+    openAgendaWhatsAppTargets({
+      professionalPhone: rescheduleAppointment.barber?.phone,
+      adminPhone: settings.adminWhatsapp || settings.whatsapp,
+      clientMessage: rescheduleMessage,
+      adminMessage: rescheduleMessage,
+    });
+
+    toast({
+      title: 'Horário remarcado',
+      description: 'Seu novo horário foi salvo e o WhatsApp foi aberto para avisar a empresa.',
+    });
+
+    setAppointments((prev) =>
+      prev.map((appointment) =>
+        appointment.id === rescheduleAppointment.id
+          ? {
+              ...appointment,
+              appointment_date: nextDate,
+              appointment_time: nextTime,
+            }
+          : appointment,
+      ),
+    );
+    closeRescheduleDialog();
+    fetchAppointments();
+  };
+
   if (authLoading || loading) {
     return (
       <Layout>
@@ -376,14 +654,14 @@ export default function MyAppointments() {
           animate={{ opacity: 1, y: 0 }}
           className="max-w-3xl mx-auto"
         >
-          <div className="flex items-center justify-between mb-8">
+          <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h1 className="font-serif text-3xl font-bold">Meus Agendamentos</h1>
               <p className="text-muted-foreground mt-1">
                 Gerencie seus horários marcados
               </p>
             </div>
-            <Button onClick={() => navigate(publicBookingPath)}>
+            <Button onClick={() => navigate(publicBookingPath)} className="w-full sm:w-auto">
               Novo Agendamento
             </Button>
           </div>
@@ -418,13 +696,13 @@ export default function MyAppointments() {
                       >
                         <Card className="border-border hover:border-primary/30 transition-colors">
                           <CardContent className="p-4">
-                            <div className="flex items-start justify-between">
+                            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                               <div className="space-y-3">
                                 <div className="flex items-center gap-2">
                                   <StatusBadge status={apt.status} />
                                 </div>
 
-                                <div className="flex items-center gap-4 text-sm">
+                                <div className="flex flex-wrap items-center gap-4 text-sm">
                                   <span className="flex items-center gap-1.5">
                                     <Calendar className="w-4 h-4 text-muted-foreground" />
                                     {format(parseLocalDate(apt.appointment_date), "dd 'de' MMMM", { locale: ptBR })}
@@ -468,27 +746,42 @@ export default function MyAppointments() {
                               </div>
 
                               <div className="flex flex-col items-end gap-2">
-                                <div className="text-right border-t border-border pt-2 mt-2 sm:border-0 sm:pt-0 sm:mt-0">
+                                <div className="mt-2 border-t border-border pt-2 text-left sm:mt-0 sm:border-0 sm:pt-0 sm:text-right">
                                   <p className="text-xs text-muted-foreground">Total</p>
                                   <span className="font-bold text-lg">
                                     R$ {getTotalPrice(apt).toFixed(2)}
                                   </span>
-                                  <p className="text-xs text-muted-foreground flex items-center justify-end gap-1">
+                                  <p className="flex items-center gap-1 text-xs text-muted-foreground sm:justify-end">
                                     <Clock className="w-3 h-3" /> {getTotalDuration(apt)} min
                                   </p>
                                   {apt.extraServices.length > 0 && (
                                     <p className="text-xs text-primary">{apt.extraServices.length + 1} serviços</p>
                                   )}
                                 </div>
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => openCancelDialog(apt)}
-                                  className="text-destructive hover:text-destructive"
-                                >
-                                  <X className="w-4 h-4 mr-1" />
-                                  Cancelar
-                                </Button>
+                                <div className="flex w-full flex-col gap-2 sm:w-auto">
+                                  {canRescheduleAppointment(apt) && (
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() => openRescheduleDialog(apt)}
+                                      className="w-full"
+                                    >
+                                      <CalendarSync className="mr-1 h-4 w-4" />
+                                      Remarcar
+                                    </Button>
+                                  )}
+                                  {canCancelAppointment(apt) && (
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() => openCancelDialog(apt)}
+                                      className="w-full text-destructive hover:text-destructive"
+                                    >
+                                      <X className="w-4 h-4 mr-1" />
+                                      Cancelar
+                                    </Button>
+                                  )}
+                                </div>
                               </div>
                             </div>
                           </CardContent>
@@ -512,7 +805,7 @@ export default function MyAppointments() {
                       >
                         <Card className="border-border opacity-70">
                           <CardContent className="p-4">
-                            <div className="flex items-start justify-between">
+                            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                               <div className="space-y-2">
                                 <StatusBadge status={apt.status} />
 
@@ -539,12 +832,12 @@ export default function MyAppointments() {
                                   ))}
                                 </div>
                               </div>
-                              <div className="text-right border-t border-border pt-2 mt-2 sm:border-0 sm:pt-0 sm:mt-0">
+                              <div className="mt-2 border-t border-border pt-2 text-left sm:mt-0 sm:border-0 sm:pt-0 sm:text-right">
                                 <p className="text-xs text-muted-foreground">Total</p>
                                 <span className="font-medium text-muted-foreground">
                                   R$ {getTotalPrice(apt).toFixed(2)}
                                 </span>
-                                <p className="text-xs text-muted-foreground flex items-center justify-end gap-1">
+                                <p className="flex items-center gap-1 text-xs text-muted-foreground sm:justify-end">
                                   <Clock className="w-3 h-3" /> {getTotalDuration(apt)} min
                                 </p>
                                 {apt.extraServices.length > 0 && (
@@ -586,6 +879,7 @@ export default function MyAppointments() {
             <AlertDialogTitle>Cancelar agendamento?</AlertDialogTitle>
             <AlertDialogDescription>
               Tem certeza que deseja cancelar este agendamento? Esta ação não pode ser desfeita.
+              {cancellationNoticeHours > 0 ? ` Cancelamentos ficam disponíveis até ${cancellationNoticeHours} hora(s) antes do atendimento.` : ''}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -603,6 +897,137 @@ export default function MyAppointments() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <Dialog open={showRescheduleDialog} onOpenChange={(open) => !open && closeRescheduleDialog()}>
+        <DialogContent className="max-h-[90svh] max-w-[95vw] overflow-hidden p-0 sm:max-w-3xl">
+          <div className="max-h-[90svh] overflow-y-auto p-4 sm:p-6">
+            <DialogHeader>
+              <DialogTitle>Remarcar agendamento</DialogTitle>
+              <DialogDescription>
+                O mesmo {settings.professionalLabel.toLowerCase()} e os mesmos serviços serão mantidos.
+                Remarcações ficam disponíveis até {rescheduleNoticeHours} hora(s) antes do atendimento.
+              </DialogDescription>
+            </DialogHeader>
+
+            {rescheduleAppointment && (
+              <div className="mt-4 space-y-5">
+                <div className="rounded-xl border bg-secondary/40 p-4 text-sm">
+                  <p className="font-medium">{rescheduleAppointment.barber?.name}</p>
+                  <p className="text-muted-foreground">
+                    Horário atual: {format(parseLocalDate(rescheduleAppointment.appointment_date), "dd 'de' MMMM", { locale: ptBR })}
+                    {" "}às {rescheduleAppointment.appointment_time.slice(0, 5)}
+                  </p>
+                </div>
+
+                <div className="grid gap-6 md:grid-cols-2">
+                  <div>
+                    <Label className="mb-2 block">Nova data</Label>
+                    <CalendarComponent
+                      mode="single"
+                      selected={rescheduleDate}
+                      onSelect={(date) => {
+                        setRescheduleDate(date);
+                        setRescheduleTime('');
+                      }}
+                      disabled={isDateDisabled}
+                      locale={ptBR}
+                      className="rounded-xl border pointer-events-auto"
+                    />
+                  </div>
+
+                  <div>
+                    <Label className="mb-2 block">Novo horário</Label>
+                    {!rescheduleDate ? (
+                      <p className="py-8 text-center text-sm text-muted-foreground">
+                        Selecione uma data para ver os horários.
+                      </p>
+                    ) : rescheduleLoadingSlots ? (
+                      <div className="flex items-center justify-center py-8">
+                        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                      </div>
+                    ) : rescheduleAllSlots.length === 0 ? (
+                      <p className="py-8 text-center text-sm text-muted-foreground">
+                        Nenhum horário disponível nesta data para a duração total do atendimento.
+                      </p>
+                    ) : (
+                      <div className="space-y-3">
+                        <div className="flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
+                          <div className="flex items-center gap-1">
+                            <span className="h-2 w-2 rounded-full bg-emerald-500"></span>
+                            <span>Disponível</span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <span className="h-2 w-2 rounded-full bg-destructive"></span>
+                            <span>Ocupado</span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <span className="h-2 w-2 rounded-full bg-border"></span>
+                            <span>Excede horário</span>
+                          </div>
+                        </div>
+                        <div className="grid max-h-[320px] grid-cols-3 gap-2 overflow-y-auto p-1">
+                          {rescheduleAllSlots.map((slot) => {
+                            const isBooked = rescheduleBookedSlots.includes(slot);
+                            const isExceeded = rescheduleExceededSlots.includes(slot);
+                            const isFree = !isBooked && !isExceeded;
+
+                            return (
+                              <button
+                                key={slot}
+                                type="button"
+                                onClick={() => isFree && setRescheduleTime(slot)}
+                                disabled={!isFree}
+                                className={cn(
+                                  'flex items-center justify-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium transition-all',
+                                  isBooked
+                                    ? 'cursor-not-allowed border-destructive/30 bg-destructive/10 text-destructive opacity-60'
+                                    : isExceeded
+                                      ? 'cursor-not-allowed border-border bg-background text-muted-foreground opacity-50'
+                                      : rescheduleTime === slot
+                                        ? 'border-primary bg-primary text-primary-foreground'
+                                        : 'border-emerald-500/30 bg-emerald-500/10 text-foreground hover:border-emerald-500/60'
+                                )}
+                              >
+                                <span
+                                  className={cn(
+                                    'h-2 w-2 shrink-0 rounded-full',
+                                    isBooked ? 'bg-destructive' : isExceeded ? 'bg-border' : 'bg-emerald-500',
+                                  )}
+                                ></span>
+                                {slot}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <DialogFooter className="gap-2 sm:justify-end">
+                  <Button variant="outline" type="button" onClick={closeRescheduleDialog}>
+                    Fechar
+                  </Button>
+                  <Button
+                    type="button"
+                    onClick={handleRescheduleAppointment}
+                    disabled={!rescheduleDate || !rescheduleTime || reschedulingId === rescheduleAppointment.id}
+                  >
+                    {reschedulingId === rescheduleAppointment.id ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Salvando...
+                      </>
+                    ) : (
+                      'Confirmar novo horário'
+                    )}
+                  </Button>
+                </DialogFooter>
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </Layout>
   );
 }
