@@ -1,5 +1,19 @@
 project_id = "ymffclntmynwfdiarlaw"
 
+[auth]
+enabled = true
+site_url = "https://agenda.happycashsite.com.br"
+additional_redirect_urls = [
+  "https://agenda.happycashsite.com.br/**",
+  "http://localhost:8080/**",
+  "http://127.0.0.1:8080/**",
+]
+
+[auth.external.google]
+enabled = false
+client_id = "env(SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_ID)"
+secret = "env(SUPABASE_AUTH_EXTERNAL_GOOGLE_SECRET)"
+
 [functions.register-account]
 verify_jwt = false
 
