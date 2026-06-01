@@ -39,7 +39,10 @@ import { useTheme } from "@/hooks/useTheme";
 import { useToast } from "@/hooks/use-toast";
 import { useCart } from "@/hooks/useCart";
 import { useAgendaBranding } from "@/hooks/useAgendaBranding";
-import { withAgendaPublicSearch } from "@/lib/agendaPublicLink";
+import {
+  withAgendaBusinessSearch,
+  withAgendaPublicSearch,
+} from "@/lib/agendaPublicLink";
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -71,6 +74,7 @@ export function Header() {
   const navigate = useNavigate();
   const publicPath = (path: string) => withAgendaPublicSearch(path, settings);
   const publicHomePath = publicPath("/");
+  const professionalPanelPath = withAgendaBusinessSearch("/painel-profissional", settings);
 
   // Estados para modal de senha
   const [showPasswordModal, setShowPasswordModal] = useState(false);
@@ -88,19 +92,35 @@ export function Header() {
   // Verificar se barbeiro está logado via session
   useEffect(() => {
     const barberName = sessionStorage.getItem("barber_name");
+    if (user && barberName) {
+      sessionStorage.removeItem("barber_id");
+      sessionStorage.removeItem("barber_name");
+      sessionStorage.removeItem("barber_session_token");
+      sessionStorage.removeItem("barber_business_slug");
+      setBarberSessionName(null);
+      return;
+    }
     setBarberSessionName(barberName);
-  }, []);
+  }, [user]);
 
   // Verificar se é barbeiro
   useEffect(() => {
     const checkBarberRole = async () => {
       if (user) {
-        const { data } = await supabase
-          .from("barbers")
-          .select("id")
-          .eq("user_id", user.id)
-          .maybeSingle();
-        setIsBarber(!!data);
+        const [{ data: barber }, { data: barberRole }] = await Promise.all([
+          supabase
+            .from("barbers")
+            .select("id")
+            .eq("user_id", user.id)
+            .maybeSingle(),
+          supabase
+            .from("user_roles")
+            .select("role")
+            .eq("user_id", user.id)
+            .eq("role", "barber")
+            .maybeSingle(),
+        ]);
+        setIsBarber(!!barber && !!barberRole);
       } else {
         setIsBarber(false);
       }
@@ -115,7 +135,7 @@ export function Header() {
     sessionStorage.removeItem("barber_business_slug");
     setBarberSessionName(null);
     await signOut();
-    navigate("/");
+    navigate(publicHomePath);
   };
 
   /**
@@ -290,7 +310,7 @@ export function Header() {
               {/* Para barbeiro logado via sessão, mostra apenas Início que redireciona para o painel */}
               {barberSessionName ? (
                 <Link
-                  to="/painel-profissional"
+                  to={professionalPanelPath}
                   className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
                 >
                   Início
@@ -325,7 +345,7 @@ export function Header() {
                   )}
                   {isBarber && (
                     <Link
-                      to="/painel-profissional"
+                      to={professionalPanelPath}
                       className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
                     >
                       Meu Painel
@@ -440,7 +460,7 @@ export function Header() {
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem
-                      onClick={() => navigate("/painel-profissional")}
+                      onClick={() => navigate(professionalPanelPath)}
                     >
                       Meu Painel
                     </DropdownMenuItem>
@@ -452,7 +472,7 @@ export function Header() {
                         sessionStorage.removeItem("barber_session_token");
                         sessionStorage.removeItem("barber_business_slug");
                         setBarberSessionName(null);
-                        navigate("/");
+                        navigate(publicHomePath);
                       }}
                       className="text-destructive"
                     >

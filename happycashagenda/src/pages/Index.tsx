@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { Layout } from '@/components/layout/Layout';
 import { SplashScreen } from '@/components/SplashScreen';
 import { HeroSection } from '@/components/landing/HeroSection';
@@ -9,11 +10,41 @@ import { FooterSection } from '@/components/landing/FooterSection';
 import { PublicPageInlineEditor } from '@/components/landing/PublicPageInlineEditor';
 import { SectionNav } from '@/components/landing/SectionNav';
 import { SwipeSections } from '@/components/landing/SwipeSections';
+import { useAgendaBranding } from '@/hooks/useAgendaBranding';
+import { useAuth } from '@/hooks/useAuth';
+import { buildAgendaPublicHomePath } from '@/lib/agendaPublicLink';
+import { resolveAgendaRequestedSlug } from '@/lib/agendaSlug';
 
 export default function Index() {
+  const { user, isAdmin } = useAuth();
+  const { settings } = useAgendaBranding();
+  const navigate = useNavigate();
+  const location = useLocation();
   const [splashDone, setSplashDone] = useState(() => {
     return !!sessionStorage.getItem('happycash_agenda_visited');
   });
+
+  useEffect(() => {
+    if (
+      location.pathname !== '/'
+      || resolveAgendaRequestedSlug(location.pathname, location.search)
+      || !user
+      || !isAdmin
+      || !settings.storeAccountId
+    ) {
+      return;
+    }
+
+    navigate(buildAgendaPublicHomePath(settings.slug), { replace: true });
+  }, [
+    isAdmin,
+    location.pathname,
+    location.search,
+    navigate,
+    settings.slug,
+    settings.storeAccountId,
+    user,
+  ]);
 
   const handleSplashComplete = () => {
     sessionStorage.setItem('happycash_agenda_visited', 'true');

@@ -42,6 +42,7 @@ import { usePushNotifications } from '@/hooks/usePushNotifications';
 import { supabase } from '@/integrations/supabase/client';
 import { parseLocalDate } from '@/lib/utils';
 import { playNotificationSound, shouldPlayAgendaSound } from '@/lib/notificationSound';
+import { withAgendaPublicSearch } from '@/lib/agendaPublicLink';
 import {
   Dialog,
   DialogContent,
@@ -188,25 +189,28 @@ export default function BarberDashboard() {
   const location = useLocation();
   const { businessHours } = useBusinessHours(settings.storeAccountId);
   const previousAppointmentsRef = useRef<Appointment[]>([]);
+  const publicHomePath = withAgendaPublicSearch('/', settings);
+  const publicLoginPath = withAgendaPublicSearch('/login', settings);
 
   useEffect(() => {
-    if (!settings.storeAccountId) return;
-
     // Check for barber session from login
     const sessionBarberId = sessionStorage.getItem('barber_id');
     const sessionBarberName = sessionStorage.getItem('barber_name');
     const sessionBarberToken = getBarberSessionToken();
     const sessionBusinessSlug = sessionStorage.getItem('barber_business_slug');
+    const searchParams = new URLSearchParams(location.search);
 
-    if (
-      !settings.storeAccountId &&
-      sessionBarberId &&
-      sessionBarberName &&
-      sessionBarberToken &&
-      sessionBusinessSlug &&
-      !new URLSearchParams(location.search).has('empresa')
-    ) {
-      navigate(`/painel-profissional?empresa=${encodeURIComponent(sessionBusinessSlug)}`, { replace: true });
+    if (!settings.storeAccountId) {
+      if (
+        sessionBarberId &&
+        sessionBarberName &&
+        sessionBarberToken &&
+        sessionBusinessSlug &&
+        !searchParams.has('empresa') &&
+        !searchParams.has('agenda')
+      ) {
+        navigate(`/painel-profissional?empresa=${encodeURIComponent(sessionBusinessSlug)}`, { replace: true });
+      }
       return;
     }
 
@@ -215,9 +219,9 @@ export default function BarberDashboard() {
       loadBarberBySession(sessionBarberId);
     } else if (sessionBarberId || sessionBarberName || sessionBarberToken) {
       clearBarberSession();
-      navigate('/login');
+      navigate(publicLoginPath);
     } else if (!authLoading && !user) {
-      navigate('/login');
+      navigate(publicLoginPath);
     } else if (user) {
       checkBarberAccess();
     }
@@ -404,7 +408,7 @@ export default function BarberDashboard() {
 
     if (sessionError || !validSession) {
       clearBarberSession();
-      navigate('/login');
+      navigate(publicLoginPath);
       setLoading(false);
       return;
     }
@@ -422,7 +426,7 @@ export default function BarberDashboard() {
       await Promise.all([fetchAppointments(barber.id), fetchServices()]);
     } else {
       clearBarberSession();
-      navigate('/login');
+      navigate(publicLoginPath);
     }
     setLoading(false);
   };
@@ -438,7 +442,7 @@ export default function BarberDashboard() {
 
     if (!roleData) {
       toast({ title: 'Acesso negado', description: 'Você não tem permissão para acessar esta página.', variant: 'destructive' });
-      navigate('/');
+      navigate(publicHomePath);
       return;
     }
 
@@ -878,7 +882,7 @@ export default function BarberDashboard() {
                 variant="outline"
                 onClick={() => {
                   clearBarberSession();
-                  navigate('/');
+                  navigate(publicHomePath);
                 }}
               >
                 Sair

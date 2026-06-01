@@ -2,7 +2,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Navigate, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/hooks/useAuth";
 import { AgendaBrandingProvider } from "@/hooks/useAgendaBranding";
 import { ThemeProvider } from "@/hooks/useTheme";
@@ -48,7 +48,11 @@ const App = () => (
                   <Route path="/booking" element={<Agendamento />} />
                   <Route path="/my-appointments" element={<MeusAgendamentos />} />
                   <Route path="/admin" element={<Painel />} />
-                  <Route path="/barber" element={<PainelBarbeiro />} />
+                  <Route path="/barber" element={<Navigate to="/?empresa=barber" replace />} />
+                  <Route path="/barber/agendamento" element={<Navigate to="/agendamento?empresa=barber" replace />} />
+                  <Route path="/barber/login" element={<Navigate to="/login?empresa=barber" replace />} />
+                  <Route path="/barber/meus-agendamentos" element={<Navigate to="/meus-agendamentos?empresa=barber" replace />} />
+                  <Route path="/barber/produtos" element={<Navigate to="/produtos?empresa=barber" replace />} />
                   <Route path="/professional" element={<PainelBarbeiro />} />
                   <Route path="/products" element={<Produtos />} />
                   <Route path="/reset-password" element={<ResetPassword />} />

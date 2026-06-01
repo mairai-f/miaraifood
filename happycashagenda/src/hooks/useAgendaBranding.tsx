@@ -11,7 +11,12 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { getAppLocationSnapshot, subscribeAppLocation } from "@/lib/locationStore";
 import { useAuth } from "@/hooks/useAuth";
-import { isAgendaAdminPath, resolveAgendaPublicSlug } from "@/lib/agendaSlug";
+import {
+  isAgendaAdminPath,
+  isAgendaReservedSlug,
+  resolveAgendaPublicSlug,
+  resolveAgendaRequestedSlug,
+} from "@/lib/agendaSlug";
 
 export type AgendaBrandingSettings = {
   id?: string;
@@ -331,6 +336,12 @@ const sanitizeSettings = (settings: AgendaBrandingSettings): AgendaBrandingSetti
   soundCompletionEnabled: Boolean(settings.soundCompletionEnabled),
 });
 
+const buildPublicFallbackSettings = (slug: string) =>
+  sanitizeSettings({
+    ...DEFAULT_BRANDING,
+    slug: slug || DEFAULT_BRANDING.slug,
+  });
+
 const rowToSettings = (row: AgendaBusinessSettingsRow): AgendaBrandingSettings => ({
   id: row.id,
   ownerUserId: row.owner_user_id,
@@ -503,20 +514,32 @@ const applyBrandingToDocument = (settings: AgendaBrandingSettings) => {
 };
 
 export function AgendaBrandingProvider({ children }: { children: ReactNode }) {
-  const { user } = useAuth();
+  const { user, isAdmin } = useAuth();
   const location = useSyncExternalStore(subscribeAppLocation, getAppLocationSnapshot, getAppLocationSnapshot);
   const [settings, setSettings] = useState<AgendaBrandingSettings>(() => readPreview() ?? DEFAULT_BRANDING);
   const [loading, setLoading] = useState(true);
 
   const publicSlug = useMemo(() => {
-    if (isBrowser() && user?.id && isAgendaAdminPath(location.pathname)) {
+    const requestedSlug = resolveAgendaRequestedSlug(location.pathname, location.search);
+    if (
+      isBrowser()
+      && user?.id
+      && isAdmin
+      && (isAgendaAdminPath(location.pathname) || !requestedSlug)
+    ) {
       return "";
     }
-    return resolveAgendaPublicSlug(location.pathname, location.search);
-  }, [location.pathname, location.search, user?.id]);
+    return requestedSlug || resolveAgendaPublicSlug(location.pathname, location.search);
+  }, [isAdmin, location.pathname, location.search, user?.id]);
 
   const loadSettings = useCallback(async () => {
     setLoading(true);
+    const publicFallbackSettings = publicSlug ? buildPublicFallbackSettings(publicSlug) : null;
+    if (publicFallbackSettings) {
+      setSettings(publicFallbackSettings);
+      writePreview(publicFallbackSettings);
+    }
+
     const table = supabase.from("agenda_business_settings");
 
     const scopedQuery = publicSlug
@@ -558,6 +581,9 @@ export function AgendaBrandingProvider({ children }: { children: ReactNode }) {
       const nextSettings = sanitizeSettings(rowToSettings(response.data as AgendaBusinessSettingsRow));
       setSettings(nextSettings);
       writePreview(nextSettings);
+    } else if (publicFallbackSettings) {
+      setSettings(publicFallbackSettings);
+      writePreview(publicFallbackSettings);
     }
 
     setLoading(false);
@@ -580,6 +606,12 @@ export function AgendaBrandingProvider({ children }: { children: ReactNode }) {
   const saveSettings = useCallback(
     async (nextSettings: AgendaBrandingSettings) => {
       const sanitized = sanitizeSettings(nextSettings);
+
+      if (isAgendaReservedSlug(sanitized.slug)) {
+        return {
+          error: "Esse link publico e reservado pelo sistema. Escolha outro, como minha-empresa.",
+        };
+      }
 
       if (!user?.id) {
         updatePreview(sanitized);
