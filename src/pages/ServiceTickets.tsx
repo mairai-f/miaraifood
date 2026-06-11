@@ -69,6 +69,7 @@ export default function ServiceTickets() {
 
   const operatorName = username || user?.email || 'Operador';
   const canManageTickets = role === 'admin' || role === 'operator';
+  const canFinalizeTickets = role === 'operator';
   const activeProducts = products.filter(product => !product.deleted);
   const visibleTickets = serviceTickets
     .filter(ticket => ticket.status !== 'closed' && ticket.status !== 'cancelled')
@@ -235,7 +236,7 @@ export default function ServiceTickets() {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          {canManageTickets && (
+          {canFinalizeTickets && (
             <Button variant="outline" onClick={() => navigate('/pdv')}>
               <ShoppingCart className="mr-2 h-4 w-4" />
               Abrir PDV
@@ -255,9 +256,10 @@ export default function ServiceTickets() {
             </CardHeader>
             <CardContent className="space-y-3">
               <form className="space-y-2" onSubmit={handleLookup}>
-                <Label>Numero ou codigo de barras</Label>
+                <Label>Escaneie a comanda ou digite o numero</Label>
                 <div className="flex gap-2">
                   <Input
+                    autoFocus
                     value={lookup}
                     onChange={event => setLookup(event.target.value.toUpperCase())}
                     placeholder="1 ou HC-CMD-0001"
@@ -422,6 +424,9 @@ export default function ServiceTickets() {
                             <p className="mt-1 text-sm text-muted-foreground">
                               {item.quantity} x {formatCurrency(item.unit_price)} • {formatDateTime(item.created_at)}
                             </p>
+                            <p className="mt-1 text-xs text-muted-foreground">
+                              Atendente: {item.added_by_name || 'Nao informado'}
+                            </p>
                             {item.notes && <p className="mt-1 text-sm text-muted-foreground">{item.notes}</p>}
                             {item.status === 'cancelled' && <Badge variant="destructive" className="mt-2">Cancelado</Badge>}
                           </div>
@@ -468,14 +473,16 @@ export default function ServiceTickets() {
                         <CheckCircle2 className="mr-2 h-4 w-4" />
                         Manter aberta
                       </Button>
-                      <Button
-                        className="flex-1"
-                        onClick={openSelectedTicketInPdv}
-                        disabled={selectedTicketActiveItems.length === 0}
-                      >
-                        <ShoppingCart className="mr-2 h-4 w-4" />
-                        Abrir no PDV
-                      </Button>
+                      {canFinalizeTickets && (
+                        <Button
+                          className="flex-1"
+                          onClick={openSelectedTicketInPdv}
+                          disabled={selectedTicketActiveItems.length === 0}
+                        >
+                          <ShoppingCart className="mr-2 h-4 w-4" />
+                          Abrir no PDV
+                        </Button>
+                      )}
                     </>
                   )}
                 </div>

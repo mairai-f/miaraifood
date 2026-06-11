@@ -143,6 +143,7 @@ export function OperatorManagementPanel({
   const [closeCashError, setCloseCashError] = useState('');
   const [latestCredential, setLatestCredential] = useState<{
     username: string;
+    role: StaffRole;
   } | null>(null);
   const [internalCreateDialogOpen, setInternalCreateDialogOpen] = useState(false);
 
@@ -362,6 +363,7 @@ export function OperatorManagementPanel({
 
     setLatestCredential({
       username: data.operator.username,
+      role: staffRole,
     });
     if (staffRole === 'operator') {
       await saveOperatorOfflineAccessIfPossible(data.operator, password.trim());
@@ -411,8 +413,11 @@ export function OperatorManagementPanel({
 
     setLatestCredential({
       username: data.operator.username,
+      role: selectedOperator.role,
     });
-    await saveOperatorOfflineAccessIfPossible(data.operator, resetPassword.trim());
+    if (selectedOperator.role === 'operator') {
+      await saveOperatorOfflineAccessIfPossible(data.operator, resetPassword.trim());
+    }
     setResetPassword('');
     setSelectedOperator(null);
     setResetDialogOpen(false);
@@ -629,11 +634,12 @@ export function OperatorManagementPanel({
             {latestCredential ? (
               <div className="space-y-2 rounded-lg border border-primary/20 bg-primary/5 p-4 text-sm">
                 <p><strong>Usuário:</strong> {latestCredential.username}</p>
+                <p><strong>Funcao:</strong> {staffRoleLabel[latestCredential.role]}</p>
                 <p>A credencial foi definida e nao sera exibida novamente.</p>
               </div>
             ) : (
               <p className="text-sm text-muted-foreground">
-                O usuário aparece apos criar ou redefinir um operador. Credenciais internas nunca aparecem nesta tela.
+                O usuário e a funcao aparecem apos criar ou redefinir um acesso operacional. Credenciais internas nunca aparecem nesta tela.
               </p>
             )}
 

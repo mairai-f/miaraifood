@@ -31,6 +31,7 @@ import { DEFAULT_COMPANY_NAME, resolveCompanyDisplayName } from '@/lib/company';
 import { getMarginPercent } from '@/lib/pricing';
 import { getAvailableClientCredit, getClientCreditLimit, getCreditLimitExceededMessage } from '@/lib/creditLimit';
 import { enqueueOfflineOperation, isOfflineConcentratorAvailable } from '@/lib/offlineConcentrator';
+import { verifyOfflineAdminAccess } from '@/lib/offlineAdminAccess';
 import { readScopedCashSession, writeScopedCashSession, type ScopedCashSession } from '@/lib/cashSessionStorage';
 import { parseDecimalInput, parseOptionalDecimalInput } from '@/lib/numberInput';
 import { filterProductsBySearch, isExactProductSearchMatch, toProductUppercase } from '@/lib/productSearch';
@@ -288,6 +289,7 @@ export default function PDV() {
   const canUseDesktopOffline = isDesktop && offlineEnabled && isOfflineConcentratorAvailable();
   const searchInputRef = useRef<HTMLInputElement>(null);
   const cashReceivedInputRef = useRef<HTMLInputElement>(null);
+  const ticketLookupInputRef = useRef<HTMLInputElement>(null);
   const finalizeLockRef = useRef(false);
   const cartItemSelectionRefs = useRef<Array<HTMLDivElement | null>>([]);
   const [search, setSearch] = useState('');
@@ -325,6 +327,9 @@ export default function PDV() {
   const [cashSession, setCashSession] = useState<CashSession | null>(null);
   const [cashSessionLoading, setCashSessionLoading] = useState(true);
   const [openingAmount, setOpeningAmount] = useState('');
+  const [openCashAdminLogin, setOpenCashAdminLogin] = useState('');
+  const [openCashAdminSecret, setOpenCashAdminSecret] = useState('');
+  const [openCashAuthError, setOpenCashAuthError] = useState('');
   const [showCloseCashReceipt, setShowCloseCashReceipt] = useState(false);
   const [showCloseCashAuth, setShowCloseCashAuth] = useState(false);
   const [showCloseCashSendDialog, setShowCloseCashSendDialog] = useState(false);
@@ -339,6 +344,7 @@ export default function PDV() {
   const [closeCashLastSentChannel, setCloseCashLastSentChannel] = useState<CloseCashSendChannel | null>(null);
   const [closeCashWhatsappPhone, setCloseCashWhatsappPhone] = useState(() => readCloseCashWhatsAppPhone());
   const [isVerifyingAdminPassword, setIsVerifyingAdminPassword] = useState(false);
+  const [isVerifyingOpenCashAdmin, setIsVerifyingOpenCashAdmin] = useState(false);
   const [lastCloseReceipt, setLastCloseReceipt] = useState<CashCloseReceipt | null>(null);
   const [lastSaleData, setLastSaleData] = useState<LastSaleReceiptData | null>(null);
   const [isFinalizingSale, setIsFinalizingSale] = useState(false);
@@ -1557,7 +1563,7 @@ export default function PDV() {
     return true;
   };
 
-  const findServiceTicket = (value: string) => {
+  const findServiceTicket = useCallback((value: string) => {
     const normalized = value.trim().toUpperCase();
     if (!normalized) return null;
     const ticketNumber = Number.parseInt(normalized, 10);
@@ -1565,9 +1571,14 @@ export default function PDV() {
       ticket.barcode.trim().toUpperCase() === normalized
       || (Number.isInteger(ticketNumber) && ticket.number === ticketNumber)
     ) ?? null;
-  };
+  }, [serviceTickets]);
 
-  const loadServiceTicketToCart = (ticketLookupValue: string) => {
+  const loadServiceTicketToCart = useCallback((ticketLookupValue: string) => {
+    if (role !== 'operator') {
+      silentToast.error('Somente operador do caixa pode finalizar comanda no PDV');
+      return false;
+    }
+
     const ticket = findServiceTicket(ticketLookupValue);
     if (!ticket) {
       silentToast.error('Comanda nao encontrada');
@@ -1611,7 +1622,7 @@ export default function PDV() {
     setMobilePanel('cart');
     silentToast.success(`Comanda ${ticket.number} carregada no caixa`);
     return true;
-  };
+  }, [findServiceTicket, products, role, serviceTicketItems]);
 
   useEffect(() => {
     const query = new URLSearchParams(location.search).get('comanda')?.trim() || '';
@@ -1621,7 +1632,7 @@ export default function PDV() {
     if (loadServiceTicketToCart(query)) {
       loadedServiceTicketQueryRef.current = query;
     }
-  }, [location.search, products.length, serviceTicketItems.length, serviceTickets.length]);
+  }, [loadServiceTicketToCart, location.search, products.length, serviceTicketItems.length, serviceTickets.length]);
 
   const addToCart = (p: Product) => {
     const requestedQuantity = getCartQuantityForProduct(p.id) + 1;
@@ -2163,6 +2174,25 @@ export default function PDV() {
     const amount = parseDecimalInput(openingAmount);
     if (amount < 0) { silentToast.error('Valor de abertura inválido'); return; }
 
+    setIsVerifyingOpenCashAdmin(true);
+    setOpenCashAuthError('');
+    try {
+      const authorization = await verifyAdminAuthorization({
+        login: openCashAdminLogin,
+        secret: openCashAdminSecret,
+        setError: setOpenCashAuthError,
+      });
+
+      if (!authorization.ok) return;
+    } catch (error) {
+      console.error('Erro ao validar administrador para abertura do caixa:', getRedactedLogValue(error));
+      setOpenCashAuthError('Nao foi possivel validar o administrador.');
+      return;
+    } finally {
+      await adminVerificationClient.auth.signOut();
+      setIsVerifyingOpenCashAdmin(false);
+    }
+
     if (canUseDesktopOffline && typeof navigator !== 'undefined' && navigator.onLine === false) {
       const offlineSessionId = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
         ? crypto.randomUUID()
@@ -2198,9 +2228,12 @@ export default function PDV() {
       writeScopedCashSession(ownerUserId, user.id, session);
       setCashSession(session);
       setOpeningAmount('');
+      setOpenCashAdminLogin('');
+      setOpenCashAdminSecret('');
       setSaleSearch('');
       setSaleLimit(25);
       silentToast.success('Caixa aberto em modo offline!');
+      requestAnimationFrame(() => ticketLookupInputRef.current?.focus());
       return;
     }
 
@@ -2234,9 +2267,12 @@ export default function PDV() {
     writeScopedCashSession(ownerUserId, user.id, session);
     setCashSession(session);
     setOpeningAmount('');
+    setOpenCashAdminLogin('');
+    setOpenCashAdminSecret('');
     setSaleSearch('');
     setSaleLimit(25);
     silentToast.success('Caixa aberto!');
+    requestAnimationFrame(() => ticketLookupInputRef.current?.focus());
   };
 
   const handleCloseCash = async (cashClient: typeof db = db) => {
@@ -2436,64 +2472,104 @@ export default function PDV() {
     setShowCloseCashAuth(true);
   };
 
+  const verifyAdminAuthorization = async ({
+    login,
+    secret,
+    setError,
+  }: {
+    login: string;
+    secret: string;
+    setError: (message: string) => void;
+  }) => {
+    const normalizedLogin = login.trim().toLowerCase();
+    const normalizedSecret = secret.trim();
+
+    if (!normalizedLogin) {
+      setError('Digite o email ou usuario do administrador.');
+      return { ok: false as const, adminDb: null };
+    }
+
+    if (!normalizedSecret) {
+      setError('Digite a senha ou PIN do administrador.');
+      return { ok: false as const, adminDb: null };
+    }
+
+    if (!ownerUserId) {
+      setError('Nao foi possivel identificar a loja.');
+      return { ok: false as const, adminDb: null };
+    }
+
+    if (!normalizedLogin.includes('@')) {
+      const verification = await verifyOfflineAdminAccess({
+        ownerUserId,
+        username: normalizedLogin,
+        pin: normalizedSecret,
+      });
+
+      if (!verification.success) {
+        setError(verification.error);
+        return { ok: false as const, adminDb: null };
+      }
+
+      return { ok: true as const, adminDb: db };
+    }
+
+    const { data: authData, error } = await adminVerificationClient.auth.signInWithPassword({
+      email: normalizedLogin,
+      password: normalizedSecret,
+    });
+
+    if (error) {
+      setError('Email ou senha de administrador incorretos.');
+      return { ok: false as const, adminDb: null };
+    }
+
+    const adminUserId = authData.user?.id;
+    if (!adminUserId) {
+      setError('Nao foi possivel validar o administrador.');
+      return { ok: false as const, adminDb: null };
+    }
+
+    // Generated Supabase types are behind the current profiles schema.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const adminDb = adminVerificationClient as any;
+    const { data: adminProfile, error: adminProfileError } = await adminDb
+      .from('profiles')
+      .select('role, owner_user_id')
+      .eq('user_id', adminUserId)
+      .maybeSingle();
+
+    if (adminProfileError || !adminProfile || adminProfile.role !== 'admin') {
+      setError('A conta informada nao e de administrador.');
+      return { ok: false as const, adminDb: null };
+    }
+
+    const adminOwnerUserId = adminProfile.owner_user_id ?? adminUserId;
+    if (adminOwnerUserId !== ownerUserId) {
+      setError('Administrador nao pertence a esta loja.');
+      return { ok: false as const, adminDb: null };
+    }
+
+    return { ok: true as const, adminDb };
+  };
+
   const confirmCloseCashWithAdminPassword = async () => {
-    const normalizedAdminEmail = adminEmail.trim().toLowerCase();
-
-    if (!normalizedAdminEmail) {
-      setCloseCashAuthError('Digite o email do administrador.');
-      return;
-    }
-
-    if (!adminPassword.trim()) {
-      setCloseCashAuthError('Digite sua senha para confirmar.');
-      return;
-    }
-
     setIsVerifyingAdminPassword(true);
     setCloseCashAuthError('');
 
     try {
-      const { data: authData, error } = await adminVerificationClient.auth.signInWithPassword({
-        email: normalizedAdminEmail,
-        password: adminPassword,
+      const authorization = await verifyAdminAuthorization({
+        login: adminEmail,
+        secret: adminPassword,
+        setError: setCloseCashAuthError,
       });
 
-      if (error) {
-        setCloseCashAuthError('Email ou senha de administrador incorretos.');
-        return;
-      }
-
-      const adminUserId = authData.user?.id;
-
-      if (!adminUserId) {
-        setCloseCashAuthError('Não foi possível validar o administrador.');
-        return;
-      }
-
-      // Generated Supabase types are behind the current profiles schema.
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const adminDb = adminVerificationClient as any;
-      const { data: adminProfile, error: adminProfileError } = await adminDb
-        .from('profiles')
-        .select('role, owner_user_id')
-        .eq('user_id', adminUserId)
-        .maybeSingle();
-
-      if (adminProfileError || !adminProfile || adminProfile.role !== 'admin') {
-        setCloseCashAuthError('A conta informada não é de administrador.');
-        return;
-      }
-
-      const adminOwnerUserId = adminProfile.owner_user_id ?? adminUserId;
-      if (ownerUserId && adminOwnerUserId !== ownerUserId) {
-        setCloseCashAuthError('Administrador não pertence a esta loja.');
-        return;
-      }
+      if (!authorization.ok) return;
 
       setShowCloseCashAuth(false);
       setAdminEmail('');
       setAdminPassword('');
-      await handleCloseCash(adminDb);
+      await handleCloseCash(authorization.adminDb ?? db);
     } catch (error) {
       console.error('Erro ao validar senha para fechamento do caixa:', getRedactedLogValue(error));
       setCloseCashAuthError('Não foi possível validar as credenciais do administrador.');
@@ -2711,12 +2787,6 @@ export default function PDV() {
       }
 
       if (!isEditableTarget(event.target)) {
-        if (event.key === '1') {
-          event.preventDefault();
-          navigate('/');
-          return;
-        }
-
         if (event.key === '2') {
           event.preventDefault();
           setShowSalesSearch(true);
@@ -2807,7 +2877,10 @@ export default function PDV() {
                 type="button"
                 variant={mobilePanel === 'products' ? 'default' : 'outline'}
                 className="h-10"
-                onClick={() => setMobilePanel('products')}
+                onClick={() => {
+                  setMobilePanel('products');
+                  requestAnimationFrame(() => ticketLookupInputRef.current?.focus());
+                }}
               >
                 Produtos
               </Button>
@@ -2846,7 +2919,7 @@ export default function PDV() {
             </p>
           </div>
           <div className="flex flex-wrap justify-end gap-2">
-            <Button variant="outline" size="sm" onClick={() => navigate('/')}>Menu (1)</Button>
+            <Button variant="outline" size="sm" onClick={() => navigate('/')}>Menu</Button>
             <Button variant="outline" size="sm" onClick={() => setShowSalesSearch(true)}><History className="h-4 w-4 mr-1" />Buscar vendas (2)</Button>
             <Button variant="outline" size="sm" onClick={() => setShowCashOut(true)}><Wallet className="h-4 w-4 mr-1" />Saída de caixa (3)</Button>
             <span className="inline-flex items-center rounded border border-border px-2.5 py-1 text-sm font-semibold">
@@ -2858,10 +2931,12 @@ export default function PDV() {
         <div className="mb-3 shrink-0 rounded-lg border border-border bg-background/80 p-3">
           <div className="grid gap-2 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
             <div className="space-y-1">
-              <Label>Comanda</Label>
+              <Label>Escaneie a comanda ou digite o numero da comanda</Label>
               <div className="relative">
                 <Barcode className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
+                  ref={ticketLookupInputRef}
+                  autoFocus
                   className="pl-10"
                   value={ticketLookup}
                   onChange={event => setTicketLookup(event.target.value.toUpperCase())}
@@ -2871,7 +2946,7 @@ export default function PDV() {
                       loadServiceTicketToCart(ticketLookup);
                     }
                   }}
-                  placeholder="Digite 1 ou escaneie HC-CMD-0001"
+                  placeholder="Ex: 1 ou HC-CMD-0001"
                 />
               </div>
             </div>
@@ -3630,20 +3705,19 @@ export default function PDV() {
           <DialogHeader><DialogTitle>Confirmar fechamento (administrador)</DialogTitle></DialogHeader>
           <div className="space-y-3">
             <p className="text-sm text-muted-foreground">
-              Para fechar o caixa, informe o login e a senha de um administrador da loja.
+              Para fechar o caixa, informe email/senha ou usuario/PIN de um administrador da loja.
             </p>
             <div className="space-y-1">
-              <Label>Login do administrador (email)</Label>
+              <Label>Email ou usuario do administrador</Label>
               <Input
                 autoFocus
-                type="email"
                 value={adminEmail}
                 onChange={e => setAdminEmail(e.target.value)}
-                placeholder="admin@empresa.com"
+                placeholder="admin@empresa.com ou usuario admin"
               />
             </div>
             <div className="space-y-1">
-              <Label>Senha</Label>
+              <Label>Senha ou PIN</Label>
               <PasswordInput
                 value={adminPassword}
                 onChange={e => setAdminPassword(e.target.value)}
@@ -3653,7 +3727,7 @@ export default function PDV() {
                     void confirmCloseCashWithAdminPassword();
                   }
                 }}
-                placeholder="Digite sua senha"
+                placeholder="Digite a senha ou PIN"
               />
             </div>
             {closeCashAuthError && (
@@ -3702,7 +3776,9 @@ export default function PDV() {
         >
           <DialogHeader><DialogTitle>Abrir caixa</DialogTitle></DialogHeader>
           <div className="space-y-3">
-            <p className="text-sm text-muted-foreground">Informe o valor inicial para liberar o PDV.</p>
+            <p className="text-sm text-muted-foreground">
+              Informe o valor inicial e confirme com credenciais de administrador.
+            </p>
             <div className="space-y-1">
               <Label>Valor de abertura</Label>
               <Input
@@ -3720,10 +3796,37 @@ export default function PDV() {
                 placeholder="0.00"
               />
             </div>
+            <div className="space-y-1">
+              <Label>Email ou usuario do administrador</Label>
+              <Input
+                value={openCashAdminLogin}
+                onChange={e => setOpenCashAdminLogin(e.target.value)}
+                placeholder="admin@empresa.com ou usuario admin"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label>Senha ou PIN do administrador</Label>
+              <PasswordInput
+                value={openCashAdminSecret}
+                onChange={e => setOpenCashAdminSecret(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    void handleOpenCash();
+                  }
+                }}
+                placeholder="Senha ou PIN"
+              />
+            </div>
+            {openCashAuthError && (
+              <p className="text-sm font-medium text-destructive">{openCashAuthError}</p>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => navigate('/')}>Voltar ao menu</Button>
-            <Button onClick={handleOpenCash}>Abrir caixa</Button>
+            <Button onClick={handleOpenCash} disabled={isVerifyingOpenCashAdmin}>
+              {isVerifyingOpenCashAdmin ? 'Validando...' : 'Abrir caixa'}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
