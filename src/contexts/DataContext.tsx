@@ -42,6 +42,7 @@ import {
 import { shouldUseOfflineSnapshotFallback } from '@/lib/offlineSnapshotPolicy';
 import { buildSaleItemPricingMetrics, normalizeProductPricing, normalizePricingRoundingRule } from '@/lib/pricing';
 import { getClientCreditLimit, getCreditLimitExceededMessage, normalizeCreditLimit } from '@/lib/creditLimit';
+import { filterProductsBySearch, toProductUppercase } from '@/lib/productSearch';
 import { getPublicErrorMessage, getRedactedLogValue } from '../../shared/security/redaction';
 
 // Generated Supabase types are behind the current schema for these operational tables.
@@ -1555,9 +1556,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
     return {
       ...payload,
       ...normalized,
-      name: payload.name?.trim() ?? '',
-      category: payload.category?.trim() ?? '',
-      barcode: payload.barcode?.trim() ?? '',
+      name: toProductUppercase(payload.name?.trim() ?? ''),
+      category: toProductUppercase(payload.category?.trim() ?? ''),
+      supplier_name: toProductUppercase(payload.supplier_name?.trim() ?? ''),
+      barcode: toProductUppercase(payload.barcode?.trim() ?? ''),
     } as Partial<Product>;
   }, []);
 
@@ -1975,12 +1977,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const searchProducts = (q: string) => {
     const activeProducts = products.filter(p => !p.deleted);
     if (!q) return activeProducts;
-    const term = q.trim().toLowerCase();
-    return activeProducts.filter(p =>
-      p.name.toLowerCase().startsWith(term) ||
-      p.barcode?.toLowerCase().startsWith(term) ||
-      p.code?.toString().startsWith(term)
-    );
+    return filterProductsBySearch(activeProducts, q);
   };
 
   const recordAuditLog = async (

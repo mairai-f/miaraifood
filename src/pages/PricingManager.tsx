@@ -58,6 +58,7 @@ import {
 } from '@/components/ui/table';
 import { verifyPricingManagerApproval } from '@/lib/pricingManagerApproval';
 import { parseDecimalInput } from '@/lib/numberInput';
+import { normalizeProductSearchText, productMatchesSearch, toProductUppercase } from '@/lib/productSearch';
 
 type ProductFormState = {
   id: string | null;
@@ -146,7 +147,7 @@ const percentFormatter = new Intl.NumberFormat('pt-BR', {
   maximumFractionDigits: 1,
 });
 
-const categoryKey = (value: string | null | undefined) => value?.trim().toLowerCase() ?? '';
+const categoryKey = (value: string | null | undefined) => normalizeProductSearchText(value);
 const formatMoney = (value: number) => currencyFormatter.format(Number.isFinite(value) ? value : 0);
 const formatPercent = (value: number) => `${percentFormatter.format(Number.isFinite(value) ? value : 0)}%`;
 const LOW_MARGIN_WARNING_PCT = 15;
@@ -240,10 +241,10 @@ const createEmptySimulatorForm = (): SimulatorFormState => ({
 
 const productToForm = (product: Product): ProductFormState => ({
   id: product.id,
-  name: product.name,
-  category: product.category ?? '',
-  supplier_name: product.supplier_name ?? '',
-  barcode: product.barcode ?? '',
+  name: toProductUppercase(product.name),
+  category: toProductUppercase(product.category ?? ''),
+  supplier_name: toProductUppercase(product.supplier_name ?? ''),
+  barcode: toProductUppercase(product.barcode ?? ''),
   stock: String(product.stock ?? 0),
   min_stock: String(product.min_stock ?? 0),
   purchase_cost: toInput(product.purchase_cost ?? product.cost_price ?? 0),
@@ -265,7 +266,7 @@ const productToForm = (product: Product): ProductFormState => ({
 
 const ruleToForm = (rule: ProductCategoryPricingRule): RuleFormState => ({
   id: rule.id,
-  category: rule.category,
+  category: toProductUppercase(rule.category),
   default_markup_pct: toInput(rule.default_markup_pct),
   minimum_markup_pct: toInput(rule.minimum_markup_pct),
   minimum_price: toInput(rule.minimum_price),
@@ -274,10 +275,10 @@ const ruleToForm = (rule: ProductCategoryPricingRule): RuleFormState => ({
 });
 
 const formToProductPayload = (form: ProductFormState) => normalizeProductPricing({
-  name: form.name.trim(),
-  category: form.category.trim(),
-  supplier_name: form.supplier_name.trim(),
-  barcode: form.barcode.trim(),
+  name: toProductUppercase(form.name.trim()),
+  category: toProductUppercase(form.category.trim()),
+  supplier_name: toProductUppercase(form.supplier_name.trim()),
+  barcode: toProductUppercase(form.barcode.trim()),
   stock: Math.max(0, toInteger(form.stock)),
   min_stock: Math.max(0, toInteger(form.min_stock)),
   purchase_cost: 0,
@@ -298,7 +299,7 @@ const formToProductPayload = (form: ProductFormState) => normalizeProductPricing
 });
 
 const formToRulePayload = (form: RuleFormState) => ({
-  category: form.category.trim(),
+  category: toProductUppercase(form.category.trim()),
   default_markup_pct: toNumber(form.default_markup_pct),
   minimum_markup_pct: toNumber(form.minimum_markup_pct),
   minimum_price: toNumber(form.minimum_price),
@@ -388,7 +389,7 @@ export default function PricingManager() {
   }, [pricingRules]);
 
   const pricingRows = useMemo(() => {
-    const query = deferredSearch.trim().toLowerCase();
+    const query = deferredSearch.trim();
 
     return activeProducts
       .map((product) => {
@@ -424,12 +425,7 @@ export default function PricingManager() {
       .filter(({ product }) => {
         if (!query) return true;
 
-        return (
-          product.name.toLowerCase().includes(query)
-          || product.category.toLowerCase().includes(query)
-          || (product.supplier_name ?? '').toLowerCase().includes(query)
-          || (product.barcode ?? '').toLowerCase().includes(query)
-        );
+        return productMatchesSearch(product, query);
       })
       .sort((left, right) => left.product.name.localeCompare(right.product.name));
   }, [activeProducts, deferredSearch, rulesByCategory]);
@@ -551,11 +547,11 @@ export default function PricingManager() {
   const previewLowMargin = !previewBelowCost && previewMargin > 0 && previewMargin < LOW_MARGIN_WARNING_PCT;
   const simulatorDiscountKillsProfit = toNumber(simulatorForm.discount_amount) > 0 && simulatorNetProfit <= 0;
   const filteredPriceHistory = useMemo(() => {
-    const query = deferredSearch.trim().toLowerCase();
+    const query = normalizeProductSearchText(deferredSearch);
     if (!query) return priceHistory.slice(0, 80);
 
     return priceHistory
-      .filter((entry) => entry.product_name.toLowerCase().includes(query))
+      .filter((entry) => normalizeProductSearchText(entry.product_name).includes(query))
       .slice(0, 80);
   }, [deferredSearch, priceHistory]);
 
@@ -599,7 +595,10 @@ export default function PricingManager() {
 
   const updateProductForm = (field: ProductTextField, value: string) => {
     setProductForm((current) => {
-      const next = { ...current, [field]: value };
+      const nextValue = field === 'name' || field === 'category' || field === 'supplier_name' || field === 'barcode'
+        ? toProductUppercase(value)
+        : value;
+      const next = { ...current, [field]: nextValue };
 
       if (
         field === 'rounding_rule'
@@ -616,7 +615,7 @@ export default function PricingManager() {
       const next = {
         ...current,
         cost_items: current.cost_items.map((item) => (
-          item.id === id ? { ...item, [field]: value } : item
+          item.id === id ? { ...item, [field]: field === 'name' ? toProductUppercase(value) : value } : item
         )),
       };
 
@@ -1259,7 +1258,7 @@ export default function PricingManager() {
             <CardContent className="space-y-4 p-4">
               <div className="relative max-w-md">
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input value={search} onChange={(event) => setSearch(event.target.value)} className="pl-9" placeholder="Buscar por nome, categoria, fornecedor ou código" />
+                <Input value={search} onChange={(event) => setSearch(toProductUppercase(event.target.value))} className="pl-9" placeholder="Buscar por nome, categoria, fornecedor ou código" />
               </div>
 
               <Table>
@@ -1348,7 +1347,7 @@ export default function PricingManager() {
               <CardContent className="space-y-4">
                 <div className="space-y-1.5">
                   <Label>Categoria</Label>
-                  <Input value={ruleForm.category} onChange={(event) => setRuleForm((current) => ({ ...current, category: event.target.value }))} placeholder="Ex: Bebidas" />
+                  <Input value={ruleForm.category} onChange={(event) => setRuleForm((current) => ({ ...current, category: toProductUppercase(event.target.value) }))} placeholder="Ex: Bebidas" />
                 </div>
                 <div className="grid gap-3 sm:grid-cols-2">
                   <div className="space-y-1.5">
@@ -1712,7 +1711,7 @@ export default function PricingManager() {
             <CardContent className="space-y-4">
               <div className="relative max-w-md">
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input value={search} onChange={(event) => setSearch(event.target.value)} className="pl-9" placeholder="Filtrar histórico por produto" />
+                <Input value={search} onChange={(event) => setSearch(toProductUppercase(event.target.value))} className="pl-9" placeholder="Filtrar histórico por produto" />
               </div>
 
               <Table>

@@ -17,6 +17,7 @@ import { canManageProducts } from '@/lib/access';
 import { getMarginPercent, getMarkupPercent, getPriceFromMarkup, getUnitProfit } from '@/lib/pricing';
 import { verifyPricingManagerApproval } from '@/lib/pricingManagerApproval';
 import { parseDecimalInput } from '@/lib/numberInput';
+import { filterProductsBySearch, toProductUppercase } from '@/lib/productSearch';
 import { getPublicErrorMessage, getRedactedLogValue } from '../../shared/security/redaction';
 
 const LOW_MARGIN_WARNING_PCT = 15;
@@ -43,14 +44,7 @@ export default function Products() {
   const readOnly = !canManageProducts(role);
 
   const activeProducts = products.filter(p => !p.deleted);
-  const filtered = activeProducts.filter(p => {
-    const q = search.trim().toLowerCase();
-    return (
-      p.name.toLowerCase().includes(q) ||
-      p.barcode?.toLowerCase().includes(q) ||
-      p.code?.toString().includes(q)
-    );
-  });
+  const filtered = filterProductsBySearch(activeProducts, search);
 
   const numericPrice = parseDecimalInput(price);
   const numericCostPrice = parseDecimalInput(costPrice);
@@ -170,9 +164,9 @@ export default function Products() {
   const resetForm = () => { setName(''); setPrice(''); setCostPrice(''); setCategory(''); setBarcode(''); setStock(''); setMinStock(''); setEditId(null); setOpen(false); resetApprovalState(); };
 
   const openEdit = (p: Product) => {
-    setEditId(p.id); setName(p.name); setPrice(p.price.toString());
-    setCostPrice((p.cost_price || 0).toString()); setCategory(p.category);
-    setBarcode(p.barcode || ''); setStock((p.stock || 0).toString()); setMinStock((p.min_stock || 0).toString());
+    setEditId(p.id); setName(toProductUppercase(p.name)); setPrice(p.price.toString());
+    setCostPrice((p.cost_price || 0).toString()); setCategory(toProductUppercase(p.category));
+    setBarcode(toProductUppercase(p.barcode || '')); setStock((p.stock || 0).toString()); setMinStock((p.min_stock || 0).toString());
     resetApprovalState();
     setOpen(true);
   };
@@ -190,7 +184,7 @@ export default function Products() {
             <DialogContent>
               <DialogHeader><DialogTitle>{editId ? 'Editar Produto' : 'Cadastrar Produto'}</DialogTitle></DialogHeader>
               <div className="space-y-3 max-h-[60vh] overflow-auto">
-                <div className="space-y-1"><Label>Nome / Marca</Label><Input value={name} onChange={e => setName(e.target.value)} placeholder="Ex: Skol 600ml" /></div>
+                <div className="space-y-1"><Label>Nome / Marca</Label><Input value={name} onChange={e => setName(toProductUppercase(e.target.value))} placeholder="Ex: Skol 600ml" /></div>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1"><Label>Preço Venda (R$)</Label><Input type="text" inputMode="decimal" value={price} onChange={e => setPrice(e.target.value)} placeholder="0,00" /></div>
                   <div className="space-y-1"><Label>Custo Real (R$)</Label><Input type="text" inputMode="decimal" value={costPrice} onChange={e => {
@@ -229,8 +223,8 @@ export default function Products() {
                     <AlertDescription>A margem estimada está em {previewMargin.toFixed(1)}%.</AlertDescription>
                   </Alert>
                 )}
-                <div className="space-y-1"><Label>Código de Barras</Label><Input value={barcode} onChange={e => setBarcode(e.target.value)} placeholder="Ex: 7891234567890" /></div>
-                <div className="space-y-1"><Label>Categoria</Label><Input value={category} onChange={e => setCategory(e.target.value)} placeholder="Ex: Cerveja, Cigarro" /></div>
+                <div className="space-y-1"><Label>Código de Barras</Label><Input value={barcode} onChange={e => setBarcode(toProductUppercase(e.target.value))} placeholder="Ex: 7891234567890" /></div>
+                <div className="space-y-1"><Label>Categoria</Label><Input value={category} onChange={e => setCategory(toProductUppercase(e.target.value))} placeholder="Ex: Cerveja, Cigarro" /></div>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1"><Label>Estoque</Label><Input type="number" value={stock} onChange={e => setStock(e.target.value)} placeholder="0" /></div>
                   <div className="space-y-1"><Label>Estoque Mínimo</Label><Input type="number" value={minStock} onChange={e => setMinStock(e.target.value)} placeholder="0" /></div>
@@ -286,7 +280,7 @@ export default function Products() {
 
       <div className="relative mb-4">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-        <Input className="pl-10" placeholder="Buscar produto..." value={search} onChange={e => setSearch(e.target.value)} />
+        <Input className="pl-10" placeholder="Buscar produto..." value={search} onChange={e => setSearch(toProductUppercase(e.target.value))} />
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">

@@ -75,6 +75,37 @@ const jsonResponse = (request: Request, body: Record<string, unknown>, status = 
     },
   });
 
+const isDirectDownloadUrlAvailable = async (url: string) => {
+  try {
+    const response = await fetch(url, {
+      method: "HEAD",
+      redirect: "follow",
+    });
+
+    if (response.ok) return true;
+
+    if (response.status !== 405) {
+      return false;
+    }
+  } catch {
+    return false;
+  }
+
+  try {
+    const response = await fetch(url, {
+      method: "GET",
+      headers: {
+        Range: "bytes=0-0",
+      },
+      redirect: "follow",
+    });
+
+    return response.ok || response.status === 206;
+  } catch {
+    return false;
+  }
+};
+
 Deno.serve(async (request) => {
   if (request.method === "OPTIONS") {
     return handleCorsPreflight(request, {
@@ -204,6 +235,20 @@ Deno.serve(async (request) => {
 
   const apkUrl = Deno.env.get(directUrlKey)?.trim() || Deno.env.get("ANDROID_APK_URL")?.trim();
   if (apkUrl) {
+    const directUrlAvailable = await isDirectDownloadUrlAvailable(apkUrl);
+
+    if (!directUrlAvailable) {
+      return jsonResponse(
+        request,
+        {
+          error: "O link direto do APK esta configurado, mas o arquivo nao foi encontrado. Gere um novo APK e atualize a URL ou use um arquivo no Supabase Storage.",
+          code: "DOWNLOAD_DIRECT_URL_INVALID",
+          requiredEnv: [directUrlKey, storagePathKey],
+        },
+        404,
+      );
+    }
+
     return jsonResponse(request, {
       success: true,
       downloadUrl: apkUrl,

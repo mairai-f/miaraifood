@@ -12,6 +12,7 @@ import { Search, Plus, AlertTriangle, Package } from 'lucide-react';
 import { toast } from 'sonner';
 import { formatDateTime } from '../../shared/locale/format';
 import { getRedactedLogValue } from '../../shared/security/redaction';
+import { filterProductsBySearch, toProductUppercase } from '@/lib/productSearch';
 
 export default function Stock() {
   const { products, stockMovements, addStockMovement, clearAllStock } = useData();
@@ -25,7 +26,7 @@ export default function Stock() {
   const [clearingStock, setClearingStock] = useState(false);
 
   const activeProducts = products.filter(p => !p.deleted);
-  const filtered = activeProducts.filter(p => p.name.toLowerCase().includes(search.toLowerCase()));
+  const filtered = filterProductsBySearch(activeProducts, search);
   const lowStock = activeProducts.filter(p => p.stock <= p.min_stock && p.min_stock > 0);
   const hasStockToClear = activeProducts.some(product => product.stock > 0);
 
@@ -130,7 +131,7 @@ export default function Stock() {
 
       <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-        <Input className="pl-10" placeholder="Buscar produto..." value={search} onChange={e => setSearch(e.target.value)} />
+        <Input className="pl-10" placeholder="Buscar produto..." value={search} onChange={e => setSearch(toProductUppercase(e.target.value))} />
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">

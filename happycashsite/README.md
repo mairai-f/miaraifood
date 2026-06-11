@@ -18,7 +18,7 @@ Pontos importantes:
 - O download do app mobile PRO usa a função `mobile-download` no Supabase e pode ser configurado com:
 - `MOBILE_DOWNLOAD_BUCKET`
 - `ANDROID_APK_OBJECT_PATH`
-- `ANDROID_APK_URL` (alternativa direta ao bucket privado)
+- `ANDROID_APK_URL` (alternativa direta ao bucket privado; evite usar URL temporaria do EAS, pois ela pode expirar/remover o artefato e causar erro `NoSuchKey`)
 - `IOS_TESTFLIGHT_URL`
 - `MOBILE_DOWNLOAD_SIGNED_URL_TTL`
 - O download do `HappyCashFood Offline` pode usar variaveis separadas:

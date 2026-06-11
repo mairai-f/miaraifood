@@ -1,8 +1,9 @@
-import { createClient } from "npm:@supabase/supabase-js@2";
+import type { SupabaseClient } from "npm:@supabase/supabase-js@2";
 import {
   isCurrentSubscriptionPlanAllowedForProductContext,
   isDesktopPlanAllowedForProductContext,
   normalizeProductContext,
+  resolveProductContextFromPlanId,
   type ProductContext,
 } from "./productContext.ts";
 
@@ -58,9 +59,9 @@ export const isCurrentSubscription = (subscription: StoreSubscriptionRow | null 
 };
 
 export const validateDesktopLicense = async (
-  serviceClient: ReturnType<typeof createClient>,
+  serviceClient: SupabaseClient,
   userId: string,
-  productContext: ProductContext,
+  productContext?: ProductContext,
 ): Promise<DesktopLicenseValidationResult> => {
   const { data: profile } = await serviceClient
     .from("profiles")
@@ -93,12 +94,16 @@ export const validateDesktopLicense = async (
   }
 
   const subscriptionRows = (subscriptions as StoreSubscriptionRow[] | null) ?? [];
-  const normalizedProductContext = normalizeProductContext(productContext);
+  const explicitProductContext = productContext ? normalizeProductContext(productContext) : null;
   const compatibleSubscriptions = subscriptionRows.filter((subscription) =>
-    isCurrentSubscriptionPlanAllowedForProductContext(normalizedProductContext, subscription.plan_id),
+    isCurrentSubscriptionPlanAllowedForProductContext(
+      explicitProductContext ?? resolveProductContextFromPlanId(subscription.plan_id),
+      subscription.plan_id,
+    ),
   );
   const currentSubscription = compatibleSubscriptions.find(isCurrentSubscription) ?? compatibleSubscriptions[0] ?? null;
   const validUntil = getSubscriptionEndAt(currentSubscription);
+  const normalizedProductContext = explicitProductContext ?? resolveProductContextFromPlanId(currentSubscription?.plan_id);
 
   const hasActiveDesktopPlan = Boolean(
     currentSubscription

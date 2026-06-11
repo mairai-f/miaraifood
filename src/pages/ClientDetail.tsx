@@ -34,6 +34,7 @@ import { getAvailableClientCredit, getClientCreditLimit, getCreditLimitExceededM
 import { verifyStoreAdminApproval } from '@/lib/adminApproval';
 import { getDebtPaymentCreditedAmount, getDebtPaymentMaxAmount, getDebtPaymentValidationMessage } from '@/lib/debtPayment';
 import { parseDecimalInput } from '@/lib/numberInput';
+import { toProductUppercase } from '@/lib/productSearch';
 import { getPublicErrorMessage, getRedactedLogValue } from '../../shared/security/redaction';
 
 type ClientEditPayload = {
@@ -755,7 +756,7 @@ export default function ClientDetail() {
                   <Label className="text-xs">Produto</Label>
                   <Input
                     value={selectedProduct ? selectedProduct.name : productSearch}
-                    onChange={e => { setProductSearch(e.target.value); setSelectedProduct(null); setShowSearch(true); }}
+                    onChange={e => { setProductSearch(toProductUppercase(e.target.value)); setSelectedProduct(null); setShowSearch(true); }}
                     onFocus={() => setShowSearch(true)}
                     placeholder="Buscar produto pelo nome, código ou barras..."
                     className="text-sm"

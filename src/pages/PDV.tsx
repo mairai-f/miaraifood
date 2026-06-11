@@ -33,6 +33,7 @@ import { getAvailableClientCredit, getClientCreditLimit, getCreditLimitExceededM
 import { enqueueOfflineOperation, isOfflineConcentratorAvailable } from '@/lib/offlineConcentrator';
 import { readScopedCashSession, writeScopedCashSession, type ScopedCashSession } from '@/lib/cashSessionStorage';
 import { parseDecimalInput, parseOptionalDecimalInput } from '@/lib/numberInput';
+import { filterProductsBySearch, isExactProductSearchMatch, toProductUppercase } from '@/lib/productSearch';
 import { getPublicErrorMessage, getRedactedLogValue } from '../../shared/security/redaction';
 import {
   type FiscalDocumentRecord,
@@ -624,12 +625,7 @@ export default function PDV() {
 
   const filtered = useMemo(() => {
     if (!search) return activeProducts;
-    const q = search.trim().toLowerCase();
-    return activeProducts.filter(p =>
-      p.name.toLowerCase().includes(q) ||
-      p.barcode?.toLowerCase().includes(q) ||
-      p.code?.toString().includes(q)
-    );
+    return filterProductsBySearch(activeProducts, search);
   }, [search, activeProducts]);
 
   useEffect(() => {
@@ -1556,13 +1552,8 @@ export default function PDV() {
   };
 
   const addSearchResultToCart = () => {
-    const q = search.trim().toLowerCase();
-    const exactMatch = q
-      ? activeProducts.find(p =>
-          p.code?.toString() === q ||
-          p.barcode?.toLowerCase() === q ||
-          p.name.toLowerCase() === q
-        )
+    const exactMatch = search.trim()
+      ? activeProducts.find(p => isExactProductSearchMatch(p, search))
       : null;
     const selectedProduct = searchSelectedIndex >= 0 ? filtered[searchSelectedIndex] : null;
     const product = exactMatch || selectedProduct || filtered[0];
@@ -2765,7 +2756,7 @@ export default function PDV() {
             className="h-11 pl-11 text-base"
             placeholder="Espaço: buscar produto. Tab seleciona item e Enter adiciona."
             value={search}
-            onChange={e => setSearch(e.target.value)}
+            onChange={e => setSearch(toProductUppercase(e.target.value))}
             onKeyDown={e => {
               if (e.key === 'Tab' && filtered.length > 0) {
                 e.preventDefault();
