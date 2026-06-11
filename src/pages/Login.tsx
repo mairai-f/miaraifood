@@ -219,7 +219,7 @@ export default function Login() {
             <CardHeader className="space-y-1 px-4 pb-2 pt-3 text-center sm:px-5">
               <CardTitle className="text-base font-bold tracking-wide text-yellow-300 sm:text-lg">Entrar</CardTitle>
               <p className="text-[10px] text-muted-foreground sm:text-[11px]">
-                Administrador entra com email. Operador entra com usuario e senha ou PIN.
+                Administrador entra com email. Operador e garcom entram com usuario e senha ou PIN.
               </p>
               {desktopActivation && (
                 <div className="mt-1.5 rounded-lg border border-primary/20 bg-primary/5 px-3 py-1.5 text-left text-[10px] leading-snug text-muted-foreground sm:text-[11px]">
@@ -256,7 +256,7 @@ export default function Login() {
                 <TabsList className="mb-2 grid h-8 w-full grid-cols-2 bg-zinc-900/70 p-1">
                   <TabsTrigger value="admin">Administrador</TabsTrigger>
                   <TabsTrigger value="operator" disabled={Boolean(desktopActivation && !offlineAdminAvailable)}>
-                    Operador
+                    Operacional
                   </TabsTrigger>
                 </TabsList>
 

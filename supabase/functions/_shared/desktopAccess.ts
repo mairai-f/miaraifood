@@ -38,6 +38,7 @@ export interface DesktopLicenseValidationResult {
 }
 
 const activeSubscriptionStatuses = new Set(["trialing", "active", "past_due"]);
+const staffRoles = new Set(["operator", "waiter"]);
 const requiredFeatureKeys = ["desktop.app", "offline.access"] as const;
 const getSubscriptionEndAt = (subscription: StoreSubscriptionRow | null | undefined) => {
   if (!subscription) return null;
@@ -70,7 +71,7 @@ export const validateDesktopLicense = async (
     .maybeSingle();
 
   const ownershipProfile = (profile as ProfileOwnershipRow | null) ?? null;
-  const ownerUserId = ownershipProfile?.role === "operator" && ownershipProfile.owner_user_id
+  const ownerUserId = ownershipProfile?.role && staffRoles.has(ownershipProfile.role) && ownershipProfile.owner_user_id
     ? ownershipProfile.owner_user_id
     : userId;
 

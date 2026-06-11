@@ -14,11 +14,11 @@ const plans = [
     id: "demo",
     name: "Demo Grátis",
     price: 0,
-    description: "Teste o sistema completo por 12 horas",
+    description: "Teste o sistema completo por 3 dias",
     popular: false,
     highlight: "demo",
     features: [
-      "Acesso completo por 12 horas",
+      "Acesso completo por 3 dias",
       "Todas as funcionalidades",
       "Sem cartão de crédito",
       "Suporte por email",
@@ -179,7 +179,7 @@ const Pricing = () => {
             Comece grátis e escolha quando fizer sentido
           </h2>
           <p className="text-muted-foreground max-w-xl mx-auto text-lg">
-            Teste por 12 horas sem cartão. Depois, escolha entre pagar a cada 30 dias ou fechar o anual direto no checkout.
+            Teste por 3 dias sem cartão. Depois, escolha entre pagar a cada 30 dias ou fechar o anual direto no checkout.
           </p>
         </div>
 

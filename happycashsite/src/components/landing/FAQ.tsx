@@ -15,7 +15,7 @@ const faqs = [
   { q: "Como funciona a caderneta de fiado digital?", a: "Você cadastra o cliente, registra as vendas fiadas e o sistema atualiza o saldo automaticamente. Quando for cobrar, a mensagem pode ser aberta direto no WhatsApp." },
   { q: "Posso usar no celular?", a: "Sim! O sistema é totalmente responsivo e funciona perfeitamente em celulares, tablets e computadores." },
   { q: "Tem contrato de fidelidade?", a: "Não! Você pode cancelar quando quiser, sem multa ou taxa de cancelamento." },
-  { q: "Qual a duração dos planos pagos?", a: "Todos os planos pagos do HappyCash têm duração de 30 dias por ciclo. A demo gratuita continua com duração de 12 horas." },
+  { q: "Qual a duração dos planos pagos?", a: "Todos os planos pagos do HappyCash têm duração de 30 dias por ciclo. A demo gratuita continua com duração de 3 dias." },
   { q: "Como funciona o desktop PRO?", a: "Depois que o plano PRO ou HappyCashFood Offline estiver ativo, você baixa a release mais recente para Windows ou Linux. Em cada máquina nova, o app pede a chave da empresa, reconhece a loja, valida o primeiro acesso online do administrador, cria o usuário/PIN local e baixa os dados da loja para o banco local." },
   { q: "Quanto tempo o desktop pode ficar offline?", a: "Depois do primeiro acesso online, do download dos dados e de uma validação da licença, o desktop pode seguir offline por até 5 dias. Nesse período, o administrador ou operador entra com usuário e PIN ou senha local, e quando faltar menos de 5 horas o sistema avisa para reconectar." },
   { q: "Como funciona o envio de cobranças via WhatsApp?", a: "O sistema gera mensagens prontas de cobrança com nome do cliente, itens e saldo. Você clica, abre o WhatsApp e envia." },

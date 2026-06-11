@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { createClient, FunctionsFetchError, FunctionsHttpError, FunctionsRelayError } from '@supabase/supabase-js';
 import { toast } from 'sonner';
@@ -17,7 +17,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { Ban, FileText, History, Loader2, Minus, Plus, Printer, Receipt, Search, ShoppingCart, Wallet, X } from 'lucide-react';
+import { Ban, Barcode, FileText, History, Loader2, Minus, Plus, Printer, Receipt, Search, ShoppingCart, Wallet, X } from 'lucide-react';
 import type { Expense, Product, Reward, Sale } from '@/types';
 import { INTERNET_REQUIRED_MESSAGE, isInternetUnavailable, openExternalUrl } from '@/lib/openExternalUrl';
 import { normalizePhone } from '@/lib/phone';
@@ -264,10 +264,27 @@ const getPdvRewardLabel = (reward: Reward) => {
 };
 
 export default function PDV() {
-  const { products, clients, rewards, sales, saleItems, expenses, createSale, addDebtEntries, addExpense, cancelSale, getClientBalance, getClientTotalSpending } = useData();
+  const {
+    products,
+    clients,
+    rewards,
+    sales,
+    saleItems,
+    serviceTickets,
+    serviceTicketItems,
+    expenses,
+    createSale,
+    addDebtEntries,
+    addExpense,
+    cancelSale,
+    updateServiceTicketStatus,
+    getClientBalance,
+    getClientTotalSpending,
+  } = useData();
   const { user, username, session, role, ownerUserId, isAdmin } = useAuth();
   const { isDesktop, offlineEnabled } = useDesktopRuntime();
   const navigate = useNavigate();
+  const location = useLocation();
   const canUseDesktopOffline = isDesktop && offlineEnabled && isOfflineConcentratorAvailable();
   const searchInputRef = useRef<HTMLInputElement>(null);
   const cashReceivedInputRef = useRef<HTMLInputElement>(null);
@@ -276,6 +293,8 @@ export default function PDV() {
   const [search, setSearch] = useState('');
   const [searchSelectedIndex, setSearchSelectedIndex] = useState(-1);
   const [cart, setCart] = useState<CartItem[]>([]);
+  const [ticketLookup, setTicketLookup] = useState('');
+  const [activeServiceTicketId, setActiveServiceTicketId] = useState<string | null>(null);
   const [mobilePanel, setMobilePanel] = useState<'products' | 'cart'>('products');
   const [cartKeyboardSelectionIndex, setCartKeyboardSelectionIndex] = useState<number | null>(null);
   const [cartItemPendingRemoval, setCartItemPendingRemoval] = useState<CartItem | null>(null);
@@ -331,6 +350,7 @@ export default function PDV() {
   const [lastFiscalDocumentError, setLastFiscalDocumentError] = useState('');
   const lastEscToClearCartAtRef = useRef(0);
   const ignoreCartClearOnEscRef = useRef(false);
+  const loadedServiceTicketQueryRef = useRef<string | null>(null);
   const fiscalIssuanceSaleIdRef = useRef<string | null>(null);
   const companyDisplayName = useCompanyDisplayName();
 
@@ -338,6 +358,12 @@ export default function PDV() {
   const activeClients = clients.filter(c => !c.deleted);
   const sellerName = username || user?.email || translateCurrentText('Vendedor');
   const roleName = roleLabel[role];
+  const activeServiceTicket = activeServiceTicketId
+    ? serviceTickets.find(ticket => ticket.id === activeServiceTicketId) ?? null
+    : null;
+  const activeServiceTicketItems = activeServiceTicket
+    ? serviceTicketItems.filter(item => item.ticket_id === activeServiceTicket.id && item.status === 'active')
+    : [];
 
   const formatMoney = (value: number) => formatCurrency(value);
   const getCartItemTotal = (item: CartItem) => item.unitPrice * item.quantity;
@@ -1531,6 +1557,72 @@ export default function PDV() {
     return true;
   };
 
+  const findServiceTicket = (value: string) => {
+    const normalized = value.trim().toUpperCase();
+    if (!normalized) return null;
+    const ticketNumber = Number.parseInt(normalized, 10);
+    return serviceTickets.find(ticket =>
+      ticket.barcode.trim().toUpperCase() === normalized
+      || (Number.isInteger(ticketNumber) && ticket.number === ticketNumber)
+    ) ?? null;
+  };
+
+  const loadServiceTicketToCart = (ticketLookupValue: string) => {
+    const ticket = findServiceTicket(ticketLookupValue);
+    if (!ticket) {
+      silentToast.error('Comanda nao encontrada');
+      return false;
+    }
+
+    if (ticket.status === 'closed' || ticket.status === 'cancelled') {
+      silentToast.error('Esta comanda ja foi encerrada');
+      return false;
+    }
+
+    const ticketItems = serviceTicketItems.filter(item => item.ticket_id === ticket.id && item.status === 'active');
+    if (ticketItems.length === 0) {
+      silentToast.error('Comanda sem produtos lancados');
+      return false;
+    }
+
+    const missingItems: string[] = [];
+    const nextCart = ticketItems.map(item => {
+      const product = products.find(currentProduct => currentProduct.id === item.product_id);
+      if (!product) {
+        missingItems.push(item.product_name);
+        return null;
+      }
+
+      return {
+        product,
+        quantity: Number(item.quantity || 0),
+        unitPrice: Number(item.unit_price || product.price),
+      } as CartItem;
+    }).filter(Boolean) as CartItem[];
+
+    if (missingItems.length > 0) {
+      silentToast.error(`Produto nao encontrado no cadastro: ${missingItems[0]}`);
+      return false;
+    }
+
+    setCart(nextCart);
+    setActiveServiceTicketId(ticket.id);
+    setTicketLookup(String(ticket.number));
+    setMobilePanel('cart');
+    silentToast.success(`Comanda ${ticket.number} carregada no caixa`);
+    return true;
+  };
+
+  useEffect(() => {
+    const query = new URLSearchParams(location.search).get('comanda')?.trim() || '';
+    if (!query || loadedServiceTicketQueryRef.current === query) return;
+    if (serviceTickets.length === 0 || serviceTicketItems.length === 0 || products.length === 0) return;
+
+    if (loadServiceTicketToCart(query)) {
+      loadedServiceTicketQueryRef.current = query;
+    }
+  }, [location.search, products.length, serviceTicketItems.length, serviceTickets.length]);
+
   const addToCart = (p: Product) => {
     const requestedQuantity = getCartQuantityForProduct(p.id) + 1;
     const stockMessage = getInsufficientStockMessage(p, requestedQuantity);
@@ -1699,6 +1791,7 @@ export default function PDV() {
   const clearCart = () => {
     if (cart.length === 0) return;
     setCart([]);
+    setActiveServiceTicketId(null);
     setCartKeyboardSelectionIndex(null);
     closeCartItemPriceEditor();
     setCartItemPendingRemoval(null);
@@ -1881,6 +1974,18 @@ export default function PDV() {
         );
       }
 
+      if (activeServiceTicket) {
+        try {
+          await updateServiceTicketStatus(activeServiceTicket.id, 'closed', {
+            saleId: sale.id,
+            closedByName: sellerName,
+          });
+        } catch (ticketError) {
+          console.error('Nao foi possivel fechar a comanda apos a venda:', getRedactedLogValue(ticketError));
+          silentToast.error('Venda finalizada, mas nao foi possivel fechar a comanda automaticamente');
+        }
+      }
+
       const finalizedPaymentMethod = paymentMethod === 'cartao_credito' && creditInstallments
         ? `Cartão crédito (${creditInstallments}x)`
         : formatPaymentMethod(paymentMethod);
@@ -1908,6 +2013,7 @@ export default function PDV() {
       setShowCheckout(false);
       setShowReceipt(true);
       setCart([]);
+      setActiveServiceTicketId(null);
       setDiscountInput('');
       setPaymentMethod('');
       setCreditInstallments(null);
@@ -2749,6 +2855,44 @@ export default function PDV() {
             <Button variant="destructive" size="sm" onClick={requestCloseCash} disabled={!cashSession}>Fechar caixa (5)</Button>
           </div>
         </div>
+        <div className="mb-3 shrink-0 rounded-lg border border-border bg-background/80 p-3">
+          <div className="grid gap-2 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
+            <div className="space-y-1">
+              <Label>Comanda</Label>
+              <div className="relative">
+                <Barcode className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  className="pl-10"
+                  value={ticketLookup}
+                  onChange={event => setTicketLookup(event.target.value.toUpperCase())}
+                  onKeyDown={event => {
+                    if (event.key === 'Enter') {
+                      event.preventDefault();
+                      loadServiceTicketToCart(ticketLookup);
+                    }
+                  }}
+                  placeholder="Digite 1 ou escaneie HC-CMD-0001"
+                />
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <Button type="button" variant="outline" onClick={() => navigate('/comandas')}>
+                Comandas
+              </Button>
+              <Button type="button" onClick={() => loadServiceTicketToCart(ticketLookup)}>
+                Carregar
+              </Button>
+            </div>
+          </div>
+          {activeServiceTicket && (
+            <div className="mt-2 flex flex-wrap items-center gap-2 text-sm">
+              <Badge variant="secondary">Comanda {activeServiceTicket.number}</Badge>
+              <span className="text-muted-foreground">
+                {activeServiceTicketItems.length} item{activeServiceTicketItems.length === 1 ? '' : 's'} lancado{activeServiceTicketItems.length === 1 ? '' : 's'}
+              </span>
+            </div>
+          )}
+        </div>
         <div className="relative mb-3 shrink-0">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
           <Input
@@ -2808,6 +2952,7 @@ export default function PDV() {
             <CardTitle className="flex items-center gap-2 text-base">
               <ShoppingCart className="h-5 w-5" />
               Carrinho ({cart.length})
+              {activeServiceTicket && <Badge variant="secondary">Comanda {activeServiceTicket.number}</Badge>}
               <span className="text-xs font-medium text-muted-foreground">Esc zera</span>
               <span className="text-xs font-medium text-destructive">8 preço • Tab navega</span>
             </CardTitle>

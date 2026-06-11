@@ -56,24 +56,31 @@ export function PlanProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [resolvedPlanSubject, setResolvedPlanSubject] = useState<string | null>(null);
   const refreshRequestRef = useRef(0);
+  const resolvedPlanSubjectRef = useRef<string | null>(null);
   const planSubject = user
     ? `${user.id}:${ownerUserId ?? 'pending-owner'}:${isLocalOfflineSession ? 'offline' : 'online'}`
     : 'anonymous';
+
+  const markPlanSubjectResolved = useCallback((subject: string) => {
+    resolvedPlanSubjectRef.current = subject;
+    setResolvedPlanSubject(subject);
+  }, []);
 
   const refresh = useCallback(async () => {
     const requestId = ++refreshRequestRef.current;
     const requestPlanSubject = planSubject;
     const isCurrentRequest = () => refreshRequestRef.current === requestId;
+    const shouldShowBlockingLoading = resolvedPlanSubjectRef.current !== requestPlanSubject;
 
     if (authLoading) {
-      setLoading(true);
+      setLoading(shouldShowBlockingLoading);
       return;
     }
 
     if (!user) {
       setPlanId(null);
       setFeatures([]);
-      setResolvedPlanSubject(requestPlanSubject);
+      markPlanSubjectResolved(requestPlanSubject);
       setLoading(false);
       return;
     }
@@ -84,12 +91,14 @@ export function PlanProvider({ children }: { children: ReactNode }) {
       if (!isCurrentRequest()) return;
       setPlanId(cachedPlanAccess?.planId ?? null);
       setFeatures(cachedPlanAccess?.features ?? []);
-      setResolvedPlanSubject(requestPlanSubject);
+      markPlanSubjectResolved(requestPlanSubject);
       setLoading(false);
       return;
     }
 
-    setLoading(true);
+    if (shouldShowBlockingLoading) {
+      setLoading(true);
+    }
 
     const applyCachedPlanAccess = (error: unknown) => {
       const cachedPlanAccess = readCachedPlanAccess(user.id);
@@ -104,7 +113,7 @@ export function PlanProvider({ children }: { children: ReactNode }) {
       if (!isCurrentRequest()) return true;
       setPlanId(fallbackPlanAccess.planId);
       setFeatures(fallbackPlanAccess.features);
-      setResolvedPlanSubject(requestPlanSubject);
+      markPlanSubjectResolved(requestPlanSubject);
       setLoading(false);
       return true;
     };
@@ -117,7 +126,7 @@ export function PlanProvider({ children }: { children: ReactNode }) {
 
       setPlanId(null);
       setFeatures([]);
-      setResolvedPlanSubject(requestPlanSubject);
+      markPlanSubjectResolved(requestPlanSubject);
       setLoading(false);
       return;
     }
@@ -134,7 +143,7 @@ export function PlanProvider({ children }: { children: ReactNode }) {
 
       setPlanId(currentPlanId);
       setFeatures([]);
-      setResolvedPlanSubject(requestPlanSubject);
+      markPlanSubjectResolved(requestPlanSubject);
       setLoading(false);
       return;
     }
@@ -142,13 +151,13 @@ export function PlanProvider({ children }: { children: ReactNode }) {
     const nextFeatures = ((featureRows as Array<{ feature_key: string }> | null) ?? []).map((row) => row.feature_key);
     setPlanId(currentPlanId);
     setFeatures(nextFeatures);
-    setResolvedPlanSubject(requestPlanSubject);
+    markPlanSubjectResolved(requestPlanSubject);
     setLoading(false);
     writeCachedPlanAccess(user.id, {
       planId: currentPlanId,
       features: nextFeatures,
     });
-  }, [authLoading, isLocalOfflineSession, ownerUserId, planSubject, user]);
+  }, [authLoading, isLocalOfflineSession, markPlanSubjectResolved, ownerUserId, planSubject, user]);
 
   useEffect(() => {
     void refresh();

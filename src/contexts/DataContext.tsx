@@ -3,7 +3,22 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './AuthContext';
 import { useDesktopRuntime } from './DesktopRuntimeContext';
 import { usePlanAccess } from './PlanContext';
-import type { Client, Product, DebtEntry, Payment, Sale, SaleItem, StockMovement, Expense, ProductCategoryPricingRule, ProductPriceHistoryEntry, Reward } from '@/types';
+import type {
+  Client,
+  Product,
+  DebtEntry,
+  Payment,
+  Sale,
+  SaleItem,
+  ServiceTicket,
+  ServiceTicketItem,
+  ServiceTicketStatus,
+  StockMovement,
+  Expense,
+  ProductCategoryPricingRule,
+  ProductPriceHistoryEntry,
+  Reward,
+} from '@/types';
 import {
   cleanupOfflineData,
   enqueueOfflineOperation,
@@ -118,6 +133,10 @@ const sortByIsoDesc = <T,>(rows: T[], selectIso: (row: T) => string | null | und
 const sortClientsByCreatedAt = (rows: Client[]) => sortByIsoDesc(rows, row => row.created_at);
 const sortDebtEntriesByDateAdded = (rows: DebtEntry[]) => sortByIsoDesc(rows, row => row.date_added);
 const sortPaymentsByDate = (rows: Payment[]) => sortByIsoDesc(rows, row => row.date);
+const sortServiceTicketsByNumber = (rows: ServiceTicket[]) => [...rows].sort((left, right) => left.number - right.number);
+const sortServiceTicketItemsByCreatedAt = (rows: ServiceTicketItem[]) =>
+  [...rows].sort((left, right) => new Date(left.created_at).getTime() - new Date(right.created_at).getTime());
+const buildServiceTicketBarcode = (number: number) => `HC-CMD-${String(number).padStart(4, '0')}`;
 const samePaymentMoment = (left?: string | null, right?: string | null) => {
   if (!left || !right) return false;
   return Math.abs(new Date(left).getTime() - new Date(right).getTime()) < 1000;
@@ -173,6 +192,7 @@ type FetchAllOptions = {
 interface DataContextType {
   clients: Client[]; products: Product[]; debtEntries: DebtEntry[]; payments: Payment[]; rewards: Reward[];
   sales: Sale[]; saleItems: SaleItem[]; stockMovements: StockMovement[]; expenses: Expense[];
+  serviceTickets: ServiceTicket[]; serviceTicketItems: ServiceTicketItem[];
   pricingRules: ProductCategoryPricingRule[]; priceHistory: ProductPriceHistoryEntry[];
   loading: boolean;
   offlinePreparationStatus: OfflinePreparationStatus;
@@ -203,6 +223,24 @@ interface DataContextType {
     items: Omit<SaleItem, 'id' | 'sale_id'>[],
   ) => Promise<{ sale: Sale; items: SaleItem[] }>;
   cancelSale: (saleId: string, reason: string) => Promise<void>;
+  createServiceTicket: (number: number, barcode?: string, label?: string) => Promise<ServiceTicket>;
+  addServiceTicketItem: (
+    ticketId: string,
+    item: {
+      productId?: string | null;
+      productName: string;
+      quantity: number;
+      unitPrice: number;
+      notes?: string | null;
+      addedByName?: string | null;
+    }
+  ) => Promise<ServiceTicketItem>;
+  updateServiceTicketStatus: (
+    ticketId: string,
+    status: ServiceTicketStatus,
+    metadata?: { saleId?: string | null; closedByName?: string | null }
+  ) => Promise<void>;
+  cancelServiceTicketItem: (itemId: string, reason: string, cancelledByName?: string | null) => Promise<void>;
   addStockMovement: (productId: string, type: string, quantity: number, reason: string) => Promise<void>;
   clearAllStock: (reason?: string) => Promise<void>;
   addExpense: (
@@ -235,6 +273,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [rewards, setRewards] = useState<Reward[]>([]);
   const [sales, setSales] = useState<Sale[]>([]);
   const [saleItems, setSaleItems] = useState<SaleItem[]>([]);
+  const [serviceTickets, setServiceTickets] = useState<ServiceTicket[]>([]);
+  const [serviceTicketItems, setServiceTicketItems] = useState<ServiceTicketItem[]>([]);
   const [stockMovements, setStockMovements] = useState<StockMovement[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [pricingRules, setPricingRules] = useState<ProductCategoryPricingRule[]>([]);
@@ -255,6 +295,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
     setRewards([]);
     setSales([]);
     setSaleItems([]);
+    setServiceTickets([]);
+    setServiceTicketItems([]);
     setStockMovements([]);
     setExpenses([]);
     setPricingRules([]);
@@ -318,6 +360,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
     setRewards(snapshot.rewards ?? []);
     setSales(snapshot.sales ?? []);
     setSaleItems(snapshot.saleItems ?? []);
+    setServiceTickets(sortServiceTicketsByNumber(snapshot.serviceTickets ?? []));
+    setServiceTicketItems(sortServiceTicketItemsByCreatedAt(snapshot.serviceTicketItems ?? []));
     setStockMovements(snapshot.stockMovements ?? []);
     setExpenses(snapshot.expenses ?? []);
     setPricingRules((snapshot.pricingRules ?? []).map(normalizePricingRuleRow));
@@ -384,6 +428,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     const canReadFiado = hasFeature('fiado.manage');
     const canReadRewards = hasFeature('rewards.manage');
     const canReadSales = hasFeature('pdv.use');
+    const canReadServiceTickets = hasFeature('service_tickets.use');
     const canReadStock = hasFeature('stock.manage');
     const canReadExpenses = hasFeature('financial.manage');
     const canReadPricing = hasFeature('pricing.manage');
@@ -399,7 +444,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         : productsByCode;
     }
 
-    const [c, p, d, pay, r, s, si, sm, exp, pr, ph] = await Promise.all([
+    const [c, p, d, pay, r, s, si, st, sti, sm, exp, pr, ph] = await Promise.all([
       canReadClients ? db.from('clients').select('*').order('created_at', { ascending: false }).limit(1000) : emptyResult,
       Promise.resolve(productsResponse),
       canReadFiado ? db.from('debt_entries').select('*').order('date_added', { ascending: false }).limit(2000) : emptyResult,
@@ -407,13 +452,15 @@ export function DataProvider({ children }: { children: ReactNode }) {
       canReadRewards ? db.from('rewards').select('*').order('created_at', { ascending: false }).limit(1000) : emptyResult,
       canReadSales ? db.from('sales').select('*').order('date', { ascending: false }).limit(2000) : emptyResult,
       canReadSales ? db.from('sale_items').select('*').limit(5000) : emptyResult,
+      canReadServiceTickets ? db.from('service_tickets').select('*').order('number', { ascending: true }).limit(1000) : emptyResult,
+      canReadServiceTickets ? db.from('service_ticket_items').select('*').order('created_at', { ascending: true }).limit(5000) : emptyResult,
       canReadStock ? db.from('stock_movements').select('*').order('date', { ascending: false }).limit(2000) : emptyResult,
       canReadExpenses ? db.from('expenses').select('*').order('date', { ascending: false }).limit(1000) : emptyResult,
       canReadPricing ? db.from('product_category_pricing_rules').select('*').order('category', { ascending: true }) : emptyResult,
       canReadPricing ? db.from('product_price_history').select('*').order('created_at', { ascending: false }).limit(1000) : emptyResult,
     ]);
 
-    const remoteErrors = [c, p, d, pay, r, s, si, sm, exp, pr, ph]
+    const remoteErrors = [c, p, d, pay, r, s, si, st, sti, sm, exp, pr, ph]
       .map(result => result.error)
       .filter(Boolean);
     const hasRemoteError = remoteErrors.length > 0;
@@ -442,6 +489,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
     const nextRewards = (r.data as Reward[]) ?? [];
     const nextSales = (s.data as Sale[]) ?? [];
     const nextSaleItems = (si.data as SaleItem[]) ?? [];
+    const nextServiceTickets = sortServiceTicketsByNumber((st.data as ServiceTicket[]) ?? []);
+    const nextServiceTicketItems = sortServiceTicketItemsByCreatedAt((sti.data as ServiceTicketItem[]) ?? []);
     const nextStockMovements = (sm.data as StockMovement[]) ?? [];
     const nextExpenses = (exp.data as Expense[]) ?? [];
     const nextPricingRules = (((pr.data as ProductCategoryPricingRule[]) ?? []).map(normalizePricingRuleRow));
@@ -454,6 +503,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
     setRewards(nextRewards);
     setSales(nextSales);
     setSaleItems(nextSaleItems);
+    setServiceTickets(nextServiceTickets);
+    setServiceTicketItems(nextServiceTicketItems);
     setStockMovements(nextStockMovements);
     setExpenses(nextExpenses);
     setPricingRules(nextPricingRules);
@@ -469,6 +520,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
         rewards: nextRewards,
         sales: nextSales,
         saleItems: nextSaleItems,
+        serviceTickets: nextServiceTickets,
+        serviceTicketItems: nextServiceTicketItems,
         stockMovements: nextStockMovements,
         expenses: nextExpenses,
         pricingRules: nextPricingRules,
@@ -507,6 +560,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
       rewards,
       sales,
       saleItems,
+      serviceTickets,
+      serviceTicketItems,
       stockMovements,
       expenses,
       pricingRules,
@@ -541,6 +596,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
     rewards,
     saleItems,
     sales,
+    serviceTicketItems,
+    serviceTickets,
     stockMovements,
     user,
   ]);
@@ -3041,6 +3098,265 @@ export function DataProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  // --- Service tickets (comandas) ---
+  const createServiceTicket = async (number: number, barcode?: string, label?: string) => {
+    if (!ownerUserId) throw new Error('Loja nao identificada.');
+    if (!Number.isInteger(number) || number <= 0) {
+      throw new Error('Informe um numero de comanda valido.');
+    }
+
+    const normalizedBarcode = (barcode?.trim() || buildServiceTicketBarcode(number)).toUpperCase();
+    const normalizedLabel = label?.trim() || `Comanda ${number}`;
+    const duplicateTicket = serviceTickets.find(ticket =>
+      ticket.number === number || ticket.barcode.trim().toUpperCase() === normalizedBarcode,
+    );
+
+    if (duplicateTicket) {
+      throw new Error('Ja existe uma comanda com esse numero ou codigo.');
+    }
+
+    const now = nowIso();
+    const ticket: ServiceTicket = {
+      id: createId(),
+      owner_user_id: ownerUserId,
+      number,
+      barcode: normalizedBarcode,
+      label: normalizedLabel,
+      status: 'available',
+      opened_at: null,
+      closed_at: null,
+      opened_by_user_id: null,
+      closed_by_user_id: null,
+      opened_by_name: null,
+      closed_by_name: null,
+      closed_sale_id: null,
+      notes: null,
+      created_at: now,
+      updated_at: now,
+    };
+
+    if (isDemoMode) {
+      setServiceTickets(prev => sortServiceTicketsByNumber([ticket, ...prev]));
+      return ticket;
+    }
+
+    if (canUseOfflineConcentrator && typeof navigator !== 'undefined' && navigator.onLine === false) {
+      throw new Error('Conecte a internet para cadastrar novas comandas.');
+    }
+
+    const { data, error } = await db
+      .from('service_tickets')
+      .insert({
+        owner_user_id: ownerUserId,
+        number,
+        barcode: normalizedBarcode,
+        label: normalizedLabel,
+        status: 'available',
+      })
+      .select('*')
+      .single();
+
+    if (error || !data) throw error;
+
+    const createdTicket = data as ServiceTicket;
+    setServiceTickets(prev => sortServiceTicketsByNumber([createdTicket, ...prev]));
+    return createdTicket;
+  };
+
+  const addServiceTicketItem: DataContextType['addServiceTicketItem'] = async (ticketId, item) => {
+    if (!ownerUserId) throw new Error('Loja nao identificada.');
+    const ticket = serviceTickets.find(currentTicket => currentTicket.id === ticketId);
+    if (!ticket) throw new Error('Comanda nao encontrada.');
+    if (ticket.status === 'closed' || ticket.status === 'cancelled') {
+      throw new Error('Esta comanda ja foi encerrada.');
+    }
+
+    const quantity = Number(item.quantity);
+    const unitPrice = Number(item.unitPrice);
+    if (!Number.isFinite(quantity) || quantity <= 0) throw new Error('Informe uma quantidade valida.');
+    if (!Number.isFinite(unitPrice) || unitPrice < 0) throw new Error('Informe um preco valido.');
+
+    const now = nowIso();
+    const total = Math.round(quantity * unitPrice * 100) / 100;
+    const itemRow: ServiceTicketItem = {
+      id: createId(),
+      ticket_id: ticketId,
+      owner_user_id: ownerUserId,
+      product_id: item.productId ?? null,
+      product_name: item.productName,
+      quantity,
+      unit_price: unitPrice,
+      total,
+      status: 'active',
+      notes: item.notes ?? null,
+      added_by_user_id: user?.id ?? null,
+      added_by_name: item.addedByName ?? null,
+      cancelled_by_user_id: null,
+      cancelled_by_name: null,
+      cancelled_at: null,
+      cancel_reason: null,
+      created_at: now,
+      updated_at: now,
+    };
+    const shouldOpenTicket = ticket.status === 'available';
+    const openedChanges: Partial<ServiceTicket> = shouldOpenTicket
+      ? {
+          status: 'open',
+          opened_at: now,
+          opened_by_user_id: user?.id ?? null,
+          opened_by_name: item.addedByName ?? null,
+          updated_at: now,
+        }
+      : { updated_at: now };
+
+    if (isDemoMode) {
+      setServiceTickets(prev => sortServiceTicketsByNumber(prev.map(currentTicket =>
+        currentTicket.id === ticketId ? { ...currentTicket, ...openedChanges } : currentTicket
+      )));
+      setServiceTicketItems(prev => sortServiceTicketItemsByCreatedAt([...prev, itemRow]));
+      return itemRow;
+    }
+
+    if (canUseOfflineConcentrator && typeof navigator !== 'undefined' && navigator.onLine === false) {
+      throw new Error('Conecte a internet para lancar produtos na comanda.');
+    }
+
+    if (shouldOpenTicket) {
+      ensureSuccess(await db
+        .from('service_tickets')
+        .update({
+          status: 'open',
+          opened_at: now,
+          opened_by_user_id: user?.id ?? null,
+          opened_by_name: item.addedByName ?? null,
+        })
+        .eq('id', ticketId));
+    }
+
+    const { data, error } = await db
+      .from('service_ticket_items')
+      .insert({
+        ticket_id: ticketId,
+        owner_user_id: ownerUserId,
+        product_id: item.productId ?? null,
+        product_name: item.productName,
+        quantity,
+        unit_price: unitPrice,
+        total,
+        notes: item.notes ?? null,
+        added_by_user_id: user?.id ?? null,
+        added_by_name: item.addedByName ?? null,
+      })
+      .select('*')
+      .single();
+
+    if (error || !data) throw error;
+
+    const createdItem = data as ServiceTicketItem;
+    setServiceTickets(prev => sortServiceTicketsByNumber(prev.map(currentTicket =>
+      currentTicket.id === ticketId ? { ...currentTicket, ...openedChanges } : currentTicket
+    )));
+    setServiceTicketItems(prev => sortServiceTicketItemsByCreatedAt([...prev, createdItem]));
+    return createdItem;
+  };
+
+  const updateServiceTicketStatus: DataContextType['updateServiceTicketStatus'] = async (ticketId, status, metadata = {}) => {
+    if (!ownerUserId) throw new Error('Loja nao identificada.');
+    const ticket = serviceTickets.find(currentTicket => currentTicket.id === ticketId);
+    if (!ticket) throw new Error('Comanda nao encontrada.');
+
+    const now = nowIso();
+    const changes: Partial<ServiceTicket> = {
+      status,
+      updated_at: now,
+    };
+
+    if (status === 'open' && !ticket.opened_at) {
+      changes.opened_at = now;
+      changes.opened_by_user_id = user?.id ?? null;
+      changes.opened_by_name = metadata.closedByName ?? null;
+    }
+
+    if (status === 'closed' || status === 'cancelled') {
+      changes.closed_at = now;
+      changes.closed_by_user_id = user?.id ?? null;
+      changes.closed_by_name = metadata.closedByName ?? null;
+      changes.closed_sale_id = metadata.saleId ?? ticket.closed_sale_id ?? null;
+    }
+
+    if (isDemoMode) {
+      setServiceTickets(prev => sortServiceTicketsByNumber(prev.map(currentTicket =>
+        currentTicket.id === ticketId ? { ...currentTicket, ...changes } : currentTicket
+      )));
+      return;
+    }
+
+    if (canUseOfflineConcentrator && typeof navigator !== 'undefined' && navigator.onLine === false) {
+      throw new Error('Conecte a internet para atualizar a comanda.');
+    }
+
+    ensureSuccess(await db
+      .from('service_tickets')
+      .update(compactObject({
+        status,
+        opened_at: changes.opened_at,
+        opened_by_user_id: changes.opened_by_user_id,
+        opened_by_name: changes.opened_by_name,
+        closed_at: changes.closed_at,
+        closed_by_user_id: changes.closed_by_user_id,
+        closed_by_name: changes.closed_by_name,
+        closed_sale_id: changes.closed_sale_id,
+      }))
+      .eq('id', ticketId));
+
+    setServiceTickets(prev => sortServiceTicketsByNumber(prev.map(currentTicket =>
+      currentTicket.id === ticketId ? { ...currentTicket, ...changes } : currentTicket
+    )));
+  };
+
+  const cancelServiceTicketItem: DataContextType['cancelServiceTicketItem'] = async (itemId, reason, cancelledByName) => {
+    if (!isAdmin) throw new Error('Somente administrador pode cancelar item da comanda.');
+    const item = serviceTicketItems.find(currentItem => currentItem.id === itemId);
+    if (!item) throw new Error('Item da comanda nao encontrado.');
+    if (item.status === 'cancelled') return;
+
+    const now = nowIso();
+    const changes: Partial<ServiceTicketItem> = {
+      status: 'cancelled',
+      cancelled_at: now,
+      cancelled_by_user_id: user?.id ?? null,
+      cancelled_by_name: cancelledByName ?? null,
+      cancel_reason: reason,
+      updated_at: now,
+    };
+
+    if (isDemoMode) {
+      setServiceTicketItems(prev => sortServiceTicketItemsByCreatedAt(prev.map(currentItem =>
+        currentItem.id === itemId ? { ...currentItem, ...changes } : currentItem
+      )));
+      return;
+    }
+
+    if (canUseOfflineConcentrator && typeof navigator !== 'undefined' && navigator.onLine === false) {
+      throw new Error('Conecte a internet para cancelar item da comanda.');
+    }
+
+    ensureSuccess(await db
+      .from('service_ticket_items')
+      .update({
+        status: 'cancelled',
+        cancelled_at: now,
+        cancelled_by_user_id: user?.id ?? null,
+        cancelled_by_name: cancelledByName ?? null,
+        cancel_reason: reason,
+      })
+      .eq('id', itemId));
+
+    setServiceTicketItems(prev => sortServiceTicketItemsByCreatedAt(prev.map(currentItem =>
+      currentItem.id === itemId ? { ...currentItem, ...changes } : currentItem
+    )));
+  };
+
   // --- Stock ---
   const addStockMovement = async (productId: string, type: string, quantity: number, reason: string) => {
     const currentProduct = products.find(product => product.id === productId);
@@ -3473,14 +3789,16 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
   return (
     <DataContext.Provider value={{
-      clients, products, debtEntries, payments, rewards, sales, saleItems, stockMovements, expenses, pricingRules, priceHistory, loading,
+      clients, products, debtEntries, payments, rewards, sales, saleItems, serviceTickets, serviceTicketItems, stockMovements, expenses, pricingRules, priceHistory, loading,
       offlinePreparationStatus, offlinePreparationMessage, offlineSnapshotUpdatedAt,
       addClient, updateClient, softDeleteClient,
       addProduct, updateProduct, deleteProduct, searchProducts,
       addPricingRule, updatePricingRule, deletePricingRule,
       addDebtEntry, addDebtEntries, updateDebtEntry, deleteDebtEntry,
       addPayment, deletePayment, getClientBalance, getClientTotalSpending, closeAllDebt, deleteClientHistory,
-      createSale, cancelSale, addStockMovement, clearAllStock, addExpense, deleteExpense,
+      createSale, cancelSale,
+      createServiceTicket, addServiceTicketItem, updateServiceTicketStatus, cancelServiceTicketItem,
+      addStockMovement, clearAllStock, addExpense, deleteExpense,
       addReward, updateReward, deleteReward,
       refetch: fetchAll,
     }}>

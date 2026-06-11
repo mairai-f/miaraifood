@@ -14,6 +14,7 @@ type ManageOperatorRequest =
       action: 'create';
       username?: string;
       password?: string;
+      operatorRole?: string;
     }
   | {
       action: 'reset_password';
@@ -45,6 +46,11 @@ interface OperatorLookupRow {
   username: string;
 }
 
+type StaffRole = 'operator' | 'waiter';
+const staffRoles: StaffRole[] = ['operator', 'waiter'];
+const normalizeStaffRole = (value: string | undefined | null): StaffRole =>
+  value === 'waiter' ? 'waiter' : 'operator';
+
 const jsonResponse = (request: Request, body: Record<string, unknown>, status = 200) =>
   new Response(JSON.stringify(body), {
     status,
@@ -72,7 +78,7 @@ const extractAccessToken = (authorization: string | null) => {
 
 const normalizeEmail = (value: string) => value.trim().toLowerCase();
 
-Deno.serve(async (request) => {
+Deno.serve(async (request): Promise<Response> => {
   if (request.method === 'OPTIONS') {
     return handleCorsPreflight(request, {
       allowedMethods: ['POST', 'OPTIONS'],
@@ -158,6 +164,7 @@ Deno.serve(async (request) => {
   if (body.action === 'create') {
     const normalizedUsername = normalizeOperatorUsername(body.username ?? '');
     const password = body.password?.trim();
+    const operatorRole = normalizeStaffRole(body.operatorRole);
     const credentialError = getOperatorCredentialError(password || '');
     const authPassword = resolveOperatorAuthPassword(normalizedUsername, password || '');
 
@@ -172,7 +179,7 @@ Deno.serve(async (request) => {
     const { data: existingOperators, error: existingOperatorsError } = await serviceClient
       .from('profiles')
       .select('user_id, username')
-      .eq('role', 'operator');
+      .in('role', staffRoles);
 
     if (existingOperatorsError) {
       return jsonResponse(request, { error: 'Não foi possível validar o usuário do operador.' }, 500);
@@ -194,7 +201,7 @@ Deno.serve(async (request) => {
       email_confirm: true,
       user_metadata: {
         username: normalizedUsername,
-        role: 'operator',
+        role: operatorRole,
         owner_user_id: ownerUserId,
         created_by_user_id: user.id,
       },
@@ -214,7 +221,7 @@ Deno.serve(async (request) => {
         user_id: createdUser.user.id,
         username: normalizedUsername,
         email: generatedEmail,
-        role: 'operator',
+        role: operatorRole,
         owner_user_id: ownerUserId,
         created_by_user_id: user.id,
       }, { onConflict: 'user_id' });
@@ -256,7 +263,7 @@ Deno.serve(async (request) => {
       return jsonResponse(request, { error: 'Operador não encontrado.' }, 404);
     }
 
-    if (targetProfile.role !== 'operator' || targetProfile.owner_user_id !== ownerUserId) {
+    if (!staffRoles.includes(targetProfile.role) || targetProfile.owner_user_id !== ownerUserId) {
       return jsonResponse(request, { error: 'Você não pode redefinir a senha deste operador.' }, 403);
     }
 
@@ -365,7 +372,7 @@ Deno.serve(async (request) => {
       return jsonResponse(request, { error: 'Operador não encontrado.' }, 404);
     }
 
-    if (targetProfile.role !== 'operator' || targetProfile.owner_user_id !== ownerUserId) {
+    if (!staffRoles.includes(targetProfile.role) || targetProfile.owner_user_id !== ownerUserId) {
       return jsonResponse(request, { error: 'Você não pode excluir este operador.' }, 403);
     }
 
@@ -467,7 +474,7 @@ Deno.serve(async (request) => {
       .from('profiles')
       .select('user_id')
       .eq('owner_user_id', ownerUserId)
-      .eq('role', 'operator');
+      .in('role', staffRoles);
 
     if (operatorProfilesError) {
       return jsonResponse(request, { error: 'Não foi possível preparar a exclusão dos operadores.' }, 500);
@@ -638,14 +645,14 @@ Deno.serve(async (request) => {
 
     if (shouldDeleteFinancial) {
       financialResult = await deleteFinancialData();
-      if ('errorResponse' in financialResult) {
+      if ('errorResponse' in financialResult && financialResult.errorResponse) {
         return financialResult.errorResponse;
       }
     }
 
     if (shouldDeleteReports) {
       reportResult = await deleteReportData();
-      if ('errorResponse' in reportResult) {
+      if ('errorResponse' in reportResult && reportResult.errorResponse) {
         return reportResult.errorResponse;
       }
     }

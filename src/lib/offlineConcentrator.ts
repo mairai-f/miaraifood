@@ -9,6 +9,8 @@ import type {
   Reward,
   Sale,
   SaleItem,
+  ServiceTicket,
+  ServiceTicketItem,
   StockMovement,
 } from '@/types';
 
@@ -50,6 +52,8 @@ export interface OfflineSnapshot {
   rewards: Reward[];
   sales: Sale[];
   saleItems: SaleItem[];
+  serviceTickets: ServiceTicket[];
+  serviceTicketItems: ServiceTicketItem[];
   stockMovements: StockMovement[];
   expenses: Expense[];
   pricingRules: ProductCategoryPricingRule[];

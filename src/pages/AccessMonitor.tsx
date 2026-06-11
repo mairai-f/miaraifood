@@ -15,7 +15,7 @@ type AccessSessionRow = {
   id: string;
   username: string | null;
   email: string | null;
-  role: 'admin' | 'operator';
+  role: 'admin' | 'operator' | 'waiter';
   source: 'system' | 'site';
   device_type: 'desktop' | 'mobile' | 'tablet' | 'unknown';
   os_name: string | null;
@@ -31,7 +31,7 @@ type AccessLogRow = {
   id: string;
   username: string | null;
   email: string | null;
-  role: 'admin' | 'operator';
+  role: 'admin' | 'operator' | 'waiter';
   source: 'system' | 'site';
   event_type: 'login' | 'logout';
   device_type: 'desktop' | 'mobile' | 'tablet' | 'unknown';
@@ -71,6 +71,7 @@ const deviceLabel: Record<AccessSessionRow['device_type'], string> = {
 const roleLabel: Record<AccessSessionRow['role'], string> = {
   admin: 'Administrador',
   operator: 'Operador',
+  waiter: 'Garcom',
 };
 
 const sourceLabel: Record<AccessSessionRow['source'], string> = {

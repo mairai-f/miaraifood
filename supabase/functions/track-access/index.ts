@@ -4,7 +4,11 @@ import { buildCorsHeaders, handleCorsPreflight } from "../_shared/cors.ts";
 type AccessEventType = "heartbeat" | "logout";
 type AccessSource = "system" | "site";
 type DeviceType = "desktop" | "mobile" | "tablet" | "unknown";
-type UserRole = "admin" | "operator";
+type UserRole = "admin" | "operator" | "waiter";
+const normalizeUserRole = (value: string | null | undefined): UserRole => {
+  if (value === "operator" || value === "waiter") return value;
+  return "admin";
+};
 
 interface TrackAccessRequest {
   eventType?: AccessEventType;
@@ -175,7 +179,7 @@ Deno.serve(async (request) => {
   }
 
   const profile = (profileData as AccessProfileRow | null) || null;
-  const role: UserRole = profile?.role === "operator" ? "operator" : "admin";
+  const role = normalizeUserRole(profile?.role);
   const ownerUserId = profile?.owner_user_id ?? user.id;
   const username = profile?.username ?? null;
   const email = profile?.email ?? user.email ?? null;

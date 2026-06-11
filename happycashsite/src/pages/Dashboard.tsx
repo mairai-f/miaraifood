@@ -9,7 +9,10 @@ import {
   CreditCard,
   Crown,
   Download,
+  Eye,
+  EyeOff,
   ExternalLink,
+  KeyRound,
   Loader2,
   LogOut,
   QrCode,
@@ -176,6 +179,20 @@ type DeleteAccountResponse = {
   error?: string;
 };
 
+type DesktopLicenseKeyResponse = {
+  success?: boolean;
+  licenseKey?: string;
+  storeAccountId?: string;
+  companyName?: string;
+  planId?: string | null;
+  status?: string | null;
+  validUntil?: string | null;
+  offlineEnabled?: boolean;
+  productContext?: ProductContext;
+  error?: string;
+  code?: string;
+};
+
 const SITE_SESSION_EXPIRED_MESSAGE = "Sua sessao expirou. Entre novamente para continuar.";
 const DELETE_ACCOUNT_CONFIRM_TEXT = "APAGAR";
 const SITE_REGISTRATION_FUNCTION_MISSING_MESSAGE =
@@ -244,6 +261,10 @@ const Dashboard = () => {
   const [deleteAccountConfirmation, setDeleteAccountConfirmation] = useState("");
   const [deleteAccountError, setDeleteAccountError] = useState("");
   const [deletingAccount, setDeletingAccount] = useState(false);
+  const [desktopLicenseKey, setDesktopLicenseKey] = useState<string | null>(null);
+  const [desktopLicenseKeyVisible, setDesktopLicenseKeyVisible] = useState(false);
+  const [desktopLicenseKeyLoading, setDesktopLicenseKeyLoading] = useState(false);
+  const [desktopLicenseKeyError, setDesktopLicenseKeyError] = useState<string | null>(null);
   const navigate = useNavigate();
   const { toast } = useToast();
   const isMobile = useIsMobile();
@@ -278,6 +299,9 @@ const Dashboard = () => {
     setBillingCustomer(null);
     setPlanCheckout(null);
     setCheckoutDialogOpen(false);
+    setDesktopLicenseKey(null);
+    setDesktopLicenseKeyVisible(false);
+    setDesktopLicenseKeyError(null);
   };
 
   const ensureSiteRegistrationReady = async (accessToken: string) => {
@@ -515,6 +539,13 @@ const Dashboard = () => {
     ? "O app mobile do HappyCashFood fica liberado somente para contas com plano HappyCashFood Offline ativo."
     : "O app mobile do HappyCash fica liberado somente para contas com plano PRO ativo.";
 
+  useEffect(() => {
+    setDesktopLicenseKey(null);
+    setDesktopLicenseKeyVisible(false);
+    setDesktopLicenseKeyLoading(false);
+    setDesktopLicenseKeyError(null);
+  }, [storeAccount?.id, currentPlanId, hasOfflineDownloads]);
+
   const allowedPlanIds = new Set(getPublicPlanIdsForProductContext(accountProductContext));
   const sortedPlans = publicPlanList
     .filter((fallbackPlan) => allowedPlanIds.has(fallbackPlan.id))
@@ -628,6 +659,99 @@ const Dashboard = () => {
       });
     } finally {
       setDeletingAccount(false);
+    }
+  };
+
+  const handleLoadDesktopLicenseKey = async () => {
+    if (desktopLicenseKey) {
+      setDesktopLicenseKeyVisible((current) => !current);
+      return;
+    }
+
+    if (desktopLicenseKeyLoading) return;
+
+    setDesktopLicenseKeyLoading(true);
+    setDesktopLicenseKeyError(null);
+
+    try {
+      const session = await getFreshSiteSession();
+
+      if (!session?.access_token) {
+        await clearInvalidSiteSession();
+        navigate(`/login${querySuffix}`, { replace: true });
+        return;
+      }
+
+      const { data, error } = await supabase.functions.invoke<DesktopLicenseKeyResponse>("desktop-license-key", {
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: {
+          productContext: accountProductContext,
+        },
+      });
+
+      if (error || !data?.success || !data.licenseKey) {
+        let functionErrorMessage = data?.error || "Nao foi possivel carregar a chave da empresa agora.";
+
+        if (error instanceof FunctionsHttpError) {
+          try {
+            const errorPayload = await error.context.clone().json() as DesktopLicenseKeyResponse;
+            functionErrorMessage = errorPayload.error || functionErrorMessage;
+          } catch {
+            functionErrorMessage = error.context.status === 401
+              ? SITE_SESSION_EXPIRED_MESSAGE
+              : functionErrorMessage;
+          }
+        } else if (error instanceof FunctionsFetchError) {
+          functionErrorMessage = "Nao foi possivel conectar ao servico da chave desktop.";
+        } else if (error instanceof FunctionsRelayError) {
+          functionErrorMessage = "Nao foi possivel encaminhar a solicitacao da chave desktop.";
+        } else if (error instanceof Error && error.message.trim()) {
+          functionErrorMessage = error.message;
+        }
+
+        throw new Error(functionErrorMessage);
+      }
+
+      setDesktopLicenseKey(data.licenseKey);
+      setDesktopLicenseKeyVisible(true);
+      toast({
+        title: "Chave validada",
+        description: "A chave da empresa foi liberada para esta conta.",
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Nao foi possivel carregar a chave da empresa agora.";
+      setDesktopLicenseKeyError(message);
+      toast({
+        title: "Erro ao carregar chave",
+        description: message,
+        variant: "destructive",
+      });
+      if (error instanceof Error && error.message === SITE_SESSION_EXPIRED_MESSAGE) {
+        await clearInvalidSiteSession();
+        navigate(`/login${querySuffix}`, { replace: true });
+      }
+    } finally {
+      setDesktopLicenseKeyLoading(false);
+    }
+  };
+
+  const handleCopyDesktopLicenseKey = async () => {
+    if (!desktopLicenseKey) return;
+
+    try {
+      await navigator.clipboard.writeText(desktopLicenseKey);
+      toast({
+        title: "Chave copiada",
+        description: "Cole esta chave na ativacao do aplicativo desktop.",
+      });
+    } catch {
+      toast({
+        title: "Nao foi possivel copiar",
+        description: "Copie a chave manualmente.",
+        variant: "destructive",
+      });
     }
   };
 
@@ -960,7 +1084,7 @@ const Dashboard = () => {
             <div>
               <h1 className="font-heading text-2xl font-bold sm:text-3xl">Central da conta HappyCash</h1>
               <p className="text-sm text-muted-foreground">
-                A mesma conta serve no site, no HappyCash e no HappyCashFood. Demo com 12 horas e planos pagos com ciclo de 30 dias.
+                A mesma conta serve no site, no HappyCash e no HappyCashFood. Demo com 3 dias e planos pagos com ciclo de 30 dias.
               </p>
             </div>
           </div>
@@ -991,7 +1115,7 @@ const Dashboard = () => {
             <AlertTitle>{publicPlanContent[selectedPlanId].name} selecionado</AlertTitle>
             <AlertDescription>
               {selectedPlanId === "demo"
-                ? "Sua demo de 12 horas ja comeca no cadastro."
+                ? "Sua demo de 3 dias ja comeca no cadastro."
                 : "Esse plano fica liberado por 30 dias. Escolha Pix ou debito / credito logo abaixo."}
             </AlertDescription>
           </Alert>
@@ -1080,7 +1204,7 @@ const Dashboard = () => {
                   <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Validade</p>
                   <p className="mt-2 font-semibold">
                     {currentSubscription?.status === "trialing"
-                      ? "12 horas"
+                      ? "3 dias"
                       : currentPlanContent?.id
                       ? "30 dias"
                       : "Sem ciclo"}
@@ -1132,7 +1256,7 @@ const Dashboard = () => {
                 <p className="text-sm font-semibold">Como esta funcionando agora</p>
                 <ul className="mt-3 space-y-2 text-sm text-muted-foreground">
                   <li>1. O cadastro cria uma conta separada para o {productLabel}.</li>
-                  <li>2. A demo libera o ambiente escolhido por 12 horas.</li>
+                  <li>2. A demo libera o ambiente escolhido por 3 dias.</li>
                   <li>3. Os planos pagos exibidos aqui pertencem somente ao {productLabel} e valem 30 dias.</li>
                   <li>4. Assim que o pagamento for confirmado no Asaas, o plano ativa automaticamente.</li>
                 </ul>
@@ -1177,6 +1301,60 @@ const Dashboard = () => {
                             <li>3. No primeiro acesso online, entre como administrador, configure usuario/PIN e aguarde o download dos dados locais.</li>
                             <li>4. Depois disso, admin e operadores preparados podem seguir offline por ate 5 dias sem internet.</li>
                           </ul>
+                        </div>
+                        <div className="rounded-2xl border border-primary/20 bg-primary/5 p-4">
+                          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                            <div className="flex gap-3">
+                              <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground">
+                                <KeyRound className="h-4 w-4" />
+                              </div>
+                              <div>
+                                <p className="text-sm font-semibold">Chave da empresa</p>
+                                <p className="mt-1 text-sm text-muted-foreground">
+                                  Disponivel somente para o dono da conta com {offlineAccessLabel.toLowerCase()}.
+                                </p>
+                              </div>
+                            </div>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              className="h-10 shrink-0 font-semibold"
+                              onClick={handleLoadDesktopLicenseKey}
+                              disabled={desktopLicenseKeyLoading}
+                            >
+                              {desktopLicenseKeyLoading ? (
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                              ) : desktopLicenseKeyVisible ? (
+                                <EyeOff className="mr-2 h-4 w-4" />
+                              ) : (
+                                <Eye className="mr-2 h-4 w-4" />
+                              )}
+                              {desktopLicenseKeyVisible ? "Ocultar" : "Mostrar chave"}
+                            </Button>
+                          </div>
+
+                          <div className="mt-4 grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+                            <div className="min-h-11 rounded-xl border border-border bg-background px-3 py-3 font-mono text-sm font-semibold text-foreground">
+                              {desktopLicenseKey && desktopLicenseKeyVisible ? desktopLicenseKey : "HC-****-****-****"}
+                            </div>
+                            <Button
+                              type="button"
+                              variant="secondary"
+                              className="h-11 font-semibold"
+                              onClick={handleCopyDesktopLicenseKey}
+                              disabled={!desktopLicenseKey}
+                            >
+                              <Copy className="mr-2 h-4 w-4" />
+                              Copiar
+                            </Button>
+                          </div>
+
+                          {desktopLicenseKeyError ? (
+                            <Alert variant="destructive" className="mt-4">
+                              <AlertTitle>Nao foi possivel mostrar a chave</AlertTitle>
+                              <AlertDescription>{desktopLicenseKeyError}</AlertDescription>
+                            </Alert>
+                          ) : null}
                         </div>
                         <Button asChild className="h-11 font-semibold">
                           <Link to={downloads.windows.route}>
@@ -1367,7 +1545,7 @@ const Dashboard = () => {
                         {plan.id === "demo" ? "Gratis" : formatCurrency(displayPrice)}
                       </span>
                       <span className="ml-2 text-sm text-muted-foreground">
-                        {plan.id === "demo" ? "/12 horas" : displayPeriod}
+                        {plan.id === "demo" ? "/3 dias" : displayPeriod}
                       </span>
                       {selectedBillingPeriod === "annual" && isPaidPlan && (
                         <p className="mt-2 text-xs font-medium text-primary">Plano anual com pagamento direto pelo checkout.</p>

@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { PasswordInput } from '@/components/ui/password-input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -49,8 +50,11 @@ const adminVerificationClient = createClient<Database>(
 interface OperatorProfile {
   user_id: string;
   username: string;
+  role: StaffRole;
   created_at: string;
 }
+
+type StaffRole = 'operator' | 'waiter';
 
 interface OpenCashSession {
   id: string;
@@ -96,6 +100,13 @@ const paymentMethodCards: Array<{ key: PaymentMethodKey; label: string }> = [
   { key: 'cartao_credito', label: 'Credito' },
 ];
 
+const staffRoleLabel: Record<StaffRole, string> = {
+  operator: 'Operador do caixa',
+  waiter: 'Garcom',
+};
+
+const canOperateCash = (operator: OperatorProfile) => operator.role === 'operator';
+
 const normalizeLabel = (value: string | null | undefined) => value?.trim().toLowerCase() ?? '';
 const formatMoney = (value: number) => `R$ ${value.toFixed(2)}`;
 
@@ -115,6 +126,7 @@ export function OperatorManagementPanel({
   const [deletingOperatorId, setDeletingOperatorId] = useState<string | null>(null);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [staffRole, setStaffRole] = useState<StaffRole>('operator');
   const [openingAmount, setOpeningAmount] = useState('');
   const [openCashDialogOpen, setOpenCashDialogOpen] = useState(false);
   const [resetDialogOpen, setResetDialogOpen] = useState(false);
@@ -140,6 +152,7 @@ export function OperatorManagementPanel({
   const resetCreateForm = useCallback(() => {
     setUsername('');
     setPassword('');
+    setStaffRole('operator');
   }, []);
 
   const handleCreateDialogOpenChange = useCallback((open: boolean) => {
@@ -211,9 +224,9 @@ export function OperatorManagementPanel({
     const [{ data: operatorRows, error: operatorError }, { data: openRows, error: openError }] = await Promise.all([
       db
         .from('profiles')
-        .select('user_id, username, created_at')
+        .select('user_id, username, role, created_at')
         .eq('owner_user_id', ownerUserId)
-        .eq('role', 'operator')
+        .in('role', ['operator', 'waiter'])
         .order('created_at', { ascending: false }),
       db
         .from('cash_sessions')
@@ -233,7 +246,10 @@ export function OperatorManagementPanel({
       toast.error('Não foi possível carregar os caixas abertos');
     }
 
-    setOperators((operatorRows as OperatorProfile[]) ?? []);
+    setOperators(((operatorRows as OperatorProfile[]) ?? []).map(operator => ({
+      ...operator,
+      role: operator.role === 'waiter' ? 'waiter' : 'operator',
+    })));
     setOpenCashSessions((openRows as OpenCashSession[]) ?? []);
     setLoading(false);
   }, [isAdmin, ownerUserId]);
@@ -334,6 +350,7 @@ export function OperatorManagementPanel({
         action: 'create',
         username: username.trim(),
         password: password.trim(),
+        operatorRole: staffRole,
       },
     });
 
@@ -346,10 +363,12 @@ export function OperatorManagementPanel({
     setLatestCredential({
       username: data.operator.username,
     });
-    await saveOperatorOfflineAccessIfPossible(data.operator, password.trim());
+    if (staffRole === 'operator') {
+      await saveOperatorOfflineAccessIfPossible(data.operator, password.trim());
+    }
     resetCreateForm();
     handleCreateDialogOpenChange(false);
-    toast.success('Operador criado com sucesso');
+    toast.success(`${staffRoleLabel[staffRole]} criado com sucesso`);
     await loadData();
     setCreating(false);
   };
@@ -568,7 +587,7 @@ export function OperatorManagementPanel({
         <CardHeader className="gap-4">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
             <div className="space-y-2">
-              <CardTitle className="text-lg">Operadores e Caixa</CardTitle>
+              <CardTitle className="text-lg">Equipe e Caixa</CardTitle>
               <p className="text-sm text-muted-foreground">
                 Cadastre operadores, redefina acessos e acompanhe quem esta com o caixa aberto.
               </p>
@@ -582,7 +601,7 @@ export function OperatorManagementPanel({
 
               <div className="grid grid-cols-2 gap-2 sm:w-[280px]">
                 <div className="rounded-lg border border-border bg-secondary/20 p-3">
-                  <p className="text-xs text-muted-foreground">Operadores</p>
+                  <p className="text-xs text-muted-foreground">Equipe</p>
                   <p className="text-2xl font-bold">
                     <Users className="mr-2 inline h-4 w-4 text-primary" />
                     {operators.length}
@@ -624,11 +643,11 @@ export function OperatorManagementPanel({
           </div>
 
           <div className="space-y-3">
-            <h3 className="font-semibold">Operadores cadastrados</h3>
+            <h3 className="font-semibold">Equipe cadastrada</h3>
             {isLoading ? (
-              <p className="text-sm text-muted-foreground">Carregando operadores...</p>
+              <p className="text-sm text-muted-foreground">Carregando equipe...</p>
             ) : operators.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Nenhum operador cadastrado.</p>
+              <p className="text-sm text-muted-foreground">Nenhum acesso operacional cadastrado.</p>
             ) : (
               <div className="grid gap-3 md:grid-cols-2">
                 {operators.map(operator => {
@@ -641,10 +660,10 @@ export function OperatorManagementPanel({
                         <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0">
                             <p className="truncate font-semibold">{operator.username}</p>
-                            <p className="truncate text-sm text-muted-foreground">Login do operador</p>
+                            <p className="truncate text-sm text-muted-foreground">{staffRoleLabel[operator.role]}</p>
                           </div>
                           <span className={`rounded-full px-2 py-1 text-[11px] font-semibold ${openSession ? 'bg-primary/15 text-primary' : 'bg-secondary text-muted-foreground'}`}>
-                            {openSession ? 'Caixa aberto' : 'Caixa fechado'}
+                            {operator.role === 'waiter' ? 'Lancamento' : openSession ? 'Caixa aberto' : 'Caixa fechado'}
                           </span>
                         </div>
 
@@ -716,8 +735,10 @@ export function OperatorManagementPanel({
                               </p>
                             )}
                           </div>
-                        ) : (
+                        ) : canOperateCash(operator) ? (
                           <p className="text-sm text-muted-foreground">Nenhum caixa aberto para este operador agora.</p>
+                        ) : (
+                          <p className="text-sm text-muted-foreground">Garcom acessa apenas a tela de comandas para lancar pedidos.</p>
                         )}
 
                         <div className="flex gap-2">
@@ -734,7 +755,7 @@ export function OperatorManagementPanel({
                             <KeyRound className="mr-2 h-4 w-4" />
                             Redefinir senha
                           </Button>
-                          {!openSession && (
+                          {!openSession && canOperateCash(operator) && (
                             <Button
                               variant="outline"
                               size="sm"
@@ -749,7 +770,7 @@ export function OperatorManagementPanel({
                               Abrir caixa
                             </Button>
                           )}
-                          {openSession && (
+                          {openSession && canOperateCash(operator) && (
                             <Button
                               variant="outline"
                               size="sm"
@@ -814,10 +835,22 @@ export function OperatorManagementPanel({
       <Dialog open={createDialogOpen} onOpenChange={handleCreateDialogOpenChange}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Cadastrar operador</DialogTitle>
+            <DialogTitle>Cadastrar acesso operacional</DialogTitle>
           </DialogHeader>
 
           <div className="space-y-3">
+            <div className="space-y-1">
+              <Label>Funcao</Label>
+              <Select value={staffRole} onValueChange={value => setStaffRole(value === 'waiter' ? 'waiter' : 'operator')}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="operator">Operador do caixa</SelectItem>
+                  <SelectItem value="waiter">Garcom</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
             <div className="space-y-1">
               <Label>Usuário</Label>
               <Input value={username} onChange={event => setUsername(event.target.value)} placeholder="Ex: operador.caixa" />
@@ -837,7 +870,7 @@ export function OperatorManagementPanel({
               Cancelar
             </Button>
             <Button onClick={() => void handleCreateOperator()} disabled={creating}>
-              {creating ? 'Criando...' : 'Criar operador'}
+              {creating ? 'Criando...' : 'Criar acesso'}
             </Button>
           </DialogFooter>
         </DialogContent>

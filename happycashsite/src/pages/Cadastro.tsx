@@ -290,7 +290,7 @@ const Cadastro = () => {
             <div className="rounded-xl border border-primary/20 bg-primary/5 p-4">
               <p className="text-sm font-semibold text-primary">
                 {selectedPlan.name}
-                {selectedPlanId === "demo" ? " · 12 horas" : " · 30 dias"}
+                {selectedPlanId === "demo" ? " · 3 dias" : " · 30 dias"}
               </p>
               <p className="mt-1 text-sm text-muted-foreground">{selectedPlan.summary}</p>
             </div>

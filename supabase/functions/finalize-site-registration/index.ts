@@ -465,7 +465,7 @@ Deno.serve(async (request) => {
 
     if (!currentSubscription) {
       const trialStartedAt = new Date();
-      const resolvedTrialEndsAt = new Date(trialStartedAt.getTime() + 12 * 60 * 60 * 1000).toISOString();
+      const resolvedTrialEndsAt = new Date(trialStartedAt.getTime() + 72 * 60 * 60 * 1000).toISOString();
 
       const { error: subscriptionError } = await serviceClient
         .from("store_subscriptions")

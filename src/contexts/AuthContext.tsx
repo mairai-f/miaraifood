@@ -1,7 +1,7 @@
 import { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import type { Session, User } from '@supabase/supabase-js';
-import type { UserRole } from '@/lib/access';
+import { normalizeUserRole, type UserRole } from '@/lib/access';
 import { clearSystemTemporarySessionPreference, enforceSystemSessionPreference } from '@/lib/authSessionPreferences';
 import {
   ACCESS_HEARTBEAT_INTERVAL_MS,
@@ -82,6 +82,7 @@ interface OperatorLoginResponse {
     ownerUserId?: string | null;
     username?: string | null;
     email?: string | null;
+    role?: UserRole;
   };
   error?: string;
 }
@@ -216,7 +217,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const resolvedProfile: UserProfile = {
         username: profile?.username ?? null,
         email: profile?.email ?? currentUser.email ?? null,
-        role: profile?.role === 'operator' ? 'operator' : 'admin',
+        role: normalizeUserRole(profile?.role),
         owner_user_id: profile?.owner_user_id ?? currentUser.id,
         product_context: 'happycash',
       };

@@ -18,9 +18,25 @@ type OperatorProfileRow = {
   email: string | null;
   username: string | null;
   owner_user_id: string | null;
+  role: string | null;
 };
 
 type AttemptStatus = 'blocked' | 'config_error' | 'failed' | 'invalid' | 'success';
+type AttemptQueryResult = {
+  count: number | null;
+  error: { message?: string } | null;
+};
+type AttemptCountQuery = PromiseLike<AttemptQueryResult> & {
+  eq(column: string, value: string): AttemptCountQuery;
+  in(column: string, values: string[]): AttemptCountQuery;
+  gte(column: string, value: string): AttemptCountQuery;
+};
+type OperatorLoginServiceClient = {
+  from(table: string): {
+    insert(values: Record<string, unknown>): PromiseLike<{ error: { message?: string } | null }>;
+    select(columns: string, options?: { count?: 'exact'; head?: boolean }): AttemptCountQuery;
+  };
+};
 
 const MAX_IP_ATTEMPTS_PER_15_MIN = Number(Deno.env.get('OPERATOR_LOGIN_MAX_IP_ATTEMPTS_PER_15_MIN') || '15');
 const MAX_USERNAME_ATTEMPTS_PER_15_MIN = Number(Deno.env.get('OPERATOR_LOGIN_MAX_USERNAME_ATTEMPTS_PER_15_MIN') || '8');
@@ -73,7 +89,7 @@ const extractClientIp = (request: Request) => {
 };
 
 const logAttempt = async (
-  serviceClient: ReturnType<typeof createClient>,
+  serviceClient: OperatorLoginServiceClient,
   details: {
     usernameHash: string | null;
     ipHash: string | null;
@@ -92,7 +108,7 @@ const logAttempt = async (
 };
 
 const getAttemptCounts = async (
-  serviceClient: ReturnType<typeof createClient>,
+  serviceClient: OperatorLoginServiceClient,
   details: {
     usernameHash: string | null;
     ipHash: string | null;
@@ -166,7 +182,7 @@ Deno.serve(async (request) => {
           autoRefreshToken: false,
           persistSession: false,
         },
-      });
+      }) as unknown as OperatorLoginServiceClient;
       await logAttempt(earlyServiceClient, {
         usernameHash,
         ipHash,
@@ -190,7 +206,7 @@ Deno.serve(async (request) => {
           autoRefreshToken: false,
           persistSession: false,
         },
-      });
+      }) as unknown as OperatorLoginServiceClient;
       await logAttempt(partialServiceClient, {
         usernameHash,
         ipHash,
@@ -209,6 +225,7 @@ Deno.serve(async (request) => {
       persistSession: false,
     },
   });
+  const serviceAttemptClient = serviceClient as unknown as OperatorLoginServiceClient;
 
   const authClient = createClient(supabaseUrl, supabaseAnonKey, {
     auth: {
@@ -218,13 +235,13 @@ Deno.serve(async (request) => {
   });
 
   try {
-    const attemptCounts = await getAttemptCounts(serviceClient, { usernameHash, ipHash });
+    const attemptCounts = await getAttemptCounts(serviceAttemptClient, { usernameHash, ipHash });
 
     if (
       attemptCounts.ipCount >= MAX_IP_ATTEMPTS_PER_15_MIN ||
       attemptCounts.usernameCount >= MAX_USERNAME_ATTEMPTS_PER_15_MIN
     ) {
-      await logAttempt(serviceClient, {
+      await logAttempt(serviceAttemptClient, {
         usernameHash,
         ipHash,
         origin,
@@ -244,11 +261,11 @@ Deno.serve(async (request) => {
 
   const { data: profiles, error: profileError } = await serviceClient
     .from('profiles')
-    .select('user_id, email, username, owner_user_id')
-    .eq('role', 'operator');
+    .select('user_id, email, username, owner_user_id, role')
+    .in('role', ['operator', 'waiter']);
 
   if (profileError || !profiles || profiles.length === 0) {
-    await logAttempt(serviceClient, {
+    await logAttempt(serviceAttemptClient, {
       usernameHash,
       ipHash,
       origin,
@@ -264,7 +281,7 @@ Deno.serve(async (request) => {
   );
 
   if (matchingProfiles.length === 0) {
-    await logAttempt(serviceClient, {
+    await logAttempt(serviceAttemptClient, {
       usernameHash,
       ipHash,
       origin,
@@ -306,7 +323,7 @@ Deno.serve(async (request) => {
           continue;
         }
 
-        await logAttempt(serviceClient, {
+        await logAttempt(serviceAttemptClient, {
           usernameHash,
           ipHash,
           origin,
@@ -325,13 +342,14 @@ Deno.serve(async (request) => {
             ownerUserId: profile.owner_user_id,
             username: profile.username ?? normalizedUsername,
             email: authEmail ?? profileEmail ?? operatorEmail,
+            role: profile.role ?? 'operator',
           },
         });
       }
     }
   }
 
-  await logAttempt(serviceClient, {
+  await logAttempt(serviceAttemptClient, {
     usernameHash,
     ipHash,
     origin,

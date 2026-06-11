@@ -131,6 +131,53 @@ export interface SaleItem {
   sync_error?: string | null;
 }
 
+export type ServiceTicketStatus = 'available' | 'open' | 'awaiting_payment' | 'closed' | 'cancelled';
+export type ServiceTicketItemStatus = 'active' | 'cancelled';
+
+export interface ServiceTicket {
+  id: string;
+  owner_user_id: string;
+  number: number;
+  barcode: string;
+  label?: string | null;
+  status: ServiceTicketStatus;
+  opened_at?: string | null;
+  closed_at?: string | null;
+  opened_by_user_id?: string | null;
+  closed_by_user_id?: string | null;
+  opened_by_name?: string | null;
+  closed_by_name?: string | null;
+  closed_sale_id?: string | null;
+  notes?: string | null;
+  created_at: string;
+  updated_at: string;
+  sync_status?: 'synced' | 'queued' | 'conflict';
+  sync_error?: string | null;
+}
+
+export interface ServiceTicketItem {
+  id: string;
+  ticket_id: string;
+  owner_user_id: string;
+  product_id?: string | null;
+  product_name: string;
+  quantity: number;
+  unit_price: number;
+  total: number;
+  status: ServiceTicketItemStatus;
+  notes?: string | null;
+  added_by_user_id?: string | null;
+  added_by_name?: string | null;
+  cancelled_by_user_id?: string | null;
+  cancelled_by_name?: string | null;
+  cancelled_at?: string | null;
+  cancel_reason?: string | null;
+  created_at: string;
+  updated_at: string;
+  sync_status?: 'synced' | 'queued' | 'conflict';
+  sync_error?: string | null;
+}
+
 export interface ProductCategoryPricingRule {
   id: string;
   owner_user_id: string;

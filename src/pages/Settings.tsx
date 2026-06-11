@@ -70,7 +70,7 @@ type BackupRestoreTableClient = {
 const backupRestoreDb = supabase as unknown as BackupRestoreTableClient;
 
 const planLabels: Record<string, string> = {
-  demo: 'Demo 12 Horas',
+  demo: 'Demo 3 Dias',
   fiado: 'Plano Fiado',
   completo: 'Plano Completo',
   pro: 'Plano PRO',

@@ -22,6 +22,7 @@ const pageLoaders = [
   () => import('@/pages/ClientDetail'),
   () => import('@/pages/DeletedClients'),
   () => import('@/pages/PDV'),
+  () => import('@/pages/ServiceTickets'),
   () => import('@/pages/Reports'),
   () => import('@/pages/Financial'),
   () => import('@/pages/Stock'),
@@ -41,6 +42,7 @@ const [
   loadClientDetail,
   loadDeletedClients,
   loadPDV,
+  loadServiceTickets,
   loadReports,
   loadFinancial,
   loadStock,
@@ -59,6 +61,7 @@ const Rewards = lazy(loadRewards);
 const ClientDetail = lazy(loadClientDetail);
 const DeletedClients = lazy(loadDeletedClients);
 const PDV = lazy(loadPDV);
+const ServiceTickets = lazy(loadServiceTickets);
 const Reports = lazy(loadReports);
 const Financial = lazy(loadFinancial);
 const Stock = lazy(loadStock);
@@ -96,7 +99,8 @@ function ProtectedRoute({
   const { isAuthenticated, loading, role } = useAuth();
   const { isDesktop, checking: checkingDesktopLicense, licensed } = useDesktopRuntime();
   const { loading: planLoading, hasFeature } = usePlanAccess();
-  const shouldBlockAccess = loading || planLoading || checkingDesktopLicense;
+  const shouldBlockDesktopLicense = checkingDesktopLicense && (!isAuthenticated || (isDesktop && !licensed));
+  const shouldBlockAccess = loading || planLoading || shouldBlockDesktopLicense;
   const shouldShowSplash = !hasSeenAppSplash() && !isAuthenticated;
 
   useEffect(() => {
@@ -115,7 +119,7 @@ function ProtectedRoute({
 
   if (!isAuthenticated) return <Navigate to="/login" replace />;
   if (isDesktop && !licensed) return <DesktopLicenseBlocked />;
-  if (allowedRoles && !allowedRoles.includes(role)) return <Navigate to="/" replace />;
+  if (allowedRoles && !allowedRoles.includes(role)) return <Navigate to={role === 'waiter' ? '/comandas' : '/'} replace />;
   if (requiredFeature && !hasFeature(requiredFeature)) return <AppLayout><FeatureLocked /></AppLayout>;
   return <AppLayout>{children}</AppLayout>;
 }
@@ -145,6 +149,7 @@ const AuthenticatedArea = () => {
       <Routes>
         <Route path="/" element={<ProtectedRoute allowedRoles={['admin', 'operator']} requiredFeature="dashboard.view"><LazyPage><Dashboard /></LazyPage></ProtectedRoute>} />
         <Route path="/pdv" element={<ProtectedRoute allowedRoles={['admin', 'operator']} requiredFeature="pdv.use"><LazyPage><PDV /></LazyPage></ProtectedRoute>} />
+        <Route path="/comandas" element={<ProtectedRoute allowedRoles={['admin', 'operator', 'waiter']} requiredFeature="service_tickets.use"><LazyPage><ServiceTickets /></LazyPage></ProtectedRoute>} />
         <Route path="/clientes" element={<ProtectedRoute allowedRoles={['admin', 'operator']} requiredFeature="clients.manage"><LazyPage><Clients /></LazyPage></ProtectedRoute>} />
         <Route path="/produtos" element={<ProtectedRoute allowedRoles={['admin', 'operator']} requiredFeature="products.manage"><LazyPage><Products /></LazyPage></ProtectedRoute>} />
         <Route path="/estoque" element={<ProtectedRoute allowedRoles={['admin']} requiredFeature="stock.manage"><LazyPage><Stock /></LazyPage></ProtectedRoute>} />
