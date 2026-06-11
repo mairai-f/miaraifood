@@ -228,7 +228,7 @@ export default function ServiceTickets() {
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-4 overflow-hidden">
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between" data-tour-id="service-ticket-header">
         <div>
           <h1 className="text-2xl font-bold">Comandas</h1>
           <p className="text-sm text-muted-foreground">
@@ -247,7 +247,7 @@ export default function ServiceTickets() {
 
       <div className="grid min-h-0 flex-1 gap-4 overflow-hidden xl:grid-cols-[22rem_minmax(0,1fr)_24rem]">
         <div className="min-h-0 space-y-4 overflow-y-auto pr-1">
-          <Card className="border-border/50">
+          <Card className="border-border/50" data-tour-id="service-ticket-lookup">
             <CardHeader className="pb-3">
               <CardTitle className="flex items-center gap-2 text-base">
                 <Search className="h-5 w-5" />
@@ -273,7 +273,7 @@ export default function ServiceTickets() {
           </Card>
 
           {canManageTickets && (
-            <Card className="border-border/50">
+            <Card className="border-border/50" data-tour-id="service-ticket-create">
               <CardHeader className="pb-3">
                 <CardTitle className="flex items-center gap-2 text-base">
                   <Plus className="h-5 w-5" />
@@ -299,7 +299,7 @@ export default function ServiceTickets() {
             </Card>
           )}
 
-          <Card className="border-border/50">
+          <Card className="border-border/50" data-tour-id="service-ticket-open-list">
             <CardHeader className="pb-3">
               <CardTitle className="flex items-center gap-2 text-base">
                 <ClipboardList className="h-5 w-5" />

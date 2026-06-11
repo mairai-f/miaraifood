@@ -5,6 +5,7 @@ Este guia prepara tres contas de teste para gravar videos comerciais do HappyCas
 - Plano Fiado: `teste-fiado@happycashsite.com.br`
 - Plano Completo: `teste-completo@happycashsite.com.br`
 - Plano PRO: `teste-pro@happycashsite.com.br`
+- Senha padrao: `happycash@123`
 
 ## Criar contas
 
@@ -16,13 +17,13 @@ Ele precisa da service role do Supabase. Nao salve essa chave no `.env` se ela n
 SUPABASE_SERVICE_ROLE_KEY="sua-service-role" npm run demo:create-accounts
 ```
 
-Opcionalmente, defina uma senha fixa para as tres contas:
+Por padrao, as tres contas usam a senha `happycash@123`. Se precisar trocar temporariamente, defina outra senha para as tres contas:
 
 ```bash
 SUPABASE_SERVICE_ROLE_KEY="sua-service-role" DEMO_ACCOUNT_PASSWORD=<senha-forte-gerada> npm run demo:create-accounts
 ```
 
-Se `DEMO_ACCOUNT_PASSWORD` nao for informado, o script gera uma senha e mostra no final.
+Se `DEMO_ACCOUNT_PASSWORD` nao for informado, o script aplica `happycash@123` e mostra a senha no final.
 
 ## Dados criados
 
@@ -88,4 +89,4 @@ teste-fiado@happycashsite.com.br
 teste-completo@happycashsite.com.br
 teste-pro@happycashsite.com.br
 
-Use a senha gerada pelo script no momento da criacao das contas. Nao deixe senha fixa salva na documentacao.
+Senha padrao: `happycash@123`

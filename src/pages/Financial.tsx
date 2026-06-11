@@ -53,10 +53,10 @@ export default function Financial() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between" data-tour-id="financial-header">
         <h1 className="text-xl font-bold">💸 Financeiro</h1>
         <Dialog open={open} onOpenChange={setOpen}>
-          <DialogTrigger asChild><Button size="sm"><Plus className="h-4 w-4 mr-1" />Despesa</Button></DialogTrigger>
+          <DialogTrigger asChild><Button size="sm" data-tour-id="financial-expense"><Plus className="h-4 w-4 mr-1" />Despesa</Button></DialogTrigger>
           <DialogContent>
             <DialogHeader><DialogTitle>Nova Despesa</DialogTitle></DialogHeader>
             <div className="space-y-3">
@@ -70,13 +70,13 @@ export default function Financial() {
       </div>
 
       {/* Date filter */}
-      <div className="flex flex-wrap gap-3 items-end">
+      <div className="flex flex-wrap gap-3 items-end" data-tour-id="financial-filters">
         <div className="space-y-1"><Label className="text-xs">De</Label><Input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="h-8 text-xs w-40" /></div>
         <div className="space-y-1"><Label className="text-xs">Até</Label><Input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="h-8 text-xs w-40" /></div>
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3" data-tour-id="financial-stats">
         {[
           { label: 'Entradas', value: `R$ ${totalIncome.toFixed(2)}`, icon: TrendingUp, color: 'text-green-500' },
           { label: 'Saídas', value: `R$ ${totalExpenses.toFixed(2)}`, icon: TrendingDown, color: 'text-destructive' },
@@ -94,7 +94,7 @@ export default function Financial() {
       </div>
 
       {/* Expenses list */}
-      <Card className="border-border/50">
+      <Card className="border-border/50" data-tour-id="financial-expenses-list">
         <CardHeader><CardTitle className="text-sm">Despesas</CardTitle></CardHeader>
         <CardContent>
           {filteredExpenses.length === 0 ? <p className="text-xs text-muted-foreground">Nenhuma despesa no período</p> : (

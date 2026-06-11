@@ -2868,7 +2868,7 @@ export default function PDV() {
   }, [activeProducts, filtered, search, cart, cartKeyboardSelectionIndex, cartItemPendingPriceEdit, discount, paymentMethod, cashReceived, selectedClientId, total, change, canFinalizeCheckout, showCheckout, showFinalizeConfirm, showCreditInstallmentsDialog, showReceipt, showSalesSearch, showCancelledSales, showCashOut, showCloseCashReceipt, showOpenCashDialog, saleToCancel, navigate, isAdmin, creditInstallments, pendingCreditInstallments]);
 
   return (
-    <div className="flex h-full min-h-0 flex-col gap-3 overflow-hidden sm:gap-4 lg:flex-row">
+    <div className="flex h-full min-h-0 flex-col gap-3 overflow-hidden sm:gap-4 lg:flex-row" data-tour-id="pdv-root">
       <div className="shrink-0 lg:hidden">
         <Card className="border-border/50">
           <CardContent className="space-y-3 p-3">
@@ -2912,13 +2912,13 @@ export default function PDV() {
       {/* Products panel */}
       <div className={`${mobilePanel === 'products' ? 'flex' : 'hidden'} min-h-0 min-w-0 flex-1 flex-col overflow-hidden lg:flex`}>
         <div className="mb-3 shrink-0 flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-          <div>
+          <div data-tour-id="pdv-header">
             <h1 className="text-2xl font-bold">Caixa</h1>
             <p className="text-sm text-muted-foreground">
               Operador do caixa: <span className="font-medium text-foreground">{sellerName}</span> • {roleName}
             </p>
           </div>
-          <div className="flex flex-wrap justify-end gap-2">
+          <div className="flex flex-wrap justify-end gap-2" data-tour-id="pdv-actions">
             <Button variant="outline" size="sm" onClick={() => navigate('/')}>Menu</Button>
             <Button variant="outline" size="sm" onClick={() => setShowSalesSearch(true)}><History className="h-4 w-4 mr-1" />Buscar vendas (2)</Button>
             <Button variant="outline" size="sm" onClick={() => setShowCashOut(true)}><Wallet className="h-4 w-4 mr-1" />Saída de caixa (3)</Button>
@@ -2928,7 +2928,7 @@ export default function PDV() {
             <Button variant="destructive" size="sm" onClick={requestCloseCash} disabled={!cashSession}>Fechar caixa (5)</Button>
           </div>
         </div>
-        <div className="mb-3 shrink-0 rounded-lg border border-border bg-background/80 p-3">
+        <div className="mb-3 shrink-0 rounded-lg border border-border bg-background/80 p-3" data-tour-id="pdv-ticket-lookup">
           <div className="grid gap-2 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
             <div className="space-y-1">
               <Label>Escaneie a comanda ou digite o numero da comanda</Label>
@@ -2968,7 +2968,7 @@ export default function PDV() {
             </div>
           )}
         </div>
-        <div className="relative mb-3 shrink-0">
+        <div className="relative mb-3 shrink-0" data-tour-id="pdv-search">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
           <Input
             ref={searchInputRef}
@@ -2990,7 +2990,7 @@ export default function PDV() {
             }}
           />
         </div>
-        <div className="grid min-h-0 flex-1 grid-cols-2 gap-2 overflow-y-auto pr-1 sm:grid-cols-3">
+        <div className="grid min-h-0 flex-1 grid-cols-2 gap-2 overflow-y-auto pr-1 sm:grid-cols-3" data-tour-id="pdv-products">
           {filtered.map((p, index) => (
             <motion.div key={p.id} whileTap={{ scale: 0.95 }}>
               <Card
@@ -3022,7 +3022,7 @@ export default function PDV() {
 
       {/* Cart panel */}
       <div className={`${mobilePanel === 'cart' ? 'flex' : 'hidden'} min-h-0 w-full flex-1 flex-col overflow-hidden lg:flex lg:w-[26rem] lg:flex-none xl:w-[30rem]`}>
-        <Card className="flex min-h-0 flex-1 flex-col overflow-hidden border-border/50">
+        <Card className="flex min-h-0 flex-1 flex-col overflow-hidden border-border/50" data-tour-id="pdv-cart">
           <CardHeader className="shrink-0 pb-2 px-4 pt-4">
             <CardTitle className="flex items-center gap-2 text-base">
               <ShoppingCart className="h-5 w-5" />
@@ -3091,7 +3091,7 @@ export default function PDV() {
               </div>
             </div>
 
-            <Button type="button" onClick={() => openCheckout()} className="h-11 w-full shrink-0 text-base" disabled={cart.length === 0 || isFinalizingSale}>
+            <Button type="button" onClick={() => openCheckout()} className="h-11 w-full shrink-0 text-base" disabled={cart.length === 0 || isFinalizingSale} data-tour-id="pdv-checkout">
               <Receipt className="h-5 w-5 mr-2" />Finalizar Venda (4)
             </Button>
             <Button type="button" variant="outline" className="h-10 w-full shrink-0 lg:hidden" onClick={() => setMobilePanel('products')}>
@@ -3163,6 +3163,7 @@ export default function PDV() {
       {/* Checkout dialog */}
       <Dialog open={showCheckout} onOpenChange={open => { if (!isFinalizingSale) setShowCheckout(open); }}>
         <DialogContent
+          data-tour-id="pdv-open-cash"
           className="max-h-[92svh] w-[calc(100vw-1rem)] max-w-3xl grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden border-border bg-background p-4 shadow-2xl sm:max-h-[90vh] sm:w-full sm:p-6 lg:grid-rows-none lg:shadow-lg"
           onOpenAutoFocus={event => event.preventDefault()}
           onEscapeKeyDown={event => {

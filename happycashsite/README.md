@@ -21,6 +21,7 @@ Pontos importantes:
 - `ANDROID_APK_URL` (alternativa direta ao bucket privado; evite usar URL temporaria do EAS, pois ela pode expirar/remover o artefato e causar erro `NoSuchKey`)
 - `IOS_TESTFLIGHT_URL`
 - `MOBILE_DOWNLOAD_SIGNED_URL_TTL`
+- `MOBILE_RELEASE_PROVIDER=github` para buscar o APK Android do plano PRO direto da release mais recente em `HappyCash-Releases`
 - O download do `HappyCashFood Offline` pode usar variaveis separadas:
 - `FOOD_MOBILE_DOWNLOAD_BUCKET`
 - `FOOD_ANDROID_APK_OBJECT_PATH`

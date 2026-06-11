@@ -225,10 +225,10 @@ export default function Reports() {
 
   return (
     <div className="space-y-4">
-      <h1 className="text-xl font-bold">📊 Relatórios</h1>
+      <h1 className="text-xl font-bold" data-tour-id="reports-header">📊 Relatórios</h1>
 
       {/* Date filter */}
-      <div className="flex flex-wrap gap-3 items-end">
+      <div className="flex flex-wrap gap-3 items-end" data-tour-id="reports-filters">
         <div className="space-y-1"><Label className="text-xs">De</Label><Input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="h-8 text-xs w-40" /></div>
         <div className="space-y-1"><Label className="text-xs">Até</Label><Input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="h-8 text-xs w-40" /></div>
         <Button type="button" variant="outline" size="sm" onClick={exportCsv}>
@@ -237,7 +237,7 @@ export default function Reports() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3" data-tour-id="reports-stats">
         {[
           { label: 'Vendas', value: filteredSales.length, icon: TrendingUp },
           { label: 'Faturamento', value: `R$ ${totalRevenue.toFixed(2)}`, icon: DollarSign },
@@ -254,7 +254,7 @@ export default function Reports() {
         ))}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4" data-tour-id="reports-alerts">
         <Card className="border-border/50">
           <CardHeader><CardTitle className="text-sm">Produtos Abaixo do Mínimo</CardTitle></CardHeader>
           <CardContent>
@@ -299,7 +299,7 @@ export default function Reports() {
         </Card>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4" data-tour-id="reports-rankings">
         {/* Top products */}
         <Card className="border-border/50">
           <CardHeader><CardTitle className="text-sm">🏆 Produtos Mais Vendidos</CardTitle></CardHeader>

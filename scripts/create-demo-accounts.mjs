@@ -1,11 +1,11 @@
 import "dotenv/config";
 
-import { randomBytes } from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
 
 const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-const demoPassword = process.env.DEMO_ACCOUNT_PASSWORD || `HappyCash-${randomBytes(5).toString("hex")}-Demo!`;
+const defaultDemoPassword = "happycash@123";
+const demoPassword = process.env.DEMO_ACCOUNT_PASSWORD || defaultDemoPassword;
 const demoEmailDomain = process.env.DEMO_EMAIL_DOMAIN || "happycashsite.com.br";
 const placeholderServiceRoleValues = new Set([
   "sua-service-role",

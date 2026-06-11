@@ -5,6 +5,7 @@ import { Loader2 } from 'lucide-react';
 import { AppLayout } from '@/components/AppLayout';
 import { DesktopLicenseBlocked } from '@/components/DesktopLicenseBlocked';
 import { FeatureLocked } from '@/components/FeatureLocked';
+import { GuidedTour } from '@/components/GuidedTour';
 import { LowStockNotifier } from '@/components/LowStockNotifier';
 import { SplashScreen } from '@/components/SplashScreen';
 import { useAuth } from '@/contexts/AuthContext';
@@ -146,6 +147,7 @@ const AuthenticatedArea = () => {
   return (
     <DataProvider>
       <LowStockNotifier />
+      <GuidedTour />
       <Routes>
         <Route path="/" element={<ProtectedRoute allowedRoles={['admin', 'operator']} requiredFeature="dashboard.view"><LazyPage><Dashboard /></LazyPage></ProtectedRoute>} />
         <Route path="/pdv" element={<ProtectedRoute allowedRoles={['admin', 'operator']} requiredFeature="pdv.use"><LazyPage><PDV /></LazyPage></ProtectedRoute>} />
