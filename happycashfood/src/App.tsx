@@ -878,9 +878,26 @@ export default function App() {
   };
 
   const updateWaiter = (waiter: FoodWaiter) => {
+    const previousWaiter = waiters.find((currentWaiter) => currentWaiter.id === waiter.id);
+
     setWaiters((currentWaiters) =>
       currentWaiters.map((currentWaiter) => currentWaiter.id === waiter.id ? waiter : currentWaiter),
     );
+    setAppUsers((currentUsers) =>
+      currentUsers.map((currentUser) => (
+        currentUser.role === "waiter"
+        && (currentUser.id === `user-${waiter.id}` || currentUser.username === previousWaiter?.username)
+          ? { ...currentUser, name: waiter.name, username: waiter.username }
+          : currentUser
+      )),
+    );
+    setLoginPins((currentPins) => {
+      const nextPins = { ...currentPins, [waiter.username]: waiter.pin };
+      if (previousWaiter && previousWaiter.username !== waiter.username) {
+        delete nextPins[previousWaiter.username];
+      }
+      return nextPins;
+    });
   };
 
   const addProduct = (product: Omit<MenuProduct, "id">) => {

@@ -13,7 +13,7 @@ import { verifyOfflineAdminAccess } from '@/lib/offlineAdminAccess';
 import { saveOfflineOperatorAccess, verifyOfflineOperatorAccess } from '@/lib/offlineOperatorAccess';
 import { isDesktopRuntime, isProbablyOfflineError } from '@/lib/offlineConcentrator';
 import { getPasswordPolicyError } from '../../shared/security/passwordPolicy';
-import { getPublicErrorMessage, getRedactedLogValue } from '../../shared/security/redaction';
+import { getPublicAuthErrorMessage, getPublicErrorMessage, getRedactedLogValue } from '../../shared/security/redaction';
 import { normalizeProductContext, type ProductContext } from '../../shared/productContext';
 import { retryAsync } from '../../shared/network/retry';
 
@@ -97,11 +97,40 @@ interface LocalOfflineSession {
   authenticatedAt: string;
 }
 
+const normalizeOfflineStaffRole = (value: string | null | undefined): UserRole =>
+  value === 'waiter' ? 'waiter' : 'operator';
+
+const DEFAULT_HAPPYCASH_AUTH_URL = 'https://app.happycashsite.com.br';
+const SUPABASE_AUTH_URL = (import.meta.env.VITE_SUPABASE_AUTH_URL as string | undefined)?.trim() || DEFAULT_HAPPYCASH_AUTH_URL;
+const SUPABASE_API_URL = (import.meta.env.VITE_SUPABASE_URL as string | undefined)?.trim();
+
+const parseUrlOrNull = (value: string | null | undefined) => {
+  if (!value) return null;
+
+  try {
+    return new URL(value);
+  } catch {
+    return null;
+  }
+};
+
+const isSupabaseHostedUrl = (value: string | null | undefined) => {
+  const parsed = parseUrlOrNull(value);
+  return parsed?.hostname.endsWith('.supabase.co') ?? false;
+};
+
+const getHappyCashAuthOrigin = () => {
+  const parsed = parseUrlOrNull(SUPABASE_AUTH_URL);
+  if (!parsed || !/^https?:$/.test(parsed.protocol)) return null;
+  return parsed.origin;
+};
+
 const AuthContext = createContext<AuthContextType | null>(null);
 const profileCacheKey = (userId: string) => `happycash:system:profile:${userId}`;
 const DESKTOP_ACTIVATION_OWNER_MISMATCH = 'DESKTOP_ACTIVATION_OWNER_MISMATCH';
 const SYSTEM_PRODUCT_CONTEXT_MISMATCH = 'SYSTEM_PRODUCT_CONTEXT_MISMATCH';
 const SYSTEM_PRODUCT_CONTEXT_MISMATCH_MESSAGE = 'Esta conta pertence ao HappyCashFood. Entre pelo sistema HappyCashFood.';
+const GOOGLE_AUTH_DOMAIN_MESSAGE = 'Configure o dominio de autenticacao do HappyCash para entrar com Google sem exibir Supabase.';
 
 const readCachedProfile = (userId: string): UserProfile | null => {
   if (typeof window === 'undefined') return null;
@@ -455,7 +484,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = async (email: string, password: string): Promise<string | true> => {
     const activation = readDesktopActivation();
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error || !data.user) return getPublicErrorMessage(error, 'Nao foi possivel iniciar a sessao.');
+    if (error || !data.user) return getPublicAuthErrorMessage(error, 'Nao foi possivel iniciar a sessao.');
 
     try {
       const profile = await fetchProfile(data.user);
@@ -486,10 +515,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return 'Login com Google disponivel apenas na versao web.';
     }
 
-    const { error } = await supabase.auth.signInWithOAuth({
+    const happyCashAuthOrigin = getHappyCashAuthOrigin();
+    if (!happyCashAuthOrigin && isSupabaseHostedUrl(SUPABASE_API_URL)) {
+      return GOOGLE_AUTH_DOMAIN_MESSAGE;
+    }
+
+    const { data, error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
         redirectTo: `${window.location.origin}/login`,
+        skipBrowserRedirect: true,
         queryParams: {
           access_type: 'offline',
           prompt: 'select_account',
@@ -498,7 +533,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
 
     if (error) {
-      return getPublicErrorMessage(error, 'Nao foi possivel iniciar o login com Google.');
+      return getPublicAuthErrorMessage(error, 'Nao foi possivel iniciar o login com Google.');
+    }
+
+    if (!data.url) {
+      return 'Nao foi possivel preparar o login com Google.';
+    }
+
+    try {
+      const providerUrl = new URL(data.url);
+
+      if (happyCashAuthOrigin) {
+        const authOrigin = new URL(happyCashAuthOrigin);
+        providerUrl.protocol = authOrigin.protocol;
+        providerUrl.host = authOrigin.host;
+      }
+
+      window.location.assign(providerUrl.toString());
+    } catch {
+      return 'Nao foi possivel abrir o login com Google.';
     }
 
     return true;
@@ -567,7 +620,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       applyLocalOfflineSession({
         source: 'offline-operator',
-        role: 'operator',
+        role: normalizeOfflineStaffRole(verification.record.role),
         userId: verification.record.userId,
         ownerUserId: verification.record.ownerUserId,
         username: verification.record.username,
@@ -606,7 +659,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       }
 
-      return getPublicErrorMessage(functionErrorMessage, 'Usuário ou senha incorretos.');
+      return getPublicAuthErrorMessage(functionErrorMessage, 'Usuário ou senha incorretos.');
     }
 
     const { error: setSessionError } = await supabase.auth.setSession({
@@ -615,7 +668,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
 
     if (setSessionError) {
-      return getPublicErrorMessage(setSessionError, 'Nao foi possivel iniciar a sessao do operador.');
+      return getPublicAuthErrorMessage(setSessionError, 'Nao foi possivel iniciar a sessao do operador.');
     }
 
     try {
@@ -651,6 +704,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           ownerUserId: activation.ownerUserId,
           username: data.operator.username ?? username,
           email: data.operator.email ?? null,
+          role: normalizeOfflineStaffRole(data.operator.role),
           secret: password,
         });
       } catch (offlineAccessError) {

@@ -169,7 +169,7 @@ const DownloadRedirect = () => {
                 {requiredEnv.length > 0 && (
                   <>
                     <p className="mt-4 text-sm text-muted-foreground">
-                      Configure estas variaveis no Supabase para liberar esse download:
+                      Configure estas variaveis no projeto para liberar esse download:
                     </p>
                     <div className="mt-3 rounded-xl border border-border/70 bg-muted/20 p-4 font-mono text-sm">
                       {requiredEnv.join("\n")}

@@ -236,6 +236,7 @@ Deno.serve(async (request): Promise<Response> => {
       operator: {
         user_id: createdUser.user.id,
         username: normalizedUsername,
+        role: operatorRole,
       },
     });
   }
@@ -281,6 +282,7 @@ Deno.serve(async (request): Promise<Response> => {
       operator: {
         user_id: targetProfile.user_id,
         username: targetProfile.username,
+        role: targetProfile.role,
       },
     });
   }
@@ -415,6 +417,7 @@ Deno.serve(async (request): Promise<Response> => {
       operator: {
         user_id: targetProfile.user_id,
         username: targetProfile.username,
+        role: targetProfile.role,
       },
     });
   }

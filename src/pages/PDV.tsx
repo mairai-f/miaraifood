@@ -292,6 +292,8 @@ export default function PDV() {
   const ticketLookupInputRef = useRef<HTMLInputElement>(null);
   const finalizeLockRef = useRef(false);
   const cartItemSelectionRefs = useRef<Array<HTMLDivElement | null>>([]);
+  const productsGridRef = useRef<HTMLDivElement | null>(null);
+  const productSelectionRefs = useRef<Array<HTMLDivElement | null>>([]);
   const [search, setSearch] = useState('');
   const [searchSelectedIndex, setSearchSelectedIndex] = useState(-1);
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -467,7 +469,7 @@ export default function PDV() {
         if (error.context.status === 401) {
           resolvedMessage = 'Sua sessao expirou. Entre novamente para emitir a NFC-e.';
         } else if (error.context.status === 404) {
-          resolvedMessage = 'A funcao fiscal ainda nao foi publicada no Supabase.';
+          resolvedMessage = 'A funcao fiscal ainda nao foi publicada no servidor.';
         }
       }
     } else if (error instanceof FunctionsRelayError) {
@@ -660,7 +662,41 @@ export default function PDV() {
     return filterProductsBySearch(activeProducts, search);
   }, [search, activeProducts]);
 
+  const scrollProductSelectionIntoView = useCallback((index: number, focusSelected = false) => {
+    requestAnimationFrame(() => {
+      const container = productsGridRef.current;
+      const selectedElement = productSelectionRefs.current[index];
+      if (!container || !selectedElement) return;
+
+      const containerRect = container.getBoundingClientRect();
+      const selectedRect = selectedElement.getBoundingClientRect();
+      const scrollPadding = 8;
+      const selectedTop = container.scrollTop + selectedRect.top - containerRect.top;
+      const selectedBottom = selectedTop + selectedRect.height;
+      const visibleTop = container.scrollTop;
+      const visibleBottom = visibleTop + container.clientHeight;
+
+      if (focusSelected) {
+        selectedElement.focus({ preventScroll: true });
+      }
+
+      if (selectedTop < visibleTop + scrollPadding) {
+        container.scrollTop = Math.max(0, selectedTop - scrollPadding);
+        return;
+      }
+
+      if (selectedBottom > visibleBottom - scrollPadding) {
+        container.scrollTop = Math.max(0, selectedBottom - container.clientHeight + scrollPadding);
+      }
+    });
+  }, []);
+
   useEffect(() => {
+    if (!search) {
+      setSearchSelectedIndex(-1);
+      return;
+    }
+
     if (filtered.length === 0) {
       setSearchSelectedIndex(-1);
       return;
@@ -674,6 +710,15 @@ export default function PDV() {
       return 0;
     });
   }, [filtered.length, search]);
+
+  useEffect(() => {
+    if (searchSelectedIndex < 0) return;
+
+    const selectedElement = productSelectionRefs.current[searchSelectedIndex];
+    if (!selectedElement) return;
+
+    scrollProductSelectionIntoView(searchSelectedIndex);
+  }, [searchSelectedIndex, filtered, scrollProductSelectionIntoView]);
 
   const subtotal = cart.reduce((s, i) => s + getCartItemTotal(i), 0);
   const cartRealCost = cart.reduce((sum, item) => sum + (item.product.cost_price || 0) * item.quantity, 0);
@@ -1676,15 +1721,18 @@ export default function PDV() {
     if (filtered.length === 0) return;
 
     setSearchSelectedIndex(currentIndex => {
+      let nextIndex = 0;
+
       if (currentIndex < 0) {
-        return backward ? filtered.length - 1 : 0;
+        nextIndex = backward ? filtered.length - 1 : 0;
+      } else if (backward) {
+        nextIndex = (currentIndex - 1 + filtered.length) % filtered.length;
+      } else {
+        nextIndex = (currentIndex + 1) % filtered.length;
       }
 
-      if (backward) {
-        return (currentIndex - 1 + filtered.length) % filtered.length;
-      }
-
-      return (currentIndex + 1) % filtered.length;
+      scrollProductSelectionIntoView(nextIndex, true);
+      return nextIndex;
     });
   };
 
@@ -2787,6 +2835,12 @@ export default function PDV() {
       }
 
       if (!isEditableTarget(event.target)) {
+        if (event.key === '1') {
+          event.preventDefault();
+          navigate('/');
+          return;
+        }
+
         if (event.key === '2') {
           event.preventDefault();
           setShowSalesSearch(true);
@@ -2919,7 +2973,7 @@ export default function PDV() {
             </p>
           </div>
           <div className="flex flex-wrap justify-end gap-2" data-tour-id="pdv-actions">
-            <Button variant="outline" size="sm" onClick={() => navigate('/')}>Menu</Button>
+            <Button variant="outline" size="sm" onClick={() => navigate('/')}>Menu (1)</Button>
             <Button variant="outline" size="sm" onClick={() => setShowSalesSearch(true)}><History className="h-4 w-4 mr-1" />Buscar vendas (2)</Button>
             <Button variant="outline" size="sm" onClick={() => setShowCashOut(true)}><Wallet className="h-4 w-4 mr-1" />Saída de caixa (3)</Button>
             <span className="inline-flex items-center rounded border border-border px-2.5 py-1 text-sm font-semibold">
@@ -2936,7 +2990,6 @@ export default function PDV() {
                 <Barcode className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
                   ref={ticketLookupInputRef}
-                  autoFocus
                   className="pl-10"
                   value={ticketLookup}
                   onChange={event => setTicketLookup(event.target.value.toUpperCase())}
@@ -2990,12 +3043,35 @@ export default function PDV() {
             }}
           />
         </div>
-        <div className="grid min-h-0 flex-1 grid-cols-2 gap-2 overflow-y-auto pr-1 sm:grid-cols-3" data-tour-id="pdv-products">
+        <div ref={productsGridRef} className="grid min-h-0 flex-1 grid-cols-2 gap-2 overflow-y-auto pr-1 sm:grid-cols-3" data-tour-id="pdv-products">
           {filtered.map((p, index) => (
-            <motion.div key={p.id} whileTap={{ scale: 0.95 }}>
+            <motion.div
+              key={p.id}
+              ref={element => {
+                productSelectionRefs.current[index] = element;
+              }}
+              role="button"
+              aria-label={`Selecionar produto ${p.name}`}
+              tabIndex={index === searchSelectedIndex ? 0 : -1}
+              whileTap={{ scale: 0.95 }}
+              onKeyDown={event => {
+                if (event.key === 'Tab') {
+                  event.preventDefault();
+                  moveSearchSelection(event.shiftKey);
+                  return;
+                }
+
+                if (event.key === 'Enter') {
+                  event.preventDefault();
+                  addToCart(p);
+                  setSearch('');
+                  setSearchSelectedIndex(-1);
+                }
+              }}
+            >
               <Card
                 className={`cursor-pointer transition-colors ${
-                  search && index === searchSelectedIndex
+                  index === searchSelectedIndex
                     ? 'border-primary ring-2 ring-primary/30'
                     : 'border-border/50 hover:border-primary/50'
                 }`}
@@ -3370,55 +3446,6 @@ export default function PDV() {
                     <p className="text-xs text-muted-foreground">
                       Nenhuma recompensa liberada para este cliente no PDV.
                     </p>
-                  )}
-                </div>
-              )}
-
-              {isAdmin && (
-                <div className="rounded-lg border border-border bg-card p-3 space-y-2 lg:bg-transparent">
-                  <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <p className="text-sm font-medium">NFC-e no PDV</p>
-                      <p className="text-xs text-muted-foreground">
-                        Fluxo inicial de homologacao lido da area Notas.
-                      </p>
-                    </div>
-                    <Badge variant={checkoutFiscalBadgeVariant}>{checkoutFiscalStatusLabel}</Badge>
-                  </div>
-
-                  {loadingFiscalRuntime ? (
-                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                      Carregando configuracao fiscal...
-                    </div>
-                  ) : fiscalRuntimeError ? (
-                    <p className="text-xs text-destructive">{fiscalRuntimeError}</p>
-                  ) : !fiscalRuntime?.enabled ? (
-                    <p className="text-xs text-muted-foreground">
-                      A NFC-e esta desativada na area Notas. A venda sera concluida sem emissao fiscal.
-                    </p>
-                  ) : !fiscalRuntime.ready ? (
-                    <div className="space-y-1">
-                      <p className="text-xs text-muted-foreground">
-                        A NFC-e esta habilitada, mas ainda faltam dados obrigatorios para emitir em homologacao.
-                      </p>
-                      {fiscalRuntime.missingItems.length > 0 && (
-                        <p className="text-xs text-destructive">
-                          Pendencias: {fiscalRuntime.missingItems.join(', ')}.
-                        </p>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="space-y-1 text-xs text-muted-foreground">
-                      <p>
-                        Ambiente: <span className="font-medium text-foreground">{fiscalRuntime.environment}</span>
-                        {' '}| Serie: <span className="font-medium text-foreground">{fiscalRuntime.series}</span>
-                        {' '}| Proximo numero: <span className="font-medium text-foreground">{fiscalRuntime.nextNumber}</span>
-                      </p>
-                      <p>
-                        Emitente: <span className="font-medium text-foreground">{fiscalRuntime.issuerName || 'Nao informado'}</span>
-                      </p>
-                    </div>
                   )}
                 </div>
               )}

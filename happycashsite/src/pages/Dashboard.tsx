@@ -196,7 +196,7 @@ type DesktopLicenseKeyResponse = {
 const SITE_SESSION_EXPIRED_MESSAGE = "Sua sessao expirou. Entre novamente para continuar.";
 const DELETE_ACCOUNT_CONFIRM_TEXT = "APAGAR";
 const SITE_REGISTRATION_FUNCTION_MISSING_MESSAGE =
-  "A funcao finalize-site-registration nao esta publicada ou acessivel neste projeto do Supabase. Publique a function para abrir o dashboard.";
+  "A funcao finalize-site-registration nao esta publicada ou acessivel neste projeto. Publique a function para abrir o dashboard.";
 const SITE_REGISTRATION_FETCH_MESSAGE =
   "Nao foi possivel conectar ao bootstrap da conta. Se o navegador mostrar CORS em localhost, confira se a function finalize-site-registration foi publicada no projeto.";
 

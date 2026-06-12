@@ -71,6 +71,10 @@
   ],
   "rewrites": [
     {
+      "source": "/auth/v1/(.*)",
+      "destination": "https://ymffclntmynwfdiarlaw.supabase.co/auth/v1/$1"
+    },
+    {
       "source": "/(.*)",
       "destination": "/index.html"
     }

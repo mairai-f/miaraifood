@@ -53,7 +53,7 @@ const resolveFunctionErrorMessage = async (error: unknown, fallbackMessage: stri
       return errorPayload.error || errorPayload.message || fallbackMessage;
     } catch {
       return error.context.status === 404
-        ? "A funcao de cadastro nao esta publicada neste projeto do Supabase."
+        ? "A funcao de cadastro nao esta publicada neste projeto."
         : fallbackMessage;
     }
   }

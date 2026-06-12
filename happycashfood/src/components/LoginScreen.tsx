@@ -4,7 +4,7 @@ import { Eye, EyeOff, Loader2, LogIn, Mail, UserRound, X } from "lucide-react";
 import foodLogo from "@/assets/happycashfood.webp";
 import { requestFoodPasswordReset, signInFoodAdmin, signInFoodAdminWithGoogle } from "@/lib/foodAuth";
 import type { FoodUser } from "@/types";
-import { getPublicErrorMessage } from "../../../shared/security/redaction";
+import { getPublicAuthErrorMessage } from "../../../shared/security/redaction";
 
 interface LoginScreenProps {
   users: FoodUser[];
@@ -29,7 +29,6 @@ const foodLoginStorageKeys = {
 } as const;
 
 const isBrowser = () => typeof window !== "undefined";
-const normalizeEmail = (value: string) => value.trim().toLowerCase();
 const normalizeUsername = (value: string) => value.trim().toLowerCase();
 
 const clearFoodRememberedIdentifiers = () => {
@@ -62,6 +61,25 @@ const saveFoodLoginPreferences = (preferences: FoodLoginPreferences) => {
   void preferences.adminEmail;
   void preferences.operatorUsername;
   clearFoodRememberedIdentifiers();
+};
+
+const resolveLocalUserByCredential = (
+  users: FoodUser[],
+  loginPins: Record<string, string>,
+  credential: string,
+  secret: string,
+  roles: FoodUser["role"][],
+) => {
+  const normalizedCredential = normalizeUsername(credential);
+  const normalizedSecret = secret.trim();
+  if (!normalizedCredential || !normalizedSecret) return null;
+
+  return users.find((user) => {
+    if (!roles.includes(user.role)) return false;
+    const normalizedUser = normalizeUsername(user.username);
+    const expectedPin = loginPins[user.username] ?? loginPins[normalizedUser];
+    return normalizedUser === normalizedCredential && expectedPin === normalizedSecret;
+  }) ?? null;
 };
 
 export function LoginScreen({ users, loginPins, onLogin }: LoginScreenProps) {
@@ -108,7 +126,19 @@ export function LoginScreen({ users, loginPins, onLogin }: LoginScreenProps) {
     try {
       if (loginMode === "admin") {
         if (!email.trim() || !password.trim()) return;
-        const adminUser = await signInFoodAdmin(email, password, users);
+        const localAdminUser = resolveLocalUserByCredential(users, loginPins, email, password, ["admin"]);
+        const canTryOnlineAdminLogin = email.includes("@");
+        const adminUser = canTryOnlineAdminLogin
+          ? await signInFoodAdmin(email, password, users).catch((authError) => {
+              if (localAdminUser) return localAdminUser;
+              throw authError;
+            })
+          : localAdminUser;
+
+        if (!adminUser) {
+          throw new Error("Usuario ou senha invalidos.");
+        }
+
         saveFoodLoginPreferences({
           loginMode: "admin",
           rememberAccount,
@@ -136,7 +166,7 @@ export function LoginScreen({ users, loginPins, onLogin }: LoginScreenProps) {
       });
       onLogin(operatorUser);
     } catch (loginError) {
-      setError(getPublicErrorMessage(loginError, "Nao foi possivel entrar agora."));
+      setError(getPublicAuthErrorMessage(loginError, "Nao foi possivel entrar agora."));
     } finally {
       setSubmitting(false);
     }
@@ -151,7 +181,7 @@ export function LoginScreen({ users, loginPins, onLogin }: LoginScreenProps) {
       await requestFoodPasswordReset(resetEmail);
       setResetFeedback("Enviamos o link para redefinir sua senha no email informado.");
     } catch (resetError) {
-      setResetFeedback(getPublicErrorMessage(resetError, "Nao foi possivel enviar o email agora."));
+      setResetFeedback(getPublicAuthErrorMessage(resetError, "Nao foi possivel enviar o email agora."));
     } finally {
       setResettingPassword(false);
     }
@@ -171,7 +201,7 @@ export function LoginScreen({ users, loginPins, onLogin }: LoginScreenProps) {
       });
       await signInFoodAdminWithGoogle();
     } catch (oauthError) {
-      setError(getPublicErrorMessage(oauthError, "Nao foi possivel iniciar o login com Google."));
+      setError(getPublicAuthErrorMessage(oauthError, "Nao foi possivel iniciar o login com Google."));
       setOauthSubmitting(false);
     }
   };
@@ -241,14 +271,13 @@ export function LoginScreen({ users, loginPins, onLogin }: LoginScreenProps) {
             {loginMode === "admin" ? (
               <div className="mt-4 space-y-4">
                 <label className="block">
-                  <span className="text-xs font-black uppercase tracking-[0.16em] text-muted-foreground">Email</span>
+                  <span className="text-xs font-black uppercase tracking-[0.16em] text-muted-foreground">Email ou usuario</span>
                   <input
                     value={email}
                     onChange={(event) => setEmail(event.target.value)}
                     className="mt-2 h-11 w-full rounded-lg border border-border bg-zinc-950/70 px-3 text-sm font-semibold outline-none ring-primary transition focus:ring-2"
-                    autoComplete="email"
-                    inputMode="email"
-                    type="email"
+                    autoComplete="username"
+                    type="text"
                     required
                   />
                 </label>

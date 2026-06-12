@@ -10,7 +10,7 @@ import happyCashLogo from '@/assets/happycash-logo.webp';
 import { roleLabel } from '@/lib/access';
 import { readDesktopActivation } from '@/lib/desktopActivation';
 import { isGuidedTourEligiblePlan, requestGuidedTourStart } from '@/lib/guidedTour';
-import { hasOfflineAdminAccess, saveOfflineAdminAccess } from '@/lib/offlineAdminAccess';
+import { hasOfflineAdminAccess, readOfflineAdminAccess, saveOfflineAdminAccess } from '@/lib/offlineAdminAccess';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { DesktopOfflineAdminSetupDialog } from '@/components/DesktopOfflineAdminSetupDialog';
@@ -116,10 +116,12 @@ export function AppLayout({ children }: { children: ReactNode }) {
   const [offlineReminderOpen, setOfflineReminderOpen] = useState(false);
   const [offlineValidationStartedAt, setOfflineValidationStartedAt] = useState<string | null>(null);
   const [isOnline, setIsOnline] = useState(() => (typeof navigator === 'undefined' ? true : navigator.onLine));
+  const [latestOfflineAdminPin, setLatestOfflineAdminPin] = useState<string | null>(null);
   const navRef = useRef<HTMLElement | null>(null);
   const [scrollHints, setScrollHints] = useState({ top: false, bottom: false });
   const isPdvMode = location.pathname === '/pdv';
   const desktopActivation = readDesktopActivation();
+  const offlineAdminAccess = ownerUserId ? readOfflineAdminAccess(ownerUserId) : null;
   const visibleNavItems = navItems.filter(item => item.roles.includes(role) && hasFeature(item.featureKey));
   const canOpenSettings = role === 'admin' && hasFeature('settings.manage');
   const canUseGuidedTour = isGuidedTourEligiblePlan(planId);
@@ -347,7 +349,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
         const { error } = await db.from('profiles').update({ username: payload.username }).eq('user_id', user.id);
 
         if (error) {
-          toast.error('Acesso offline salvo, mas nao foi possivel sincronizar o usuario admin no Supabase agora.');
+          toast.error('Acesso offline salvo, mas nao foi possivel sincronizar o usuario admin online agora.');
         } else {
           await refreshProfile();
         }
@@ -356,6 +358,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
       toast.message('Preparando banco local desta maquina...');
       await refetch();
       setOfflineAdminSetupOpen(false);
+      setLatestOfflineAdminPin(payload.pin);
       toast.success('Acesso offline do administrador configurado e dados locais atualizados.');
     } catch (error) {
       toast.error(getPublicErrorMessage(error, 'Nao foi possivel salvar o acesso offline do administrador.'));
@@ -428,6 +431,17 @@ export function AppLayout({ children }: { children: ReactNode }) {
       </div>
     );
   }
+
+  const offlineAdminCredentialSummary = role === 'admin' && offlineAdminAccess ? (
+    <div className="mt-2 space-y-1 rounded-md border border-primary/15 bg-primary/5 px-3 py-2 text-[11px] leading-snug text-muted-foreground">
+      <p className="truncate">
+        <span className="font-semibold text-foreground">Admin local:</span> {offlineAdminAccess.username}
+      </p>
+      <p>
+        <span className="font-semibold text-foreground">PIN offline:</span> {latestOfflineAdminPin || 'configurado nesta maquina'}
+      </p>
+    </div>
+  ) : null;
 
   return (
     <div className="flex h-screen overflow-hidden bg-background">
@@ -555,6 +569,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
                 <p className="mt-1 pl-7 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground/80">
                   {roleLabel[role]} • Configuracoes
                 </p>
+                {offlineAdminCredentialSummary}
               </button>
             ) : (
               <div className="px-4 py-2 text-sm text-muted-foreground">
@@ -565,6 +580,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
                 <p className="mt-1 pl-7 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground/80">
                   {roleLabel[role]}
                 </p>
+                {offlineAdminCredentialSummary}
               </div>
             )
           )}

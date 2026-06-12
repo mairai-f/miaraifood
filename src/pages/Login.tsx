@@ -205,7 +205,7 @@ export default function Login() {
               width={768}
               height={512}
               loading="eager"
-              fetchPriority="high"
+              fetchpriority="high"
               decoding="async"
               animate={{ y: [0, -8, 0] }}
               transition={{ duration: 4.2, repeat: Infinity, ease: 'easeInOut' }}

@@ -19,11 +19,14 @@ import {
 import { isPublicPlanId, publicPlanContent } from '@/lib/subscriptionPlans';
 import logo from '@/assets/logo-happycash.webp';
 import { LanguageSwitcher } from '../../../shared/locale/LanguageSwitcher';
+import { getPublicAuthErrorMessage } from '../../../shared/security/redaction';
 
-const resolveLoginErrorMessage = (message: string) =>
-  /email not confirmed/i.test(message)
+const resolveLoginErrorMessage = (error: unknown) => {
+  const message = getPublicAuthErrorMessage(error, 'Nao foi possivel entrar agora.');
+  return /email not confirmed/i.test(message)
     ? 'Confirme seu email primeiro. Depois volte para entrar e liberar sua conta.'
     : message;
+};
 
 const normalizeEmail = (value: string) => value.trim().toLowerCase();
 const resolveSafeNextPath = (value: string | null) => {
@@ -102,7 +105,7 @@ const Login = () => {
       });
 
       if (error) {
-        const resolvedError = resolveLoginErrorMessage(error.message);
+        const resolvedError = resolveLoginErrorMessage(error);
         clearPasswordState();
         setLoginError(resolvedError);
         toast({ title: 'Erro ao entrar', description: resolvedError, variant: 'destructive' });
@@ -136,9 +139,10 @@ const Login = () => {
       });
 
       if (error) {
+        const resolvedError = getPublicAuthErrorMessage(error, 'Nao foi possivel enviar o email agora.');
         toast({
           title: 'Erro ao enviar email',
-          description: error.message,
+          description: resolvedError,
           variant: 'destructive',
         });
         return;
@@ -181,13 +185,13 @@ const Login = () => {
       });
 
       if (error) {
-        const resolvedError = resolveLoginErrorMessage(error.message);
+        const resolvedError = resolveLoginErrorMessage(error);
         setLoginError(resolvedError);
         toast({ title: 'Erro ao entrar com Google', description: resolvedError, variant: 'destructive' });
         setOauthLoading(false);
       }
     } catch (error) {
-      const resolvedError = resolveLoginErrorMessage(error instanceof Error ? error.message : 'Nao foi possivel iniciar o login com Google.');
+      const resolvedError = resolveLoginErrorMessage(error instanceof Error ? error : 'Nao foi possivel iniciar o login com Google.');
       setLoginError(resolvedError);
       toast({ title: 'Erro ao entrar com Google', description: resolvedError, variant: 'destructive' });
       setOauthLoading(false);
@@ -229,7 +233,7 @@ const Login = () => {
               <form onSubmit={handleLogin} className="space-y-2.5 sm:space-y-3">
                 {loginError && (
                   <Alert variant="destructive">
-                    <AlertTitle>Falha no Supabase Auth</AlertTitle>
+                    <AlertTitle>Falha ao entrar</AlertTitle>
                     <AlertDescription>{loginError}</AlertDescription>
                   </Alert>
                 )}

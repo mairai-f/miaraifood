@@ -8,7 +8,7 @@ import {
 } from "../../../shared/productContext";
 import { createAdaptiveStorage } from "../../../shared/security/browserStorage";
 import { createKeepConnectedReader } from "../../../shared/security/authPersistence";
-import { getPublicErrorMessage } from "../../../shared/security/redaction";
+import { getPublicAuthErrorMessage } from "../../../shared/security/redaction";
 import { cleanupLegacySupabaseAuthStorage } from "../../../shared/security/supabaseAuthStorage";
 
 type FoodProfileRow = {
@@ -81,7 +81,7 @@ const resolveFoodOAuthRedirectUrl = () => {
 
 const resolveFoodAdminUser = async (authUser: User, users: FoodUser[]): Promise<FoodUser> => {
   if (!foodSupabase) {
-    throw new Error("Supabase nao esta configurado para o HappyCashFood.");
+    throw new Error("A autenticacao do HappyCashFood nao esta configurada.");
   }
 
   const normalizedEmail = normalizeEmail(authUser.email ?? "");
@@ -157,7 +157,7 @@ export const signInFoodAdmin = async (
   users: FoodUser[],
 ): Promise<FoodUser> => {
   if (!foodSupabase) {
-    throw new Error("Supabase nao esta configurado para o HappyCashFood.");
+    throw new Error("A autenticacao do HappyCashFood nao esta configurada.");
   }
 
   const normalizedEmail = normalizeEmail(email);
@@ -167,7 +167,7 @@ export const signInFoodAdmin = async (
   });
 
   if (authError || !authData.user) {
-    throw new Error(getPublicErrorMessage(authError, "Email ou senha invalidos."));
+    throw new Error(getPublicAuthErrorMessage(authError, "Email ou senha invalidos."));
   }
 
   try {
@@ -180,7 +180,7 @@ export const signInFoodAdmin = async (
 
 export const signInFoodAdminWithGoogle = async () => {
   if (!foodSupabase) {
-    throw new Error("Supabase nao esta configurado para o HappyCashFood.");
+    throw new Error("A autenticacao do HappyCashFood nao esta configurada.");
   }
 
   const redirectTo = resolveFoodOAuthRedirectUrl();
@@ -200,7 +200,7 @@ export const signInFoodAdminWithGoogle = async () => {
   });
 
   if (error) {
-    throw new Error(getPublicErrorMessage(error, "Nao foi possivel iniciar o login com Google."));
+    throw new Error(getPublicAuthErrorMessage(error, "Nao foi possivel iniciar o login com Google."));
   }
 };
 
@@ -227,7 +227,7 @@ export const signOutFoodAdmin = async () => {
 
 export const requestFoodPasswordReset = async (email: string) => {
   if (!foodSupabase) {
-    throw new Error("Supabase nao esta configurado para o HappyCashFood.");
+    throw new Error("A autenticacao do HappyCashFood nao esta configurada.");
   }
 
   const normalizedEmail = normalizeEmail(email);
@@ -236,6 +236,6 @@ export const requestFoodPasswordReset = async (email: string) => {
   });
 
   if (error) {
-    throw new Error(getPublicErrorMessage(error, "Nao foi possivel enviar o email de redefinicao."));
+    throw new Error(getPublicAuthErrorMessage(error, "Nao foi possivel enviar o email de redefinicao."));
   }
 };

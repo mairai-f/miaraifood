@@ -127,7 +127,7 @@ const getStorageErrorMessage = (error: unknown) => {
   const loweredMessage = message.toLowerCase();
 
   if (loweredMessage.includes('store_fiscal_settings')) {
-    return 'A base ainda nao possui a migration da configuracao fiscal. Aplique as migrations do Supabase antes de salvar.';
+    return 'A base ainda nao possui a migration da configuracao fiscal. Aplique as migrations antes de salvar.';
   }
 
   return 'Nao foi possivel salvar a configuracao fiscal agora.';

@@ -46,7 +46,7 @@ const Pix = () => {
               </div>
               <ul className="space-y-2 text-sm text-muted-foreground">
                 <li>1. Crie sua conta no HappyCash.</li>
-                <li>2. Seu cadastro é criado no Supabase Auth.</li>
+                <li>2. Seu cadastro é criado com autenticação segura do HappyCash.</li>
                 <li>3. O cliente também é criado automaticamente no Asaas.</li>
                 <li>4. O painel permite gerar Pix com QR Code ou abrir a fatura de debito / credito.</li>
                 <li>5. O webhook do Asaas ativa o plano automaticamente apos a confirmacao do pagamento.</li>

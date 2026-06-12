@@ -7,6 +7,12 @@
   NPM_FLAGS = "--no-audit --no-fund"
 
 [[redirects]]
+  from = "/auth/v1/*"
+  to = "https://ymffclntmynwfdiarlaw.supabase.co/auth/v1/:splat"
+  status = 200
+  force = true
+
+[[redirects]]
   from = "/*"
   to = "/index.html"
   status = 200

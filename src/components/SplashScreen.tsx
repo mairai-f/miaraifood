@@ -36,7 +36,7 @@ export function SplashScreen({ progress }: SplashScreenProps) {
             width={768}
             height={512}
             loading="eager"
-            fetchPriority="high"
+            fetchpriority="high"
             decoding="async"
           />
         </motion.div>

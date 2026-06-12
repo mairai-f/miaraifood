@@ -1,6 +1,6 @@
-import { Suspense, lazy } from "react";
+import { Suspense, lazy, useEffect } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Route, Routes } from "react-router-dom";
+import { BrowserRouter, Route, Routes, useLocation } from "react-router-dom";
 import { Loader2 } from "lucide-react";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
@@ -27,7 +27,40 @@ const AppParaFiado = lazy(() => import("./pages/AppParaFiado.tsx"));
 const GestaoClientesFiado = lazy(() => import("./pages/GestaoClientesFiado.tsx"));
 const ComoControlarFiadoMercadinho = lazy(() => import("./pages/ComoControlarFiadoMercadinho.tsx"));
 const PlanilhaFiadoVsApp = lazy(() => import("./pages/PlanilhaFiadoVsApp.tsx"));
+const PoliticaDePrivacidade = lazy(() => import("./pages/PoliticaDePrivacidade.tsx"));
+const TermosDeServico = lazy(() => import("./pages/TermosDeServico.tsx"));
 const NotFound = lazy(() => import("./pages/NotFound.tsx"));
+
+function ScrollToRouteTop() {
+  const { hash, pathname } = useLocation();
+
+  useEffect(() => {
+    if (hash) {
+      const frame = window.requestAnimationFrame(() => {
+        const target = document.getElementById(hash.slice(1));
+        target?.scrollIntoView({ block: "start" });
+      });
+      return () => window.cancelAnimationFrame(frame);
+    }
+
+    const scrollToTop = () => window.scrollTo({ left: 0, top: 0 });
+    scrollToTop();
+
+    const frame = window.requestAnimationFrame(scrollToTop);
+    const firstTimeout = window.setTimeout(scrollToTop, 120);
+    const secondTimeout = window.setTimeout(scrollToTop, 350);
+    const finalTimeout = window.setTimeout(scrollToTop, 700);
+
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.clearTimeout(firstTimeout);
+      window.clearTimeout(secondTimeout);
+      window.clearTimeout(finalTimeout);
+    };
+  }, [hash, pathname]);
+
+  return null;
+}
 
 function RouteLoader() {
   return (
@@ -47,6 +80,7 @@ const App = () => (
         <Toaster />
         <Sonner />
         <BrowserRouter>
+          <ScrollToRouteTop />
           <Suspense fallback={<RouteLoader />}>
             <Routes>
               <Route path="/" element={<Index />} />
@@ -70,6 +104,8 @@ const App = () => (
               <Route path="/gestao-de-clientes-fiado" element={<GestaoClientesFiado />} />
               <Route path="/blog/como-controlar-fiado-no-mercadinho" element={<ComoControlarFiadoMercadinho />} />
               <Route path="/blog/planilha-de-fiado-vs-app" element={<PlanilhaFiadoVsApp />} />
+              <Route path="/politica-de-privacidade" element={<PoliticaDePrivacidade />} />
+              <Route path="/termos-de-servico" element={<TermosDeServico />} />
               <Route path="/downloads/:platform" element={<DownloadRedirect />} />
               <Route path="*" element={<NotFound />} />
             </Routes>

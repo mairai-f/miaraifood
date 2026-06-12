@@ -84,6 +84,7 @@ interface OperatorFunctionResponse {
   operator?: {
     user_id: string;
     username: string;
+    role?: StaffRole;
   };
   error?: string;
 }
@@ -187,6 +188,7 @@ export function OperatorManagementPanel({
 
   const saveOperatorOfflineAccessIfPossible = useCallback(async (
     operator: OperatorFunctionResponse['operator'],
+    role: StaffRole,
     secret: string,
   ) => {
     if (!operator || !ownerUserId || typeof window === 'undefined' || !window.electronAPI) {
@@ -204,6 +206,7 @@ export function OperatorManagementPanel({
         ownerUserId,
         username: operator.username,
         email: null,
+        role,
         secret,
       });
     } catch (error) {
@@ -365,9 +368,7 @@ export function OperatorManagementPanel({
       username: data.operator.username,
       role: staffRole,
     });
-    if (staffRole === 'operator') {
-      await saveOperatorOfflineAccessIfPossible(data.operator, password.trim());
-    }
+    await saveOperatorOfflineAccessIfPossible(data.operator, staffRole, password.trim());
     resetCreateForm();
     handleCreateDialogOpenChange(false);
     toast.success(`${staffRoleLabel[staffRole]} criado com sucesso`);
@@ -415,9 +416,7 @@ export function OperatorManagementPanel({
       username: data.operator.username,
       role: selectedOperator.role,
     });
-    if (selectedOperator.role === 'operator') {
-      await saveOperatorOfflineAccessIfPossible(data.operator, resetPassword.trim());
-    }
+    await saveOperatorOfflineAccessIfPossible(data.operator, selectedOperator.role, resetPassword.trim());
     setResetPassword('');
     setSelectedOperator(null);
     setResetDialogOpen(false);

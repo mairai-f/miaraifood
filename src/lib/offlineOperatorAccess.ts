@@ -1,11 +1,14 @@
 import { isOperatorPin } from "../../shared/security/operatorCredential";
 
+export type OfflineStaffRole = "operator" | "waiter";
+
 export interface OfflineOperatorAccessRecord {
   version: 1;
   userId: string;
   ownerUserId: string;
   username: string;
   email: string | null;
+  role: OfflineStaffRole;
   secretSalt: string;
   secretHash: string;
   secretKind: "password" | "pin";
@@ -18,6 +21,7 @@ interface SaveOfflineOperatorAccessInput {
   ownerUserId: string;
   username: string;
   email?: string | null;
+  role?: OfflineStaffRole;
   secret: string;
 }
 
@@ -45,6 +49,9 @@ export const normalizeOfflineOperatorUsername = (value: string) => value.trim().
 
 export const isValidOfflineOperatorUsername = (value: string) =>
   OFFLINE_OPERATOR_USERNAME_PATTERN.test(normalizeOfflineOperatorUsername(value));
+
+const normalizeOfflineStaffRole = (value: string | null | undefined): OfflineStaffRole =>
+  value === "waiter" ? "waiter" : "operator";
 
 const getStorageKey = (ownerUserId: string, username: string) =>
   `${OFFLINE_OPERATOR_ACCESS_STORAGE_PREFIX}:${ownerUserId}:${normalizeOfflineOperatorUsername(username)}`;
@@ -112,6 +119,7 @@ export const readOfflineOperatorAccess = (ownerUserId: string, username: string)
       ...parsed,
       username: normalizeOfflineOperatorUsername(parsed.username),
       email: parsed.email ?? null,
+      role: normalizeOfflineStaffRole(parsed.role),
       secretKind: parsed.secretKind === "pin" ? "pin" : "password",
     } satisfies OfflineOperatorAccessRecord;
   } catch {
@@ -124,6 +132,7 @@ export const saveOfflineOperatorAccess = async ({
   ownerUserId,
   username,
   email = null,
+  role = "operator",
   secret,
 }: SaveOfflineOperatorAccessInput) => {
   if (!isBrowser()) {
@@ -156,6 +165,7 @@ export const saveOfflineOperatorAccess = async ({
     ownerUserId,
     username: normalizedUsername,
     email: email?.trim() || null,
+    role: normalizeOfflineStaffRole(role),
     secretSalt: salt,
     secretHash,
     secretKind: isOperatorPin(normalizedSecret) ? "pin" : "password",

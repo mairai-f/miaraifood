@@ -2,6 +2,7 @@ const SENSITIVE_KEY_PATTERN = /(password|senha|secret|token|hash|salt|apikey|api
 const SENSITIVE_TEXT_PATTERN = /(service_role|authorization|bearer\s+|jwt|password|senha|secret|token|hash|salt|apikey|api[_-]?key|access[_-]?token|refresh[_-]?token|private\s+key|license|licen[cç]a|chave|credential|credencial|mount)/i;
 const JWT_PATTERN = /\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b/g;
 const LONG_SECRET_PATTERN = /\b[A-Za-z0-9_-]{32,}\b/g;
+const TECHNICAL_AUTH_PROVIDER_PATTERN = /\bSupabase(?:\s+Auth)?\b|https?:\/\/[^\s"']*supabase\.co[^\s"']*/gi;
 
 const REDACTED = "[redigido]";
 
@@ -46,6 +47,16 @@ export const getPublicErrorMessage = (error: unknown, fallbackMessage: string) =
   const normalized = message.trim();
   if (!normalized || SENSITIVE_TEXT_PATTERN.test(normalized)) return fallbackMessage;
   return redactSensitiveText(normalized);
+};
+
+export const getPublicAuthErrorMessage = (error: unknown, fallbackMessage: string) => {
+  const message = getPublicErrorMessage(error, fallbackMessage)
+    .replace(TECHNICAL_AUTH_PROVIDER_PATTERN, "autenticacao")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+
+  if (!message || message.toLowerCase() === "autenticacao") return fallbackMessage;
+  return message;
 };
 
 export const getRedactedLogValue = (value: unknown) => redactSensitiveData(value);

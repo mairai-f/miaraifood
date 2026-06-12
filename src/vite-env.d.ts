@@ -1,5 +1,9 @@
 /// <reference types="vite/client" />
 
+interface ImportMetaEnv {
+  readonly VITE_SUPABASE_AUTH_URL?: string;
+}
+
 interface Window {
   electronAPI?: {
     openExternal: (url: string) => boolean;

@@ -83,7 +83,7 @@ const Header = () => {
           <img
             src={logo}
             alt="HappyCash"
-            className="h-11 w-auto transition-transform duration-300 group-hover:scale-105"
+            className="h-11 w-auto transition-transform duration-300 group-hover:scale-105 md:h-14 lg:h-16"
             width={768}
             height={512}
             loading="eager"

@@ -43,6 +43,15 @@ const supabase = createClient(supabaseUrl, serviceRoleKey, {
 
 const plans = [
   {
+    planId: "demo",
+    email: `teste-demo@${demoEmailDomain}`,
+    nomeCliente: "Cliente Teste Demo",
+    nomeEstabelecimento: "Loja Demo HappyCash",
+    cnpj: "91000000000100",
+    tipoEstabelecimento: "Loja de bairro",
+    telefone: "11991000000",
+  },
+  {
     planId: "fiado",
     email: `teste-fiado@${demoEmailDomain}`,
     nomeCliente: "Cliente Teste Fiado",
@@ -149,6 +158,7 @@ async function ensureStoreAccount(user, account) {
     bairro: "Centro",
     cidade: "Sao Paulo",
     estado: "SP",
+    product_context: "happycash",
   };
 
   const { data, error } = await supabase
@@ -200,25 +210,31 @@ async function ensureSubscription(user, storeAccount, account) {
       },
     })
     .eq("owner_user_id", user.id)
+    .eq("product_context", "happycash")
     .in("status", ["trialing", "active", "past_due", "pending"]);
 
   if (cancelError) throw cancelError;
+
+  const isTrialDemo = account.planId === "demo";
 
   const { error } = await supabase.from("store_subscriptions").insert({
     store_account_id: storeAccount.id,
     owner_user_id: user.id,
     plan_id: account.planId,
     provider: "manual",
-    status: "active",
+    status: isTrialDemo ? "trialing" : "active",
     billing_type: "PIX",
-    price: plan.price,
+    price: isTrialDemo ? 0 : plan.price,
     currency: plan.currency || "BRL",
+    product_context: "happycash",
+    trial_started_at: isTrialDemo ? now.toISOString() : null,
+    trial_ends_at: isTrialDemo ? endsAt : null,
     current_period_starts_at: now.toISOString(),
     current_period_ends_at: endsAt,
     external_reference: `demo-${account.planId}-${user.id}`,
     metadata: {
       created_via: "scripts/create-demo-accounts.mjs",
-      purpose: "demo_video",
+      purpose: "demo_login",
     },
   });
 
