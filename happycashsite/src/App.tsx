@@ -20,7 +20,6 @@ const ResetPassword = lazy(() => import("./pages/ResetPassword.tsx"));
 const FiadoDigital = lazy(() => import("./pages/FiadoDigital.tsx"));
 const SistemaPdv = lazy(() => import("./pages/SistemaPdv.tsx"));
 const ControleEstoque = lazy(() => import("./pages/ControleEstoque.tsx"));
-const HappyCashFood = lazy(() => import("./pages/HappyCashFood.tsx"));
 const HappyCashAgenda = lazy(() => import("./pages/HappyCashAgenda.tsx"));
 const ControleDeFiado = lazy(() => import("./pages/ControleDeFiado.tsx"));
 const AppParaFiado = lazy(() => import("./pages/AppParaFiado.tsx"));
@@ -96,7 +95,6 @@ const App = () => (
               <Route path="/caderneta-de-fiado-digital" element={<FiadoDigital />} />
               <Route path="/sistema-pdv" element={<SistemaPdv />} />
               <Route path="/controle-de-estoque" element={<ControleEstoque />} />
-              <Route path="/happycash-food" element={<HappyCashFood />} />
               <Route path="/happycash-agenda" element={<HappyCashAgenda />} />
               <Route path="/sistema-de-agendamento" element={<HappyCashAgenda />} />
               <Route path="/controle-de-fiado" element={<ControleDeFiado />} />

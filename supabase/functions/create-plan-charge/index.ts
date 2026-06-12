@@ -24,7 +24,7 @@ type SupportedPaidPlan = "fiado" | "completo" | "pro" | "food" | "food_offline" 
 type CheckoutPaymentMethod = "pix" | "card";
 type SupportedBillingType = "PIX" | "CREDIT_CARD";
 type BillingPeriod = "monthly" | "annual";
-type ServiceClient = ReturnType<typeof createClient>;
+type ServiceClient = ReturnType<typeof createClient<any>>;
 
 interface CreatePlanChargeRequest {
   planId?: SupportedPaidPlan;
@@ -207,10 +207,17 @@ const normalizeCheckoutError = (error: unknown, paymentMethod: CheckoutPaymentMe
     };
   }
 
+  const safeAsaasMessage = rawMessage
+    .replace(/access_token\s*[:=]\s*\S+/gi, "access_token=<oculto>")
+    .replace(/bearer\s+[a-z0-9._-]+/gi, "bearer <oculto>")
+    .slice(0, 240);
+
   return {
     code: undefined,
     message: rawMessage.startsWith("O cadastro da loja")
       ? rawMessage
+      : safeAsaasMessage && safeAsaasMessage !== fallbackMessage
+      ? `O Asaas recusou a cobranca: ${safeAsaasMessage}`
       : fallbackMessage,
   };
 };
@@ -364,6 +371,8 @@ const buildCheckoutPayload = async (
   copyPasteCode?: string;
   qrCodeBase64?: string;
   qrCodeExpirationDate?: string;
+  pixQrCodeUnavailable?: boolean;
+  pixQrCodeMessage?: string;
 }> => {
   const baseCheckout = {
     subscriptionId,
@@ -384,14 +393,35 @@ const buildCheckoutPayload = async (
     return baseCheckout;
   }
 
-  const pixQrCode = await getPixQrCodeWithRetry(payment.id);
+  try {
+    const pixQrCode = await getPixQrCodeWithRetry(payment.id);
 
-  return {
-    ...baseCheckout,
-    copyPasteCode: pixQrCode.payload,
-    qrCodeBase64: pixQrCode.encodedImage,
-    qrCodeExpirationDate: pixQrCode.expirationDate,
-  };
+    return {
+      ...baseCheckout,
+      copyPasteCode: pixQrCode.payload,
+      qrCodeBase64: pixQrCode.encodedImage,
+      qrCodeExpirationDate: pixQrCode.expirationDate,
+    };
+  } catch (error) {
+    if (payment.invoiceUrl) {
+      const pixQrCodeMessage = error instanceof Error && error.message.trim()
+        ? error.message.trim()
+        : "O QR Code Pix ainda nao foi liberado pelo Asaas.";
+
+      console.warn("QR Code Pix indisponivel; retornando fatura Asaas como fallback.", {
+        paymentId: payment.id,
+        error: pixQrCodeMessage,
+      });
+
+      return {
+        ...baseCheckout,
+        pixQrCodeUnavailable: true,
+        pixQrCodeMessage,
+      };
+    }
+
+    throw error;
+  }
 };
 
 Deno.serve(async (request) => {
@@ -603,32 +633,6 @@ Deno.serve(async (request) => {
       }
     }
 
-    for (const pendingSubscription of pendingSubscriptions) {
-      if (pendingSubscription.provider_payment_id) {
-        try {
-          await deleteAsaasPayment(pendingSubscription.provider_payment_id);
-        } catch (error) {
-          console.error("Falha ao remover cobranca anterior do Asaas:", error);
-        }
-      }
-
-      const cancelledMetadata = updateSubscriptionMetadata(pendingSubscription.metadata, {
-        checkout_cancelled_at: new Date().toISOString(),
-        checkout_cancelled_by_plan: planId,
-        checkout_cancelled_by_payment_method: paymentMethod,
-        checkout_cancelled_by_billing_type: billingType,
-        checkout_cancelled_by_billing_period: billingPeriod,
-      });
-
-      await serviceClient
-        .from("store_subscriptions")
-        .update({
-          status: "canceled",
-          metadata: cancelledMetadata,
-        })
-        .eq("id", pendingSubscription.id);
-    }
-
     const pendingMetadata = {
       source: paymentMethod === "pix" ? "asaas_pix_checkout" : "asaas_card_checkout",
       checkout_started_at: new Date().toISOString(),
@@ -639,41 +643,20 @@ Deno.serve(async (request) => {
       checkout_period_days: periodDays,
     };
 
-    const { data: createdSubscriptionData, error: createSubscriptionError } = await serviceClient
-      .from("store_subscriptions")
-      .insert({
-        store_account_id: storeAccount.id,
-        owner_user_id: user.id,
-        plan_id: planId,
-        product_context: accountProductContext,
-        provider: "asaas",
-        status: "pending",
-        billing_type: billingType,
-        price: chargeValue,
-        currency: plan.currency,
-        external_reference: user.id,
-        metadata: pendingMetadata,
-      })
-      .select("id, store_account_id, owner_user_id, plan_id, product_context, status, billing_type, provider_payment_id, metadata, created_at")
-      .single();
-
-    if (createSubscriptionError || !createdSubscriptionData) {
-      throw new Error(createSubscriptionError?.message || "Não foi possível preparar a assinatura.");
-    }
-
-    const createdSubscription = createdSubscriptionData as StoreSubscriptionRow;
+    const newSubscriptionId = crypto.randomUUID();
+    let payment: AsaasPayment | null = null;
 
     try {
-      const payment = await createAsaasPayment({
+      payment = await createAsaasPayment({
         customer: asaasCustomerId,
         billingType,
         value: chargeValue,
         dueDate: todayAsaasDate(),
         description: `${productDisplayName} - ${plan.name} - ${billingPeriod === "annual" ? "12 meses" : "30 dias"}`,
-        externalReference: createdSubscription.id,
+        externalReference: newSubscriptionId,
       });
 
-      const checkout = await buildCheckoutPayload(createdSubscription.id, planId, paymentMethod, payment);
+      const checkout = await buildCheckoutPayload(newSubscriptionId, planId, paymentMethod, payment);
       const paymentMetadata = {
         asaas_payment_status: payment.status || "PENDING",
         asaas_due_date: payment.dueDate,
@@ -690,13 +673,65 @@ Deno.serve(async (request) => {
         paymentMetadata.pix_qr_code_expiration_date = checkout.qrCodeExpirationDate;
       }
 
-      await serviceClient
+      if (checkout.pixQrCodeUnavailable) {
+        paymentMetadata.pix_qr_code_unavailable = true;
+        paymentMetadata.pix_qr_code_message = checkout.pixQrCodeMessage || null;
+      }
+
+      const cancellationDate = new Date().toISOString();
+
+      for (const pendingSubscription of pendingSubscriptions) {
+        const cancelledMetadata = updateSubscriptionMetadata(pendingSubscription.metadata, {
+          checkout_cancelled_at: cancellationDate,
+          checkout_cancelled_by_subscription_id: newSubscriptionId,
+          checkout_cancelled_by_plan: planId,
+          checkout_cancelled_by_payment_method: paymentMethod,
+          checkout_cancelled_by_billing_type: billingType,
+          checkout_cancelled_by_billing_period: billingPeriod,
+        });
+
+        const { error: cancelPendingError } = await serviceClient
+          .from("store_subscriptions")
+          .update({
+            status: "canceled",
+            metadata: cancelledMetadata,
+          })
+          .eq("id", pendingSubscription.id);
+
+        if (cancelPendingError) {
+          throw new Error(cancelPendingError.message || "Não foi possível cancelar a cobrança pendente anterior.");
+        }
+
+        if (pendingSubscription.provider_payment_id) {
+          try {
+            await deleteAsaasPayment(pendingSubscription.provider_payment_id);
+          } catch (error) {
+            console.error("Falha ao remover cobranca anterior do Asaas:", error);
+          }
+        }
+      }
+
+      const { error: createSubscriptionError } = await serviceClient
         .from("store_subscriptions")
-        .update({
+        .insert({
+          id: newSubscriptionId,
+          store_account_id: storeAccount.id,
+          owner_user_id: user.id,
+          plan_id: planId,
+          product_context: accountProductContext,
+          provider: "asaas",
+          status: "pending",
+          billing_type: billingType,
           provider_payment_id: payment.id,
-          metadata: updateSubscriptionMetadata(createdSubscription.metadata, paymentMetadata),
-        })
-        .eq("id", createdSubscription.id);
+          price: chargeValue,
+          currency: plan.currency,
+          external_reference: user.id,
+          metadata: updateSubscriptionMetadata(pendingMetadata, paymentMetadata),
+        });
+
+      if (createSubscriptionError) {
+        throw new Error(createSubscriptionError.message || "Não foi possível preparar a assinatura.");
+      }
 
       return jsonResponse(request, {
         success: true,
@@ -704,10 +739,13 @@ Deno.serve(async (request) => {
         checkout,
       });
     } catch (error) {
-      await serviceClient
-        .from("store_subscriptions")
-        .delete()
-        .eq("id", createdSubscription.id);
+      if (payment?.id) {
+        try {
+          await deleteAsaasPayment(payment.id);
+        } catch (deleteError) {
+          console.error("Falha ao remover cobranca nova apos erro local:", deleteError);
+        }
+      }
 
       throw error;
     }

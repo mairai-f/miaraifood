@@ -19,7 +19,7 @@ const features = [
   { icon: BarChart3, title: "Relatórios Financeiros", desc: "Enxergue receitas, despesas e desempenho sem montar relatório manual todo dia." },
   { icon: Gift, title: "Programa de Fidelidade", desc: "Recompense clientes frequentes e aumente a recorrência de compra na loja." },
   { icon: Wallet, title: "Pix, Boleto, Crédito e Débito", desc: "Aceite os principais meios de pagamento e mantenha o histórico da operação centralizado." },
-  { icon: Key, title: "Usuário e PIN offline", desc: "No plano PRO ou Food Offline, o primeiro login online vincula a máquina ao administrador, baixa os dados da loja e libera admin/operador com usuário e PIN ou senha local." },
+  { icon: Key, title: "Usuário e PIN offline", desc: "No plano PRO, o primeiro login online vincula a máquina ao administrador, baixa os dados da loja e libera admin/operador com usuário e PIN ou senha local." },
 ];
 
 const Features = () => {

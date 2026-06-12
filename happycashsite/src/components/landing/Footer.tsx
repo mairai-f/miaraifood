@@ -11,11 +11,11 @@ const legalDocuments = {
   privacy: {
     title: "Política de Privacidade",
     path: "/politica-de-privacidade",
-    description: "Como o HappyCash trata dados pessoais no site, cadastro, área do cliente, PDV, fiado, estoque, Food, Agenda e recursos relacionados.",
+    description: "Como o HappyCash trata dados pessoais no site, cadastro, área do cliente, PDV, fiado, estoque, Agenda e recursos relacionados.",
     sections: [
       {
         title: "Dados tratados",
-        text: "Podemos tratar dados de cadastro, contato, loja, plano, suporte, pagamento, acesso técnico e informações operacionais cadastradas pelo usuário, como clientes, vendas, fiado, estoque, comandas e agendamentos.",
+        text: "Podemos tratar dados de cadastro, contato, loja, plano, suporte, pagamento, acesso técnico e informações operacionais cadastradas pelo usuário, como clientes, vendas, fiado, estoque e agendamentos.",
       },
       {
         title: "Finalidades",
@@ -113,9 +113,6 @@ const Footer = () => {
                 </Link>
                 <Link to="/sistema-pdv" className="text-sm text-muted-foreground hover:text-primary transition-colors">
                   Sistema PDV
-                </Link>
-                <Link to="/happycash-food" className="text-sm text-muted-foreground hover:text-primary transition-colors">
-                  HappyCashFood
                 </Link>
                 <Link to="/happycash-agenda" className="text-sm text-muted-foreground hover:text-primary transition-colors">
                   HappyCash Agenda

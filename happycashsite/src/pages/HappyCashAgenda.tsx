@@ -57,7 +57,7 @@ const agendaScreens = [
   {
     src: agendaProductsPreview,
     title: "Produtos do modulo Agenda",
-    text: "Produtos separados do PDV e do Food, com compra por Pix ou pagamento no local.",
+    text: "Produtos separados do PDV, com compra por Pix ou pagamento no local.",
   },
 ];
 
@@ -82,8 +82,8 @@ const agendaPlans = [
 
 const faqs = [
   {
-    question: "O HappyCash Agenda mistura produtos do PDV ou do Food?",
-    answer: "Nao. O Agenda usa dados separados por empresa. Produtos do PDV ficam no HappyCash, cardapio no Food e produtos do Agenda no proprio modulo.",
+    question: "O HappyCash Agenda mistura produtos do PDV?",
+    answer: "Nao. O Agenda usa dados separados por empresa. Produtos do PDV ficam no HappyCash e produtos do Agenda ficam no proprio modulo.",
   },
   {
     question: "Depois de pagar o plano, para onde vou?",
@@ -195,7 +195,7 @@ export default function HappyCashAgenda() {
                 Agenda online para servicos, profissionais e clientes no mesmo fluxo
               </h1>
               <p className="agenda-hero-motion mt-5 max-w-2xl text-lg leading-8 text-muted-foreground">
-                Organize horarios, servicos, produtos, Pix com QR Code e WhatsApp sem misturar dados do PDV ou do HappyCashFood.
+                Organize horarios, servicos, produtos, Pix com QR Code e WhatsApp sem misturar dados do PDV.
               </p>
               <div className="agenda-hero-motion mt-5 flex flex-wrap gap-2">
                 {HERO_BADGES.map((item) => (

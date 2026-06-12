@@ -9,7 +9,7 @@ const TermosDeServico = () => (
   <LegalDocumentPage
     seo={{
       title: "Termos de Serviço | HappyCash",
-      description: "Conheça as condições de uso do HappyCash para controle de fiado, PDV, estoque, desktop, Food, Agenda, planos, suporte e cancelamento.",
+      description: "Conheça as condições de uso do HappyCash para controle de fiado, PDV, estoque, desktop, Agenda, planos, suporte e cancelamento.",
       path,
       keywords: ["termos de serviço happycash", "termos de uso happycash", "contrato sistema pdv", "termos controle de fiado"],
       jsonLd: {
@@ -21,7 +21,7 @@ const TermosDeServico = () => (
     }}
     eyebrow="Termos"
     title="Termos de Serviço"
-    description="Estes Termos regulam o uso do site, área do cliente, sistema HappyCash, HappyCashFood, HappyCash Agenda, recursos de desktop, planos, testes gratuitos e funcionalidades relacionadas."
+    description="Estes Termos regulam o uso do site, área do cliente, sistema HappyCash, HappyCash Agenda, recursos de desktop, planos, testes gratuitos e funcionalidades relacionadas."
     updatedAt={updatedAt}
     sections={[
       {
@@ -34,7 +34,7 @@ const TermosDeServico = () => (
       {
         title: "2. O que o HappyCash oferece",
         paragraphs: [
-          "O HappyCash fornece ferramentas digitais para gestão comercial, incluindo controle de fiado, cadastro de clientes, PDV, estoque, relatórios, operadores, recursos desktop e modo offline em planos compatíveis. Produtos relacionados podem incluir HappyCashFood, HappyCash Agenda e outros recursos publicados no site.",
+          "O HappyCash fornece ferramentas digitais para gestão comercial, incluindo controle de fiado, cadastro de clientes, PDV, estoque, relatórios, operadores, recursos desktop, HappyCash Agenda e modo offline em planos compatíveis.",
           "As funcionalidades disponíveis variam conforme plano, produto, ambiente, configuração da conta e disponibilidade técnica.",
         ],
       },
@@ -66,7 +66,7 @@ const TermosDeServico = () => (
         title: "6. Responsabilidades do usuário",
         bullets: [
           "Usar o sistema conforme a lei e estes Termos.",
-          "Conferir vendas, valores, pagamentos, estoque, fiado, relatórios, comandas e informações fiscais antes de tomar decisões comerciais.",
+          "Conferir vendas, valores, pagamentos, estoque, fiado, relatórios e informações fiscais antes de tomar decisões comerciais.",
           "Obter autorização adequada para cadastrar e tratar dados de clientes, funcionários, operadores e terceiros.",
           "Manter backups, conferências e controles internos quando sua operação exigir.",
           "Não usar o HappyCash para fraude, lavagem de dinheiro, atividade ilegal, envio abusivo de mensagens, violação de direitos de terceiros ou tentativa de acessar sistemas sem autorização.",

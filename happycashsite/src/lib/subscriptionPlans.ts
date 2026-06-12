@@ -1,4 +1,4 @@
-export type PublicPlanId = "demo" | "fiado" | "completo" | "pro" | "food" | "food_offline" | "agenda";
+export type PublicPlanId = "demo" | "fiado" | "completo" | "pro" | "agenda";
 export type PaidPlanId = Exclude<PublicPlanId, "demo">;
 
 export interface PublicPlanContent {
@@ -85,45 +85,6 @@ export const publicPlanContent: Record<PublicPlanId, PublicPlanContent> = {
       "Pagamento via Pix e debito / credito",
     ],
   },
-  food: {
-    id: "food",
-    name: "HappyCashFood",
-    price: 250,
-    priceLabel: "R$ 250",
-    durationLabel: "30 dias",
-    summary: "Sistema restaurante web com mesas, comandas em modal, cozinha, caixa por mesa e estoque.",
-    description: "Plano separado para restaurantes, bares, lanchonetes e pizzarias operarem exclusivamente no HappyCashFood.",
-    features: [
-      "Operacao completa do HappyCashFood",
-      "Mesas e comandas",
-      "Cardapio da comanda por mesa",
-      "Tela do garcom",
-      "Cozinha KDS",
-      "Caixa por mesa",
-      "Delivery e caixa restaurante",
-      "Sem executavel offline",
-      "Pagamento via Pix e debito / credito",
-    ],
-  },
-  food_offline: {
-    id: "food_offline",
-    name: "HappyCashFood Offline",
-    price: 310,
-    priceLabel: "R$ 310",
-    durationLabel: "30 dias",
-    summary: "HappyCashFood com sistema offline, executavel Windows, Linux, .deb e APK.",
-    description: "Plano restaurante separado do HappyCash com executaveis offline para caixa e operacao local no HappyCashFood.",
-    features: [
-      "Tudo da operacao web do HappyCashFood",
-      "Executavel Windows",
-      "Linux AppImage",
-      "Pacote Linux .deb",
-      "Android APK",
-      "Chave por maquina",
-      "Modo offline local",
-      "Pagamento via Pix e debito / credito",
-    ],
-  },
   agenda: {
     id: "agenda",
     name: "HappyCash Agenda",
@@ -150,26 +111,20 @@ export const publicPlanList: PublicPlanContent[] = [
   publicPlanContent.fiado,
   publicPlanContent.completo,
   publicPlanContent.pro,
-  publicPlanContent.food,
-  publicPlanContent.food_offline,
   publicPlanContent.agenda,
 ];
 
-export const paidPlanIds: PaidPlanId[] = ["fiado", "completo", "pro", "food", "food_offline", "agenda"];
+export const paidPlanIds: PaidPlanId[] = ["fiado", "completo", "pro", "agenda"];
 
 export const isPublicPlanId = (value: string | null | undefined): value is PublicPlanId =>
   value === "demo" ||
   value === "fiado" ||
   value === "completo" ||
   value === "pro" ||
-  value === "food" ||
-  value === "food_offline" ||
   value === "agenda";
 
 export const isPaidPlanId = (value: string | null | undefined): value is PaidPlanId =>
   value === "fiado" ||
   value === "completo" ||
   value === "pro" ||
-  value === "food" ||
-  value === "food_offline" ||
   value === "agenda";

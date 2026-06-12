@@ -26,9 +26,8 @@ import { downloads } from "@/lib/desktopDownloads";
 import { getFreshSiteSession } from "@/lib/siteSession";
 import { getSubscriptionCountdown, getSubscriptionEndAt, getSubscriptionStatusLabel, isCurrentSubscription } from "@/lib/subscriptionStatus";
 import { publicPlanContent, publicPlanList, isPaidPlanId, isPublicPlanId, type PaidPlanId, type PublicPlanId } from "@/lib/subscriptionPlans";
-import { HAPPYCASH_AGENDA_SYSTEM_APP_URL, HAPPYCASH_FOOD_SYSTEM_APP_URL, HAPPYCASH_SYSTEM_APP_URL } from "@/lib/systemUrls";
+import { HAPPYCASH_AGENDA_SYSTEM_APP_URL, HAPPYCASH_SYSTEM_APP_URL } from "@/lib/systemUrls";
 import {
-  getProductContextLabel,
   getPublicPlanIdsForProductContext,
   isCurrentSubscriptionPlanAllowedForProductContext,
   isPaidPlanAllowedForProductContext,
@@ -161,6 +160,8 @@ type CreatePlanChargeResponse = {
     copyPasteCode?: string;
     qrCodeBase64?: string;
     qrCodeExpirationDate?: string;
+    pixQrCodeUnavailable?: boolean;
+    pixQrCodeMessage?: string;
   };
 };
 
@@ -229,13 +230,11 @@ const getPlanChargeActionKey = (planId: PaidPlanId, paymentMethod: CheckoutPayme
   `${planId}:${paymentMethod}:${billingPeriod}`;
 
 const getSystemUrlForProductContext = (productContext: ProductContext) => {
-  if (productContext === "happycashfood") return HAPPYCASH_FOOD_SYSTEM_APP_URL;
   if (productContext === "happycashagenda") return HAPPYCASH_AGENDA_SYSTEM_APP_URL;
   return HAPPYCASH_SYSTEM_APP_URL;
 };
 
 const getSystemLabelForProductContext = (productContext: ProductContext) => {
-  if (productContext === "happycashfood") return "Abrir sistema HappyCashFood";
   if (productContext === "happycashagenda") return "Abrir HappyCash Agenda";
   return "Abrir sistema HappyCash";
 };
@@ -493,10 +492,10 @@ const Dashboard = () => {
   }, [loginHref, navigate, querySuffix]);
 
   const accountProductContext = normalizeProductContext(storeAccount?.product_context);
-  const productLabel = getProductContextLabel(accountProductContext);
-  const isFoodAccount = accountProductContext === "happycashfood";
+  const siteProductContext: ProductContext = accountProductContext === "happycashagenda" ? "happycashagenda" : "happycash";
+  const productLabel = siteProductContext === "happycashagenda" ? "HappyCash Agenda" : "HappyCash";
   const compatibleSubscriptions = subscriptions.filter((subscription) =>
-    isCurrentSubscriptionPlanAllowedForProductContext(accountProductContext, subscription.plan_id),
+    isCurrentSubscriptionPlanAllowedForProductContext(siteProductContext, subscription.plan_id),
   );
   const currentSubscription = compatibleSubscriptions.find(isCurrentSubscription) || compatibleSubscriptions[0] || null;
   const currentPlanId = currentSubscription?.plan_id || null;
@@ -504,9 +503,7 @@ const Dashboard = () => {
   const countdown = getSubscriptionCountdown(currentSubscription);
   const currentDeadline = getSubscriptionEndAt(currentSubscription);
   const isCurrentProPlan = currentPlanId === "pro" && isCurrentSubscription(currentSubscription);
-  const isCurrentFoodOfflinePlan = currentPlanId === "food_offline" && isCurrentSubscription(currentSubscription);
-  const isCurrentFoodWebOnlyPlan = currentPlanId === "food" && isCurrentSubscription(currentSubscription);
-  const hasOfflineDownloads = isFoodAccount ? isCurrentFoodOfflinePlan : isCurrentProPlan;
+  const hasOfflineDownloads = isCurrentProPlan;
   const pendingSubscription = compatibleSubscriptions.find((subscription) => subscription.status === "pending") || null;
   const pendingPlanId = pendingSubscription && isPaidPlanId(pendingSubscription.plan_id) ? pendingSubscription.plan_id : null;
   const pendingPlanContent = pendingPlanId ? publicPlanContent[pendingPlanId] : null;
@@ -520,24 +517,17 @@ const Dashboard = () => {
     ?? (currentPlanId && currentPlanId !== "demo" ? currentPlanId : null);
   const systemProductContext = paidPlanIdForSystemTarget
     ? resolveProductContextFromPlanId(paidPlanIdForSystemTarget)
-    : accountProductContext;
+    : siteProductContext;
   const activeSystemUrl = getSystemUrlForProductContext(systemProductContext);
   const activeSystemLabel = getSystemLabelForProductContext(systemProductContext);
-  const offlineAccessLabel = isFoodAccount
-    ? (isCurrentFoodOfflinePlan ? "Food Offline liberado" : "Somente Food Offline")
-    : (isCurrentProPlan ? "PRO liberado" : "Somente PRO");
-  const usesFoodReleaseContext = isCurrentFoodOfflinePlan;
-  const desktopDownloadsTitle = usesFoodReleaseContext ? "Releases HappyCashFood Offline" : "Downloads do desktop";
-  const desktopDownloadsCtaWindows = usesFoodReleaseContext ? "Baixar HappyCashFood Windows (.exe)" : "Baixar Windows (.exe)";
-  const desktopDownloadsCtaDeb = usesFoodReleaseContext ? "Baixar HappyCashFood Linux (.deb)" : "Baixar Linux (.deb)";
-  const desktopDownloadsCtaAppImage = usesFoodReleaseContext ? "Baixar HappyCashFood Linux AppImage" : "Baixar Linux AppImage";
-  const mobileDownloadsTitle = usesFoodReleaseContext ? "APK HappyCashFood" : "Downloads do mobile";
-  const mobileDownloadsCtaAndroid = usesFoodReleaseContext ? "Baixar APK HappyCashFood" : "Baixar APK Android";
-  const mobileDownloadsDescription = usesFoodReleaseContext
-    ? "O HappyCashSite libera o APK separado do HappyCashFood somente depois que o plano Food Offline estiver confirmado no Asaas."
-    : isFoodAccount
-    ? "O app mobile do HappyCashFood fica liberado somente para contas com plano HappyCashFood Offline ativo."
-    : "O app mobile do HappyCash fica liberado somente para contas com plano PRO ativo.";
+  const offlineAccessLabel = isCurrentProPlan ? "PRO liberado" : "Somente PRO";
+  const desktopDownloadsTitle = "Downloads do desktop";
+  const desktopDownloadsCtaWindows = "Baixar Windows (.exe)";
+  const desktopDownloadsCtaDeb = "Baixar Linux (.deb)";
+  const desktopDownloadsCtaAppImage = "Baixar Linux AppImage";
+  const mobileDownloadsTitle = "Downloads do mobile";
+  const mobileDownloadsCtaAndroid = "Baixar APK Android";
+  const mobileDownloadsDescription = "O app mobile do HappyCash fica liberado somente para contas com plano PRO ativo.";
 
   useEffect(() => {
     setDesktopLicenseKey(null);
@@ -546,7 +536,7 @@ const Dashboard = () => {
     setDesktopLicenseKeyError(null);
   }, [storeAccount?.id, currentPlanId, hasOfflineDownloads]);
 
-  const allowedPlanIds = new Set(getPublicPlanIdsForProductContext(accountProductContext));
+  const allowedPlanIds = new Set(getPublicPlanIdsForProductContext(siteProductContext));
   const sortedPlans = publicPlanList
     .filter((fallbackPlan) => allowedPlanIds.has(fallbackPlan.id))
     .map((fallbackPlan) => {
@@ -990,12 +980,31 @@ const Dashboard = () => {
           </Alert>
         </div>
       ) : (
-        <Alert variant="destructive">
-          <AlertTitle>QR Code indisponivel</AlertTitle>
-          <AlertDescription>
-            O Asaas nao devolveu os dados do Pix. Gere a cobranca novamente em alguns instantes.
-          </AlertDescription>
-        </Alert>
+        <div className="space-y-4">
+          <Alert className="border-primary/30 bg-primary/10">
+            <AlertTitle>Pix criado pelo Asaas</AlertTitle>
+            <AlertDescription>
+              {planCheckout.pixQrCodeMessage
+                ? `O QR Code ainda nao ficou disponivel: ${planCheckout.pixQrCodeMessage}`
+                : "O QR Code ainda nao ficou disponivel, mas a fatura Pix ja foi criada."}
+            </AlertDescription>
+          </Alert>
+          {planCheckout.invoiceUrl ? (
+            <Button asChild className="h-11 w-full font-semibold">
+              <a href={planCheckout.invoiceUrl} target="_blank" rel="noreferrer">
+                <ExternalLink className="mr-2 h-4 w-4" />
+                Abrir fatura Pix
+              </a>
+            </Button>
+          ) : (
+            <Alert variant="destructive">
+              <AlertTitle>Fatura indisponivel</AlertTitle>
+              <AlertDescription>
+                O Asaas criou a cobranca, mas nao devolveu a fatura. Tente abrir a cobranca novamente em alguns instantes.
+              </AlertDescription>
+            </Alert>
+          )}
+        </div>
       )
     ) : (
       <div className="space-y-5">
@@ -1084,7 +1093,7 @@ const Dashboard = () => {
             <div>
               <h1 className="font-heading text-2xl font-bold sm:text-3xl">Central da conta HappyCash</h1>
               <p className="text-sm text-muted-foreground">
-                A mesma conta serve no site, no HappyCash e no HappyCashFood. Demo com 3 dias e planos pagos com ciclo de 30 dias.
+                A mesma conta serve no site e no HappyCash. Demo com 3 dias e planos pagos com ciclo de 30 dias.
               </p>
             </div>
           </div>
@@ -1235,9 +1244,7 @@ const Dashboard = () => {
                   <Crown className="h-4 w-4" />
                   <AlertTitle>Depois da demo, escolha um plano pago</AlertTitle>
                   <AlertDescription>
-                    {isFoodAccount
-                      ? "HappyCashFood e HappyCashFood Offline ficam ativos por 30 dias cada. Esta conta mostra apenas os planos do ecossistema Food."
-                      : "Fiado, Completo e PRO ficam ativos por 30 dias cada. Esta conta mostra apenas os planos do ecossistema HappyCash."}
+                    Fiado, Completo e PRO ficam ativos por 30 dias cada. Esta conta mostra apenas os planos do ecossistema HappyCash.
                   </AlertDescription>
                 </Alert>
               )}
@@ -1262,28 +1269,13 @@ const Dashboard = () => {
                 </ul>
               </div>
 
-              {isCurrentFoodWebOnlyPlan ? (
-                <div className="rounded-2xl border border-border bg-background/70 p-4">
-                  <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
-                    <div>
-                      <p className="text-sm font-semibold">Downloads do HappyCashFood</p>
-                      <p className="mt-1 text-sm text-muted-foreground">
-                        No plano HappyCashFood online, o dashboard nao mostra downloads. As releases para Windows, Linux (.deb), Linux AppImage e APK aparecem no HappyCashSite somente depois da confirmacao do plano HappyCashFood Offline no Asaas.
-                      </p>
-                    </div>
-                    <Badge variant="outline">Somente Food Offline</Badge>
-                  </div>
-                </div>
-              ) : (
-                <>
+              <>
                   <div className="rounded-2xl border border-border bg-background/70 p-4">
                     <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
                       <div>
                         <p className="text-sm font-semibold">{desktopDownloadsTitle}</p>
                         <p className="mt-1 text-sm text-muted-foreground">
-                          {usesFoodReleaseContext
-                            ? "O download nao aparece dentro do HappyCashFood. Depois da confirmacao no Asaas, o HappyCashSite libera as releases separadas do Food para Windows, Linux (.deb) e Linux AppImage."
-                            : "O executavel fica liberado para contas com plano PRO ou HappyCashFood Offline ativo. Cada nova instalacao pede a chave da empresa, valida o primeiro acesso online, prepara o banco local da loja e os links abaixo sempre consultam a release mais recente para Windows, Linux (.deb) e Linux AppImage."}
+                          O executavel fica liberado para contas com plano PRO ativo. Cada nova instalacao pede a chave da empresa, valida o primeiro acesso online, prepara o banco local da loja e os links abaixo sempre consultam a release mais recente para Windows, Linux (.deb) e Linux AppImage.
                         </p>
                       </div>
                       <Badge variant={hasOfflineDownloads ? "default" : "outline"}>
@@ -1375,7 +1367,7 @@ const Dashboard = () => {
                       </div>
                     ) : (
                       <p className="mt-4 text-sm text-muted-foreground">
-                        Quando o plano PRO ou HappyCashFood Offline estiver ativo, esta area libera a release mais recente do desktop e a ativacao por chave da empresa em cada maquina.
+                        Quando o plano PRO estiver ativo, esta area libera a release mais recente do desktop e a ativacao por chave da empresa em cada maquina.
                       </p>
                     )}
                   </div>
@@ -1401,22 +1393,19 @@ const Dashboard = () => {
                             {mobileDownloadsCtaAndroid}
                           </Link>
                         </Button>
-                        {!usesFoodReleaseContext && (
-                          <Button asChild variant="outline" className="h-11 font-semibold">
-                            <Link to={downloads.ios.route}>
-                              Acessar TestFlight iOS
-                            </Link>
-                          </Button>
-                        )}
+                        <Button asChild variant="outline" className="h-11 font-semibold">
+                          <Link to={downloads.ios.route}>
+                            Acessar TestFlight iOS
+                          </Link>
+                        </Button>
                       </div>
                     ) : (
                       <p className="mt-4 text-sm text-muted-foreground">
-                        Quando o plano PRO ou HappyCashFood Offline estiver ativo, esta area libera o download do app mobile Android e o acesso ao TestFlight iOS.
+                        Quando o plano PRO estiver ativo, esta area libera o download do app mobile Android e o acesso ao TestFlight iOS.
                       </p>
                     )}
                   </div>
-                </>
-              )}
+              </>
 
               <div className="grid gap-3">
                 <Button asChild className="h-12 text-base font-semibold">
@@ -1523,15 +1512,13 @@ const Dashboard = () => {
                 >
                   <CardHeader className="space-y-4">
                     <div className="flex items-start justify-between gap-3">
-                      <Badge variant={plan.id === "demo" ? "secondary" : plan.id === "pro" || plan.id === "food_offline" ? "default" : "outline"}>
+                      <Badge variant={plan.id === "demo" ? "secondary" : plan.id === "pro" ? "default" : "outline"}>
                         {plan.id === "demo"
                           ? "Demo"
                           : selectedBillingPeriod === "annual"
                           ? "Anual"
                           : plan.id === "pro"
                           ? "Mais valor"
-                          : plan.id === "food_offline"
-                          ? "Offline"
                           : "30 dias"}
                       </Badge>
                       {isCurrentPaidPlan && <Badge variant="outline">Atual</Badge>}
