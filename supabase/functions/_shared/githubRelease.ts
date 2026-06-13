@@ -87,16 +87,16 @@ const requestGitHub = async <T>(path: string, token?: string | null): Promise<T>
   return await response.json() as T;
 };
 
-const selectReleaseByChannel = (releases: GitHubReleasePayload[], channel: string) => {
+const selectReleaseCandidatesByChannel = (releases: GitHubReleasePayload[], channel: string) => {
   if (channel === "beta") {
-    return releases.find((release) => !release.draft && release.prerelease && /beta/i.test(release.tag_name)) || null;
+    return releases.filter((release) => !release.draft && release.prerelease && /beta/i.test(release.tag_name));
   }
 
   if (channel === "alpha") {
-    return releases.find((release) => !release.draft && release.prerelease && /alpha/i.test(release.tag_name)) || null;
+    return releases.filter((release) => !release.draft && release.prerelease && /alpha/i.test(release.tag_name));
   }
 
-  return releases.find((release) => !release.draft && !release.prerelease) || null;
+  return releases.filter((release) => !release.draft && !release.prerelease);
 };
 
 const findPlatformAsset = (assets: GitHubReleaseAsset[], platform: SupportedDesktopPlatform) => {
@@ -133,64 +133,62 @@ export const fetchLatestDesktopReleaseAsset = async (
   context: DesktopReleaseContext = "happycash",
 ): Promise<GitHubDesktopReleaseAsset> => {
   const { owner, repo, channel, token } = readReleaseConfig(context);
+  const releases = await requestGitHub<GitHubReleasePayload[]>(`/repos/${owner}/${repo}/releases?per_page=30`, token);
+  const candidates = selectReleaseCandidatesByChannel(releases, channel);
 
-  const release = channel === "latest"
-    ? await requestGitHub<GitHubReleasePayload>(`/repos/${owner}/${repo}/releases/latest`, token)
-    : selectReleaseByChannel(
-        await requestGitHub<GitHubReleasePayload[]>(`/repos/${owner}/${repo}/releases?per_page=20`, token),
-        channel,
-      );
-
-  if (!release) {
+  if (!candidates.length) {
     throw new Error("Nenhum release do GitHub foi encontrado para o canal configurado.");
   }
 
-  const asset = findPlatformAsset(release.assets || [], platform);
+  for (const release of candidates) {
+    const asset = findPlatformAsset(release.assets || [], platform);
 
-  if (!asset) {
-    throw new Error(`Nenhum asset de ${platform} foi encontrado no release ${release.tag_name}.`);
+    if (!asset) {
+      continue;
+    }
+
+    return {
+      assetName: asset.name,
+      downloadUrl: asset.browser_download_url,
+      tag: release.tag_name,
+      version: release.tag_name.replace(/^v/i, ""),
+      htmlUrl: release.html_url,
+      publishedAt: release.published_at,
+      size: typeof asset.size === "number" ? asset.size : null,
+    };
   }
 
-  return {
-    assetName: asset.name,
-    downloadUrl: asset.browser_download_url,
-    tag: release.tag_name,
-    version: release.tag_name.replace(/^v/i, ""),
-    htmlUrl: release.html_url,
-    publishedAt: release.published_at,
-    size: typeof asset.size === "number" ? asset.size : null,
-  };
+  throw new Error(`Nenhum asset de ${platform} foi encontrado nos releases do canal ${channel}.`);
 };
 
 export const fetchLatestMobileReleaseAsset = async (
   context: DesktopReleaseContext = "happycash",
 ): Promise<GitHubMobileReleaseAsset> => {
   const { owner, repo, channel, token } = readReleaseConfig(context);
+  const releases = await requestGitHub<GitHubReleasePayload[]>(`/repos/${owner}/${repo}/releases?per_page=30`, token);
+  const candidates = selectReleaseCandidatesByChannel(releases, channel);
 
-  const release = channel === "latest"
-    ? await requestGitHub<GitHubReleasePayload>(`/repos/${owner}/${repo}/releases/latest`, token)
-    : selectReleaseByChannel(
-        await requestGitHub<GitHubReleasePayload[]>(`/repos/${owner}/${repo}/releases?per_page=20`, token),
-        channel,
-      );
-
-  if (!release) {
+  if (!candidates.length) {
     throw new Error("Nenhum release do GitHub foi encontrado para o canal configurado.");
   }
 
-  const asset = findAndroidApkAsset(release.assets || []);
+  for (const release of candidates) {
+    const asset = findAndroidApkAsset(release.assets || []);
 
-  if (!asset) {
-    throw new Error(`Nenhum asset Android APK foi encontrado no release ${release.tag_name}.`);
+    if (!asset) {
+      continue;
+    }
+
+    return {
+      assetName: asset.name,
+      downloadUrl: asset.browser_download_url,
+      tag: release.tag_name,
+      version: release.tag_name.replace(/^v/i, ""),
+      htmlUrl: release.html_url,
+      publishedAt: release.published_at,
+      size: typeof asset.size === "number" ? asset.size : null,
+    };
   }
 
-  return {
-    assetName: asset.name,
-    downloadUrl: asset.browser_download_url,
-    tag: release.tag_name,
-    version: release.tag_name.replace(/^v/i, ""),
-    htmlUrl: release.html_url,
-    publishedAt: release.published_at,
-    size: typeof asset.size === "number" ? asset.size : null,
-  };
+  throw new Error(`Nenhum asset Android APK foi encontrado nos releases do canal ${channel}.`);
 };
