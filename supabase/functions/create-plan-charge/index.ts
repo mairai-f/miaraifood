@@ -8,6 +8,8 @@ import {
   getAsaasCustomer,
   getAsaasPayment,
   getAsaasPixQrCode,
+  isRemovedAsaasCustomer,
+  restoreAsaasCustomer,
   type AsaasPayment,
   type CreateAsaasCustomerInput,
 } from "../_shared/asaas.ts";
@@ -263,6 +265,66 @@ const updateSubscriptionMetadata = (
   ...nextMetadata,
 });
 
+const isRemovedAsaasCustomerError = (error: unknown) => {
+  const rawMessage = error instanceof Error && error.message.trim() ? error.message.trim() : "";
+  const normalizedMessage = rawMessage
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+
+  return normalizedMessage.includes("cliente removido") ||
+    normalizedMessage.includes("customer removed") ||
+    normalizedMessage.includes("removed customer");
+};
+
+const syncBillingCustomerRecord = async (
+  serviceClient: ServiceClient,
+  ownerUserId: string,
+  storeAccount: StoreAccountRow,
+  asaasCustomer: { id: string; email?: string },
+  options?: { restored?: boolean },
+) => {
+  const normalizedPhone = normalizeDigits(storeAccount.telefone);
+  const normalizedCpfCnpj = normalizeDigits(storeAccount.cnpj);
+
+  const { error: syncBillingCustomerError } = await serviceClient
+    .from("billing_customers")
+    .upsert({
+      store_account_id: storeAccount.id,
+      owner_user_id: ownerUserId,
+      provider: "asaas",
+      provider_customer_id: asaasCustomer.id,
+      provider_customer_deleted: false,
+      email: trimToUndefined(asaasCustomer.email as string | undefined) || trimToUndefined(storeAccount.email) || storeAccount.email,
+      phone: normalizedPhone.length >= 10 ? normalizedPhone : null,
+      cpf_cnpj: [11, 14].includes(normalizedCpfCnpj.length) ? normalizedCpfCnpj : null,
+      metadata: {
+        ...(asaasCustomer as Record<string, unknown>),
+        ...(options?.restored ? { restored_by_happycash_at: new Date().toISOString() } : {}),
+      },
+    }, { onConflict: "owner_user_id" });
+
+  if (syncBillingCustomerError) {
+    throw new Error(syncBillingCustomerError.message || "Não foi possível sincronizar o cliente de cobrança.");
+  }
+};
+
+const restoreBillingCustomer = async (
+  serviceClient: ServiceClient,
+  ownerUserId: string,
+  storeAccount: StoreAccountRow,
+  providerCustomerId: string,
+) => {
+  const restoredCustomer = await restoreAsaasCustomer(providerCustomerId);
+
+  if (!restoredCustomer?.id || isRemovedAsaasCustomer(restoredCustomer)) {
+    throw new Error("O cliente de cobrança removido não pôde ser restaurado no Asaas.");
+  }
+
+  await syncBillingCustomerRecord(serviceClient, ownerUserId, storeAccount, restoredCustomer, { restored: true });
+  return restoredCustomer.id;
+};
+
 const ensureBillingCustomer = async (
   serviceClient: ServiceClient,
   ownerUserId: string,
@@ -285,9 +347,17 @@ const ensureBillingCustomer = async (
       const verifiedCustomer = await getAsaasCustomer(billingCustomer.provider_customer_id);
 
       if (verifiedCustomer?.id) {
+        if (isRemovedAsaasCustomer(verifiedCustomer)) {
+          return await restoreBillingCustomer(serviceClient, ownerUserId, storeAccount, verifiedCustomer.id);
+        }
+
         return verifiedCustomer.id;
       }
     } catch (error) {
+      if (isRemovedAsaasCustomerError(error)) {
+        return await restoreBillingCustomer(serviceClient, ownerUserId, storeAccount, billingCustomer.provider_customer_id);
+      }
+
       console.warn("Cliente local de cobranca nao existe mais no ambiente atual do Asaas. Tentando ressincronizar.", {
         ownerUserId,
         providerCustomerId: billingCustomer.provider_customer_id,
@@ -299,30 +369,15 @@ const ensureBillingCustomer = async (
   const existingAsaasCustomer = await findAsaasCustomerByExternalReference(ownerUserId);
 
   if (existingAsaasCustomer?.id) {
-    const normalizedPhone = normalizeDigits(storeAccount.telefone);
-    const normalizedCpfCnpj = normalizeDigits(storeAccount.cnpj);
+    if (isRemovedAsaasCustomer(existingAsaasCustomer)) {
+      return await restoreBillingCustomer(serviceClient, ownerUserId, storeAccount, existingAsaasCustomer.id);
+    }
 
     if (
       billingCustomer?.provider_customer_id !== existingAsaasCustomer.id ||
       billingCustomer?.provider_customer_deleted
     ) {
-      const { error: syncBillingCustomerError } = await serviceClient
-        .from("billing_customers")
-        .upsert({
-          store_account_id: storeAccount.id,
-          owner_user_id: ownerUserId,
-          provider: "asaas",
-          provider_customer_id: existingAsaasCustomer.id,
-          provider_customer_deleted: false,
-          email: trimToUndefined(storeAccount.email) || storeAccount.email,
-          phone: normalizedPhone.length >= 10 ? normalizedPhone : null,
-          cpf_cnpj: [11, 14].includes(normalizedCpfCnpj.length) ? normalizedCpfCnpj : null,
-          metadata: existingAsaasCustomer,
-        }, { onConflict: "owner_user_id" });
-
-      if (syncBillingCustomerError) {
-        throw new Error(syncBillingCustomerError.message || "Não foi possível sincronizar o cliente de cobrança.");
-      }
+      await syncBillingCustomerRecord(serviceClient, ownerUserId, storeAccount, existingAsaasCustomer);
     }
 
     return existingAsaasCustomer.id;
@@ -331,25 +386,10 @@ const ensureBillingCustomer = async (
   const customerPayload = buildAsaasCustomerPayload(ownerUserId, storeAccount);
   const asaasCustomer = await createAsaasCustomer(customerPayload);
 
-  const upsertPayload = {
-    store_account_id: storeAccount.id,
-    owner_user_id: ownerUserId,
-    provider: "asaas",
-    provider_customer_id: asaasCustomer.id,
-    provider_customer_deleted: false,
+  await syncBillingCustomerRecord(serviceClient, ownerUserId, storeAccount, {
+    ...asaasCustomer,
     email: customerPayload.email || storeAccount.email,
-    phone: customerPayload.mobilePhone || null,
-    cpf_cnpj: customerPayload.cpfCnpj,
-    metadata: asaasCustomer,
-  };
-
-  const { error: upsertBillingCustomerError } = await serviceClient
-    .from("billing_customers")
-    .upsert(upsertPayload, { onConflict: "owner_user_id" });
-
-  if (upsertBillingCustomerError) {
-    throw new Error(upsertBillingCustomerError.message || "Não foi possível registrar o cliente de cobrança.");
-  }
+  });
 
   return asaasCustomer.id;
 };

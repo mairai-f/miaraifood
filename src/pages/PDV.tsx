@@ -663,7 +663,7 @@ export default function PDV() {
   }, [search, activeProducts]);
 
   const scrollProductSelectionIntoView = useCallback((index: number, focusSelected = false) => {
-    requestAnimationFrame(() => {
+    const syncScroll = () => {
       const container = productsGridRef.current;
       const selectedElement = productSelectionRefs.current[index];
       if (!container || !selectedElement) return;
@@ -671,32 +671,30 @@ export default function PDV() {
       const containerRect = container.getBoundingClientRect();
       const selectedRect = selectedElement.getBoundingClientRect();
       const scrollPadding = 8;
-      const selectedTop = container.scrollTop + selectedRect.top - containerRect.top;
-      const selectedBottom = selectedTop + selectedRect.height;
-      const visibleTop = container.scrollTop;
-      const visibleBottom = visibleTop + container.clientHeight;
 
       if (focusSelected) {
         selectedElement.focus({ preventScroll: true });
       }
 
-      if (selectedTop < visibleTop + scrollPadding) {
-        container.scrollTop = Math.max(0, selectedTop - scrollPadding);
-        return;
-      }
+      const selectedCenter =
+        container.scrollTop + selectedRect.top - containerRect.top + selectedRect.height / 2;
+      const maxScrollTop = Math.max(0, container.scrollHeight - container.clientHeight);
+      const centeredScrollTop = selectedCenter - container.clientHeight / 2;
+      const nextScrollTop = Math.min(maxScrollTop, Math.max(0, centeredScrollTop - scrollPadding));
 
-      if (selectedBottom > visibleBottom - scrollPadding) {
-        container.scrollTop = Math.max(0, selectedBottom - container.clientHeight + scrollPadding);
-      }
+      container.scrollTo({
+        top: Math.round(nextScrollTop),
+        behavior: 'auto',
+      });
+    };
+
+    requestAnimationFrame(() => {
+      syncScroll();
+      requestAnimationFrame(syncScroll);
     });
   }, []);
 
   useEffect(() => {
-    if (!search) {
-      setSearchSelectedIndex(-1);
-      return;
-    }
-
     if (filtered.length === 0) {
       setSearchSelectedIndex(-1);
       return;
@@ -707,7 +705,7 @@ export default function PDV() {
         return currentIndex;
       }
 
-      return 0;
+      return search ? 0 : -1;
     });
   }, [filtered.length, search]);
 
@@ -2677,6 +2675,7 @@ export default function PDV() {
     };
 
     const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.defaultPrevented) return;
       if (event.ctrlKey || event.altKey || event.metaKey) return;
 
       if (event.key === 'F1') {
@@ -2805,6 +2804,12 @@ export default function PDV() {
       }
 
       if (showSalesSearch || showCancelledSales || showCashOut || showCloseCashReceipt || showOpenCashDialog || saleToCancel) return;
+
+      if (event.key === 'Tab' && !isEditableTarget(event.target) && filtered.length > 0) {
+        event.preventDefault();
+        moveSearchSelection(event.shiftKey);
+        return;
+      }
 
       if (event.key === 'Escape' && !showReceipt) {
         event.preventDefault();
@@ -3032,12 +3037,14 @@ export default function PDV() {
             onKeyDown={e => {
               if (e.key === 'Tab' && filtered.length > 0) {
                 e.preventDefault();
+                e.stopPropagation();
                 moveSearchSelection(e.shiftKey);
                 return;
               }
 
               if (e.key === 'Enter') {
                 e.preventDefault();
+                e.stopPropagation();
                 addSearchResultToCart();
               }
             }}
@@ -3057,12 +3064,14 @@ export default function PDV() {
               onKeyDown={event => {
                 if (event.key === 'Tab') {
                   event.preventDefault();
+                  event.stopPropagation();
                   moveSearchSelection(event.shiftKey);
                   return;
                 }
 
                 if (event.key === 'Enter') {
                   event.preventDefault();
+                  event.stopPropagation();
                   addToCart(p);
                   setSearch('');
                   setSearchSelectedIndex(-1);

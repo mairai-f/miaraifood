@@ -16,6 +16,11 @@ export interface AsaasCustomer {
   email?: string;
   company?: string;
   externalReference?: string;
+  deleted?: boolean;
+  removed?: boolean;
+  status?: string;
+  deletedAt?: string | null;
+  dateDeleted?: string | null;
 }
 
 export interface AsaasPayment {
@@ -149,6 +154,22 @@ export async function createAsaasCustomer(input: CreateAsaasCustomerInput) {
 export async function getAsaasCustomer(customerId: string) {
   return requestAsaas<AsaasCustomer>(`/customers/${customerId}`, {
     method: "GET",
+  });
+}
+
+export function isRemovedAsaasCustomer(customer?: AsaasCustomer | null) {
+  if (!customer) return false;
+  const normalizedStatus = customer.status?.trim().toLowerCase();
+  return customer.deleted === true ||
+    customer.removed === true ||
+    Boolean(customer.deletedAt || customer.dateDeleted) ||
+    normalizedStatus === "deleted" ||
+    normalizedStatus === "removed";
+}
+
+export async function restoreAsaasCustomer(customerId: string) {
+  return requestAsaas<AsaasCustomer>(`/customers/${customerId}/restore`, {
+    method: "POST",
   });
 }
 
