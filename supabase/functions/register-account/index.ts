@@ -41,7 +41,7 @@ interface StoreAccountRow {
 }
 
 type AttemptStatus = "blocked" | "config_error" | "created" | "failed" | "honeypot" | "invalid";
-type ServiceClient = ReturnType<typeof createClient>;
+type ServiceClient = ReturnType<typeof createClient<any>>;
 
 const registrationCorsOptions = {
   allowedMethods: ["POST", "OPTIONS"],
@@ -375,6 +375,7 @@ Deno.serve(async (request) => {
       .from("store_accounts")
       .select("id")
       .eq("cnpj", data.cpfCnpj)
+      .eq("product_context", data.productContext)
       .limit(1)
       .maybeSingle();
 
@@ -429,6 +430,7 @@ Deno.serve(async (request) => {
       .from("site_pending_registrations")
       .select("owner_user_id")
       .eq("cpf_cnpj", data.cpfCnpj)
+      .eq("product_context", data.productContext)
       .eq("status", "pending")
       .limit(1)
       .maybeSingle();
