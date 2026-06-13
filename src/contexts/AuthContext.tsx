@@ -129,7 +129,7 @@ const AuthContext = createContext<AuthContextType | null>(null);
 const profileCacheKey = (userId: string) => `happycash:system:profile:${userId}`;
 const DESKTOP_ACTIVATION_OWNER_MISMATCH = 'DESKTOP_ACTIVATION_OWNER_MISMATCH';
 const SYSTEM_PRODUCT_CONTEXT_MISMATCH = 'SYSTEM_PRODUCT_CONTEXT_MISMATCH';
-const SYSTEM_PRODUCT_CONTEXT_MISMATCH_MESSAGE = 'Esta conta pertence ao HappyCashFood. Entre pelo sistema HappyCashFood.';
+const SYSTEM_PRODUCT_CONTEXT_MISMATCH_MESSAGE = 'Email ou senha incorretos.';
 const GOOGLE_AUTH_DOMAIN_MESSAGE = 'Configure o dominio de autenticacao do HappyCash para entrar com Google sem exibir Supabase.';
 
 const readCachedProfile = (userId: string): UserProfile | null => {

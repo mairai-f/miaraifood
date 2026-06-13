@@ -261,7 +261,7 @@ export default function Login() {
                 </TabsList>
 
                 <TabsContent value="admin" className="mt-0">
-                  <form onSubmit={handleAdminSubmit} className="space-y-2.5 sm:space-y-3">
+                  <form onSubmit={handleAdminSubmit} className="space-y-2.5 sm:space-y-3" autoComplete="off">
                     {offlineAdminAvailable && (
                       <div className="rounded-lg border border-primary/20 bg-primary/5 p-1.5">
                         <div className="grid grid-cols-2 gap-2">
@@ -301,12 +301,17 @@ export default function Login() {
                         <div className="space-y-1.5">
                           <Label>Usuario admin</Label>
                           <Input
+                            id="happycash-admin-offline-username"
+                            name="happycash-admin-offline-username"
                             value={adminOfflineUsername}
                             onChange={e => setAdminOfflineUsername(e.target.value)}
                             required
                             placeholder="Ex: admin.loja"
+                            autoComplete="off"
                             autoCapitalize="none"
                             autoCorrect="off"
+                            data-lpignore="true"
+                            data-1p-ignore="true"
                             className="h-9 sm:h-10"
                           />
                         </div>
@@ -314,13 +319,17 @@ export default function Login() {
                           <Label>PIN offline</Label>
                           <div className="relative">
                             <Input
+                              id="happycash-admin-offline-pin"
+                              name="happycash-admin-offline-pin"
                               type={showAdminPassword ? 'text' : 'password'}
                               value={adminOfflinePin}
                               onChange={e => setAdminOfflinePin(e.target.value)}
                               required
                               placeholder="••••"
-                              autoComplete="current-password"
+                              autoComplete="off"
                               inputMode="numeric"
+                              data-lpignore="true"
+                              data-1p-ignore="true"
                               className="h-9 pr-10 sm:h-10"
                             />
                             <button
@@ -339,11 +348,19 @@ export default function Login() {
                         <div className="space-y-1.5">
                           <Label>Email</Label>
                           <Input
+                            id="happycash-admin-email"
+                            name="happycash-admin-email"
                             type="email"
                             value={email}
                             onChange={e => setEmail(e.target.value)}
                             required
                             placeholder="usuario@happycash.com"
+                            autoComplete="off"
+                            autoCapitalize="none"
+                            autoCorrect="off"
+                            spellCheck={false}
+                            data-lpignore="true"
+                            data-1p-ignore="true"
                             className="h-9 sm:h-10"
                           />
                         </div>
@@ -363,13 +380,17 @@ export default function Login() {
                           </div>
                           <div className="relative">
                             <Input
+                              id="happycash-admin-password"
+                              name="happycash-admin-password"
                               type={showAdminPassword ? 'text' : 'password'}
                               value={adminPassword}
                               onChange={e => setAdminPassword(e.target.value)}
                               required
                               placeholder="••••••••"
                               minLength={6}
-                              autoComplete="current-password"
+                              autoComplete="new-password"
+                              data-lpignore="true"
+                              data-1p-ignore="true"
                               className="h-9 pr-10 sm:h-10"
                             />
                             <button
@@ -444,16 +465,22 @@ export default function Login() {
                 </TabsContent>
 
                 <TabsContent value="operator" className="mt-0">
-                  <form onSubmit={handleOperatorSubmit} className="space-y-2.5 sm:space-y-3">
+                  <form onSubmit={handleOperatorSubmit} className="space-y-2.5 sm:space-y-3" autoComplete="off">
                     <div className="space-y-1.5">
                       <Label>Usuário</Label>
                       <Input
+                        id="happycash-operator-username"
+                        name="happycash-operator-username"
                         value={operatorUsername}
                         onChange={e => setOperatorUsername(e.target.value)}
                         required
                         placeholder="Ex: operador.caixa"
+                        autoComplete="off"
                         autoCapitalize="none"
                         autoCorrect="off"
+                        spellCheck={false}
+                        data-lpignore="true"
+                        data-1p-ignore="true"
                         className="h-9 sm:h-10"
                       />
                     </div>
@@ -461,12 +488,16 @@ export default function Login() {
                       <Label>Senha ou PIN</Label>
                       <div className="relative">
                         <Input
+                          id="happycash-operator-password"
+                          name="happycash-operator-password"
                           type={showOperatorPassword ? 'text' : 'password'}
                           value={operatorPassword}
                           onChange={e => setOperatorPassword(e.target.value)}
                           required
                           placeholder="••••••••"
-                          autoComplete="current-password"
+                          autoComplete="new-password"
+                          data-lpignore="true"
+                          data-1p-ignore="true"
                           className="h-9 pr-10 sm:h-10"
                         />
                         <button
@@ -540,10 +571,16 @@ export default function Login() {
             <div className="space-y-2">
               <Label>Email</Label>
               <Input
+                id="happycash-reset-email"
+                name="happycash-reset-email"
                 type="email"
                 value={resetEmail}
                 onChange={e => setResetEmail(e.target.value)}
                 placeholder="usuario@happycash.com"
+                autoComplete="off"
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
               />
             </div>
           </div>

@@ -544,6 +544,7 @@ export default function Login() {
                   <form
                     onSubmit={clientMode === "signup" ? handleSignUp : handleSubmit}
                     className="space-y-4 [@media(max-height:640px)]:space-y-3"
+                    autoComplete="off"
                   >
                     {clientMode === "signup" && (
                       <>
@@ -553,6 +554,7 @@ export default function Login() {
                             <User className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                             <Input
                               id="fullName"
+                              name="happycash-agenda-client-name"
                               type="text"
                               autoComplete="name"
                               placeholder="Seu nome"
@@ -572,12 +574,15 @@ export default function Login() {
                         <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                         <Input
                           id="email"
+                          name="happycash-agenda-client-email"
                           type="email"
                           inputMode="email"
-                          autoComplete="email"
+                          autoComplete="off"
                           autoCapitalize="none"
                           autoCorrect="off"
                           spellCheck={false}
+                          data-lpignore="true"
+                          data-1p-ignore="true"
                           placeholder="seu@email.com"
                           value={email}
                           onChange={(e) => setEmail(e.target.value)}
@@ -594,6 +599,7 @@ export default function Login() {
                           <Phone className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                           <Input
                             id="phone"
+                            name="happycash-agenda-client-phone"
                             type="tel"
                             inputMode="tel"
                             autoComplete="tel"
@@ -611,7 +617,10 @@ export default function Login() {
                       <Label htmlFor="password">Senha</Label>
                       <PasswordInput
                         id="password"
-                        autoComplete="current-password"
+                        name="happycash-agenda-client-password"
+                        autoComplete="new-password"
+                        data-lpignore="true"
+                        data-1p-ignore="true"
                         placeholder="••••••••"
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
@@ -638,6 +647,7 @@ export default function Login() {
                         <Label htmlFor="confirmPassword">Confirmar senha</Label>
                         <PasswordInput
                           id="confirmPassword"
+                          name="happycash-agenda-client-confirm-password"
                           autoComplete="new-password"
                           placeholder="••••••••"
                           value={confirmPassword}
@@ -683,16 +693,17 @@ export default function Login() {
                           redefinição.
                         </DialogDescription>
                       </DialogHeader>
-                      <form onSubmit={handleSendReset} className="space-y-4">
+                      <form onSubmit={handleSendReset} className="space-y-4" autoComplete="off">
                         <div className="space-y-2">
                           <Label htmlFor="forgotEmail">Email</Label>
                           <div className="relative">
                             <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                             <Input
                               id="forgotEmail"
+                              name="happycash-agenda-reset-email"
                               type="email"
                               inputMode="email"
-                              autoComplete="email"
+                              autoComplete="off"
                               autoCapitalize="none"
                               autoCorrect="off"
                               spellCheck={false}
@@ -738,18 +749,21 @@ export default function Login() {
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="[@media(max-height:640px)]:pt-0">
-                  <form onSubmit={handleBarberLogin} className="space-y-4 [@media(max-height:640px)]:space-y-3">
+                  <form onSubmit={handleBarberLogin} className="space-y-4 [@media(max-height:640px)]:space-y-3" autoComplete="off">
                     <div className="space-y-2">
                       <Label htmlFor="barberUsername">Usuário</Label>
                       <div className="relative">
                         <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                         <Input
                           id="barberUsername"
+                          name="happycash-agenda-professional-username"
                           type="text"
-                          autoComplete="username"
+                          autoComplete="off"
                           autoCapitalize="none"
                           autoCorrect="off"
                           spellCheck={false}
+                          data-lpignore="true"
+                          data-1p-ignore="true"
                           placeholder="seu.usuario"
                           value={barberUsername}
                           onChange={(e) => setBarberUsername(e.target.value)}
@@ -763,7 +777,10 @@ export default function Login() {
                       <Label htmlFor="barberPassword">Senha</Label>
                       <PasswordInput
                         id="barberPassword"
-                        autoComplete="current-password"
+                        name="happycash-agenda-professional-password"
+                        autoComplete="new-password"
+                        data-lpignore="true"
+                        data-1p-ignore="true"
                         placeholder="••••••••"
                         value={barberPassword}
                         onChange={(e) => setBarberPassword(e.target.value)}
