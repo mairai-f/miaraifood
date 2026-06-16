@@ -41,7 +41,7 @@ interface StoreAccountRow {
 }
 
 type AttemptStatus = "blocked" | "config_error" | "created" | "failed" | "honeypot" | "invalid";
-type ServiceClient = ReturnType<typeof createClient<any>>;
+type ServiceClient = ReturnType<typeof createClient>;
 
 const registrationCorsOptions = {
   allowedMethods: ["POST", "OPTIONS"],

@@ -1,5 +1,6 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { buildCorsHeaders, handleCorsPreflight } from "../_shared/cors.ts";
+import { checkRedisRateLimit, readRateLimitEnv } from "../_shared/rateLimit.ts";
 
 type MenuRequest = {
   slug?: string;
@@ -76,6 +77,24 @@ Deno.serve(async (request) => {
   const slug = payload.slug?.trim().toLowerCase();
   if (!slug) {
     return jsonResponse(request, { error: "Cardapio nao informado." }, 400);
+  }
+
+  const rateLimit = await checkRedisRateLimit(request, {
+    namespace: "public-menu",
+    identifier: slug,
+    limit: readRateLimitEnv("PUBLIC_MENU_RATE_LIMIT_PER_MINUTE", 120),
+    windowSeconds: 60,
+  });
+
+  if (!rateLimit.allowed) {
+    return jsonResponse(
+      request,
+      {
+        error: "Muitas consultas ao cardapio. Aguarde alguns instantes e tente novamente.",
+        retryAfterSeconds: rateLimit.retryAfterSeconds,
+      },
+      429,
+    );
   }
 
   const supabase = createClient(supabaseUrl, serviceRoleKey, {

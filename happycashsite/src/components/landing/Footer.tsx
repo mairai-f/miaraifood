@@ -99,6 +99,9 @@ const Footer = () => {
             <div className="space-y-4">
               <h4 className="font-heading font-semibold text-sm text-foreground">Soluções</h4>
               <nav className="flex flex-col gap-3">
+                <Link to="/sistema-de-gestao-de-negocios" className="text-sm text-muted-foreground hover:text-primary transition-colors">
+                  Sistema de gestão de negócios
+                </Link>
                 <Link to="/controle-de-fiado" className="text-sm text-muted-foreground hover:text-primary transition-colors">
                   Controle de fiado
                 </Link>

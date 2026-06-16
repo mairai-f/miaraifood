@@ -6,7 +6,15 @@ Este guia prepara tres contas de teste para gravar videos comerciais do HappyCas
 - Plano Completo: `teste-completo@happycashsite.com.br`
 - Plano PRO: `teste-pro@happycashsite.com.br`
 - Senha padrao: `happycash@123`
+    
 
+
+
+
+
+
+
+    
 ## Criar contas
 
 O script cria usuarios confirmados no Supabase Auth, loja, assinatura ativa do plano e dados falsos de demonstracao.

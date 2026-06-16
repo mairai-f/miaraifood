@@ -3,6 +3,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { validateDesktopLicense } from "../_shared/desktopAccess.ts";
 import { buildCorsHeaders, handleCorsPreflight } from "../_shared/cors.ts";
 import { normalizeProductContext, type ProductContext } from "../_shared/productContext.ts";
+import { checkRedisRateLimit, readRateLimitEnv } from "../_shared/rateLimit.ts";
 
 type DesktopActivateRequest = {
   licenseKey?: string;
@@ -82,6 +83,24 @@ Deno.serve(async (request) => {
 
   if (!installationId) {
     return jsonResponse(request, { error: "Nao foi possivel identificar esta instalacao." }, 400);
+  }
+
+  const rateLimit = await checkRedisRateLimit(request, {
+    namespace: "desktop-activate",
+    identifier: appContext,
+    limit: readRateLimitEnv("DESKTOP_ACTIVATE_RATE_LIMIT_PER_MINUTE", 8),
+    windowSeconds: 60,
+  });
+
+  if (!rateLimit.allowed) {
+    return jsonResponse(
+      request,
+      {
+        error: "Muitas tentativas de ativacao em pouco tempo. Aguarde alguns instantes e tente novamente.",
+        retryAfterSeconds: rateLimit.retryAfterSeconds,
+      },
+      429,
+    );
   }
 
   const serviceClient = createClient(supabaseUrl, supabaseServiceRoleKey, {

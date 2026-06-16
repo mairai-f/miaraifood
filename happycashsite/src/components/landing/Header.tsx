@@ -64,6 +64,7 @@ const Header = () => {
   };
 
   const links = [
+    { label: "Gestão", href: "/sistema-de-gestao-de-negocios" },
     { label: "Fiado Digital", href: "/caderneta-de-fiado-digital" },
     { label: "Sistema PDV", href: "/sistema-pdv" },
     { label: "HappyCash Agenda", href: "/happycash-agenda" },

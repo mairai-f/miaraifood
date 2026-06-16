@@ -19,6 +19,7 @@ const LogoutSplash = lazy(() => import("./pages/LogoutSplash.tsx"));
 const ResetPassword = lazy(() => import("./pages/ResetPassword.tsx"));
 const FiadoDigital = lazy(() => import("./pages/FiadoDigital.tsx"));
 const SistemaPdv = lazy(() => import("./pages/SistemaPdv.tsx"));
+const SistemaGestaoNegocios = lazy(() => import("./pages/SistemaGestaoNegocios.tsx"));
 const ControleEstoque = lazy(() => import("./pages/ControleEstoque.tsx"));
 const HappyCashAgenda = lazy(() => import("./pages/HappyCashAgenda.tsx"));
 const ControleDeFiado = lazy(() => import("./pages/ControleDeFiado.tsx"));
@@ -94,6 +95,8 @@ const App = () => (
               <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/caderneta-de-fiado-digital" element={<FiadoDigital />} />
               <Route path="/sistema-pdv" element={<SistemaPdv />} />
+              <Route path="/sistema-de-gestao" element={<SistemaGestaoNegocios />} />
+              <Route path="/sistema-de-gestao-de-negocios" element={<SistemaGestaoNegocios />} />
               <Route path="/controle-de-estoque" element={<ControleEstoque />} />
               <Route path="/happycash-agenda" element={<HappyCashAgenda />} />
               <Route path="/sistema-de-agendamento" element={<HappyCashAgenda />} />

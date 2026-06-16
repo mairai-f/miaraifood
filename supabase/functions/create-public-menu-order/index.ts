@@ -1,5 +1,6 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { buildCorsHeaders, handleCorsPreflight } from "../_shared/cors.ts";
+import { checkRedisRateLimit, readRateLimitEnv } from "../_shared/rateLimit.ts";
 
 type PublicCartItem = {
   itemId?: string;
@@ -113,6 +114,27 @@ Deno.serve(async (request) => {
 
   if (!slug || !["dine_in", "delivery", "takeaway"].includes(serviceType) || !["order", "call_waiter", "request_bill"].includes(actionType)) {
     return jsonResponse(request, { success: false, error: "Pedido invalido." }, 400);
+  }
+
+  const rateLimit = await checkRedisRateLimit(request, {
+    namespace: `public-menu-order:${actionType}`,
+    identifier: slug,
+    limit: actionType === "order"
+      ? readRateLimitEnv("PUBLIC_MENU_ORDER_RATE_LIMIT_PER_MINUTE", 30)
+      : readRateLimitEnv("PUBLIC_MENU_TABLE_ACTION_RATE_LIMIT_PER_MINUTE", 12),
+    windowSeconds: 60,
+  });
+
+  if (!rateLimit.allowed) {
+    return jsonResponse(
+      request,
+      {
+        success: false,
+        error: "Muitas solicitacoes em pouco tempo. Aguarde alguns instantes e tente novamente.",
+        retryAfterSeconds: rateLimit.retryAfterSeconds,
+      },
+      429,
+    );
   }
 
   if (actionType === "order" && (!items.length || items.length > 80)) {

@@ -60,11 +60,17 @@ const Index = () => {
   return (
     <div className="min-h-screen bg-background overflow-x-hidden">
       <SiteSeo
-        title="HappyCash | Controle fiado, PDV e estoque sem caderno"
-        description="Pare de usar caderno para controlar fiado. Com o HappyCash você registra clientes, cobra pelo WhatsApp, acompanha PDV, estoque e relatórios em tempo real."
+        title="HappyCash | Sistema de gestão, fiado, PDV e estoque"
+        description="HappyCash é um sistema de gestão para pequenos negócios: controle fiado, caderneta digital, PDV, estoque, cobranças pelo WhatsApp e relatórios em tempo real."
         path="/"
         image={heroScreenshot}
         keywords={[
+          "happycash sistema",
+          "happycash gestão de negócios",
+          "happycash caderneta",
+          "sistema de gestão para pequenos negócios",
+          "sistema de gestão para comércio",
+          "sistema de gestão de vendas",
           "controle de fiado",
           "caderneta de fiado digital",
           "sistema pdv",
@@ -72,6 +78,29 @@ const Index = () => {
           "cobrança por whatsapp",
           "sistema para varejo",
         ]}
+        jsonLd={{
+          "@context": "https://schema.org",
+          "@type": "SoftwareApplication",
+          name: "HappyCash",
+          alternateName: [
+            "HappyCash Sistema",
+            "HappyCash Gestão de Negócios",
+            "HappyCash Caderneta",
+          ],
+          applicationCategory: "BusinessApplication",
+          operatingSystem: "Web, Windows, Linux",
+          url: "https://www.happycashsite.com.br/",
+          description:
+            "Sistema de gestão para pequenos negócios com controle fiado, caderneta digital, PDV, estoque, cobranças pelo WhatsApp e relatórios.",
+          keywords:
+            "happycash sistema, happycash gestão de negócios, sistema de gestão para pequenos negócios, controle de fiado, caderneta digital, sistema PDV, controle de estoque",
+          offers: {
+            "@type": "Offer",
+            price: "0",
+            priceCurrency: "BRL",
+            description: "Demo grátis disponível.",
+          },
+        }}
       />
       <Header />
       <Hero />
