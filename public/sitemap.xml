@@ -1,10 +1,16 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
-    <loc>https://www.happycashsite.com.br/paginainicial</loc>
-    <lastmod>2026-04-30</lastmod>
+    <loc>https://www.happycashsite.com.br/</loc>
+    <lastmod>2026-06-16</lastmod>
     <changefreq>weekly</changefreq>
     <priority>1.0</priority>
+  </url>
+  <url>
+    <loc>https://www.happycashsite.com.br/sistema-de-gestao-de-negocios</loc>
+    <lastmod>2026-06-16</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.95</priority>
   </url>
   <url>
     <loc>https://www.happycashsite.com.br/controle-de-fiado</loc>
@@ -37,8 +43,8 @@
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://www.happycashsite.com.br/happycash-food</loc>
-    <lastmod>2026-05-14</lastmod>
+    <loc>https://www.happycashsite.com.br/happycash-agenda</loc>
+    <lastmod>2026-05-22</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.95</priority>
   </url>
