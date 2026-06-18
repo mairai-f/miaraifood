@@ -28,10 +28,15 @@ export default function Reports() {
     });
   }, [sales, startDate, endDate]);
 
+  const activeFilteredSales = useMemo(
+    () => filteredSales.filter(sale => sale.status !== 'cancelled'),
+    [filteredSales],
+  );
+
   const filteredItems = useMemo(() => {
-    const saleIds = new Set(filteredSales.map(s => s.id));
+    const saleIds = new Set(activeFilteredSales.map(s => s.id));
     return saleItems.filter(i => saleIds.has(i.sale_id));
-  }, [filteredSales, saleItems]);
+  }, [activeFilteredSales, saleItems]);
 
   const filteredFiadoEntries = useMemo(() => {
     const start = new Date(startDate + 'T00:00:00');
@@ -55,11 +60,18 @@ export default function Reports() {
   }, [payments, startDate, endDate]);
 
   // Total revenue & profit
-  const totalRevenue = filteredSales.reduce((s, sale) => s + sale.total, 0);
+  const totalRevenue = activeFilteredSales.reduce((s, sale) => s + sale.total, 0);
   const totalCost = filteredItems.reduce((s, i) => s + i.cost_price * i.quantity, 0);
   const totalProfit = totalRevenue - totalCost;
+  const averageTicket = activeFilteredSales.length > 0 ? totalRevenue / activeFilteredSales.length : 0;
+  const profitMargin = totalRevenue > 0 ? (totalProfit / totalRevenue) * 100 : 0;
+  const totalUnitsSold = filteredItems.reduce((sum, item) => sum + item.quantity, 0);
+  const averageUnitsPerSale = activeFilteredSales.length > 0 ? totalUnitsSold / activeFilteredSales.length : 0;
   const totalFiadoSpent = filteredFiadoEntries.reduce((sum, entry) => sum + entry.total, 0);
   const totalFiadoPaid = filteredFiadoPayments.reduce((sum, payment) => sum + payment.amount, 0);
+  const totalOpenFiado = debtEntries
+    .filter(entry => entry.status === 'pending' && !entry.deleted && !entry.manual_deleted)
+    .reduce((sum, entry) => sum + entry.total, 0);
   const lowStockProducts = useMemo(
     () => products
       .filter(product => !product.deleted && product.min_stock > 0 && product.stock <= product.min_stock)
@@ -160,20 +172,76 @@ export default function Reports() {
       .slice(0, 10);
   }, [clients, filteredFiadoEntries, filteredFiadoPayments]);
 
+  const clientRevenueRanking = useMemo(() => {
+    const map = new Map<string, { name: string; revenue: number; sales: number }>();
+
+    for (const sale of activeFilteredSales) {
+      if (!sale.client_id) continue;
+      const client = clients.find(c => c.id === sale.client_id);
+      if (!client) continue;
+
+      const existing = map.get(client.id);
+      if (existing) {
+        existing.revenue += sale.total;
+        existing.sales += 1;
+      } else {
+        map.set(client.id, {
+          name: client.name,
+          revenue: sale.total,
+          sales: 1,
+        });
+      }
+    }
+
+    return Array.from(map.values())
+      .sort((a, b) => b.revenue - a.revenue)
+      .slice(0, 10);
+  }, [activeFilteredSales, clients]);
+
+  const staleProducts = useMemo(() => {
+    const soldProductIds = new Set(filteredItems.map(item => item.product_id).filter(Boolean));
+    return products
+      .filter(product => !product.deleted && !soldProductIds.has(product.id))
+      .sort((a, b) => (b.stock * (b.cost_price || 0)) - (a.stock * (a.cost_price || 0)))
+      .slice(0, 10);
+  }, [filteredItems, products]);
+
   // Vendas do dia 
   const salesByDay = useMemo(() => {
     const map = new Map<string, number>();
-    for (const s of filteredSales) {
+    for (const s of activeFilteredSales) {
       const day = formatDateOnly(s.date);
       map.set(day, (map.get(day) || 0) + s.total);
     }
     return Array.from(map.entries()).map(([day, total]) => ({ day, total }));
-  }, [filteredSales]);
+  }, [activeFilteredSales]);
+
+  const salesByHour = useMemo(() => {
+    const hourly = Array.from({ length: 24 }, (_, hour) => ({
+      hour,
+      label: `${String(hour).padStart(2, '0')}h`,
+      total: 0,
+      count: 0,
+    }));
+
+    for (const sale of activeFilteredSales) {
+      const hour = new Date(sale.date).getHours();
+      hourly[hour].total += sale.total;
+      hourly[hour].count += 1;
+    }
+
+    return hourly.filter(item => item.count > 0);
+  }, [activeFilteredSales]);
+
+  const bestSalesHour = salesByHour.reduce(
+    (best, item) => item.total > best.total ? item : best,
+    { hour: 0, label: '--', total: 0, count: 0 },
+  );
 
   // metodo de pagamento
   const paymentBreakdown = useMemo(() => {
     const map = new Map<string, number>();
-    for (const s of filteredSales) {
+    for (const s of activeFilteredSales) {
       const label = {
         dinheiro: translateCurrentText('Dinheiro'),
         cartao_debito: translateCurrentText('Debito'),
@@ -184,12 +252,12 @@ export default function Reports() {
       map.set(label, (map.get(label) || 0) + s.total);
     }
     return Array.from(map.entries()).map(([name, value]) => ({ name, value }));
-  }, [filteredSales]);
+  }, [activeFilteredSales]);
 
   const exportCsv = () => {
     const rows = [
       ['tipo', 'data', 'descricao', 'cliente', 'quantidade', 'total', 'lucro'],
-      ...filteredSales.map(sale => [
+      ...activeFilteredSales.map(sale => [
         'venda',
         sale.date,
         sale.payment_method,
@@ -239,10 +307,14 @@ export default function Reports() {
       {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3" data-tour-id="reports-stats">
         {[
-          { label: 'Vendas', value: filteredSales.length, icon: TrendingUp },
+          { label: 'Vendas válidas', value: activeFilteredSales.length, icon: TrendingUp },
           { label: 'Faturamento', value: `R$ ${totalRevenue.toFixed(2)}`, icon: DollarSign },
           { label: 'Custo', value: `R$ ${totalCost.toFixed(2)}`, icon: Package },
           { label: 'Lucro', value: `R$ ${totalProfit.toFixed(2)}`, icon: TrendingUp },
+          { label: 'Ticket médio', value: `R$ ${averageTicket.toFixed(2)}`, icon: DollarSign },
+          { label: 'Margem', value: `${profitMargin.toFixed(1)}%`, icon: TrendingUp },
+          { label: 'Fiado aberto', value: `R$ ${totalOpenFiado.toFixed(2)}`, icon: Users },
+          { label: 'Itens/venda', value: averageUnitsPerSale.toFixed(1), icon: Package },
         ].map((s, i) => (
           <Card key={i} className="border-border/50">
             <CardHeader className="pb-1 px-3 pt-3 flex flex-row items-center justify-between">
@@ -299,6 +371,42 @@ export default function Reports() {
         </Card>
       )}
 
+      {salesByHour.length > 0 && (
+        <Card className="border-border/50">
+          <CardHeader>
+            <CardTitle className="text-sm">Horários de Maior Movimento</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="grid gap-2 sm:grid-cols-3">
+              <div className="rounded-lg border border-border bg-secondary/30 p-3">
+                <p className="text-xs text-muted-foreground">Melhor horário</p>
+                <p className="text-lg font-bold">{bestSalesHour.label}</p>
+                <p className="text-[11px] text-muted-foreground">R$ {bestSalesHour.total.toFixed(2)} em {bestSalesHour.count} venda(s)</p>
+              </div>
+              <div className="rounded-lg border border-border bg-secondary/30 p-3">
+                <p className="text-xs text-muted-foreground">Itens vendidos</p>
+                <p className="text-lg font-bold">{totalUnitsSold}</p>
+                <p className="text-[11px] text-muted-foreground">No período filtrado</p>
+              </div>
+              <div className="rounded-lg border border-border bg-secondary/30 p-3">
+                <p className="text-xs text-muted-foreground">Vendas canceladas</p>
+                <p className="text-lg font-bold">{filteredSales.length - activeFilteredSales.length}</p>
+                <p className="text-[11px] text-muted-foreground">Fora do faturamento</p>
+              </div>
+            </div>
+            <ResponsiveContainer width="100%" height={220}>
+              <BarChart data={salesByHour}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="label" fontSize={10} />
+                <YAxis fontSize={10} />
+                <Tooltip formatter={(v: number) => `R$ ${v.toFixed(2)}`} />
+                <Bar dataKey="total" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+      )}
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4" data-tour-id="reports-rankings">
         {/* Top products */}
         <Card className="border-border/50">
@@ -330,6 +438,25 @@ export default function Reports() {
             </CardContent>
           </Card>
         )}
+
+        <Card className="border-border/50">
+          <CardHeader><CardTitle className="text-sm">Clientes por Receita</CardTitle></CardHeader>
+          <CardContent>
+            {clientRevenueRanking.length === 0 ? <p className="text-xs text-muted-foreground">Sem vendas vinculadas a clientes.</p> : (
+              <div className="space-y-2">
+                {clientRevenueRanking.map((client, index) => (
+                  <div key={client.name} className="flex items-start justify-between gap-3 text-xs">
+                    <span className="truncate">{index + 1}. {client.name}</span>
+                    <div className="shrink-0 text-right">
+                      <p className="font-medium">R$ {client.revenue.toFixed(2)}</p>
+                      <p className="text-muted-foreground">{client.sales} venda(s)</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
         {/* Top clients */}
         <Card className="border-border/50">
@@ -363,15 +490,23 @@ export default function Reports() {
 
         {/* Stale products */}
         <Card className="border-border/50">
-          <CardHeader><CardTitle className="text-sm">📦 Produtos Parados</CardTitle></CardHeader>
+          <CardHeader><CardTitle className="text-sm">📦 Produtos Sem Venda no Período</CardTitle></CardHeader>
           <CardContent>
-            {(() => {
-              const soldIds = new Set(saleItems.map(i => i.product_id));
-              const stale = products.filter(p => !soldIds.has(p.id) && !p.deleted);
-              return stale.length === 0
-                ? <p className="text-xs text-muted-foreground">Todos os produtos foram vendidos</p>
-                : <div className="space-y-1">{stale.slice(0, 10).map(p => <p key={p.id} className="text-xs">{p.name} — R$ {p.price.toFixed(2)}</p>)}</div>;
-            })()}
+            {staleProducts.length === 0 ? (
+              <p className="text-xs text-muted-foreground">Todos os produtos ativos venderam no período.</p>
+            ) : (
+              <div className="space-y-2">
+                {staleProducts.map(product => (
+                  <div key={product.id} className="flex items-start justify-between gap-3 text-xs">
+                    <span className="truncate">{product.name}</span>
+                    <div className="shrink-0 text-right">
+                      <p className="font-medium">Estoque: {product.stock}</p>
+                      <p className="text-muted-foreground">Custo parado: R$ {(product.stock * (product.cost_price || 0)).toFixed(2)}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>

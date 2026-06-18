@@ -17,7 +17,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { Ban, Barcode, FileText, History, Loader2, Minus, Plus, Printer, Receipt, Search, ShoppingCart, Wallet, X } from 'lucide-react';
+import { Ban, Barcode, FileText, History, Loader2, Maximize2, Minimize2, Minus, Plus, Printer, Receipt, Search, ShoppingCart, Wallet, X } from 'lucide-react';
 import type { Expense, Product, Reward, Sale } from '@/types';
 import { INTERNET_REQUIRED_MESSAGE, isInternetUnavailable, openExternalUrl } from '@/lib/openExternalUrl';
 import { normalizePhone } from '@/lib/phone';
@@ -105,6 +105,7 @@ type PaymentBreakdownItem = {
 
 const CLOSE_CASH_WHATSAPP_PHONE_KEY = 'happycash-close-cash-whatsapp-phone';
 const CLOSE_CASH_EMAIL_RECIPIENTS_KEY = 'happycash-close-cash-email-recipients';
+const PDV_CASHIER_MODE_KEY = 'happycash-pdv-cashier-mode';
 const adminVerificationClient = createClient<Database>(
   import.meta.env.VITE_SUPABASE_URL,
   import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
@@ -290,11 +291,21 @@ export default function PDV() {
   const searchInputRef = useRef<HTMLInputElement>(null);
   const cashReceivedInputRef = useRef<HTMLInputElement>(null);
   const ticketLookupInputRef = useRef<HTMLInputElement>(null);
+  const quickScanInputRef = useRef<HTMLInputElement>(null);
   const finalizeLockRef = useRef(false);
   const cartItemSelectionRefs = useRef<Array<HTMLDivElement | null>>([]);
   const productsGridRef = useRef<HTMLDivElement | null>(null);
   const productSelectionRefs = useRef<Array<HTMLDivElement | null>>([]);
   const [search, setSearch] = useState('');
+  const [quickScan, setQuickScan] = useState('');
+  const [cashierMode, setCashierMode] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    try {
+      return window.localStorage.getItem(PDV_CASHIER_MODE_KEY) === 'true';
+    } catch {
+      return false;
+    }
+  });
   const [searchSelectedIndex, setSearchSelectedIndex] = useState(-1);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [ticketLookup, setTicketLookup] = useState('');
@@ -661,6 +672,45 @@ export default function PDV() {
     if (!search) return activeProducts;
     return filterProductsBySearch(activeProducts, search);
   }, [search, activeProducts]);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(PDV_CASHIER_MODE_KEY, cashierMode ? 'true' : 'false');
+    } catch {
+      // Local persistence is only a convenience for the operator screen mode.
+    }
+  }, [cashierMode]);
+
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      if (!document.fullscreenElement) {
+        setCashierMode(false);
+      }
+    };
+
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+  }, []);
+
+  const toggleCashierMode = useCallback(() => {
+    setCashierMode(current => {
+      const next = !current;
+
+      requestAnimationFrame(() => {
+        const fullscreenAction = next
+          ? document.documentElement.requestFullscreen?.()
+          : document.fullscreenElement
+            ? document.exitFullscreen?.()
+            : undefined;
+
+        if (fullscreenAction) {
+          void fullscreenAction.catch(() => undefined);
+        }
+      });
+
+      return next;
+    });
+  }, []);
 
   const scrollProductSelectionIntoView = useCallback((index: number, focusSelected = false) => {
     const syncScroll = () => {
@@ -1715,6 +1765,86 @@ export default function PDV() {
     silentToast.success(`${product.name} adicionado`);
   };
 
+  const focusQuickScan = useCallback(() => {
+    requestAnimationFrame(() => {
+      quickScanInputRef.current?.focus();
+      quickScanInputRef.current?.select();
+    });
+  }, []);
+
+  const findProductByQuickScan = (value: string) => {
+    const normalized = value.trim();
+    if (!normalized) return null;
+    return activeProducts.find(product => isExactProductSearchMatch(product, normalized)) ?? null;
+  };
+
+  const handleQuickScanSubmit = (value: string) => {
+    const normalized = value.trim();
+    if (!normalized) {
+      focusQuickScan();
+      return false;
+    }
+
+    const product = findProductByQuickScan(normalized);
+    if (product) {
+      addToCart(product);
+      setQuickScan('');
+      setSearch('');
+      setSearchSelectedIndex(-1);
+      silentToast.success(`${product.name} adicionado`);
+      focusQuickScan();
+      return true;
+    }
+
+    const ticket = findServiceTicket(normalized);
+    if (ticket) {
+      const loaded = loadServiceTicketToCart(normalized);
+      setQuickScan('');
+      focusQuickScan();
+      return loaded;
+    }
+
+    silentToast.error('Codigo nao encontrado no produto ou na comanda');
+    setQuickScan('');
+    focusQuickScan();
+    return false;
+  };
+
+  useEffect(() => {
+    if (!cashierMode) return;
+    if (
+      showCheckout
+      || showReceipt
+      || showSalesSearch
+      || showCancelledSales
+      || showCashOut
+      || showCloseCashReceipt
+      || showOpenCashDialog
+      || Boolean(saleToCancel)
+      || Boolean(cartItemPendingPriceEdit)
+      || showFinalizeConfirm
+      || showCreditInstallmentsDialog
+    ) {
+      return;
+    }
+
+    focusQuickScan();
+  }, [
+    cashierMode,
+    cartItemPendingPriceEdit,
+    focusQuickScan,
+    saleToCancel,
+    showCancelledSales,
+    showCashOut,
+    showCheckout,
+    showCloseCashReceipt,
+    showCreditInstallmentsDialog,
+    showFinalizeConfirm,
+    showOpenCashDialog,
+    showReceipt,
+    showSalesSearch,
+  ]);
+
   const moveSearchSelection = (backward = false) => {
     if (filtered.length === 0) return;
 
@@ -1959,6 +2089,17 @@ export default function PDV() {
     setSelectedRewardId('');
     setShowFinalizeConfirm(false);
     setShowCheckout(true);
+  };
+
+  const openCheckoutWithPayment = (method: string) => {
+    if (!showCheckout) {
+      if (!cashSession) { silentToast.error('Abra o caixa antes de vender'); return; }
+      if (cart.length === 0) { silentToast.error('Carrinho vazio'); return; }
+      if (!validateCartStock()) return;
+      openCheckout();
+    }
+
+    handlePaymentMethodChange(method);
   };
 
   const requestFinalizeConfirmation = () => {
@@ -2678,9 +2819,15 @@ export default function PDV() {
       if (event.defaultPrevented) return;
       if (event.ctrlKey || event.altKey || event.metaKey) return;
 
+      if (event.key === 'F11') {
+        event.preventDefault();
+        toggleCashierMode();
+        return;
+      }
+
       if (event.key === 'F1') {
         event.preventDefault();
-        navigate('/');
+        focusQuickScan();
         return;
       }
 
@@ -2763,6 +2910,42 @@ export default function PDV() {
           return;
         }
 
+        if (event.key === 'F3') {
+          event.preventDefault();
+          handlePaymentMethodChange('dinheiro');
+          return;
+        }
+
+        if (event.key === 'F4') {
+          event.preventDefault();
+          handlePaymentMethodChange('pix');
+          return;
+        }
+
+        if (event.key === 'F5') {
+          event.preventDefault();
+          handlePaymentMethodChange('cartao_debito');
+          return;
+        }
+
+        if (event.key === 'F6') {
+          event.preventDefault();
+          handlePaymentMethodChange('cartao_credito');
+          return;
+        }
+
+        if (event.key === 'F7') {
+          event.preventDefault();
+          handlePaymentMethodChange('fiado');
+          return;
+        }
+
+        if (event.key === 'F9') {
+          event.preventDefault();
+          requestFinalizeConfirmation();
+          return;
+        }
+
         if (!isEditableTarget(event.target)) {
           if (event.key === '1') {
             event.preventDefault();
@@ -2805,6 +2988,21 @@ export default function PDV() {
 
       if (showSalesSearch || showCancelledSales || showCashOut || showCloseCashReceipt || showOpenCashDialog || saleToCancel) return;
 
+      if (cashierMode && !isEditableTarget(event.target)) {
+        if (/^[0-9]$/.test(event.key)) {
+          event.preventDefault();
+          setQuickScan(current => `${current}${event.key}`);
+          focusQuickScan();
+          return;
+        }
+
+        if (event.key === 'Enter' && quickScan.trim()) {
+          event.preventDefault();
+          handleQuickScanSubmit(quickScan);
+          return;
+        }
+      }
+
       if (event.key === 'Tab' && !isEditableTarget(event.target) && filtered.length > 0) {
         event.preventDefault();
         moveSearchSelection(event.shiftKey);
@@ -2839,7 +3037,67 @@ export default function PDV() {
         return;
       }
 
-      if (!isEditableTarget(event.target)) {
+      if (event.key === 'F2') {
+        event.preventDefault();
+        openCheckout();
+        return;
+      }
+
+      if (event.key === 'F3') {
+        event.preventDefault();
+        openCheckoutWithPayment('dinheiro');
+        return;
+      }
+
+      if (event.key === 'F4') {
+        event.preventDefault();
+        openCheckoutWithPayment('pix');
+        return;
+      }
+
+      if (event.key === 'F5') {
+        event.preventDefault();
+        openCheckoutWithPayment('cartao_debito');
+        return;
+      }
+
+      if (event.key === 'F6') {
+        event.preventDefault();
+        openCheckoutWithPayment('cartao_credito');
+        return;
+      }
+
+      if (event.key === 'F7') {
+        event.preventDefault();
+        openCheckoutWithPayment('fiado');
+        return;
+      }
+
+      if (event.key === 'F8') {
+        event.preventDefault();
+        startCartPriceSelection();
+        return;
+      }
+
+      if (event.key === 'F9') {
+        event.preventDefault();
+        requestFinalizeConfirmation();
+        return;
+      }
+
+      if (event.key === 'F10') {
+        event.preventDefault();
+        requestCloseCash();
+        return;
+      }
+
+      if (event.key === 'F12') {
+        event.preventDefault();
+        setShowSalesSearch(true);
+        return;
+      }
+
+      if (!cashierMode && !isEditableTarget(event.target)) {
         if (event.key === '1') {
           event.preventDefault();
           navigate('/');
@@ -2894,29 +3152,6 @@ export default function PDV() {
           return;
         }
       }
-
-      if (event.key === 'F2') {
-        event.preventDefault();
-        openCheckout();
-        return;
-      }
-
-      if (event.key === 'F3') {
-        event.preventDefault();
-        openCheckout();
-        return;
-      }
-
-      if (event.key === 'F4') {
-        event.preventDefault();
-        openCheckout();
-        return;
-      }
-
-      if (event.key === 'F5') {
-        event.preventDefault();
-        openCheckout();
-      }
     };
 
     window.addEventListener('keydown', handleKeyDown);
@@ -2924,10 +3159,15 @@ export default function PDV() {
     // The keyboard handler intentionally tracks the current PDV render state.
     // Memoizing every command here makes this already-large component harder to audit.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeProducts, filtered, search, cart, cartKeyboardSelectionIndex, cartItemPendingPriceEdit, discount, paymentMethod, cashReceived, selectedClientId, total, change, canFinalizeCheckout, showCheckout, showFinalizeConfirm, showCreditInstallmentsDialog, showReceipt, showSalesSearch, showCancelledSales, showCashOut, showCloseCashReceipt, showOpenCashDialog, saleToCancel, navigate, isAdmin, creditInstallments, pendingCreditInstallments]);
+  }, [activeProducts, filtered, search, quickScan, cart, cartKeyboardSelectionIndex, cartItemPendingPriceEdit, discount, paymentMethod, cashReceived, selectedClientId, total, change, canFinalizeCheckout, cashierMode, showCheckout, showFinalizeConfirm, showCreditInstallmentsDialog, showReceipt, showSalesSearch, showCancelledSales, showCashOut, showCloseCashReceipt, showOpenCashDialog, saleToCancel, navigate, isAdmin, creditInstallments, pendingCreditInstallments]);
 
   return (
-    <div className="flex h-full min-h-0 flex-col gap-3 overflow-hidden sm:gap-4 lg:flex-row" data-tour-id="pdv-root">
+    <div
+      className={`flex min-h-0 flex-col gap-3 overflow-hidden sm:gap-4 lg:flex-row ${
+        cashierMode ? 'fixed inset-0 z-50 h-screen bg-background p-3 sm:p-4' : 'h-full'
+      }`}
+      data-tour-id="pdv-root"
+    >
       <div className="shrink-0 lg:hidden">
         <Card className="border-border/50">
           <CardContent className="space-y-3 p-3">
@@ -2978,13 +3218,63 @@ export default function PDV() {
             </p>
           </div>
           <div className="flex flex-wrap justify-end gap-2" data-tour-id="pdv-actions">
-            <Button variant="outline" size="sm" onClick={() => navigate('/')}>Menu (1)</Button>
-            <Button variant="outline" size="sm" onClick={() => setShowSalesSearch(true)}><History className="h-4 w-4 mr-1" />Buscar vendas (2)</Button>
-            <Button variant="outline" size="sm" onClick={() => setShowCashOut(true)}><Wallet className="h-4 w-4 mr-1" />Saída de caixa (3)</Button>
+            <Button variant="outline" size="sm" onClick={() => navigate('/')}>Menu</Button>
+            <Button variant="outline" size="sm" onClick={() => setShowSalesSearch(true)}><History className="h-4 w-4 mr-1" />Buscar vendas (F12)</Button>
+            <Button variant="outline" size="sm" onClick={() => setShowCashOut(true)}><Wallet className="h-4 w-4 mr-1" />Saída de caixa</Button>
+            <Button variant={cashierMode ? 'default' : 'outline'} size="sm" onClick={toggleCashierMode}>
+              {cashierMode ? <Minimize2 className="h-4 w-4 mr-1" /> : <Maximize2 className="h-4 w-4 mr-1" />}
+              {cashierMode ? 'Sair tela cheia' : 'Tela cheia'} (F11)
+            </Button>
             <span className="inline-flex items-center rounded border border-border px-2.5 py-1 text-sm font-semibold">
               Caixa: {cashSession ? formatMoney(currentCashBalance) : 'fechado'}
             </span>
-            <Button variant="destructive" size="sm" onClick={requestCloseCash} disabled={!cashSession}>Fechar caixa (5)</Button>
+            <Button variant="destructive" size="sm" onClick={requestCloseCash} disabled={!cashSession}>Fechar caixa (F10)</Button>
+          </div>
+        </div>
+        <div
+          className={`mb-3 shrink-0 rounded-lg border p-3 ${
+            cashierMode
+              ? 'border-primary/40 bg-primary/5'
+              : 'border-border bg-background/80'
+          }`}
+          data-tour-id="pdv-quick-scan"
+        >
+          <div className="grid gap-2 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
+            <div className="space-y-1">
+              <Label>Leitura rápida do caixa</Label>
+              <div className="relative">
+                <Barcode className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  ref={quickScanInputRef}
+                  className="h-12 pl-10 text-lg font-semibold tracking-normal"
+                  value={quickScan}
+                  onChange={event => setQuickScan(toProductUppercase(event.target.value))}
+                  onKeyDown={event => {
+                    if (event.key === 'Enter') {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      handleQuickScanSubmit(quickScan);
+                    }
+                  }}
+                  placeholder="Bipe produto, QR ou numero da comanda"
+                />
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button type="button" variant="outline" onClick={focusQuickScan}>
+                F1 Bip
+              </Button>
+              <Button type="button" variant="outline" onClick={() => setQuickScan('')} disabled={!quickScan}>
+                Limpar
+              </Button>
+            </div>
+          </div>
+          <div className="mt-3 flex flex-wrap gap-1.5 text-[11px] font-medium text-muted-foreground">
+            {['F2 Finalizar', 'F3 Dinheiro', 'F4 Pix', 'F5 Debito', 'F6 Credito', 'F7 Fiado', 'F8 Preco', 'F9 Confirmar', 'F10 Fechar', 'F11 Tela cheia'].map(shortcut => (
+              <span key={shortcut} className="rounded border border-border bg-background px-2 py-1">
+                {shortcut}
+              </span>
+            ))}
           </div>
         </div>
         <div className="mb-3 shrink-0 rounded-lg border border-border bg-background/80 p-3" data-tour-id="pdv-ticket-lookup">
@@ -3114,7 +3404,7 @@ export default function PDV() {
               Carrinho ({cart.length})
               {activeServiceTicket && <Badge variant="secondary">Comanda {activeServiceTicket.number}</Badge>}
               <span className="text-xs font-medium text-muted-foreground">Esc zera</span>
-              <span className="text-xs font-medium text-destructive">8 preço • Tab navega</span>
+              <span className="text-xs font-medium text-destructive">F8 preço • Tab navega</span>
             </CardTitle>
           </CardHeader>
           <CardContent className="flex min-h-0 flex-1 flex-col gap-3 p-4 pt-0">
@@ -3177,7 +3467,7 @@ export default function PDV() {
             </div>
 
             <Button type="button" onClick={() => openCheckout()} className="h-11 w-full shrink-0 text-base" disabled={cart.length === 0 || isFinalizingSale} data-tour-id="pdv-checkout">
-              <Receipt className="h-5 w-5 mr-2" />Finalizar Venda (4)
+              <Receipt className="h-5 w-5 mr-2" />Finalizar Venda (F2)
             </Button>
             <Button type="button" variant="outline" className="h-10 w-full shrink-0 lg:hidden" onClick={() => setMobilePanel('products')}>
               Voltar para produtos
@@ -3331,11 +3621,11 @@ export default function PDV() {
               <div className="space-y-2">
                 <Label className="text-sm">Pagamento</Label>
                 <div className="grid grid-cols-2 gap-2">
-                  <Button type="button" variant={paymentMethod === 'dinheiro' ? 'default' : 'outline'} onClick={() => handlePaymentMethodChange('dinheiro')}>[1] Dinheiro</Button>
-                  <Button type="button" variant={paymentMethod === 'pix' ? 'default' : 'outline'} onClick={() => handlePaymentMethodChange('pix')}>[2] Pix</Button>
-                  <Button type="button" variant={paymentMethod === 'fiado' ? 'default' : 'outline'} onClick={() => handlePaymentMethodChange('fiado')}>[3] Fiado</Button>
-                  <Button type="button" variant={paymentMethod === 'cartao_debito' ? 'default' : 'outline'} onClick={() => handlePaymentMethodChange('cartao_debito')}>[4] Débito</Button>
-                  <Button type="button" className="col-span-2" variant={paymentMethod === 'cartao_credito' ? 'default' : 'outline'} onClick={() => handlePaymentMethodChange('cartao_credito')}>[5] Crédito</Button>
+                  <Button type="button" variant={paymentMethod === 'dinheiro' ? 'default' : 'outline'} onClick={() => handlePaymentMethodChange('dinheiro')}>[1/F3] Dinheiro</Button>
+                  <Button type="button" variant={paymentMethod === 'pix' ? 'default' : 'outline'} onClick={() => handlePaymentMethodChange('pix')}>[2/F4] Pix</Button>
+                  <Button type="button" variant={paymentMethod === 'fiado' ? 'default' : 'outline'} onClick={() => handlePaymentMethodChange('fiado')}>[3/F7] Fiado</Button>
+                  <Button type="button" variant={paymentMethod === 'cartao_debito' ? 'default' : 'outline'} onClick={() => handlePaymentMethodChange('cartao_debito')}>[4/F5] Débito</Button>
+                  <Button type="button" className="col-span-2" variant={paymentMethod === 'cartao_credito' ? 'default' : 'outline'} onClick={() => handlePaymentMethodChange('cartao_credito')}>[5/F6] Crédito</Button>
                 </div>
               </div>
 
@@ -3459,7 +3749,7 @@ export default function PDV() {
                 </div>
               )}
 
-              <p className="pb-1 text-xs text-muted-foreground">Enter pede confirmação para finalizar.</p>
+              <p className="pb-1 text-xs text-muted-foreground">Enter ou F9 pede confirmação para finalizar.</p>
             </div>
           </div>
           <DialogFooter className="gap-2 border-t border-border bg-background pt-3 sm:pt-4 lg:bg-transparent">

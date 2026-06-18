@@ -656,6 +656,11 @@ export default function AdminDashboard() {
     return isWithinInterval(date, { start: monthStart, end: monthEnd }) && a.status === 'completed';
   });
 
+  const monthlyCancelledAppointments = appointments.filter(a => {
+    const date = parseLocalDate(a.appointment_date);
+    return isWithinInterval(date, { start: monthStart, end: monthEnd }) && a.status === 'cancelled';
+  });
+
   // Faturamento semanal: apenas concluídos (incluindo serviços extras)
   const weeklyCompletedAppointments = appointments.filter(a => {
     const date = parseLocalDate(a.appointment_date);
@@ -669,6 +674,32 @@ export default function AdminDashboard() {
   const todayAppointments = appointments.filter(
     a => a.appointment_date === format(today, 'yyyy-MM-dd') && a.status === 'scheduled'
   );
+
+  const todayStr = format(today, 'yyyy-MM-dd');
+  const monthlyTotalAppointmentsWithCancelled = monthlyAppointments.length + monthlyCancelledAppointments.length;
+  const monthlyAverageTicket = monthlyCompletedAppointments.length > 0
+    ? monthlyRevenue / monthlyCompletedAppointments.length
+    : 0;
+  const monthlyCancellationRate = monthlyTotalAppointmentsWithCancelled > 0
+    ? (monthlyCancelledAppointments.length / monthlyTotalAppointmentsWithCancelled) * 100
+    : 0;
+  const pendingPixAppointments = appointments
+    .filter(a => a.status === 'scheduled' && a.payment_method === 'pix' && a.payment_status === 'pending')
+    .sort((a, b) => {
+      if (a.appointment_date !== b.appointment_date) return a.appointment_date.localeCompare(b.appointment_date);
+      return a.appointment_time.localeCompare(b.appointment_time);
+    });
+  const lowStockAgendaProducts = products
+    .filter(product => product.is_active && product.stock_quantity <= 3)
+    .sort((a, b) => a.stock_quantity - b.stock_quantity)
+    .slice(0, 5);
+  const upcomingScheduledAppointments = appointments
+    .filter(a => a.status === 'scheduled' && a.appointment_date >= todayStr)
+    .sort((a, b) => {
+      if (a.appointment_date !== b.appointment_date) return a.appointment_date.localeCompare(b.appointment_date);
+      return a.appointment_time.localeCompare(b.appointment_time);
+    })
+    .slice(0, 5);
 
   // Dados para gráficos
   const getLast7DaysData = () => {
@@ -1349,10 +1380,149 @@ export default function AdminDashboard() {
                     </div>
                   </CardContent>
                 </Card>
-              </div>
+                </div>
 
-              {/* Charts - Responsivo */}
-              <div className="grid lg:grid-cols-2 gap-4 mb-6">
+                <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+                  <Card>
+                    <CardContent className="pt-6">
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <p className="text-sm text-muted-foreground">Ticket Médio</p>
+                          <p className="text-2xl font-bold">R$ {monthlyAverageTicket.toFixed(0)}</p>
+                          <p className="text-xs text-muted-foreground">serviços concluídos</p>
+                        </div>
+                        <div className="p-3 bg-emerald-500/10 rounded-full">
+                          <DollarSign className="w-6 h-6 text-emerald-500" />
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardContent className="pt-6">
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <p className="text-sm text-muted-foreground">Cancelamento</p>
+                          <p className="text-2xl font-bold">{monthlyCancellationRate.toFixed(0)}%</p>
+                          <p className="text-xs text-muted-foreground">{monthlyCancelledAppointments.length} no mês</p>
+                        </div>
+                        <div className="p-3 bg-destructive/10 rounded-full">
+                          <XCircle className="w-6 h-6 text-destructive" />
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardContent className="pt-6">
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <p className="text-sm text-muted-foreground">Pix Pendente</p>
+                          <p className="text-2xl font-bold">{pendingPixAppointments.length}</p>
+                          <p className="text-xs text-muted-foreground">aguardando conferência</p>
+                        </div>
+                        <div className="p-3 bg-amber-500/10 rounded-full">
+                          <AlertCircle className="w-6 h-6 text-amber-500" />
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardContent className="pt-6">
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <p className="text-sm text-muted-foreground">Estoque Baixo</p>
+                          <p className="text-2xl font-bold">{lowStockAgendaProducts.length}</p>
+                          <p className="text-xs text-muted-foreground">produtos com 3 ou menos</p>
+                        </div>
+                        <div className="p-3 bg-blue-500/10 rounded-full">
+                          <Package className="w-6 h-6 text-blue-500" />
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                <div className="grid lg:grid-cols-3 gap-4 mb-6">
+                  <Card>
+                    <CardHeader className="pb-2 p-3 sm:p-4">
+                      <CardTitle className="font-serif text-sm sm:text-base">Pix para Conferir</CardTitle>
+                      <CardDescription className="text-xs">Agendamentos que ainda aguardam confirmação</CardDescription>
+                    </CardHeader>
+                    <CardContent className="p-3 sm:p-4 pt-0 sm:pt-0">
+                      {pendingPixAppointments.length === 0 ? (
+                        <p className="text-sm text-muted-foreground">Nenhum Pix pendente.</p>
+                      ) : (
+                        <div className="space-y-2">
+                          {pendingPixAppointments.slice(0, 4).map((apt) => (
+                            <div key={apt.id} className="flex items-center justify-between gap-3 rounded-lg border border-border p-2 text-sm">
+                              <div className="min-w-0">
+                                <p className="truncate font-medium">{apt.client_name}</p>
+                                <p className="text-xs text-muted-foreground">
+                                  {format(parseLocalDate(apt.appointment_date), "dd/MM", { locale: ptBR })} {apt.appointment_time.slice(0, 5)} • R$ {getAppointmentTotalPrice(apt).toFixed(2)}
+                                </p>
+                              </div>
+                              <Button size="sm" variant="outline" onClick={() => confirmAppointmentPayment(apt.id)}>
+                                Confirmar
+                              </Button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader className="pb-2 p-3 sm:p-4">
+                      <CardTitle className="font-serif text-sm sm:text-base">Estoque Baixo</CardTitle>
+                      <CardDescription className="text-xs">Produtos que merecem reposição</CardDescription>
+                    </CardHeader>
+                    <CardContent className="p-3 sm:p-4 pt-0 sm:pt-0">
+                      {lowStockAgendaProducts.length === 0 ? (
+                        <p className="text-sm text-muted-foreground">Nenhum produto crítico.</p>
+                      ) : (
+                        <div className="space-y-2">
+                          {lowStockAgendaProducts.map((product) => (
+                            <div key={product.id} className="flex items-center justify-between gap-3 text-sm">
+                              <span className="truncate">{product.name}</span>
+                              <span className="shrink-0 font-medium text-destructive">Estoque {product.stock_quantity}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader className="pb-2 p-3 sm:p-4">
+                      <CardTitle className="font-serif text-sm sm:text-base">Próximos Horários</CardTitle>
+                      <CardDescription className="text-xs">Fila de atendimento por ordem de horário</CardDescription>
+                    </CardHeader>
+                    <CardContent className="p-3 sm:p-4 pt-0 sm:pt-0">
+                      {upcomingScheduledAppointments.length === 0 ? (
+                        <p className="text-sm text-muted-foreground">Sem horários futuros.</p>
+                      ) : (
+                        <div className="space-y-2">
+                          {upcomingScheduledAppointments.map((apt) => (
+                            <div key={apt.id} className="flex items-center justify-between gap-3 text-sm">
+                              <div className="min-w-0">
+                                <p className="truncate font-medium">{apt.client_name}</p>
+                                <p className="text-xs text-muted-foreground">{apt.service?.name}</p>
+                              </div>
+                              <span className="shrink-0 text-xs text-muted-foreground">
+                                {apt.appointment_date === todayStr ? 'Hoje' : format(parseLocalDate(apt.appointment_date), "dd/MM", { locale: ptBR })} {apt.appointment_time.slice(0, 5)}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                </div>
+
+                {/* Charts - Responsivo */}
+                <div className="grid lg:grid-cols-2 gap-4 mb-6">
                 {/* Weekly Chart */}
                 <Card className="overflow-hidden">
                   <CardHeader className="pb-2 p-3 sm:p-4">

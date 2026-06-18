@@ -206,6 +206,19 @@ export function AppLayout({ children }: { children: ReactNode }) {
     });
   }, []);
 
+  const scrollSidebarNav = useCallback((direction: 'up' | 'down') => {
+    const nav = navRef.current;
+    if (!nav) return;
+
+    const distance = Math.max(120, Math.round(nav.clientHeight * 0.55));
+    nav.scrollBy({
+      top: direction === 'up' ? -distance : distance,
+      behavior: 'smooth',
+    });
+
+    window.setTimeout(updateScrollHints, 260);
+  }, [updateScrollHints]);
+
   useEffect(() => {
     const isEditableTarget = (target: EventTarget | null) => {
       const element = target as HTMLElement | null;
@@ -522,9 +535,15 @@ export function AppLayout({ children }: { children: ReactNode }) {
         <div className="relative min-h-0 flex-1">
           {scrollHints.top && (
             <div className="pointer-events-none absolute inset-x-4 top-0 z-10 flex justify-center bg-gradient-to-b from-card via-card/85 to-transparent pb-4 pt-2">
-              <div className="rounded-full border border-border/70 bg-background/80 p-1.5 text-muted-foreground shadow-lg backdrop-blur-sm animate-[floatHint_1.7s_ease-in-out_infinite]">
+              <button
+                type="button"
+                aria-label="Rolar menu para cima"
+                title="Rolar menu para cima"
+                className="pointer-events-auto rounded-full border border-border/70 bg-background/90 p-1.5 text-muted-foreground shadow-lg backdrop-blur-sm transition-colors animate-[floatHint_1.7s_ease-in-out_infinite] hover:border-primary/60 hover:text-foreground focus:outline-none focus:ring-2 focus:ring-primary/60"
+                onClick={() => scrollSidebarNav('up')}
+              >
                 <ChevronUp className="h-4 w-4" />
-              </div>
+              </button>
             </div>
           )}
           <nav ref={navRef} className="no-scrollbar min-h-0 h-full overflow-y-auto p-4 space-y-1">
@@ -547,9 +566,15 @@ export function AppLayout({ children }: { children: ReactNode }) {
           </nav>
           {scrollHints.bottom && (
             <div className="pointer-events-none absolute inset-x-4 bottom-0 z-10 flex justify-center bg-gradient-to-t from-card via-card/85 to-transparent pb-2 pt-4">
-              <div className="rounded-full border border-border/70 bg-background/80 p-1.5 text-muted-foreground shadow-lg backdrop-blur-sm animate-[floatHint_1.7s_ease-in-out_infinite]">
+              <button
+                type="button"
+                aria-label="Rolar menu para baixo"
+                title="Rolar menu para baixo"
+                className="pointer-events-auto rounded-full border border-border/70 bg-background/90 p-1.5 text-muted-foreground shadow-lg backdrop-blur-sm transition-colors animate-[floatHint_1.7s_ease-in-out_infinite] hover:border-primary/60 hover:text-foreground focus:outline-none focus:ring-2 focus:ring-primary/60"
+                onClick={() => scrollSidebarNav('down')}
+              >
                 <ChevronDown className="h-4 w-4" />
-              </div>
+              </button>
             </div>
           )}
         </div>
