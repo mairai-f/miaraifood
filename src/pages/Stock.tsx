@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useData } from '@/contexts/DataContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
@@ -13,6 +14,7 @@ import { toast } from 'sonner';
 import { formatDateTime } from '../../shared/locale/format';
 import { getRedactedLogValue } from '../../shared/security/redaction';
 import { filterProductsBySearch, toProductUppercase } from '@/lib/productSearch';
+import { buildLowStockPurchaseSuggestion, type PurchaseSuggestion } from '@/lib/managementInsights';
 
 export default function Stock() {
   const { products, stockMovements, addStockMovement, clearAllStock } = useData();
@@ -28,7 +30,19 @@ export default function Stock() {
   const activeProducts = products.filter(p => !p.deleted);
   const filtered = filterProductsBySearch(activeProducts, search);
   const lowStock = activeProducts.filter(p => p.stock <= p.min_stock && p.min_stock > 0);
+  const purchaseSuggestions = activeProducts
+    .map(buildLowStockPurchaseSuggestion)
+    .filter((suggestion): suggestion is PurchaseSuggestion => Boolean(suggestion))
+    .sort((left, right) => (left.severity === right.severity ? right.suggestedQuantity - left.suggestedQuantity : left.severity === 'critical' ? -1 : 1));
   const hasStockToClear = activeProducts.some(product => product.stock > 0);
+
+  const openPurchaseMovement = (suggestion: PurchaseSuggestion) => {
+    setSelectedProduct(suggestion.productId);
+    setMovType('entrada');
+    setQty(String(suggestion.suggestedQuantity));
+    setReason(`Compra fornecedor - ${suggestion.supplierName}`);
+    setOpen(true);
+  };
 
   const handleSave = async () => {
     if (!selectedProduct || !qty) { toast.error('Preencha produto e quantidade'); return; }
@@ -129,6 +143,39 @@ export default function Stock() {
         </Card>
       )}
 
+      {purchaseSuggestions.length > 0 && (
+        <Card className="border-amber-500/40 bg-amber-500/5">
+          <CardHeader className="pb-2 px-4 pt-3">
+            <CardTitle className="text-sm flex items-center gap-2 text-amber-600">
+              <Package className="h-4 w-4" />
+              Sugestão de compra
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="px-4 pb-3">
+            <div className="grid gap-2 md:grid-cols-2">
+              {purchaseSuggestions.slice(0, 8).map((suggestion) => (
+                <div key={suggestion.productId} className="flex items-center justify-between gap-3 rounded-md border bg-background/80 p-3">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <p className="truncate text-sm font-semibold">{suggestion.productName}</p>
+                      <Badge variant={suggestion.severity === 'critical' ? 'destructive' : 'secondary'} className="shrink-0">
+                        {suggestion.severity === 'critical' ? 'Zerado' : 'Baixo'}
+                      </Badge>
+                    </div>
+                    <p className="mt-1 truncate text-xs text-muted-foreground">
+                      Atual {suggestion.currentStock} / mín. {suggestion.minStock} · {suggestion.supplierName}
+                    </p>
+                  </div>
+                  <Button size="sm" variant="outline" className="shrink-0" onClick={() => openPurchaseMovement(suggestion)}>
+                    +{suggestion.suggestedQuantity}
+                  </Button>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       <div className="relative" data-tour-id="stock-search">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         <Input className="pl-10" placeholder="Buscar produto..." value={search} onChange={e => setSearch(toProductUppercase(e.target.value))} />
@@ -147,6 +194,7 @@ export default function Stock() {
                   <p className="text-primary font-bold text-sm">R$ {p.price.toFixed(2)}</p>
                 </div>
               </div>
+              {p.supplier_name && <p className="mb-2 truncate text-xs text-muted-foreground">Fornecedor: {p.supplier_name}</p>}
               <div className="flex justify-between text-xs">
                 <span className={p.stock <= p.min_stock && p.min_stock > 0 ? 'text-destructive font-bold' : 'text-muted-foreground'}>
                   <Package className="h-3 w-3 inline mr-1" />Estoque: {p.stock}

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, Barcode, Boxes, CalendarClock, CheckCircle2, ClipboardCheck, FileDown, Loader2, PackagePlus, Percent, Plus, RefreshCw, ShieldCheck, TrendingUp, WalletCards } from 'lucide-react';
+import { AlertTriangle, Barcode, Boxes, CalendarClock, CheckCircle2, ClipboardCheck, FileDown, Loader2, PackagePlus, Percent, Plus, RefreshCw, ShieldCheck, TrendingUp, Truck, WalletCards } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -86,6 +86,7 @@ export default function Operations() {
     stockMovements,
     expenses,
     updateProduct,
+    addStockMovement,
     offlinePreparationStatus,
     offlinePreparationMessage,
     offlineSnapshotUpdatedAt,
@@ -194,6 +195,56 @@ export default function Operations() {
 
   const selectedPurchaseProduct = activeProducts.find((product) => product.id === purchaseForm.product_id);
   const selectedLabelProduct = activeProducts.find((product) => product.id === labelForm.product_id);
+  const supplierSummaries = useMemo(() => {
+    const summaries = new Map<string, {
+      name: string;
+      productsCount: number;
+      lowStockCount: number;
+      stockValue: number;
+      purchaseCount: number;
+      purchaseTotal: number;
+      lastPurchaseDate: string | null;
+    }>();
+
+    const ensureSupplier = (name: string) => {
+      const normalizedName = name.trim() || 'Fornecedor nao informado';
+      const key = normalizedName.toLocaleUpperCase('pt-BR');
+      const current = summaries.get(key);
+      if (current) return current;
+
+      const next = {
+        name: normalizedName,
+        productsCount: 0,
+        lowStockCount: 0,
+        stockValue: 0,
+        purchaseCount: 0,
+        purchaseTotal: 0,
+        lastPurchaseDate: null,
+      };
+      summaries.set(key, next);
+      return next;
+    };
+
+    activeProducts.forEach((product) => {
+      const supplier = ensureSupplier(product.supplier_name || '');
+      supplier.productsCount += 1;
+      supplier.stockValue += Number(product.stock ?? 0) * Number(product.cost_price ?? product.purchase_cost ?? 0);
+      if (Number(product.min_stock ?? 0) > 0 && Number(product.stock ?? 0) <= Number(product.min_stock ?? 0)) {
+        supplier.lowStockCount += 1;
+      }
+    });
+
+    purchases.forEach((purchase) => {
+      const supplier = ensureSupplier(purchase.supplier_name || '');
+      supplier.purchaseCount += 1;
+      supplier.purchaseTotal += Number(purchase.total_amount ?? 0);
+      if (!supplier.lastPurchaseDate || purchase.purchase_date > supplier.lastPurchaseDate) {
+        supplier.lastPurchaseDate = purchase.purchase_date;
+      }
+    });
+
+    return Array.from(summaries.values()).sort((left, right) => right.purchaseTotal - left.purchaseTotal || left.name.localeCompare(right.name));
+  }, [activeProducts, purchases]);
 
   const onboardingItems = useMemo(() => [
     { label: 'Cadastrar produtos', done: activeProducts.length > 0 },
@@ -341,10 +392,21 @@ export default function Operations() {
     }
 
     if (purchaseForm.receive_stock) {
+      const unitFreight = quantity > 0 ? freight / quantity : 0;
+      const unitTax = quantity > 0 ? tax / quantity : 0;
+
       await updateProduct(selectedPurchaseProduct.id, {
-        stock: Number(selectedPurchaseProduct.stock ?? 0) + quantity,
         purchase_cost: unitCost,
+        freight_cost: unitFreight,
+        tax_cost: unitTax,
+        supplier_name: purchaseForm.supplier_name.trim(),
       });
+      await addStockMovement(
+        selectedPurchaseProduct.id,
+        'entrada',
+        quantity,
+        `Compra${purchaseForm.supplier_name.trim() ? ` - ${purchaseForm.supplier_name.trim()}` : ''}${purchaseForm.invoice_number.trim() ? ` NF ${purchaseForm.invoice_number.trim()}` : ''}`,
+      );
     }
 
     toast.success('Compra registrada.');
@@ -536,8 +598,8 @@ export default function Operations() {
       <div className="grid gap-3 md:grid-cols-4">
         <Card><CardContent className="p-4"><p className="text-xs text-muted-foreground">Compras recentes</p><p className="text-2xl font-bold">{purchases.length}</p></CardContent></Card>
         <Card><CardContent className="p-4"><p className="text-xs text-muted-foreground">Pendente financeiro</p><p className="text-2xl font-bold">{money(pendingAccountsTotal)}</p></CardContent></Card>
+        <Card><CardContent className="p-4"><p className="text-xs text-muted-foreground">Fornecedores ativos</p><p className="text-2xl font-bold">{supplierSummaries.length}</p></CardContent></Card>
         <Card><CardContent className="p-4"><p className="text-xs text-muted-foreground">Promoções ativas</p><p className="text-2xl font-bold">{promotions.filter((item) => item.active).length}</p></CardContent></Card>
-        <Card><CardContent className="p-4"><p className="text-xs text-muted-foreground">Alertas de validade</p><p className="text-2xl font-bold">{expiringBatches.length}</p></CardContent></Card>
       </div>
 
       <div className="grid gap-3 md:grid-cols-4">
@@ -552,6 +614,7 @@ export default function Operations() {
           <TabsTrigger value="implantacao">Implantação</TabsTrigger>
           <TabsTrigger value="indicadores">Indicadores</TabsTrigger>
           <TabsTrigger value="compras">Compras</TabsTrigger>
+          <TabsTrigger value="fornecedores">Fornecedores</TabsTrigger>
           <TabsTrigger value="contas">Contas</TabsTrigger>
           <TabsTrigger value="etiquetas">Etiquetas</TabsTrigger>
           <TabsTrigger value="promocoes">Promoções</TabsTrigger>
@@ -612,6 +675,43 @@ export default function Operations() {
                   <TableRow><TableCell>Lucro estimado de hoje</TableCell><TableCell>{money(todayProfitTotal)}</TableCell><TableCell>Itens vendidos com custo</TableCell></TableRow>
                   <TableRow><TableCell>Despesas do mês</TableCell><TableCell>{money(monthExpensesTotal)}</TableCell><TableCell>{currentMonth}</TableCell></TableRow>
                   <TableRow><TableCell>Fiado em aberto</TableCell><TableCell>{money(openFiadoTotal)}</TableCell><TableCell>Dívidas pendentes</TableCell></TableRow>
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="fornecedores">
+          <Card>
+            <CardHeader><CardTitle className="flex items-center gap-2"><Truck className="h-5 w-5" /> Fornecedores</CardTitle></CardHeader>
+            <CardContent>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Fornecedor</TableHead>
+                    <TableHead>Produtos</TableHead>
+                    <TableHead>Estoque baixo</TableHead>
+                    <TableHead>Compras</TableHead>
+                    <TableHead>Total comprado</TableHead>
+                    <TableHead>Última compra</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {supplierSummaries.map((supplier) => (
+                    <TableRow key={supplier.name}>
+                      <TableCell className="font-medium">{supplier.name}</TableCell>
+                      <TableCell>{supplier.productsCount}</TableCell>
+                      <TableCell>
+                        <Badge variant={supplier.lowStockCount > 0 ? 'destructive' : 'outline'}>{supplier.lowStockCount}</Badge>
+                      </TableCell>
+                      <TableCell>{supplier.purchaseCount}</TableCell>
+                      <TableCell>{money(supplier.purchaseTotal)}</TableCell>
+                      <TableCell>{formatDate(supplier.lastPurchaseDate)}</TableCell>
+                    </TableRow>
+                  ))}
+                  {supplierSummaries.length === 0 && (
+                    <TableRow><TableCell colSpan={6} className="text-muted-foreground">Nenhum fornecedor encontrado em produtos ou compras.</TableCell></TableRow>
+                  )}
                 </TableBody>
               </Table>
             </CardContent>

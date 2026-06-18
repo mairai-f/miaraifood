@@ -118,3 +118,18 @@ export function buildPaymentWhatsAppUrl(
 
   return `https://wa.me/${normalizePhone(phone)}?text=${encodeWhatsAppMessage(msg)}`;
 }
+
+export function buildClientCrmWhatsAppUrl(
+  phone: string,
+  clientName: string,
+  balance: number,
+  companyName?: string,
+): string {
+  const storeName = resolveCompanyDisplayName(companyName);
+  const hasBalance = balance > 0.009;
+  const msg = hasBalance
+    ? `Olá ${clientName}! 📋\n\nPassando pela *${storeName}* para lembrar que seu saldo em aberto está em R$ ${balance.toFixed(2)}.\n\nSe puder, chama a gente para combinar o pagamento. Obrigado!`
+    : `Olá ${clientName}! 😊\n\nSentimos sua falta na *${storeName}*.\n\nQuando precisar, estamos por aqui para te atender.`;
+
+  return `https://wa.me/${normalizePhone(phone)}?text=${encodeWhatsAppMessage(msg)}`;
+}

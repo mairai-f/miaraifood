@@ -32,6 +32,7 @@ export default function Products() {
   const [price, setPrice] = useState('');
   const [costPrice, setCostPrice] = useState('');
   const [category, setCategory] = useState('');
+  const [supplierName, setSupplierName] = useState('');
   const [barcode, setBarcode] = useState('');
   const [stock, setStock] = useState('');
   const [minStock, setMinStock] = useState('');
@@ -92,6 +93,7 @@ export default function Products() {
       price: parseDecimalInput(price),
       cost_price: parseDecimalInput(costPrice),
       category: category.trim(),
+      supplier_name: supplierName.trim(),
       barcode: barcode.trim(),
       stock: parseInt(stock) || 0,
       min_stock: parseInt(minStock) || 0,
@@ -161,11 +163,11 @@ export default function Products() {
     resetApprovalState();
   };
 
-  const resetForm = () => { setName(''); setPrice(''); setCostPrice(''); setCategory(''); setBarcode(''); setStock(''); setMinStock(''); setEditId(null); setOpen(false); resetApprovalState(); };
+  const resetForm = () => { setName(''); setPrice(''); setCostPrice(''); setCategory(''); setSupplierName(''); setBarcode(''); setStock(''); setMinStock(''); setEditId(null); setOpen(false); resetApprovalState(); };
 
   const openEdit = (p: Product) => {
     setEditId(p.id); setName(toProductUppercase(p.name)); setPrice(p.price.toString());
-    setCostPrice((p.cost_price || 0).toString()); setCategory(toProductUppercase(p.category));
+    setCostPrice((p.cost_price || 0).toString()); setCategory(toProductUppercase(p.category)); setSupplierName(toProductUppercase(p.supplier_name || ''));
     setBarcode(toProductUppercase(p.barcode || '')); setStock((p.stock || 0).toString()); setMinStock((p.min_stock || 0).toString());
     resetApprovalState();
     setOpen(true);
@@ -225,6 +227,7 @@ export default function Products() {
                 )}
                 <div className="space-y-1"><Label>Código de Barras</Label><Input value={barcode} onChange={e => setBarcode(toProductUppercase(e.target.value))} placeholder="Ex: 7891234567890" /></div>
                 <div className="space-y-1"><Label>Categoria</Label><Input value={category} onChange={e => setCategory(toProductUppercase(e.target.value))} placeholder="Ex: Cerveja, Cigarro" /></div>
+                <div className="space-y-1"><Label>Fornecedor</Label><Input value={supplierName} onChange={e => setSupplierName(toProductUppercase(e.target.value))} placeholder="Ex: Distribuidora Norte" /></div>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1"><Label>Estoque</Label><Input type="number" value={stock} onChange={e => setStock(e.target.value)} placeholder="0" /></div>
                   <div className="space-y-1"><Label>Estoque Mínimo</Label><Input type="number" value={minStock} onChange={e => setMinStock(e.target.value)} placeholder="0" /></div>
@@ -295,8 +298,9 @@ export default function Products() {
                   <div className="flex items-start justify-between mb-2 min-w-0">
                     <div className="min-w-0 mr-2">
                       <h3 className="font-semibold text-sm truncate">{p.name}</h3>
-                      <span className="text-xs text-muted-foreground">{p.code ? `#${p.code}` : 'Sem código'}{p.category ? ` - ${p.category}` : ''}</span>
-                    </div>
+                    <span className="text-xs text-muted-foreground">{p.code ? `#${p.code}` : 'Sem código'}{p.category ? ` - ${p.category}` : ''}</span>
+                    {p.supplier_name && <p className="text-[11px] text-muted-foreground truncate">Fornecedor: {p.supplier_name}</p>}
+                  </div>
                     <span className="text-primary font-bold text-sm whitespace-nowrap">R$ {p.price.toFixed(2)}</span>
                   </div>
                   <div className="flex flex-wrap gap-2 text-[10px] text-muted-foreground mb-2">
@@ -305,6 +309,7 @@ export default function Products() {
                     {p.cost_price > 0 && <span>Margem: {margin.toFixed(1)}%</span>}
                     {p.cost_price > 0 && <span>Lucro un.: R$ {unitProfit.toFixed(2)}</span>}
                     {margin > 0 && margin < LOW_MARGIN_WARNING_PCT && <span className="text-amber-600 font-medium">Margem baixa</span>}
+                    {p.min_stock > 0 && <span>Mín: {p.min_stock}</span>}
                     <span className={p.stock <= p.min_stock && p.min_stock > 0 ? 'text-destructive font-bold' : ''}>Est: {p.stock}</span>
                   </div>
                   {!readOnly && (

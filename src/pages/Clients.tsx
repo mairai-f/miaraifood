@@ -1,30 +1,65 @@
-import { useState } from 'react';
+import { useState, type MouseEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useData } from '@/contexts/DataContext';
 import { Card, CardContent } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
-import { CreditCard, Plus, Search, Phone, DollarSign } from 'lucide-react';
+import { CreditCard, Plus, Search, Phone, DollarSign, MessageCircle, AlertTriangle, Clock3, Star } from 'lucide-react';
 import { toast } from 'sonner';
+import { useCompanyDisplayName } from '@/hooks/use-company-display-name';
 import { getClientUniqueSlug } from '@/lib/clientSlug';
 import { sortClientsByDebt } from '@/lib/clientSorting';
 import { getClientCreditLimit, normalizeCreditLimit } from '@/lib/creditLimit';
+import { buildClientCrmSummary } from '@/lib/managementInsights';
+import { INTERNET_REQUIRED_MESSAGE, isInternetUnavailable, openExternalUrl } from '@/lib/openExternalUrl';
+import { buildClientCrmWhatsAppUrl } from '@/lib/whatsapp';
 import { getRedactedLogValue } from '../../shared/security/redaction';
 
+type ClientFilter = 'all' | 'debtors' | 'oldDebt' | 'inactive' | 'vip';
+
 export default function Clients() {
-  const { clients, addClient, getClientBalance, getClientTotalSpending } = useData();
+  const { clients, debtEntries, payments, sales, addClient, getClientBalance, getClientTotalSpending } = useData();
   const [search, setSearch] = useState('');
+  const [filter, setFilter] = useState<ClientFilter>('all');
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [creditLimit, setCreditLimit] = useState('');
   const [open, setOpen] = useState(false);
   const navigate = useNavigate();
+  const companyDisplayName = useCompanyDisplayName();
 
   const active = clients.filter(c => !c.deleted);
+  const crmByClientId = new Map(active.map(client => [
+    client.id,
+    buildClientCrmSummary({
+      client,
+      debtEntries,
+      payments,
+      sales,
+      balance: getClientBalance(client.id),
+      totalSpending: getClientTotalSpending(client.id),
+    }),
+  ]));
+  const debtorsCount = active.filter(client => getClientBalance(client.id) > 0).length;
+  const oldDebtCount = active.filter(client => crmByClientId.get(client.id)?.hasOldDebt).length;
+  const inactiveCount = active.filter(client => crmByClientId.get(client.id)?.isInactive).length;
+  const vipCount = active.filter(client => crmByClientId.get(client.id)?.tags.includes('VIP')).length;
   const filtered = sortClientsByDebt(
-    active.filter(c => c.name.toLowerCase().includes(search.toLowerCase())),
+    active.filter(c => {
+      const summary = crmByClientId.get(c.id);
+      const matchesSearch = c.name.toLowerCase().includes(search.toLowerCase()) || c.phone.includes(search.replace(/\D/g, ''));
+      const matchesFilter =
+        filter === 'all'
+        || (filter === 'debtors' && getClientBalance(c.id) > 0)
+        || (filter === 'oldDebt' && summary?.hasOldDebt)
+        || (filter === 'inactive' && summary?.isInactive)
+        || (filter === 'vip' && summary?.tags.includes('VIP'));
+
+      return matchesSearch && matchesFilter;
+    }),
     getClientBalance,
     getClientTotalSpending,
   );
@@ -61,6 +96,33 @@ export default function Clients() {
     }
   };
 
+  const handleCrmWhatsApp = (event: MouseEvent, clientId: string) => {
+    event.stopPropagation();
+    const client = active.find(item => item.id === clientId);
+    if (!client?.phone) {
+      toast.error('Cliente sem WhatsApp cadastrado.');
+      return;
+    }
+
+    if (isInternetUnavailable()) {
+      toast.error(INTERNET_REQUIRED_MESSAGE);
+      return;
+    }
+
+    const url = buildClientCrmWhatsAppUrl(client.phone, client.name, getClientBalance(client.id), companyDisplayName);
+    if (!openExternalUrl(url)) {
+      toast.error('Não foi possível abrir o WhatsApp.');
+    }
+  };
+
+  const filterCards = [
+    { key: 'all' as const, label: 'Todos', value: active.length, icon: Search },
+    { key: 'debtors' as const, label: 'Devedores', value: debtorsCount, icon: DollarSign },
+    { key: 'oldDebt' as const, label: 'Fiado antigo', value: oldDebtCount, icon: AlertTriangle },
+    { key: 'inactive' as const, label: 'Inativos', value: inactiveCount, icon: Clock3 },
+    { key: 'vip' as const, label: 'VIP', value: vipCount, icon: Star },
+  ];
+
   return (
     <div>
       <div className="page-header flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between" data-tour-id="clients-header">
@@ -92,6 +154,23 @@ export default function Clients() {
         </Dialog>
       </div>
 
+      <div className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-5">
+        {filterCards.map(item => (
+          <button
+            key={item.key}
+            type="button"
+            onClick={() => setFilter(item.key)}
+            className={`rounded-lg border p-3 text-left transition-colors hover:bg-accent ${filter === item.key ? 'border-primary bg-primary/10' : 'border-border/50'}`}
+          >
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-xs text-muted-foreground">{item.label}</span>
+              <item.icon className="h-4 w-4 text-primary" />
+            </div>
+            <p className="mt-1 text-xl font-bold">{item.value}</p>
+          </button>
+        ))}
+      </div>
+
       <div className="relative mb-6" data-tour-id="clients-search">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         <Input className="pl-10" placeholder="Buscar cliente..." value={search} onChange={e => setSearch(e.target.value)} />
@@ -101,6 +180,7 @@ export default function Clients() {
         {filtered.map(c => {
           const balance = getClientBalance(c.id);
           const clientCreditLimit = getClientCreditLimit(c);
+          const crm = crmByClientId.get(c.id);
           return (
             <div
               key={c.id}
@@ -109,7 +189,21 @@ export default function Clients() {
             >
               <Card className="border-border/50 h-full">
                 <CardContent className="client-card card-tight h-full rounded-lg border border-transparent transition-colors">
-                  <h3 className="mb-2 break-words text-lg font-semibold leading-tight">{c.name}</h3>
+                  <div className="mb-2 flex items-start justify-between gap-2">
+                    <h3 className="break-words text-lg font-semibold leading-tight">{c.name}</h3>
+                    {c.phone && (
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="ghost"
+                        className="h-8 w-8 shrink-0"
+                        title="Chamar no WhatsApp"
+                        onClick={(event) => handleCrmWhatsApp(event, c.id)}
+                      >
+                        <MessageCircle className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </div>
                   {c.phone && <p className="meta-text flex items-center gap-1"><Phone className="h-3 w-3 shrink-0" /><span className="truncate">{c.phone}</span></p>}
                   <div className="mt-3 flex items-center gap-1">
                     <DollarSign className="h-4 w-4 shrink-0" />
@@ -119,6 +213,24 @@ export default function Clients() {
                     <p className="meta-text mt-2 flex items-center gap-1">
                       <CreditCard className="h-3 w-3 shrink-0" />
                       <span>Limite: R$ {clientCreditLimit.toFixed(2)}</span>
+                    </p>
+                  )}
+                  {crm && (
+                    <div className="mt-3 flex flex-wrap gap-1.5">
+                      {crm.tags.slice(0, 4).map(tag => (
+                        <Badge
+                          key={tag}
+                          variant={tag === 'Fiado antigo' || tag === 'Devedor' ? 'destructive' : tag === 'VIP' ? 'default' : 'secondary'}
+                          className="text-[10px]"
+                        >
+                          {tag}
+                        </Badge>
+                      ))}
+                    </div>
+                  )}
+                  {crm?.lastActivityAt && (
+                    <p className="mt-2 text-xs text-muted-foreground">
+                      Ultimo movimento: {crm.daysInactive === 0 ? 'hoje' : `${crm.daysInactive}d atrás`}
                     </p>
                   )}
                 </CardContent>

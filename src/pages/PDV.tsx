@@ -291,13 +291,11 @@ export default function PDV() {
   const searchInputRef = useRef<HTMLInputElement>(null);
   const cashReceivedInputRef = useRef<HTMLInputElement>(null);
   const ticketLookupInputRef = useRef<HTMLInputElement>(null);
-  const quickScanInputRef = useRef<HTMLInputElement>(null);
   const finalizeLockRef = useRef(false);
   const cartItemSelectionRefs = useRef<Array<HTMLDivElement | null>>([]);
   const productsGridRef = useRef<HTMLDivElement | null>(null);
   const productSelectionRefs = useRef<Array<HTMLDivElement | null>>([]);
   const [search, setSearch] = useState('');
-  const [quickScan, setQuickScan] = useState('');
   const [cashierMode, setCashierMode] = useState(() => {
     if (typeof window === 'undefined') return false;
     try {
@@ -1743,9 +1741,9 @@ export default function PDV() {
     searchInputRef.current?.blur();
   };
 
-  const focusProductSearch = () => {
+  const focusProductSearch = useCallback(() => {
     requestAnimationFrame(() => searchInputRef.current?.focus());
-  };
+  }, []);
 
   const addSearchResultToCart = () => {
     const exactMatch = search.trim()
@@ -1763,51 +1761,6 @@ export default function PDV() {
     setSearch('');
     setSearchSelectedIndex(-1);
     silentToast.success(`${product.name} adicionado`);
-  };
-
-  const focusQuickScan = useCallback(() => {
-    requestAnimationFrame(() => {
-      quickScanInputRef.current?.focus();
-      quickScanInputRef.current?.select();
-    });
-  }, []);
-
-  const findProductByQuickScan = (value: string) => {
-    const normalized = value.trim();
-    if (!normalized) return null;
-    return activeProducts.find(product => isExactProductSearchMatch(product, normalized)) ?? null;
-  };
-
-  const handleQuickScanSubmit = (value: string) => {
-    const normalized = value.trim();
-    if (!normalized) {
-      focusQuickScan();
-      return false;
-    }
-
-    const product = findProductByQuickScan(normalized);
-    if (product) {
-      addToCart(product);
-      setQuickScan('');
-      setSearch('');
-      setSearchSelectedIndex(-1);
-      silentToast.success(`${product.name} adicionado`);
-      focusQuickScan();
-      return true;
-    }
-
-    const ticket = findServiceTicket(normalized);
-    if (ticket) {
-      const loaded = loadServiceTicketToCart(normalized);
-      setQuickScan('');
-      focusQuickScan();
-      return loaded;
-    }
-
-    silentToast.error('Codigo nao encontrado no produto ou na comanda');
-    setQuickScan('');
-    focusQuickScan();
-    return false;
   };
 
   useEffect(() => {
@@ -1828,11 +1781,11 @@ export default function PDV() {
       return;
     }
 
-    focusQuickScan();
+    focusProductSearch();
   }, [
     cashierMode,
     cartItemPendingPriceEdit,
-    focusQuickScan,
+    focusProductSearch,
     saleToCancel,
     showCancelledSales,
     showCashOut,
@@ -2827,7 +2780,7 @@ export default function PDV() {
 
       if (event.key === 'F1') {
         event.preventDefault();
-        focusQuickScan();
+        navigate('/');
         return;
       }
 
@@ -2988,21 +2941,6 @@ export default function PDV() {
 
       if (showSalesSearch || showCancelledSales || showCashOut || showCloseCashReceipt || showOpenCashDialog || saleToCancel) return;
 
-      if (cashierMode && !isEditableTarget(event.target)) {
-        if (/^[0-9]$/.test(event.key)) {
-          event.preventDefault();
-          setQuickScan(current => `${current}${event.key}`);
-          focusQuickScan();
-          return;
-        }
-
-        if (event.key === 'Enter' && quickScan.trim()) {
-          event.preventDefault();
-          handleQuickScanSubmit(quickScan);
-          return;
-        }
-      }
-
       if (event.key === 'Tab' && !isEditableTarget(event.target) && filtered.length > 0) {
         event.preventDefault();
         moveSearchSelection(event.shiftKey);
@@ -3159,12 +3097,12 @@ export default function PDV() {
     // The keyboard handler intentionally tracks the current PDV render state.
     // Memoizing every command here makes this already-large component harder to audit.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeProducts, filtered, search, quickScan, cart, cartKeyboardSelectionIndex, cartItemPendingPriceEdit, discount, paymentMethod, cashReceived, selectedClientId, total, change, canFinalizeCheckout, cashierMode, showCheckout, showFinalizeConfirm, showCreditInstallmentsDialog, showReceipt, showSalesSearch, showCancelledSales, showCashOut, showCloseCashReceipt, showOpenCashDialog, saleToCancel, navigate, isAdmin, creditInstallments, pendingCreditInstallments]);
+  }, [activeProducts, filtered, search, cart, cartKeyboardSelectionIndex, cartItemPendingPriceEdit, discount, paymentMethod, cashReceived, selectedClientId, total, change, canFinalizeCheckout, cashierMode, showCheckout, showFinalizeConfirm, showCreditInstallmentsDialog, showReceipt, showSalesSearch, showCancelledSales, showCashOut, showCloseCashReceipt, showOpenCashDialog, saleToCancel, navigate, isAdmin, creditInstallments, pendingCreditInstallments]);
 
   return (
     <div
       className={`flex min-h-0 flex-col gap-3 overflow-hidden sm:gap-4 lg:flex-row ${
-        cashierMode ? 'fixed inset-0 z-50 h-screen bg-background p-3 sm:p-4' : 'h-full'
+        cashierMode ? 'fixed inset-0 z-50 h-[100svh] bg-background p-3 sm:p-4' : 'h-full max-h-[100svh]'
       }`}
       data-tour-id="pdv-root"
     >
@@ -3218,7 +3156,7 @@ export default function PDV() {
             </p>
           </div>
           <div className="flex flex-wrap justify-end gap-2" data-tour-id="pdv-actions">
-            <Button variant="outline" size="sm" onClick={() => navigate('/')}>Menu</Button>
+            <Button variant="outline" size="sm" onClick={() => navigate('/')}>Menu (F1)</Button>
             <Button variant="outline" size="sm" onClick={() => setShowSalesSearch(true)}><History className="h-4 w-4 mr-1" />Buscar vendas (F12)</Button>
             <Button variant="outline" size="sm" onClick={() => setShowCashOut(true)}><Wallet className="h-4 w-4 mr-1" />Saída de caixa</Button>
             <Button variant={cashierMode ? 'default' : 'outline'} size="sm" onClick={toggleCashierMode}>
@@ -3229,52 +3167,6 @@ export default function PDV() {
               Caixa: {cashSession ? formatMoney(currentCashBalance) : 'fechado'}
             </span>
             <Button variant="destructive" size="sm" onClick={requestCloseCash} disabled={!cashSession}>Fechar caixa (F10)</Button>
-          </div>
-        </div>
-        <div
-          className={`mb-3 shrink-0 rounded-lg border p-3 ${
-            cashierMode
-              ? 'border-primary/40 bg-primary/5'
-              : 'border-border bg-background/80'
-          }`}
-          data-tour-id="pdv-quick-scan"
-        >
-          <div className="grid gap-2 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
-            <div className="space-y-1">
-              <Label>Leitura rápida do caixa</Label>
-              <div className="relative">
-                <Barcode className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  ref={quickScanInputRef}
-                  className="h-12 pl-10 text-lg font-semibold tracking-normal"
-                  value={quickScan}
-                  onChange={event => setQuickScan(toProductUppercase(event.target.value))}
-                  onKeyDown={event => {
-                    if (event.key === 'Enter') {
-                      event.preventDefault();
-                      event.stopPropagation();
-                      handleQuickScanSubmit(quickScan);
-                    }
-                  }}
-                  placeholder="Bipe produto, QR ou numero da comanda"
-                />
-              </div>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <Button type="button" variant="outline" onClick={focusQuickScan}>
-                F1 Bip
-              </Button>
-              <Button type="button" variant="outline" onClick={() => setQuickScan('')} disabled={!quickScan}>
-                Limpar
-              </Button>
-            </div>
-          </div>
-          <div className="mt-3 flex flex-wrap gap-1.5 text-[11px] font-medium text-muted-foreground">
-            {['F2 Finalizar', 'F3 Dinheiro', 'F4 Pix', 'F5 Debito', 'F6 Credito', 'F7 Fiado', 'F8 Preco', 'F9 Confirmar', 'F10 Fechar', 'F11 Tela cheia'].map(shortcut => (
-              <span key={shortcut} className="rounded border border-border bg-background px-2 py-1">
-                {shortcut}
-              </span>
-            ))}
           </div>
         </div>
         <div className="mb-3 shrink-0 rounded-lg border border-border bg-background/80 p-3" data-tour-id="pdv-ticket-lookup">
@@ -3340,7 +3232,7 @@ export default function PDV() {
             }}
           />
         </div>
-        <div ref={productsGridRef} className="grid min-h-0 flex-1 grid-cols-2 gap-2 overflow-y-auto pr-1 sm:grid-cols-3" data-tour-id="pdv-products">
+        <div ref={productsGridRef} className="grid min-h-0 flex-1 touch-pan-y auto-rows-min grid-cols-2 gap-2 overflow-y-auto overscroll-contain pb-28 pr-1 sm:grid-cols-3 lg:pb-2" data-tour-id="pdv-products">
           {filtered.map((p, index) => (
             <motion.div
               key={p.id}

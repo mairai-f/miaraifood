@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { buildItemWhatsAppUrl, buildPaymentWhatsAppUrl, buildWhatsAppUrl } from '@/lib/whatsapp';
+import { buildClientCrmWhatsAppUrl, buildItemWhatsAppUrl, buildPaymentWhatsAppUrl, buildWhatsAppUrl } from '@/lib/whatsapp';
 import type { DebtEntry, Payment } from '@/types';
 
 const sampleEntry: DebtEntry = {
@@ -60,5 +60,18 @@ describe('whatsapp messages', () => {
 
     expect(itemMessage).toContain('HappyCash');
     expect(paymentMessage).toContain('HappyCash');
+  });
+
+  it('monta mensagem de CRM com saldo em aberto', () => {
+    const message = readMessage(buildClientCrmWhatsAppUrl(
+      '11999999999',
+      'Maria',
+      42.5,
+      'Mercadinho Azul',
+    ));
+
+    expect(message).toContain('Mercadinho Azul');
+    expect(message).toContain('saldo em aberto');
+    expect(message).toContain('R$ 42.50');
   });
 });
