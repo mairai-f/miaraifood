@@ -27,8 +27,8 @@ test('shows the admin login form by default', async ({ page }) => {
 test('switches to operator login and toggles password visibility', async ({ page }) => {
   await page.goto('/login');
 
-  await page.getByRole('tab', { name: 'Operador' }).click();
-  await expect(page.getByRole('tab', { name: 'Operador' })).toHaveAttribute('aria-selected', 'true');
+  await page.getByRole('tab', { name: 'Operacional' }).click();
+  await expect(page.getByRole('tab', { name: 'Operacional' })).toHaveAttribute('aria-selected', 'true');
 
   await page.getByPlaceholder('Ex: operador.caixa').fill('caixa.teste');
   const passwordInput = page.getByPlaceholder('••••••••').first();
@@ -49,10 +49,10 @@ test('keeps remembered login mode without pre-filling auth fields', async ({ pag
 
   await page.goto('/login');
 
-  await expect(page.getByRole('tab', { name: 'Operador' })).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByRole('tab', { name: 'Operacional' })).toHaveAttribute('aria-selected', 'true');
   await expect(page.getByPlaceholder('Ex: operador.caixa')).toHaveValue('');
-  await expect(page.getByLabel('Lembrar conta')).not.toBeChecked();
-  await expect(page.getByLabel('Manter conectado')).not.toBeChecked();
+  await expect(page.getByLabel('Lembrar minha conta')).toBeChecked();
+  await expect(page.getByLabel('Manter conectado')).toBeChecked();
 });
 
 test('redirects protected routes to login when unauthenticated', async ({ page }) => {

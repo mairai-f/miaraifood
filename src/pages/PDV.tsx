@@ -3538,7 +3538,6 @@ export default function PDV() {
       {/* Checkout dialog */}
       <Dialog open={showCheckout} onOpenChange={open => { if (!isFinalizingSale) setShowCheckout(open); }}>
         <DialogContent
-          data-tour-id="pdv-open-cash"
           className="max-h-[92svh] w-[calc(100vw-1rem)] max-w-3xl grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden border-border bg-background p-4 shadow-2xl sm:max-h-[90vh] sm:w-full sm:p-6 lg:grid-rows-none lg:shadow-lg"
           onOpenAutoFocus={event => event.preventDefault()}
           onEscapeKeyDown={event => {
@@ -4096,16 +4095,19 @@ export default function PDV() {
       </Dialog>
 
       {/* Open cash dialog */}
-      <Dialog open={showOpenCashDialog} onOpenChange={() => undefined}>
+      <Dialog modal={false} open={showOpenCashDialog} onOpenChange={() => undefined}>
         <DialogContent
+          data-tour-id="pdv-open-cash"
           onEscapeKeyDown={event => event.preventDefault()}
           onPointerDownOutside={event => event.preventDefault()}
         >
-          <DialogHeader><DialogTitle>Abrir caixa</DialogTitle></DialogHeader>
+          <DialogHeader>
+            <DialogTitle>Abrir caixa</DialogTitle>
+            <DialogDescription>
+              Informe o valor inicial e confirme com credenciais de administrador para liberar o PDV.
+            </DialogDescription>
+          </DialogHeader>
           <div className="space-y-3">
-            <p className="text-sm text-muted-foreground">
-              Informe o valor inicial e confirme com credenciais de administrador.
-            </p>
             <div className="space-y-1">
               <Label>Valor de abertura</Label>
               <Input

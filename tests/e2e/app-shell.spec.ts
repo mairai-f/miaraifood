@@ -18,7 +18,7 @@ test('opens the authenticated dashboard with the main navigation', async ({ page
 test('opens PDV for an authenticated user and asks to open cash', async ({ page }) => {
   await page.goto('/pdv');
 
-  await expect(page.getByText('Informe o valor inicial para liberar o PDV.')).toBeVisible();
+  await expect(page.getByText('Informe o valor inicial e confirme com credenciais de administrador para liberar o PDV.')).toBeVisible();
   await expect(page.getByPlaceholder('0.00')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Abrir caixa' })).toBeVisible();
 });

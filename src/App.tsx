@@ -111,8 +111,16 @@ function AppRoutes() {
   return (
     <Routes>
       <Route path="/login" element={isAuthenticated ? <Navigate to="/" /> : <Login />} />
-      <Route path="/" element={isAuthenticated ? <Suspense fallback={<FullScreenLoader />}><AuthenticatedArea /></Suspense> : <Login />} />
-      <Route path="*" element={<Suspense fallback={<FullScreenLoader />}><AuthenticatedArea /></Suspense>} />
+      <Route
+        path="/*"
+        element={
+          loading
+            ? <FullScreenLoader />
+            : isAuthenticated
+              ? <Suspense fallback={<FullScreenLoader />}><AuthenticatedArea /></Suspense>
+              : <Navigate to="/login" replace />
+        }
+      />
     </Routes>
   );
 }

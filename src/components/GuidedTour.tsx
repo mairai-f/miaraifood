@@ -19,6 +19,7 @@ type GuidedTourStep = {
   path: string;
   target?: string;
   optionalTarget?: boolean;
+  skipWhenVisible?: string;
   title: string;
   body: string;
   roles?: UserRole[];
@@ -94,6 +95,7 @@ const tourSteps: GuidedTourStep[] = [
     id: 'pdv-ticket-lookup',
     path: '/pdv',
     target: 'pdv-ticket-lookup',
+    skipWhenVisible: 'pdv-open-cash',
     title: 'Feche comandas no PDV',
     body: 'Escaneie ou digite a comanda para carregar os produtos direto no carrinho do caixa.',
     roles: ['operator'],
@@ -103,6 +105,7 @@ const tourSteps: GuidedTourStep[] = [
     id: 'pdv-actions',
     path: '/pdv',
     target: 'pdv-actions',
+    skipWhenVisible: 'pdv-open-cash',
     title: 'Comandos de caixa',
     body: 'Aqui estao busca de vendas, saida de caixa, saldo atual e fechamento.',
     requiredFeature: 'pdv.use',
@@ -111,6 +114,7 @@ const tourSteps: GuidedTourStep[] = [
     id: 'pdv-search',
     path: '/pdv',
     target: 'pdv-search',
+    skipWhenVisible: 'pdv-open-cash',
     title: 'Busque e adicione produtos',
     body: 'Digite nome, codigo ou use leitor de codigo de barras. Enter adiciona o item selecionado.',
     requiredFeature: 'pdv.use',
@@ -119,6 +123,7 @@ const tourSteps: GuidedTourStep[] = [
     id: 'pdv-products',
     path: '/pdv',
     target: 'pdv-products',
+    skipWhenVisible: 'pdv-open-cash',
     title: 'Grade de produtos',
     body: 'Clique ou use o teclado para montar a venda rapidamente.',
     requiredFeature: 'pdv.use',
@@ -127,6 +132,7 @@ const tourSteps: GuidedTourStep[] = [
     id: 'pdv-cart',
     path: '/pdv',
     target: 'pdv-cart',
+    skipWhenVisible: 'pdv-open-cash',
     title: 'Carrinho e ajustes',
     body: 'No carrinho voce altera quantidade, remove itens e confere o total antes de finalizar.',
     requiredFeature: 'pdv.use',
@@ -135,6 +141,7 @@ const tourSteps: GuidedTourStep[] = [
     id: 'pdv-finish',
     path: '/pdv',
     target: 'pdv-checkout',
+    skipWhenVisible: 'pdv-open-cash',
     title: 'Finalize e imprima',
     body: 'Finalizar abre as formas de pagamento. Para fiado, selecione o cliente e registre a divida.',
     requiredFeature: 'pdv.use',
@@ -269,6 +276,16 @@ const getElementRect = (tourId: string): TargetRect | null => {
   };
 };
 
+const hasOpenBlockingDialog = () => {
+  const dialogs = Array.from(document.querySelectorAll('[role="dialog"]')) as HTMLElement[];
+
+  return dialogs.some((dialog) => {
+    if (dialog.getAttribute('aria-labelledby') === 'guided-tour-title') return false;
+    const rect = dialog.getBoundingClientRect();
+    return rect.width > 0 && rect.height > 0;
+  });
+};
+
 export function GuidedTour() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -337,12 +354,29 @@ export function GuidedTour() {
     if (planLoading || !eligiblePlan || !seenKey || running || totalSteps === 0) return;
     if (hasSeenGuidedTour(seenKey)) return;
 
-    const timer = window.setTimeout(() => {
-      setCurrentIndex(0);
-      setRunning(true);
-    }, 900);
+    let cancelled = false;
+    let timer: number | undefined;
 
-    return () => window.clearTimeout(timer);
+    const scheduleStart = () => {
+      timer = window.setTimeout(() => {
+        if (cancelled) return;
+
+        if (hasOpenBlockingDialog()) {
+          scheduleStart();
+          return;
+        }
+
+        setCurrentIndex(0);
+        setRunning(true);
+      }, 900);
+    };
+
+    scheduleStart();
+
+    return () => {
+      cancelled = true;
+      if (timer) window.clearTimeout(timer);
+    };
   }, [eligiblePlan, planLoading, running, seenKey, totalSteps]);
 
   useEffect(() => {
@@ -386,6 +420,11 @@ export function GuidedTour() {
 
     const locateTarget = () => {
       if (cancelled) return;
+
+      if (currentStep.skipWhenVisible && getElementRect(currentStep.skipWhenVisible)) {
+        goToNext();
+        return;
+      }
 
       if (!currentStep.target) {
         setTargetRect(null);

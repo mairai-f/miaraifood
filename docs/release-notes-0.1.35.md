@@ -1,6 +1,6 @@
 # HappyCash 0.1.35
 
-Status: preparado localmente, nao publicado.
+Status: publicado.
 Data: 2026-06-18
 
 ## PDV / Fiado
@@ -22,7 +22,14 @@ Data: 2026-06-18
 - Visao geral com ticket medio, taxa de cancelamento, Pix pendente e estoque baixo.
 - Cartoes operacionais para conferir Pix, repor estoque e acompanhar proximos horarios.
 
+## Tutorial / Desktop
+
+- Tutorial guiado corrigido para nao iniciar por cima do modal de configuracao offline do desktop.
+- Passo "Abrir caixa" passa a apontar para o modal correto do PDV.
+- Tutorial pula automaticamente os passos detalhados do PDV quando o caixa ainda esta bloqueado pela abertura.
+- Rotas internas ajustadas para remover aviso do React Router e preservar restauracao de sessao.
+
 ## Mobile / APK
 
 - Versao mobile preparada como 0.1.35.
-- APK nao gerado/publicado nesta rodada porque o pedido atual foi para nao subir nada.
+- APK mantido na versao 0.1.35; publicacao desktop atualizada nesta rodada.
