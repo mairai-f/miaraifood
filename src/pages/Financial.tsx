@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { TrendingUp, TrendingDown, DollarSign, Plus, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { formatDateOnly, formatDateTime } from '../../shared/locale/format';
+import { formatDateOnly } from '../../shared/locale/format';
 
 export default function Financial() {
   const { sales, expenses, addExpense, deleteExpense, clients, getClientBalance } = useData();
@@ -18,6 +18,7 @@ export default function Financial() {
   const [desc, setDesc] = useState('');
   const [amount, setAmount] = useState('');
   const [category, setCategory] = useState('');
+  const [partyName, setPartyName] = useState('');
   const [startDate, setStartDate] = useState(() => {
     const d = new Date(); d.setMonth(d.getMonth() - 1);
     return d.toISOString().split('T')[0];
@@ -45,9 +46,9 @@ export default function Financial() {
   const totalReceivable = activeClients.reduce((s, c) => s + getClientBalance(c.id), 0);
 
   const handleSave = async () => {
-    if (!desc.trim() || !amount) { toast.error('Preencha descrição e valor'); return; }
-    await addExpense(desc.trim(), parseFloat(amount), category.trim());
-    setDesc(''); setAmount(''); setCategory(''); setOpen(false);
+    if (!desc.trim() || !partyName.trim() || !amount) { toast.error('Preencha descrição, favorecido e valor'); return; }
+    await addExpense(desc.trim(), parseFloat(amount), category.trim(), { partyName: partyName.trim() || null });
+    setDesc(''); setAmount(''); setCategory(''); setPartyName(''); setOpen(false);
     toast.success('Despesa registrada!');
   };
 
@@ -61,6 +62,7 @@ export default function Financial() {
             <DialogHeader><DialogTitle>Nova Despesa</DialogTitle></DialogHeader>
             <div className="space-y-3">
               <div className="space-y-1"><Label>Descrição</Label><Input value={desc} onChange={e => setDesc(e.target.value)} placeholder="Ex: Aluguel" /></div>
+              <div className="space-y-1"><Label>Pago a / favorecido</Label><Input value={partyName} onChange={e => setPartyName(e.target.value)} placeholder="Ex: Imobiliária ou fornecedor" /></div>
               <div className="space-y-1"><Label>Valor (R$)</Label><Input type="number" step="0.01" value={amount} onChange={e => setAmount(e.target.value)} placeholder="0.00" /></div>
               <div className="space-y-1"><Label>Categoria</Label><Input value={category} onChange={e => setCategory(e.target.value)} placeholder="Ex: Fornecedor, Aluguel" /></div>
             </div>
@@ -103,7 +105,7 @@ export default function Financial() {
                 <div key={e.id} className="flex items-center justify-between p-2 rounded-lg bg-secondary/50 text-xs">
                   <div>
                     <p className="font-medium">{e.description}</p>
-                    <p className="text-muted-foreground">{e.category} — {formatDateOnly(e.date)}</p>
+                    <p className="text-muted-foreground">{e.party_name || 'Favorecido não informado'} · {e.category} — {formatDateOnly(e.date)}</p>
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="font-bold text-destructive">R$ {e.amount.toFixed(2)}</span>
@@ -122,25 +124,6 @@ export default function Financial() {
         </CardContent>
       </Card>
 
-      {/* Recent sales */}
-      <Card className="border-border/50">
-        <CardHeader><CardTitle className="text-sm">Vendas Recentes</CardTitle></CardHeader>
-        <CardContent>
-          {filteredSales.length === 0 ? <p className="text-xs text-muted-foreground">Nenhuma venda no período</p> : (
-            <div className="space-y-2">
-              {filteredSales.slice(0, 20).map(s => (
-                <div key={s.id} className="flex items-center justify-between p-2 rounded-lg bg-secondary/50 text-xs">
-                  <div>
-                    <p className="font-medium">{s.payment_method}</p>
-                    <p className="text-muted-foreground">{formatDateTime(s.date)}</p>
-                  </div>
-                  <span className="font-bold text-green-500">R$ {s.total.toFixed(2)}</span>
-                </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
     </div>
   );
 }

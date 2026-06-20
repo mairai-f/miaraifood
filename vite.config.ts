@@ -8,6 +8,21 @@ export default defineConfig(() => ({
   server: {
     host: "::",
     port: 8080,
+    watch: {
+      // VS Code can consume most Linux inotify watches in this monorepo.
+      // Poll only source files and skip generated desktop/web artifacts.
+      usePolling: true,
+      interval: 500,
+      ignored: [
+        "**/release/**",
+        "**/build/**",
+        "**/dist/**",
+        "**/dist-*/**",
+        "**/coverage/**",
+        "**/.expo/**",
+        "**/.vercel/**",
+      ],
+    },
     hmr: {
       overlay: false,
     },

@@ -8,6 +8,20 @@ interface Window {
   electronAPI?: {
     openExternal: (url: string) => boolean;
     printHtml: (html: string) => Promise<boolean>;
+    printer?: {
+      list: () => Promise<{
+        selectedName: string | null;
+        defaultName: string | null;
+        printers: Array<{
+          name: string;
+          displayName: string;
+          description: string;
+          isDefault: boolean;
+        }>;
+      }>;
+      select: (printerName: string | null) => Promise<{ success: boolean; selectedName?: string | null; error?: string }>;
+      test: () => Promise<{ success: boolean; error?: string | null }>;
+    };
     app?: {
       getRuntimeInfo: () => Promise<{
         appVersion: string;

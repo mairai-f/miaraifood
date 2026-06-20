@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState, type ChangeEvent } from 'rea
 import { Clock3, Download, Loader2, Settings as SettingsIcon, ShieldAlert } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import { CompanyProfileCard } from '@/components/CompanyProfileCard';
+import { PrinterSettingsCard } from '@/components/PrinterSettingsCard';
 import { OperatorManagementPanel } from '@/components/OperatorManagementPanel';
 import { useAuth } from '@/contexts/AuthContext';
 import { useDesktopRuntime } from '@/contexts/DesktopRuntimeContext';
@@ -872,6 +873,8 @@ export default function Settings() {
       )}
 
       <CompanyProfileCard />
+
+      <PrinterSettingsCard />
 
       <Card>
         <CardHeader className="space-y-2">

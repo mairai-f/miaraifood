@@ -18,13 +18,14 @@ import { getMarginPercent, getMarkupPercent, getPriceFromMarkup, getUnitProfit }
 import { verifyPricingManagerApproval } from '@/lib/pricingManagerApproval';
 import { parseDecimalInput } from '@/lib/numberInput';
 import { filterProductsBySearch, toProductUppercase } from '@/lib/productSearch';
+import { supabase } from '@/integrations/supabase/client';
 import { getPublicErrorMessage, getRedactedLogValue } from '../../shared/security/redaction';
 
 const LOW_MARGIN_WARNING_PCT = 15;
 
 export default function Products() {
   const { products, addProduct, updateProduct, deleteProduct } = useData();
-  const { role, session } = useAuth();
+  const { role, session, user, ownerUserId } = useAuth();
   const [search, setSearch] = useState('');
   const [open, setOpen] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
@@ -36,6 +37,10 @@ export default function Products() {
   const [barcode, setBarcode] = useState('');
   const [stock, setStock] = useState('');
   const [minStock, setMinStock] = useState('');
+  const [batchCode, setBatchCode] = useState('');
+  const [expirationDate, setExpirationDate] = useState('');
+  const [expirationQuantity, setExpirationQuantity] = useState('');
+  const [expirationAlertDays, setExpirationAlertDays] = useState('30');
   const [approvalDialogOpen, setApprovalDialogOpen] = useState(false);
   const [approvalEmail, setApprovalEmail] = useState('');
   const [approvalPassword, setApprovalPassword] = useState('');
@@ -75,7 +80,27 @@ export default function Products() {
       }
     } else {
       try {
-        await addProduct(data.name ?? '', data.price ?? 0, data.category ?? '', data);
+        const createdProduct = await addProduct(data.name ?? '', data.price ?? 0, data.category ?? '', data);
+        if (expirationDate) {
+          const effectiveOwnerId = ownerUserId ?? user?.id;
+          const quantity = Math.max(0, parseDecimalInput(expirationQuantity || stock));
+          const { error } = await supabase.from('product_batches' as never).insert({
+            owner_user_id: effectiveOwnerId,
+            product_id: createdProduct.id,
+            product_name: createdProduct.name,
+            batch_code: batchCode.trim(),
+            quantity,
+            expiration_date: expirationDate,
+            alert_days: Math.max(0, Number.parseInt(expirationAlertDays, 10) || 30),
+            notes: 'Validade informada no cadastro do produto.',
+          } as never);
+          if (error) {
+            console.error('Erro ao salvar validade do produto:', getRedactedLogValue(error));
+            toast.error('Produto cadastrado, mas não foi possível salvar a validade.');
+            resetForm();
+            return;
+          }
+        }
         toast.success('Produto cadastrado!');
       } catch (error) {
         console.error('Erro ao cadastrar produto:', getRedactedLogValue(error));
@@ -163,7 +188,7 @@ export default function Products() {
     resetApprovalState();
   };
 
-  const resetForm = () => { setName(''); setPrice(''); setCostPrice(''); setCategory(''); setSupplierName(''); setBarcode(''); setStock(''); setMinStock(''); setEditId(null); setOpen(false); resetApprovalState(); };
+  const resetForm = () => { setName(''); setPrice(''); setCostPrice(''); setCategory(''); setSupplierName(''); setBarcode(''); setStock(''); setMinStock(''); setBatchCode(''); setExpirationDate(''); setExpirationQuantity(''); setExpirationAlertDays('30'); setEditId(null); setOpen(false); resetApprovalState(); };
 
   const openEdit = (p: Product) => {
     setEditId(p.id); setName(toProductUppercase(p.name)); setPrice(p.price.toString());
@@ -232,6 +257,17 @@ export default function Products() {
                   <div className="space-y-1"><Label>Estoque</Label><Input type="number" value={stock} onChange={e => setStock(e.target.value)} placeholder="0" /></div>
                   <div className="space-y-1"><Label>Estoque Mínimo</Label><Input type="number" value={minStock} onChange={e => setMinStock(e.target.value)} placeholder="0" /></div>
                 </div>
+                {!editId && (
+                  <div className="space-y-3 rounded-md border p-3">
+                    <div><p className="text-sm font-semibold">Validade opcional</p><p className="text-xs text-muted-foreground">Preencha somente quando o produto tiver lote com vencimento.</p></div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1"><Label>Lote</Label><Input value={batchCode} onChange={e => setBatchCode(e.target.value)} placeholder="Ex: LOTE-01" /></div>
+                      <div className="space-y-1"><Label>Quantidade do lote</Label><Input type="number" min="0" value={expirationQuantity} onChange={e => setExpirationQuantity(e.target.value)} placeholder={stock || '0'} /></div>
+                      <div className="space-y-1"><Label>Data de validade</Label><Input type="date" value={expirationDate} onChange={e => setExpirationDate(e.target.value)} /></div>
+                      <div className="space-y-1"><Label>Alertar com antecedência</Label><Input type="number" min="0" value={expirationAlertDays} onChange={e => setExpirationAlertDays(e.target.value)} /></div>
+                    </div>
+                  </div>
+                )}
               </div>
               <DialogFooter><Button onClick={handleSave} className="w-full sm:w-auto">{editId ? 'Salvar' : 'Cadastrar'}</Button></DialogFooter>
             </DialogContent>

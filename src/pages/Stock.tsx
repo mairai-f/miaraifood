@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useData } from '@/contexts/DataContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -9,16 +9,18 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Search, Plus, AlertTriangle, Package } from 'lucide-react';
+import { CalendarClock, Search, Plus, AlertTriangle, Package } from 'lucide-react';
 import { toast } from 'sonner';
 import { formatDateTime } from '../../shared/locale/format';
 import { getRedactedLogValue } from '../../shared/security/redaction';
 import { filterProductsBySearch, toProductUppercase } from '@/lib/productSearch';
 import { buildLowStockPurchaseSuggestion, type PurchaseSuggestion } from '@/lib/managementInsights';
+import { useProductBatches } from '@/hooks/useProductBatches';
 
 export default function Stock() {
   const { products, stockMovements, addStockMovement, clearAllStock } = useData();
   const { user } = useAuth();
+  const { batches } = useProductBatches();
   const [search, setSearch] = useState('');
   const [open, setOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState('');
@@ -28,8 +30,38 @@ export default function Stock() {
   const [clearingStock, setClearingStock] = useState(false);
 
   const activeProducts = products.filter(p => !p.deleted);
-  const filtered = filterProductsBySearch(activeProducts, search);
+  const nextBatchByProductId = useMemo(() => {
+    const result = new Map<string, (typeof batches)[number]>();
+    batches.forEach((batch) => {
+      if (batch.product_id && !result.has(batch.product_id)) result.set(batch.product_id, batch);
+    });
+    return result;
+  }, [batches]);
+  const visibleProducts = products.filter(p => !p.deleted || nextBatchByProductId.has(p.id));
+  const todayKey = new Date().toISOString().slice(0, 10);
+  const expiringProductIds = new Set(batches
+    .filter((batch) => {
+      const expiration = new Date(`${batch.expiration_date}T00:00:00`).getTime();
+      const current = new Date(`${todayKey}T00:00:00`).getTime();
+      const remainingDays = Math.ceil((expiration - current) / 86400000);
+      return remainingDays <= Number(batch.alert_days ?? 30);
+    })
+    .map((batch) => batch.product_id)
+    .filter(Boolean));
+  const expiringProducts = visibleProducts.filter((product) => expiringProductIds.has(product.id));
   const lowStock = activeProducts.filter(p => p.stock <= p.min_stock && p.min_stock > 0);
+  const filtered = [...filterProductsBySearch(visibleProducts, search)].sort((left, right) => {
+    const leftExpiring = expiringProductIds.has(left.id);
+    const rightExpiring = expiringProductIds.has(right.id);
+    if (leftExpiring !== rightExpiring) return leftExpiring ? -1 : 1;
+    const leftLow = left.min_stock > 0 && left.stock <= left.min_stock;
+    const rightLow = right.min_stock > 0 && right.stock <= right.min_stock;
+    if (leftLow !== rightLow) return leftLow ? -1 : 1;
+    if (leftExpiring && rightExpiring) {
+      return String(nextBatchByProductId.get(left.id)?.expiration_date).localeCompare(String(nextBatchByProductId.get(right.id)?.expiration_date));
+    }
+    return left.name.localeCompare(right.name, 'pt-BR');
+  });
   const purchaseSuggestions = activeProducts
     .map(buildLowStockPurchaseSuggestion)
     .filter((suggestion): suggestion is PurchaseSuggestion => Boolean(suggestion))
@@ -129,7 +161,20 @@ export default function Stock() {
         </div>
       </div>
 
-      {/* Low stock alert */}
+      {expiringProducts.length > 0 && (
+        <Card className="border-amber-500/50 bg-amber-500/5">
+          <CardHeader className="px-4 pb-2 pt-3"><CardTitle className="flex items-center gap-2 text-sm text-amber-600"><CalendarClock className="h-4 w-4" />Validade próxima ou vencida</CardTitle></CardHeader>
+          <CardContent className="px-4 pb-3">
+            <div className="space-y-1">
+              {expiringProducts.map((product) => {
+                const batch = nextBatchByProductId.get(product.id);
+                return <p key={product.id} className="text-xs"><span className="font-medium">{product.name}</span> · {batch ? new Date(`${batch.expiration_date}T12:00:00`).toLocaleDateString('pt-BR') : '-'}</p>;
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {lowStock.length > 0 && (
         <Card className="border-destructive/50 bg-destructive/5" data-tour-id="stock-low">
           <CardHeader className="pb-2 px-4 pt-3"><CardTitle className="text-sm flex items-center gap-2 text-destructive"><AlertTriangle className="h-4 w-4" />Estoque Baixo</CardTitle></CardHeader>
@@ -182,12 +227,15 @@ export default function Stock() {
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-        {filtered.map(p => (
-          <Card key={p.id} className={`border-border/50 ${p.stock <= p.min_stock && p.min_stock > 0 ? 'border-destructive/50' : ''}`}>
+        {filtered.map(p => {
+          const nextBatch = nextBatchByProductId.get(p.id);
+          return (
+          <Card key={p.id} className={`border-border/50 ${expiringProductIds.has(p.id) ? 'border-amber-500/60' : p.stock <= p.min_stock && p.min_stock > 0 ? 'border-destructive/50' : ''}`}>
             <CardContent className="p-4">
               <div className="flex justify-between items-start mb-2">
                 <div className="min-w-0 mr-2">
                   <h3 className="font-semibold text-sm truncate">{p.name}</h3>
+                  {p.deleted && <Badge variant="destructive" className="mt-1">Arquivado com lote monitorado</Badge>}
                   {p.category && <span className="text-xs text-muted-foreground">{p.category}</span>}
                 </div>
                 <div className="text-right">
@@ -201,9 +249,16 @@ export default function Stock() {
                 </span>
                 <span className="text-muted-foreground">Mín: {p.min_stock}</span>
               </div>
+              {nextBatch && (
+                <p className="mt-2 flex items-center gap-1 text-xs text-amber-600">
+                  <CalendarClock className="h-3.5 w-3.5" />
+                  Validade: {new Date(`${nextBatch.expiration_date}T12:00:00`).toLocaleDateString('pt-BR')} · lote {nextBatch.batch_code || 'não informado'}
+                </p>
+              )}
             </CardContent>
           </Card>
-        ))}
+          );
+        })}
       </div>
 
       {/* Recent movements */}

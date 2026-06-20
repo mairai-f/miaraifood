@@ -6,6 +6,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
     const result = await ipcRenderer.invoke('print-html', html);
     return Boolean(result?.success);
   },
+  printer: {
+    list: () => ipcRenderer.invoke('printer:list'),
+    select: (printerName) => ipcRenderer.invoke('printer:select', printerName),
+    test: () => ipcRenderer.invoke('printer:test'),
+  },
   app: {
     getRuntimeInfo: () => ipcRenderer.invoke('app:get-runtime-info'),
     getUpdateStatus: () => ipcRenderer.invoke('app:get-update-status'),

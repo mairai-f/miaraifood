@@ -7,6 +7,8 @@ import { Button } from '@/components/ui/button';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { Download, TrendingUp, Package, Users, DollarSign } from 'lucide-react';
 import { formatDateOnly, translateCurrentText } from '../../shared/locale/format';
+import { ReportDetailsDialog, type ReportDetail } from '@/components/reports/ReportDetailsDialog';
+import { ReportMetricCard } from '@/components/reports/ReportMetricCard';
 
 const COLORS = ['hsl(var(--primary))', 'hsl(var(--destructive))', 'hsl(var(--accent))', '#8884d8', '#82ca9d', '#ffc658'];
 
@@ -18,6 +20,7 @@ export default function Reports() {
     return d.toISOString().split('T')[0];
   });
   const [endDate, setEndDate] = useState(today.toISOString().split('T')[0]);
+  const [detail, setDetail] = useState<ReportDetail | null>(null);
 
   const filteredSales = useMemo(() => {
     const start = new Date(startDate + 'T00:00:00');
@@ -29,7 +32,7 @@ export default function Reports() {
   }, [sales, startDate, endDate]);
 
   const activeFilteredSales = useMemo(
-    () => filteredSales.filter(sale => sale.status !== 'cancelled'),
+    () => filteredSales.filter(sale => !['canceled', 'cancelled'].includes(String(sale.status ?? '').toLowerCase())),
     [filteredSales],
   );
 
@@ -69,8 +72,9 @@ export default function Reports() {
   const averageUnitsPerSale = activeFilteredSales.length > 0 ? totalUnitsSold / activeFilteredSales.length : 0;
   const totalFiadoSpent = filteredFiadoEntries.reduce((sum, entry) => sum + entry.total, 0);
   const totalFiadoPaid = filteredFiadoPayments.reduce((sum, payment) => sum + payment.amount, 0);
-  const totalOpenFiado = debtEntries
-    .filter(entry => entry.status === 'pending' && !entry.deleted && !entry.manual_deleted)
+  const pendingDebtEntries = debtEntries
+    .filter(entry => entry.status === 'pending' && !entry.deleted && !entry.manual_deleted);
+  const totalOpenFiado = pendingDebtEntries
     .reduce((sum, entry) => sum + entry.total, 0);
   const lowStockProducts = useMemo(
     () => products
@@ -306,23 +310,17 @@ export default function Reports() {
 
       {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3" data-tour-id="reports-stats">
-        {[
-          { label: 'Vendas válidas', value: activeFilteredSales.length, icon: TrendingUp },
-          { label: 'Faturamento', value: `R$ ${totalRevenue.toFixed(2)}`, icon: DollarSign },
-          { label: 'Custo', value: `R$ ${totalCost.toFixed(2)}`, icon: Package },
-          { label: 'Lucro', value: `R$ ${totalProfit.toFixed(2)}`, icon: TrendingUp },
-          { label: 'Ticket médio', value: `R$ ${averageTicket.toFixed(2)}`, icon: DollarSign },
-          { label: 'Margem', value: `${profitMargin.toFixed(1)}%`, icon: TrendingUp },
-          { label: 'Fiado aberto', value: `R$ ${totalOpenFiado.toFixed(2)}`, icon: Users },
-          { label: 'Itens/venda', value: averageUnitsPerSale.toFixed(1), icon: Package },
-        ].map((s, i) => (
-          <Card key={i} className="border-border/50">
-            <CardHeader className="pb-1 px-3 pt-3 flex flex-row items-center justify-between">
-              <CardTitle className="text-xs text-muted-foreground">{s.label}</CardTitle>
-              <s.icon className="h-4 w-4 text-primary" />
-            </CardHeader>
-            <CardContent className="px-3 pb-3"><p className="text-lg font-bold">{s.value}</p></CardContent>
-          </Card>
+        {([
+          { detail: 'sales', label: 'Vendas válidas', value: activeFilteredSales.length, icon: TrendingUp },
+          { detail: 'revenue', label: 'Faturamento', value: `R$ ${totalRevenue.toFixed(2)}`, icon: DollarSign },
+          { detail: 'cost', label: 'Custo', value: `R$ ${totalCost.toFixed(2)}`, icon: Package },
+          { detail: 'profit', label: 'Lucro', value: `R$ ${totalProfit.toFixed(2)}`, icon: TrendingUp },
+          { detail: 'ticket', label: 'Ticket médio', value: `R$ ${averageTicket.toFixed(2)}`, icon: DollarSign },
+          { detail: 'margin', label: 'Margem', value: `${profitMargin.toFixed(1)}%`, icon: TrendingUp },
+          { detail: 'debts', label: 'Fiado aberto', value: `R$ ${totalOpenFiado.toFixed(2)}`, icon: Users },
+          { detail: 'items', label: 'Itens/venda', value: averageUnitsPerSale.toFixed(1), icon: Package },
+        ] as const).map((metric) => (
+          <ReportMetricCard key={metric.detail} label={metric.label} value={metric.value} icon={metric.icon} onClick={() => setDetail(metric.detail)} />
         ))}
       </div>
 
@@ -510,6 +508,15 @@ export default function Reports() {
           </CardContent>
         </Card>
       </div>
+
+      <ReportDetailsDialog
+        detail={detail}
+        sales={activeFilteredSales}
+        saleItems={filteredItems}
+        debts={pendingDebtEntries}
+        clients={clients}
+        onOpenChange={(open) => { if (!open) setDetail(null); }}
+      />
     </div>
   );
 }

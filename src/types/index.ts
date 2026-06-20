@@ -98,6 +98,7 @@ export interface Sale {
   cash_session_id?: string | null;
   seller_name?: string | null;
   is_delivery?: boolean;
+  service_ticket_number?: number | null;
   status?: string;
   cancel_reason?: string | null;
   cancelled_at?: string | null;
@@ -243,6 +244,7 @@ export interface Expense {
   operator_user_id?: string | null;
   cash_session_id?: string | null;
   description: string;
+  party_name?: string | null;
   amount: number;
   category: string;
   date: string;

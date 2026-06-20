@@ -27,6 +27,7 @@ import type { Database } from '@/integrations/supabase/types';
 import happyCashLogo from '@/assets/happycash-logo.webp';
 import { roleLabel } from '@/lib/access';
 import { useCompanyDisplayName } from '@/hooks/use-company-display-name';
+import { useStoreReceiptProfile } from '@/hooks/use-store-receipt-profile';
 import { DEFAULT_COMPANY_NAME, resolveCompanyDisplayName } from '@/lib/company';
 import { getMarginPercent } from '@/lib/pricing';
 import { getAvailableClientCredit, getClientCreditLimit, getCreditLimitExceededMessage } from '@/lib/creditLimit';
@@ -91,6 +92,8 @@ interface LastSaleReceiptData {
   change: number;
   clientId: string | null;
   isDelivery: boolean;
+  serviceTicketNumber: number | null;
+  creditBalanceAfter: number | null;
 }
 
 type CloseCashEmailStatus = 'idle' | 'sending' | 'sent' | 'error';
@@ -370,6 +373,7 @@ export default function PDV() {
   const loadedServiceTicketQueryRef = useRef<string | null>(null);
   const fiscalIssuanceSaleIdRef = useRef<string | null>(null);
   const companyDisplayName = useCompanyDisplayName();
+  const receiptProfile = useStoreReceiptProfile();
 
   const activeProducts = products.filter(p => !p.deleted);
   const activeClients = clients.filter(c => !c.deleted);
@@ -389,6 +393,7 @@ export default function PDV() {
   const formatPaymentMethod = (value: string) => getPaymentMethodLabel(value);
   const closeCashEmailDestination = user?.email?.trim() || '';
   const retailCouponStoreName = resolveCompanyDisplayName(
+    receiptProfile.storeName !== DEFAULT_COMPANY_NAME ? receiptProfile.storeName : null,
     companyDisplayName !== DEFAULT_COMPANY_NAME ? companyDisplayName : null,
     fiscalRuntime?.issuerName,
     lastFiscalDocument?.payload?.issuer?.tradeName,
@@ -2102,6 +2107,7 @@ export default function PDV() {
         cash_session_id: cashSession.id ?? null,
         seller_name: sellerName,
         is_delivery: isDelivery,
+        service_ticket_number: activeServiceTicket?.number ?? null,
         status: 'completed',
         total,
         discount,
@@ -2112,13 +2118,14 @@ export default function PDV() {
 
       // If fiado, create debt entries
       if (paymentMethod === 'fiado' && selectedClientId) {
+        const debtFactor = subtotal > 0 ? total / subtotal : 1;
         await addDebtEntries(
           items.map(i => ({
             clientId: selectedClientId,
             productId: i.product_id,
             productName: i.product_name,
             quantity: i.quantity,
-            unitPrice: i.unit_price,
+            unitPrice: i.unit_price * debtFactor,
             registeredBy: username || user?.email,
           })),
           { adjustStock: false },
@@ -2153,6 +2160,10 @@ export default function PDV() {
         change,
         clientId: selectedClientId || null,
         isDelivery,
+        serviceTicketNumber: activeServiceTicket?.number ?? null,
+        creditBalanceAfter: paymentMethod === 'fiado' && selectedClientId
+          ? selectedClientBalance + total
+          : null,
       };
 
       setLastSaleData(finalizedSaleData);
@@ -2162,7 +2173,7 @@ export default function PDV() {
       fiscalIssuanceSaleIdRef.current = canIssueFiscalDocumentInHomologation ? sale.id : null;
       setShowFinalizeConfirm(false);
       setShowCheckout(false);
-      setShowReceipt(true);
+      setShowReceipt(false);
       setCart([]);
       setActiveServiceTicketId(null);
       setDiscountInput('');
@@ -2240,6 +2251,9 @@ export default function PDV() {
 
     return openRetailCouponPrintWindow({
       storeName: retailCouponStoreName,
+      storeTaxId: receiptProfile.taxId,
+      storeAddress: receiptProfile.address,
+      storePhone: receiptProfile.phone,
       saleId: saleReceiptData.saleId,
       saleDate: saleReceiptData.saleDate,
       operatorName: saleReceiptData.sellerName,
@@ -2251,6 +2265,8 @@ export default function PDV() {
       changeAmount: saleReceiptData.change,
       cashReceived: saleReceiptData.cashReceived,
       isDelivery: saleReceiptData.isDelivery,
+      serviceTicketNumber: saleReceiptData.serviceTicketNumber,
+      creditBalanceAfter: saleReceiptData.creditBalanceAfter,
       items: saleReceiptData.items.map(item => ({
         productName: item.product.name,
         quantity: item.quantity,
@@ -2279,6 +2295,9 @@ export default function PDV() {
 
     openRetailCouponPrintWindow({
       storeName: retailCouponStoreName,
+      storeTaxId: receiptProfile.taxId,
+      storeAddress: receiptProfile.address,
+      storePhone: receiptProfile.phone,
       saleId: sale.id,
       saleDate: sale.date,
       operatorName: sale.seller_name || sellerName,
@@ -2290,6 +2309,7 @@ export default function PDV() {
       changeAmount: sale.change_amount,
       cashReceived: sale.cash_received,
       isDelivery: sale.is_delivery,
+      serviceTicketNumber: sale.service_ticket_number,
       items: items.map(item => ({
         productName: item.product_name,
         quantity: item.quantity,
@@ -4275,7 +4295,7 @@ export default function PDV() {
                 <div className="flex items-center gap-2">
                   <Printer className="h-4 w-4 text-primary" />
                   <div>
-                    <p className="text-sm font-semibold">Cupom fiscal</p>
+                    <p className="text-sm font-semibold">Cupom não fiscal</p>
                     <p className="text-xs text-muted-foreground">
                       Documento de venda rápida de varejo ao consumidor final.
                     </p>

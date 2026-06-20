@@ -1,4 +1,5 @@
 const path = require('path');
+const fs = require('fs');
 const { DatabaseSync } = require('node:sqlite');
 const { app, BrowserWindow, ipcMain, shell } = require('electron');
 const { autoUpdater } = require('electron-updater');
@@ -72,6 +73,83 @@ let updateState = {
   error: null,
 };
 let pendingUpdateRetryTimer = null;
+const appendPrintLog = (event, details = {}) => {
+  const entry = JSON.stringify({
+    timestamp: new Date().toISOString(),
+    event,
+    ...details,
+  });
+
+  console.log(`[printing] ${entry}`);
+  try {
+    fs.appendFileSync(path.join(app.getPath('userData'), 'printing.log'), `${entry}\n`, 'utf8');
+  } catch (error) {
+    console.error('Nao foi possivel gravar o log de impressao:', error);
+  }
+};
+
+const getPrinterSettingsPath = () => path.join(app.getPath('userData'), 'printer-settings.json');
+const readSelectedPrinterName = () => {
+  try {
+    const settings = JSON.parse(fs.readFileSync(getPrinterSettingsPath(), 'utf8'));
+    return typeof settings?.printerName === 'string' && settings.printerName.trim()
+      ? settings.printerName.trim()
+      : null;
+  } catch {
+    return null;
+  }
+};
+const writeSelectedPrinterName = (printerName) => {
+  const normalizedName = typeof printerName === 'string' && printerName.trim()
+    ? printerName.trim()
+    : null;
+  fs.writeFileSync(
+    getPrinterSettingsPath(),
+    `${JSON.stringify({ printerName: normalizedName }, null, 2)}\n`,
+    'utf8',
+  );
+  return normalizedName;
+};
+const isDefaultPrinter = (printer) => Object.entries(printer?.options || {}).some(([key, value]) => (
+  key.toLowerCase().includes('default')
+  && ['true', '1', 'yes'].includes(String(value).toLowerCase())
+));
+const resolvePrinterSelection = (printers) => {
+  const configuredPrinterName = readSelectedPrinterName()
+    || process.env.HAPPYCASH_PRINTER_NAME?.trim()
+    || null;
+  const configuredPrinter = configuredPrinterName
+    ? printers.find(printer => printer.name === configuredPrinterName || printer.displayName === configuredPrinterName)
+    : null;
+
+  return {
+    configuredPrinterName,
+    selectedPrinter: configuredPrinter
+      || printers.find(isDefaultPrinter)
+      || (printers.length === 1 ? printers[0] : null),
+    configuredPrinterMissing: Boolean(configuredPrinterName && !configuredPrinter),
+  };
+};
+
+const CSS_PIXEL_TO_MICRONS = 25400 / 96;
+const RECEIPT_WIDTH_MICRONS = 80000;
+const getReceiptPageSize = async (printWindow) => {
+  const receiptHeightPixels = await printWindow.webContents.executeJavaScript(`
+    (() => {
+      const receipt = document.querySelector('[data-receipt-root]');
+      const height = receipt?.getBoundingClientRect().height
+        || document.documentElement.scrollHeight
+        || document.body.scrollHeight;
+      return Math.ceil(height);
+    })()
+  `);
+  const safeHeightPixels = Number.isFinite(receiptHeightPixels) ? receiptHeightPixels : 0;
+
+  return {
+    width: RECEIPT_WIDTH_MICRONS,
+    height: Math.max(50000, Math.ceil((safeHeightPixels + 2) * CSS_PIXEL_TO_MICRONS)),
+  };
+};
 
 const isHttpUrl = (value) => {
   try {
@@ -674,11 +752,32 @@ const printHtml = async (html) => {
       void printWindow.loadURL(`data:text/html;base64,${Buffer.from(html, 'utf8').toString('base64')}`);
     });
 
+    await new Promise(resolve => setTimeout(resolve, 150));
+
+    const printers = await printWindow.webContents.getPrintersAsync();
+    const { configuredPrinterName, selectedPrinter, configuredPrinterMissing } = resolvePrinterSelection(printers);
+    const pageSize = await getReceiptPageSize(printWindow);
+
+    appendPrintLog('print-requested', {
+      printerName: selectedPrinter?.name || 'system-default',
+      displayName: selectedPrinter?.displayName || 'Impressora padrao do sistema',
+      configuredPrinterName,
+      configuredPrinterMissing,
+      availablePrinters: printers.map(printer => printer.name),
+      pageSize,
+    });
+
     const result = await new Promise((resolve) => {
       printWindow.webContents.print(
         {
           silent: true,
+          ...(selectedPrinter ? { deviceName: selectedPrinter.name } : {}),
           printBackground: true,
+          color: false,
+          copies: 1,
+          margins: { marginType: 'none' },
+          pageSize,
+          pageRanges: [{ from: 0, to: 0 }],
         },
         (success, failureReason) => {
           resolve({
@@ -689,9 +788,16 @@ const printHtml = async (html) => {
       );
     });
 
+    appendPrintLog(result.success ? 'print-sent' : 'print-failed', {
+      printerName: selectedPrinter?.name || 'system-default',
+      error: result.error,
+    });
     cleanup();
     return result;
   } catch (error) {
+    appendPrintLog('print-exception', {
+      error: error instanceof Error ? error.message : String(error),
+    });
     cleanup();
     return {
       success: false,
@@ -1023,6 +1129,51 @@ ipcMain.on('open-external-url', (event, url) => {
 ipcMain.handle('print-html', async (_event, html) => {
   return printHtml(html);
 });
+
+ipcMain.handle('printer:list', async (event) => {
+  const printers = await event.sender.getPrintersAsync();
+  const { configuredPrinterName, selectedPrinter } = resolvePrinterSelection(printers);
+  const defaultPrinter = printers.find(isDefaultPrinter)
+    || (printers.length === 1 ? selectedPrinter : null);
+  return {
+    selectedName: configuredPrinterName,
+    defaultName: defaultPrinter?.name || null,
+    printers: printers.map(printer => ({
+      name: printer.name,
+      displayName: printer.displayName || printer.name,
+      description: printer.description || '',
+      isDefault: isDefaultPrinter(printer),
+    })),
+  };
+});
+
+ipcMain.handle('printer:select', (_event, printerName) => {
+  try {
+    return { success: true, selectedName: writeSelectedPrinterName(printerName) };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Nao foi possivel salvar a impressora.',
+    };
+  }
+});
+
+ipcMain.handle('printer:test', async () => printHtml(`
+  <!doctype html>
+  <html><head><meta charset="utf-8"><style>
+    * { box-sizing: border-box; }
+    @page { size: auto; margin: 0; }
+    body { width: 80mm; margin: 0; font-family: Arial, sans-serif; text-align: center; font-size: 15px; font-weight: 600; }
+    main { width: 80mm; padding: 5mm 3mm; }
+    strong { display: block; font-size: 21px; margin-bottom: 8px; }
+  </style></head><body>
+    <main data-receipt-root>
+      <strong>HappyCash</strong>
+      <div>Teste de impressao concluido</div>
+      <div>${new Date().toLocaleString('pt-BR')}</div>
+    </main>
+  </body></html>
+`));
 
 ipcMain.handle('app:get-runtime-info', () => ({
   appVersion: app.getVersion(),

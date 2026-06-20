@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { buildClientCrmWhatsAppUrl, buildItemWhatsAppUrl, buildPaymentWhatsAppUrl, buildWhatsAppUrl } from '@/lib/whatsapp';
+import { buildClientCrmWhatsAppUrl, buildItemWhatsAppUrl, buildPaymentWhatsAppUrl, buildSupplierOrderWhatsAppUrl, buildWhatsAppUrl } from '@/lib/whatsapp';
 import type { DebtEntry, Payment } from '@/types';
 
 const sampleEntry: DebtEntry = {
@@ -73,5 +73,18 @@ describe('whatsapp messages', () => {
     expect(message).toContain('Mercadinho Azul');
     expect(message).toContain('saldo em aberto');
     expect(message).toContain('R$ 42.50');
+  });
+
+  it('monta pedido de compra para o WhatsApp do fornecedor', () => {
+    const url = buildSupplierOrderWhatsAppUrl('11999999999', 'Distribuidora Central', [
+      { productName: 'Refrigerante', quantity: 4 },
+      { productName: 'Água', quantity: 10 },
+    ]);
+    const message = readMessage(url);
+
+    expect(url).toContain('wa.me/5511999999999');
+    expect(message).toContain('Distribuidora Central');
+    expect(message).toContain('Refrigerante: 4 un.');
+    expect(message).toContain('Água: 10 un.');
   });
 });

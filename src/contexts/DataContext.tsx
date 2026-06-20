@@ -201,7 +201,7 @@ interface DataContextType {
   addClient: (name: string, phone: string, creditLimit?: number | null) => Promise<void>;
   updateClient: (id: string, data: Partial<Client>) => Promise<void>;
   softDeleteClient: (id: string) => Promise<void>;
-  addProduct: (name: string, price: number, category: string, extra?: Partial<Product>) => Promise<void>;
+  addProduct: (name: string, price: number, category: string, extra?: Partial<Product>) => Promise<Product>;
   updateProduct: (id: string, data: Partial<Product>) => Promise<void>;
   deleteProduct: (id: string) => Promise<void>;
   addPricingRule: (rule: Omit<ProductCategoryPricingRule, 'id' | 'created_at' | 'updated_at' | 'owner_user_id'> & { owner_user_id?: string }) => Promise<void>;
@@ -251,6 +251,7 @@ interface DataContextType {
       operatorUserId?: string | null;
       cashSessionId?: string | null;
       date?: string;
+      partyName?: string | null;
     }
   ) => Promise<void>;
   deleteExpense: (id: string) => Promise<void>;
@@ -1657,7 +1658,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         deleted_at: null,
       } as Product, products);
       setProducts(prev => [...prev, product]);
-      return;
+      return product;
     }
 
     const addOfflineProduct = async () => {
@@ -1700,11 +1701,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
       }
 
       setProducts(prev => [...prev, product]);
+      return product;
     };
 
     if (canUseOfflineConcentrator && typeof navigator !== 'undefined' && navigator.onLine === false) {
-      await addOfflineProduct();
-      return;
+      return await addOfflineProduct();
     }
 
     try {
@@ -1713,11 +1714,12 @@ export function DataProvider({ children }: { children: ReactNode }) {
         ...buildRemoteProductRecord(productPayload),
       } as Record<string, unknown>).select('*').single();
       if (error) throw error;
-      setProducts(prev => [...prev, withDisplayCode(data as Product, prev)]);
+      const product = withDisplayCode(data as Product, products);
+      setProducts(prev => [...prev, withDisplayCode(product, prev)]);
+      return product;
     } catch (error) {
       if (canUseOfflineConcentrator && isProbablyOfflineError(error)) {
-        await addOfflineProduct();
-        return;
+        return await addOfflineProduct();
       }
 
       throw error;
@@ -3556,6 +3558,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       operatorUserId?: string | null;
       cashSessionId?: string | null;
       date?: string;
+      partyName?: string | null;
     }
   ) => {
     if (isDemoMode) {
@@ -3565,6 +3568,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         operator_user_id: metadata?.operatorUserId ?? null,
         cash_session_id: metadata?.cashSessionId ?? null,
         description,
+        party_name: metadata?.partyName ?? null,
         amount,
         category,
         date: metadata?.date || nowIso(),
@@ -3580,6 +3584,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         operator_user_id: metadata?.operatorUserId ?? null,
         cash_session_id: metadata?.cashSessionId ?? null,
         description,
+        party_name: metadata?.partyName ?? null,
         amount,
         category,
         date: metadata?.date || nowIso(),
@@ -3609,6 +3614,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         operator_user_id: metadata?.operatorUserId ?? null,
         cash_session_id: metadata?.cashSessionId ?? null,
         description,
+        party_name: metadata?.partyName ?? null,
         amount,
         category,
         date: metadata?.date || new Date().toISOString(),
@@ -3617,8 +3623,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
       let expenseData = data;
       let expenseError = error;
 
-      if (expenseError?.message && ['operator_user_id', 'cash_session_id'].some(column => expenseError.message.includes(column))) {
-        const { operator_user_id, cash_session_id, ...baseExpensePayload } = expensePayload;
+      if (expenseError?.message && ['operator_user_id', 'cash_session_id', 'party_name'].some(column => expenseError.message.includes(column))) {
+        const { operator_user_id, cash_session_id, party_name, ...baseExpensePayload } = expensePayload;
         const retry = await db.from('expenses').insert(baseExpensePayload).select('*').single();
         expenseData = retry.data;
         expenseError = retry.error;

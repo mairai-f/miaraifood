@@ -9,6 +9,9 @@ export interface RetailCouponPrintItem {
 
 export interface RetailCouponPrintPayload {
   storeName: string;
+  storeTaxId?: string | null;
+  storeAddress?: string | null;
+  storePhone?: string | null;
   systemBrandLabel?: string | null;
   saleId: string;
   saleDate: string;
@@ -21,6 +24,8 @@ export interface RetailCouponPrintPayload {
   changeAmount?: number | null;
   cashReceived?: number | null;
   isDelivery?: boolean | null;
+  serviceTicketNumber?: number | null;
+  creditBalanceAfter?: number | null;
   items: RetailCouponPrintItem[];
   copyLabel?: string | null;
   footerMessage?: string | null;
@@ -44,6 +49,12 @@ const formatMoney = (value: number) => formatCurrency(value);
 const formatSaleCode = (saleId: string) => {
   const normalized = saleId.replaceAll('-', '').toUpperCase();
   return normalized.slice(0, 8) || 'SEM-CODIGO';
+};
+
+const formatTaxId = (value: string) => {
+  const digits = value.replace(/\D/g, '').slice(0, 14);
+  if (digits.length !== 14) return value.trim();
+  return digits.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, '$1.$2.$3/$4-$5');
 };
 
 const printRetailCouponWithIframe = (html: string) => {
@@ -97,12 +108,12 @@ const printRetailCouponWithIframe = (html: string) => {
       }, 120);
     };
 
-    document.body.appendChild(iframe);
     iframe.srcdoc = html;
+    document.body.appendChild(iframe);
   });
 };
 
-const buildRetailCouponHtml = (
+export const buildRetailCouponHtml = (
   payload: RetailCouponPrintPayload,
   options?: {
     attachBrowserPrintScript?: boolean;
@@ -126,6 +137,7 @@ const buildRetailCouponHtml = (
   const copyLabel = payload.copyLabel?.trim();
   const footerMessage = payload.footerMessage?.trim() || translateCurrentText('Obrigado pela preferencia.');
   const systemBrandLabel = payload.systemBrandLabel?.trim() || translateCurrentText('Sistema HappyCash');
+  const itemCount = payload.items.reduce((sum, item) => sum + item.quantity, 0);
   const attachBrowserPrintScript = options?.attachBrowserPrintScript !== false;
 
   return `
@@ -145,28 +157,30 @@ const buildRetailCouponHtml = (
           }
 
           @page {
-            size: 80mm auto;
-            margin: 4mm;
+            size: auto;
+            margin: 0;
           }
 
           body {
             margin: 0;
-            background: #eef2f7;
-            color: #111827;
-            font-family: "Courier New", Courier, monospace;
+            width: 80mm;
+            background: #ffffff;
+            color: #000000;
+            font-family: Arial, Helvetica, sans-serif;
+            font-size: 14px;
+            font-weight: 500;
           }
 
           .page {
-            display: flex;
-            justify-content: center;
-            padding: 16px;
+            width: 80mm;
+            margin: 0;
+            padding: 0;
           }
 
           .coupon {
-            width: 302px;
+            width: 80mm;
             background: #ffffff;
-            border: 1px solid #d1d5db;
-            padding: 16px 14px;
+            padding: 4mm 3mm 5mm;
           }
 
           .center {
@@ -174,62 +188,81 @@ const buildRetailCouponHtml = (
           }
 
           .brand-name {
-            font-size: 18px;
-            font-weight: 800;
+            font-size: 21px;
+            font-weight: 900;
             text-transform: uppercase;
             letter-spacing: 0.18em;
           }
 
           .store-name {
             margin-top: 8px;
-            font-size: 15px;
-            font-weight: 700;
+            font-size: 18px;
+            font-weight: 800;
             text-transform: uppercase;
             letter-spacing: 0.04em;
           }
 
           .system-brand {
             margin-top: 4px;
-            color: #4b5563;
-            font-size: 11px;
+            color: #000000;
+            font-size: 12px;
+            font-weight: 700;
             text-transform: uppercase;
             letter-spacing: 0.12em;
           }
 
           .title {
             margin-top: 8px;
-            font-size: 15px;
-            font-weight: 700;
+            font-size: 17px;
+            font-weight: 800;
             text-transform: uppercase;
           }
 
           .subtitle {
             margin-top: 4px;
-            color: #4b5563;
-            font-size: 11px;
-            line-height: 1.45;
+            color: #000000;
+            font-size: 13px;
+            font-weight: 600;
+            line-height: 1.35;
+          }
+
+          .store-details {
+            margin-top: 6px;
+            font-size: 13px;
+            font-weight: 600;
+            line-height: 1.35;
+          }
+
+          .non-fiscal-warning {
+            margin-top: 10px;
+            padding: 6px;
+            border: 2px solid #000000;
+            font-size: 14px;
+            font-weight: 900;
+            text-transform: uppercase;
           }
 
           .copy-label {
             display: inline-block;
             margin-top: 10px;
             padding: 4px 8px;
-            border: 1px dashed #111827;
-            font-size: 11px;
-            font-weight: 700;
+            border: 1px dashed #000000;
+            font-size: 13px;
+            font-weight: 800;
             text-transform: uppercase;
           }
 
           .divider {
             margin: 12px 0;
-            border-top: 1px dashed #9ca3af;
+            border-top: 1px dashed #000000;
           }
 
           .meta,
           .totals {
             display: grid;
             gap: 6px;
-            font-size: 12px;
+            font-size: 14px;
+            font-weight: 600;
           }
 
           .meta-row,
@@ -242,7 +275,7 @@ const buildRetailCouponHtml = (
 
           .meta-row span:first-child,
           .total-row span:first-child {
-            color: #4b5563;
+            color: #000000;
           }
 
           .meta-row span:last-child,
@@ -252,8 +285,8 @@ const buildRetailCouponHtml = (
 
           .items-title {
             margin-bottom: 8px;
-            font-size: 12px;
-            font-weight: 700;
+            font-size: 14px;
+            font-weight: 800;
             text-transform: uppercase;
           }
 
@@ -264,7 +297,8 @@ const buildRetailCouponHtml = (
 
           .item {
             padding-bottom: 8px;
-            border-bottom: 1px dashed #d1d5db;
+            border-bottom: 1px dashed #000000;
+            break-inside: avoid;
           }
 
           .item:last-child {
@@ -273,8 +307,9 @@ const buildRetailCouponHtml = (
           }
 
           .item-name {
-            font-size: 12px;
-            line-height: 1.4;
+            font-size: 15px;
+            font-weight: 700;
+            line-height: 1.35;
             word-break: break-word;
           }
 
@@ -283,33 +318,36 @@ const buildRetailCouponHtml = (
             display: flex;
             justify-content: space-between;
             gap: 8px;
-            color: #4b5563;
-            font-size: 11px;
+            color: #000000;
+            font-size: 13px;
+            font-weight: 600;
           }
 
           .item-meta strong {
-            color: #111827;
-            font-size: 12px;
+            color: #000000;
+            font-size: 14px;
+            font-weight: 800;
           }
 
           .total-row.total {
             padding-top: 8px;
-            border-top: 1px solid #111827;
-            font-size: 14px;
-            font-weight: 700;
+            border-top: 2px solid #000000;
+            font-size: 18px;
+            font-weight: 900;
           }
 
           .footer {
             margin-top: 12px;
-            font-size: 11px;
-            color: #4b5563;
+            font-size: 13px;
+            color: #000000;
+            font-weight: 600;
             text-align: center;
             line-height: 1.5;
           }
 
           .empty-state {
-            color: #6b7280;
-            font-size: 12px;
+            color: #000000;
+            font-size: 14px;
             text-align: center;
             padding: 8px 0;
           }
@@ -324,21 +362,27 @@ const buildRetailCouponHtml = (
             }
 
             .coupon {
-              width: 100%;
-              border: 0;
-              padding: 0;
+              width: 80mm;
             }
           }
         </style>
       </head>
       <body>
         <main class="page">
-          <article class="coupon">
+          <article class="coupon" data-receipt-root>
             <header class="center">
               <div class="brand-name">HappyCash</div>
               <div class="system-brand">${escapeHtml(systemBrandLabel)}</div>
               <div class="store-name">${escapeHtml(payload.storeName)}</div>
-              <div class="title">Cupom nao fiscal</div>
+              ${(payload.storeTaxId || payload.storeAddress || payload.storePhone) ? `
+                <div class="store-details">
+                  ${payload.storeTaxId ? `<div>CNPJ: ${escapeHtml(formatTaxId(payload.storeTaxId))}</div>` : ''}
+                  ${payload.storeAddress ? `<div>${escapeHtml(payload.storeAddress)}</div>` : ''}
+                  ${payload.storePhone ? `<div>Contato: ${escapeHtml(payload.storePhone)}</div>` : ''}
+                </div>
+              ` : ''}
+              <div class="non-fiscal-warning">Nao e documento fiscal</div>
+              <div class="title">Comprovante de venda</div>
               <div class="subtitle">Documento de venda rapida de varejo ao consumidor final</div>
               ${copyLabel ? `<div class="copy-label">${escapeHtml(copyLabel)}</div>` : ''}
             </header>
@@ -354,6 +398,12 @@ const buildRetailCouponHtml = (
                 <span>Data</span>
                 <span>${escapeHtml(saleDate)}</span>
               </div>
+              ${payload.serviceTicketNumber ? `
+                <div class="meta-row">
+                  <span>Comanda</span>
+                  <span>#${escapeHtml(String(payload.serviceTicketNumber))}</span>
+                </div>
+              ` : ''}
               ${payload.operatorName ? `
                 <div class="meta-row">
                   <span>Operador</span>
@@ -381,7 +431,7 @@ const buildRetailCouponHtml = (
             <div class="divider"></div>
 
             <section>
-              <div class="items-title">Itens</div>
+              <div class="items-title">Itens (${escapeHtml(String(itemCount))})</div>
               <div class="items">${itemsHtml}</div>
             </section>
 
@@ -414,6 +464,12 @@ const buildRetailCouponHtml = (
                 <div class="total-row">
                   <span>Troco</span>
                   <span>${escapeHtml(formatMoney(payload.changeAmount ?? 0))}</span>
+                </div>
+              ` : ''}
+              ${typeof payload.creditBalanceAfter === 'number' ? `
+                <div class="total-row">
+                  <span>Saldo fiado apos esta venda</span>
+                  <span>${escapeHtml(formatMoney(payload.creditBalanceAfter))}</span>
                 </div>
               ` : ''}
             </section>
@@ -451,11 +507,7 @@ export const openRetailCouponPrintWindow = async (
   });
 
   if (preferSilentPrint && typeof window.electronAPI?.printHtml === 'function') {
-    const printed = await window.electronAPI.printHtml(html);
-
-    if (printed) {
-      return true;
-    }
+    return window.electronAPI.printHtml(html);
   }
 
   if (automaticPrint) {

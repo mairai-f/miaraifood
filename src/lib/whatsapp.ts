@@ -36,6 +36,24 @@ function encodeWhatsAppMessage(msg: string): string {
     .replace(/%F0%9F%92%B8/g, '💸'); // 💸
 }
 
+export type SupplierOrderWhatsAppItem = {
+  productName: string;
+  quantity: number;
+};
+
+export function buildSupplierOrderWhatsAppUrl(
+  phone: string,
+  supplierName: string,
+  items: SupplierOrderWhatsAppItem[],
+): string {
+  const orderLines = items
+    .map((item) => `• ${item.productName}: ${item.quantity} un.`)
+    .join('\n');
+  const msg = `Olá, ${supplierName}! 📋\n\nGostaria de fazer o seguinte pedido de compra:\n\n${orderLines}\n\nPor favor, confirme disponibilidade e prazo de entrega. Obrigado!`;
+
+  return `https://wa.me/${normalizePhone(phone)}?text=${encodeWhatsAppMessage(msg)}`;
+}
+
 export function buildWhatsAppUrl(
   phone: string,
   clientName: string,

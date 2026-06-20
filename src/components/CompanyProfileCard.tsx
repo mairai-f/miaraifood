@@ -27,6 +27,8 @@ interface CompanyForm {
   tradeName: string;
   cnpj: string;
   stateRegistration: string;
+  phone: string;
+  address: string;
 }
 
 const defaultForm: CompanyForm = {
@@ -34,6 +36,8 @@ const defaultForm: CompanyForm = {
   tradeName: '',
   cnpj: '',
   stateRegistration: '',
+  phone: '',
+  address: '',
 };
 
 const digitsOnly = (value: string) => value.replace(/\D/g, '');
@@ -90,7 +94,7 @@ export function CompanyProfileCard() {
         { data: storeAccountData, error: storeAccountError },
         { data: fiscalSettingsData, error: fiscalSettingsError },
       ] = await Promise.all([
-        db.from('store_accounts').select('nome_estabelecimento, cnpj').eq('owner_user_id', ownerUserId).maybeSingle(),
+        db.from('store_accounts').select('nome_estabelecimento, cnpj, telefone, endereco').eq('owner_user_id', ownerUserId).maybeSingle(),
         db.from('store_fiscal_settings').select('issuer_legal_name, issuer_trade_name, issuer_cnpj, issuer_state_registration').eq('owner_user_id', ownerUserId).maybeSingle(),
       ]);
 
@@ -117,6 +121,8 @@ export function CompanyProfileCard() {
         tradeName,
         cnpj: formatCnpj(cnpj),
         stateRegistration,
+        phone: String(storeAccountData?.telefone ?? ''),
+        address: String(storeAccountData?.endereco ?? ''),
       };
 
       setSavedForm(nextForm);
@@ -198,6 +204,8 @@ export function CompanyProfileCard() {
       db.from('store_accounts').update({
         nome_estabelecimento: businessName,
         cnpj: cnpjDigits || null,
+        telefone: toOptionalText(form.phone),
+        endereco: toOptionalText(form.address),
       }).eq('owner_user_id', ownerUserId),
     ]);
 
@@ -284,6 +292,24 @@ export function CompanyProfileCard() {
                       placeholder="110042490114"
                     />
                   </div>
+                </div>
+
+                <div className="space-y-1">
+                  <Label>Telefone / WhatsApp</Label>
+                  <Input
+                    value={form.phone}
+                    onChange={event => updateField('phone', event.target.value)}
+                    placeholder="(11) 99999-9999"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <Label>Endereco da loja</Label>
+                  <Input
+                    value={form.address}
+                    onChange={event => updateField('address', event.target.value)}
+                    placeholder="Rua Exemplo, 123 - Bairro - Cidade/UF"
+                  />
                 </div>
               </div>
 
