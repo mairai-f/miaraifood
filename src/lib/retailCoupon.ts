@@ -57,6 +57,17 @@ const formatTaxId = (value: string) => {
   return digits.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, '$1.$2.$3/$4-$5');
 };
 
+const applyMeasuredBrowserPageSize = (frameDocument: Document) => {
+  const receipt = frameDocument.querySelector<HTMLElement>('[data-receipt-root]');
+  if (!receipt) return;
+
+  const receiptHeightMm = Math.max(50, Math.ceil((receipt.getBoundingClientRect().height * 25.4) / 96));
+  const pageStyle = frameDocument.createElement('style');
+  pageStyle.setAttribute('data-happycash-page-size', 'true');
+  pageStyle.textContent = `@page { size: 80mm ${receiptHeightMm}mm; margin: 0; }`;
+  frameDocument.head.appendChild(pageStyle);
+};
+
 const printRetailCouponWithIframe = (html: string) => {
   if (typeof window === 'undefined' || typeof document === 'undefined') {
     return Promise.resolve(false);
@@ -95,6 +106,7 @@ const printRetailCouponWithIframe = (html: string) => {
         return;
       }
 
+      applyMeasuredBrowserPageSize(frameWindow.document);
       frameWindow.onafterprint = () => finalize(true);
 
       window.setTimeout(() => {
@@ -180,7 +192,7 @@ export const buildRetailCouponHtml = (
           .coupon {
             width: 80mm;
             background: #ffffff;
-            padding: 4mm 3mm 5mm;
+            padding: 9mm 3mm 5mm;
           }
 
           .center {
@@ -369,7 +381,7 @@ export const buildRetailCouponHtml = (
       </head>
       <body>
         <main class="page">
-          <article class="coupon" data-receipt-root>
+          <article class="coupon" data-receipt-root data-sale-id="${escapeHtml(payload.saleId)}">
             <header class="center">
               <div class="brand-name">HappyCash</div>
               <div class="system-brand">${escapeHtml(systemBrandLabel)}</div>

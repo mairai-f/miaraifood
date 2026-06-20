@@ -133,21 +133,27 @@ const resolvePrinterSelection = (printers) => {
 
 const CSS_PIXEL_TO_MICRONS = 25400 / 96;
 const RECEIPT_WIDTH_MICRONS = 80000;
-const getReceiptPageSize = async (printWindow) => {
-  const receiptHeightPixels = await printWindow.webContents.executeJavaScript(`
+const getReceiptPrintDetails = async (printWindow) => {
+  const receiptDetails = await printWindow.webContents.executeJavaScript(`
     (() => {
       const receipt = document.querySelector('[data-receipt-root]');
       const height = receipt?.getBoundingClientRect().height
         || document.documentElement.scrollHeight
         || document.body.scrollHeight;
-      return Math.ceil(height);
+      return {
+        height: Math.ceil(height),
+        saleId: receipt?.getAttribute('data-sale-id') || null,
+      };
     })()
   `);
-  const safeHeightPixels = Number.isFinite(receiptHeightPixels) ? receiptHeightPixels : 0;
+  const safeHeightPixels = Number.isFinite(receiptDetails?.height) ? receiptDetails.height : 0;
 
   return {
-    width: RECEIPT_WIDTH_MICRONS,
-    height: Math.max(50000, Math.ceil((safeHeightPixels + 2) * CSS_PIXEL_TO_MICRONS)),
+    saleId: typeof receiptDetails?.saleId === 'string' ? receiptDetails.saleId : null,
+    pageSize: {
+      width: RECEIPT_WIDTH_MICRONS,
+      height: Math.max(50000, Math.ceil((safeHeightPixels + 2) * CSS_PIXEL_TO_MICRONS)),
+    },
   };
 };
 
@@ -756,9 +762,10 @@ const printHtml = async (html) => {
 
     const printers = await printWindow.webContents.getPrintersAsync();
     const { configuredPrinterName, selectedPrinter, configuredPrinterMissing } = resolvePrinterSelection(printers);
-    const pageSize = await getReceiptPageSize(printWindow);
+    const { pageSize, saleId } = await getReceiptPrintDetails(printWindow);
 
     appendPrintLog('print-requested', {
+      saleId,
       printerName: selectedPrinter?.name || 'system-default',
       displayName: selectedPrinter?.displayName || 'Impressora padrao do sistema',
       configuredPrinterName,
@@ -789,10 +796,20 @@ const printHtml = async (html) => {
     });
 
     appendPrintLog(result.success ? 'print-sent' : 'print-failed', {
+      saleId,
       printerName: selectedPrinter?.name || 'system-default',
       error: result.error,
     });
-    cleanup();
+    if (result.success) {
+      // Chromium can invoke the callback before CUPS/Windows finishes creating
+      // the spool job. Keep the hidden window alive so the driver can consume it.
+      setTimeout(() => {
+        cleanup();
+        appendPrintLog('print-window-released', { saleId });
+      }, 5000);
+    } else {
+      cleanup();
+    }
     return result;
   } catch (error) {
     appendPrintLog('print-exception', {
@@ -1164,7 +1181,7 @@ ipcMain.handle('printer:test', async () => printHtml(`
     * { box-sizing: border-box; }
     @page { size: auto; margin: 0; }
     body { width: 80mm; margin: 0; font-family: Arial, sans-serif; text-align: center; font-size: 15px; font-weight: 600; }
-    main { width: 80mm; padding: 5mm 3mm; }
+    main { width: 80mm; padding: 9mm 3mm 5mm; }
     strong { display: block; font-size: 21px; margin-bottom: 8px; }
   </style></head><body>
     <main data-receipt-root>

@@ -42,7 +42,9 @@ describe('retail coupon', () => {
     expect(html).toContain('#42');
     expect(html).toContain('Itens (2)');
     expect(html).toContain('Saldo fiado apos esta venda');
+    expect(html).toContain('data-sale-id="12345678-aaaa-bbbb-cccc-123456789000"');
     expect(html).toContain('font-size: 15px');
+    expect(html).toContain('padding: 9mm 3mm 5mm');
     expect(html).toContain('size: auto');
     expect(html).not.toContain('size: 80mm auto');
     expect(html).not.toContain('window.print()');
@@ -66,13 +68,18 @@ describe('retail coupon', () => {
     vi.useFakeTimers();
     const print = vi.fn();
     const focus = vi.fn();
+    let frameDocument: Document;
 
     vi.spyOn(document.body, 'appendChild').mockImplementation((node) => {
       const iframe = node as HTMLIFrameElement;
       expect(iframe.srcdoc).toContain('Loja Teste');
+      frameDocument = document.implementation.createHTMLDocument('Cupom');
+      frameDocument.body.innerHTML = '<article data-receipt-root style="height: 600px"></article>';
+      vi.spyOn(frameDocument.querySelector('[data-receipt-root]') as HTMLElement, 'getBoundingClientRect')
+        .mockReturnValue({ width: 302, height: 600 } as DOMRect);
       Object.defineProperty(iframe, 'contentWindow', {
         configurable: true,
-        value: { focus, print, onafterprint: null },
+        value: { document: frameDocument, focus, print, onafterprint: null },
       });
       window.setTimeout(() => iframe.onload?.call(iframe, new Event('load')), 0);
       return node;
@@ -84,6 +91,8 @@ describe('retail coupon', () => {
     await expect(result).resolves.toBe(true);
     expect(focus).toHaveBeenCalledOnce();
     expect(print).toHaveBeenCalledOnce();
+    expect(frameDocument.head.querySelector('[data-happycash-page-size]')?.textContent)
+      .toContain('@page { size: 80mm 159mm; margin: 0; }');
   });
 
   it('does not fall back to a second browser print after an Electron failure', async () => {

@@ -2118,18 +2118,23 @@ export default function PDV() {
 
       // If fiado, create debt entries
       if (paymentMethod === 'fiado' && selectedClientId) {
-        const debtFactor = subtotal > 0 ? total / subtotal : 1;
-        await addDebtEntries(
-          items.map(i => ({
-            clientId: selectedClientId,
-            productId: i.product_id,
-            productName: i.product_name,
-            quantity: i.quantity,
-            unitPrice: i.unit_price * debtFactor,
-            registeredBy: username || user?.email,
-          })),
-          { adjustStock: false },
-        );
+        try {
+          const debtFactor = subtotal > 0 ? total / subtotal : 1;
+          await addDebtEntries(
+            items.map(i => ({
+              clientId: selectedClientId,
+              productId: i.product_id,
+              productName: i.product_name,
+              quantity: i.quantity,
+              unitPrice: i.unit_price * debtFactor,
+              registeredBy: username || user?.email,
+            })),
+            { adjustStock: false },
+          );
+        } catch (debtError) {
+          console.error('Venda salva, mas nao foi possivel registrar o fiado:', getRedactedLogValue(debtError));
+          silentToast.error('Venda finalizada; confira o fiado deste cliente.');
+        }
       }
 
       if (activeServiceTicket) {
@@ -2186,23 +2191,28 @@ export default function PDV() {
       setIsDelivery(false);
       silentToast.success(translateCurrentText('Venda finalizada!'));
 
-      if (canSilentPrintRetailCoupon) {
-        const printed = await printSaleCouponFromData(finalizedSaleData, {
-          preferSilentPrint: true,
-          automaticPrint: true,
-        });
+      try {
+        if (canSilentPrintRetailCoupon) {
+          const printed = await printSaleCouponFromData(finalizedSaleData, {
+            preferSilentPrint: true,
+            automaticPrint: true,
+          });
 
-        if (!printed) {
-          silentToast.error('Nao foi possivel imprimir o cupom automaticamente.');
-        }
-      } else {
-        const printed = await printSaleCouponFromData(finalizedSaleData, {
-          automaticPrint: true,
-        });
+          if (!printed) {
+            silentToast.error('Nao foi possivel imprimir o cupom automaticamente.');
+          }
+        } else {
+          const printed = await printSaleCouponFromData(finalizedSaleData, {
+            automaticPrint: true,
+          });
 
-        if (!printed) {
-          silentToast.error('Nao foi possivel abrir a impressao automatica do cupom.');
+          if (!printed) {
+            silentToast.error('Nao foi possivel abrir a impressao automatica do cupom.');
+          }
         }
+      } catch (printError) {
+        console.error('Venda salva, mas a impressao automatica falhou:', getRedactedLogValue(printError));
+        silentToast.error('Venda finalizada, mas a impressao automatica falhou.');
       }
 
       if (canIssueFiscalDocumentInHomologation) {
