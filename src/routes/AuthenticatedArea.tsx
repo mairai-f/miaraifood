@@ -13,6 +13,8 @@ import { DataProvider } from '@/contexts/DataContext';
 import { useDesktopRuntime } from '@/contexts/DesktopRuntimeContext';
 import { usePlanAccess } from '@/contexts/PlanContext';
 import { hasSeenAppSplash, markAppSplashSeen } from '@/lib/appSplash';
+import { readDesktopActivation } from '@/lib/desktopActivation';
+import { canUseDesktopFiscalModule } from '@/lib/fiscalAccess';
 import type { UserRole } from '@/lib/access';
 
 const pageLoaders = [
@@ -92,17 +94,25 @@ function ProtectedRoute({
   children,
   allowedRoles,
   requiredFeature,
+  requiredDesktopFiscalAccess = false,
 }: {
   children: ReactNode;
   allowedRoles?: UserRole[];
   requiredFeature?: string;
+  requiredDesktopFiscalAccess?: boolean;
 }) {
   const { isAuthenticated, loading, role } = useAuth();
   const { isDesktop, checking: checkingDesktopLicense, licensed } = useDesktopRuntime();
-  const { loading: planLoading, hasFeature } = usePlanAccess();
+  const { loading: planLoading, hasFeature, planId } = usePlanAccess();
   const shouldBlockDesktopLicense = checkingDesktopLicense && (!isAuthenticated || (isDesktop && !licensed));
   const shouldBlockAccess = loading || planLoading || shouldBlockDesktopLicense;
   const shouldShowSplash = !hasSeenAppSplash() && !isAuthenticated;
+  const canUseFiscalNotesModule = !requiredDesktopFiscalAccess || canUseDesktopFiscalModule({
+    isDesktop,
+    licensed,
+    planId,
+    activation: readDesktopActivation(),
+  });
 
   useEffect(() => {
     if (!shouldBlockAccess) {
@@ -122,6 +132,7 @@ function ProtectedRoute({
   if (isDesktop && !licensed) return <DesktopLicenseBlocked />;
   if (allowedRoles && !allowedRoles.includes(role)) return <Navigate to={role === 'waiter' ? '/comandas' : '/'} replace />;
   if (requiredFeature && !hasFeature(requiredFeature)) return <AppLayout><FeatureLocked /></AppLayout>;
+  if (!canUseFiscalNotesModule) return <Navigate to="/" replace />;
   return <AppLayout>{children}</AppLayout>;
 }
 
@@ -159,7 +170,7 @@ const AuthenticatedArea = () => {
         <Route path="/financeiro" element={<ProtectedRoute allowedRoles={['admin']} requiredFeature="financial.manage"><LazyPage><Financial /></LazyPage></ProtectedRoute>} />
         <Route path="/operacoes" element={<ProtectedRoute allowedRoles={['admin']} requiredFeature="financial.manage"><LazyPage><Operations /></LazyPage></ProtectedRoute>} />
         <Route path="/precificacao" element={<ProtectedRoute allowedRoles={['admin']} requiredFeature="pricing.manage"><LazyPage><PricingManager /></LazyPage></ProtectedRoute>} />
-        <Route path="/notas" element={<ProtectedRoute allowedRoles={['admin']} requiredFeature="notes.manage"><LazyPage><Notes /></LazyPage></ProtectedRoute>} />
+        <Route path="/notas" element={<ProtectedRoute allowedRoles={['admin']} requiredFeature="notes.manage" requiredDesktopFiscalAccess><LazyPage><Notes /></LazyPage></ProtectedRoute>} />
         <Route path="/configuracoes" element={<ProtectedRoute allowedRoles={['admin']} requiredFeature="settings.manage"><LazyPage><Settings /></LazyPage></ProtectedRoute>} />
         <Route path="/acessos" element={<ProtectedRoute allowedRoles={['admin']} requiredFeature="settings.manage"><LazyPage><AccessMonitor /></LazyPage></ProtectedRoute>} />
         <Route path="/auditoria" element={<ProtectedRoute allowedRoles={['admin']} requiredFeature="settings.manage"><LazyPage><AuditLog /></LazyPage></ProtectedRoute>} />

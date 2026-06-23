@@ -9,6 +9,7 @@ import { usePlanAccess } from '@/contexts/PlanContext';
 import happyCashLogo from '@/assets/happycash-logo.webp';
 import { roleLabel } from '@/lib/access';
 import { readDesktopActivation } from '@/lib/desktopActivation';
+import { canUseDesktopFiscalModule } from '@/lib/fiscalAccess';
 import { isGuidedTourEligiblePlan, requestGuidedTourStart } from '@/lib/guidedTour';
 import { hasOfflineAdminAccess, readOfflineAdminAccess, saveOfflineAdminAccess } from '@/lib/offlineAdminAccess';
 import { supabase } from '@/integrations/supabase/client';
@@ -121,8 +122,18 @@ export function AppLayout({ children }: { children: ReactNode }) {
   const [scrollHints, setScrollHints] = useState({ top: false, bottom: false });
   const isPdvMode = location.pathname === '/pdv';
   const desktopActivation = readDesktopActivation();
+  const canUseFiscalNotesModule = canUseDesktopFiscalModule({
+    isDesktop,
+    licensed: desktopLicensed,
+    planId,
+    activation: desktopActivation,
+  });
   const offlineAdminAccess = ownerUserId ? readOfflineAdminAccess(ownerUserId) : null;
-  const visibleNavItems = navItems.filter(item => item.roles.includes(role) && hasFeature(item.featureKey));
+  const visibleNavItems = navItems.filter(item => {
+    if (!item.roles.includes(role) || !hasFeature(item.featureKey)) return false;
+    if (item.featureKey === 'notes.manage') return canUseFiscalNotesModule;
+    return true;
+  });
   const canOpenSettings = role === 'admin' && hasFeature('settings.manage');
   const canUseGuidedTour = isGuidedTourEligiblePlan(planId);
   const fallbackValidationStartedAt = user?.id ? readOfflineValidationStartedAt(user.id) : null;
