@@ -1,7 +1,13 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { buildCorsHeaders, handleCorsPreflight } from '../_shared/cors.ts';
+import { validateDesktopLicense } from '../_shared/desktopAccess.ts';
 
-type ManageFiscalRequest =
+type DesktopFiscalRequestContext = {
+  desktopInstallationId?: string | null;
+  desktopAppContext?: string | null;
+};
+
+type ManageFiscalRequest = DesktopFiscalRequestContext & (
   | {
       action: 'runtime_status';
     }
@@ -16,13 +22,21 @@ type ManageFiscalRequest =
   | {
       action: 'issue_nfce_homologation';
       saleId?: string;
-    };
+    }
+);
 
 interface CallerProfileRow {
   role: string;
   owner_user_id: string | null;
   username: string | null;
   email: string | null;
+}
+
+interface DesktopFiscalAccessResult {
+  ok: boolean;
+  status: number;
+  code: string;
+  message: string;
 }
 
 interface FiscalSettingsRow {
@@ -212,6 +226,85 @@ const toOptionalText = (value: string | null | undefined) => {
   return normalized ? normalized : null;
 };
 
+const normalizeLimitedText = (value: string | null | undefined, maxLength: number) =>
+  (toOptionalText(value) ?? '').slice(0, maxLength) || null;
+
+const validateDesktopFiscalAccess = async (
+  serviceClient: SupabaseServiceClient,
+  userId: string,
+  ownerUserId: string,
+  body: ManageFiscalRequest,
+): Promise<DesktopFiscalAccessResult> => {
+  const license = await validateDesktopLicense(
+    serviceClient as unknown as Parameters<typeof validateDesktopLicense>[0],
+    userId,
+    'happycash',
+  );
+
+  if (!license.ok) {
+    return {
+      ok: false,
+      status: 403,
+      code: license.code ?? 'PRO_DESKTOP_REQUIRED',
+      message: license.message || 'A NFC-e fica disponivel somente para lojas com Plano PRO ativo no HappyCash Desktop.',
+    };
+  }
+
+  if (license.planId !== 'pro') {
+    return {
+      ok: false,
+      status: 403,
+      code: 'PRO_DESKTOP_REQUIRED',
+      message: 'A NFC-e fica disponivel somente para lojas com Plano PRO ativo no HappyCash Desktop.',
+    };
+  }
+
+  const installationId = normalizeLimitedText(body.desktopInstallationId, 120);
+  const appContext = normalizeLimitedText(body.desktopAppContext, 40);
+
+  if (!installationId || appContext !== 'happycash') {
+    return {
+      ok: false,
+      status: 403,
+      code: 'DESKTOP_INSTALLATION_REQUIRED',
+      message: 'A NFC-e deve ser emitida por uma instalacao ativada do HappyCash Desktop PRO.',
+    };
+  }
+
+  const { data: activation, error } = await serviceClient
+    .from('desktop_machine_activations')
+    .select('id')
+    .eq('owner_user_id', ownerUserId)
+    .eq('app_context', 'happycash')
+    .eq('installation_id', installationId)
+    .maybeSingle();
+
+  if (error) {
+    return {
+      ok: false,
+      status: 503,
+      code: 'DESKTOP_ACTIVATION_LOOKUP_FAILED',
+      message: 'Nao foi possivel validar esta instalacao desktop agora.',
+    };
+  }
+
+  if (!activation) {
+    return {
+      ok: false,
+      status: 403,
+      code: 'DESKTOP_INSTALLATION_NOT_FOUND',
+      message: 'Esta maquina ainda nao esta ativada para emitir NFC-e pelo HappyCash Desktop PRO.',
+    };
+  }
+
+  return {
+    ok: true,
+    status: 200,
+    code: 'OK',
+    message: 'OK',
+  };
+};
+
 const asRecord = (value: unknown) => value && typeof value === 'object' ? value as Record<string, unknown> : {};
 
 const getNuvemFiscalBaseUrl = () => {
@@ -329,6 +422,9 @@ const currentAaMm = (value: string) => {
 
 const getFiscalMode = (settings: FiscalSettingsRow | null) =>
   settings?.fiscal_mode === 'nfce' || settings?.nfce_enabled ? 'nfce' : 'receipt_only';
+
+const getEffectiveFiscalProvider = (_settings: FiscalSettingsRow | null): FiscalSettingsRow['fiscal_provider'] =>
+  'internal';
 
 const buildMissingItems = (settings: FiscalSettingsRow | null) => {
   if (!settings) {
@@ -453,96 +549,6 @@ const reserveNextNumber = async (
   }
 
   throw new Error('Nao foi possivel reservar a numeracao fiscal agora.');
-};
-
-const buildCompanyPayload = (settings: FiscalSettingsRow, email: string | null | undefined) => ({
-  cpf_cnpj: digitsOnly(settings.issuer_cnpj),
-  inscricao_estadual: toOptionalText(settings.issuer_state_registration),
-  nome_razao_social: settings.issuer_legal_name,
-  nome_fantasia: toOptionalText(settings.issuer_trade_name),
-  email: toOptionalText(email) || 'fiscal@happycash.local',
-  endereco: {
-    logradouro: settings.address_street,
-    numero: settings.address_number,
-    complemento: toOptionalText(settings.address_complement),
-    bairro: settings.address_district,
-    codigo_municipio: digitsOnly(settings.issuer_city_ibge_code),
-    cidade: settings.address_city,
-    uf: settings.issuer_state,
-    cep: digitsOnly(settings.address_zip_code),
-  },
-});
-
-const buildNfceConfigPayload = (settings: FiscalSettingsRow) => ({
-  CRT: Number(settings.issuer_tax_regime || 3),
-  ambiente: settings.nfce_environment,
-  sefaz: {
-    id_csc: Number.parseInt(digitsOnly(settings.csc_id), 10),
-    csc: settings.csc_token,
-  },
-});
-
-const syncNuvemFiscalSettings = async (
-  serviceClient: SupabaseServiceClient,
-  settings: FiscalSettingsRow,
-  email: string | null | undefined,
-  updatedByUserId: string,
-) => {
-  const cpfCnpj = digitsOnly(settings.issuer_cnpj);
-  const companyPayload = buildCompanyPayload(settings, email);
-
-  try {
-    await nuvemFiscalRequest('GET', `/empresas/${cpfCnpj}`);
-    await nuvemFiscalRequest('PUT', `/empresas/${cpfCnpj}`, companyPayload);
-  } catch (error) {
-    if (!(error instanceof NuvemFiscalError) || error.status !== 404) {
-      throw error;
-    }
-
-    await nuvemFiscalRequest('POST', '/empresas', companyPayload);
-  }
-
-  await nuvemFiscalRequest('PUT', `/empresas/${cpfCnpj}/nfce`, buildNfceConfigPayload(settings));
-
-  const syncedAt = new Date().toISOString();
-  await serviceClient
-    .from('store_fiscal_settings')
-    .update({
-      nuvem_fiscal_company_synced_at: syncedAt,
-      nuvem_fiscal_nfce_config_synced_at: syncedAt,
-      nuvem_fiscal_last_error: null,
-      updated_by_user_id: updatedByUserId,
-    })
-    .eq('id', settings.id);
-
-  return syncedAt;
-};
-
-const uploadNuvemFiscalCertificate = async (
-  serviceClient: SupabaseServiceClient,
-  settings: FiscalSettingsRow,
-  certificateBase64: string,
-  password: string,
-  updatedByUserId: string,
-) => {
-  const cpfCnpj = digitsOnly(settings.issuer_cnpj);
-
-  await nuvemFiscalRequest('PUT', `/empresas/${cpfCnpj}/certificado`, {
-    certificado: certificateBase64,
-    password,
-  });
-
-  const syncedAt = new Date().toISOString();
-  await serviceClient
-    .from('store_fiscal_settings')
-    .update({
-      nuvem_fiscal_certificate_synced_at: syncedAt,
-      nuvem_fiscal_last_error: null,
-      updated_by_user_id: updatedByUserId,
-    })
-    .eq('id', settings.id);
-
-  return syncedAt;
 };
 
 const mapPaymentMethodToNfce = (value: string) => {
@@ -909,15 +915,15 @@ Deno.serve(async (request) => {
     return jsonResponse(request, { error: 'Somente administradores podem emitir documentos fiscais.' }, 403);
   }
 
-  const { data: hasFiscalAccess, error: fiscalAccessError } = await authClient.rpc('current_store_has_feature', {
-    target_feature: 'fiscal.manage',
-  });
-
-  if (fiscalAccessError || !hasFiscalAccess) {
-    return jsonResponse(request, { error: 'Seu plano atual nao libera documentos fiscais.' }, 403);
-  }
-
   const ownerUserId = typedCallerProfile.owner_user_id ?? user.id;
+  const desktopFiscalAccess = await validateDesktopFiscalAccess(fiscalServiceClient, user.id, ownerUserId, body);
+
+  if (!desktopFiscalAccess.ok) {
+    return jsonResponse(request, {
+      error: desktopFiscalAccess.message,
+      code: desktopFiscalAccess.code,
+    }, desktopFiscalAccess.status);
+  }
 
   const { data: settingsData, error: settingsError } = await serviceClient
     .from('store_fiscal_settings')
@@ -933,7 +939,7 @@ Deno.serve(async (request) => {
   const missingItems = buildMissingItems(settings);
 
   if (body.action === 'runtime_status') {
-    const provider = settings?.fiscal_provider === 'nuvem_fiscal' ? 'nuvem_fiscal' : 'internal';
+    const provider = getEffectiveFiscalProvider(settings);
     const fiscalMode = getFiscalMode(settings);
 
     return jsonResponse(request, {
@@ -965,94 +971,11 @@ Deno.serve(async (request) => {
   }
 
   if (body.action === 'sync_nuvem_fiscal_settings') {
-    if (!settings) {
-      return jsonResponse(request, { error: 'Complete a configuracao fiscal antes de sincronizar a Nuvem Fiscal.' }, 400);
-    }
-
-    if (settings.fiscal_provider !== 'nuvem_fiscal') {
-      return jsonResponse(request, { error: 'Selecione Nuvem Fiscal como provedor no painel Notas.' }, 400);
-    }
-
-    if (!isNuvemFiscalConfigured()) {
-      return jsonResponse(request, { error: 'Configure NUVEM_FISCAL_CLIENT_ID e NUVEM_FISCAL_CLIENT_SECRET nos secrets do Supabase.' }, 500);
-    }
-
-    if (missingItems.length > 0) {
-      return jsonResponse(request, {
-        error: 'Complete a configuracao fiscal da loja antes de sincronizar a Nuvem Fiscal.',
-        missingItems,
-      }, 400);
-    }
-
-    try {
-      const syncedAt = await syncNuvemFiscalSettings(
-        fiscalServiceClient,
-        settings,
-        typedCallerProfile.email ?? user.email ?? null,
-        user.id,
-      );
-
-      return jsonResponse(request, {
-        success: true,
-        companySyncedAt: syncedAt,
-        nfceConfigSyncedAt: syncedAt,
-      });
-    } catch (error) {
-      const message = getPublicNuvemFiscalError(error);
-      await serviceClient
-        .from('store_fiscal_settings')
-        .update({
-          nuvem_fiscal_last_error: message,
-          updated_by_user_id: user.id,
-        })
-        .eq('id', settings.id);
-
-      return jsonResponse(request, { error: message }, 502);
-    }
+    return jsonResponse(request, { error: 'Integracao com API fiscal externa desativada. A NFC-e ficara restrita ao Desktop PRO com motor fiscal local.' }, 410);
   }
 
   if (body.action === 'upload_nuvem_fiscal_certificate') {
-    if (!settings) {
-      return jsonResponse(request, { error: 'Complete a configuracao fiscal antes de enviar o certificado.' }, 400);
-    }
-
-    if (settings.fiscal_provider !== 'nuvem_fiscal') {
-      return jsonResponse(request, { error: 'Selecione Nuvem Fiscal como provedor no painel Notas.' }, 400);
-    }
-
-    if (!isNuvemFiscalConfigured()) {
-      return jsonResponse(request, { error: 'Configure NUVEM_FISCAL_CLIENT_ID e NUVEM_FISCAL_CLIENT_SECRET nos secrets do Supabase.' }, 500);
-    }
-
-    if (!body.certificateBase64?.trim() || !body.password?.trim()) {
-      return jsonResponse(request, { error: 'Informe o certificado A1 em base64 e a senha.' }, 400);
-    }
-
-    try {
-      const syncedAt = await uploadNuvemFiscalCertificate(
-        fiscalServiceClient,
-        settings,
-        body.certificateBase64.trim(),
-        body.password,
-        user.id,
-      );
-
-      return jsonResponse(request, {
-        success: true,
-        certificateSyncedAt: syncedAt,
-      });
-    } catch (error) {
-      const message = getPublicNuvemFiscalError(error);
-      await serviceClient
-        .from('store_fiscal_settings')
-        .update({
-          nuvem_fiscal_last_error: message,
-          updated_by_user_id: user.id,
-        })
-        .eq('id', settings.id);
-
-      return jsonResponse(request, { error: message }, 502);
-    }
+    return jsonResponse(request, { error: 'Envio de certificado para API fiscal externa desativado. O certificado deve ficar no ambiente local do cliente no Desktop PRO.' }, 410);
   }
 
   if (body.action !== 'issue_nfce_homologation') {
@@ -1067,7 +990,7 @@ Deno.serve(async (request) => {
     return jsonResponse(request, { error: 'A NFC-e nao esta ativada para esta loja.' }, 400);
   }
 
-  const fiscalProvider = settings.fiscal_provider === 'nuvem_fiscal' ? 'nuvem_fiscal' : 'internal';
+  const fiscalProvider = getEffectiveFiscalProvider(settings);
 
   if (fiscalProvider === 'internal' && settings.nfce_environment !== 'homologacao') {
     return jsonResponse(request, { error: 'Somente o fluxo inicial de homologacao esta disponivel nesta etapa.' }, 400);

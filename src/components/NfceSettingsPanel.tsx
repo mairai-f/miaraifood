@@ -177,7 +177,7 @@ const mapRowToForm = (row: Record<string, unknown> | null | undefined): NfceSett
   return {
     fiscalMode: row.fiscal_mode === 'nfce' || row.nfce_enabled === true ? 'nfce' : 'receipt_only',
     nfceEnabled: Boolean(row.nfce_enabled),
-    fiscalProvider: row.fiscal_provider === 'nuvem_fiscal' ? 'nuvem_fiscal' : 'internal',
+    fiscalProvider: 'internal',
     nfceEnvironment: row.nfce_environment === 'producao' ? 'producao' : 'homologacao',
     nfceSeries: String(row.nfce_series ?? 1),
     nfceNextNumber: String(row.nfce_next_number ?? 1),
@@ -335,7 +335,7 @@ export function NfceSettingsPanel() {
     const payload = {
       owner_user_id: ownerUserId,
       fiscal_mode: form.fiscalMode,
-      fiscal_provider: form.fiscalProvider,
+      fiscal_provider: 'internal',
       nfce_enabled: form.fiscalMode === 'nfce' ? form.nfceEnabled : false,
       nfce_environment: form.nfceEnvironment,
       nfce_series: series,
@@ -494,13 +494,13 @@ export function NfceSettingsPanel() {
         <div className="flex flex-wrap items-center gap-2">
           <CardTitle className="flex items-center gap-2 text-base">
             <Receipt className="h-4 w-4 text-primary" />
-            NFC-e SP
+            NFC-e Desktop PRO
           </CardTitle>
           <Badge variant="outline">Fase 1</Badge>
           <Badge variant={statusVariant}>{statusLabel}</Badge>
         </div>
         <p className="text-sm text-muted-foreground">
-          Cadastro fiscal da loja para NFC-e em Sao Paulo, com homologacao interna ou transmissao pela Nuvem Fiscal.
+          Cadastro fiscal da loja para NFC-e no HappyCash Desktop PRO. O web continua com cupom nao fiscal.
         </p>
       </CardHeader>
       <CardContent className="space-y-6">
@@ -570,18 +570,17 @@ export function NfceSettingsPanel() {
                   </div>
 
                   <div className="space-y-1">
-                    <Label>Provedor fiscal</Label>
+                    <Label>Motor fiscal</Label>
                     <Select
-                      value={form.fiscalProvider}
+                      value="internal"
                       disabled={form.fiscalMode === 'receipt_only'}
-                      onValueChange={value => updateForm('fiscalProvider', value as FiscalProvider)}
+                      onValueChange={() => updateForm('fiscalProvider', 'internal')}
                     >
                       <SelectTrigger>
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="internal">Homologacao interna</SelectItem>
-                        <SelectItem value="nuvem_fiscal">Nuvem Fiscal</SelectItem>
+                        <SelectItem value="internal">Motor local Desktop / SEFAZ</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -627,7 +626,7 @@ export function NfceSettingsPanel() {
                 <div>
                   <p className="text-sm font-medium">Checklist de prontidao</p>
                   <p className="text-xs text-muted-foreground">
-                    Isso prepara a loja para emitir no PDV quando o provedor fiscal estiver pronto.
+                    Isso prepara a loja para emitir no PDV Desktop PRO quando o motor fiscal local estiver pronto.
                   </p>
                 </div>
 
@@ -644,7 +643,7 @@ export function NfceSettingsPanel() {
                 )}
 
                 <p className="text-xs text-muted-foreground">
-                  Para Nuvem Fiscal, sincronize a empresa, configure o certificado A1 e complete os dados fiscais dos produtos.
+                  Para emissao real, use certificado A1, CSC/SEFAZ e dados fiscais revisados pelo contador.
                 </p>
               </div>
             </div>

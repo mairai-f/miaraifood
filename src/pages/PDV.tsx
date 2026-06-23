@@ -36,6 +36,8 @@ import { verifyOfflineAdminAccess } from '@/lib/offlineAdminAccess';
 import { readScopedCashSession, writeScopedCashSession, type ScopedCashSession } from '@/lib/cashSessionStorage';
 import { parseDecimalInput, parseOptionalDecimalInput } from '@/lib/numberInput';
 import { filterProductsBySearch, isExactProductSearchMatch, toProductUppercase } from '@/lib/productSearch';
+import { readDesktopActivation } from '@/lib/desktopActivation';
+import { buildDesktopFiscalAccessPayload, canUseDesktopFiscalModule } from '@/lib/fiscalAccess';
 import { getPublicErrorMessage, getRedactedLogValue } from '../../shared/security/redaction';
 import {
   type FiscalDocumentRecord,
@@ -313,10 +315,17 @@ export default function PDV() {
     getClientTotalSpending,
   } = useData();
   const { user, username, session, role, ownerUserId, isAdmin } = useAuth();
-  const { isDesktop, offlineEnabled } = useDesktopRuntime();
+  const { isDesktop, licensed: desktopLicensed, offlineEnabled, planId: desktopPlanId } = useDesktopRuntime();
   const navigate = useNavigate();
   const location = useLocation();
   const canUseDesktopOffline = isDesktop && offlineEnabled && isOfflineConcentratorAvailable();
+  const desktopActivation = useMemo(() => readDesktopActivation(), []);
+  const canUseFiscalModule = canUseDesktopFiscalModule({
+    isDesktop,
+    licensed: desktopLicensed,
+    planId: desktopPlanId,
+    activation: desktopActivation,
+  });
   const searchInputRef = useRef<HTMLInputElement>(null);
   const cashReceivedInputRef = useRef<HTMLInputElement>(null);
   const ticketLookupInputRef = useRef<HTMLInputElement>(null);
@@ -529,6 +538,13 @@ export default function PDV() {
   }, []);
 
   const loadFiscalRuntime = useCallback(async () => {
+    if (!canUseFiscalModule) {
+      setFiscalRuntime(null);
+      setFiscalRuntimeError('');
+      setLoadingFiscalRuntime(false);
+      return;
+    }
+
     if (!session?.access_token) {
       setFiscalRuntime(null);
       setFiscalRuntimeError('');
@@ -545,6 +561,7 @@ export default function PDV() {
       },
       body: {
         action: 'runtime_status',
+        ...buildDesktopFiscalAccessPayload(desktopActivation),
       },
     });
 
@@ -561,7 +578,7 @@ export default function PDV() {
 
     setFiscalRuntime(normalizeFiscalRuntimeStatus(data.runtime as Record<string, unknown>));
     setLoadingFiscalRuntime(false);
-  }, [getFiscalFunctionErrorMessage, session?.access_token]);
+  }, [canUseFiscalModule, desktopActivation, getFiscalFunctionErrorMessage, session?.access_token]);
 
   const archiveAndMaybePrintFiscalDocument = async (document: FiscalDocumentRecord) => {
     const html = buildFiscalDocumentHtml(document, { autoPrint: false });
@@ -598,6 +615,15 @@ export default function PDV() {
   const issueFiscalDocumentInHomologation = async (saleId: string) => {
     fiscalIssuanceSaleIdRef.current = saleId;
 
+    if (!canUseFiscalModule) {
+      if (fiscalIssuanceSaleIdRef.current === saleId) {
+        setLastFiscalDocument(null);
+        setLastFiscalDocumentError('A NFC-e esta disponivel somente no HappyCash Desktop PRO.');
+        setIssuingFiscalDocument(false);
+      }
+      return;
+    }
+
     if (!session?.access_token) {
       if (fiscalIssuanceSaleIdRef.current === saleId) {
         setLastFiscalDocument(null);
@@ -618,6 +644,7 @@ export default function PDV() {
       body: {
         action: 'issue_nfce_homologation',
         saleId,
+        ...buildDesktopFiscalAccessPayload(desktopActivation),
       },
     });
 
@@ -870,7 +897,8 @@ export default function PDV() {
     && selectedClientCreditLimit !== null
     && total > (selectedClientAvailableCredit ?? 0) + 0.009;
   const shouldAskFiscalCustomerDocument = Boolean(
-    fiscalRuntime?.enabled
+    canUseFiscalModule
+    && fiscalRuntime?.enabled
     && fiscalRuntime.fiscalMode === 'nfce'
     && fiscalRuntime.consumerDocumentPromptEnabled,
   );
@@ -885,7 +913,8 @@ export default function PDV() {
     && !fiadoExceedsCreditLimit
     && (paymentMethod !== 'cartao_credito' || Boolean(creditInstallments && creditInstallments > 0));
   const canIssueFiscalDocumentInHomologation = Boolean(
-    isAdmin
+    canUseFiscalModule
+    && isAdmin
     && session?.access_token
     && fiscalRuntime?.enabled
     && fiscalRuntime.fiscalMode === 'nfce'
@@ -4428,7 +4457,7 @@ export default function PDV() {
               </div>
             )}
 
-            {isAdmin && (
+            {isAdmin && canUseFiscalModule && (
               <div className="space-y-3 rounded-lg border border-border p-4">
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
@@ -4536,7 +4565,7 @@ export default function PDV() {
 
           <DialogFooter className="gap-2">
             <Button variant="outline" onClick={() => setShowReceipt(false)}>Fechar</Button>
-            {isAdmin && (
+            {isAdmin && canUseFiscalModule && (
               <Button variant="outline" onClick={() => void loadFiscalRuntime()} disabled={loadingFiscalRuntime}>
                 {loadingFiscalRuntime ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />

@@ -902,7 +902,7 @@ const Dashboard = () => {
     }
   };
 
-  const shouldShowCheckoutFiscalNotice = planCheckout?.planId === "completo" || planCheckout?.planId === "pro";
+  const shouldShowCheckoutFiscalNotice = planCheckout?.planId === "pro";
 
   const checkoutContent = planCheckout ? (
     planCheckout.paymentMethod === "pix" ? (
