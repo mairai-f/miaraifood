@@ -52,6 +52,15 @@ export interface Product {
   minimum_price?: number;
   rounding_rule?: PricingRoundingRule;
   pricing_notes?: string;
+  fiscal_ncm?: string | null;
+  fiscal_cfop?: string | null;
+  fiscal_origin?: number | null;
+  fiscal_csosn?: string | null;
+  fiscal_pis_cst?: string | null;
+  fiscal_cofins_cst?: string | null;
+  fiscal_unit?: string | null;
+  fiscal_gtin?: string | null;
+  fiscal_cest?: string | null;
   deleted?: boolean;
   deleted_at?: string | null;
   sync_status?: 'synced' | 'queued' | 'conflict';
@@ -107,6 +116,8 @@ export interface Sale {
   payment_method: string;
   cash_received: number;
   change_amount: number;
+  fiscal_customer_document?: string | null;
+  fiscal_customer_name?: string | null;
   date: string;
   created_at: string;
   sync_status?: 'synced' | 'queued' | 'conflict';

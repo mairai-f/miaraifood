@@ -37,6 +37,15 @@ export default function Products() {
   const [barcode, setBarcode] = useState('');
   const [stock, setStock] = useState('');
   const [minStock, setMinStock] = useState('');
+  const [fiscalNcm, setFiscalNcm] = useState('');
+  const [fiscalCfop, setFiscalCfop] = useState('');
+  const [fiscalOrigin, setFiscalOrigin] = useState('');
+  const [fiscalCsosn, setFiscalCsosn] = useState('');
+  const [fiscalPisCst, setFiscalPisCst] = useState('');
+  const [fiscalCofinsCst, setFiscalCofinsCst] = useState('');
+  const [fiscalUnit, setFiscalUnit] = useState('UN');
+  const [fiscalGtin, setFiscalGtin] = useState('SEM GTIN');
+  const [fiscalCest, setFiscalCest] = useState('');
   const [batchCode, setBatchCode] = useState('');
   const [expirationDate, setExpirationDate] = useState('');
   const [expirationQuantity, setExpirationQuantity] = useState('');
@@ -122,6 +131,15 @@ export default function Products() {
       barcode: barcode.trim(),
       stock: parseInt(stock) || 0,
       min_stock: parseInt(minStock) || 0,
+      fiscal_ncm: fiscalNcm.replace(/\D/g, '').slice(0, 8) || null,
+      fiscal_cfop: fiscalCfop.replace(/\D/g, '').slice(0, 4) || null,
+      fiscal_origin: fiscalOrigin.trim() === '' ? null : Math.max(0, Math.min(8, Number.parseInt(fiscalOrigin, 10) || 0)),
+      fiscal_csosn: fiscalCsosn.replace(/\D/g, '').slice(0, 3) || null,
+      fiscal_pis_cst: fiscalPisCst.replace(/\D/g, '').slice(0, 2) || null,
+      fiscal_cofins_cst: fiscalCofinsCst.replace(/\D/g, '').slice(0, 2) || null,
+      fiscal_unit: toProductUppercase(fiscalUnit.trim() || 'UN').slice(0, 6),
+      fiscal_gtin: toProductUppercase(fiscalGtin.trim() || 'SEM GTIN'),
+      fiscal_cest: fiscalCest.replace(/\D/g, '').slice(0, 7) || null,
     };
 
     if ((data.price ?? 0) < (data.cost_price ?? 0)) {
@@ -188,12 +206,40 @@ export default function Products() {
     resetApprovalState();
   };
 
-  const resetForm = () => { setName(''); setPrice(''); setCostPrice(''); setCategory(''); setSupplierName(''); setBarcode(''); setStock(''); setMinStock(''); setBatchCode(''); setExpirationDate(''); setExpirationQuantity(''); setExpirationAlertDays('30'); setEditId(null); setOpen(false); resetApprovalState(); };
+  const resetForm = () => {
+    setName('');
+    setPrice('');
+    setCostPrice('');
+    setCategory('');
+    setSupplierName('');
+    setBarcode('');
+    setStock('');
+    setMinStock('');
+    setFiscalNcm('');
+    setFiscalCfop('');
+    setFiscalOrigin('');
+    setFiscalCsosn('');
+    setFiscalPisCst('');
+    setFiscalCofinsCst('');
+    setFiscalUnit('UN');
+    setFiscalGtin('SEM GTIN');
+    setFiscalCest('');
+    setBatchCode('');
+    setExpirationDate('');
+    setExpirationQuantity('');
+    setExpirationAlertDays('30');
+    setEditId(null);
+    setOpen(false);
+    resetApprovalState();
+  };
 
   const openEdit = (p: Product) => {
     setEditId(p.id); setName(toProductUppercase(p.name)); setPrice(p.price.toString());
     setCostPrice((p.cost_price || 0).toString()); setCategory(toProductUppercase(p.category)); setSupplierName(toProductUppercase(p.supplier_name || ''));
     setBarcode(toProductUppercase(p.barcode || '')); setStock((p.stock || 0).toString()); setMinStock((p.min_stock || 0).toString());
+    setFiscalNcm(p.fiscal_ncm || ''); setFiscalCfop(p.fiscal_cfop || ''); setFiscalOrigin(p.fiscal_origin === null || p.fiscal_origin === undefined ? '' : String(p.fiscal_origin));
+    setFiscalCsosn(p.fiscal_csosn || ''); setFiscalPisCst(p.fiscal_pis_cst || ''); setFiscalCofinsCst(p.fiscal_cofins_cst || '');
+    setFiscalUnit(toProductUppercase(p.fiscal_unit || 'UN')); setFiscalGtin(toProductUppercase(p.fiscal_gtin || 'SEM GTIN')); setFiscalCest(p.fiscal_cest || '');
     resetApprovalState();
     setOpen(true);
   };
@@ -256,6 +302,23 @@ export default function Products() {
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1"><Label>Estoque</Label><Input type="number" value={stock} onChange={e => setStock(e.target.value)} placeholder="0" /></div>
                   <div className="space-y-1"><Label>Estoque Mínimo</Label><Input type="number" value={minStock} onChange={e => setMinStock(e.target.value)} placeholder="0" /></div>
+                </div>
+                <div className="space-y-3 rounded-md border p-3">
+                  <div>
+                    <p className="text-sm font-semibold">Fiscal para NFC-e</p>
+                    <p className="text-xs text-muted-foreground">Preencha com apoio do contador antes de emitir nota fiscal real.</p>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1"><Label>NCM</Label><Input inputMode="numeric" value={fiscalNcm} onChange={e => setFiscalNcm(e.target.value.replace(/\D/g, '').slice(0, 8))} placeholder="Ex: 22030000" /></div>
+                    <div className="space-y-1"><Label>CFOP</Label><Input inputMode="numeric" value={fiscalCfop} onChange={e => setFiscalCfop(e.target.value.replace(/\D/g, '').slice(0, 4))} placeholder="Ex: 5102" /></div>
+                    <div className="space-y-1"><Label>Origem</Label><Input inputMode="numeric" value={fiscalOrigin} onChange={e => setFiscalOrigin(e.target.value.replace(/[^\d]/g, '').slice(0, 1))} placeholder="0" /></div>
+                    <div className="space-y-1"><Label>CSOSN</Label><Input inputMode="numeric" value={fiscalCsosn} onChange={e => setFiscalCsosn(e.target.value.replace(/\D/g, '').slice(0, 3))} placeholder="Ex: 102" /></div>
+                    <div className="space-y-1"><Label>PIS CST</Label><Input inputMode="numeric" value={fiscalPisCst} onChange={e => setFiscalPisCst(e.target.value.replace(/\D/g, '').slice(0, 2))} placeholder="Ex: 07" /></div>
+                    <div className="space-y-1"><Label>COFINS CST</Label><Input inputMode="numeric" value={fiscalCofinsCst} onChange={e => setFiscalCofinsCst(e.target.value.replace(/\D/g, '').slice(0, 2))} placeholder="Ex: 07" /></div>
+                    <div className="space-y-1"><Label>Unidade</Label><Input value={fiscalUnit} onChange={e => setFiscalUnit(toProductUppercase(e.target.value).slice(0, 6))} placeholder="UN" /></div>
+                    <div className="space-y-1"><Label>GTIN/EAN</Label><Input value={fiscalGtin} onChange={e => setFiscalGtin(toProductUppercase(e.target.value))} placeholder="SEM GTIN" /></div>
+                    <div className="space-y-1"><Label>CEST</Label><Input inputMode="numeric" value={fiscalCest} onChange={e => setFiscalCest(e.target.value.replace(/\D/g, '').slice(0, 7))} placeholder="Opcional" /></div>
+                  </div>
                 </div>
                 {!editId && (
                   <div className="space-y-3 rounded-md border p-3">
@@ -336,6 +399,7 @@ export default function Products() {
                       <h3 className="font-semibold text-sm truncate">{p.name}</h3>
                     <span className="text-xs text-muted-foreground">{p.code ? `#${p.code}` : 'Sem código'}{p.category ? ` - ${p.category}` : ''}</span>
                     {p.supplier_name && <p className="text-[11px] text-muted-foreground truncate">Fornecedor: {p.supplier_name}</p>}
+                    {p.fiscal_ncm && <p className="text-[11px] text-muted-foreground truncate">Fiscal: NCM {p.fiscal_ncm}{p.fiscal_cfop ? ` | CFOP ${p.fiscal_cfop}` : ''}</p>}
                   </div>
                     <span className="text-primary font-bold text-sm whitespace-nowrap">R$ {p.price.toFixed(2)}</span>
                   </div>

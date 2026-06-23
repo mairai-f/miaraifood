@@ -3,6 +3,8 @@ import { formatCurrency, formatDateTime, getActiveLocale, translateCurrentText }
 export const HOMOLOGATION_MESSAGE = 'EMITIDA EM AMBIENTE DE HOMOLOGACAO - SEM VALOR FISCAL';
 
 export type FiscalEnvironment = 'homologacao' | 'producao';
+export type FiscalProvider = 'internal' | 'nuvem_fiscal';
+export type FiscalMode = 'receipt_only' | 'nfce';
 
 export interface FiscalPayloadItem {
   productName: string;
@@ -27,6 +29,7 @@ export interface FiscalPayloadSnapshot {
   };
   customer?: {
     name?: string | null;
+    document?: string | null;
     phone?: string | null;
   };
   sale?: {
@@ -50,9 +53,12 @@ export interface FiscalDocumentRecord {
   documentModel: string;
   environment: FiscalEnvironment;
   status: string;
+  provider?: FiscalProvider;
   series: number;
   number: number;
   accessKey: string;
+  externalId?: string | null;
+  externalStatus?: string | null;
   protocol?: string | null;
   homologationMessage?: string | null;
   errorMessage?: string | null;
@@ -62,8 +68,15 @@ export interface FiscalDocumentRecord {
 
 export interface FiscalRuntimeStatus {
   enabled: boolean;
+  fiscalMode: FiscalMode;
+  provider: FiscalProvider;
   environment: FiscalEnvironment;
   ready: boolean;
+  providerConfigured: boolean;
+  danfeAutoPrint: boolean;
+  danfeStoreLocally: boolean;
+  consumerDocumentPromptEnabled: boolean;
+  danfePrintWidth: '80mm' | '58mm';
   series: number;
   nextNumber: number;
   operationNature?: string | null;
@@ -93,9 +106,20 @@ export const normalizeFiscalDocumentRecord = (row: Record<string, unknown>): Fis
   documentModel: String(row.document_model ?? row.documentModel ?? '65'),
   environment: row.environment === 'producao' ? 'producao' : 'homologacao',
   status: String(row.status ?? 'pendente'),
+  provider: row.provider === 'nuvem_fiscal' ? 'nuvem_fiscal' : 'internal',
   series: toFiniteNumber(row.series, 0),
   number: toFiniteNumber(row.number, 0),
   accessKey: String(row.access_key ?? row.accessKey ?? ''),
+  externalId: typeof row.external_id === 'string'
+    ? row.external_id
+    : typeof row.externalId === 'string'
+      ? row.externalId
+      : null,
+  externalStatus: typeof row.external_status === 'string'
+    ? row.external_status
+    : typeof row.externalStatus === 'string'
+      ? row.externalStatus
+      : null,
   protocol: typeof row.protocol === 'string' ? row.protocol : null,
   homologationMessage: typeof row.homologation_message === 'string'
     ? row.homologation_message
@@ -113,8 +137,15 @@ export const normalizeFiscalDocumentRecord = (row: Record<string, unknown>): Fis
 
 export const normalizeFiscalRuntimeStatus = (row: Record<string, unknown>): FiscalRuntimeStatus => ({
   enabled: Boolean(row.enabled),
+  fiscalMode: row.fiscalMode === 'nfce' || row.fiscal_mode === 'nfce' ? 'nfce' : 'receipt_only',
+  provider: row.provider === 'nuvem_fiscal' ? 'nuvem_fiscal' : 'internal',
   environment: row.environment === 'producao' ? 'producao' : 'homologacao',
   ready: Boolean(row.ready),
+  providerConfigured: row.providerConfigured !== false && row.provider_configured !== false,
+  danfeAutoPrint: row.danfeAutoPrint === true || row.danfe_auto_print === true,
+  danfeStoreLocally: row.danfeStoreLocally !== false && row.danfe_store_locally !== false,
+  consumerDocumentPromptEnabled: row.consumerDocumentPromptEnabled !== false && row.consumer_document_prompt_enabled !== false,
+  danfePrintWidth: row.danfePrintWidth === '58mm' || row.danfe_print_width === '58mm' ? '58mm' : '80mm',
   series: toFiniteNumber(row.series, 1),
   nextNumber: toFiniteNumber(row.nextNumber ?? row.next_number, 1),
   operationNature: typeof row.operationNature === 'string'
@@ -196,9 +227,10 @@ const escapeHtml = (value: string) =>
 
 const getPayloadItems = (document: FiscalDocumentRecord) => document.payload?.items ?? [];
 
-export const openFiscalDocumentPrintWindow = (document: FiscalDocumentRecord) => {
-  if (typeof window === 'undefined') return;
-
+export const buildFiscalDocumentHtml = (
+  document: FiscalDocumentRecord,
+  options: { autoPrint?: boolean } = {},
+) => {
   const payload = document.payload ?? {};
   const issuer = payload.issuer ?? {};
   const sale = payload.sale ?? {};
@@ -232,13 +264,20 @@ export const openFiscalDocumentPrintWindow = (document: FiscalDocumentRecord) =>
       </tr>
     `;
 
-  const html = `
+  return `
     <!doctype html>
     <html lang="${escapeHtml(getActiveLocale())}">
       <head>
         <meta charset="utf-8" />
-        <title>DANFE NFC-e Homologacao</title>
+        <title>DANFE NFC-e ${escapeHtml(String(document.number || ''))}</title>
         <style>
+          * {
+            box-sizing: border-box;
+          }
+          @page {
+            size: auto;
+            margin: 0;
+          }
           body {
             margin: 0;
             padding: 24px;
@@ -247,11 +286,11 @@ export const openFiscalDocumentPrintWindow = (document: FiscalDocumentRecord) =>
             color: #111827;
           }
           .coupon {
-            width: 360px;
+            width: 80mm;
             margin: 0 auto;
             background: #fff;
             border: 1px solid #d1d5db;
-            padding: 20px;
+            padding: 5mm 4mm;
             box-sizing: border-box;
           }
           .center { text-align: center; }
@@ -313,7 +352,7 @@ export const openFiscalDocumentPrintWindow = (document: FiscalDocumentRecord) =>
         </style>
       </head>
       <body>
-        <main class="coupon">
+        <main class="coupon" data-receipt-root data-sale-id="${escapeHtml(document.saleId)}">
           <div class="center">
             <div class="strong">${escapeHtml(tradeName)}</div>
             ${issuer.legalName ? `<div class="muted">${escapeHtml(issuer.legalName)}</div>` : ''}
@@ -355,7 +394,12 @@ export const openFiscalDocumentPrintWindow = (document: FiscalDocumentRecord) =>
             ${Number(sale.changeAmount || 0) > 0 ? `<div><span>Troco</span><span>${escapeHtml(formatMoney(Number(sale.changeAmount || 0)))}</span></div>` : ''}
           </div>
 
-          ${customer.name ? `<div class="muted" style="margin-top:12px;">Consumidor: ${escapeHtml(customer.name)}</div>` : ''}
+          ${(customer.name || customer.document) ? `
+            <div class="muted" style="margin-top:12px;">
+              Consumidor: ${escapeHtml(customer.name || 'Nao identificado')}
+              ${customer.document ? `<br />CPF/CNPJ: ${escapeHtml(customer.document)}` : ''}
+            </div>
+          ` : ''}
           ${sale.sellerName ? `<div class="muted">Operador: ${escapeHtml(sale.sellerName)}</div>` : ''}
 
           <div class="qr-placeholder">QR homologacao local</div>
@@ -365,14 +409,21 @@ export const openFiscalDocumentPrintWindow = (document: FiscalDocumentRecord) =>
           ${document.protocol ? `<div class="center muted" style="margin-top:8px;">Protocolo interno: ${escapeHtml(document.protocol)}</div>` : ''}
           ${payload.danfeMessage ? `<div class="center muted" style="margin-top:8px;">${escapeHtml(payload.danfeMessage)}</div>` : ''}
         </main>
-        <script>
-          window.focus();
-          window.print();
-        </script>
+        ${options.autoPrint === false ? '' : `
+          <script>
+            window.focus();
+            window.print();
+          </script>
+        `}
       </body>
     </html>
   `;
+};
 
+export const openFiscalDocumentPrintWindow = (document: FiscalDocumentRecord) => {
+  if (typeof window === 'undefined') return;
+
+  const html = buildFiscalDocumentHtml(document);
   const printWindow = window.open('', '_blank', 'width=480,height=840');
   if (!printWindow) return;
   printWindow.document.open();

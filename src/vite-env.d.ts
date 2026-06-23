@@ -22,6 +22,18 @@ interface Window {
       select: (printerName: string | null) => Promise<{ success: boolean; selectedName?: string | null; error?: string }>;
       test: () => Promise<{ success: boolean; error?: string | null }>;
     };
+    fiscal?: {
+      archiveDocument: (payload: {
+        html: string;
+        metadata: Record<string, unknown>;
+      }) => Promise<{
+        success: boolean;
+        directory?: string;
+        htmlPath?: string;
+        jsonPath?: string;
+        error?: string | null;
+      }>;
+    };
     app?: {
       getRuntimeInfo: () => Promise<{
         appVersion: string;

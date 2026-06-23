@@ -47,6 +47,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useToast } from "@/hooks/use-toast";
+import { FiscalResponsibilityNotice } from "@/components/FiscalResponsibilityNotice";
 import logo from "@/assets/logo-happycash.webp";
 
 type AuthUser = {
@@ -901,10 +902,13 @@ const Dashboard = () => {
     }
   };
 
+  const shouldShowCheckoutFiscalNotice = planCheckout?.planId === "completo" || planCheckout?.planId === "pro";
+
   const checkoutContent = planCheckout ? (
     planCheckout.paymentMethod === "pix" ? (
       planCheckout.qrCodeBase64 && planCheckout.copyPasteCode ? (
         <div className="space-y-4 sm:space-y-5">
+          {shouldShowCheckoutFiscalNotice && <FiscalResponsibilityNotice compact />}
           <div className="grid gap-4 lg:grid-cols-[minmax(0,260px)_minmax(0,1fr)] lg:items-start">
             <div className="flex justify-center">
               <div className="w-full max-w-[18rem] space-y-3 rounded-3xl border border-border bg-white p-3 shadow-sm">
@@ -981,6 +985,7 @@ const Dashboard = () => {
         </div>
       ) : (
         <div className="space-y-4">
+          {shouldShowCheckoutFiscalNotice && <FiscalResponsibilityNotice compact />}
           <Alert className="border-primary/30 bg-primary/10">
             <AlertTitle>Pix criado pelo Asaas</AlertTitle>
             <AlertDescription>
@@ -1008,6 +1013,7 @@ const Dashboard = () => {
       )
     ) : (
       <div className="space-y-5">
+        {shouldShowCheckoutFiscalNotice && <FiscalResponsibilityNotice compact />}
         <div className="rounded-2xl border border-primary/20 bg-primary/5 p-4 sm:p-5">
           <p className="text-sm font-semibold">
             {publicPlanContent[planCheckout.planId].name}

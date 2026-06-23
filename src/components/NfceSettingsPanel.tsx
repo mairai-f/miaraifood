@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Loader2, Receipt, Save, ShieldCheck } from 'lucide-react';
+import { Cloud, Loader2, Receipt, Save, ShieldCheck, Upload } from 'lucide-react';
 import { toast } from 'sonner';
 import { formatDateTime } from '../../shared/locale/format';
 import { useAuth } from '@/contexts/AuthContext';
@@ -27,8 +27,13 @@ const db = supabase as any;
 
 type NfceEnvironment = 'homologacao' | 'producao';
 type TaxRegime = '' | '1' | '2' | '3';
+type FiscalProvider = 'internal' | 'nuvem_fiscal';
+type FiscalMode = 'receipt_only' | 'nfce';
+type DanfePrintWidth = '80mm' | '58mm';
 
 interface NfceSettingsForm {
+  fiscalMode: FiscalMode;
+  fiscalProvider: FiscalProvider;
   nfceEnabled: boolean;
   nfceEnvironment: NfceEnvironment;
   nfceSeries: string;
@@ -47,13 +52,27 @@ interface NfceSettingsForm {
   addressComplement: string;
   addressDistrict: string;
   addressCity: string;
+  issuerCityIbgeCode: string;
   addressZipCode: string;
   danfeMessage: string;
   contingencyOfflineEnabled: boolean;
   printCustomerCopy: boolean;
+  danfeAutoPrint: boolean;
+  danfeStoreLocally: boolean;
+  consumerDocumentPromptEnabled: boolean;
+  danfePrintWidth: DanfePrintWidth;
+}
+
+interface NuvemFiscalSyncState {
+  companySyncedAt: string | null;
+  nfceConfigSyncedAt: string | null;
+  certificateSyncedAt: string | null;
+  lastError: string | null;
 }
 
 const defaultForm: NfceSettingsForm = {
+  fiscalMode: 'receipt_only',
+  fiscalProvider: 'internal',
   nfceEnabled: false,
   nfceEnvironment: 'homologacao',
   nfceSeries: '1',
@@ -72,10 +91,22 @@ const defaultForm: NfceSettingsForm = {
   addressComplement: '',
   addressDistrict: '',
   addressCity: '',
+  issuerCityIbgeCode: '',
   addressZipCode: '',
   danfeMessage: '',
   contingencyOfflineEnabled: true,
   printCustomerCopy: true,
+  danfeAutoPrint: false,
+  danfeStoreLocally: true,
+  consumerDocumentPromptEnabled: true,
+  danfePrintWidth: '80mm',
+};
+
+const defaultNuvemFiscalSyncState: NuvemFiscalSyncState = {
+  companySyncedAt: null,
+  nfceConfigSyncedAt: null,
+  certificateSyncedAt: null,
+  lastError: null,
 };
 
 const digitsOnly = (value: string) => value.replace(/\D/g, '');
@@ -100,18 +131,25 @@ const toOptionalText = (value: string) => {
 };
 
 const getMissingItems = (form: NfceSettingsForm) => {
+  if (form.fiscalMode === 'receipt_only') {
+    return [];
+  }
+
   const requiredChecks = [
     ['Razao social do emitente', form.issuerLegalName],
     ['CNPJ do emitente', digitsOnly(form.issuerCnpj).length === 14 ? 'ok' : ''],
     ['Inscricao estadual', form.issuerStateRegistration],
     ['Regime tributario (CRT)', form.issuerTaxRegime],
     ['Natureza da operacao', form.operationNature],
-    ['CSC ID', form.cscId],
+    ['CSC ID', digitsOnly(form.cscId) ? 'ok' : ''],
     ['CSC token', form.cscToken],
     ['Logradouro', form.addressStreet],
     ['Numero', form.addressNumber],
     ['Bairro', form.addressDistrict],
     ['Municipio', form.addressCity],
+    ...(form.fiscalProvider === 'nuvem_fiscal'
+      ? [['Codigo IBGE do municipio', digitsOnly(form.issuerCityIbgeCode).length === 7 ? 'ok' : '']] as const
+      : []),
     ['CEP', digitsOnly(form.addressZipCode).length === 8 ? 'ok' : ''],
     ['Serie NFC-e', Number.parseInt(form.nfceSeries, 10) > 0 ? 'ok' : ''],
     ['Proximo numero NFC-e', Number.parseInt(form.nfceNextNumber, 10) > 0 ? 'ok' : ''],
@@ -137,7 +175,9 @@ const mapRowToForm = (row: Record<string, unknown> | null | undefined): NfceSett
   if (!row) return defaultForm;
 
   return {
+    fiscalMode: row.fiscal_mode === 'nfce' || row.nfce_enabled === true ? 'nfce' : 'receipt_only',
     nfceEnabled: Boolean(row.nfce_enabled),
+    fiscalProvider: row.fiscal_provider === 'nuvem_fiscal' ? 'nuvem_fiscal' : 'internal',
     nfceEnvironment: row.nfce_environment === 'producao' ? 'producao' : 'homologacao',
     nfceSeries: String(row.nfce_series ?? 1),
     nfceNextNumber: String(row.nfce_next_number ?? 1),
@@ -157,18 +197,29 @@ const mapRowToForm = (row: Record<string, unknown> | null | undefined): NfceSett
     addressComplement: String(row.address_complement ?? ''),
     addressDistrict: String(row.address_district ?? ''),
     addressCity: String(row.address_city ?? ''),
+    issuerCityIbgeCode: digitsOnly(String(row.issuer_city_ibge_code ?? '')).slice(0, 7),
     addressZipCode: formatZipCode(String(row.address_zip_code ?? '')),
     danfeMessage: String(row.danfe_message ?? ''),
     contingencyOfflineEnabled: row.contingency_offline_enabled !== false,
     printCustomerCopy: row.print_customer_copy !== false,
+    danfeAutoPrint: row.danfe_auto_print === true,
+    danfeStoreLocally: row.danfe_store_locally !== false,
+    consumerDocumentPromptEnabled: row.consumer_document_prompt_enabled !== false,
+    danfePrintWidth: row.danfe_print_width === '58mm' ? '58mm' : '80mm',
   };
 };
 
 export function NfceSettingsPanel() {
-  const { isAdmin, ownerUserId, user } = useAuth();
+  const { isAdmin, ownerUserId, session, user } = useAuth();
   const [form, setForm] = useState<NfceSettingsForm>(defaultForm);
+  const [nuvemFiscalSync, setNuvemFiscalSync] = useState<NuvemFiscalSyncState>(defaultNuvemFiscalSyncState);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [syncingNuvemFiscal, setSyncingNuvemFiscal] = useState(false);
+  const [uploadingCertificate, setUploadingCertificate] = useState(false);
+  const [certificateBase64, setCertificateBase64] = useState('');
+  const [certificateFileName, setCertificateFileName] = useState('');
+  const [certificatePassword, setCertificatePassword] = useState('');
   const [loadError, setLoadError] = useState('');
   const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
 
@@ -201,6 +252,12 @@ export function NfceSettingsPanel() {
       }
 
       setForm(mapRowToForm(data as Record<string, unknown> | null));
+      setNuvemFiscalSync({
+        companySyncedAt: typeof data?.nuvem_fiscal_company_synced_at === 'string' ? data.nuvem_fiscal_company_synced_at : null,
+        nfceConfigSyncedAt: typeof data?.nuvem_fiscal_nfce_config_synced_at === 'string' ? data.nuvem_fiscal_nfce_config_synced_at : null,
+        certificateSyncedAt: typeof data?.nuvem_fiscal_certificate_synced_at === 'string' ? data.nuvem_fiscal_certificate_synced_at : null,
+        lastError: typeof data?.nuvem_fiscal_last_error === 'string' ? data.nuvem_fiscal_last_error : null,
+      });
       setLastSavedAt(typeof data?.updated_at === 'string' ? data.updated_at : null);
       setLoading(false);
     };
@@ -214,10 +271,14 @@ export function NfceSettingsPanel() {
 
   const missingItems = useMemo(() => getMissingItems(form), [form]);
   const isReadyForActivation = missingItems.length === 0;
-  const statusLabel = form.nfceEnabled
+  const statusLabel = form.fiscalMode === 'receipt_only'
+    ? 'Recibo interno'
+    : form.nfceEnabled
     ? (isReadyForActivation ? 'Configuracao ativa' : 'Atencao: incompleta')
     : (isReadyForActivation ? 'Pronta para integrar' : 'Rascunho');
-  const statusVariant = form.nfceEnabled
+  const statusVariant = form.fiscalMode === 'receipt_only'
+    ? 'secondary'
+    : form.nfceEnabled
     ? (isReadyForActivation ? 'default' : 'destructive')
     : (isReadyForActivation ? 'secondary' : 'outline');
 
@@ -237,6 +298,7 @@ export function NfceSettingsPanel() {
     const nextNumber = Number.parseInt(form.nfceNextNumber, 10);
     const cnpjDigits = digitsOnly(form.issuerCnpj);
     const zipCodeDigits = digitsOnly(form.addressZipCode);
+    const cityIbgeCodeDigits = digitsOnly(form.issuerCityIbgeCode);
 
     if (!Number.isInteger(series) || series <= 0) {
       toast.error('Informe uma serie NFC-e valida.');
@@ -258,7 +320,12 @@ export function NfceSettingsPanel() {
       return;
     }
 
-    if (form.nfceEnabled && !isReadyForActivation) {
+    if (form.fiscalMode === 'nfce' && form.fiscalProvider === 'nuvem_fiscal' && cityIbgeCodeDigits.length !== 7) {
+      toast.error('Informe o codigo IBGE do municipio com 7 digitos para usar a Nuvem Fiscal.');
+      return;
+    }
+
+    if (form.fiscalMode === 'nfce' && form.nfceEnabled && !isReadyForActivation) {
       toast.error('Complete os campos obrigatorios antes de ativar a NFC-e.');
       return;
     }
@@ -267,7 +334,9 @@ export function NfceSettingsPanel() {
 
     const payload = {
       owner_user_id: ownerUserId,
-      nfce_enabled: form.nfceEnabled,
+      fiscal_mode: form.fiscalMode,
+      fiscal_provider: form.fiscalProvider,
+      nfce_enabled: form.fiscalMode === 'nfce' ? form.nfceEnabled : false,
       nfce_environment: form.nfceEnvironment,
       nfce_series: series,
       nfce_next_number: nextNumber,
@@ -285,10 +354,15 @@ export function NfceSettingsPanel() {
       address_complement: toOptionalText(form.addressComplement),
       address_district: toOptionalText(form.addressDistrict),
       address_city: toOptionalText(form.addressCity),
+      issuer_city_ibge_code: cityIbgeCodeDigits || null,
       address_zip_code: zipCodeDigits || null,
       danfe_message: toOptionalText(form.danfeMessage),
       contingency_offline_enabled: form.contingencyOfflineEnabled,
       print_customer_copy: form.printCustomerCopy,
+      danfe_auto_print: form.danfeAutoPrint,
+      danfe_store_locally: form.danfeStoreLocally,
+      consumer_document_prompt_enabled: form.consumerDocumentPromptEnabled,
+      danfe_print_width: form.danfePrintWidth,
       updated_by_user_id: user.id,
     };
 
@@ -312,6 +386,108 @@ export function NfceSettingsPanel() {
     toast.success('Configuracao fiscal da NFC-e salva.');
   };
 
+  const handleSyncNuvemFiscalSettings = async () => {
+    if (!session?.access_token) {
+      toast.error('Sua sessao expirou. Entre novamente para sincronizar com a Nuvem Fiscal.');
+      return;
+    }
+
+    setSyncingNuvemFiscal(true);
+
+    const { data, error } = await supabase.functions.invoke<{
+      success?: boolean;
+      error?: string;
+      companySyncedAt?: string;
+      nfceConfigSyncedAt?: string;
+    }>('manage-fiscal-documents', {
+      headers: {
+        Authorization: `Bearer ${session.access_token}`,
+      },
+      body: {
+        action: 'sync_nuvem_fiscal_settings',
+      },
+    });
+
+    setSyncingNuvemFiscal(false);
+
+    if (error || !data?.success) {
+      toast.error(data?.error || 'Nao foi possivel sincronizar a Nuvem Fiscal.');
+      return;
+    }
+
+    setNuvemFiscalSync(current => ({
+      ...current,
+      companySyncedAt: data.companySyncedAt ?? new Date().toISOString(),
+      nfceConfigSyncedAt: data.nfceConfigSyncedAt ?? new Date().toISOString(),
+      lastError: null,
+    }));
+    toast.success('Empresa e configuracao NFC-e sincronizadas com a Nuvem Fiscal.');
+  };
+
+  const handleCertificateFileChange = (file: File | null) => {
+    setCertificateBase64('');
+    setCertificateFileName('');
+
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = typeof reader.result === 'string' ? reader.result : '';
+      setCertificateBase64(result.includes(',') ? result.split(',').pop() || '' : result);
+      setCertificateFileName(file.name);
+    };
+    reader.onerror = () => {
+      toast.error('Nao foi possivel ler o certificado.');
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleUploadCertificate = async () => {
+    if (!session?.access_token) {
+      toast.error('Sua sessao expirou. Entre novamente para enviar o certificado.');
+      return;
+    }
+
+    if (!certificateBase64 || !certificatePassword.trim()) {
+      toast.error('Selecione o certificado A1 e informe a senha.');
+      return;
+    }
+
+    setUploadingCertificate(true);
+
+    const { data, error } = await supabase.functions.invoke<{
+      success?: boolean;
+      error?: string;
+      certificateSyncedAt?: string;
+    }>('manage-fiscal-documents', {
+      headers: {
+        Authorization: `Bearer ${session.access_token}`,
+      },
+      body: {
+        action: 'upload_nuvem_fiscal_certificate',
+        certificateBase64,
+        password: certificatePassword,
+      },
+    });
+
+    setUploadingCertificate(false);
+
+    if (error || !data?.success) {
+      toast.error(data?.error || 'Nao foi possivel enviar o certificado para a Nuvem Fiscal.');
+      return;
+    }
+
+    setCertificateBase64('');
+    setCertificateFileName('');
+    setCertificatePassword('');
+    setNuvemFiscalSync(current => ({
+      ...current,
+      certificateSyncedAt: data.certificateSyncedAt ?? new Date().toISOString(),
+      lastError: null,
+    }));
+    toast.success('Certificado A1 enviado para a Nuvem Fiscal.');
+  };
+
   return (
     <Card>
       <CardHeader className="space-y-3">
@@ -324,7 +500,7 @@ export function NfceSettingsPanel() {
           <Badge variant={statusVariant}>{statusLabel}</Badge>
         </div>
         <p className="text-sm text-muted-foreground">
-          Cadastro fiscal inicial da loja para a NFC-e em Sao Paulo. Esta etapa ainda nao transmite para a SEFAZ no PDV.
+          Cadastro fiscal da loja para NFC-e em Sao Paulo, com homologacao interna ou transmissao pela Nuvem Fiscal.
         </p>
       </CardHeader>
       <CardContent className="space-y-6">
@@ -364,6 +540,7 @@ export function NfceSettingsPanel() {
                     <Switch
                       id="nfce-enabled"
                       checked={form.nfceEnabled}
+                      disabled={form.fiscalMode === 'receipt_only'}
                       onCheckedChange={checked => updateForm('nfceEnabled', checked)}
                     />
                   </div>
@@ -371,9 +548,49 @@ export function NfceSettingsPanel() {
 
                 <div className="grid gap-4 md:grid-cols-3">
                   <div className="space-y-1">
+                    <Label>Modo fiscal</Label>
+                    <Select
+                      value={form.fiscalMode}
+                      onValueChange={value => {
+                        const nextMode = value as FiscalMode;
+                        updateForm('fiscalMode', nextMode);
+                        if (nextMode === 'receipt_only') {
+                          updateForm('nfceEnabled', false);
+                        }
+                      }}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="receipt_only">Recibo interno</SelectItem>
+                        <SelectItem value="nfce">Emitir NFC-e</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-1">
+                    <Label>Provedor fiscal</Label>
+                    <Select
+                      value={form.fiscalProvider}
+                      disabled={form.fiscalMode === 'receipt_only'}
+                      onValueChange={value => updateForm('fiscalProvider', value as FiscalProvider)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="internal">Homologacao interna</SelectItem>
+                        <SelectItem value="nuvem_fiscal">Nuvem Fiscal</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-1">
                     <Label>Ambiente</Label>
                     <Select
                       value={form.nfceEnvironment}
+                      disabled={form.fiscalMode === 'receipt_only'}
                       onValueChange={value => updateForm('nfceEnvironment', value as NfceEnvironment)}
                     >
                       <SelectTrigger>
@@ -410,7 +627,7 @@ export function NfceSettingsPanel() {
                 <div>
                   <p className="text-sm font-medium">Checklist de prontidao</p>
                   <p className="text-xs text-muted-foreground">
-                    Isso prepara a loja para a proxima etapa: emissao no PDV e DANFE simplificado.
+                    Isso prepara a loja para emitir no PDV quando o provedor fiscal estiver pronto.
                   </p>
                 </div>
 
@@ -427,7 +644,7 @@ export function NfceSettingsPanel() {
                 )}
 
                 <p className="text-xs text-muted-foreground">
-                  Certificado digital, transmissao SEFAZ, contingencia operacional e impressao real do DANFE entram na proxima fase.
+                  Para Nuvem Fiscal, sincronize a empresa, configure o certificado A1 e complete os dados fiscais dos produtos.
                 </p>
               </div>
             </div>
@@ -560,6 +777,16 @@ export function NfceSettingsPanel() {
                 </div>
 
                 <div className="space-y-1">
+                  <Label>Codigo IBGE do municipio</Label>
+                  <Input
+                    inputMode="numeric"
+                    value={form.issuerCityIbgeCode}
+                    onChange={event => updateForm('issuerCityIbgeCode', digitsOnly(event.target.value).slice(0, 7))}
+                    placeholder="3550308"
+                  />
+                </div>
+
+                <div className="space-y-1">
                   <Label>UF</Label>
                   <Input value="SP" disabled />
                 </div>
@@ -629,6 +856,61 @@ export function NfceSettingsPanel() {
                     onCheckedChange={checked => updateForm('printCustomerCopy', checked)}
                   />
                 </div>
+
+                <div className="flex items-center justify-between rounded-lg border border-border/60 p-3">
+                  <div className="pr-3">
+                    <p className="text-sm font-medium">Arquivar DANFE no computador</p>
+                    <p className="text-xs text-muted-foreground">
+                      Salva HTML e metadados da nota em Documentos/HappyCash/NotasFiscais no desktop.
+                    </p>
+                  </div>
+                  <Switch
+                    checked={form.danfeStoreLocally}
+                    onCheckedChange={checked => updateForm('danfeStoreLocally', checked)}
+                  />
+                </div>
+
+                <div className="flex items-center justify-between rounded-lg border border-border/60 p-3">
+                  <div className="pr-3">
+                    <p className="text-sm font-medium">Imprimir DANFE automaticamente</p>
+                    <p className="text-xs text-muted-foreground">
+                      Envia o DANFE direto para a impressora selecionada quando a NFC-e for emitida.
+                    </p>
+                  </div>
+                  <Switch
+                    checked={form.danfeAutoPrint}
+                    onCheckedChange={checked => updateForm('danfeAutoPrint', checked)}
+                  />
+                </div>
+
+                <div className="flex items-center justify-between rounded-lg border border-border/60 p-3">
+                  <div className="pr-3">
+                    <p className="text-sm font-medium">Perguntar CPF/CNPJ na nota</p>
+                    <p className="text-xs text-muted-foreground">
+                      Mostra o campo no fechamento da venda para Nota Fiscal Paulista.
+                    </p>
+                  </div>
+                  <Switch
+                    checked={form.consumerDocumentPromptEnabled}
+                    onCheckedChange={checked => updateForm('consumerDocumentPromptEnabled', checked)}
+                  />
+                </div>
+
+                <div className="space-y-1 rounded-lg border border-border/60 p-3">
+                  <Label>Largura do DANFE</Label>
+                  <Select
+                    value={form.danfePrintWidth}
+                    onValueChange={value => updateForm('danfePrintWidth', value as DanfePrintWidth)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="80mm">Bematech 80mm</SelectItem>
+                      <SelectItem value="58mm">Termica 58mm</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
 
               <div className="space-y-1">
@@ -640,6 +922,89 @@ export function NfceSettingsPanel() {
                 />
               </div>
             </div>
+
+            {form.fiscalProvider === 'nuvem_fiscal' && (
+              <div className="space-y-4 rounded-lg border border-border/60 p-4">
+                <div>
+                  <p className="flex items-center gap-2 text-sm font-medium">
+                    <Cloud className="h-4 w-4 text-primary" />
+                    Nuvem Fiscal
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Use credenciais em secrets do Supabase. O certificado e a senha sao enviados direto para a Nuvem Fiscal e nao ficam salvos no HappyCash.
+                  </p>
+                </div>
+
+                {nuvemFiscalSync.lastError && (
+                  <Alert variant="destructive">
+                    <AlertTitle>Ultima falha da Nuvem Fiscal</AlertTitle>
+                    <AlertDescription>{nuvemFiscalSync.lastError}</AlertDescription>
+                  </Alert>
+                )}
+
+                <div className="grid gap-3 text-sm md:grid-cols-3">
+                  <div className="rounded-lg border border-border/60 p-3">
+                    <p className="font-medium">Empresa</p>
+                    <p className="text-xs text-muted-foreground">
+                      {nuvemFiscalSync.companySyncedAt ? formatDateTime(nuvemFiscalSync.companySyncedAt) : 'Nao sincronizada'}
+                    </p>
+                  </div>
+                  <div className="rounded-lg border border-border/60 p-3">
+                    <p className="font-medium">Configuracao NFC-e</p>
+                    <p className="text-xs text-muted-foreground">
+                      {nuvemFiscalSync.nfceConfigSyncedAt ? formatDateTime(nuvemFiscalSync.nfceConfigSyncedAt) : 'Nao sincronizada'}
+                    </p>
+                  </div>
+                  <div className="rounded-lg border border-border/60 p-3">
+                    <p className="font-medium">Certificado A1</p>
+                    <p className="text-xs text-muted-foreground">
+                      {nuvemFiscalSync.certificateSyncedAt ? formatDateTime(nuvemFiscalSync.certificateSyncedAt) : 'Nao enviado por aqui'}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap gap-2">
+                  <Button type="button" variant="outline" onClick={() => void handleSyncNuvemFiscalSettings()} disabled={syncingNuvemFiscal || saving}>
+                    {syncingNuvemFiscal ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <Cloud className="mr-2 h-4 w-4" />
+                    )}
+                    Sincronizar empresa e NFC-e
+                  </Button>
+                </div>
+
+                <div className="grid gap-4 md:grid-cols-[1fr_1fr_auto]">
+                  <div className="space-y-1">
+                    <Label>Certificado A1 (.pfx/.p12)</Label>
+                    <Input
+                      type="file"
+                      accept=".pfx,.p12,application/x-pkcs12"
+                      onChange={event => handleCertificateFileChange(event.target.files?.[0] ?? null)}
+                    />
+                    {certificateFileName && <p className="text-xs text-muted-foreground">{certificateFileName}</p>}
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Senha do certificado</Label>
+                    <PasswordInput
+                      value={certificatePassword}
+                      onChange={event => setCertificatePassword(event.target.value)}
+                      placeholder="Senha do A1"
+                    />
+                  </div>
+                  <div className="flex items-end">
+                    <Button type="button" variant="outline" onClick={() => void handleUploadCertificate()} disabled={uploadingCertificate || !certificateBase64 || !certificatePassword.trim()}>
+                      {uploadingCertificate ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : (
+                        <Upload className="mr-2 h-4 w-4" />
+                      )}
+                      Enviar
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            )}
 
             <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border/60 p-4">
               <div className="text-sm text-muted-foreground">

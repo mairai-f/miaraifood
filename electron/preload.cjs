@@ -11,6 +11,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
     select: (printerName) => ipcRenderer.invoke('printer:select', printerName),
     test: () => ipcRenderer.invoke('printer:test'),
   },
+  fiscal: {
+    archiveDocument: (payload) => ipcRenderer.invoke('fiscal:archive-document', payload),
+  },
   app: {
     getRuntimeInfo: () => ipcRenderer.invoke('app:get-runtime-info'),
     getUpdateStatus: () => ipcRenderer.invoke('app:get-update-status'),

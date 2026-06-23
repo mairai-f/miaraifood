@@ -110,6 +110,68 @@ const writeSelectedPrinterName = (printerName) => {
   );
   return normalizedName;
 };
+
+const sanitizeFileSegment = (value, fallback = 'documento') => {
+  const normalized = String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z0-9._-]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 80);
+
+  return normalized || fallback;
+};
+
+const getFiscalArchiveRoot = () => path.join(app.getPath('documents'), APP_DISPLAY_NAME, 'NotasFiscais');
+
+const archiveFiscalDocument = async (payload) => {
+  const html = typeof payload?.html === 'string' ? payload.html : '';
+  const metadata = payload?.metadata && typeof payload.metadata === 'object'
+    ? payload.metadata
+    : {};
+
+  if (!html.trim()) {
+    return {
+      success: false,
+      error: 'DANFE invalido para arquivamento.',
+    };
+  }
+
+  const emittedAt = metadata.emittedAt ? new Date(metadata.emittedAt) : new Date();
+  const safeDate = Number.isNaN(emittedAt.getTime()) ? new Date() : emittedAt;
+  const yearMonth = `${safeDate.getFullYear()}-${String(safeDate.getMonth() + 1).padStart(2, '0')}`;
+  const directory = path.join(getFiscalArchiveRoot(), yearMonth);
+  const number = sanitizeFileSegment(metadata.number, 'sem-numero');
+  const series = sanitizeFileSegment(metadata.series, 'serie');
+  const saleId = sanitizeFileSegment(metadata.saleId, 'venda');
+  const accessKey = sanitizeFileSegment(metadata.accessKey, 'chave');
+  const basename = `${yearMonth}-${series}-${number}-${saleId}-${accessKey.slice(-10)}`;
+  const htmlPath = path.join(directory, `${basename}.html`);
+  const jsonPath = path.join(directory, `${basename}.json`);
+
+  try {
+    fs.mkdirSync(directory, { recursive: true });
+    fs.writeFileSync(htmlPath, html, 'utf8');
+    fs.writeFileSync(jsonPath, `${JSON.stringify({
+      archivedAt: new Date().toISOString(),
+      productContext: PRODUCT_CONTEXT,
+      ...metadata,
+    }, null, 2)}\n`, 'utf8');
+
+    return {
+      success: true,
+      directory,
+      htmlPath,
+      jsonPath,
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Nao foi possivel arquivar a nota fiscal no computador.',
+    };
+  }
+};
+
 const isDefaultPrinter = (printer) => Object.entries(printer?.options || {}).some(([key, value]) => (
   key.toLowerCase().includes('default')
   && ['true', '1', 'yes'].includes(String(value).toLowerCase())
@@ -1146,6 +1208,8 @@ ipcMain.on('open-external-url', (event, url) => {
 ipcMain.handle('print-html', async (_event, html) => {
   return printHtml(html);
 });
+
+ipcMain.handle('fiscal:archive-document', async (_event, payload) => archiveFiscalDocument(payload));
 
 ipcMain.handle('printer:list', async (event) => {
   const printers = await event.sender.getPrintersAsync();

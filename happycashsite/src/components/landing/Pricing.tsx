@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Check, Star, Zap, Monitor, Smartphone, Download } from "lucide-react";
 import { useAuthSession } from "@/hooks/use-auth-session";
 import { useLandingAccountActions } from "@/hooks/use-landing-account-actions";
+import { FiscalResponsibilityNotice } from "@/components/FiscalResponsibilityNotice";
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -59,7 +60,7 @@ const plans = [
       "Programa de fidelidade",
       "Relatórios e financeiro",
       "Configurações da loja",
-      "Notas e fiscal",
+      "Modulo fiscal opcional com configuracao do cliente",
       "Pagamento da assinatura via Pix ou débito / crédito",
     ],
   },
@@ -143,6 +144,8 @@ const Pricing = () => {
             Teste por 3 dias sem cartão. Depois, escolha entre pagar a cada 30 dias ou fechar o anual direto no checkout.
           </p>
         </div>
+
+        <FiscalResponsibilityNotice className="mx-auto mb-10 max-w-3xl" />
 
         <div className="mb-8 flex justify-center">
           <div className="grid w-full max-w-sm grid-cols-2 rounded-lg border border-border bg-card/60 p-1">

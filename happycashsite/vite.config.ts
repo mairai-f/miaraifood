@@ -12,6 +12,18 @@ export default defineConfig(() => ({
   server: {
     host: "::",
     port: 8081,
+    watch: {
+      // Avoid Linux inotify exhaustion when VS Code and other Vite apps are open.
+      usePolling: true,
+      interval: 500,
+      ignored: [
+        "**/dist/**",
+        "**/dist-*/**",
+        "**/coverage/**",
+        "**/.vercel/**",
+        "**/release/**",
+      ],
+    },
     hmr: {
       overlay: false,
     },

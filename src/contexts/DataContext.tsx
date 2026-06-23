@@ -2875,7 +2875,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
       if (
         saleError?.message
-        && ['seller_name', 'is_delivery', 'status', 'cancel_reason', 'cancelled_at', 'operator_user_id', 'cash_session_id']
+        && ['seller_name', 'is_delivery', 'status', 'cancel_reason', 'cancelled_at', 'operator_user_id', 'cash_session_id', 'fiscal_customer_document', 'fiscal_customer_name']
           .some(column => saleError.message.includes(column))
       ) {
         const {
@@ -2886,6 +2886,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
           cancelled_at,
           operator_user_id,
           cash_session_id,
+          fiscal_customer_document,
+          fiscal_customer_name,
           ...baseSalePayload
         } = salePayload;
         const retry = await db.from('sales').insert(baseSalePayload).select('*').single();

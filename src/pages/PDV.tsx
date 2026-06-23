@@ -41,6 +41,7 @@ import {
   type FiscalDocumentRecord,
   type FiscalRuntimeStatus,
   type ManageFiscalDocumentsResponse,
+  buildFiscalDocumentHtml,
   fiscalStatusLabel,
   fiscalStatusVariant,
   normalizeFiscalDocumentRecord,
@@ -91,6 +92,7 @@ interface LastSaleReceiptData {
   cashReceived: number;
   change: number;
   clientId: string | null;
+  fiscalCustomerDocument: string | null;
   isDelivery: boolean;
   serviceTicketNumber: number | null;
   creditBalanceAfter: number | null;
@@ -150,6 +152,30 @@ const parseEmailRecipients = (value: string) =>
 
 const isValidEmailRecipient = (value: string) =>
   /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+
+const digitsOnly = (value: string) => value.replace(/\D/g, '');
+
+const formatCpfCnpj = (value: string) => {
+  const digits = digitsOnly(value).slice(0, 14);
+
+  if (digits.length <= 11) {
+    return digits
+      .replace(/^(\d{3})(\d)/, '$1.$2')
+      .replace(/^(\d{3})\.(\d{3})(\d)/, '$1.$2.$3')
+      .replace(/\.(\d{3})(\d)/, '.$1-$2');
+  }
+
+  return digits
+    .replace(/^(\d{2})(\d)/, '$1.$2')
+    .replace(/^(\d{2})\.(\d{3})(\d)/, '$1.$2.$3')
+    .replace(/\.(\d{3})(\d)/, '.$1/$2')
+    .replace(/(\d{4})(\d)/, '$1-$2');
+};
+
+const isCpfCnpjLength = (value: string) => {
+  const digits = digitsOnly(value);
+  return digits.length === 0 || digits.length === 11 || digits.length === 14;
+};
 
 const silentToast = {
   success: (message?: string) => message ? toast.success(message) : undefined,
@@ -321,6 +347,7 @@ export default function PDV() {
   const [paymentMethod, setPaymentMethod] = useState('');
   const [cashReceived, setCashReceived] = useState('');
   const [selectedClientId, setSelectedClientId] = useState<string>('');
+  const [fiscalCustomerDocument, setFiscalCustomerDocument] = useState('');
   const [selectedRewardId, setSelectedRewardId] = useState<string>('');
   const [isDelivery, setIsDelivery] = useState(false);
   const [showCheckout, setShowCheckout] = useState(false);
@@ -536,6 +563,38 @@ export default function PDV() {
     setLoadingFiscalRuntime(false);
   }, [getFiscalFunctionErrorMessage, session?.access_token]);
 
+  const archiveAndMaybePrintFiscalDocument = async (document: FiscalDocumentRecord) => {
+    const html = buildFiscalDocumentHtml(document, { autoPrint: false });
+    const metadata = {
+      id: document.id,
+      saleId: document.saleId,
+      provider: document.provider ?? 'internal',
+      status: document.status,
+      environment: document.environment,
+      series: document.series,
+      number: document.number,
+      accessKey: document.accessKey,
+      protocol: document.protocol ?? null,
+      emittedAt: document.emittedAt,
+      customer: document.payload?.customer ?? null,
+      total: document.payload?.sale?.total ?? null,
+    };
+
+    if (fiscalRuntime?.danfeStoreLocally && typeof window !== 'undefined' && window.electronAPI?.fiscal?.archiveDocument) {
+      const result = await window.electronAPI.fiscal.archiveDocument({ html, metadata });
+      if (!result.success) {
+        silentToast.error(result.error || 'NFC-e emitida, mas nao foi possivel arquivar o DANFE no computador.');
+      }
+    }
+
+    if (fiscalRuntime?.danfeAutoPrint && typeof window !== 'undefined' && typeof window.electronAPI?.printHtml === 'function') {
+      const printed = await window.electronAPI.printHtml(html);
+      if (!printed) {
+        silentToast.error('NFC-e emitida, mas nao foi possivel imprimir o DANFE automaticamente.');
+      }
+    }
+  };
+
   const issueFiscalDocumentInHomologation = async (saleId: string) => {
     fiscalIssuanceSaleIdRef.current = saleId;
 
@@ -567,7 +626,7 @@ export default function PDV() {
         setLastFiscalDocument(null);
         setLastFiscalDocumentError(await getFiscalFunctionErrorMessage(
           error,
-          'Nao foi possivel emitir a NFC-e de homologacao desta venda.',
+          'Nao foi possivel emitir a NFC-e desta venda.',
           data,
         ));
         setIssuingFiscalDocument(false);
@@ -577,8 +636,10 @@ export default function PDV() {
     }
 
     if (fiscalIssuanceSaleIdRef.current === saleId) {
-      setLastFiscalDocument(normalizeFiscalDocumentRecord(data.document as Record<string, unknown>));
+      const normalizedDocument = normalizeFiscalDocumentRecord(data.document as Record<string, unknown>);
+      setLastFiscalDocument(normalizedDocument);
       setIssuingFiscalDocument(false);
+      void archiveAndMaybePrintFiscalDocument(normalizedDocument);
     }
     void loadFiscalRuntime();
   };
@@ -808,6 +869,12 @@ export default function PDV() {
   const fiadoExceedsCreditLimit = paymentMethod === 'fiado'
     && selectedClientCreditLimit !== null
     && total > (selectedClientAvailableCredit ?? 0) + 0.009;
+  const shouldAskFiscalCustomerDocument = Boolean(
+    fiscalRuntime?.enabled
+    && fiscalRuntime.fiscalMode === 'nfce'
+    && fiscalRuntime.consumerDocumentPromptEnabled,
+  );
+  const fiscalCustomerDocumentDigits = digitsOnly(fiscalCustomerDocument);
   const estimatedProfit = total - cartRealCost;
   const estimatedMargin = getMarginPercent(total, cartRealCost);
   const discountKillsProfit = discount > 0 && estimatedProfit <= 0;
@@ -821,8 +888,10 @@ export default function PDV() {
     isAdmin
     && session?.access_token
     && fiscalRuntime?.enabled
-    && fiscalRuntime.environment === 'homologacao'
-    && fiscalRuntime.ready,
+    && fiscalRuntime.fiscalMode === 'nfce'
+    && fiscalRuntime.ready
+    && fiscalRuntime.providerConfigured
+    && (fiscalRuntime.provider === 'nuvem_fiscal' || fiscalRuntime.environment === 'homologacao'),
   );
   const checkoutFiscalBadgeVariant: 'default' | 'secondary' | 'destructive' | 'outline' = loadingFiscalRuntime
     ? 'outline'
@@ -830,15 +899,19 @@ export default function PDV() {
       ? 'destructive'
       : !fiscalRuntime?.enabled
         ? 'secondary'
-        : fiscalRuntime.ready
-          ? 'default'
-          : 'destructive';
+        : fiscalRuntime.providerConfigured === false
+          ? 'destructive'
+          : fiscalRuntime.ready
+            ? 'default'
+            : 'destructive';
   const checkoutFiscalStatusLabel = loadingFiscalRuntime
     ? 'Carregando'
     : fiscalRuntimeError
       ? 'Falha'
       : !fiscalRuntime?.enabled
         ? 'Desativada'
+        : fiscalRuntime.providerConfigured === false
+          ? 'Credenciais'
         : fiscalRuntime.ready
           ? 'Pronta'
           : 'Pendente';
@@ -2044,6 +2117,7 @@ export default function PDV() {
     setPendingCreditInstallments(1);
     setCashReceived('');
     setSelectedClientId('');
+    setFiscalCustomerDocument('');
     setSelectedRewardId('');
     setShowFinalizeConfirm(false);
     setShowCheckout(true);
@@ -2067,6 +2141,11 @@ export default function PDV() {
       return;
     }
 
+    if (shouldAskFiscalCustomerDocument && !isCpfCnpjLength(fiscalCustomerDocument)) {
+      silentToast.error('Informe CPF/CNPJ com 11 ou 14 digitos, ou deixe em branco.');
+      return;
+    }
+
     if (!canFinalizeCheckout || isFinalizingSale) return;
     setShowFinalizeConfirm(true);
   };
@@ -2084,6 +2163,10 @@ export default function PDV() {
     }
     if (paymentMethod === 'fiado' && selectedClient && selectedClientCreditLimit !== null && fiadoExceedsCreditLimit) {
       silentToast.error(getCreditLimitExceededMessage(selectedClient.name, selectedClientCreditLimit, selectedClientBalance, total));
+      return;
+    }
+    if (shouldAskFiscalCustomerDocument && !isCpfCnpjLength(fiscalCustomerDocument)) {
+      silentToast.error('Informe CPF/CNPJ com 11 ou 14 digitos, ou deixe em branco.');
       return;
     }
     if (!validateCartStock()) return;
@@ -2114,6 +2197,8 @@ export default function PDV() {
         payment_method: paymentMethod,
         cash_received: cashReceivedAmount,
         change_amount: change,
+        fiscal_customer_document: fiscalCustomerDocumentDigits || null,
+        fiscal_customer_name: fiscalCustomerDocumentDigits ? selectedClient?.name ?? null : null,
       }, items);
 
       // If fiado, create debt entries
@@ -2164,6 +2249,7 @@ export default function PDV() {
         cashReceived: cashReceivedAmount,
         change,
         clientId: selectedClientId || null,
+        fiscalCustomerDocument: fiscalCustomerDocumentDigits || null,
         isDelivery,
         serviceTicketNumber: activeServiceTicket?.number ?? null,
         creditBalanceAfter: paymentMethod === 'fiado' && selectedClientId
@@ -2187,6 +2273,7 @@ export default function PDV() {
       setPendingCreditInstallments(1);
       setCashReceived('');
       setSelectedClientId('');
+      setFiscalCustomerDocument('');
       setSelectedRewardId('');
       setIsDelivery(false);
       silentToast.success(translateCurrentText('Venda finalizada!'));
@@ -3630,6 +3717,22 @@ export default function PDV() {
                 </Select>
               </div>
 
+              {shouldAskFiscalCustomerDocument && (
+                <div className="space-y-1">
+                  <Label className="text-sm">CPF/CNPJ na nota (opcional)</Label>
+                  <Input
+                    inputMode="numeric"
+                    value={fiscalCustomerDocument}
+                    onChange={event => setFiscalCustomerDocument(formatCpfCnpj(event.target.value))}
+                    placeholder="Nota Fiscal Paulista"
+                    className="h-9 text-sm"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Informe apenas se o consumidor solicitar CPF/CNPJ no documento fiscal.
+                  </p>
+                </div>
+              )}
+
               {paymentMethod === 'fiado' && selectedClient && selectedClientCreditLimit !== null && (
                 <div className={`rounded-lg border p-3 text-xs ${fiadoExceedsCreditLimit ? 'border-destructive/50 bg-destructive/10 text-destructive' : 'border-border bg-card text-muted-foreground lg:bg-transparent'}`}>
                   <p className="font-medium">Limite de crédito: {formatMoney(selectedClientCreditLimit)}</p>
@@ -4331,9 +4434,13 @@ export default function PDV() {
                   <div className="flex items-center gap-2">
                     <FileText className="h-4 w-4 text-primary" />
                     <div>
-                      <p className="text-sm font-semibold">NFC-e em homologacao</p>
+                      <p className="text-sm font-semibold">
+                        {fiscalRuntime?.provider === 'nuvem_fiscal' ? 'NFC-e via Nuvem Fiscal' : 'NFC-e em homologacao'}
+                      </p>
                       <p className="text-xs text-muted-foreground">
-                        Fluxo inicial salvo em Notas e executado no PDV.
+                        {fiscalRuntime?.provider === 'nuvem_fiscal'
+                          ? 'Emissao enviada para a API fiscal configurada em Notas.'
+                          : 'Fluxo inicial salvo em Notas e executado no PDV.'}
                       </p>
                     </div>
                   </div>
@@ -4351,7 +4458,9 @@ export default function PDV() {
                 {issuingFiscalDocument && (
                   <div className="flex items-center gap-2 rounded-lg border border-dashed border-border p-3 text-sm text-muted-foreground">
                     <Loader2 className="h-4 w-4 animate-spin" />
-                    Gerando o DANFE simplificado de homologacao desta venda...
+                    {fiscalRuntime?.provider === 'nuvem_fiscal'
+                      ? 'Enviando a NFC-e desta venda para a Nuvem Fiscal...'
+                      : 'Gerando o DANFE simplificado de homologacao desta venda...'}
                   </div>
                 )}
 
@@ -4393,7 +4502,7 @@ export default function PDV() {
                 {!issuingFiscalDocument && lastFiscalDocumentError && (
                   <div className="space-y-3">
                     <Alert variant="destructive">
-                      <AlertTitle>Falha ao emitir a NFC-e de homologacao</AlertTitle>
+                      <AlertTitle>Falha ao emitir a NFC-e</AlertTitle>
                       <AlertDescription>{lastFiscalDocumentError}</AlertDescription>
                     </Alert>
 
@@ -4413,9 +4522,11 @@ export default function PDV() {
                         ? fiscalRuntimeError
                         : !fiscalRuntime?.enabled
                           ? 'A NFC-e esta desativada no painel Notas.'
+                          : fiscalRuntime.providerConfigured === false
+                            ? 'As credenciais da API fiscal ainda nao estao configuradas no servidor.'
                           : !fiscalRuntime?.ready
                             ? `A configuracao fiscal ainda esta incompleta${fiscalRuntime?.missingItems?.length ? `: ${fiscalRuntime.missingItems.join(', ')}.` : '.'}`
-                            : 'O fluxo inicial desta etapa aceita apenas emissao em homologacao.'}
+                            : 'O provedor fiscal atual nao esta pronto para emitir esta venda.'}
                     </AlertDescription>
                   </Alert>
                 )}

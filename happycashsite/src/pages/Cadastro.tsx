@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import { createSiteUrl } from "@/lib/siteSeo";
 import { isPublicPlanId, publicPlanContent } from "@/lib/subscriptionPlans";
+import { FiscalResponsibilityNotice } from "@/components/FiscalResponsibilityNotice";
 import logo from "@/assets/logo-happycash.webp";
 import { Eye, EyeOff, Loader2, PlayCircle, UserPlus } from "lucide-react";
 import { getPasswordPolicyError, passwordPolicyHint } from "../../../shared/security/passwordPolicy";
@@ -351,6 +352,7 @@ const Cadastro = () => {
 
           {step === 2 && (
             <>
+              <FiscalResponsibilityNotice compact />
               <div className="space-y-2">
                 <Label>Nome completo</Label>
                 <Input placeholder="Seu nome" value={nomeCliente} onChange={e => setNomeCliente(e.target.value)} required className="h-12 bg-muted/50" />
