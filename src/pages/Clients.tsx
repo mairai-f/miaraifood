@@ -15,6 +15,7 @@ import { sortClientsByDebt } from '@/lib/clientSorting';
 import { getClientCreditLimit, normalizeCreditLimit } from '@/lib/creditLimit';
 import { buildClientCrmSummary } from '@/lib/managementInsights';
 import { INTERNET_REQUIRED_MESSAGE, isInternetUnavailable, openExternalUrl } from '@/lib/openExternalUrl';
+import { normalizeProductSearchText, toProductUppercase } from '@/lib/productSearch';
 import { buildClientCrmWhatsAppUrl } from '@/lib/whatsapp';
 import { getRedactedLogValue } from '../../shared/security/redaction';
 
@@ -30,6 +31,7 @@ export default function Clients() {
   const [open, setOpen] = useState(false);
   const navigate = useNavigate();
   const companyDisplayName = useCompanyDisplayName();
+  const normalizedClientSearch = normalizeProductSearchText(search);
 
   const active = clients.filter(c => !c.deleted);
   const crmByClientId = new Map(active.map(client => [
@@ -50,7 +52,9 @@ export default function Clients() {
   const filtered = sortClientsByDebt(
     active.filter(c => {
       const summary = crmByClientId.get(c.id);
-      const matchesSearch = c.name.toLowerCase().includes(search.toLowerCase()) || c.phone.includes(search.replace(/\D/g, ''));
+      const matchesSearch = !normalizedClientSearch
+        || normalizeProductSearchText(c.name).includes(normalizedClientSearch)
+        || c.phone.includes(search.replace(/\D/g, ''));
       const matchesFilter =
         filter === 'all'
         || (filter === 'debtors' && getClientBalance(c.id) > 0)
@@ -135,7 +139,7 @@ export default function Clients() {
           <DialogContent>
             <DialogHeader><DialogTitle>Cadastrar Cliente</DialogTitle></DialogHeader>
             <div className="space-y-4">
-              <div className="space-y-2"><Label>Nome</Label><Input value={name} onChange={e => setName(e.target.value)} placeholder="Nome do cliente" /></div>
+              <div className="space-y-2"><Label>Nome</Label><Input value={name} onChange={e => setName(toProductUppercase(e.target.value))} placeholder="Nome do cliente" /></div>
               <div className="space-y-2"><Label>Telefone (WhatsApp)</Label><Input value={formatPhoneMask(phone)} onChange={e => setPhone(e.target.value.replace(/\D/g, ''))} placeholder="(11) 99999-9999" /></div>
               <div className="space-y-2">
                 <Label>Limite de crédito (R$)</Label>
@@ -173,7 +177,7 @@ export default function Clients() {
 
       <div className="relative mb-6" data-tour-id="clients-search">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-        <Input className="pl-10" placeholder="Buscar cliente..." value={search} onChange={e => setSearch(e.target.value)} />
+        <Input className="pl-10" placeholder="Buscar cliente..." value={search} onChange={e => setSearch(toProductUppercase(e.target.value))} />
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" data-tour-id="clients-list">

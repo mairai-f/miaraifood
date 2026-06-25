@@ -40,19 +40,18 @@ describe('product search helpers', () => {
     expect(productMatchesSearch(product, 'cafe pil')).toBe(true);
   });
 
-  it('searches across name, category, supplier, barcode and display code', () => {
+  it('searches across name, category, supplier and barcode', () => {
     const product = makeProduct({
       name: 'REFRIGERANTE 2L',
       category: 'BEBIDAS',
       supplier_name: 'DISTRIBUIDORA NORTE',
       barcode: '789555',
-      code: 42,
     });
 
     expect(productMatchesSearch(product, 'bebidas')).toBe(true);
     expect(productMatchesSearch(product, 'norte')).toBe(true);
     expect(productMatchesSearch(product, '955')).toBe(true);
-    expect(productMatchesSearch(product, '42')).toBe(true);
+    expect(productMatchesSearch(product, '42')).toBe(false);
   });
 
   it('filters products with the shared matcher', () => {
@@ -64,10 +63,10 @@ describe('product search helpers', () => {
     expect(filterProductsBySearch(products, 'marlboro').map(product => product.id)).toEqual(['1']);
   });
 
-  it('detects exact code, barcode or product name matches', () => {
+  it('detects exact barcode or product name matches', () => {
     const product = makeProduct({ code: 7, barcode: 'ABC123' });
 
-    expect(isExactProductSearchMatch(product, '7')).toBe(true);
+    expect(isExactProductSearchMatch(product, '7')).toBe(false);
     expect(isExactProductSearchMatch(product, 'abc123')).toBe(true);
     expect(isExactProductSearchMatch(product, 'cigarro marlboro melancia')).toBe(true);
   });

@@ -34,6 +34,7 @@ import { getAvailableClientCredit, getClientCreditLimit, getCreditLimitExceededM
 import { verifyStoreAdminApproval } from '@/lib/adminApproval';
 import { getDebtPaymentCreditedAmount, getDebtPaymentMaxAmount, getDebtPaymentValidationMessage } from '@/lib/debtPayment';
 import { parseDecimalInput } from '@/lib/numberInput';
+import { formatProductCode } from '@/lib/productCode';
 import { toProductUppercase } from '@/lib/productSearch';
 import { getPublicErrorMessage, getRedactedLogValue } from '../../shared/security/redaction';
 
@@ -766,7 +767,7 @@ export default function ClientDetail() {
                       {matched.map(p => (
                         <button key={p.id} className="w-full text-left px-3 py-2 hover:bg-accent/50 transition-colors flex justify-between text-sm"
                           onClick={() => { setSelectedProduct(p); setProductSearch(''); setShowSearch(false); }}>
-                          <span className="truncate mr-2">{p.code ? `#${p.code} ` : ''}{p.name}</span>
+                          <span className="truncate mr-2">{formatProductCode(p.code) ? `${formatProductCode(p.code)} ` : ''}{p.name}</span>
                           <span className="text-muted-foreground whitespace-nowrap">R$ {p.price.toFixed(2)}</span>
                         </button>
                       ))}
@@ -1274,7 +1275,7 @@ export default function ClientDetail() {
         <DialogContent className="max-w-md">
           <DialogHeader><DialogTitle>Editar Cliente</DialogTitle></DialogHeader>
           <div className="space-y-4">
-            <div className="space-y-2"><Label>Nome</Label><Input value={editName} onChange={e => setEditName(e.target.value)} /></div>
+            <div className="space-y-2"><Label>Nome</Label><Input value={editName} onChange={e => setEditName(toProductUppercase(e.target.value))} /></div>
             <div className="space-y-2">
               <Label>Telefone</Label>
               <Input value={editPhone} onChange={e => setEditPhone(e.target.value)} />

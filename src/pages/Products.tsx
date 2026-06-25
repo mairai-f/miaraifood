@@ -19,6 +19,7 @@ import { getMarginPercent, getMarkupPercent, getPriceFromMarkup, getUnitProfit }
 import { verifyPricingManagerApproval } from '@/lib/pricingManagerApproval';
 import { parseDecimalInput } from '@/lib/numberInput';
 import { filterProductsBySearch, toProductUppercase } from '@/lib/productSearch';
+import { formatProductCode } from '@/lib/productCode';
 import { readDesktopActivation } from '@/lib/desktopActivation';
 import { canUseDesktopFiscalModule } from '@/lib/fiscalAccess';
 import { supabase } from '@/integrations/supabase/client';
@@ -312,7 +313,7 @@ export default function Products() {
                     <AlertDescription>A margem estimada está em {previewMargin.toFixed(1)}%.</AlertDescription>
                   </Alert>
                 )}
-                <div className="space-y-1"><Label>Código de Barras</Label><Input value={barcode} onChange={e => setBarcode(toProductUppercase(e.target.value))} placeholder="Ex: 7891234567890" /></div>
+                <div className="space-y-1"><Label>Código de Barras</Label><Input value={barcode} onChange={e => setBarcode(toProductUppercase(e.target.value))} placeholder="Ex: EAN-8, UPC, EAN-13 ou ITF-14" /></div>
                 <div className="space-y-1"><Label>Categoria</Label><Input value={category} onChange={e => setCategory(toProductUppercase(e.target.value))} placeholder="Ex: Cerveja, Cigarro" /></div>
                 <div className="space-y-1"><Label>Fornecedor</Label><Input value={supplierName} onChange={e => setSupplierName(toProductUppercase(e.target.value))} placeholder="Ex: Distribuidora Norte" /></div>
                 <div className="grid grid-cols-2 gap-3">
@@ -415,7 +416,7 @@ export default function Products() {
                   <div className="flex items-start justify-between mb-2 min-w-0">
                     <div className="min-w-0 mr-2">
                       <h3 className="font-semibold text-sm truncate">{p.name}</h3>
-                    <span className="text-xs text-muted-foreground">{p.code ? `#${p.code}` : 'Sem código'}{p.category ? ` - ${p.category}` : ''}</span>
+                    <span className="text-xs text-muted-foreground">{formatProductCode(p.code) || 'Sem código'}{p.category ? ` - ${p.category}` : ''}</span>
                     {p.supplier_name && <p className="text-[11px] text-muted-foreground truncate">Fornecedor: {p.supplier_name}</p>}
                     {p.fiscal_ncm && <p className="text-[11px] text-muted-foreground truncate">Fiscal: NCM {p.fiscal_ncm}{p.fiscal_cfop ? ` | CFOP ${p.fiscal_cfop}` : ''}</p>}
                   </div>

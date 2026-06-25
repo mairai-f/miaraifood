@@ -21,6 +21,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { parseDecimalInput } from '@/lib/numberInput';
 import { normalizePhone } from '@/lib/phone';
 import { openExternalUrl } from '@/lib/openExternalUrl';
+import { formatProductCode } from '@/lib/productCode';
 import { buildSupplierOrderWhatsAppUrl } from '@/lib/whatsapp';
 import type { FinancialAccount, OpenDebtClient, OperationsDetail, ProductBatch, ProductPromotion, PurchaseOrder, PurchaseOrderItem, SupplierRecord, SupplierSummary } from '@/types/operations';
 import { getRedactedLogValue } from '../../shared/security/redaction';
@@ -618,7 +619,7 @@ export default function Operations() {
               <div class="label">
                 <div class="name">${product.name}</div>
                 <div class="price">${money(product.price)}</div>
-                <div class="code">${product.barcode || product.code || product.id.slice(0, 8)}</div>
+                <div class="code">${product.barcode || formatProductCode(product.code) || product.id.slice(0, 8)}</div>
               </div>
             `).join('')}
           </div>

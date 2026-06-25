@@ -58,6 +58,7 @@ import { shouldUseOfflineSnapshotFallback } from '@/lib/offlineSnapshotPolicy';
 import { buildSaleItemPricingMetrics, normalizeProductPricing, normalizePricingRoundingRule } from '@/lib/pricing';
 import { getClientCreditLimit, getCreditLimitExceededMessage, normalizeCreditLimit } from '@/lib/creditLimit';
 import { filterProductsBySearch, toProductUppercase } from '@/lib/productSearch';
+import { buildServiceTicketBarcode, isServiceTicketBarcode, isValidServiceTicketNumber, normalizeServiceTicketRecord } from '@/lib/serviceTicket';
 import { getPublicErrorMessage, getRedactedLogValue } from '../../shared/security/redaction';
 
 // Generated Supabase types are behind the current schema for these operational tables.
@@ -136,7 +137,6 @@ const sortPaymentsByDate = (rows: Payment[]) => sortByIsoDesc(rows, row => row.d
 const sortServiceTicketsByNumber = (rows: ServiceTicket[]) => [...rows].sort((left, right) => left.number - right.number);
 const sortServiceTicketItemsByCreatedAt = (rows: ServiceTicketItem[]) =>
   [...rows].sort((left, right) => new Date(left.created_at).getTime() - new Date(right.created_at).getTime());
-const buildServiceTicketBarcode = (number: number) => `HC-CMD-${String(number).padStart(4, '0')}`;
 const samePaymentMoment = (left?: string | null, right?: string | null) => {
   if (!left || !right) return false;
   return Math.abs(new Date(left).getTime() - new Date(right).getTime()) < 1000;
@@ -240,7 +240,17 @@ interface DataContextType {
     status: ServiceTicketStatus,
     metadata?: { saleId?: string | null; closedByName?: string | null }
   ) => Promise<void>;
-  cancelServiceTicketItem: (itemId: string, reason: string, cancelledByName?: string | null) => Promise<void>;
+  updateServiceTicketItemQuantity: (
+    itemId: string,
+    quantity: number,
+    options?: { skipAdminCheck?: boolean }
+  ) => Promise<void>;
+  cancelServiceTicketItem: (
+    itemId: string,
+    reason: string,
+    cancelledByName?: string | null,
+    options?: { skipAdminCheck?: boolean }
+  ) => Promise<void>;
   addStockMovement: (productId: string, type: string, quantity: number, reason: string) => Promise<void>;
   clearAllStock: (reason?: string) => Promise<void>;
   addExpense: (
@@ -361,7 +371,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     setRewards(snapshot.rewards ?? []);
     setSales(snapshot.sales ?? []);
     setSaleItems(snapshot.saleItems ?? []);
-    setServiceTickets(sortServiceTicketsByNumber(snapshot.serviceTickets ?? []));
+    setServiceTickets(sortServiceTicketsByNumber((snapshot.serviceTickets ?? []).map(normalizeServiceTicketRecord)));
     setServiceTicketItems(sortServiceTicketItemsByCreatedAt(snapshot.serviceTicketItems ?? []));
     setStockMovements(snapshot.stockMovements ?? []);
     setExpenses(snapshot.expenses ?? []);
@@ -490,7 +500,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     const nextRewards = (r.data as Reward[]) ?? [];
     const nextSales = (s.data as Sale[]) ?? [];
     const nextSaleItems = (si.data as SaleItem[]) ?? [];
-    const nextServiceTickets = sortServiceTicketsByNumber((st.data as ServiceTicket[]) ?? []);
+    const nextServiceTickets = sortServiceTicketsByNumber(((st.data as ServiceTicket[]) ?? []).map(normalizeServiceTicketRecord));
     const nextServiceTicketItems = sortServiceTicketItemsByCreatedAt((sti.data as ServiceTicketItem[]) ?? []);
     const nextStockMovements = (sm.data as StockMovement[]) ?? [];
     const nextExpenses = (exp.data as Expense[]) ?? [];
@@ -1440,12 +1450,13 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
   // --- Clients ---
   const addClient = async (name: string, phone: string, creditLimit?: number | null) => {
+    const normalizedName = toProductUppercase(name.trim());
     const normalizedCreditLimit = normalizeCreditLimit(creditLimit);
 
     if (isDemoMode) {
       const client: Client = {
         id: createId(),
-        name,
+        name: normalizedName,
         phone,
         credit_limit: normalizedCreditLimit,
         created_at: nowIso(),
@@ -1460,7 +1471,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     const addOfflineClient = async () => {
       const client: Client = {
         id: createId(),
-        name,
+        name: normalizedName,
         phone,
         credit_limit: normalizedCreditLimit,
         created_at: nowIso(),
@@ -1490,7 +1501,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     try {
       const { data, error } = await db
         .from('clients')
-        .insert({ name, phone, credit_limit: normalizedCreditLimit, user_id: ownerUserId! })
+        .insert({ name: normalizedName, phone, credit_limit: normalizedCreditLimit, user_id: ownerUserId! })
         .select('*')
         .single();
       if (error) throw error;
@@ -1506,20 +1517,24 @@ export function DataProvider({ children }: { children: ReactNode }) {
   };
   const updateClient = async (id: string, data: Partial<Client>) => {
     const currentClient = clients.find(client => client.id === id);
+    const normalizedClientData: Partial<Client> = {
+      ...data,
+      name: typeof data.name === 'string' ? toProductUppercase(data.name.trim()) : data.name,
+    };
 
     if (!currentClient) {
       throw new Error('Cliente nao encontrado para atualizacao.');
     }
 
     if (isDemoMode) {
-      setClients(prev => sortClientsByCreatedAt(prev.map(client => client.id === id ? { ...client, ...data } : client)));
+      setClients(prev => sortClientsByCreatedAt(prev.map(client => client.id === id ? { ...client, ...normalizedClientData } : client)));
       return;
     }
 
     const updateOfflineClient = async () => {
       const nextClient: Client = {
         ...currentClient,
-        ...data,
+        ...normalizedClientData,
         sync_status: 'queued',
         sync_error: null,
       };
@@ -1542,7 +1557,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     }
 
     try {
-      const { data: updated, error } = await db.from('clients').update(data).eq('id', id).select('*').single();
+      const { data: updated, error } = await db.from('clients').update(normalizedClientData).eq('id', id).select('*').single();
       if (error) throw error;
       setClients(prev => sortClientsByCreatedAt(prev.map(client => client.id === id ? updated as Client : client)));
     } catch (error) {
@@ -3105,11 +3120,16 @@ export function DataProvider({ children }: { children: ReactNode }) {
   // --- Service tickets (comandas) ---
   const createServiceTicket = async (number: number, barcode?: string, label?: string) => {
     if (!ownerUserId) throw new Error('Loja nao identificada.');
-    if (!Number.isInteger(number) || number <= 0) {
-      throw new Error('Informe um numero de comanda valido.');
+    if (!isValidServiceTicketNumber(number)) {
+      throw new Error('Informe um numero de comanda valido entre 1 e 9999.');
     }
 
-    const normalizedBarcode = (barcode?.trim() || buildServiceTicketBarcode(number)).toUpperCase();
+    const providedBarcode = barcode?.trim() ?? '';
+    if (providedBarcode && !isServiceTicketBarcode(providedBarcode)) {
+      throw new Error('O codigo de barras da comanda deve seguir o padrao HC001 ou HC0001.');
+    }
+
+    const normalizedBarcode = (providedBarcode || buildServiceTicketBarcode(number)).toUpperCase();
     const normalizedLabel = label?.trim() || `Comanda ${number}`;
     const duplicateTicket = serviceTickets.find(ticket =>
       ticket.number === number || ticket.barcode.trim().toUpperCase() === normalizedBarcode,
@@ -3318,8 +3338,56 @@ export function DataProvider({ children }: { children: ReactNode }) {
     )));
   };
 
-  const cancelServiceTicketItem: DataContextType['cancelServiceTicketItem'] = async (itemId, reason, cancelledByName) => {
-    if (!isAdmin) throw new Error('Somente administrador pode cancelar item da comanda.');
+  const updateServiceTicketItemQuantity: DataContextType['updateServiceTicketItemQuantity'] = async (itemId, quantity, options = {}) => {
+    if (!isAdmin && !options.skipAdminCheck) {
+      throw new Error('Somente administrador pode ajustar quantidade da comanda.');
+    }
+
+    const item = serviceTicketItems.find(currentItem => currentItem.id === itemId);
+    if (!item) throw new Error('Item da comanda nao encontrado.');
+    if (item.status === 'cancelled') {
+      throw new Error('Nao e possivel ajustar item cancelado.');
+    }
+
+    const normalizedQuantity = Number(quantity || 0);
+    if (!Number.isFinite(normalizedQuantity) || normalizedQuantity <= 0) {
+      throw new Error('Informe uma quantidade valida para o item da comanda.');
+    }
+
+    const total = Number((normalizedQuantity * Number(item.unit_price || 0)).toFixed(2));
+    const now = nowIso();
+    const changes: Partial<ServiceTicketItem> = {
+      quantity: normalizedQuantity,
+      total,
+      updated_at: now,
+    };
+
+    if (isDemoMode) {
+      setServiceTicketItems(prev => sortServiceTicketItemsByCreatedAt(prev.map(currentItem =>
+        currentItem.id === itemId ? { ...currentItem, ...changes } : currentItem
+      )));
+      return;
+    }
+
+    if (canUseOfflineConcentrator && typeof navigator !== 'undefined' && navigator.onLine === false) {
+      throw new Error('Conecte a internet para ajustar a quantidade da comanda.');
+    }
+
+    ensureSuccess(await db
+      .from('service_ticket_items')
+      .update({
+        quantity: normalizedQuantity,
+        total,
+      })
+      .eq('id', itemId));
+
+    setServiceTicketItems(prev => sortServiceTicketItemsByCreatedAt(prev.map(currentItem =>
+      currentItem.id === itemId ? { ...currentItem, ...changes } : currentItem
+    )));
+  };
+
+  const cancelServiceTicketItem: DataContextType['cancelServiceTicketItem'] = async (itemId, reason, cancelledByName, options = {}) => {
+    if (!isAdmin && !options.skipAdminCheck) throw new Error('Somente administrador pode cancelar item da comanda.');
     const item = serviceTicketItems.find(currentItem => currentItem.id === itemId);
     if (!item) throw new Error('Item da comanda nao encontrado.');
     if (item.status === 'cancelled') return;
@@ -3805,7 +3873,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       addDebtEntry, addDebtEntries, updateDebtEntry, deleteDebtEntry,
       addPayment, deletePayment, getClientBalance, getClientTotalSpending, closeAllDebt, deleteClientHistory,
       createSale, cancelSale,
-      createServiceTicket, addServiceTicketItem, updateServiceTicketStatus, cancelServiceTicketItem,
+      createServiceTicket, addServiceTicketItem, updateServiceTicketStatus, updateServiceTicketItemQuantity, cancelServiceTicketItem,
       addStockMovement, clearAllStock, addExpense, deleteExpense,
       addReward, updateReward, deleteReward,
       refetch: fetchAll,

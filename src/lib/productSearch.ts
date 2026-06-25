@@ -21,7 +21,6 @@ const getProductSearchFields = (product: Product) => [
   product.category,
   product.supplier_name,
   product.barcode,
-  product.code,
 ].map(normalizeProductSearchText);
 
 export const productMatchesSearch = (product: Product, query: string) => {
@@ -40,7 +39,6 @@ export const isExactProductSearchMatch = (product: Product, query: string) => {
   if (!term) return false;
 
   return [
-    product.code,
     product.barcode,
     product.name,
   ].some(value => normalizeProductSearchText(value) === term);

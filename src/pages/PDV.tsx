@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { createClient, FunctionsFetchError, FunctionsHttpError, FunctionsRelayError } from '@supabase/supabase-js';
@@ -17,7 +17,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { Ban, Barcode, FileText, History, Loader2, Maximize2, Minimize2, Minus, Plus, Printer, Receipt, Search, ShoppingCart, Wallet, X } from 'lucide-react';
+import { Ban, FileText, History, Loader2, Maximize2, Minimize2, Minus, Plus, Printer, Receipt, Search, ShoppingCart, Wallet, X } from 'lucide-react';
 import type { Expense, Product, Reward, Sale } from '@/types';
 import { INTERNET_REQUIRED_MESSAGE, isInternetUnavailable, openExternalUrl } from '@/lib/openExternalUrl';
 import { normalizePhone } from '@/lib/phone';
@@ -35,7 +35,8 @@ import { enqueueOfflineOperation, isOfflineConcentratorAvailable } from '@/lib/o
 import { verifyOfflineAdminAccess } from '@/lib/offlineAdminAccess';
 import { readScopedCashSession, writeScopedCashSession, type ScopedCashSession } from '@/lib/cashSessionStorage';
 import { parseDecimalInput, parseOptionalDecimalInput } from '@/lib/numberInput';
-import { filterProductsBySearch, isExactProductSearchMatch, toProductUppercase } from '@/lib/productSearch';
+import { filterProductsBySearch, isExactProductSearchMatch, normalizeProductSearchText, toProductUppercase } from '@/lib/productSearch';
+import { findServiceTicketByLookup } from '@/lib/serviceTicket';
 import { readDesktopActivation } from '@/lib/desktopActivation';
 import { buildDesktopFiscalAccessPayload, canUseDesktopFiscalModule } from '@/lib/fiscalAccess';
 import { getPublicErrorMessage, getRedactedLogValue } from '../../shared/security/redaction';
@@ -60,6 +61,11 @@ interface CartItem {
   product: Product;
   quantity: number;
   unitPrice: number;
+}
+
+interface PendingServiceTicketAdminAction {
+  type: 'decrease' | 'remove';
+  cartItem: CartItem;
 }
 
 type CashSession = ScopedCashSession;
@@ -310,6 +316,9 @@ export default function PDV() {
     addDebtEntries,
     addExpense,
     cancelSale,
+    addServiceTicketItem,
+    updateServiceTicketItemQuantity,
+    cancelServiceTicketItem,
     updateServiceTicketStatus,
     getClientBalance,
     getClientTotalSpending,
@@ -328,8 +337,18 @@ export default function PDV() {
   });
   const searchInputRef = useRef<HTMLInputElement>(null);
   const cashReceivedInputRef = useRef<HTMLInputElement>(null);
-  const ticketLookupInputRef = useRef<HTMLInputElement>(null);
+  const checkoutDialogRef = useRef<HTMLDivElement | null>(null);
+  const creditInstallmentsDialogRef = useRef<HTMLDivElement | null>(null);
+  const finalizeConfirmDialogRef = useRef<HTMLDivElement | null>(null);
+  const scannerNotFoundDialogRef = useRef<HTMLDivElement | null>(null);
+  const closeServiceTicketExitCancelRef = useRef<HTMLButtonElement | null>(null);
   const finalizeLockRef = useRef(false);
+  const lastCheckoutModalScannerKeyAtRef = useRef(0);
+  const lastScannerNotFoundKeyAtRef = useRef(0);
+  const scannerBufferRef = useRef('');
+  const scannerLastKeyAtRef = useRef(0);
+  const scannerCharCountRef = useRef(0);
+  const lastPointerProductAddRef = useRef<{ productId: string; at: number } | null>(null);
   const cartItemSelectionRefs = useRef<Array<HTMLDivElement | null>>([]);
   const productsGridRef = useRef<HTMLDivElement | null>(null);
   const productSelectionRefs = useRef<Array<HTMLDivElement | null>>([]);
@@ -344,7 +363,6 @@ export default function PDV() {
   });
   const [searchSelectedIndex, setSearchSelectedIndex] = useState(-1);
   const [cart, setCart] = useState<CartItem[]>([]);
-  const [ticketLookup, setTicketLookup] = useState('');
   const [activeServiceTicketId, setActiveServiceTicketId] = useState<string | null>(null);
   const [mobilePanel, setMobilePanel] = useState<'products' | 'cart'>('products');
   const [cartKeyboardSelectionIndex, setCartKeyboardSelectionIndex] = useState<number | null>(null);
@@ -362,6 +380,9 @@ export default function PDV() {
   const [showCheckout, setShowCheckout] = useState(false);
   const [showFinalizeConfirm, setShowFinalizeConfirm] = useState(false);
   const [showCreditInstallmentsDialog, setShowCreditInstallmentsDialog] = useState(false);
+  const [showScannerNotFoundDialog, setShowScannerNotFoundDialog] = useState(false);
+  const [showCloseServiceTicketExitPrompt, setShowCloseServiceTicketExitPrompt] = useState(false);
+  const [pendingServiceTicketLookup, setPendingServiceTicketLookup] = useState<string | null>(null);
   const [showReceipt, setShowReceipt] = useState(false);
   const [showSalesSearch, setShowSalesSearch] = useState(false);
   const [showCancelledSales, setShowCancelledSales] = useState(false);
@@ -388,6 +409,7 @@ export default function PDV() {
   const [closeCashAuthError, setCloseCashAuthError] = useState('');
   const [closeCashEmailStatus, setCloseCashEmailStatus] = useState<CloseCashEmailStatus>('idle');
   const [closeCashEmailMessage, setCloseCashEmailMessage] = useState('');
+  const [scannerNotFoundMessage, setScannerNotFoundMessage] = useState('Produto ou comanda nao encontrado.');
   const [closeCashEmailRecipients, setCloseCashEmailRecipients] = useState<string[]>([]);
   const [closeCashEmailRecipientInput, setCloseCashEmailRecipientInput] = useState(() => readCloseCashEmailRecipients());
   const [closeCashSendChannel, setCloseCashSendChannel] = useState<CloseCashSendChannel>('email');
@@ -404,6 +426,11 @@ export default function PDV() {
   const [issuingFiscalDocument, setIssuingFiscalDocument] = useState(false);
   const [lastFiscalDocument, setLastFiscalDocument] = useState<FiscalDocumentRecord | null>(null);
   const [lastFiscalDocumentError, setLastFiscalDocumentError] = useState('');
+  const [pendingServiceTicketAdminAction, setPendingServiceTicketAdminAction] = useState<PendingServiceTicketAdminAction | null>(null);
+  const [serviceTicketAdminLogin, setServiceTicketAdminLogin] = useState('');
+  const [serviceTicketAdminSecret, setServiceTicketAdminSecret] = useState('');
+  const [serviceTicketAdminAuthError, setServiceTicketAdminAuthError] = useState('');
+  const [isVerifyingServiceTicketAdmin, setIsVerifyingServiceTicketAdmin] = useState(false);
   const lastEscToClearCartAtRef = useRef(0);
   const ignoreCartClearOnEscRef = useRef(false);
   const loadedServiceTicketQueryRef = useRef<string | null>(null);
@@ -421,6 +448,83 @@ export default function PDV() {
   const activeServiceTicketItems = activeServiceTicket
     ? serviceTicketItems.filter(item => item.ticket_id === activeServiceTicket.id && item.status === 'active')
     : [];
+  const buildCartFromServiceTicketItems = useCallback((ticketId: string) => {
+    const groupedItems = new Map<string, CartItem>();
+    const missingItems: string[] = [];
+
+    const ticketItems = serviceTicketItems
+      .filter(item => item.ticket_id === ticketId && item.status === 'active')
+      .sort((left, right) => new Date(left.created_at).getTime() - new Date(right.created_at).getTime());
+
+    for (const item of ticketItems) {
+      const product = products.find(currentProduct => currentProduct.id === item.product_id);
+      if (!product) {
+        missingItems.push(item.product_name);
+        continue;
+      }
+
+      const quantity = Number(item.quantity || 0);
+      const unitPrice = Number(item.unit_price || product.price);
+      if (quantity <= 0) continue;
+
+      const key = `${product.id}:${unitPrice.toFixed(2)}`;
+      const existing = groupedItems.get(key);
+      if (existing) {
+        existing.quantity += quantity;
+        continue;
+      }
+
+      groupedItems.set(key, {
+        product,
+        quantity,
+        unitPrice,
+      });
+    }
+
+    return {
+      cart: Array.from(groupedItems.values()),
+      missingItems,
+    };
+  }, [products, serviceTicketItems]);
+  const getMatchingActiveServiceTicketItems = useCallback((cartItem: CartItem) => {
+    if (!activeServiceTicket) return [];
+
+    return activeServiceTicketItems
+      .filter(item =>
+        item.status === 'active'
+        && item.product_id === cartItem.product.id
+        && Math.abs(Number(item.unit_price || 0) - cartItem.unitPrice) <= 0.009
+      )
+      .sort((left, right) => new Date(right.created_at).getTime() - new Date(left.created_at).getTime());
+  }, [activeServiceTicket, activeServiceTicketItems]);
+
+  const resetScannerTracking = useCallback(() => {
+    scannerBufferRef.current = '';
+    scannerLastKeyAtRef.current = 0;
+    scannerCharCountRef.current = 0;
+  }, []);
+
+  const registerScannerLikeKey = useCallback((key: string, options?: { updateSearch?: boolean }) => {
+    const updateSearch = options?.updateSearch ?? false;
+    const now = Date.now();
+    const isContinuation = now - scannerLastKeyAtRef.current <= 120;
+    const nextBuffer = isContinuation
+      ? `${scannerBufferRef.current}${key}`
+      : key;
+
+    scannerBufferRef.current = nextBuffer;
+    scannerLastKeyAtRef.current = now;
+    scannerCharCountRef.current = isContinuation ? scannerCharCountRef.current + 1 : 1;
+
+    if (updateSearch) {
+      setSearch(nextBuffer);
+      setSearchSelectedIndex(-1);
+    }
+  }, []);
+
+  const isLikelyScannerSubmit = useCallback(() => (
+    scannerCharCountRef.current >= 3 && Date.now() - scannerLastKeyAtRef.current <= 180
+  ), []);
 
   const formatMoney = (value: number) => formatCurrency(value);
   const getCartItemTotal = (item: CartItem) => item.unitPrice * item.quantity;
@@ -759,10 +863,20 @@ export default function PDV() {
     }
   }, [closeCashWhatsappPhone, user]);
 
+  const isUnifiedServiceTicketQuery = useMemo(() => {
+    const query = search.trim();
+    if (!query) return false;
+    return Boolean(findServiceTicketByLookup(serviceTickets, query));
+  }, [search, serviceTickets]);
+  const hasSearchQuery = search.trim().length > 0;
   const filtered = useMemo(() => {
-    if (!search) return activeProducts;
+    if (!hasSearchQuery) return [];
     return filterProductsBySearch(activeProducts, search);
-  }, [search, activeProducts]);
+  }, [activeProducts, hasSearchQuery, search]);
+  const showIdleProductsState = (!hasSearchQuery || isUnifiedServiceTicketQuery) && cart.length === 0 && !activeServiceTicket;
+  const showActiveEmptyTicketState = (!hasSearchQuery || isUnifiedServiceTicketQuery) && cart.length === 0 && Boolean(activeServiceTicket);
+  const showProductResultsState = hasSearchQuery && !isUnifiedServiceTicketQuery && filtered.length > 0;
+  const showProductNotFoundState = hasSearchQuery && !isUnifiedServiceTicketQuery && filtered.length === 0;
 
   useEffect(() => {
     try {
@@ -1762,24 +1876,77 @@ export default function PDV() {
   };
 
   const findServiceTicket = useCallback((value: string) => {
-    const normalized = value.trim().toUpperCase();
-    if (!normalized) return null;
-    const ticketNumber = Number.parseInt(normalized, 10);
-    return serviceTickets.find(ticket =>
-      ticket.barcode.trim().toUpperCase() === normalized
-      || (Number.isInteger(ticketNumber) && ticket.number === ticketNumber)
-    ) ?? null;
+    return findServiceTicketByLookup(serviceTickets, value);
   }, [serviceTickets]);
+  const pendingServiceTicketToOpen = pendingServiceTicketLookup
+    ? findServiceTicket(pendingServiceTicketLookup)
+    : null;
 
-  const loadServiceTicketToCart = useCallback((ticketLookupValue: string) => {
-    if (role !== 'operator') {
-      silentToast.error('Somente operador do caixa pode finalizar comanda no PDV');
+  const focusProductSearch = useCallback(() => {
+    requestAnimationFrame(() => searchInputRef.current?.focus());
+  }, []);
+
+  const blurPdvInputs = useCallback(() => {
+    searchInputRef.current?.blur();
+    cashReceivedInputRef.current?.blur();
+
+    if (typeof document === 'undefined') return;
+
+    const activeElement = document.activeElement;
+    if (activeElement instanceof HTMLElement) {
+      activeElement.blur();
+    }
+  }, []);
+
+  const openScannerNotFoundDialog = useCallback((message = 'Produto ou comanda nao encontrado.') => {
+    blurPdvInputs();
+    setSearch('');
+    setSearchSelectedIndex(-1);
+    setScannerNotFoundMessage(message);
+    setShowScannerNotFoundDialog(true);
+  }, [blurPdvInputs]);
+
+  const closeScannerNotFoundDialog = useCallback(() => {
+    lastScannerNotFoundKeyAtRef.current = 0;
+    setShowScannerNotFoundDialog(false);
+  }, []);
+
+  useEffect(() => {
+    if (showOpenCashDialog || showCheckout || showFinalizeConfirm || showCreditInstallmentsDialog || showScannerNotFoundDialog) {
+      return;
+    }
+
+    const timerId = window.setTimeout(() => {
+      if (document.activeElement === searchInputRef.current) {
+        blurPdvInputs();
+      }
+    }, 0);
+
+    return () => window.clearTimeout(timerId);
+  }, [blurPdvInputs, showCheckout, showCreditInstallmentsDialog, showFinalizeConfirm, showOpenCashDialog, showScannerNotFoundDialog]);
+
+  const closeServiceTicketExitPrompt = useCallback(() => {
+    setPendingServiceTicketLookup(null);
+    setShowCloseServiceTicketExitPrompt(false);
+  }, []);
+
+  const loadServiceTicketToCart = useCallback((ticketLookupValue: string, options?: {
+    showNotFoundModal?: boolean;
+    bypassActiveTicketPrompt?: boolean;
+  }) => {
+    const showNotFoundModal = options?.showNotFoundModal ?? true;
+    const bypassActiveTicketPrompt = options?.bypassActiveTicketPrompt ?? false;
+
+    if (role !== 'operator' && role !== 'admin') {
+      silentToast.error('Somente operador ou administrador podem finalizar comanda no PDV');
       return false;
     }
 
     const ticket = findServiceTicket(ticketLookupValue);
     if (!ticket) {
-      silentToast.error('Comanda nao encontrada');
+      if (showNotFoundModal) {
+        openScannerNotFoundDialog();
+      }
       return false;
     }
 
@@ -1788,56 +1955,74 @@ export default function PDV() {
       return false;
     }
 
-    const ticketItems = serviceTicketItems.filter(item => item.ticket_id === ticket.id && item.status === 'active');
-    if (ticketItems.length === 0) {
-      silentToast.error('Comanda sem produtos lancados');
-      return false;
-    }
-
-    const missingItems: string[] = [];
-    const nextCart = ticketItems.map(item => {
-      const product = products.find(currentProduct => currentProduct.id === item.product_id);
-      if (!product) {
-        missingItems.push(item.product_name);
-        return null;
-      }
-
-      return {
-        product,
-        quantity: Number(item.quantity || 0),
-        unitPrice: Number(item.unit_price || product.price),
-      } as CartItem;
-    }).filter(Boolean) as CartItem[];
+    const { cart: nextCart, missingItems } = buildCartFromServiceTicketItems(ticket.id);
 
     if (missingItems.length > 0) {
-      silentToast.error(`Produto nao encontrado no cadastro: ${missingItems[0]}`);
+      openScannerNotFoundDialog(`Produto nao encontrado no cadastro: ${missingItems[0]}.`);
       return false;
     }
 
+    if (activeServiceTicketId && activeServiceTicketId !== ticket.id && !bypassActiveTicketPrompt) {
+      blurPdvInputs();
+      setPendingServiceTicketLookup(ticketLookupValue);
+      setShowCloseServiceTicketExitPrompt(true);
+      return false;
+    }
+
+    setSearch('');
+    setSearchSelectedIndex(-1);
+    resetScannerTracking();
     setCart(nextCart);
     setActiveServiceTicketId(ticket.id);
-    setTicketLookup(String(ticket.number));
     setMobilePanel('cart');
-    silentToast.success(`Comanda ${ticket.number} carregada no caixa`);
+    silentToast.success(
+      nextCart.length > 0
+        ? `Comanda ${ticket.number} carregada no caixa`
+        : `Comanda ${ticket.number} aberta no caixa`
+    );
     return true;
-  }, [findServiceTicket, products, role, serviceTicketItems]);
+  }, [activeServiceTicketId, blurPdvInputs, buildCartFromServiceTicketItems, findServiceTicket, openScannerNotFoundDialog, resetScannerTracking, role]);
 
   useEffect(() => {
     const query = new URLSearchParams(location.search).get('comanda')?.trim() || '';
     if (!query || loadedServiceTicketQueryRef.current === query) return;
-    if (serviceTickets.length === 0 || serviceTicketItems.length === 0 || products.length === 0) return;
+    if (serviceTickets.length === 0 || products.length === 0) return;
 
-    if (loadServiceTicketToCart(query)) {
+    if (loadServiceTicketToCart(query, { showNotFoundModal: false })) {
       loadedServiceTicketQueryRef.current = query;
     }
-  }, [loadServiceTicketToCart, location.search, products.length, serviceTicketItems.length, serviceTickets.length]);
+  }, [loadServiceTicketToCart, location.search, products.length, serviceTickets.length]);
 
-  const addToCart = (p: Product) => {
+  useEffect(() => {
+    if (!activeServiceTicketId) return;
+
+    const { cart: nextCart } = buildCartFromServiceTicketItems(activeServiceTicketId);
+    setCart(nextCart);
+  }, [activeServiceTicketId, buildCartFromServiceTicketItems]);
+
+  const addToCart = useCallback(async (p: Product) => {
     const requestedQuantity = getCartQuantityForProduct(p.id) + 1;
     const stockMessage = getInsufficientStockMessage(p, requestedQuantity);
     if (stockMessage) {
       silentToast.error(stockMessage);
-      return;
+      return false;
+    }
+
+    if (activeServiceTicket) {
+      try {
+        await addServiceTicketItem(activeServiceTicket.id, {
+          productId: p.id,
+          productName: p.name,
+          quantity: 1,
+          unitPrice: p.price,
+          addedByName: sellerName,
+        });
+        searchInputRef.current?.blur();
+        return true;
+      } catch (error) {
+        silentToast.error(error instanceof Error ? error.message : 'Nao foi possivel lancar o produto na comanda');
+        return false;
+      }
     }
 
     setCart(prev => {
@@ -1846,29 +2031,117 @@ export default function PDV() {
       return [...prev, { product: p, quantity: 1, unitPrice: p.price }];
     });
     searchInputRef.current?.blur();
-  };
+    return true;
+  }, [activeServiceTicket, addServiceTicketItem, getCartQuantityForProduct, getInsufficientStockMessage, sellerName]);
 
-  const focusProductSearch = useCallback(() => {
-    requestAnimationFrame(() => searchInputRef.current?.focus());
-  }, []);
+  const handleProductSelection = useCallback(async (product: Product, options?: { focusAfterSuccess?: boolean }) => {
+    const focusAfterSuccess = options?.focusAfterSuccess ?? true;
+    const added = await addToCart(product);
+    if (!added) return false;
 
-  const addSearchResultToCart = () => {
-    const exactMatch = search.trim()
-      ? activeProducts.find(p => isExactProductSearchMatch(p, search))
-      : null;
-    const selectedProduct = searchSelectedIndex >= 0 ? filtered[searchSelectedIndex] : null;
-    const product = exactMatch || selectedProduct || filtered[0];
+    setSearch('');
+    setSearchSelectedIndex(-1);
+    if (focusAfterSuccess) {
+      focusProductSearch();
+    }
+    return true;
+  }, [addToCart, focusProductSearch]);
 
-    if (!product) {
-      silentToast.error('Produto não encontrado');
+  const handleProductPointerSelection = useCallback(async (event: ReactMouseEvent<HTMLElement>, product: Product) => {
+    const now = Date.now();
+    const lastPointerAdd = lastPointerProductAddRef.current;
+
+    if (
+      event.detail > 1
+      || (lastPointerAdd && lastPointerAdd.productId === product.id && now - lastPointerAdd.at < 350)
+    ) {
+      event.preventDefault();
       return;
     }
 
-    addToCart(product);
-    setSearch('');
-    setSearchSelectedIndex(-1);
-    silentToast.success(`${product.name} adicionado`);
-  };
+    lastPointerProductAddRef.current = {
+      productId: product.id,
+      at: now,
+    };
+
+    await handleProductSelection(product);
+  }, [handleProductSelection]);
+
+  const addSearchResultToCart = useCallback(async (options?: {
+    silentIfNotFound?: boolean;
+    clearSearchOnNotFound?: boolean;
+    query?: string;
+    focusAfterSuccess?: boolean;
+  }) => {
+    const silentIfNotFound = options?.silentIfNotFound ?? false;
+    const clearSearchOnNotFound = options?.clearSearchOnNotFound ?? false;
+    const focusAfterSuccess = options?.focusAfterSuccess ?? true;
+    const query = (options?.query ?? search).trim();
+    const normalizedQuery = normalizeProductSearchText(query);
+    const isPureNumericQuery = /^\d+$/.test(query);
+    const matchingTicket = query ? findServiceTicket(query) : null;
+    const exactProduct = query
+      ? activeProducts.find(product => isExactProductSearchMatch(product, query))
+      : null;
+    const shouldOpenTicketFirst = Boolean(
+      matchingTicket
+      && (
+        query.startsWith('HC')
+        || (isPureNumericQuery && query.length <= 4)
+      )
+    );
+
+    if (shouldOpenTicketFirst) {
+      if (loadServiceTicketToCart(query, { showNotFoundModal: !silentIfNotFound })) {
+        setSearch('');
+        setSearchSelectedIndex(-1);
+        resetScannerTracking();
+        if (focusAfterSuccess) {
+          focusProductSearch();
+        }
+      }
+      return;
+    }
+
+    const selectedProduct = searchSelectedIndex >= 0 ? filtered[searchSelectedIndex] ?? null : null;
+    const partialMatch = /[A-Z]/.test(normalizedQuery)
+      ? selectedProduct ?? filtered[0] ?? null
+      : selectedProduct;
+    const product = exactProduct ?? partialMatch;
+
+    if (!product && matchingTicket) {
+      if (loadServiceTicketToCart(query, { showNotFoundModal: !silentIfNotFound })) {
+        setSearch('');
+        setSearchSelectedIndex(-1);
+        resetScannerTracking();
+        if (focusAfterSuccess) {
+          focusProductSearch();
+        }
+      }
+      return;
+    }
+
+    if (!product) {
+      if (clearSearchOnNotFound) {
+        setSearch('');
+        setSearchSelectedIndex(-1);
+        resetScannerTracking();
+      }
+      if (!silentIfNotFound) {
+        openScannerNotFoundDialog();
+      }
+      return;
+    }
+
+    const added = await handleProductSelection(product, { focusAfterSuccess });
+    if (!added) return;
+    resetScannerTracking();
+    silentToast.success(
+      activeServiceTicket
+        ? `${product.name} lancado na comanda ${activeServiceTicket.number}`
+        : `${product.name} adicionado`
+    );
+  }, [activeProducts, activeServiceTicket, filtered, findServiceTicket, focusProductSearch, handleProductSelection, loadServiceTicketToCart, openScannerNotFoundDialog, resetScannerTracking, search, searchSelectedIndex]);
 
   useEffect(() => {
     if (!cashierMode) return;
@@ -1882,6 +2155,7 @@ export default function PDV() {
       || showOpenCashDialog
       || Boolean(saleToCancel)
       || Boolean(cartItemPendingPriceEdit)
+      || Boolean(pendingServiceTicketAdminAction)
       || showFinalizeConfirm
       || showCreditInstallmentsDialog
     ) {
@@ -1893,6 +2167,7 @@ export default function PDV() {
     cashierMode,
     cartItemPendingPriceEdit,
     focusProductSearch,
+    pendingServiceTicketAdminAction,
     saleToCancel,
     showCancelledSales,
     showCashOut,
@@ -1924,15 +2199,105 @@ export default function PDV() {
     });
   };
 
-  const updateQty = (productId: string, delta: number) => {
+  const closePendingServiceTicketAdminAction = () => {
+    setPendingServiceTicketAdminAction(null);
+    setServiceTicketAdminLogin('');
+    setServiceTicketAdminSecret('');
+    setServiceTicketAdminAuthError('');
+    setIsVerifyingServiceTicketAdmin(false);
+  };
+
+  const requestServiceTicketAdminAction = (action: PendingServiceTicketAdminAction) => {
+    setPendingServiceTicketAdminAction(action);
+    setServiceTicketAdminLogin('');
+    setServiceTicketAdminSecret('');
+    setServiceTicketAdminAuthError('');
+  };
+
+  const confirmServiceTicketAdminAction = async () => {
+    if (!pendingServiceTicketAdminAction || !activeServiceTicket) return;
+
+    setIsVerifyingServiceTicketAdmin(true);
+    setServiceTicketAdminAuthError('');
+
+    try {
+      const authorization = await verifyAdminAuthorization({
+        login: serviceTicketAdminLogin,
+        secret: serviceTicketAdminSecret,
+        setError: setServiceTicketAdminAuthError,
+      });
+
+      if (!authorization.ok) return;
+
+      const matchingItems = getMatchingActiveServiceTicketItems(pendingServiceTicketAdminAction.cartItem);
+      if (matchingItems.length === 0) {
+        silentToast.error('Nao foi possivel localizar o item ativo da comanda.');
+        closePendingServiceTicketAdminAction();
+        return;
+      }
+
+      if (pendingServiceTicketAdminAction.type === 'decrease') {
+        const targetItem = matchingItems[0];
+        const currentQuantity = Number(targetItem.quantity || 0);
+        if (currentQuantity > 1) {
+          await updateServiceTicketItemQuantity(targetItem.id, currentQuantity - 1, { skipAdminCheck: true });
+        } else {
+          await cancelServiceTicketItem(
+            targetItem.id,
+            'Quantidade reduzida no PDV por administrador.',
+            sellerName,
+            { skipAdminCheck: true },
+          );
+        }
+
+        silentToast.success(`Quantidade de ${pendingServiceTicketAdminAction.cartItem.product.name} reduzida na comanda ${activeServiceTicket.number}`);
+      } else {
+        for (const item of matchingItems) {
+          await cancelServiceTicketItem(
+            item.id,
+            'Item removido no PDV por administrador.',
+            sellerName,
+            { skipAdminCheck: true },
+          );
+        }
+
+        silentToast.success(`${pendingServiceTicketAdminAction.cartItem.product.name} removido da comanda ${activeServiceTicket.number}`);
+      }
+
+      closePendingServiceTicketAdminAction();
+    } catch (error) {
+      console.error('Erro ao validar ajuste de item da comanda:', getRedactedLogValue(error));
+      setServiceTicketAdminAuthError(getPublicErrorMessage(error, 'Nao foi possivel validar o ajuste do item da comanda.'));
+    } finally {
+      await adminVerificationClient.auth.signOut();
+      setIsVerifyingServiceTicketAdmin(false);
+    }
+  };
+
+  const updateQty = async (cartItem: CartItem, delta: number) => {
+    if (activeServiceTicket) {
+      if (delta > 0) {
+        await addToCart(cartItem.product);
+        return;
+      }
+
+      requestServiceTicketAdminAction({ type: 'decrease', cartItem });
+      return;
+    }
+
     setCart(prev => prev.map(i => {
-      if (i.product.id !== productId) return i;
+      if (i.product.id !== cartItem.product.id) return i;
       const newQty = i.quantity + delta;
       return newQty <= 0 ? i : { ...i, quantity: newQty };
     }));
   };
 
   const openCartItemPriceEditor = (item: CartItem) => {
+    if (activeServiceTicket) {
+      silentToast.error('Preco de item lancado em comanda nao pode ser alterado direto no PDV.');
+      return;
+    }
+
     if (!isAdmin) {
       silentToast.error('Somente administrador pode alterar preço no caixa');
       return;
@@ -1943,6 +2308,11 @@ export default function PDV() {
   };
 
   const startCartPriceSelection = () => {
+    if (activeServiceTicket) {
+      silentToast.error('Preco de item lancado em comanda nao pode ser alterado direto no PDV.');
+      return;
+    }
+
     if (!isAdmin) {
       silentToast.error('Somente administrador pode alterar preço no caixa');
       return;
@@ -2028,24 +2398,70 @@ export default function PDV() {
   };
 
   const removeFromCart = (productId: string) => setCart(prev => prev.filter(i => i.product.id !== productId));
-  const requestRemoveFromCart = (item: CartItem) => setCartItemPendingRemoval(item);
+  const requestRemoveFromCart = (item: CartItem) => {
+    if (activeServiceTicket) {
+      requestServiceTicketAdminAction({ type: 'remove', cartItem: item });
+      return;
+    }
+
+    setCartItemPendingRemoval(item);
+  };
   const confirmRemoveFromCart = () => {
     if (!cartItemPendingRemoval) return;
     removeFromCart(cartItemPendingRemoval.product.id);
     setCartItemPendingRemoval(null);
   };
 
-  const clearCart = () => {
-    if (cart.length === 0) return;
+  const clearCart = useCallback((options?: { skipToast?: boolean }) => {
+    if (cart.length === 0 && !activeServiceTicketId) return;
+    const wasViewingServiceTicket = Boolean(activeServiceTicketId);
     setCart([]);
     setActiveServiceTicketId(null);
     setCartKeyboardSelectionIndex(null);
     closeCartItemPriceEditor();
     setCartItemPendingRemoval(null);
     lastEscToClearCartAtRef.current = 0;
-    silentToast.success('Carrinho zerado');
+    if (!options?.skipToast) {
+      silentToast.success(wasViewingServiceTicket ? 'Comanda retirada da tela do PDV' : 'Carrinho zerado');
+    }
     searchInputRef.current?.blur();
-  };
+  }, [activeServiceTicketId, cart.length, closeCartItemPriceEditor]);
+
+  const confirmCloseServiceTicketView = useCallback(() => {
+    const nextTicketLookup = pendingServiceTicketLookup;
+
+    setPendingServiceTicketLookup(null);
+    setShowCloseServiceTicketExitPrompt(false);
+
+    if (nextTicketLookup) {
+      clearCart({ skipToast: true });
+      loadServiceTicketToCart(nextTicketLookup, { bypassActiveTicketPrompt: true });
+      return;
+    }
+
+    clearCart();
+  }, [clearCart, loadServiceTicketToCart, pendingServiceTicketLookup]);
+
+  useEffect(() => {
+    const blockDoubleActivation = (event: MouseEvent) => {
+      if (event.detail <= 1) return;
+
+      event.preventDefault();
+      event.stopPropagation();
+
+      if (typeof event.stopImmediatePropagation === 'function') {
+        event.stopImmediatePropagation();
+      }
+    };
+
+    document.addEventListener('click', blockDoubleActivation, true);
+    document.addEventListener('dblclick', blockDoubleActivation, true);
+
+    return () => {
+      document.removeEventListener('click', blockDoubleActivation, true);
+      document.removeEventListener('dblclick', blockDoubleActivation, true);
+    };
+  }, []);
 
   useEffect(() => {
     if (cart.length === 0) {
@@ -2084,12 +2500,42 @@ export default function PDV() {
       || showCashOut
       || showCloseCashReceipt
       || showOpenCashDialog
+      || showCloseServiceTicketExitPrompt
       || Boolean(saleToCancel)
       || Boolean(cartItemPendingPriceEdit)
     ) {
       setCartKeyboardSelectionIndex(null);
     }
-  }, [showCheckout, showReceipt, showSalesSearch, showCancelledSales, showCashOut, showCloseCashReceipt, showOpenCashDialog, saleToCancel, cartItemPendingPriceEdit]);
+  }, [showCheckout, showReceipt, showSalesSearch, showCancelledSales, showCashOut, showCloseCashReceipt, showOpenCashDialog, showCloseServiceTicketExitPrompt, saleToCancel, cartItemPendingPriceEdit]);
+
+  useEffect(() => {
+    if (!showCheckout) return;
+
+    blurPdvInputs();
+    requestAnimationFrame(() => checkoutDialogRef.current?.focus());
+  }, [blurPdvInputs, showCheckout]);
+
+  useEffect(() => {
+    if (!showCreditInstallmentsDialog) return;
+
+    blurPdvInputs();
+    requestAnimationFrame(() => creditInstallmentsDialogRef.current?.focus());
+  }, [blurPdvInputs, showCreditInstallmentsDialog]);
+
+  useEffect(() => {
+    if (!showFinalizeConfirm) return;
+
+    blurPdvInputs();
+    requestAnimationFrame(() => finalizeConfirmDialogRef.current?.focus());
+  }, [blurPdvInputs, showFinalizeConfirm]);
+
+  useEffect(() => {
+    if (!showScannerNotFoundDialog) return;
+
+    blurPdvInputs();
+    requestAnimationFrame(() => scannerNotFoundDialogRef.current?.focus());
+  }, [blurPdvInputs, showScannerNotFoundDialog]);
+
   const suppressCartClearForCurrentEsc = () => {
     ignoreCartClearOnEscRef.current = true;
     requestAnimationFrame(() => {
@@ -2141,6 +2587,7 @@ export default function PDV() {
     if (!cashSession) { silentToast.error('Abra o caixa antes de vender'); return; }
     if (cart.length === 0) { silentToast.error('Carrinho vazio'); return; }
     if (!validateCartStock()) return;
+    blurPdvInputs();
     setPaymentMethod('');
     setCreditInstallments(null);
     setPendingCreditInstallments(1);
@@ -2519,7 +2966,6 @@ export default function PDV() {
       setSaleSearch('');
       setSaleLimit(25);
       silentToast.success('Caixa aberto em modo offline!');
-      requestAnimationFrame(() => ticketLookupInputRef.current?.focus());
       return;
     }
 
@@ -2558,7 +3004,6 @@ export default function PDV() {
     setSaleSearch('');
     setSaleLimit(25);
     silentToast.success('Caixa aberto!');
-    requestAnimationFrame(() => ticketLookupInputRef.current?.focus());
   };
 
   const handleCloseCash = async (cashClient: typeof db = db) => {
@@ -2918,18 +3363,6 @@ export default function PDV() {
       if (event.defaultPrevented) return;
       if (event.ctrlKey || event.altKey || event.metaKey) return;
 
-      if (event.key === 'F11') {
-        event.preventDefault();
-        toggleCashierMode();
-        return;
-      }
-
-      if (event.key === 'F1') {
-        event.preventDefault();
-        navigate('/');
-        return;
-      }
-
       if (event.key === 'Escape' && event.target === searchInputRef.current) {
         event.preventDefault();
         setSearch('');
@@ -2947,6 +3380,84 @@ export default function PDV() {
       }
 
       if (showReceipt) return;
+      if (pendingServiceTicketAdminAction) return;
+
+      if (showCloseServiceTicketExitPrompt) {
+        if (event.key === 'Escape') {
+          event.preventDefault();
+          closeServiceTicketExitPrompt();
+          return;
+        }
+
+        return;
+      }
+
+      if (showScannerNotFoundDialog) {
+        const isScannerLikePrintableKey = event.key.length === 1 && /^[0-9A-Z-]$/i.test(event.key);
+        const now = Date.now();
+
+        if (isScannerLikePrintableKey) {
+          lastScannerNotFoundKeyAtRef.current = now;
+          event.preventDefault();
+          return;
+        }
+
+        if (event.key === 'Enter' || event.key === 'Escape') {
+          event.preventDefault();
+          closeScannerNotFoundDialog();
+          return;
+        }
+
+        if (event.key === 'Tab') {
+          if (now - lastScannerNotFoundKeyAtRef.current < 250) {
+            lastScannerNotFoundKeyAtRef.current = 0;
+          }
+          event.preventDefault();
+          return;
+        }
+
+        event.preventDefault();
+        return;
+      }
+
+      const checkoutModalLockActive = showCheckout || showFinalizeConfirm || showCreditInstallmentsDialog;
+      const scannerLikePrintableKey = event.key.length === 1 && /^[0-9A-Z-]$/i.test(event.key);
+      if (checkoutModalLockActive && !isEditableTarget(event.target)) {
+        const now = Date.now();
+
+        if (scannerLikePrintableKey) {
+          lastCheckoutModalScannerKeyAtRef.current = now;
+          event.preventDefault();
+          return;
+        }
+
+        if ((event.key === 'Enter' || event.key === 'Tab') && now - lastCheckoutModalScannerKeyAtRef.current < 250) {
+          lastCheckoutModalScannerKeyAtRef.current = 0;
+          event.preventDefault();
+          return;
+        }
+
+        if (now - lastCheckoutModalScannerKeyAtRef.current >= 250) {
+          lastCheckoutModalScannerKeyAtRef.current = 0;
+        }
+      }
+
+      if (!isEditableTarget(event.target) && scannerLikePrintableKey) {
+        event.preventDefault();
+        registerScannerLikeKey(event.key.toUpperCase());
+        return;
+      }
+
+      if (!isEditableTarget(event.target) && (event.key === 'Enter' || event.key === 'Tab') && isLikelyScannerSubmit()) {
+        event.preventDefault();
+        void addSearchResultToCart({
+          silentIfNotFound: true,
+          clearSearchOnNotFound: true,
+          query: scannerBufferRef.current,
+          focusAfterSuccess: false,
+        });
+        return;
+      }
 
       if (cartKeyboardSelectionIndex !== null) {
         if (event.key === 'Escape') {
@@ -3085,6 +3596,18 @@ export default function PDV() {
         return;
       }
 
+      if (event.key === 'F11') {
+        event.preventDefault();
+        toggleCashierMode();
+        return;
+      }
+
+      if (event.key === 'F1') {
+        event.preventDefault();
+        navigate('/');
+        return;
+      }
+
       if (showSalesSearch || showCancelledSales || showCashOut || showCloseCashReceipt || showOpenCashDialog || saleToCancel) return;
 
       if (event.key === 'Tab' && !isEditableTarget(event.target) && filtered.length > 0) {
@@ -3098,7 +3621,7 @@ export default function PDV() {
         if (ignoreCartClearOnEscRef.current) {
           return;
         }
-        if (cart.length === 0) {
+        if (cart.length === 0 && !activeServiceTicketId) {
           lastEscToClearCartAtRef.current = 0;
           return;
         }
@@ -3106,8 +3629,13 @@ export default function PDV() {
         const now = Date.now();
         const shouldClearCart = now - lastEscToClearCartAtRef.current <= 900;
         if (shouldClearCart) {
-          clearCart();
           lastEscToClearCartAtRef.current = 0;
+          if (activeServiceTicketId) {
+            setShowCloseServiceTicketExitPrompt(true);
+            return;
+          }
+
+          clearCart();
           return;
         }
 
@@ -3243,7 +3771,7 @@ export default function PDV() {
     // The keyboard handler intentionally tracks the current PDV render state.
     // Memoizing every command here makes this already-large component harder to audit.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeProducts, filtered, search, cart, cartKeyboardSelectionIndex, cartItemPendingPriceEdit, discount, paymentMethod, cashReceived, selectedClientId, total, change, canFinalizeCheckout, cashierMode, showCheckout, showFinalizeConfirm, showCreditInstallmentsDialog, showReceipt, showSalesSearch, showCancelledSales, showCashOut, showCloseCashReceipt, showOpenCashDialog, saleToCancel, navigate, isAdmin, creditInstallments, pendingCreditInstallments]);
+  }, [activeProducts, filtered, search, cart, cartKeyboardSelectionIndex, cartItemPendingPriceEdit, discount, paymentMethod, cashReceived, selectedClientId, total, change, canFinalizeCheckout, cashierMode, showCheckout, showFinalizeConfirm, showCreditInstallmentsDialog, showReceipt, showSalesSearch, showCancelledSales, showCashOut, showCloseCashReceipt, showOpenCashDialog, saleToCancel, navigate, isAdmin, creditInstallments, pendingCreditInstallments, showScannerNotFoundDialog, addSearchResultToCart, focusProductSearch, isLikelyScannerSubmit, pendingServiceTicketAdminAction, registerScannerLikeKey]);
 
   return (
     <div
@@ -3262,7 +3790,7 @@ export default function PDV() {
                 className="h-10"
                 onClick={() => {
                   setMobilePanel('products');
-                  requestAnimationFrame(() => ticketLookupInputRef.current?.focus());
+                  focusProductSearch();
                 }}
               >
                 Produtos
@@ -3315,35 +3843,51 @@ export default function PDV() {
             <Button variant="destructive" size="sm" onClick={requestCloseCash} disabled={!cashSession}>Fechar caixa (F10)</Button>
           </div>
         </div>
-        <div className="mb-3 shrink-0 rounded-lg border border-border bg-background/80 p-3" data-tour-id="pdv-ticket-lookup">
-          <div className="grid gap-2 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
-            <div className="space-y-1">
-              <Label>Escaneie a comanda ou digite o numero da comanda</Label>
-              <div className="relative">
-                <Barcode className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  ref={ticketLookupInputRef}
-                  className="pl-10"
-                  value={ticketLookup}
-                  onChange={event => setTicketLookup(event.target.value.toUpperCase())}
-                  onKeyDown={event => {
-                    if (event.key === 'Enter') {
-                      event.preventDefault();
-                      loadServiceTicketToCart(ticketLookup);
-                    }
-                  }}
-                  placeholder="Ex: 1 ou HC-CMD-0001"
-                />
-              </div>
-            </div>
-            <div className="flex gap-2">
-              <Button type="button" variant="outline" onClick={() => navigate('/comandas')}>
-                Comandas
-              </Button>
-              <Button type="button" onClick={() => loadServiceTicketToCart(ticketLookup)}>
-                Carregar
-              </Button>
-            </div>
+        <div className="mb-3 shrink-0" data-tour-id="pdv-ticket-lookup">
+          <div className="relative" data-tour-id="pdv-search">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+            <Input
+              ref={searchInputRef}
+              className="h-11 pl-11 text-base"
+              disabled={showCheckout || showFinalizeConfirm || showCreditInstallmentsDialog || showScannerNotFoundDialog}
+              placeholder="Escaneie produto, nome, numero da comanda ou comanda HC."
+              value={search}
+              onChange={e => {
+                const nextValue = toProductUppercase(e.target.value);
+                setSearch(nextValue);
+                setSearchSelectedIndex(-1);
+
+                if (!nextValue) {
+                  resetScannerTracking();
+                }
+              }}
+              onKeyDown={e => {
+                if (e.key.length === 1 && /^[0-9A-Z-]$/i.test(e.key)) {
+                  registerScannerLikeKey(e.key.toUpperCase());
+                }
+
+                if (e.key === 'Backspace' || e.key === 'Delete' || e.key === 'Escape') {
+                  resetScannerTracking();
+                }
+
+                if (e.key === 'Tab' && filtered.length > 0) {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  moveSearchSelection(e.shiftKey);
+                  return;
+                }
+
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  void addSearchResultToCart(
+                    isLikelyScannerSubmit()
+                      ? { silentIfNotFound: true, clearSearchOnNotFound: true }
+                      : undefined
+                  );
+                }
+              }}
+            />
           </div>
           {activeServiceTicket && (
             <div className="mt-2 flex flex-wrap items-center gap-2 text-sm">
@@ -3354,82 +3898,97 @@ export default function PDV() {
             </div>
           )}
         </div>
-        <div className="relative mb-3 shrink-0" data-tour-id="pdv-search">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-          <Input
-            ref={searchInputRef}
-            className="h-11 pl-11 text-base"
-            placeholder="Espaço: buscar produto. Tab seleciona item e Enter adiciona."
-            value={search}
-            onChange={e => setSearch(toProductUppercase(e.target.value))}
-            onKeyDown={e => {
-              if (e.key === 'Tab' && filtered.length > 0) {
-                e.preventDefault();
-                e.stopPropagation();
-                moveSearchSelection(e.shiftKey);
-                return;
-              }
+        <div
+          ref={productsGridRef}
+          className={
+            showIdleProductsState
+              ? 'relative min-h-0 flex-1 overflow-hidden pb-28 pr-1 lg:pb-2'
+              : 'grid min-h-0 flex-1 touch-pan-y auto-rows-min grid-cols-2 gap-2 overflow-y-auto overscroll-contain pb-28 pr-1 sm:grid-cols-3 lg:pb-2'
+          }
+          data-tour-id="pdv-products"
+        >
+          {showIdleProductsState ? (
+            <div className="relative flex h-full min-h-[22rem] items-center justify-center overflow-hidden rounded-[28px] border border-border/60 bg-card/60 px-6 text-center shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
+              <div className="pointer-events-none absolute inset-px rounded-[27px] border border-white/[0.03]" />
+              <div className="relative z-10 space-y-4">
+                <p className="text-4xl font-black tracking-[0.22em] text-red-500 sm:text-5xl">
+                  CAIXA LIVRE!
+                </p>
+                <p className="mx-auto max-w-lg text-sm leading-7 text-muted-foreground sm:text-base">
+                  Escaneie um produto ou digite a comanda pelo numero ou codigo HC para carregar os itens e finalizar a venda.
+                </p>
+              </div>
+            </div>
+          ) : showActiveEmptyTicketState && activeServiceTicket ? (
+            <div className="relative flex h-full min-h-[22rem] items-center justify-center overflow-hidden rounded-[28px] border border-border/60 bg-card/60 px-6 text-center shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
+              <div className="pointer-events-none absolute inset-px rounded-[27px] border border-white/[0.03]" />
+              <div className="relative z-10 space-y-4">
+                <p className="text-3xl font-black tracking-[0.16em] text-foreground sm:text-4xl">
+                  COMANDA {activeServiceTicket.number}
+                </p>
+                <p className="mx-auto max-w-lg text-sm leading-7 text-muted-foreground sm:text-base">
+                  Comanda aberta. Escaneie um produto para lancar itens nela.
+                </p>
+              </div>
+            </div>
+          ) : showProductResultsState ? (
+            filtered.map((p, index) => (
+              <motion.div
+                key={p.id}
+                ref={element => {
+                  productSelectionRefs.current[index] = element;
+                }}
+                role="button"
+                aria-label={`Selecionar produto ${p.name}`}
+                tabIndex={index === searchSelectedIndex ? 0 : -1}
+                whileTap={{ scale: 0.95 }}
+                onKeyDown={event => {
+                  if (event.key === 'Tab') {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    moveSearchSelection(event.shiftKey);
+                    return;
+                  }
 
-              if (e.key === 'Enter') {
-                e.preventDefault();
-                e.stopPropagation();
-                addSearchResultToCart();
-              }
-            }}
-          />
-        </div>
-        <div ref={productsGridRef} className="grid min-h-0 flex-1 touch-pan-y auto-rows-min grid-cols-2 gap-2 overflow-y-auto overscroll-contain pb-28 pr-1 sm:grid-cols-3 lg:pb-2" data-tour-id="pdv-products">
-          {filtered.map((p, index) => (
-            <motion.div
-              key={p.id}
-              ref={element => {
-                productSelectionRefs.current[index] = element;
-              }}
-              role="button"
-              aria-label={`Selecionar produto ${p.name}`}
-              tabIndex={index === searchSelectedIndex ? 0 : -1}
-              whileTap={{ scale: 0.95 }}
-              onKeyDown={event => {
-                if (event.key === 'Tab') {
-                  event.preventDefault();
-                  event.stopPropagation();
-                  moveSearchSelection(event.shiftKey);
-                  return;
-                }
-
-                if (event.key === 'Enter') {
-                  event.preventDefault();
-                  event.stopPropagation();
-                  addToCart(p);
-                  setSearch('');
-                  setSearchSelectedIndex(-1);
-                }
-              }}
-            >
-              <Card
-                className={`cursor-pointer transition-colors ${
-                  index === searchSelectedIndex
-                    ? 'border-primary ring-2 ring-primary/30'
-                    : 'border-border/50 hover:border-primary/50'
-                }`}
-                onClick={() => {
-                  addToCart(p);
-                  setSearch('');
-                  setSearchSelectedIndex(-1);
+                  if (event.key === 'Enter') {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    void handleProductSelection(p);
+                  }
                 }}
               >
-                <CardContent className="space-y-2 p-4">
-                  <p className="min-h-[2.5rem] text-sm font-medium leading-tight whitespace-normal break-words">
-                    {p.code ? `#${p.code} ` : ''}{p.name}
-                  </p>
-                  <p className="text-primary font-bold text-base">R$ {p.price.toFixed(2)}</p>
-                  {p.stock > 0 && p.stock <= (p.min_stock || 5) && (
-                    <p className="text-xs text-destructive">⚠️ Estoque: {p.stock}</p>
-                  )}
-                </CardContent>
-              </Card>
-            </motion.div>
-          ))}
+                <Card
+                  className={`cursor-pointer transition-colors ${
+                    index === searchSelectedIndex
+                      ? 'border-primary ring-2 ring-primary/30'
+                      : 'border-border/50 hover:border-primary/50'
+                  }`}
+                  onClick={event => void handleProductPointerSelection(event, p)}
+                >
+                  <CardContent className="space-y-2 p-4">
+                    <p className="min-h-[2.5rem] text-sm font-medium leading-tight whitespace-normal break-words">
+                      {p.name}
+                    </p>
+                    <p className="text-primary font-bold text-base">R$ {p.price.toFixed(2)}</p>
+                    {p.stock > 0 && p.stock <= (p.min_stock || 5) && (
+                      <p className="text-xs text-destructive">⚠️ Estoque: {p.stock}</p>
+                    )}
+                  </CardContent>
+                </Card>
+              </motion.div>
+            ))
+          ) : showProductNotFoundState ? (
+            <div className="flex h-full min-h-[18rem] items-center justify-center rounded-2xl border border-dashed border-border/70 bg-muted/10 px-6 text-center">
+              <div className="space-y-2">
+                <p className="text-sm font-semibold text-foreground">Produto nao encontrado</p>
+                <p className="text-sm text-muted-foreground">
+                  Confira o codigo de barras, o nome do produto ou a comanda.
+                </p>
+              </div>
+            </div>
+          ) : (
+            <div className="min-h-[18rem]" />
+          )}
         </div>
       </div>
 
@@ -3469,7 +4028,7 @@ export default function PDV() {
                     {isCartItemPriceEdited(i) && (
                       <p className="text-xs text-muted-foreground">Preço base: {formatMoney(i.product.price)}</p>
                     )}
-                    {isAdmin && (
+                    {isAdmin && !activeServiceTicket && (
                       <Button
                         type="button"
                         variant="outline"
@@ -3483,10 +4042,31 @@ export default function PDV() {
                     <p className="text-sm font-semibold text-primary">{formatMoney(getCartItemTotal(i))}</p>
                   </div>
                   <div className="flex items-center gap-1 self-center">
-                    <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => updateQty(i.product.id, -1)}><Minus className="h-4 w-4" /></Button>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="h-8 w-8"
+                      onClick={() => void updateQty(i, -1)}
+                    >
+                      <Minus className="h-4 w-4" />
+                    </Button>
                     <span className="text-sm w-8 text-center font-medium">{i.quantity}</span>
-                    <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => updateQty(i.product.id, 1)}><Plus className="h-4 w-4" /></Button>
-                    <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => requestRemoveFromCart(i)}><X className="h-4 w-4" /></Button>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="h-8 w-8"
+                      onClick={() => void updateQty(i, 1)}
+                    >
+                      <Plus className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-destructive"
+                      onClick={() => requestRemoveFromCart(i)}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
                   </div>
                 </div>
               ))}
@@ -3530,6 +4110,61 @@ export default function PDV() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <Dialog open={!!pendingServiceTicketAdminAction} onOpenChange={open => { if (!open) closePendingServiceTicketAdminAction(); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              {pendingServiceTicketAdminAction?.type === 'remove' ? 'Remover item da comanda' : 'Diminuir quantidade da comanda'}
+            </DialogTitle>
+            <DialogDescription>
+              Informe email e senha do administrador ou usuario e PIN offline para confirmar este ajuste.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="rounded-lg border border-border bg-muted/30 p-3 text-sm">
+              <p className="font-medium">{pendingServiceTicketAdminAction?.cartItem.product.name}</p>
+              <p className="text-muted-foreground">
+                {pendingServiceTicketAdminAction?.type === 'remove'
+                  ? 'Todos os lancamentos desse item serao removidos da comanda.'
+                  : 'A quantidade sera reduzida em 1 unidade.'}
+              </p>
+            </div>
+            <div className="space-y-1">
+              <Label>Email ou usuario do administrador</Label>
+              <Input
+                autoFocus
+                value={serviceTicketAdminLogin}
+                onChange={e => setServiceTicketAdminLogin(e.target.value)}
+                placeholder="admin@empresa.com ou usuario admin"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label>Senha ou PIN</Label>
+              <PasswordInput
+                value={serviceTicketAdminSecret}
+                onChange={e => setServiceTicketAdminSecret(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    void confirmServiceTicketAdminAction();
+                  }
+                }}
+                placeholder="Digite a senha ou PIN"
+              />
+            </div>
+            {serviceTicketAdminAuthError && (
+              <p className="text-sm font-medium text-destructive">{serviceTicketAdminAuthError}</p>
+            )}
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={closePendingServiceTicketAdminAction}>Cancelar</Button>
+            <Button type="button" onClick={() => void confirmServiceTicketAdminAction()} disabled={isVerifyingServiceTicketAdmin}>
+              {isVerifyingServiceTicketAdmin ? 'Validando...' : 'Confirmar'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={!!cartItemPendingPriceEdit} onOpenChange={open => { if (!open) closeCartItemPriceEditor(); }}>
         <DialogContent className="sm:max-w-md">
@@ -3576,6 +4211,8 @@ export default function PDV() {
       {/* Checkout dialog */}
       <Dialog open={showCheckout} onOpenChange={open => { if (!isFinalizingSale) setShowCheckout(open); }}>
         <DialogContent
+          ref={checkoutDialogRef}
+          tabIndex={-1}
           className="max-h-[92svh] w-[calc(100vw-1rem)] max-w-3xl grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden border-border bg-background p-4 shadow-2xl sm:max-h-[90vh] sm:w-full sm:p-6 lg:grid-rows-none lg:shadow-lg"
           onOpenAutoFocus={event => event.preventDefault()}
           onEscapeKeyDown={event => {
@@ -3825,7 +4462,12 @@ export default function PDV() {
           closeCreditInstallmentsDialog();
         }}
       >
-        <DialogContent className="max-w-sm" onOpenAutoFocus={event => event.preventDefault()}>
+        <DialogContent
+          ref={creditInstallmentsDialogRef}
+          tabIndex={-1}
+          className="max-w-sm"
+          onOpenAutoFocus={event => event.preventDefault()}
+        >
           <DialogHeader>
             <DialogTitle>Parcelamento no crédito</DialogTitle>
           </DialogHeader>
@@ -3859,6 +4501,8 @@ export default function PDV() {
 
       <Dialog open={showFinalizeConfirm} onOpenChange={open => { if (!isFinalizingSale) setShowFinalizeConfirm(open); }}>
         <DialogContent
+          ref={finalizeConfirmDialogRef}
+          tabIndex={-1}
           className="max-w-sm"
           onOpenAutoFocus={event => event.preventDefault()}
           onEscapeKeyDown={event => {
@@ -3878,6 +4522,68 @@ export default function PDV() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <Dialog open={showScannerNotFoundDialog} onOpenChange={() => undefined}>
+        <DialogContent
+          ref={scannerNotFoundDialogRef}
+          tabIndex={-1}
+          className="max-w-sm [&>button]:hidden"
+          onOpenAutoFocus={event => event.preventDefault()}
+          onEscapeKeyDown={event => {
+            event.preventDefault();
+            closeScannerNotFoundDialog();
+          }}
+          onPointerDownOutside={event => event.preventDefault()}
+        >
+          <DialogHeader>
+            <DialogTitle>Produto nao encontrado</DialogTitle>
+            <DialogDescription>
+              {scannerNotFoundMessage}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="destructive"
+              className="w-full"
+              onClick={closeScannerNotFoundDialog}
+            >
+              Fechar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog open={showCloseServiceTicketExitPrompt} onOpenChange={setShowCloseServiceTicketExitPrompt}>
+        <AlertDialogContent
+          onOpenAutoFocus={event => {
+            event.preventDefault();
+            closeServiceTicketExitCancelRef.current?.focus();
+          }}
+        >
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {pendingServiceTicketToOpen ? 'Trocar de comanda?' : 'Sair da comanda?'}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {pendingServiceTicketToOpen && activeServiceTicket
+                ? `A comanda ${activeServiceTicket.number} saira da tela do PDV para abrir a comanda ${pendingServiceTicketToOpen.number}.`
+                : 'A comanda continuara aberta com os itens ja lancados. Isso fecha apenas a visualizacao dela no PDV.'}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel
+              ref={closeServiceTicketExitCancelRef}
+              onClick={closeServiceTicketExitPrompt}
+            >
+              Cancelar
+            </AlertDialogCancel>
+            <AlertDialogAction onClick={confirmCloseServiceTicketView}>
+              {pendingServiceTicketToOpen ? 'Trocar comanda' : 'Sair da comanda'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Sales search dialog */}
       <Dialog open={showSalesSearch} onOpenChange={setShowSalesSearch}>
