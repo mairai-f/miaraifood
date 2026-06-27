@@ -2647,6 +2647,37 @@ export default function PDV() {
     }
     if (!validateCartStock()) return;
 
+    let reservedBrowserPrintWindow: Window | null = null;
+    if (!canSilentPrintRetailCoupon && typeof window !== 'undefined') {
+      reservedBrowserPrintWindow = window.open('', '_blank', 'width=420,height=900');
+      if (reservedBrowserPrintWindow) {
+        reservedBrowserPrintWindow.document.open();
+        reservedBrowserPrintWindow.document.write(`
+          <!doctype html>
+          <html>
+            <head>
+              <meta charset="utf-8" />
+              <title>Preparando cupom</title>
+              <style>
+                body {
+                  margin: 0;
+                  width: 80mm;
+                  padding: 12mm 4mm;
+                  color: #000;
+                  font-family: Arial, Helvetica, sans-serif;
+                  font-size: 14px;
+                  font-weight: 700;
+                  text-align: center;
+                }
+              </style>
+            </head>
+            <body>Preparando cupom...</body>
+          </html>
+        `);
+        reservedBrowserPrintWindow.document.close();
+      }
+    }
+
     finalizeLockRef.current = true;
     setIsFinalizingSale(true);
     try {
@@ -2762,19 +2793,23 @@ export default function PDV() {
           });
 
           if (!printed) {
+            setShowReceipt(true);
             silentToast.error('Nao foi possivel imprimir o cupom automaticamente.');
           }
         } else {
           const printed = await printSaleCouponFromData(finalizedSaleData, {
             automaticPrint: true,
+            targetWindow: reservedBrowserPrintWindow,
           });
 
           if (!printed) {
-            silentToast.error('Nao foi possivel abrir a impressao automatica do cupom.');
+            setShowReceipt(true);
+            silentToast.error('Nao foi possivel abrir a tela de impressao do cupom.');
           }
         }
       } catch (printError) {
         console.error('Venda salva, mas a impressao automatica falhou:', getRedactedLogValue(printError));
+        setShowReceipt(true);
         silentToast.error('Venda finalizada, mas a impressao automatica falhou.');
       }
 
@@ -2782,6 +2817,9 @@ export default function PDV() {
         void issueFiscalDocumentInHomologation(sale.id);
       }
     } catch (error) {
+      if (reservedBrowserPrintWindow && !reservedBrowserPrintWindow.closed) {
+        reservedBrowserPrintWindow.close();
+      }
       const message = getPublicErrorMessage(error, translateCurrentText('Erro ao finalizar venda'));
       silentToast.error(message);
     } finally {
@@ -2815,6 +2853,7 @@ export default function PDV() {
       copyLabel?: string;
       preferSilentPrint?: boolean;
       automaticPrint?: boolean;
+      targetWindow?: Window | null;
     },
   ) => {
     const client = saleReceiptData.clientId
@@ -2829,7 +2868,7 @@ export default function PDV() {
       storePhone: receiptProfile.phone,
       saleId: saleReceiptData.saleId,
       saleDate: saleReceiptData.saleDate,
-      operatorName: saleReceiptData.sellerName,
+      operatorName: saleReceiptData.sellerName || sellerName || null,
       customerName: client?.name || null,
       paymentMethod: saleReceiptData.method,
       total: saleReceiptData.total,
@@ -2851,12 +2890,17 @@ export default function PDV() {
     }, {
       preferSilentPrint: options?.preferSilentPrint,
       automaticPrint: options?.automaticPrint,
+      targetWindow: options?.targetWindow,
     });
   };
 
-  const printLastSaleCoupon = (copyLabel?: string) => {
+  const printLastSaleCoupon = async () => {
     if (!lastSaleData) return;
-    void printSaleCouponFromData(lastSaleData, { copyLabel });
+    const printed = await printSaleCouponFromData(lastSaleData, { copyLabel: '2ª via' });
+
+    if (!printed) {
+      silentToast.error('Nao foi possivel abrir a impressao do cupom.');
+    }
   };
 
   const printSaleCouponCopy = (sale: Sale) => {
@@ -2873,7 +2917,7 @@ export default function PDV() {
       storePhone: receiptProfile.phone,
       saleId: sale.id,
       saleDate: sale.date,
-      operatorName: sale.seller_name || sellerName,
+      operatorName: sale.seller_name || sellerName || null,
       customerName: client?.name || null,
       paymentMethod: formatPaymentMethod(sale.payment_method),
       total: sale.total,
@@ -5090,7 +5134,10 @@ export default function PDV() {
       </Dialog>
 
       {/* Receipt dialog */}
-      <Dialog open={showReceipt} onOpenChange={setShowReceipt}>
+      <Dialog
+        open={showReceipt}
+        onOpenChange={setShowReceipt}
+      >
         <DialogContent className="grid-rows-[auto_minmax(0,1fr)_auto] max-h-[90vh] overflow-hidden">
           <DialogHeader>
             <DialogTitle>Venda finalizada</DialogTitle>
@@ -5151,11 +5198,7 @@ export default function PDV() {
                 </div>
 
                 <div className="flex flex-wrap gap-2">
-                  <Button type="button" onClick={() => printLastSaleCoupon()}>
-                    <Printer className="mr-2 h-4 w-4" />
-                    Imprimir cupom
-                  </Button>
-                  <Button type="button" variant="outline" onClick={() => printLastSaleCoupon('2ª via')}>
+                  <Button type="button" variant="outline" onClick={() => { void printLastSaleCoupon(); }}>
                     <Printer className="mr-2 h-4 w-4" />
                     Imprimir 2ª via
                   </Button>
@@ -5270,7 +5313,12 @@ export default function PDV() {
           </div>
 
           <DialogFooter className="gap-2">
-            <Button variant="outline" onClick={() => setShowReceipt(false)}>Fechar</Button>
+            <Button
+              variant="outline"
+              onClick={() => setShowReceipt(false)}
+            >
+              Fechar
+            </Button>
             {isAdmin && canUseFiscalModule && (
               <Button variant="outline" onClick={() => void loadFiscalRuntime()} disabled={loadingFiscalRuntime}>
                 {loadingFiscalRuntime ? (

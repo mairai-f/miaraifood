@@ -194,14 +194,55 @@ const resolvePrinterSelection = (printers) => {
 };
 
 const CSS_PIXEL_TO_MICRONS = 25400 / 96;
-const RECEIPT_WIDTH_MICRONS = 80000;
+// RP80x2000 in the installed Epson TM PPD is 204.3 x 5669.3 points.
+const RECEIPT_WIDTH_MICRONS = 72070;
+const RECEIPT_PAGE_HEIGHT_MICRONS = 2000000;
 const getReceiptPrintDetails = async (printWindow) => {
+  await printWindow.webContents.executeJavaScript(`
+    new Promise((resolve) => {
+      let settled = false;
+      const finish = () => {
+        if (settled) return;
+        settled = true;
+        resolve();
+      };
+      const settle = () => {
+        const fallbackTimer = setTimeout(finish, 600);
+        const runAfterFrames = () => {
+          clearTimeout(fallbackTimer);
+          setTimeout(finish, 250);
+        };
+
+        if (typeof requestAnimationFrame !== 'function') {
+          runAfterFrames();
+          return;
+        }
+
+        requestAnimationFrame(() => {
+          requestAnimationFrame(runAfterFrames);
+        });
+      };
+
+      Promise.resolve(document.fonts?.ready).then(settle).catch(settle);
+    })
+  `);
+
   const receiptDetails = await printWindow.webContents.executeJavaScript(`
     (() => {
       const receipt = document.querySelector('[data-receipt-root]');
-      const height = receipt?.getBoundingClientRect().height
-        || document.documentElement.scrollHeight
-        || document.body.scrollHeight;
+      const receiptRect = receipt?.getBoundingClientRect();
+      const height = Math.max(
+        receiptRect ? receiptRect.height : 0,
+        receiptRect ? receiptRect.bottom : 0,
+        receipt ? receipt.offsetHeight : 0,
+        receipt ? receipt.scrollHeight : 0,
+        document.scrollingElement ? document.scrollingElement.scrollHeight : 0,
+        document.documentElement.scrollHeight || 0,
+        document.documentElement.offsetHeight || 0,
+        document.body.scrollHeight || 0,
+        document.body.offsetHeight || 0,
+      );
+
       return {
         height: Math.ceil(height),
         saleId: receipt?.getAttribute('data-sale-id') || null,
@@ -212,9 +253,14 @@ const getReceiptPrintDetails = async (printWindow) => {
 
   return {
     saleId: typeof receiptDetails?.saleId === 'string' ? receiptDetails.saleId : null,
+    measuredHeightPixels: safeHeightPixels,
+    estimatedPageCount: Math.max(
+      1,
+      Math.ceil((safeHeightPixels * CSS_PIXEL_TO_MICRONS) / RECEIPT_PAGE_HEIGHT_MICRONS),
+    ),
     pageSize: {
       width: RECEIPT_WIDTH_MICRONS,
-      height: Math.max(50000, Math.ceil((safeHeightPixels + 2) * CSS_PIXEL_TO_MICRONS)),
+      height: RECEIPT_PAGE_HEIGHT_MICRONS,
     },
   };
 };
@@ -824,7 +870,7 @@ const printHtml = async (html) => {
 
     const printers = await printWindow.webContents.getPrintersAsync();
     const { configuredPrinterName, selectedPrinter, configuredPrinterMissing } = resolvePrinterSelection(printers);
-    const { pageSize, saleId } = await getReceiptPrintDetails(printWindow);
+    const { pageSize, saleId, measuredHeightPixels, estimatedPageCount } = await getReceiptPrintDetails(printWindow);
 
     appendPrintLog('print-requested', {
       saleId,
@@ -833,6 +879,8 @@ const printHtml = async (html) => {
       configuredPrinterName,
       configuredPrinterMissing,
       availablePrinters: printers.map(printer => printer.name),
+      measuredHeightPixels,
+      estimatedPageCount,
       pageSize,
     });
 
@@ -846,7 +894,6 @@ const printHtml = async (html) => {
           copies: 1,
           margins: { marginType: 'none' },
           pageSize,
-          pageRanges: [{ from: 0, to: 0 }],
         },
         (success, failureReason) => {
           resolve({
