@@ -678,16 +678,12 @@ export function DataProvider({ children }: { children: ReactNode }) {
       );
     }
 
-    ensureSuccess(await db
-      .from('cash_sessions')
-      .update({
-        status: 'closed',
-        closed_at: payload.closedAt,
-        closed_by_user_id: payload.closedByUserId,
-        closed_by_name: payload.closedByName,
-        closing_balance: payload.closingBalance,
-      })
-      .eq('id', payload.sessionId));
+    ensureSuccess(await db.rpc('erp_close_cash_session_atomic', {
+      p_session_id: payload.sessionId,
+      p_expected: payload.expectedBalance ?? payload.closingBalance,
+      p_counted: payload.countedBalance ?? payload.closingBalance,
+      p_reason: payload.differenceReason ?? null,
+    }));
   }, []);
 
   const syncQueuedClientCreateOperation = useCallback(async (payload: OfflineClientPayload) => {
@@ -830,218 +826,27 @@ export function DataProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const syncQueuedSaleOperation = useCallback(async (payload: OfflineSaleCreatePayload) => {
-    const { sale, items, stockMovements } = payload;
-    const remoteSalePayload = {
-      ...stripSyncFields(sale),
-      user_id: ownerUserId!,
-    };
-
-    const { data: existingSale, error: existingSaleError } = await db
-      .from('sales')
-      .select('id')
-      .eq('id', sale.id)
-      .maybeSingle();
-
-    if (existingSaleError) {
-      throw existingSaleError;
-    }
-
-    if (!existingSale) {
-      const { error: insertSaleError } = await db.from('sales').insert(remoteSalePayload);
-      if (insertSaleError) throw insertSaleError;
-    }
-
-    if (items.length > 0) {
-      const { data: existingItems, error: existingItemsError } = await db
-        .from('sale_items')
-        .select('id')
-        .in('id', items.map(item => item.id));
-
-      if (existingItemsError) {
-        throw existingItemsError;
-      }
-
-      const existingItemIds = new Set(((existingItems as Array<{ id: string }> | null) ?? []).map(item => item.id));
-      const missingItems = items
-        .filter(item => !existingItemIds.has(item.id))
-        .map(item => stripSyncFields(item));
-
-      if (missingItems.length > 0) {
-        const { error: insertItemsError } = await db.from('sale_items').insert(missingItems);
-        if (insertItemsError) throw insertItemsError;
-      }
-    }
-
-    if (stockMovements.length === 0) {
-      return;
-    }
-
-    const { data: existingMovements, error: existingMovementsError } = await db
-      .from('stock_movements')
-      .select('id')
-      .in('id', stockMovements.map(movement => movement.id));
-
-    if (existingMovementsError) {
-      throw existingMovementsError;
-    }
-
-    const existingMovementIds = new Set(
-      ((existingMovements as Array<{ id: string }> | null) ?? []).map(movement => movement.id),
-    );
-
-    for (const movement of stockMovements) {
-      if (existingMovementIds.has(movement.id)) {
-        continue;
-      }
-
-      const { data: productData, error: productError } = await db
-        .from('products')
-        .select('id, stock, name')
-        .eq('id', movement.product_id)
-        .maybeSingle();
-
-      if (productError) {
-        throw productError;
-      }
-
-      const product = (productData as { id: string; stock: number; name?: string | null } | null) ?? null;
-
-      if (!product) {
-        throw new OfflineSyncConflictError(
-          'sale.create',
-          `O produto ${movement.product_id} nao existe mais no banco remoto para sincronizar a venda offline.`,
-        );
-      }
-
-      const currentStock = Number(product.stock || 0);
-      if (movement.type === 'saida' && currentStock < movement.quantity) {
-        throw new OfflineSyncConflictError(
-          'sale.create',
-          `Estoque remoto insuficiente para sincronizar ${product.name || movement.product_id}. Ajuste o estoque e tente novamente.`,
-        );
-      }
-
-      const nextStock = movement.type === 'saida'
-        ? currentStock - movement.quantity
-        : currentStock + movement.quantity;
-
-      ensureSuccess(await db.from('products').update({ stock: nextStock }).eq('id', movement.product_id));
-      ensureSuccess(await db.from('stock_movements').insert(stripSyncFields(movement)));
-    }
-  }, [ownerUserId]);
+    ensureSuccess(await db.rpc('erp_create_sale_atomic', {
+      p_sale: stripSyncFields(payload.sale),
+      p_items: payload.items.map(stripSyncFields),
+    }));
+  }, []);
 
   const syncQueuedSaleCancelOperation = useCallback(async (payload: OfflineSaleCancelPayload) => {
-    ensureSuccess(await db.from('sales').update(stripSyncFields(payload.changes)).eq('id', payload.saleId));
-
-    for (const stockRestore of payload.stockRestores) {
-      const { data: productData, error: productError } = await db
-        .from('products')
-        .select('id, stock')
-        .eq('id', stockRestore.productId)
-        .maybeSingle();
-
-      if (productError) throw productError;
-      const product = productData as { id: string; stock: number } | null;
-
-      if (!product) {
-        throw new OfflineSyncConflictError(
-          'sale.cancel',
-          `O produto ${stockRestore.productId} nao existe mais no banco remoto para restaurar o estoque.`,
-        );
-      }
-
-      ensureSuccess(await db
-        .from('products')
-        .update({ stock: Number(product.stock || 0) + stockRestore.quantity })
-        .eq('id', stockRestore.productId));
-    }
-
-    if (payload.stockMovements.length > 0) {
-      ensureSuccess(await db.from('stock_movements').insert(payload.stockMovements.map(stripSyncFields)));
-    }
+    ensureSuccess(await db.rpc('erp_cancel_sale_atomic', {
+      p_sale_id: payload.saleId,
+      p_reason: String(payload.changes.cancel_reason ?? 'Cancelamento offline'),
+    }));
   }, []);
 
   const syncQueuedDebtEntriesOperation = useCallback(async (payload: OfflineDebtEntriesPayload) => {
-    if (payload.entries.length === 0) {
-      return;
-    }
-
-    const { data: existingEntries, error: existingEntriesError } = await db
-      .from('debt_entries')
-      .select('id')
-      .in('id', payload.entries.map(entry => entry.id));
-
-    if (existingEntriesError) {
-      throw existingEntriesError;
-    }
-
-    const existingEntryIds = new Set(
-      ((existingEntries as Array<{ id: string }> | null) ?? []).map(entry => entry.id),
-    );
-    const missingEntries = payload.entries
-      .filter(entry => !existingEntryIds.has(entry.id))
-      .map(entry => stripSyncFields(entry));
-
-    if (missingEntries.length > 0) {
-      ensureSuccess(await db.from('debt_entries').insert(missingEntries));
-    }
-
-    const stockMovements = payload.stockMovements ?? [];
-    if (stockMovements.length === 0) {
-      return;
-    }
-
-    const { data: existingMovements, error: existingMovementsError } = await db
-      .from('stock_movements')
-      .select('id')
-      .in('id', stockMovements.map(movement => movement.id));
-
-    if (existingMovementsError) {
-      throw existingMovementsError;
-    }
-
-    const existingMovementIds = new Set(
-      ((existingMovements as Array<{ id: string }> | null) ?? []).map(movement => movement.id),
-    );
-
-    for (const movement of stockMovements) {
-      if (existingMovementIds.has(movement.id)) {
-        continue;
-      }
-
-      const { data: productData, error: productError } = await db
-        .from('products')
-        .select('id, stock, name')
-        .eq('id', movement.product_id)
-        .maybeSingle();
-
-      if (productError) {
-        throw productError;
-      }
-
-      const product = (productData as { id: string; stock: number; name?: string | null } | null) ?? null;
-      if (!product) {
-        throw new OfflineSyncConflictError(
-          'debt_entries.add_many',
-          `O produto ${movement.product_id} nao existe mais no banco remoto para sincronizar o fiado offline.`,
-        );
-      }
-
-      const currentStock = Number(product.stock || 0);
-      if (movement.type === 'saida' && currentStock < movement.quantity) {
-        throw new OfflineSyncConflictError(
-          'debt_entries.add_many',
-          `Estoque remoto insuficiente para sincronizar ${product.name || movement.product_id}. Ajuste o estoque e tente novamente.`,
-        );
-      }
-
-      const nextStock = movement.type === 'saida'
-        ? currentStock - movement.quantity
-        : currentStock + movement.quantity;
-
-      ensureSuccess(await db.from('products').update({ stock: nextStock }).eq('id', movement.product_id));
-      ensureSuccess(await db.from('stock_movements').insert(stripSyncFields(movement)));
-    }
+    if (payload.entries.length === 0) return;
+    ensureSuccess(await db.rpc('erp_add_debt_entries_atomic', {
+      p_entries: payload.entries.map(stripSyncFields),
+      p_location_id: payload.entries[0]?.location_id ?? null,
+      p_adjust_stock: (payload.stockMovements ?? []).length > 0,
+      p_reason: 'Fiado offline',
+    }));
   }, []);
 
   const syncQueuedDebtEntryMutationOperation = useCallback(async (payload: OfflineDebtEntryMutationPayload) => {
@@ -1718,6 +1523,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
         barcode: productPayload.barcode ?? '',
         stock: productPayload.stock ?? 0,
         min_stock: productPayload.min_stock ?? 0,
+        max_stock: productPayload.max_stock ?? null,
+        control_stock: productPayload.control_stock ?? true,
         deleted: false,
         deleted_at: null,
       } as Product, products);
@@ -1761,6 +1568,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
         barcode: productPayload.barcode ?? '',
         stock: productPayload.stock ?? 0,
         min_stock: productPayload.min_stock ?? 0,
+        max_stock: productPayload.max_stock ?? null,
+        control_stock: productPayload.control_stock ?? true,
         deleted: false,
         deleted_at: null,
         sync_status: 'queued',
@@ -1964,10 +1773,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
     for (const [productId, demand] of demandByProduct.entries()) {
       const product = products.find(item => item.id === productId);
       if (!product || product.deleted) continue;
+      if (product.control_stock === false) continue;
 
       const availableStock = Number(product.stock || 0);
-      if (availableStock <= 0) continue;
-
       if (availableStock < demand.quantity) {
         throw new Error(`Estoque insuficiente para ${product.name || demand.productName}. Disponivel: ${availableStock}, solicitado: ${demand.quantity}.`);
       }
@@ -2200,6 +2008,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     const applyLocalStockAdjustment = (stockMovements: StockMovement[]) => {
       if (!shouldAdjustStock || stockMovements.length === 0) return;
       setProducts(prev => prev.map(product => {
+        if (product.control_stock === false) return product;
         const soldQuantity = stockMovements
           .filter(movement => movement.product_id === product.id)
           .reduce((sum, movement) => sum + movement.quantity, 0);
@@ -2274,60 +2083,23 @@ export function DataProvider({ children }: { children: ReactNode }) {
     }
 
     try {
-      const { data, error } = await db.from('debt_entries').insert(
-        entries.map(entry => ({
+      const { data, error } = await db.rpc('erp_add_debt_entries_atomic', {
+        p_entries: entries.map(entry => ({
+          id: createId(),
           client_id: entry.clientId,
-          location_id: operationalLocationId,
           product_id: entry.productId,
-          product_name: entry.productName,
           quantity: entry.quantity,
           unit_price: entry.unitPrice,
-          total: entry.quantity * entry.unitPrice,
           date_added: entry.dateAdded || new Date().toISOString(),
           registered_by: entry.registeredBy,
-        }))
-      ).select('*');
-
+        })),
+        p_location_id: operationalLocationId,
+        p_adjust_stock: shouldAdjustStock,
+        p_reason: stockReason,
+      });
       if (error) throw error;
-
-      let insertedStockMovements: StockMovement[] = [];
-      if (shouldAdjustStock) {
-        const productQuantities = entries
-          .filter(entry => entry.productId && entry.quantity > 0)
-          .reduce((map, entry) => {
-            map.set(entry.productId, (map.get(entry.productId) || 0) + entry.quantity);
-            return map;
-          }, new Map<string, number>());
-        const stockUpdates = isHeadquartersScope ? Array.from(productQuantities.entries())
-          .map(([productId, quantity]) => {
-            const product = products.find(p => p.id === productId);
-            if (!product || product.stock <= 0) return null;
-            const newStock = Math.max(0, product.stock - quantity);
-            return db.from('products').update({ stock: newStock }).eq('id', productId);
-          })
-          .filter(Boolean) : [];
-        await Promise.all(stockUpdates.map(async update => ensureSuccess(await update)));
-
-        const stockMovementsPayload = entries
-          .filter(entry => entry.productId && entry.quantity > 0)
-          .map(entry => ({
-            product_id: entry.productId,
-            user_id: ownerUserId!,
-            type: 'saida',
-            quantity: entry.quantity,
-            reason: stockReason,
-            location_id: operationalLocationId,
-          }));
-
-        if (stockMovementsPayload.length > 0) {
-          const { data: movementRows, error: movementError } = await db.from('stock_movements').insert(stockMovementsPayload).select('*');
-          if (movementError) throw movementError;
-          insertedStockMovements = (movementRows as StockMovement[]) ?? [];
-        }
-      }
-
       setDebtEntries(prev => sortDebtEntriesByDateAdded([...((data as DebtEntry[]) ?? []), ...prev]));
-      applyLocalStockAdjustment(insertedStockMovements);
+      await fetchAll({ silent: true });
     } catch (error) {
       if (canUseOfflineConcentrator && isProbablyOfflineError(error)) {
         await addOfflineDebtEntries();
@@ -2885,6 +2657,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       setSales(prev => [saleRow, ...prev]);
       setSaleItems(prev => [...saleRows, ...prev]);
       setProducts(prev => prev.map(product => {
+        if (product.control_stock === false) return product;
         const soldQuantity = itemsWithMetrics.filter(item => item.product_id === product.id).reduce((sum, item) => sum + item.quantity, 0);
         return soldQuantity > 0 ? { ...product, stock: Math.max(0, (product.stock || 0) - soldQuantity) } : product;
       }));
@@ -2948,6 +2721,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       setSales(prev => [saleRow, ...prev]);
       setSaleItems(prev => [...saleRows, ...prev]);
       setProducts(prev => prev.map(product => {
+        if (product.control_stock === false) return product;
         const soldQuantity = itemsWithMetrics
           .filter(item => item.product_id === product.id)
           .reduce((sum, item) => sum + item.quantity, 0);
@@ -2969,91 +2743,32 @@ export function DataProvider({ children }: { children: ReactNode }) {
     }
 
     try {
+      const requestSaleId = createId();
       const salePayload = {
+        id: requestSaleId,
         ...scopedSale,
         user_id: ownerUserId!,
       } as Record<string, unknown>;
-      const { data, error } = await db.from('sales').insert(salePayload).select('*').single();
-      let saleData = data;
-      let saleError = error;
-
-      if (
-        saleError?.message
-        && ['seller_name', 'is_delivery', 'status', 'cancel_reason', 'cancelled_at', 'operator_user_id', 'cash_session_id', 'fiscal_customer_document', 'fiscal_customer_name', 'location_id', 'terminal_id']
-          .some(column => saleError.message.includes(column))
-      ) {
-        const {
-          seller_name,
-          is_delivery,
-          status,
-          cancel_reason,
-          cancelled_at,
-          operator_user_id,
-          cash_session_id,
-          fiscal_customer_document,
-          fiscal_customer_name,
-          location_id,
-          terminal_id,
-          ...baseSalePayload
-        } = salePayload;
-        const retry = await db.from('sales').insert(baseSalePayload).select('*').single();
-        saleData = retry.data;
-        saleError = retry.error;
-      }
-
-      if (saleError || !saleData) throw saleError;
-      const saleId = saleData.id;
-      const itemsWithSaleId = itemsWithMetrics.map(i => ({ ...i, sale_id: saleId }));
-      const { data: insertedItems, error: saleItemsError } = await db.from('sale_items').insert(itemsWithSaleId).select('*');
-      if (saleItemsError) throw saleItemsError;
-
-      const productQuantities = itemsWithMetrics
-        .filter(item => item.product_id)
-        .reduce((map, item) => {
-          const productId = item.product_id!;
-          map.set(productId, (map.get(productId) || 0) + item.quantity);
-          return map;
-        }, new Map<string, number>());
-      const stockUpdates = isHeadquartersScope ? Array.from(productQuantities.entries())
-        .map(([productId, quantity]) => {
-          const product = products.find(p => p.id === productId);
-          if (!product) return null;
-          const newStock = Math.max(0, product.stock - quantity);
-          return db.from('products').update({ stock: newStock }).eq('id', productId);
-        })
-        .filter(Boolean) : [];
-
-      const stockMovementsToInsert = itemsWithMetrics
-        .filter(item => item.product_id)
-        .map(item => ({
-          product_id: item.product_id,
-          user_id: ownerUserId!,
-          type: 'saida',
-          quantity: item.quantity,
-          reason: 'Venda PDV',
-          location_id: operationalLocationId,
-        }));
-
-      await Promise.all(stockUpdates.map(async update => ensureSuccess(await update)));
-      let insertedStockMovements: StockMovement[] = [];
-      if (stockMovementsToInsert.length > 0) {
-        const { data: movementRows, error: movementError } = await db.from('stock_movements').insert(stockMovementsToInsert).select('*');
-        if (movementError) throw movementError;
-        insertedStockMovements = (movementRows as StockMovement[]) ?? [];
-      }
-
+      const atomicItems = itemsWithMetrics.map(item => ({ ...item, id: createId() }));
+      const { data, error } = await db.rpc('erp_create_sale_atomic', {
+        p_sale: salePayload,
+        p_items: atomicItems,
+      });
+      if (error || !data) throw error ?? new Error('Venda atomica nao retornou dados.');
+      const result = data as { sale: Sale; items: SaleItem[] };
+      const saleData = result.sale;
+      const insertedItems = result.items ?? [];
       setSales(prev => [saleData as Sale, ...prev]);
       setSaleItems(prev => [...((insertedItems as SaleItem[]) ?? []), ...prev]);
       setProducts(prev => prev.map(product => {
+        if (product.control_stock === false) return product;
         const soldQuantity = itemsWithMetrics
           .filter(item => item.product_id === product.id)
           .reduce((sum, item) => sum + item.quantity, 0);
         if (soldQuantity === 0) return product;
         return { ...product, stock: Math.max(0, (product.stock || 0) - soldQuantity) };
       }));
-      if (insertedStockMovements.length > 0) {
-        setStockMovements(prev => [...insertedStockMovements, ...prev]);
-      }
+      await fetchAll({ silent: true });
 
       return {
         sale: saleData as Sale,
@@ -3146,61 +2861,22 @@ export function DataProvider({ children }: { children: ReactNode }) {
     }
 
     try {
-      const { data: updatedSale, error } = await db
-        .from('sales')
-        .update({ status: 'cancelled', cancel_reason: reason, cancelled_at: new Date().toISOString() })
-        .eq('id', saleId)
-        .select('*')
-        .single();
-
-      if (error) {
-        const message = error.message || '';
-        if (['status', 'cancel_reason', 'cancelled_at'].some(column => message.includes(column))) {
-          throw new Error('A migration de cancelamento de vendas ainda não foi aplicada no banco.');
-        }
-        throw error;
-      }
-
       const itemsToRestore = saleItems.filter(item => item.sale_id === saleId && item.product_id);
-      const stockUpdates = isHeadquartersScope ? itemsToRestore.map(item => {
-        const product = products.find(p => p.id === item.product_id);
-        if (!product) return null;
-        return db
-          .from('products')
-          .update({ stock: (product.stock || 0) + item.quantity })
-          .eq('id', item.product_id);
-      }).filter(Boolean) : [];
-
-      await Promise.all(stockUpdates.map(async update => ensureSuccess(await update)));
-
-      let insertedStockMovements: StockMovement[] = [];
-      if (itemsToRestore.length > 0) {
-        const { data: movementRows, error: movementError } = await db.from('stock_movements').insert(itemsToRestore.map(item => ({
-          product_id: item.product_id,
-          user_id: ownerUserId!,
-          type: 'entrada',
-          quantity: item.quantity,
-          reason: `Cancelamento venda: ${reason}`,
-          location_id: sale.location_id ?? operationalLocationId,
-        }))).select('*');
-        if (movementError) throw movementError;
-        insertedStockMovements = (movementRows as StockMovement[]) ?? [];
-      }
+      const { data: updatedSale, error } = await db.rpc('erp_cancel_sale_atomic', {
+        p_sale_id: saleId,
+        p_reason: reason,
+      });
+      if (error || !updatedSale) throw error ?? new Error('Cancelamento atomico nao retornou dados.');
       setSales(prev => prev.map(item => item.id === saleId ? updatedSale as Sale : item));
       setProducts(prev => prev.map(product => {
+        if (product.control_stock === false) return product;
         const restoredQuantity = itemsToRestore
           .filter(item => item.product_id === product.id)
           .reduce((sum, item) => sum + item.quantity, 0);
         if (restoredQuantity === 0) return product;
         return { ...product, stock: (product.stock || 0) + restoredQuantity };
       }));
-      if (insertedStockMovements.length > 0) {
-        setStockMovements(prev => [...insertedStockMovements, ...prev]);
-      }
-      void recordAuditLog('sale.cancel', 'sale', saleId, {
-        reason,
-        restoredItems: itemsToRestore.length,
-      });
+      await fetchAll({ silent: true });
     } catch (error) {
       if (canUseOfflineConcentrator && isProbablyOfflineError(error)) {
         await cancelOfflineSale();

@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  buildAbcCurve,
   buildClientCrmSummary,
   buildLowStockPurchaseSuggestion,
+  buildSalesBasedPurchaseSuggestion,
   INACTIVE_CLIENT_DAYS,
   OLD_DEBT_DAYS,
 } from '@/lib/managementInsights';
@@ -80,5 +82,20 @@ describe('management insights', () => {
       suggestedQuantity: 5,
       severity: 'attention',
     });
+  });
+
+  it('sugere compra usando vendas e estoque maximo', () => {
+    const suggestion = buildSalesBasedPurchaseSuggestion({ ...product, stock: 4, max_stock: 20, control_stock: true }, 30);
+    expect(suggestion?.suggestedQuantity).toBe(16);
+    expect(buildSalesBasedPurchaseSuggestion({ ...product, control_stock: false }, 30)).toBeNull();
+  });
+
+  it('classifica receita acumulada na curva ABC', () => {
+    const curve = buildAbcCurve([
+      { productId: 'a', revenue: 80, quantity: 8 },
+      { productId: 'b', revenue: 15, quantity: 3 },
+      { productId: 'c', revenue: 5, quantity: 1 },
+    ]);
+    expect(curve.map((row) => row.curve)).toEqual(['A', 'B', 'C']);
   });
 });

@@ -313,25 +313,27 @@ LANGUAGE plpgsql
 SET search_path = public
 AS $$
 BEGIN
-  IF TG_TABLE_NAME = 'product_subgroups' AND NOT EXISTS (
-    SELECT 1 FROM public.product_groups WHERE id = NEW.product_group_id
-      AND store_account_id = NEW.store_account_id AND owner_user_id = NEW.owner_user_id
-  ) THEN RAISE EXCEPTION 'Subgrupo e grupo devem pertencer a mesma empresa.'; END IF;
-
-  IF TG_TABLE_NAME = 'measurement_unit_conversions' AND (
-    NOT EXISTS (SELECT 1 FROM public.measurement_units WHERE id = NEW.from_unit_id AND store_account_id = NEW.store_account_id AND owner_user_id = NEW.owner_user_id)
-    OR NOT EXISTS (SELECT 1 FROM public.measurement_units WHERE id = NEW.to_unit_id AND store_account_id = NEW.store_account_id AND owner_user_id = NEW.owner_user_id)
-  ) THEN RAISE EXCEPTION 'As unidades da conversao devem pertencer a mesma empresa.'; END IF;
-
-  IF TG_TABLE_NAME = 'product_price_table_items' AND (
-    NOT EXISTS (SELECT 1 FROM public.product_price_tables WHERE id = NEW.price_table_id AND store_account_id = NEW.store_account_id AND owner_user_id = NEW.owner_user_id)
-    OR NOT EXISTS (
-      SELECT 1 FROM public.products product
-      JOIN public.store_accounts account ON account.owner_user_id = product.user_id AND account.product_context = 'happycash'
-      WHERE product.id = NEW.product_id AND account.id = NEW.store_account_id
-        AND account.owner_user_id = NEW.owner_user_id
-    )
-  ) THEN RAISE EXCEPTION 'Tabela de preco e produto devem pertencer a mesma empresa.'; END IF;
+  -- Blocos separados sao obrigatorios: NEW e um record dinamico e uma
+  -- expressao AND ainda tenta resolver colunas inexistentes da outra tabela.
+  IF TG_TABLE_NAME = 'product_subgroups' THEN
+    IF NOT EXISTS (
+      SELECT 1 FROM public.product_groups WHERE id = NEW.product_group_id
+        AND store_account_id = NEW.store_account_id AND owner_user_id = NEW.owner_user_id
+    ) THEN RAISE EXCEPTION 'Subgrupo e grupo devem pertencer a mesma empresa.'; END IF;
+  ELSIF TG_TABLE_NAME = 'measurement_unit_conversions' THEN
+    IF NOT EXISTS (SELECT 1 FROM public.measurement_units WHERE id = NEW.from_unit_id AND store_account_id = NEW.store_account_id AND owner_user_id = NEW.owner_user_id)
+       OR NOT EXISTS (SELECT 1 FROM public.measurement_units WHERE id = NEW.to_unit_id AND store_account_id = NEW.store_account_id AND owner_user_id = NEW.owner_user_id)
+    THEN RAISE EXCEPTION 'As unidades da conversao devem pertencer a mesma empresa.'; END IF;
+  ELSIF TG_TABLE_NAME = 'product_price_table_items' THEN
+    IF NOT EXISTS (SELECT 1 FROM public.product_price_tables WHERE id = NEW.price_table_id AND store_account_id = NEW.store_account_id AND owner_user_id = NEW.owner_user_id)
+       OR NOT EXISTS (
+         SELECT 1 FROM public.products product
+         JOIN public.store_accounts account ON account.owner_user_id = product.user_id AND account.product_context = 'happycash'
+         WHERE product.id = NEW.product_id AND account.id = NEW.store_account_id
+           AND account.owner_user_id = NEW.owner_user_id
+       )
+    THEN RAISE EXCEPTION 'Tabela de preco e produto devem pertencer a mesma empresa.'; END IF;
+  END IF;
   RETURN NEW;
 END;
 $$;

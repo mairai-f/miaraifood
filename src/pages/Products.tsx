@@ -14,6 +14,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Label } from '@/components/ui/label';
 import { PasswordInput } from '@/components/ui/password-input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
 import { Plus, Search, Edit, Trash2, TrendingUp } from 'lucide-react';
 import { toast } from 'sonner';
 import { Product } from '@/types';
@@ -91,6 +92,8 @@ export default function Products() {
   const [barcode, setBarcode] = useState('');
   const [stock, setStock] = useState('');
   const [minStock, setMinStock] = useState('');
+  const [maxStock, setMaxStock] = useState('');
+  const [controlStock, setControlStock] = useState(true);
   const [fiscalNcm, setFiscalNcm] = useState('');
   const [fiscalCfop, setFiscalCfop] = useState('');
   const [fiscalOrigin, setFiscalOrigin] = useState('');
@@ -318,7 +321,9 @@ export default function Products() {
     if (isHeadquartersScope) {
       data.stock = parseInt(stock) || 0;
       data.min_stock = parseInt(minStock) || 0;
+      data.max_stock = maxStock.trim() ? Math.max(0, parseDecimalInput(maxStock)) : null;
     }
+    data.control_stock = controlStock;
 
     if (canEditFiscalProductData) {
       Object.assign(data, {
@@ -419,6 +424,8 @@ export default function Products() {
     setBarcode('');
     setStock('');
     setMinStock('');
+    setMaxStock('');
+    setControlStock(true);
     setFiscalNcm('');
     setFiscalCfop('');
     setFiscalOrigin('');
@@ -441,6 +448,7 @@ export default function Products() {
     setEditId(p.id); setName(toProductUppercase(p.name)); setPrice(p.price.toString());
     setCostPrice((p.cost_price || 0).toString()); setCategory(toProductUppercase(p.category)); setSupplierId(p.supplier_id || ''); setSupplierName(toProductUppercase(p.supplier_name || ''));
     setBarcode(toProductUppercase(p.barcode || '')); setStock((p.stock || 0).toString()); setMinStock((p.min_stock || 0).toString());
+    setMaxStock(p.max_stock == null ? '' : String(p.max_stock)); setControlStock(p.control_stock !== false);
     setDepartmentId(p.department_id || ''); setBrandId(p.brand_id || ''); setGroupId(p.product_group_id || ''); setSubgroupId(p.product_subgroup_id || '');
     setUnitId(p.measurement_unit_id || ''); setTransportCompanyId(p.primary_transport_company_id || ''); setReference(toProductUppercase(p.reference || ''));
     setMaxDiscount(String(p.max_discount_pct ?? 0)); setCommissionType(p.commission_type ?? 'none'); setCommissionValue(String(p.commission_value ?? 0));
@@ -559,9 +567,14 @@ export default function Products() {
                   <datalist id="product-suppliers">{suppliers.map((supplier) => <option key={supplier.id} value={supplier.name} />)}</datalist>
                   {supplierName && !supplierId && <p className="text-xs text-amber-600">Cadastre ou selecione este fornecedor em Operações para criar o vínculo.</p>}
                 </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1"><Label>Estoque</Label><Input type="number" value={stock} disabled={!isHeadquartersScope} onChange={e => setStock(e.target.value)} placeholder="0" /></div>
-                  <div className="space-y-1"><Label>Estoque Mínimo</Label><Input type="number" value={minStock} disabled={!isHeadquartersScope} onChange={e => setMinStock(e.target.value)} placeholder="0" /></div>
+                <div className="flex items-center justify-between rounded-md border p-3">
+                  <div><Label htmlFor="control-stock">Controlar estoque</Label><p className="text-xs text-muted-foreground">Bloqueia venda e fiado quando não houver saldo.</p></div>
+                  <Switch id="control-stock" checked={controlStock} onCheckedChange={setControlStock} />
+                </div>
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="space-y-1"><Label>Estoque</Label><Input type="number" value={stock} disabled={!isHeadquartersScope || !controlStock} onChange={e => setStock(e.target.value)} placeholder="0" /></div>
+                  <div className="space-y-1"><Label>Estoque Mínimo</Label><Input type="number" value={minStock} disabled={!isHeadquartersScope || !controlStock} onChange={e => setMinStock(e.target.value)} placeholder="0" /></div>
+                  <div className="space-y-1"><Label>Estoque Máximo</Label><Input type="number" value={maxStock} disabled={!isHeadquartersScope || !controlStock} onChange={e => setMaxStock(e.target.value)} placeholder="Opcional" /></div>
                 </div>
                 {!isHeadquartersScope && (
                   <p className="text-xs text-muted-foreground">

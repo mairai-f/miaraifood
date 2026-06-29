@@ -10,12 +10,12 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { CalendarClock, Search, Plus, AlertTriangle, Package, Check, ArrowRight } from 'lucide-react';
+import { BarChart3, CalendarClock, Download, Search, Plus, AlertTriangle, Package, Check, ArrowRight } from 'lucide-react';
 import { toast } from 'sonner';
 import { formatDateTime } from '../../shared/locale/format';
 import { getRedactedLogValue } from '../../shared/security/redaction';
 import { filterProductsBySearch, toProductUppercase } from '@/lib/productSearch';
-import { buildLowStockPurchaseSuggestion, type PurchaseSuggestion } from '@/lib/managementInsights';
+import { buildAbcCurve, buildSalesBasedPurchaseSuggestion, type PurchaseSuggestion } from '@/lib/managementInsights';
 import { useProductBatches } from '@/hooks/useProductBatches';
 import {
   calculateStockMovement,
@@ -27,7 +27,7 @@ import { formatProductCode } from '@/lib/productCode';
 import { getLocalIsoDate } from '@/lib/clientDebtDueDate';
 
 export default function Stock() {
-  const { products, stockMovements, addStockMovement, clearAllStock } = useData();
+  const { products, stockMovements, sales, saleItems, addStockMovement, clearAllStock } = useData();
   const { user } = useAuth();
   const { batches } = useProductBatches();
   const navigate = useNavigate();
@@ -47,7 +47,7 @@ export default function Stock() {
   const [movementDateFrom, setMovementDateFrom] = useState('');
   const [movementDateTo, setMovementDateTo] = useState('');
 
-  const activeProducts = products.filter(p => !p.deleted);
+  const activeProducts = useMemo(() => products.filter(p => !p.deleted), [products]);
   const nextBatchByProductId = useMemo(() => {
     const result = new Map<string, (typeof batches)[number]>();
     batches.forEach((batch) => {
@@ -67,7 +67,7 @@ export default function Stock() {
     .map((batch) => batch.product_id)
     .filter(Boolean));
   const expiringProducts = visibleProducts.filter((product) => expiringProductIds.has(product.id));
-  const lowStock = activeProducts.filter(p => p.stock <= p.min_stock && p.min_stock > 0);
+  const lowStock = activeProducts.filter(p => p.control_stock !== false && p.stock <= p.min_stock && p.min_stock > 0);
   const filtered = [...filterProductsBySearch(visibleProducts, search)].sort((left, right) => {
     const leftExpiring = expiringProductIds.has(left.id);
     const rightExpiring = expiringProductIds.has(right.id);
@@ -80,10 +80,23 @@ export default function Stock() {
     }
     return left.name.localeCompare(right.name, 'pt-BR');
   });
-  const purchaseSuggestions = activeProducts
-    .map(buildLowStockPurchaseSuggestion)
-    .filter((suggestion): suggestion is PurchaseSuggestion => Boolean(suggestion))
-    .sort((left, right) => (left.severity === right.severity ? right.suggestedQuantity - left.suggestedQuantity : left.severity === 'critical' ? -1 : 1));
+  const { purchaseSuggestions, abcRows } = useMemo(() => {
+    const now = Date.now();
+    const salesLast30Days = new Set(sales.filter((sale) => sale.status !== 'cancelled' && now - new Date(sale.date).getTime() <= 30 * 86400000).map((sale) => sale.id));
+    const soldByProduct = saleItems.reduce((map, item) => {
+      if (item.product_id && salesLast30Days.has(item.sale_id)) map.set(item.product_id, (map.get(item.product_id) ?? 0) + item.quantity);
+      return map;
+    }, new Map<string, number>());
+    const suggestions = activeProducts
+      .map((product) => buildSalesBasedPurchaseSuggestion(product, soldByProduct.get(product.id) ?? 0))
+      .filter((suggestion): suggestion is PurchaseSuggestion => Boolean(suggestion))
+      .sort((left, right) => (left.severity === right.severity ? right.suggestedQuantity - left.suggestedQuantity : left.severity === 'critical' ? -1 : 1));
+    const salesLast90Days = new Set(sales.filter((sale) => sale.status !== 'cancelled' && now - new Date(sale.date).getTime() <= 90 * 86400000).map((sale) => sale.id));
+    const curve = buildAbcCurve(saleItems
+      .filter((item) => Boolean(item.product_id) && salesLast90Days.has(item.sale_id))
+      .map((item) => ({ productId: item.product_id as string, revenue: item.net_total ?? item.total, quantity: item.quantity })));
+    return { purchaseSuggestions: suggestions, abcRows: curve };
+  }, [activeProducts, saleItems, sales]);
   const hasStockToClear = activeProducts.some(product => product.stock > 0);
   const selectedProductRecord = activeProducts.find(product => product.id === selectedProduct) ?? null;
   const movementProductResults = filterProductsBySearch(activeProducts, movementProductSearch).slice(0, 8);
@@ -151,6 +164,23 @@ export default function Stock() {
     } finally {
       setClearingStock(false);
     }
+  };
+
+  const exportMovements = () => {
+    const escapeCsv = (value: unknown) => `"${String(value ?? '').replace(/"/g, '""')}"`;
+    const lines = [['Data', 'Codigo', 'Produto', 'Tipo', 'Quantidade', 'Origem', 'Usuario', 'Saldo anterior', 'Saldo posterior', 'Motivo'].map(escapeCsv).join(';')];
+    filteredMovements.forEach((movement) => {
+      const product = products.find((item) => item.id === movement.product_id);
+      lines.push([
+        formatDateTime(movement.date), formatProductCode(product?.code), product?.name ?? 'Produto removido',
+        getStockMovementDirection(movement), movement.quantity, movement.source ?? 'manual', movement.actor_label ?? movement.operator_user_id ?? 'Sistema',
+        movement.balance_before ?? '', movement.balance_after ?? '', movement.reason,
+      ].map(escapeCsv).join(';'));
+    });
+    const url = URL.createObjectURL(new Blob([`\uFEFF${lines.join('\n')}`], { type: 'text/csv;charset=utf-8' }));
+    const link = document.createElement('a');
+    link.href = url; link.download = `movimentacoes-estoque-${new Date().toISOString().slice(0, 10)}.csv`; link.click();
+    URL.revokeObjectURL(url);
   };
 
   return (
@@ -300,7 +330,7 @@ export default function Stock() {
           <CardContent className="px-4 pb-3">
             <div className="space-y-1">
               {lowStock.map(p => (
-                <p key={p.id} className="text-xs">⚠️ <span className="font-medium">{p.name}</span> — {p.stock} un (mínimo: {p.min_stock})</p>
+                <p key={p.id} className="text-xs">⚠️ <span className="font-medium">{formatProductCode(p.code) || 'Sem código'} · {p.name}</span> — {p.stock} un (mínimo: {p.min_stock})</p>
               ))}
             </div>
           </CardContent>
@@ -327,7 +357,7 @@ export default function Stock() {
                       </Badge>
                     </div>
                     <p className="mt-1 truncate text-xs text-muted-foreground">
-                      Atual {suggestion.currentStock} / mín. {suggestion.minStock} · {suggestion.supplierName}
+                      Atual {suggestion.currentStock} / alvo {suggestion.targetStock} · venda média {(suggestion.averageDailySales ?? 0).toFixed(1)}/dia
                     </p>
                   </div>
                   <Button size="sm" variant="outline" className="shrink-0" onClick={() => openPurchaseOrder(suggestion)}>
@@ -354,6 +384,7 @@ export default function Stock() {
               <div className="flex justify-between items-start mb-2">
                 <div className="min-w-0 mr-2">
                   <h3 className="font-semibold text-sm truncate">{p.name}</h3>
+                  <p className="text-xs text-muted-foreground">{formatProductCode(p.code) || p.barcode || 'Sem código'}</p>
                   {p.deleted && <Badge variant="destructive" className="mt-1">Arquivado com lote monitorado</Badge>}
                   {p.category && <span className="text-xs text-muted-foreground">{p.category}</span>}
                 </div>
@@ -367,6 +398,7 @@ export default function Stock() {
                   <Package className="h-3 w-3 inline mr-1" />Estoque: {p.stock}
                 </span>
                 <span className="text-muted-foreground">Mín: {p.min_stock}</span>
+                {p.max_stock != null && <span className="text-muted-foreground">Máx: {p.max_stock}</span>}
               </div>
               {nextBatch && (
                 <p className="mt-2 flex items-center gap-1 text-xs text-amber-600">
@@ -381,8 +413,20 @@ export default function Stock() {
       </div>
 
       {/* Recent movements */}
+      {abcRows.length > 0 && (
+        <Card className="border-border/50">
+          <CardHeader><CardTitle className="flex items-center gap-2 text-sm"><BarChart3 className="h-4 w-4 text-primary" /> Curva ABC — últimos 90 dias</CardTitle></CardHeader>
+          <CardContent className="grid gap-2 md:grid-cols-3">
+            {(['A', 'B', 'C'] as const).map((curve) => {
+              const rows = abcRows.filter((row) => row.curve === curve);
+              return <div key={curve} className="rounded-md border p-3"><p className="font-semibold">Curva {curve} · {rows.length} produtos</p><p className="text-xs text-muted-foreground">{rows.slice(0, 4).map((row) => products.find((product) => product.id === row.productId)?.name ?? row.productId).join(', ') || 'Sem produtos'}</p></div>;
+            })}
+          </CardContent>
+        </Card>
+      )}
+
       <Card className="border-border/50" data-tour-id="stock-movements">
-        <CardHeader><CardTitle className="text-sm">Movimentações Recentes</CardTitle></CardHeader>
+        <CardHeader className="flex-row items-center justify-between"><CardTitle className="text-sm">Movimentações Recentes</CardTitle><Button size="sm" variant="outline" onClick={exportMovements} disabled={filteredMovements.length === 0}><Download className="mr-1 h-4 w-4" /> Exportar CSV</Button></CardHeader>
         <CardContent>
           <div className="mb-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-[1fr_170px_150px_150px]">
             <div className="relative">
@@ -409,8 +453,9 @@ export default function Stock() {
                 return (
                   <div key={m.id} className="flex items-center justify-between p-2 rounded-lg bg-secondary/50 text-xs">
                     <div className="min-w-0">
-                      <p className="font-medium">{product?.name || 'Produto removido'}</p>
+                      <p className="font-medium">{formatProductCode(product?.code) || 'Sem código'} · {product?.name || 'Produto removido'}</p>
                       <p className="truncate text-muted-foreground">{m.source === 'purchase' || /compra/i.test(m.reason) ? 'Compra' : m.source === 'sale' || /venda/i.test(m.reason) ? 'Venda' : 'Manual'} · {m.reason} · {formatDateTime(m.date)}</p>
+                      <p className="text-muted-foreground">Usuário: {m.actor_label || m.operator_user_id || 'Sistema'}</p>
                       {m.balance_before != null && m.balance_after != null && <p className="text-muted-foreground">Saldo {m.balance_before} → {m.balance_after}</p>}
                     </div>
                     <span className={`ml-3 shrink-0 font-bold ${direction === 'entrada' ? 'text-green-500' : 'text-destructive'}`}>

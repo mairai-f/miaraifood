@@ -38,6 +38,8 @@ export interface Product {
   barcode: string;
   stock: number;
   min_stock: number;
+  max_stock?: number | null;
+  control_stock?: boolean;
   purchase_cost?: number;
   freight_cost?: number;
   tax_cost?: number;
@@ -84,6 +86,7 @@ export interface DebtEntry {
   location_id?: string | null;
   client_id: string;
   product_id: string;
+  product_code?: number | null;
   product_name: string;
   quantity: number;
   unit_price: number;
@@ -144,6 +147,7 @@ export interface SaleItem {
   id: string;
   sale_id: string;
   product_id?: string | null;
+  product_code?: number | null;
   product_name: string;
   quantity: number;
   unit_price: number;
@@ -267,6 +271,7 @@ export interface StockMovement {
   balance_before?: number | null;
   balance_after?: number | null;
   operator_user_id?: string | null;
+  actor_label?: string | null;
   location_id?: string | null;
   sync_status?: 'synced' | 'queued' | 'conflict';
   sync_error?: string | null;

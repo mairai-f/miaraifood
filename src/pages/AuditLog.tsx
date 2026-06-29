@@ -18,11 +18,23 @@ type AuditLogRow = {
 
 const actionLabel: Record<string, string> = {
   'product.update': 'Produto alterado',
+  'product.update.detailed': 'Produto alterado — antes e depois',
+  'sale.create': 'Venda registrada',
   'product.delete': 'Produto excluído',
   'debt_entry.delete': 'Fiado estornado',
   'debt_entry.delete_restore_stock': 'Fiado estornado com estoque',
   'sale.cancel': 'Venda cancelada',
   'stock.clear_all': 'Estoque zerado',
+  'cash_session.close': 'Caixa fechado e conferido',
+};
+
+const getChangedFields = (details: Record<string, unknown>) => {
+  const before = details.before as Record<string, unknown> | undefined;
+  const after = details.after as Record<string, unknown> | undefined;
+  if (!before || !after) return [];
+  return Object.keys(after)
+    .filter((key) => JSON.stringify(before[key]) !== JSON.stringify(after[key]))
+    .map((key) => ({ key, before: before[key], after: after[key] }));
 };
 
 export default function AuditLog() {
@@ -89,6 +101,13 @@ export default function AuditLog() {
                     </div>
                     <Badge variant="outline">{log.entity_type}</Badge>
                   </div>
+                  {getChangedFields(log.details || {}).length > 0 && (
+                    <div className="mt-2 space-y-1 rounded bg-background/70 p-2 text-xs">
+                      {getChangedFields(log.details).map((change) => (
+                        <p key={change.key}><span className="font-medium">{change.key}</span>: {String(change.before ?? '—')} → {String(change.after ?? '—')}</p>
+                      ))}
+                    </div>
+                  )}
                   {Object.keys(log.details || {}).length > 0 && (
                     <pre className="mt-2 max-h-28 overflow-auto rounded bg-background/70 p-2 text-[11px] text-muted-foreground">
                       {formatRedactedJson(log.details)}

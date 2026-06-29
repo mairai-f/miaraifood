@@ -193,6 +193,9 @@ export interface OfflineCashSessionClosePayload {
   closedByUserId: string | null;
   closedByName: string;
   closingBalance: number;
+  expectedBalance?: number;
+  countedBalance?: number;
+  differenceReason?: string | null;
 }
 
 export type OfflineOperationPayload =

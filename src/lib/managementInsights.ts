@@ -126,6 +126,9 @@ export type PurchaseSuggestion = {
   minStock: number;
   suggestedQuantity: number;
   severity: 'critical' | 'attention';
+  averageDailySales?: number;
+  estimatedDaysRemaining?: number | null;
+  targetStock?: number;
 };
 
 export const buildLowStockPurchaseSuggestion = (product: Product): PurchaseSuggestion | null => {
@@ -148,4 +151,69 @@ export const buildLowStockPurchaseSuggestion = (product: Product): PurchaseSugge
     suggestedQuantity,
     severity: currentStock <= 0 ? 'critical' : 'attention',
   };
+};
+
+export const buildSalesBasedPurchaseSuggestion = (
+  product: Product,
+  soldQuantity: number,
+  periodDays = 30,
+  replenishmentDays = 14,
+): PurchaseSuggestion | null => {
+  if (product.deleted || product.control_stock === false) return null;
+  const currentStock = Number(product.stock ?? 0);
+  const minStock = Number(product.min_stock ?? 0);
+  const averageDailySales = Math.max(0, soldQuantity) / Math.max(1, periodDays);
+  const demandTarget = Math.ceil(averageDailySales * replenishmentDays);
+  const configuredMaximum = Number(product.max_stock ?? 0);
+  const targetStock = configuredMaximum > 0
+    ? configuredMaximum
+    : Math.max(minStock * 2, minStock + 1, demandTarget);
+  const reorderPoint = Math.max(minStock, Math.ceil(averageDailySales * 7));
+  if (targetStock <= 0 || currentStock > reorderPoint) return null;
+  return {
+    productId: product.id,
+    productName: product.name,
+    supplierName: product.supplier_name?.trim() || 'Fornecedor nao informado',
+    currentStock,
+    minStock,
+    targetStock,
+    averageDailySales,
+    estimatedDaysRemaining: averageDailySales > 0 ? currentStock / averageDailySales : null,
+    suggestedQuantity: Math.max(1, Math.ceil(targetStock - currentStock)),
+    severity: currentStock <= 0 ? 'critical' : 'attention',
+  };
+};
+
+export type AbcCurveRow = {
+  productId: string;
+  revenue: number;
+  quantity: number;
+  sharePct: number;
+  cumulativePct: number;
+  curve: 'A' | 'B' | 'C';
+};
+
+export const buildAbcCurve = (rows: Array<{ productId: string; revenue: number; quantity: number }>): AbcCurveRow[] => {
+  const grouped = new Map<string, { revenue: number; quantity: number }>();
+  rows.forEach((row) => {
+    const current = grouped.get(row.productId) ?? { revenue: 0, quantity: 0 };
+    current.revenue += Math.max(0, row.revenue);
+    current.quantity += Math.max(0, row.quantity);
+    grouped.set(row.productId, current);
+  });
+  const sorted = [...grouped.entries()].sort((left, right) => right[1].revenue - left[1].revenue);
+  const total = sorted.reduce((sum, [, row]) => sum + row.revenue, 0);
+  let cumulative = 0;
+  return sorted.map(([productId, row]) => {
+    const sharePct = total > 0 ? row.revenue / total * 100 : 0;
+    cumulative += sharePct;
+    return {
+      productId,
+      revenue: row.revenue,
+      quantity: row.quantity,
+      sharePct,
+      cumulativePct: cumulative,
+      curve: cumulative <= 80 ? 'A' : cumulative <= 95 ? 'B' : 'C',
+    };
+  });
 };

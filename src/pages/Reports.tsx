@@ -9,6 +9,7 @@ import { Download, TrendingUp, Package, Users, DollarSign } from 'lucide-react';
 import { formatDateOnly, translateCurrentText } from '../../shared/locale/format';
 import { ReportDetailsDialog, type ReportDetail } from '@/components/reports/ReportDetailsDialog';
 import { ReportMetricCard } from '@/components/reports/ReportMetricCard';
+import { formatProductCode } from '@/lib/productCode';
 
 const COLORS = ['hsl(var(--primary))', 'hsl(var(--destructive))', 'hsl(var(--accent))', '#8884d8', '#82ca9d', '#ffc658'];
 
@@ -111,9 +112,10 @@ export default function Reports() {
 
   // Top products
   const productRanking = useMemo(() => {
-    const map = new Map<string, { name: string; qty: number; revenue: number; profit: number }>();
+    const map = new Map<string, { productId: string; code: number | null; name: string; qty: number; revenue: number; profit: number }>();
     for (const i of filteredItems) {
-      const key = i.product_name;
+      if (!i.product_id) continue;
+      const key = i.product_id;
       const existing = map.get(key);
       const revenue = i.total;
       const profit = revenue - i.cost_price * i.quantity;
@@ -122,7 +124,7 @@ export default function Reports() {
         existing.revenue += revenue;
         existing.profit += profit;
       } else {
-        map.set(key, { name: key, qty: i.quantity, revenue, profit });
+        map.set(key, { productId: key, code: i.product_code ?? null, name: i.product_name, qty: i.quantity, revenue, profit });
       }
     }
     return Array.from(map.values()).sort((a, b) => b.qty - a.qty).slice(0, 10);
@@ -276,7 +278,7 @@ export default function Reports() {
       ...filteredFiadoEntries.map(entry => [
         'fiado',
         entry.date_added,
-        entry.product_name,
+        `${entry.product_code ? formatProductCode(entry.product_code) : ''} ${entry.product_name}`.trim(),
         clients.find(client => client.id === entry.client_id)?.name || '',
         String(entry.quantity),
         entry.total.toFixed(2),
@@ -413,8 +415,8 @@ export default function Reports() {
             {productRanking.length === 0 ? <p className="text-xs text-muted-foreground">Sem dados</p> : (
               <div className="space-y-2">
                 {productRanking.map((p, i) => (
-                  <div key={i} className="flex justify-between items-center text-xs">
-                    <span className="truncate mr-2">{i + 1}. {p.name}</span>
+                  <div key={p.productId} className="flex justify-between items-center text-xs">
+                    <span className="truncate mr-2">{i + 1}. {formatProductCode(p.code) || 'Sem código'} · {p.name}</span>
                     <span className="text-muted-foreground whitespace-nowrap">{p.qty}x — R$ {p.revenue.toFixed(2)} (lucro: R$ {p.profit.toFixed(2)})</span>
                   </div>
                 ))}

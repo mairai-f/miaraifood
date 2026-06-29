@@ -39,7 +39,7 @@ O Desktop continua usando `React.lazy`. Paginas Web nao sao pre-carregadas no El
 
 ## Fase 1 — fundacao RBAC
 
-Status: **implementada no codigo; migracao ainda precisa ser aplicada ao ambiente Supabase usado no teste.**
+Status: **implementada e aplicada ao Supabase vinculado em 29/06/2026.**
 
 ### Banco de dados
 
@@ -152,7 +152,7 @@ Arquivo: `src/pages/Products.tsx`
 
 ### Fase 2 — empresa, filial e terminal
 
-Status: **fundacao implementada no codigo; depende da Fase 1 e deve ser aplicada primeiro em homologacao.**
+Status: **implementada e aplicada ao Supabase vinculado em 29/06/2026.**
 
 Decisao arquitetural: `store_accounts` representa a empresa, o contrato e a assinatura. Nao sera duplicada para cada filial. A estrutura operacional fica abaixo dela:
 
@@ -211,7 +211,7 @@ Limitacao de transicao: terminais Desktop criados automaticamente continuam vinc
 
 ### Fase 3 — catalogo e precificacao
 
-Status: **implementada no codigo; a migracao deve ser aplicada e homologada depois das Fases 1 e 2.**
+Status: **implementada e aplicada ao Supabase vinculado em 29/06/2026.**
 
 Arquivo de banco: `supabase/migrations/20260629210000_add_advanced_product_catalog.sql`.
 
@@ -347,7 +347,36 @@ A primeira deve mostrar `products_without_unit = 0`; a segunda deve mostrar `1` 
 - avisos nao bloqueantes do build: base `caniuse-lite` desatualizada e chunk-base maior que 500 kB;
 - `supabase db lint --local`: nao executou porque nao existe PostgreSQL local acessivel nesta maquina.
 
-Portanto, TypeScript, React, regras puras, regressao automatizada e empacotamento estao validados. A migracao SQL foi revisada estaticamente, mas **nao deve ser considerada homologada** ate ser aplicada em um Supabase de teste e passar pelo roteiro e consultas acima.
+Portanto, TypeScript, React, regras puras, regressao automatizada e empacotamento foram validados. A validacao local nao tinha PostgreSQL; depois disso as migracoes foram aplicadas ao Supabase vinculado e o lint remoto terminou sem erros. O roteiro funcional continua obrigatorio antes de liberar a versao aos caixas.
+
+### Fase 3.1 — disciplina operacional
+
+Status: **implementada e aplicada ao Supabase vinculado em 29/06/2026.**
+
+Migrações:
+
+- `20260630100000_add_operational_integrity.sql`;
+- `20260630103000_fix_operational_integrity_functions.sql`.
+
+Entregas:
+
+- venda, fiado, cancelamento e fechamento usam RPCs transacionais;
+- toda venda e fiado novo exige `product_id`; nome e código são copiados do cadastro oficial;
+- `Controlar estoque` decide se o saldo deve ser baixado e impede saldo negativo;
+- estoque máximo e média de vendas dos últimos 30 dias alimentam a sugestão de compra;
+- Curva ABC usa receita por `product_id` dos últimos 90 dias;
+- movimentações mostram código, origem, usuário, saldo anterior/posterior e exportam CSV;
+- fechamento guarda calculado, contado, diferença e justificativa obrigatória;
+- alterações comerciais de produto registram antes/depois na auditoria.
+
+Validação executada:
+
+- build Vite aprovado;
+- testes direcionados de estoque, previsão e Curva ABC aprovados;
+- `supabase db lint --linked --level warning`: nenhum erro de schema;
+- todas as migrações locais aparecem aplicadas no histórico remoto.
+
+Teste manual obrigatório: em uma empresa de teste, crie um produto controlado com saldo 1, tente vender 2 e confirme rollback total; depois desative o controle e confirme venda sem baixa. Feche um caixa com diferença e confirme a exigência de justificativa. Exporte as movimentações e confira usuário, origem e saldos.
 
 ### Fase 4 — pagamentos e conciliacao
 

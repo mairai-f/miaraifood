@@ -39,6 +39,7 @@ import { readScopedCashSession, writeScopedCashSession, type ScopedCashSession }
 import { parseDecimalInput, parseOptionalDecimalInput } from '@/lib/numberInput';
 import { filterProductsBySearch, isExactProductSearchMatch, normalizeProductSearchText, toProductUppercase } from '@/lib/productSearch';
 import { findServiceTicketByLookup } from '@/lib/serviceTicket';
+import { formatProductCode } from '@/lib/productCode';
 import { readDesktopActivation } from '@/lib/desktopActivation';
 import { buildDesktopFiscalAccessPayload, canUseDesktopFiscalModule } from '@/lib/fiscalAccess';
 import { getPublicErrorMessage, getRedactedLogValue } from '../../shared/security/redaction';
@@ -81,6 +82,10 @@ interface CashCloseReceipt {
   salesTotal: number;
   cashOutTotal: number;
   finalBalance: number;
+  expectedBalance: number;
+  countedBalance: number;
+  difference: number;
+  differenceReason: string;
   saleCount: number;
   cashOuts: Expense[];
   sales: Sale[];
@@ -346,7 +351,6 @@ export default function PDV() {
   const canCashOut = hasPermission('pdv.cash_out');
   const canCancelSale = hasPermission('pdv.cancel_sale');
   const canEditPdvPrice = hasPermission('pdv.edit_price');
-  const canSellWithoutStock = hasPermission('pdv.sell_without_stock');
   const searchInputRef = useRef<HTMLInputElement>(null);
   const cashReceivedInputRef = useRef<HTMLInputElement>(null);
   const checkoutDialogRef = useRef<HTMLDivElement | null>(null);
@@ -418,6 +422,8 @@ export default function PDV() {
   const [showCloseCashSendDialog, setShowCloseCashSendDialog] = useState(false);
   const [adminEmail, setAdminEmail] = useState('');
   const [adminPassword, setAdminPassword] = useState('');
+  const [countedClosingBalance, setCountedClosingBalance] = useState('');
+  const [closingDifferenceReason, setClosingDifferenceReason] = useState('');
   const [closeCashAuthError, setCloseCashAuthError] = useState('');
   const [closeCashEmailStatus, setCloseCashEmailStatus] = useState<CloseCashEmailStatus>('idle');
   const [closeCashEmailMessage, setCloseCashEmailMessage] = useState('');
@@ -1869,6 +1875,8 @@ export default function PDV() {
     .reduce((sum, expense) => sum + expense.amount, 0);
   const cashOpeningAmount = cashSession?.openingAmount || 0;
   const currentCashBalance = cashOpeningAmount + cashSalesTotal - cashOutTotal;
+  const countedClosingValue = parseOptionalDecimalInput(countedClosingBalance);
+  const closingDifference = (countedClosingValue ?? currentCashBalance) - currentCashBalance;
   const parsedCashOutAmount = parseOptionalDecimalInput(cashOutAmount);
   const cashOutAmountValue = parsedCashOutAmount ?? 0;
   const cashOutExceedsBalance = cashOutAmountValue > currentCashBalance;
@@ -1878,12 +1886,12 @@ export default function PDV() {
       .filter(item => item.product.id === productId)
       .reduce((sum, item) => sum + item.quantity, 0), [cart]);
   const getInsufficientStockMessage = useCallback((product: Product, requestedQuantity: number) => {
-    if (canSellWithoutStock) return '';
+    if (product.control_stock === false) return '';
     const availableStock = Number(product.stock || 0);
     return availableStock < requestedQuantity
       ? `Estoque insuficiente para ${product.name}. Disponivel: ${availableStock}, solicitado: ${requestedQuantity}.`
       : '';
-  }, [canSellWithoutStock]);
+  }, []);
   const validateCartStock = () => {
     for (const item of cart) {
       const product = products.find(currentProduct => currentProduct.id === item.product.id) ?? item.product;
@@ -2705,6 +2713,7 @@ export default function PDV() {
     try {
       const items = cart.map(i => ({
         product_id: i.product.id,
+        product_code: i.product.code ?? null,
         product_name: i.product.name,
         quantity: i.quantity,
         unit_price: i.unitPrice,
@@ -3097,6 +3106,14 @@ export default function PDV() {
       return;
     }
     if (!cashSession) return;
+    if (countedClosingValue === null || countedClosingValue < 0) {
+      silentToast.error('Informe o valor contado no caixa.');
+      return;
+    }
+    if (Math.abs(closingDifference) >= 0.01 && !closingDifferenceReason.trim()) {
+      silentToast.error('Justifique a diferença do fechamento.');
+      return;
+    }
 
     const receipt: CashCloseReceipt = {
       openedAt: cashSession.openedAt,
@@ -3106,7 +3123,11 @@ export default function PDV() {
       openingAmount: cashOpeningAmount,
       salesTotal: cashSalesTotal,
       cashOutTotal,
-      finalBalance: currentCashBalance,
+      finalBalance: countedClosingValue,
+      expectedBalance: currentCashBalance,
+      countedBalance: countedClosingValue,
+      difference: closingDifference,
+      differenceReason: closingDifferenceReason.trim(),
       saleCount: cashSessionSales.length,
       cashOuts: cashSessionCashOuts,
       sales: cashSessionSales,
@@ -3118,7 +3139,10 @@ export default function PDV() {
         closedAt: receipt.closedAt,
         closedByUserId: user?.id ?? null,
         closedByName: sellerName,
-        closingBalance: currentCashBalance,
+        closingBalance: countedClosingValue,
+        expectedBalance: currentCashBalance,
+        countedBalance: countedClosingValue,
+        differenceReason: closingDifferenceReason.trim() || null,
       });
 
       if (!queued) {
@@ -3126,16 +3150,12 @@ export default function PDV() {
         return;
       }
     } else if (cashSession.id) {
-      const { error } = await cashClient
-        .from('cash_sessions')
-        .update({
-          status: 'closed',
-          closed_at: receipt.closedAt,
-          closed_by_user_id: user?.id ?? null,
-          closed_by_name: sellerName,
-          closing_balance: currentCashBalance,
-        })
-        .eq('id', cashSession.id);
+      const { error } = await cashClient.rpc('erp_close_cash_session_atomic', {
+        p_session_id: cashSession.id,
+        p_expected: currentCashBalance,
+        p_counted: countedClosingValue,
+        p_reason: closingDifferenceReason.trim() || null,
+      });
 
       if (error) {
         console.error('Erro ao fechar caixa:', getRedactedLogValue(error));
@@ -3160,6 +3180,8 @@ export default function PDV() {
     setSaleSearch('');
     setSaleLimit(25);
     setShowCloseCashReceipt(true);
+    setCountedClosingBalance('');
+    setClosingDifferenceReason('');
     silentToast.success(
       canUseDesktopOffline && typeof navigator !== 'undefined' && navigator.onLine === false
         ? 'Caixa fechado em modo offline!'
@@ -3289,6 +3311,9 @@ export default function PDV() {
       silentToast.error('Finalize ou zere o carrinho antes de fechar o caixa');
       return;
     }
+
+    setCountedClosingBalance(currentCashBalance.toFixed(2));
+    setClosingDifferenceReason('');
 
     setAdminEmail('');
     setAdminPassword('');
@@ -4088,8 +4113,9 @@ export default function PDV() {
                     <p className="min-h-[2.5rem] text-sm font-medium leading-tight whitespace-normal break-words">
                       {p.name}
                     </p>
+                    <p className="text-xs text-muted-foreground">{formatProductCode(p.code) || p.barcode || 'Sem código'}</p>
                     <p className="text-primary font-bold text-base">R$ {p.price.toFixed(2)}</p>
-                    {p.stock > 0 && p.stock <= (p.min_stock || 5) && (
+                    {p.control_stock !== false && p.stock <= (p.min_stock || 5) && (
                       <p className="text-xs text-destructive">⚠️ Estoque: {p.stock}</p>
                     )}
                   </CardContent>
@@ -4912,6 +4938,16 @@ export default function PDV() {
             <p className="text-sm text-muted-foreground">
               Para fechar o caixa, informe email/senha ou usuario/PIN de um administrador da loja.
             </p>
+            <div className="grid grid-cols-2 gap-3 rounded-md border p-3 text-sm">
+              <div><p className="text-xs text-muted-foreground">Calculado</p><p className="font-semibold">{formatMoney(currentCashBalance)}</p></div>
+              <div><Label>Valor contado</Label><Input inputMode="decimal" value={countedClosingBalance} onChange={e => setCountedClosingBalance(e.target.value)} /></div>
+            </div>
+            <p className={`text-sm font-medium ${Math.abs(closingDifference) >= 0.01 ? 'text-destructive' : 'text-green-600'}`}>
+              Diferença: {formatMoney(closingDifference)}
+            </p>
+            {Math.abs(closingDifference) >= 0.01 && (
+              <div className="space-y-1"><Label>Justificativa da diferença</Label><Textarea value={closingDifferenceReason} onChange={e => setClosingDifferenceReason(e.target.value)} placeholder="Ex: troco informado incorretamente" /></div>
+            )}
             <div className="space-y-1">
               <Label>Email ou usuario do administrador</Label>
               <Input
