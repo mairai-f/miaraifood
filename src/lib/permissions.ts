@@ -81,3 +81,33 @@ export const isRuntimeScopeAllowed = (scope: RuntimeScope, isDesktop: boolean) =
 
 export const isErpPermissionKey = (value: string): value is ErpPermissionKey =>
   (ERP_PERMISSION_KEYS as readonly string[]).includes(value);
+
+const permissionDependencies: Partial<Record<ErpPermissionKey, ErpPermissionKey[]>> = {
+  'pdv.open_cash': ['pdv.use'], 'pdv.close_cash': ['pdv.use'], 'pdv.cash_out': ['pdv.use'],
+  'pdv.cancel_sale': ['pdv.use'], 'pdv.edit_price': ['pdv.use'], 'pdv.view_other_cashiers': ['pdv.use'],
+  'pdv.change_seller': ['pdv.use'], 'service_tickets.transfer': ['service_tickets.use'],
+  'service_tickets.cancel': ['service_tickets.use'], 'clients.manage': ['clients.view'],
+  'products.manage': ['products.view'], 'stock.manage': ['stock.view'], 'purchases.manage': ['purchases.view'],
+  'financial.manage': ['financial.view'], 'pricing.manage': ['pricing.view'], 'fiscal.manage': ['fiscal.view'],
+};
+
+/** Aplica dependencias sem criar um perfil-base: cada escolha continua explicita. */
+export const togglePermissionWithDependencies = (
+  current: ReadonlySet<ErpPermissionKey>,
+  permissionKey: ErpPermissionKey,
+  checked: boolean,
+) => {
+  const next = new Set(current);
+  const enable = (key: ErpPermissionKey) => {
+    next.add(key);
+    permissionDependencies[key]?.forEach(enable);
+  };
+  const disable = (key: ErpPermissionKey) => {
+    next.delete(key);
+    (Object.entries(permissionDependencies) as Array<[ErpPermissionKey, ErpPermissionKey[]]>).forEach(([dependent, dependencies]) => {
+      if (dependencies.includes(key)) disable(dependent);
+    });
+  };
+  if (checked) enable(permissionKey); else disable(permissionKey);
+  return next;
+};

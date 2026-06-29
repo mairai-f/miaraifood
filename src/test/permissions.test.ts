@@ -3,6 +3,7 @@ import {
   getDefaultPermissionsForRole,
   isErpPermissionKey,
   isRuntimeScopeAllowed,
+  togglePermissionWithDependencies,
 } from '@/lib/permissions';
 
 describe('ERP permissions', () => {
@@ -14,6 +15,13 @@ describe('ERP permissions', () => {
     expect(permissions.has('pdv.sell_without_stock')).toBe(true);
     expect(permissions.has('products.manage')).toBe(false);
     expect(permissions.has('financial.manage')).toBe(false);
+  });
+
+  it('aplica dependencias ao escolher acessos manualmente', () => {
+    const enabled = togglePermissionWithDependencies(new Set(), 'products.manage', true);
+    expect(enabled).toEqual(new Set(['products.manage', 'products.view']));
+    const disabled = togglePermissionWithDependencies(enabled, 'products.view', false);
+    expect(disabled.size).toBe(0);
   });
 
   it('limits the waiter fallback to service tickets', () => {

@@ -18,6 +18,7 @@ type ManageOperatorRequest =
       username?: string;
       password?: string;
       operatorRole?: string;
+      permissionKeys?: string[];
     }
   | {
       action: 'reset_password';
@@ -188,6 +189,11 @@ Deno.serve(async (request): Promise<Response> => {
     const operatorRole = normalizeStaffRole(body.operatorRole);
     const credentialError = getOperatorCredentialError(password || '');
     const authPassword = resolveOperatorAuthPassword(normalizedUsername, password || '');
+    const requestedPermissionKeys = [...new Set(
+      (Array.isArray(body.permissionKeys) ? body.permissionKeys : []).filter(
+        (permissionKey): permissionKey is string => typeof permissionKey === 'string' && permissionKey.trim() !== '',
+      ),
+    )];
 
     if (!isValidOperatorUsername(normalizedUsername)) {
       return jsonResponse(request, { error: operatorUsernameHelpText }, 400);
@@ -195,6 +201,21 @@ Deno.serve(async (request): Promise<Response> => {
 
     if (!password || credentialError) {
       return jsonResponse(request, { error: credentialError || 'Informe a senha ou PIN do operador.' }, 400);
+    }
+
+    if (requestedPermissionKeys.length === 0) {
+      return jsonResponse(request, { error: 'Selecione ao menos um acesso para o colaborador.' }, 400);
+    }
+
+    const { data: permissionCatalog, error: permissionCatalogError } = await serviceClient
+      .from('erp_permission_catalog')
+      .select('permission_key');
+    if (permissionCatalogError) {
+      return jsonResponse(request, { error: 'Nao foi possivel validar os acessos selecionados.' }, 500);
+    }
+    const catalogKeys = new Set((permissionCatalog ?? []).map((permission) => permission.permission_key));
+    if (requestedPermissionKeys.some((permissionKey) => !catalogKeys.has(permissionKey))) {
+      return jsonResponse(request, { error: 'Um ou mais acessos selecionados sao invalidos.' }, 400);
     }
 
     const { data: existingOperators, error: existingOperatorsError } = await serviceClient
@@ -252,12 +273,30 @@ Deno.serve(async (request): Promise<Response> => {
       return jsonResponse(request, { error: 'Operador criado, mas o perfil não foi atualizado corretamente.' }, 500);
     }
 
+    // Sem perfil-base: todas as permissoes recebem uma regra individual
+    // explicita. Assim a funcao escolhida nao libera acessos implicitamente.
+    const selectedPermissionKeys = new Set(requestedPermissionKeys);
+    const permissionOverrides = [...catalogKeys].map((permissionKey) => ({
+      owner_user_id: ownerUserId,
+      user_id: createdUser.user.id,
+      permission_key: permissionKey,
+      allowed: selectedPermissionKeys.has(permissionKey),
+    }));
+    const { error: permissionError } = await serviceClient
+      .from('erp_staff_permission_overrides')
+      .upsert(permissionOverrides, { onConflict: 'user_id,permission_key' });
+    if (permissionError) {
+      await serviceClient.auth.admin.deleteUser(createdUser.user.id);
+      return jsonResponse(request, { error: 'Nao foi possivel salvar os acessos; o colaborador nao foi criado.' }, 500);
+    }
+
     return jsonResponse(request, {
       success: true,
       operator: {
         user_id: createdUser.user.id,
         username: normalizedUsername,
         role: operatorRole,
+        permission_keys: requestedPermissionKeys,
       },
     });
   }

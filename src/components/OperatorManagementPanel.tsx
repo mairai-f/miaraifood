@@ -30,6 +30,8 @@ import { getOperatorCredentialError, operatorCredentialHint } from '../../shared
 import { getPublicErrorMessage, getRedactedLogValue } from '../../shared/security/redaction';
 import { readDesktopActivation } from '@/lib/desktopActivation';
 import { saveOfflineOperatorAccess } from '@/lib/offlineOperatorAccess';
+import { OperatorPermissionSelector, type OperatorPermissionOption } from '@/components/OperatorPermissionSelector';
+import { isErpPermissionKey, togglePermissionWithDependencies, type ErpPermissionKey } from '@/lib/permissions';
 
 // Generated Supabase types are behind the current schema for these admin tables.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -128,6 +130,10 @@ export function OperatorManagementPanel({
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [staffRole, setStaffRole] = useState<StaffRole>('operator');
+  const [permissionOptions, setPermissionOptions] = useState<OperatorPermissionOption[]>([]);
+  const [selectedPermissionKeys, setSelectedPermissionKeys] = useState<Set<ErpPermissionKey>>(new Set());
+  const [loadingPermissionOptions, setLoadingPermissionOptions] = useState(false);
+  const [createStep, setCreateStep] = useState<'data' | 'permissions' | 'review'>('data');
   const [openingAmount, setOpeningAmount] = useState('');
   const [openCashDialogOpen, setOpenCashDialogOpen] = useState(false);
   const [resetDialogOpen, setResetDialogOpen] = useState(false);
@@ -155,6 +161,8 @@ export function OperatorManagementPanel({
     setUsername('');
     setPassword('');
     setStaffRole('operator');
+    setSelectedPermissionKeys(new Set());
+    setCreateStep('data');
   }, []);
 
   const handleCreateDialogOpenChange = useCallback((open: boolean) => {
@@ -164,6 +172,24 @@ export function OperatorManagementPanel({
       resetCreateForm();
     }
   }, [resetCreateForm, setCreateDialogOpen]);
+
+  useEffect(() => {
+    if (!createDialogOpen || permissionOptions.length > 0) return;
+    setLoadingPermissionOptions(true);
+    void db.from('erp_permission_catalog')
+      .select('permission_key, module_key, name, description')
+      .order('module_key')
+      .order('name')
+      .then(({ data, error }: { data: unknown; error: unknown }) => {
+        if (error) {
+          console.error('Erro ao carregar acessos do operador:', getRedactedLogValue(error));
+          toast.error('Nao foi possivel carregar os acessos disponiveis.');
+          return;
+        }
+        setPermissionOptions(((data ?? []) as OperatorPermissionOption[]).filter((permission) => isErpPermissionKey(permission.permission_key)));
+      })
+      .finally(() => setLoadingPermissionOptions(false));
+  }, [createDialogOpen, permissionOptions.length]);
 
   const resolveFunctionErrorMessage = useCallback(async (
     error: unknown,
@@ -325,6 +351,21 @@ export function OperatorManagementPanel({
     );
   }, [expenses, hasSingleOpenSession, matchesSessionExpense, matchesSessionSale, openCashSessions, sales]);
 
+  const togglePermission = (permissionKey: ErpPermissionKey, checked: boolean) => {
+    setSelectedPermissionKeys((current) => togglePermissionWithDependencies(current, permissionKey, checked));
+  };
+
+  const togglePermissionModule = (permissionKeys: ErpPermissionKey[], checked: boolean) => {
+    setSelectedPermissionKeys((current) => permissionKeys.reduce(
+      (next, permissionKey) => togglePermissionWithDependencies(next, permissionKey, checked),
+      current,
+    ));
+  };
+
+  const selectedPermissionNames = permissionOptions
+    .filter((permission) => selectedPermissionKeys.has(permission.permission_key))
+    .map((permission) => permission.name);
+
   if (!isAdmin) return null;
 
   const handleCreateOperator = async () => {
@@ -335,6 +376,12 @@ export function OperatorManagementPanel({
 
     if (!username.trim() || !password.trim()) {
       toast.error('Preencha usuário e senha ou PIN');
+      return;
+    }
+
+    if (selectedPermissionKeys.size === 0) {
+      toast.error('Selecione ao menos um acesso para o colaborador.');
+      setCreateStep('permissions');
       return;
     }
 
@@ -355,6 +402,7 @@ export function OperatorManagementPanel({
         username: username.trim(),
         password: password.trim(),
         operatorRole: staffRole,
+        permissionKeys: [...selectedPermissionKeys],
       },
     });
 
@@ -838,45 +886,84 @@ export function OperatorManagementPanel({
       </Card>
 
       <Dialog open={createDialogOpen} onOpenChange={handleCreateDialogOpenChange}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="flex h-[100dvh] w-screen max-w-none flex-col gap-0 overflow-hidden rounded-none p-0 sm:h-[90vh] sm:max-w-6xl sm:rounded-lg">
           <DialogHeader>
-            <DialogTitle>Cadastrar acesso operacional</DialogTitle>
+            <div className="border-b px-4 py-4 sm:px-6">
+              <DialogTitle>Cadastrar acesso operacional</DialogTitle>
+              <p className="mt-1 text-sm text-muted-foreground">A função identifica o colaborador; os acessos são escolhidos individualmente.</p>
+              <div className="mt-3 grid grid-cols-3 gap-2 md:hidden">
+                {(['data', 'permissions', 'review'] as const).map((step, index) => (
+                  <Button key={step} type="button" size="sm" variant={createStep === step ? 'default' : 'outline'} onClick={() => setCreateStep(step)}>
+                    {index + 1}. {step === 'data' ? 'Dados' : step === 'permissions' ? 'Acessos' : 'Revisão'}
+                  </Button>
+                ))}
+              </div>
+            </div>
           </DialogHeader>
 
-          <div className="space-y-3">
-            <div className="space-y-1">
-              <Label>Funcao</Label>
-              <Select value={staffRole} onValueChange={value => setStaffRole(value === 'waiter' ? 'waiter' : 'operator')}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="operator">Operador do caixa</SelectItem>
-                  <SelectItem value="waiter">Garcom</SelectItem>
-                </SelectContent>
-              </Select>
+          <div className="grid min-h-0 flex-1 md:grid-cols-[320px_minmax(0,1fr)]">
+            <div className={`${createStep === 'data' ? 'block' : 'hidden'} overflow-y-auto border-r p-4 md:block sm:p-6`}>
+              <div className="space-y-4">
+                <div className="space-y-1">
+                  <Label>Função</Label>
+                  <Select value={staffRole} onValueChange={value => setStaffRole(value === 'waiter' ? 'waiter' : 'operator')}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="operator">Operador do caixa</SelectItem>
+                      <SelectItem value="waiter">Garçom</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">A função não libera permissões automaticamente.</p>
+                </div>
+                <div className="space-y-1">
+                  <Label>Usuário</Label>
+                  <Input value={username} onChange={event => setUsername(event.target.value)} placeholder="Ex: operador.caixa" />
+                </div>
+                <div className="space-y-1">
+                  <Label>Senha ou PIN inicial</Label>
+                  <PasswordInput value={password} onChange={event => setPassword(event.target.value)} placeholder="Use uma senha forte ou PIN" />
+                  <p className="text-xs text-muted-foreground">{operatorCredentialHint}</p>
+                </div>
+                <p className="text-xs text-muted-foreground">Use de 3 a 24 caracteres com letras, números, ponto, hífen ou underscore.</p>
+                <div className="hidden rounded-lg border bg-muted/30 p-3 text-sm md:block">
+                  <p className="font-medium">Resumo</p>
+                  <p className="text-muted-foreground">{staffRoleLabel[staffRole]} · {selectedPermissionKeys.size} acessos</p>
+                </div>
+              </div>
             </div>
-            <div className="space-y-1">
-              <Label>Usuário</Label>
-              <Input value={username} onChange={event => setUsername(event.target.value)} placeholder="Ex: operador.caixa" />
+
+            <div className={`${createStep === 'permissions' ? 'block' : 'hidden'} overflow-y-auto p-4 md:block sm:p-6`}>
+              <OperatorPermissionSelector
+                permissions={permissionOptions}
+                selected={selectedPermissionKeys}
+                loading={loadingPermissionOptions}
+                onToggle={togglePermission}
+                onToggleModule={togglePermissionModule}
+              />
             </div>
-            <div className="space-y-1">
-              <Label>Senha ou PIN inicial</Label>
-              <PasswordInput value={password} onChange={event => setPassword(event.target.value)} placeholder="Use uma senha forte ou PIN" />
-              <p className="text-xs text-muted-foreground">{operatorCredentialHint}</p>
+
+            <div className={`${createStep === 'review' ? 'block' : 'hidden'} overflow-y-auto p-4 md:hidden`}>
+              <div className="space-y-4 rounded-lg border p-4">
+                <div><p className="text-xs text-muted-foreground">Função</p><p className="font-semibold">{staffRoleLabel[staffRole]}</p></div>
+                <div><p className="text-xs text-muted-foreground">Usuário</p><p className="font-semibold">{username || 'Não informado'}</p></div>
+                <div><p className="text-xs text-muted-foreground">Acessos ({selectedPermissionNames.length})</p><p className="mt-1 text-sm">{selectedPermissionNames.join(', ') || 'Nenhum acesso selecionado'}</p></div>
+              </div>
             </div>
-            <p className="text-xs text-muted-foreground">
-              Use de 3 a 24 caracteres com letras, numeros, ponto, hifen ou underscore.
-            </p>
           </div>
 
-          <DialogFooter>
-            <Button variant="outline" onClick={() => handleCreateDialogOpenChange(false)}>
-              Cancelar
-            </Button>
-            <Button onClick={() => void handleCreateOperator()} disabled={creating}>
-              {creating ? 'Criando...' : 'Criar acesso'}
-            </Button>
+          <DialogFooter className="border-t p-4 sm:px-6">
+            <div className="hidden w-full justify-end gap-2 md:flex">
+              <Button variant="outline" onClick={() => handleCreateDialogOpenChange(false)}>Cancelar</Button>
+              <Button onClick={() => void handleCreateOperator()} disabled={creating || loadingPermissionOptions}>{creating ? 'Criando...' : 'Criar acesso'}</Button>
+            </div>
+            <div className="flex w-full justify-between gap-2 md:hidden">
+              <Button variant="outline" onClick={() => createStep === 'data' ? handleCreateDialogOpenChange(false) : setCreateStep(createStep === 'review' ? 'permissions' : 'data')}>
+                {createStep === 'data' ? 'Cancelar' : 'Voltar'}
+              </Button>
+              {createStep === 'data' && <Button onClick={() => setCreateStep('permissions')}>Continuar</Button>}
+              {createStep === 'permissions' && <Button onClick={() => setCreateStep('review')} disabled={selectedPermissionKeys.size === 0}>Revisar</Button>}
+              {createStep === 'review' && <Button onClick={() => void handleCreateOperator()} disabled={creating}>{creating ? 'Criando...' : 'Criar acesso'}</Button>}
+            </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>

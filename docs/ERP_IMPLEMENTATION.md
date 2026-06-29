@@ -378,6 +378,17 @@ Validação executada:
 
 Teste manual obrigatório: em uma empresa de teste, crie um produto controlado com saldo 1, tente vender 2 e confirme rollback total; depois desative o controle e confirme venda sem baixa. Feche um caixa com diferença e confirme a exigência de justificativa. Exporte as movimentações e confira usuário, origem e saldos.
 
+### Cadastro de colaborador com acesso explícito
+
+- não existe perfil-base no modal;
+- o administrador escolhe somente a função operacional e marca cada acesso;
+- a mesma permissão vale para Web, Desktop e Mobile onde o recurso estiver disponível;
+- dependências como `products.manage` → `products.view` são aplicadas automaticamente;
+- desktop usa modal largo com dados e matriz lado a lado;
+- mobile usa as etapas Dados, Acessos e Revisão;
+- criação do usuário e gravação das permissões possuem compensação: falha ao salvar acessos remove o usuário recém-criado;
+- operadores antigos têm o acesso efetivo convertido para regras explícitas pela migração `20260630120000`.
+
 ### Fase 4 — pagamentos e conciliacao
 
 - `payment_methods`, `payment_providers` e configuracao por terminal;

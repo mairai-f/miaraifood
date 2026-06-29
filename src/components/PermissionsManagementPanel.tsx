@@ -1,10 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Loader2, RotateCcw, ShieldCheck } from 'lucide-react';
+import { Loader2, ShieldCheck } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -171,7 +170,7 @@ export function PermissionsManagementPanel() {
           <Badge variant="outline">Somente Web</Badge>
         </div>
         <p className="text-sm text-muted-foreground">
-          O grupo define o acesso inicial. Uma alteracao nesta tela cria uma excecao individual que prevalece sobre o grupo.
+          Cada acesso e individual. A funcao do colaborador nao libera permissoes automaticamente.
         </p>
       </CardHeader>
       <CardContent className="space-y-5">
@@ -217,24 +216,11 @@ export function PermissionsManagementPanel() {
                           <div className="flex flex-wrap items-center gap-2">
                             <p className="text-sm font-medium">{permission.name}</p>
                             <Badge variant="secondary">{runtimeLabels[permission.runtime_scope]}</Badge>
-                            {permission.override_allowed !== null && <Badge>Personalizado</Badge>}
+                            {permission.override_allowed !== null && <Badge>Definido</Badge>}
                           </div>
                           <p className="mt-1 text-xs text-muted-foreground">{permission.description}</p>
                         </div>
                         <div className="flex shrink-0 items-center gap-2">
-                          {permission.override_allowed !== null && (
-                            <Button
-                              type="button"
-                              size="sm"
-                              variant="ghost"
-                              title="Restaurar permissao herdada do grupo"
-                              aria-label={`Restaurar ${permission.name}`}
-                              disabled={saving}
-                              onClick={() => void setPermissionOverride(permission.permission_key, null)}
-                            >
-                              <RotateCcw className="h-4 w-4" />
-                            </Button>
-                          )}
                           <Switch
                             checked={permission.effective_allowed}
                             disabled={saving}
