@@ -182,6 +182,8 @@ export interface OfflineCashSessionOpenPayload {
     opening_amount: number;
     opened_at: string;
     status: 'open';
+    location_id?: string | null;
+    terminal_id?: string | null;
   };
 }
 

@@ -13,6 +13,7 @@ import { useCompanyDisplayName } from '@/hooks/use-company-display-name';
 import { getClientUniqueSlug } from '@/lib/clientSlug';
 import { sortClientsByDebt } from '@/lib/clientSorting';
 import { getClientCreditLimit, normalizeCreditLimit } from '@/lib/creditLimit';
+import { formatClientDebtDueDate, isClientDebtOverdue } from '@/lib/clientDebtDueDate';
 import { buildClientCrmSummary } from '@/lib/managementInsights';
 import { INTERNET_REQUIRED_MESSAGE, isInternetUnavailable, openExternalUrl } from '@/lib/openExternalUrl';
 import { normalizeProductSearchText, toProductUppercase } from '@/lib/productSearch';
@@ -28,6 +29,7 @@ export default function Clients() {
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [creditLimit, setCreditLimit] = useState('');
+  const [debtDueDate, setDebtDueDate] = useState('');
   const [open, setOpen] = useState(false);
   const navigate = useNavigate();
   const companyDisplayName = useCompanyDisplayName();
@@ -91,8 +93,8 @@ export default function Clients() {
     const normalizedPhone = normalizeWhatsappPhone(phone.trim());
     const normalizedCreditLimit = normalizeCreditLimit(creditLimit);
     try {
-      await addClient(name.trim(), normalizedPhone, normalizedCreditLimit);
-      setName(''); setPhone(''); setCreditLimit(''); setOpen(false);
+      await addClient(name.trim(), normalizedPhone, normalizedCreditLimit, debtDueDate || null);
+      setName(''); setPhone(''); setCreditLimit(''); setDebtDueDate(''); setOpen(false);
       toast.success('Cliente cadastrado!');
     } catch (error) {
       console.error('Erro ao cadastrar cliente:', getRedactedLogValue(error));
@@ -152,6 +154,11 @@ export default function Clients() {
                   placeholder="Sem limite"
                 />
               </div>
+              <div className="space-y-2">
+                <Label>Data prevista para pagamento do fiado</Label>
+                <Input type="date" value={debtDueDate} onChange={e => setDebtDueDate(e.target.value)} />
+                <p className="text-xs text-muted-foreground">Opcional. Pode ser alterada depois no cadastro do cliente.</p>
+              </div>
             </div>
             <DialogFooter><Button onClick={handleAdd}>Cadastrar</Button></DialogFooter>
           </DialogContent>
@@ -183,6 +190,7 @@ export default function Clients() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" data-tour-id="clients-list">
         {filtered.map(c => {
           const balance = getClientBalance(c.id);
+          const debtOverdue = isClientDebtOverdue(c.debt_due_date, balance);
           const clientCreditLimit = getClientCreditLimit(c);
           const crm = crmByClientId.get(c.id);
           return (
@@ -217,6 +225,15 @@ export default function Clients() {
                     <p className="meta-text mt-2 flex items-center gap-1">
                       <CreditCard className="h-3 w-3 shrink-0" />
                       <span>Limite: R$ {clientCreditLimit.toFixed(2)}</span>
+                    </p>
+                  )}
+                  {balance > 0 && c.debt_due_date && (
+                    <p className={`meta-text mt-2 flex items-center gap-1 ${debtOverdue ? 'font-medium text-destructive' : ''}`}>
+                      <Clock3 className="h-3 w-3 shrink-0" />
+                      <span>
+                        {debtOverdue ? 'Atrasado: ' : 'Pagamento: '}
+                        {formatClientDebtDueDate(c.debt_due_date)}
+                      </span>
                     </p>
                   )}
                   {crm && (

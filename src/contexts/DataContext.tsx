@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './AuthContext';
 import { useDesktopRuntime } from './DesktopRuntimeContext';
 import { usePlanAccess } from './PlanContext';
+import { useOperationalScope } from './useOperationalScope';
 import type {
   Client,
   Product,
@@ -57,7 +58,9 @@ import {
 import { shouldUseOfflineSnapshotFallback } from '@/lib/offlineSnapshotPolicy';
 import { buildSaleItemPricingMetrics, normalizeProductPricing, normalizePricingRoundingRule } from '@/lib/pricing';
 import { getClientCreditLimit, getCreditLimitExceededMessage, normalizeCreditLimit } from '@/lib/creditLimit';
+import { normalizeClientDebtDueDate } from '@/lib/clientDebtDueDate';
 import { filterProductsBySearch, toProductUppercase } from '@/lib/productSearch';
+import { calculateStockMovement, type StockMovementType } from '@/lib/stockMovement';
 import { buildServiceTicketBarcode, isServiceTicketBarcode, isValidServiceTicketNumber, normalizeServiceTicketRecord } from '@/lib/serviceTicket';
 import { getPublicErrorMessage, getRedactedLogValue } from '../../shared/security/redaction';
 
@@ -198,7 +201,7 @@ interface DataContextType {
   offlinePreparationStatus: OfflinePreparationStatus;
   offlinePreparationMessage: string | null;
   offlineSnapshotUpdatedAt: string | null;
-  addClient: (name: string, phone: string, creditLimit?: number | null) => Promise<void>;
+  addClient: (name: string, phone: string, creditLimit?: number | null, debtDueDate?: string | null) => Promise<void>;
   updateClient: (id: string, data: Partial<Client>) => Promise<void>;
   softDeleteClient: (id: string) => Promise<void>;
   addProduct: (name: string, price: number, category: string, extra?: Partial<Product>) => Promise<Product>;
@@ -251,7 +254,13 @@ interface DataContextType {
     cancelledByName?: string | null,
     options?: { skipAdminCheck?: boolean }
   ) => Promise<void>;
-  addStockMovement: (productId: string, type: string, quantity: number, reason: string) => Promise<void>;
+  addStockMovement: (
+    productId: string,
+    type: StockMovementType,
+    quantity: number,
+    reason: string,
+    options?: { source?: string; referenceId?: string | null },
+  ) => Promise<void>;
   clearAllStock: (reason?: string) => Promise<void>;
   addExpense: (
     description: string,
@@ -268,6 +277,7 @@ interface DataContextType {
   addReward: (name: string, description: string, minimum_spending: number, options?: Partial<Reward>) => Promise<void>;
   updateReward: (id: string, data: Partial<Reward>) => Promise<void>;
   deleteReward: (id: string) => Promise<void>;
+  syncNow: () => Promise<void>;
   refetch: () => Promise<void>;
 }
 
@@ -277,6 +287,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const { user, ownerUserId, loading: authLoading, isAdmin, isLocalOfflineSession } = useAuth();
   const { isDesktop, offlineEnabled } = useDesktopRuntime();
   const { hasFeature, loading: planLoading, planId } = usePlanAccess();
+  const { scope: operationalScope } = useOperationalScope();
+  const operationalLocationId = operationalScope?.location.id ?? null;
+  const operationalTerminalId = operationalScope?.terminal?.id ?? null;
+  const isHeadquartersScope = operationalScope?.location.isHeadquarters ?? true;
   const [clients, setClients] = useState<Client[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [debtEntries, setDebtEntries] = useState<DebtEntry[]>([]);
@@ -455,23 +469,29 @@ export function DataProvider({ children }: { children: ReactNode }) {
         : productsByCode;
     }
 
-    const [c, p, d, pay, r, s, si, st, sti, sm, exp, pr, ph] = await Promise.all([
+    const locationQuery = <T extends { eq: (column: string, value: string) => T }>(query: T) =>
+      operationalLocationId ? query.eq('location_id', operationalLocationId) : query;
+
+    const [c, p, inventory, d, pay, r, s, si, st, sti, sm, exp, pr, ph] = await Promise.all([
       canReadClients ? db.from('clients').select('*').order('created_at', { ascending: false }).limit(1000) : emptyResult,
       Promise.resolve(productsResponse),
+      canReadProducts && operationalLocationId
+        ? db.from('location_inventory').select('product_id, stock, min_stock').eq('location_id', operationalLocationId)
+        : emptyResult,
       canReadFiado ? db.from('debt_entries').select('*').order('date_added', { ascending: false }).limit(2000) : emptyResult,
       canReadFiado ? db.from('payments').select('*').order('date', { ascending: false }).limit(2000) : emptyResult,
       canReadRewards ? db.from('rewards').select('*').order('created_at', { ascending: false }).limit(1000) : emptyResult,
-      canReadSales ? db.from('sales').select('*').order('date', { ascending: false }).limit(2000) : emptyResult,
+      canReadSales ? locationQuery(db.from('sales').select('*')).order('date', { ascending: false }).limit(2000) : emptyResult,
       canReadSales ? db.from('sale_items').select('*').limit(5000) : emptyResult,
-      canReadServiceTickets ? db.from('service_tickets').select('*').order('number', { ascending: true }).limit(1000) : emptyResult,
+      canReadServiceTickets ? locationQuery(db.from('service_tickets').select('*')).order('number', { ascending: true }).limit(1000) : emptyResult,
       canReadServiceTickets ? db.from('service_ticket_items').select('*').order('created_at', { ascending: true }).limit(5000) : emptyResult,
-      canReadStock ? db.from('stock_movements').select('*').order('date', { ascending: false }).limit(2000) : emptyResult,
-      canReadExpenses ? db.from('expenses').select('*').order('date', { ascending: false }).limit(1000) : emptyResult,
+      canReadStock ? locationQuery(db.from('stock_movements').select('*')).order('date', { ascending: false }).limit(2000) : emptyResult,
+      canReadExpenses ? locationQuery(db.from('expenses').select('*')).order('date', { ascending: false }).limit(1000) : emptyResult,
       canReadPricing ? db.from('product_category_pricing_rules').select('*').order('category', { ascending: true }) : emptyResult,
       canReadPricing ? db.from('product_price_history').select('*').order('created_at', { ascending: false }).limit(1000) : emptyResult,
     ]);
 
-    const remoteErrors = [c, p, d, pay, r, s, si, st, sti, sm, exp, pr, ph]
+    const remoteErrors = [c, p, inventory, d, pay, r, s, si, st, sti, sm, exp, pr, ph]
       .map(result => result.error)
       .filter(Boolean);
     const hasRemoteError = remoteErrors.length > 0;
@@ -494,7 +514,16 @@ export function DataProvider({ children }: { children: ReactNode }) {
     }
 
     const nextClients = (c.data as Client[]) ?? [];
-    const nextProducts = productsWithDisplayCodes((p.data as Product[]) ?? []);
+    const inventoryByProductId = new Map(
+      ((inventory.data ?? []) as Array<{ product_id: string; stock: number; min_stock: number }>)
+        .map((row) => [row.product_id, row]),
+    );
+    const nextProducts = productsWithDisplayCodes((p.data as Product[]) ?? []).map((product) => {
+      const localInventory = inventoryByProductId.get(product.id);
+      return localInventory
+        ? { ...product, stock: Number(localInventory.stock || 0), min_stock: Number(localInventory.min_stock || 0) }
+        : product;
+    });
     const nextDebtEntries = (d.data as DebtEntry[]) ?? [];
     const nextPayments = (pay.data as Payment[]) ?? [];
     const nextRewards = (r.data as Reward[]) ?? [];
@@ -554,7 +583,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         setOfflineSnapshotUpdatedAt(snapshot.savedAt);
       }
     }
-  }, [authLoading, canUseOfflineConcentrator, clearStoreData, hasFeature, isDemoMode, isLocalOfflineSession, loadOfflineSnapshotFallback, ownerUserId, planLoading, user]);
+  }, [authLoading, canUseOfflineConcentrator, clearStoreData, hasFeature, isDemoMode, isLocalOfflineSession, loadOfflineSnapshotFallback, operationalLocationId, ownerUserId, planLoading, user]);
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
 
@@ -1211,26 +1240,23 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
   const syncQueuedStockMovementOperation = useCallback(async (payload: OfflineStockMovementPayload) => {
     if (payload.stockAdjustment) {
-      const { data: productData, error: productError } = await db
-        .from('products')
-        .select('id, stock')
-        .eq('id', payload.stockAdjustment.productId)
-        .maybeSingle();
-
-      if (productError) throw productError;
-      const product = productData as { id: string; stock: number } | null;
-
-      if (!product) {
-        throw new OfflineSyncConflictError(
-          'stock_movement.create',
-          `O produto ${payload.stockAdjustment.productId} nao existe mais no banco remoto para sincronizar o estoque.`,
-        );
+      const { error } = await db.rpc('apply_stock_delta', {
+        p_movement_id: payload.movement.id,
+        p_product_id: payload.stockAdjustment.productId,
+        p_delta: payload.stockAdjustment.delta,
+        p_movement_type: payload.movement.type,
+        p_reason: payload.movement.reason,
+        p_source: payload.movement.source ?? 'manual',
+        p_reference_id: payload.movement.reference_id ?? null,
+      });
+      if (error) {
+        const message = getPublicErrorMessage(error, 'Falha ao sincronizar movimentacao de estoque.');
+        if (/estoque insuficiente|produto nao encontrado/i.test(message)) {
+          throw new OfflineSyncConflictError('stock_movement.create', message);
+        }
+        throw error;
       }
-
-      ensureSuccess(await db
-        .from('products')
-        .update({ stock: Math.max(0, Number(product.stock || 0) + payload.stockAdjustment.delta) })
-        .eq('id', payload.stockAdjustment.productId));
+      return;
     }
 
     ensureSuccess(await db.from('stock_movements').insert(stripSyncFields(payload.movement)));
@@ -1434,24 +1460,27 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
     void cleanupOfflineData(ownerUserId);
 
-    const intervalId = window.setInterval(() => {
-      void syncOfflineQueue();
-      void cleanupOfflineData(ownerUserId);
-    }, 20_000);
-
     window.addEventListener('online', handleOnline);
     void syncOfflineQueue();
 
     return () => {
-      window.clearInterval(intervalId);
       window.removeEventListener('online', handleOnline);
     };
   }, [canUseOfflineConcentrator, isDemoMode, ownerUserId, syncOfflineQueue]);
 
+  const syncNow = useCallback(async () => {
+    if (canUseOfflineConcentrator && ownerUserId && !isDemoMode) {
+      await syncOfflineQueue();
+    }
+
+    await fetchAll();
+  }, [canUseOfflineConcentrator, fetchAll, isDemoMode, ownerUserId, syncOfflineQueue]);
+
   // --- Clients ---
-  const addClient = async (name: string, phone: string, creditLimit?: number | null) => {
+  const addClient = async (name: string, phone: string, creditLimit?: number | null, debtDueDate?: string | null) => {
     const normalizedName = toProductUppercase(name.trim());
     const normalizedCreditLimit = normalizeCreditLimit(creditLimit);
+    const normalizedDebtDueDate = normalizeClientDebtDueDate(debtDueDate);
 
     if (isDemoMode) {
       const client: Client = {
@@ -1459,6 +1488,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         name: normalizedName,
         phone,
         credit_limit: normalizedCreditLimit,
+        debt_due_date: normalizedDebtDueDate,
         created_at: nowIso(),
         deleted: false,
         deleted_at: null,
@@ -1474,6 +1504,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         name: normalizedName,
         phone,
         credit_limit: normalizedCreditLimit,
+        debt_due_date: normalizedDebtDueDate,
         created_at: nowIso(),
         deleted: false,
         deleted_at: null,
@@ -1501,7 +1532,13 @@ export function DataProvider({ children }: { children: ReactNode }) {
     try {
       const { data, error } = await db
         .from('clients')
-        .insert({ name: normalizedName, phone, credit_limit: normalizedCreditLimit, user_id: ownerUserId! })
+        .insert({
+          name: normalizedName,
+          phone,
+          credit_limit: normalizedCreditLimit,
+          debt_due_date: normalizedDebtDueDate,
+          user_id: ownerUserId!,
+        })
         .select('*')
         .single();
       if (error) throw error;
@@ -1633,6 +1670,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       category: toProductUppercase(payload.category?.trim() ?? ''),
       supplier_name: toProductUppercase(payload.supplier_name?.trim() ?? ''),
       barcode: toProductUppercase(payload.barcode?.trim() ?? ''),
+      reference: toProductUppercase(payload.reference?.trim() ?? ''),
     } as Partial<Product>;
   }, []);
 
@@ -1661,6 +1699,17 @@ export function DataProvider({ children }: { children: ReactNode }) {
         operational_cost: productPayload.operational_cost ?? 0,
         other_extra_cost: productPayload.other_extra_cost ?? 0,
         supplier_name: productPayload.supplier_name ?? '',
+        supplier_id: productPayload.supplier_id ?? null,
+        department_id: productPayload.department_id ?? null,
+        brand_id: productPayload.brand_id ?? null,
+        product_group_id: productPayload.product_group_id ?? null,
+        product_subgroup_id: productPayload.product_subgroup_id ?? null,
+        measurement_unit_id: productPayload.measurement_unit_id ?? null,
+        primary_transport_company_id: productPayload.primary_transport_company_id ?? null,
+        reference: productPayload.reference ?? '',
+        max_discount_pct: productPayload.max_discount_pct ?? 0,
+        commission_type: productPayload.commission_type ?? 'none',
+        commission_value: productPayload.commission_value ?? 0,
         target_markup_pct: productPayload.target_markup_pct ?? 0,
         minimum_markup_pct: productPayload.minimum_markup_pct ?? 0,
         minimum_price: productPayload.minimum_price ?? 0,
@@ -1693,6 +1742,17 @@ export function DataProvider({ children }: { children: ReactNode }) {
         operational_cost: productPayload.operational_cost ?? 0,
         other_extra_cost: productPayload.other_extra_cost ?? 0,
         supplier_name: productPayload.supplier_name ?? '',
+        supplier_id: productPayload.supplier_id ?? null,
+        department_id: productPayload.department_id ?? null,
+        brand_id: productPayload.brand_id ?? null,
+        product_group_id: productPayload.product_group_id ?? null,
+        product_subgroup_id: productPayload.product_subgroup_id ?? null,
+        measurement_unit_id: productPayload.measurement_unit_id ?? null,
+        primary_transport_company_id: productPayload.primary_transport_company_id ?? null,
+        reference: productPayload.reference ?? '',
+        max_discount_pct: productPayload.max_discount_pct ?? 0,
+        commission_type: productPayload.commission_type ?? 'none',
+        commission_value: productPayload.commission_value ?? 0,
         target_markup_pct: productPayload.target_markup_pct ?? 0,
         minimum_markup_pct: productPayload.minimum_markup_pct ?? 0,
         minimum_price: productPayload.minimum_price ?? 0,
@@ -2134,6 +2194,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         quantity: entry.quantity,
         reason: stockReason,
         date,
+        location_id: operationalLocationId,
         ...(queued ? { sync_status: 'queued', sync_error: null } : {}),
       } as StockMovement));
     const applyLocalStockAdjustment = (stockMovements: StockMovement[]) => {
@@ -2152,6 +2213,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       const movementDate = nowIso();
       const nextEntries = entries.map(entry => ({
         id: createId(),
+        location_id: operationalLocationId,
         client_id: entry.clientId,
         product_id: entry.productId,
         product_name: entry.productName,
@@ -2175,6 +2237,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       const movementDate = nowIso();
       const nextEntries = entries.map(entry => ({
         id: createId(),
+        location_id: operationalLocationId,
         client_id: entry.clientId,
         product_id: entry.productId,
         product_name: entry.productName,
@@ -2214,6 +2277,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       const { data, error } = await db.from('debt_entries').insert(
         entries.map(entry => ({
           client_id: entry.clientId,
+          location_id: operationalLocationId,
           product_id: entry.productId,
           product_name: entry.productName,
           quantity: entry.quantity,
@@ -2234,14 +2298,14 @@ export function DataProvider({ children }: { children: ReactNode }) {
             map.set(entry.productId, (map.get(entry.productId) || 0) + entry.quantity);
             return map;
           }, new Map<string, number>());
-        const stockUpdates = Array.from(productQuantities.entries())
+        const stockUpdates = isHeadquartersScope ? Array.from(productQuantities.entries())
           .map(([productId, quantity]) => {
             const product = products.find(p => p.id === productId);
             if (!product || product.stock <= 0) return null;
             const newStock = Math.max(0, product.stock - quantity);
             return db.from('products').update({ stock: newStock }).eq('id', productId);
           })
-          .filter(Boolean);
+          .filter(Boolean) : [];
         await Promise.all(stockUpdates.map(async update => ensureSuccess(await update)));
 
         const stockMovementsPayload = entries
@@ -2252,6 +2316,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
             type: 'saida',
             quantity: entry.quantity,
             reason: stockReason,
+            location_id: operationalLocationId,
           }));
 
         if (stockMovementsPayload.length > 0) {
@@ -2344,6 +2409,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       quantity: entryToDelete.quantity,
       reason: `Estorno fiado: ${trimmedReason}`,
       date: deletedAt,
+      location_id: entryToDelete.location_id ?? operationalLocationId,
     } as StockMovement : null;
 
     const applyDebtDeletionState = (changes: Partial<DebtEntry>, movement: StockMovement | null) => {
@@ -2410,7 +2476,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       ensureSuccess(await db.from('debt_entries').update(changes).eq('id', id));
       if (stockMovement) {
         const product = products.find(item => item.id === stockMovement.product_id);
-        if (product) {
+        if (product && isHeadquartersScope) {
           ensureSuccess(await db
             .from('products')
             .update({ stock: (product.stock || 0) + stockMovement.quantity })
@@ -2424,6 +2490,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
             type: stockMovement.type,
             quantity: stockMovement.quantity,
             reason: stockMovement.reason,
+            location_id: stockMovement.location_id,
           })
           .select('*')
           .single();
@@ -2459,6 +2526,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     if (isDemoMode) {
       const payment: Payment = {
         id: createId(),
+        location_id: operationalLocationId,
         client_id: clientId,
         amount,
         type,
@@ -2472,6 +2540,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     const addOfflinePayment = async () => {
       const payment: Payment = {
         id: createId(),
+        location_id: operationalLocationId,
         client_id: clientId,
         amount,
         type,
@@ -2500,6 +2569,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     try {
       const payment: Payment = {
         id: createId(),
+        location_id: operationalLocationId,
         client_id: clientId,
         amount,
         type,
@@ -2626,6 +2696,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
             : entry
         ));
       }
+      setClients(prev => prev.map(client => (
+        client.id === clientId ? { ...client, debt_due_date: null } : client
+      )));
       return;
     }
 
@@ -2673,6 +2746,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
             : entry
         ));
       }
+
+      await updateClient(clientId, { debt_due_date: null });
     };
 
     if (canUseOfflineConcentrator && typeof navigator !== 'undefined' && navigator.onLine === false) {
@@ -2697,6 +2772,13 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
         if (error) throw error;
       }
+
+      const { error: clientUpdateError } = await db
+        .from('clients')
+        .update({ debt_due_date: null })
+        .eq('id', clientId);
+
+      if (clientUpdateError) throw clientUpdateError;
 
       await fetchAll();
     } catch (error) {
@@ -2759,6 +2841,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
     sale: Omit<Sale, 'id' | 'created_at' | 'date'>,
     items: Omit<SaleItem, 'id' | 'sale_id'>[],
   ) => {
+    const scopedSale = {
+      ...sale,
+      location_id: sale.location_id ?? operationalLocationId,
+      terminal_id: sale.terminal_id ?? operationalTerminalId,
+    };
     const itemsWithMetrics = buildSaleItemPricingMetrics(items, sale.discount ?? 0);
 
     ensureStockAvailable(itemsWithMetrics.map(item => ({
@@ -2774,7 +2861,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         id: saleId,
         created_at: createdAt,
         date: createdAt,
-        ...sale,
+        ...scopedSale,
         user_id: ownerUserId!,
       };
       const saleRows = itemsWithMetrics.map(item => ({
@@ -2792,6 +2879,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
           quantity: item.quantity,
           reason: 'Venda PDV',
           date: createdAt,
+          location_id: operationalLocationId,
         } as StockMovement));
 
       setSales(prev => [saleRow, ...prev]);
@@ -2814,7 +2902,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         id: saleId,
         created_at: createdAt,
         date: createdAt,
-        ...sale,
+        ...scopedSale,
         user_id: ownerUserId!,
         sync_status: 'queued',
         sync_error: null,
@@ -2836,6 +2924,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
           quantity: item.quantity,
           reason: 'Venda PDV',
           date: createdAt,
+          location_id: operationalLocationId,
           sync_status: 'queued',
           sync_error: null,
         } as StockMovement));
@@ -2881,7 +2970,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
     try {
       const salePayload = {
-        ...sale,
+        ...scopedSale,
         user_id: ownerUserId!,
       } as Record<string, unknown>;
       const { data, error } = await db.from('sales').insert(salePayload).select('*').single();
@@ -2890,7 +2979,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
       if (
         saleError?.message
-        && ['seller_name', 'is_delivery', 'status', 'cancel_reason', 'cancelled_at', 'operator_user_id', 'cash_session_id', 'fiscal_customer_document', 'fiscal_customer_name']
+        && ['seller_name', 'is_delivery', 'status', 'cancel_reason', 'cancelled_at', 'operator_user_id', 'cash_session_id', 'fiscal_customer_document', 'fiscal_customer_name', 'location_id', 'terminal_id']
           .some(column => saleError.message.includes(column))
       ) {
         const {
@@ -2903,6 +2992,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
           cash_session_id,
           fiscal_customer_document,
           fiscal_customer_name,
+          location_id,
+          terminal_id,
           ...baseSalePayload
         } = salePayload;
         const retry = await db.from('sales').insert(baseSalePayload).select('*').single();
@@ -2923,14 +3014,14 @@ export function DataProvider({ children }: { children: ReactNode }) {
           map.set(productId, (map.get(productId) || 0) + item.quantity);
           return map;
         }, new Map<string, number>());
-      const stockUpdates = Array.from(productQuantities.entries())
+      const stockUpdates = isHeadquartersScope ? Array.from(productQuantities.entries())
         .map(([productId, quantity]) => {
           const product = products.find(p => p.id === productId);
           if (!product) return null;
           const newStock = Math.max(0, product.stock - quantity);
           return db.from('products').update({ stock: newStock }).eq('id', productId);
         })
-        .filter(Boolean);
+        .filter(Boolean) : [];
 
       const stockMovementsToInsert = itemsWithMetrics
         .filter(item => item.product_id)
@@ -2940,6 +3031,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
           type: 'saida',
           quantity: item.quantity,
           reason: 'Venda PDV',
+          location_id: operationalLocationId,
         }));
 
       await Promise.all(stockUpdates.map(async update => ensureSuccess(await update)));
@@ -2993,6 +3085,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         quantity: item.quantity,
         reason: `Cancelamento venda: ${reason}`,
         date: cancelledAt,
+        location_id: sale.location_id ?? operationalLocationId,
       } as StockMovement));
       const stockRestores = itemsToRestore.map(item => ({
         productId: item.product_id!,
@@ -3069,14 +3162,14 @@ export function DataProvider({ children }: { children: ReactNode }) {
       }
 
       const itemsToRestore = saleItems.filter(item => item.sale_id === saleId && item.product_id);
-      const stockUpdates = itemsToRestore.map(item => {
+      const stockUpdates = isHeadquartersScope ? itemsToRestore.map(item => {
         const product = products.find(p => p.id === item.product_id);
         if (!product) return null;
         return db
           .from('products')
           .update({ stock: (product.stock || 0) + item.quantity })
           .eq('id', item.product_id);
-      }).filter(Boolean);
+      }).filter(Boolean) : [];
 
       await Promise.all(stockUpdates.map(async update => ensureSuccess(await update)));
 
@@ -3088,6 +3181,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
           type: 'entrada',
           quantity: item.quantity,
           reason: `Cancelamento venda: ${reason}`,
+          location_id: sale.location_id ?? operationalLocationId,
         }))).select('*');
         if (movementError) throw movementError;
         insertedStockMovements = (movementRows as StockMovement[]) ?? [];
@@ -3143,6 +3237,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     const ticket: ServiceTicket = {
       id: createId(),
       owner_user_id: ownerUserId,
+      location_id: operationalLocationId,
       number,
       barcode: normalizedBarcode,
       label: normalizedLabel,
@@ -3172,6 +3267,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       .from('service_tickets')
       .insert({
         owner_user_id: ownerUserId,
+        location_id: operationalLocationId,
         number,
         barcode: normalizedBarcode,
         label: normalizedLabel,
@@ -3430,30 +3526,46 @@ export function DataProvider({ children }: { children: ReactNode }) {
   };
 
   // --- Stock ---
-  const addStockMovement = async (productId: string, type: string, quantity: number, reason: string) => {
+  const addStockMovement = async (
+    productId: string,
+    type: StockMovementType,
+    quantity: number,
+    reason: string,
+    options: { source?: string; referenceId?: string | null } = {},
+  ) => {
     const currentProduct = products.find(product => product.id === productId);
-    const stockDelta = type === 'entrada' ? quantity : -quantity;
-    const nextStock = currentProduct
-      ? Math.max(0, Number(currentProduct.stock || 0) + stockDelta)
-      : null;
+    if (!currentProduct) throw new Error('Produto nao encontrado para movimentacao.');
+
+    const calculation = calculateStockMovement(Number(currentProduct.stock || 0), type, quantity);
+    const stockDelta = calculation.delta;
+    const nextStock = calculation.balanceAfter;
+    const movementBase = {
+      id: createId(),
+      product_id: productId,
+      user_id: ownerUserId!,
+      type,
+      quantity: calculation.movementQuantity,
+      reason,
+      source: options.source ?? 'manual',
+      reference_id: options.referenceId ?? null,
+      balance_before: calculation.balanceBefore,
+      balance_after: calculation.balanceAfter,
+      operator_user_id: user?.id ?? null,
+      location_id: operationalLocationId,
+    };
     const applyStockMovementState = (movement: StockMovement) => {
       setStockMovements(prev => [movement, ...prev]);
-      if (nextStock === null) return;
+      const resultingStock = movement.balance_after ?? nextStock;
       setProducts(prev => prev.map(product => (
         product.id === productId
-          ? { ...product, stock: nextStock }
+          ? { ...product, stock: resultingStock }
           : product
       )));
     };
 
     if (isDemoMode) {
       const movement: StockMovement = {
-        id: createId(),
-        product_id: productId,
-        user_id: ownerUserId!,
-        type,
-        quantity,
-        reason,
+        ...movementBase,
         date: nowIso(),
       };
       applyStockMovementState(movement);
@@ -3462,19 +3574,14 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
     const addOfflineStockMovement = async () => {
       const movement: StockMovement = {
-        id: createId(),
-        product_id: productId,
-        user_id: ownerUserId!,
-        type,
-        quantity,
-        reason,
+        ...movementBase,
         date: nowIso(),
         sync_status: 'queued',
         sync_error: null,
       };
       const queued = await enqueueOfflineOperation(ownerUserId!, 'stock_movement.create', {
         movement,
-        stockAdjustment: nextStock === null ? null : {
+        stockAdjustment: {
           productId,
           delta: stockDelta,
         },
@@ -3489,14 +3596,27 @@ export function DataProvider({ children }: { children: ReactNode }) {
     }
 
     try {
-      const { data, error } = await db.from('stock_movements').insert({ product_id: productId, user_id: ownerUserId!, type, quantity, reason }).select('*').single();
+      const stockRpcName = operationalLocationId ? 'apply_location_stock_delta' : 'apply_stock_delta';
+      const stockRpcPayload = operationalLocationId ? {
+        p_movement_id: movementBase.id,
+        p_product_id: productId,
+        p_location_id: operationalLocationId,
+        p_delta: stockDelta,
+        p_movement_type: type,
+        p_reason: reason,
+        p_source: movementBase.source,
+        p_reference_id: movementBase.reference_id,
+      } : {
+        p_movement_id: movementBase.id,
+        p_product_id: productId,
+        p_delta: stockDelta,
+        p_movement_type: type,
+        p_reason: reason,
+        p_source: movementBase.source,
+        p_reference_id: movementBase.reference_id,
+      };
+      const { data, error } = await db.rpc(stockRpcName, stockRpcPayload);
       if (error) throw error;
-      if (nextStock !== null) {
-        ensureSuccess(await db
-          .from('products')
-          .update({ stock: nextStock })
-          .eq('id', productId));
-      }
       applyStockMovementState(data as StockMovement);
     } catch (error) {
       if (canUseOfflineConcentrator && isProbablyOfflineError(error)) {
@@ -3524,6 +3644,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
           quantity: product.stock,
           reason,
           date: movementDate,
+          location_id: operationalLocationId,
         } as StockMovement)),
         ...prev,
       ]);
@@ -3540,6 +3661,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         quantity: product.stock,
         reason,
         date: movementDate,
+        location_id: operationalLocationId,
         sync_status: 'queued',
         sync_error: null,
       } as StockMovement));
@@ -3570,13 +3692,16 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
     const stockedIds = stockedProducts.map(product => product.id);
     try {
-      const { data: updatedRows, error: updateError } = await db
-        .from('products')
-        .update({ stock: 0 })
-        .in('id', stockedIds)
-        .select('*');
-
-      if (updateError) throw updateError;
+      let updatedRows: Product[] = [];
+      if (isHeadquartersScope) {
+        const { data, error: updateError } = await db
+          .from('products')
+          .update({ stock: 0 })
+          .in('id', stockedIds)
+          .select('*');
+        if (updateError) throw updateError;
+        updatedRows = (data as Product[]) ?? [];
+      }
 
       const movementsPayload = stockedProducts.map(product => ({
         product_id: product.id,
@@ -3584,6 +3709,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         type: 'saida',
         quantity: product.stock,
         reason,
+        location_id: operationalLocationId,
       }));
 
       const { data: movementRows, error: movementError } = await db
@@ -3594,14 +3720,16 @@ export function DataProvider({ children }: { children: ReactNode }) {
       if (movementError) throw movementError;
 
       const updatedMap = new Map(
-        ((updatedRows as Product[]) ?? []).map(product => [product.id, product])
+        updatedRows.map(product => [product.id, product])
       );
 
       setProducts(prev =>
         prev.map(product =>
           updatedMap.has(product.id)
             ? withDisplayCode(updatedMap.get(product.id)! as Product, prev)
-            : product
+            : !isHeadquartersScope && stockedIds.includes(product.id)
+              ? { ...product, stock: 0 }
+              : product
         )
       );
       setStockMovements(prev => [...((movementRows as StockMovement[]) ?? []), ...prev]);
@@ -3637,6 +3765,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         user_id: ownerUserId!,
         operator_user_id: metadata?.operatorUserId ?? null,
         cash_session_id: metadata?.cashSessionId ?? null,
+        location_id: operationalLocationId,
         description,
         party_name: metadata?.partyName ?? null,
         amount,
@@ -3653,6 +3782,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         user_id: ownerUserId!,
         operator_user_id: metadata?.operatorUserId ?? null,
         cash_session_id: metadata?.cashSessionId ?? null,
+        location_id: operationalLocationId,
         description,
         party_name: metadata?.partyName ?? null,
         amount,
@@ -3683,6 +3813,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         user_id: ownerUserId!,
         operator_user_id: metadata?.operatorUserId ?? null,
         cash_session_id: metadata?.cashSessionId ?? null,
+        location_id: operationalLocationId,
         description,
         party_name: metadata?.partyName ?? null,
         amount,
@@ -3693,8 +3824,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
       let expenseData = data;
       let expenseError = error;
 
-      if (expenseError?.message && ['operator_user_id', 'cash_session_id', 'party_name'].some(column => expenseError.message.includes(column))) {
-        const { operator_user_id, cash_session_id, party_name, ...baseExpensePayload } = expensePayload;
+      if (expenseError?.message && ['operator_user_id', 'cash_session_id', 'party_name', 'location_id'].some(column => expenseError.message.includes(column))) {
+        const { operator_user_id, cash_session_id, party_name, location_id, ...baseExpensePayload } = expensePayload;
         const retry = await db.from('expenses').insert(baseExpensePayload).select('*').single();
         expenseData = retry.data;
         expenseError = retry.error;
@@ -3876,6 +4007,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       createServiceTicket, addServiceTicketItem, updateServiceTicketStatus, updateServiceTicketItemQuantity, cancelServiceTicketItem,
       addStockMovement, clearAllStock, addExpense, deleteExpense,
       addReward, updateReward, deleteReward,
+      syncNow,
       refetch: fetchAll,
     }}>
       {children}

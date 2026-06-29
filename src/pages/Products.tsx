@@ -1,7 +1,9 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { useData } from '@/contexts/DataContext';
 import { useAuth } from '@/contexts/AuthContext';
+import { usePermissions } from '@/contexts/usePermissions';
+import { useOperationalScope } from '@/contexts/useOperationalScope';
 import { useDesktopRuntime } from '@/contexts/DesktopRuntimeContext';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Card, CardContent } from '@/components/ui/card';
@@ -11,10 +13,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Label } from '@/components/ui/label';
 import { PasswordInput } from '@/components/ui/password-input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Plus, Search, Edit, Trash2, TrendingUp } from 'lucide-react';
 import { toast } from 'sonner';
 import { Product } from '@/types';
-import { canManageProducts } from '@/lib/access';
 import { getMarginPercent, getMarkupPercent, getPriceFromMarkup, getUnitProfit } from '@/lib/pricing';
 import { verifyPricingManagerApproval } from '@/lib/pricingManagerApproval';
 import { parseDecimalInput } from '@/lib/numberInput';
@@ -24,12 +26,31 @@ import { readDesktopActivation } from '@/lib/desktopActivation';
 import { canUseDesktopFiscalModule } from '@/lib/fiscalAccess';
 import { supabase } from '@/integrations/supabase/client';
 import { getPublicErrorMessage, getRedactedLogValue } from '../../shared/security/redaction';
+import type { SupplierRecord } from '@/types/operations';
+import {
+  filterSubgroupsByGroup,
+  getCommissionValidationError,
+  type CatalogOption,
+  type CommissionType,
+  type MeasurementUnitOption,
+  type ProductPriceTableItem,
+  type ProductPriceTableOption,
+  type ProductSubgroupOption,
+  type TransportCompanyOption,
+} from '@/lib/catalog';
 
 const LOW_MARGIN_WARNING_PCT = 15;
 
+interface DraftPriceRow extends ProductPriceTableItem {
+  draftId: string;
+}
+
 export default function Products() {
   const { products, addProduct, updateProduct, deleteProduct } = useData();
-  const { role, session, user, ownerUserId } = useAuth();
+  const { session, user, ownerUserId } = useAuth();
+  const { hasPermission } = usePermissions();
+  const { scope: operationalScope } = useOperationalScope();
+  const isHeadquartersScope = operationalScope?.location.isHeadquarters ?? true;
   const { isDesktop, licensed, planId } = useDesktopRuntime();
   const desktopActivation = readDesktopActivation();
   const canEditFiscalProductData = canUseDesktopFiscalModule({
@@ -45,7 +66,28 @@ export default function Products() {
   const [price, setPrice] = useState('');
   const [costPrice, setCostPrice] = useState('');
   const [category, setCategory] = useState('');
+  const [supplierId, setSupplierId] = useState('');
   const [supplierName, setSupplierName] = useState('');
+  const [suppliers, setSuppliers] = useState<SupplierRecord[]>([]);
+  const [storeAccountId, setStoreAccountId] = useState('');
+  const [departments, setDepartments] = useState<CatalogOption[]>([]);
+  const [brands, setBrands] = useState<CatalogOption[]>([]);
+  const [groups, setGroups] = useState<CatalogOption[]>([]);
+  const [subgroups, setSubgroups] = useState<ProductSubgroupOption[]>([]);
+  const [units, setUnits] = useState<MeasurementUnitOption[]>([]);
+  const [priceTables, setPriceTables] = useState<ProductPriceTableOption[]>([]);
+  const [transportCompanies, setTransportCompanies] = useState<TransportCompanyOption[]>([]);
+  const [departmentId, setDepartmentId] = useState('');
+  const [brandId, setBrandId] = useState('');
+  const [groupId, setGroupId] = useState('');
+  const [subgroupId, setSubgroupId] = useState('');
+  const [unitId, setUnitId] = useState('');
+  const [transportCompanyId, setTransportCompanyId] = useState('');
+  const [reference, setReference] = useState('');
+  const [maxDiscount, setMaxDiscount] = useState('0');
+  const [commissionType, setCommissionType] = useState<CommissionType>('none');
+  const [commissionValue, setCommissionValue] = useState('0');
+  const [priceRows, setPriceRows] = useState<DraftPriceRow[]>([]);
   const [barcode, setBarcode] = useState('');
   const [stock, setStock] = useState('');
   const [minStock, setMinStock] = useState('');
@@ -68,7 +110,66 @@ export default function Products() {
   const [approvalError, setApprovalError] = useState('');
   const [approvalLoading, setApprovalLoading] = useState(false);
   const [pendingSave, setPendingSave] = useState<{ id: string; data: Partial<Product> } | null>(null);
-  const readOnly = !canManageProducts(role);
+  // A rota exige products.view; esta permissao adicional libera as mutacoes.
+  const readOnly = !hasPermission('products.manage');
+  // Faixas sao administradas apenas no Web; o Desktop usa o preco principal
+  // e recebe somente o resultado operacional, mantendo o bundle e o fluxo leves.
+  const canManagePricing = !isDesktop && hasPermission('pricing.manage');
+  const effectiveOwnerId = ownerUserId ?? user?.id ?? '';
+
+  useEffect(() => {
+    if (!effectiveOwnerId || readOnly || !open) return;
+    const loadCatalogDependencies = async () => {
+      try {
+        // As tabelas serao tipadas automaticamente depois da migracao remota.
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const db = supabase as any;
+        const { data: accountId, error: accountError } = await db.rpc(
+          'get_current_store_account_id_for_context',
+          { target_context: 'happycash' },
+        );
+        if (accountError || !accountId) throw accountError ?? new Error('Empresa HappyCash nao encontrada.');
+        const results = await Promise.all([
+          db.from('suppliers').select('*').eq('owner_user_id', effectiveOwnerId).eq('active', true).order('name'),
+          db.from('product_departments').select('*').eq('store_account_id', accountId).eq('active', true).order('name'),
+          db.from('product_brands').select('*').eq('store_account_id', accountId).eq('active', true).order('name'),
+          db.from('product_groups').select('*').eq('store_account_id', accountId).eq('active', true).order('name'),
+          db.from('product_subgroups').select('*').eq('store_account_id', accountId).eq('active', true).order('name'),
+          db.from('measurement_units').select('*').eq('store_account_id', accountId).eq('active', true).order('name'),
+          canManagePricing
+            ? db.from('product_price_tables').select('*').eq('store_account_id', accountId).eq('active', true).order('is_default', { ascending: false }).order('name')
+            : Promise.resolve({ data: [], error: null }),
+          db.from('transport_companies').select('*').eq('store_account_id', accountId).eq('active', true).order('name'),
+          canManagePricing && editId
+            ? db.from('product_price_table_items').select('*').eq('product_id', editId).eq('active', true).order('min_quantity')
+            : Promise.resolve({ data: [], error: null }),
+        ]);
+        const failed = results.find((result) => result.error);
+        if (failed?.error) throw failed.error;
+        const loadedPriceTables = (results[6].data ?? []) as ProductPriceTableOption[];
+        const defaultTable = loadedPriceTables.find((table) => table.is_default);
+        const loadedItems = (results[8].data ?? []) as ProductPriceTableItem[];
+        setStoreAccountId(accountId as string);
+        setSuppliers((results[0].data ?? []) as SupplierRecord[]);
+        setDepartments((results[1].data ?? []) as CatalogOption[]);
+        setBrands((results[2].data ?? []) as CatalogOption[]);
+        setGroups((results[3].data ?? []) as CatalogOption[]);
+        setSubgroups((results[4].data ?? []) as ProductSubgroupOption[]);
+        const loadedUnits = (results[5].data ?? []) as MeasurementUnitOption[];
+        setUnits(loadedUnits);
+        if (!editId) setUnitId((current) => current || loadedUnits.find((unit) => unit.code === 'UN')?.id || '');
+        setPriceTables(loadedPriceTables);
+        setTransportCompanies((results[7].data ?? []) as TransportCompanyOption[]);
+        setPriceRows(loadedItems
+          .filter((item) => !(item.price_table_id === defaultTable?.id && Number(item.min_quantity) === 1))
+          .map((item) => ({ ...item, draftId: item.id ?? crypto.randomUUID() })));
+      } catch (error) {
+        console.error('Erro ao carregar dependencias do catalogo:', getRedactedLogValue(error));
+        toast.error('Catalogo avancado indisponivel. Aplique a migracao da Fase 3.');
+      }
+    };
+    void loadCatalogDependencies();
+  }, [canManagePricing, editId, effectiveOwnerId, open, readOnly]);
 
   const activeProducts = products.filter(p => !p.deleted);
   const filtered = filterProductsBySearch(activeProducts, search);
@@ -79,6 +180,7 @@ export default function Products() {
   const previewMargin = numericPrice > 0 ? getMarginPercent(numericPrice, numericCostPrice) : 0;
   const priceBelowCost = numericPrice > 0 && numericPrice < numericCostPrice;
   const lowMargin = !priceBelowCost && previewMargin > 0 && previewMargin < LOW_MARGIN_WARNING_PCT;
+  const availableSubgroups = filterSubgroupsByGroup(subgroups, groupId);
 
   const resetApprovalState = () => {
     setApprovalDialogOpen(false);
@@ -89,11 +191,36 @@ export default function Products() {
     setPendingSave(null);
   };
 
+  const syncAdditionalPriceRows = async (productId: string) => {
+    if (!canManagePricing || !storeAccountId) return true;
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const db = supabase as any;
+      const payload = priceRows.map((row) => ({
+        price_table_id: row.price_table_id,
+        min_quantity: Math.max(0.001, Number(row.min_quantity) || 1),
+        price: Math.max(0, Number(row.price) || 0),
+        max_discount_pct: Math.min(100, Math.max(0, Number(row.max_discount_pct) || 0)),
+      }));
+      const { error } = await db.rpc('replace_product_price_table_items', {
+        target_product_id: productId,
+        target_items: payload,
+      });
+      if (error) throw error;
+      return true;
+    } catch (error) {
+      console.error('Erro ao salvar faixas de preco:', getRedactedLogValue(error));
+      toast.error('Produto salvo, mas as faixas adicionais de preco nao foram atualizadas.');
+      return false;
+    }
+  };
+
   const persistSave = async (targetEditId: string | null, data: Partial<Product>) => {
     if (targetEditId) {
       try {
         await updateProduct(targetEditId, data);
-        toast.success('Produto atualizado!');
+        const pricingSaved = await syncAdditionalPriceRows(targetEditId);
+        if (pricingSaved) toast.success('Produto atualizado!');
       } catch (error) {
         console.error('Erro ao atualizar produto:', getRedactedLogValue(error));
         toast.error(getPublicErrorMessage(error, 'Não foi possível atualizar o produto'));
@@ -122,7 +249,8 @@ export default function Products() {
             return;
           }
         }
-        toast.success('Produto cadastrado!');
+        const pricingSaved = await syncAdditionalPriceRows(createdProduct.id);
+        if (pricingSaved) toast.success('Produto cadastrado!');
       } catch (error) {
         console.error('Erro ao cadastrar produto:', getRedactedLogValue(error));
         toast.error(getPublicErrorMessage(error, 'Não foi possível cadastrar o produto'));
@@ -134,16 +262,63 @@ export default function Products() {
 
   const handleSave = async () => {
     if (!name.trim() || !price) { toast.error('Preencha nome e preço'); return; }
+    if (supplierName.trim() && !supplierId) {
+      toast.error('Escolha um fornecedor cadastrado ou deixe o campo vazio.');
+      return;
+    }
+    const numericMaxDiscount = parseDecimalInput(maxDiscount);
+    const numericCommission = parseDecimalInput(commissionValue);
+    const commissionError = getCommissionValidationError(commissionType, numericCommission);
+    if (numericMaxDiscount < 0 || numericMaxDiscount > 100) {
+      toast.error('O desconto maximo deve ficar entre 0% e 100%.');
+      return;
+    }
+    if (commissionError) {
+      toast.error(commissionError);
+      return;
+    }
+    if (subgroupId && !availableSubgroups.some((subgroup) => subgroup.id === subgroupId)) {
+      toast.error('O subgrupo selecionado nao pertence ao grupo.');
+      return;
+    }
+    if (canManagePricing && priceRows.some((row) => !row.price_table_id || Number(row.min_quantity) <= 0 || Number(row.price) < 0)) {
+      toast.error('Revise tabela, quantidade minima e preco das faixas adicionais.');
+      return;
+    }
+    if (canManagePricing) {
+      const priceKeys = priceRows.map((row) => `${row.price_table_id}:${Number(row.min_quantity)}`);
+      if (new Set(priceKeys).size !== priceKeys.length) {
+        toast.error('Nao repita a mesma quantidade minima dentro de uma tabela de preco.');
+        return;
+      }
+    }
+    const selectedGroup = groups.find((group) => group.id === groupId);
     const data: Partial<Product> = {
       name: name.trim(),
       price: parseDecimalInput(price),
       cost_price: parseDecimalInput(costPrice),
-      category: category.trim(),
+      category: selectedGroup?.name ?? category.trim(),
+      supplier_id: supplierId || null,
       supplier_name: supplierName.trim(),
       barcode: barcode.trim(),
-      stock: parseInt(stock) || 0,
-      min_stock: parseInt(minStock) || 0,
+      department_id: departmentId || null,
+      brand_id: brandId || null,
+      product_group_id: groupId || null,
+      product_subgroup_id: subgroupId || null,
+      measurement_unit_id: unitId || null,
+      primary_transport_company_id: transportCompanyId || null,
+      reference: reference.trim(),
+      max_discount_pct: numericMaxDiscount,
+      commission_type: commissionType,
+      commission_value: commissionType === 'none' ? 0 : numericCommission,
     };
+
+    // products.stock e o espelho legado da Matriz. Em filiais, quantidade e
+    // minimo sao alterados somente pelo modulo Estoque/location_inventory.
+    if (isHeadquartersScope) {
+      data.stock = parseInt(stock) || 0;
+      data.min_stock = parseInt(minStock) || 0;
+    }
 
     if (canEditFiscalProductData) {
       Object.assign(data, {
@@ -228,7 +403,19 @@ export default function Products() {
     setPrice('');
     setCostPrice('');
     setCategory('');
+    setSupplierId('');
     setSupplierName('');
+    setDepartmentId('');
+    setBrandId('');
+    setGroupId('');
+    setSubgroupId('');
+    setUnitId('');
+    setTransportCompanyId('');
+    setReference('');
+    setMaxDiscount('0');
+    setCommissionType('none');
+    setCommissionValue('0');
+    setPriceRows([]);
     setBarcode('');
     setStock('');
     setMinStock('');
@@ -252,13 +439,41 @@ export default function Products() {
 
   const openEdit = (p: Product) => {
     setEditId(p.id); setName(toProductUppercase(p.name)); setPrice(p.price.toString());
-    setCostPrice((p.cost_price || 0).toString()); setCategory(toProductUppercase(p.category)); setSupplierName(toProductUppercase(p.supplier_name || ''));
+    setCostPrice((p.cost_price || 0).toString()); setCategory(toProductUppercase(p.category)); setSupplierId(p.supplier_id || ''); setSupplierName(toProductUppercase(p.supplier_name || ''));
     setBarcode(toProductUppercase(p.barcode || '')); setStock((p.stock || 0).toString()); setMinStock((p.min_stock || 0).toString());
+    setDepartmentId(p.department_id || ''); setBrandId(p.brand_id || ''); setGroupId(p.product_group_id || ''); setSubgroupId(p.product_subgroup_id || '');
+    setUnitId(p.measurement_unit_id || ''); setTransportCompanyId(p.primary_transport_company_id || ''); setReference(toProductUppercase(p.reference || ''));
+    setMaxDiscount(String(p.max_discount_pct ?? 0)); setCommissionType(p.commission_type ?? 'none'); setCommissionValue(String(p.commission_value ?? 0));
     setFiscalNcm(p.fiscal_ncm || ''); setFiscalCfop(p.fiscal_cfop || ''); setFiscalOrigin(p.fiscal_origin === null || p.fiscal_origin === undefined ? '' : String(p.fiscal_origin));
     setFiscalCsosn(p.fiscal_csosn || ''); setFiscalPisCst(p.fiscal_pis_cst || ''); setFiscalCofinsCst(p.fiscal_cofins_cst || '');
     setFiscalUnit(toProductUppercase(p.fiscal_unit || 'UN')); setFiscalGtin(toProductUppercase(p.fiscal_gtin || 'SEM GTIN')); setFiscalCest(p.fiscal_cest || '');
     resetApprovalState();
     setOpen(true);
+  };
+
+  const addPriceRow = () => {
+    const firstTable = priceTables.find((table) => !table.is_default) ?? priceTables[0];
+    if (!firstTable) {
+      toast.error('Cadastre uma tabela de preco nas Configuracoes Web.');
+      return;
+    }
+    setPriceRows((current) => [...current, {
+      draftId: crypto.randomUUID(),
+      price_table_id: firstTable.id,
+      product_id: editId ?? '',
+      min_quantity: firstTable.is_default ? 2 : 1,
+      price: parseDecimalInput(price),
+      max_discount_pct: parseDecimalInput(maxDiscount),
+      active: true,
+    }]);
+  };
+
+  const updatePriceRow = (draftId: string, changes: Partial<DraftPriceRow>) => {
+    setPriceRows((current) => current.map((row) => row.draftId === draftId ? { ...row, ...changes } : row));
+  };
+
+  const removePriceRow = (draftId: string) => {
+    setPriceRows((current) => current.filter((row) => row.draftId !== draftId));
   };
 
   return (
@@ -313,13 +528,69 @@ export default function Products() {
                     <AlertDescription>A margem estimada está em {previewMargin.toFixed(1)}%.</AlertDescription>
                   </Alert>
                 )}
-                <div className="space-y-1"><Label>Código de Barras</Label><Input value={barcode} onChange={e => setBarcode(toProductUppercase(e.target.value))} placeholder="Ex: EAN-8, UPC, EAN-13 ou ITF-14" /></div>
-                <div className="space-y-1"><Label>Categoria</Label><Input value={category} onChange={e => setCategory(toProductUppercase(e.target.value))} placeholder="Ex: Cerveja, Cigarro" /></div>
-                <div className="space-y-1"><Label>Fornecedor</Label><Input value={supplierName} onChange={e => setSupplierName(toProductUppercase(e.target.value))} placeholder="Ex: Distribuidora Norte" /></div>
                 <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1"><Label>Estoque</Label><Input type="number" value={stock} onChange={e => setStock(e.target.value)} placeholder="0" /></div>
-                  <div className="space-y-1"><Label>Estoque Mínimo</Label><Input type="number" value={minStock} onChange={e => setMinStock(e.target.value)} placeholder="0" /></div>
+                  <div className="space-y-1"><Label>Código de Barras</Label><Input value={barcode} onChange={e => setBarcode(toProductUppercase(e.target.value))} placeholder="EAN/UPC/ITF" /></div>
+                  <div className="space-y-1"><Label>Referência</Label><Input value={reference} onChange={e => setReference(toProductUppercase(e.target.value))} placeholder="Código interno/fabricante" /></div>
                 </div>
+                <div className="space-y-3 rounded-md border p-3">
+                  <div><p className="text-sm font-semibold">Classificação</p><p className="text-xs text-muted-foreground">Setores, marcas, grupos e unidades são administrados nas Configurações Web.</p></div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1"><Label>Setor</Label><Select value={departmentId || '__none'} onValueChange={(value) => setDepartmentId(value === '__none' ? '' : value)}><SelectTrigger><SelectValue placeholder="Sem setor" /></SelectTrigger><SelectContent><SelectItem value="__none">Sem setor</SelectItem>{departments.map((row) => <SelectItem key={row.id} value={row.id}>{row.name}</SelectItem>)}</SelectContent></Select></div>
+                    <div className="space-y-1"><Label>Marca</Label><Select value={brandId || '__none'} onValueChange={(value) => setBrandId(value === '__none' ? '' : value)}><SelectTrigger><SelectValue placeholder="Sem marca" /></SelectTrigger><SelectContent><SelectItem value="__none">Sem marca</SelectItem>{brands.map((row) => <SelectItem key={row.id} value={row.id}>{row.name}</SelectItem>)}</SelectContent></Select></div>
+                    <div className="space-y-1"><Label>Grupo</Label><Select value={groupId || '__none'} onValueChange={(value) => { const nextGroupId = value === '__none' ? '' : value; setGroupId(nextGroupId); setSubgroupId(''); setCategory(groups.find((row) => row.id === nextGroupId)?.name ?? ''); }}><SelectTrigger><SelectValue placeholder="Sem grupo" /></SelectTrigger><SelectContent><SelectItem value="__none">Sem grupo</SelectItem>{groups.map((row) => <SelectItem key={row.id} value={row.id}>{row.name}</SelectItem>)}</SelectContent></Select></div>
+                    <div className="space-y-1"><Label>Subgrupo</Label><Select value={subgroupId || '__none'} onValueChange={(value) => setSubgroupId(value === '__none' ? '' : value)} disabled={!groupId}><SelectTrigger><SelectValue placeholder="Sem subgrupo" /></SelectTrigger><SelectContent><SelectItem value="__none">Sem subgrupo</SelectItem>{availableSubgroups.map((row) => <SelectItem key={row.id} value={row.id}>{row.name}</SelectItem>)}</SelectContent></Select></div>
+                    <div className="space-y-1"><Label>Unidade comercial</Label><Select value={unitId} onValueChange={setUnitId}><SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger><SelectContent>{units.map((row) => <SelectItem key={row.id} value={row.id}>{row.name} ({row.symbol})</SelectItem>)}</SelectContent></Select></div>
+                    <div className="space-y-1"><Label>Categoria legada</Label><Input value={category} onChange={e => setCategory(toProductUppercase(e.target.value))} disabled={Boolean(groupId)} placeholder="Compatibilidade" /></div>
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <Label>Fornecedor principal</Label>
+                  <Input
+                    list="product-suppliers"
+                    value={supplierName}
+                    onChange={event => {
+                      const value = toProductUppercase(event.target.value);
+                      const supplier = suppliers.find((item) => item.name.toLocaleUpperCase('pt-BR') === value.trim());
+                      setSupplierName(value);
+                      setSupplierId(supplier?.id ?? '');
+                    }}
+                    placeholder="Escolha um fornecedor cadastrado"
+                  />
+                  <datalist id="product-suppliers">{suppliers.map((supplier) => <option key={supplier.id} value={supplier.name} />)}</datalist>
+                  {supplierName && !supplierId && <p className="text-xs text-amber-600">Cadastre ou selecione este fornecedor em Operações para criar o vínculo.</p>}
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1"><Label>Estoque</Label><Input type="number" value={stock} disabled={!isHeadquartersScope} onChange={e => setStock(e.target.value)} placeholder="0" /></div>
+                  <div className="space-y-1"><Label>Estoque Mínimo</Label><Input type="number" value={minStock} disabled={!isHeadquartersScope} onChange={e => setMinStock(e.target.value)} placeholder="0" /></div>
+                </div>
+                {!isHeadquartersScope && (
+                  <p className="text-xs text-muted-foreground">
+                    Na filial {operationalScope?.location.name}, altere quantidades pelo modulo Estoque.
+                  </p>
+                )}
+                <div className="space-y-3 rounded-md border p-3">
+                  <div><p className="text-sm font-semibold">Política comercial</p><p className="text-xs text-muted-foreground">Limites aplicados ao produto em qualquer filial.</p></div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1"><Label>Desconto máximo (%)</Label><Input inputMode="decimal" value={maxDiscount} onChange={e => setMaxDiscount(e.target.value)} /></div>
+                    <div className="space-y-1"><Label>Tipo de comissão</Label><Select value={commissionType} onValueChange={(value) => { const nextType = value as CommissionType; setCommissionType(nextType); if (nextType === 'none') setCommissionValue('0'); }}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="none">Sem comissão</SelectItem><SelectItem value="percent">Percentual</SelectItem><SelectItem value="amount">Valor fixo</SelectItem></SelectContent></Select></div>
+                    <div className="space-y-1"><Label>{commissionType === 'percent' ? 'Comissão (%)' : 'Comissão (R$)'}</Label><Input inputMode="decimal" value={commissionValue} disabled={commissionType === 'none'} onChange={e => setCommissionValue(e.target.value)} /></div>
+                    <div className="space-y-1"><Label>Transportadora preferencial</Label><Select value={transportCompanyId || '__none'} onValueChange={(value) => setTransportCompanyId(value === '__none' ? '' : value)}><SelectTrigger><SelectValue placeholder="Sem preferência" /></SelectTrigger><SelectContent><SelectItem value="__none">Sem preferência</SelectItem>{transportCompanies.map((row) => <SelectItem key={row.id} value={row.id}>{row.name}</SelectItem>)}</SelectContent></Select></div>
+                  </div>
+                </div>
+                {canManagePricing && priceTables.length > 0 && (
+                  <div className="space-y-3 rounded-md border p-3">
+                    <div className="flex items-start justify-between gap-3"><div><p className="text-sm font-semibold">Tabelas e faixas de preço</p><p className="text-xs text-muted-foreground">O preço Varejo para uma unidade é o preço principal acima.</p></div><Button type="button" size="sm" variant="outline" onClick={addPriceRow}><Plus className="mr-1 h-3 w-3" /> Faixa</Button></div>
+                    {priceRows.map((row) => (
+                      <div key={row.draftId} className="grid grid-cols-2 gap-2 rounded-md bg-muted/40 p-2 sm:grid-cols-5">
+                        <div className="space-y-1 sm:col-span-2"><Label>Tabela</Label><Select value={row.price_table_id} onValueChange={(value) => updatePriceRow(row.draftId, { price_table_id: value })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{priceTables.map((table) => <SelectItem key={table.id} value={table.id}>{table.name}</SelectItem>)}</SelectContent></Select></div>
+                        <div className="space-y-1"><Label>Qtd. mínima</Label><Input type="number" min="0.001" step="0.001" value={row.min_quantity} onChange={(event) => updatePriceRow(row.draftId, { min_quantity: Number(event.target.value) })} /></div>
+                        <div className="space-y-1"><Label>Preço</Label><Input inputMode="decimal" value={row.price} onChange={(event) => updatePriceRow(row.draftId, { price: parseDecimalInput(event.target.value) })} /></div>
+                        <div className="space-y-1"><Label>Desc. máx. %</Label><div className="flex gap-1"><Input inputMode="decimal" value={row.max_discount_pct} onChange={(event) => updatePriceRow(row.draftId, { max_discount_pct: parseDecimalInput(event.target.value) })} /><Button type="button" variant="ghost" size="icon" onClick={() => removePriceRow(row.draftId)} aria-label="Remover faixa"><Trash2 className="h-4 w-4" /></Button></div></div>
+                      </div>
+                    ))}
+                    {priceRows.length === 0 && <p className="text-xs text-muted-foreground">Nenhuma faixa adicional. Use “Faixa” para atacado ou quantidade mínima.</p>}
+                  </div>
+                )}
                 {canEditFiscalProductData && (
                   <div className="space-y-3 rounded-md border p-3">
                     <div>

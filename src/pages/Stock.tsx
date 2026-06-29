@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useData } from '@/contexts/DataContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -9,25 +10,42 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { CalendarClock, Search, Plus, AlertTriangle, Package } from 'lucide-react';
+import { CalendarClock, Search, Plus, AlertTriangle, Package, Check, ArrowRight } from 'lucide-react';
 import { toast } from 'sonner';
 import { formatDateTime } from '../../shared/locale/format';
 import { getRedactedLogValue } from '../../shared/security/redaction';
 import { filterProductsBySearch, toProductUppercase } from '@/lib/productSearch';
 import { buildLowStockPurchaseSuggestion, type PurchaseSuggestion } from '@/lib/managementInsights';
 import { useProductBatches } from '@/hooks/useProductBatches';
+import {
+  calculateStockMovement,
+  getStockMovementDirection,
+  STOCK_MOVEMENT_REASONS,
+  type StockMovementType,
+} from '@/lib/stockMovement';
+import { formatProductCode } from '@/lib/productCode';
+import { getLocalIsoDate } from '@/lib/clientDebtDueDate';
 
 export default function Stock() {
   const { products, stockMovements, addStockMovement, clearAllStock } = useData();
   const { user } = useAuth();
   const { batches } = useProductBatches();
+  const navigate = useNavigate();
   const [search, setSearch] = useState('');
   const [open, setOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState('');
-  const [movType, setMovType] = useState('entrada');
+  const [movementProductSearch, setMovementProductSearch] = useState('');
+  const [movType, setMovType] = useState<StockMovementType>('entrada');
   const [qty, setQty] = useState('');
   const [reason, setReason] = useState('');
+  const [reasonNotes, setReasonNotes] = useState('');
+  const [savingMovement, setSavingMovement] = useState(false);
   const [clearingStock, setClearingStock] = useState(false);
+  const [clearConfirmation, setClearConfirmation] = useState('');
+  const [movementHistorySearch, setMovementHistorySearch] = useState('');
+  const [movementHistoryType, setMovementHistoryType] = useState('all');
+  const [movementDateFrom, setMovementDateFrom] = useState('');
+  const [movementDateTo, setMovementDateTo] = useState('');
 
   const activeProducts = products.filter(p => !p.deleted);
   const nextBatchByProductId = useMemo(() => {
@@ -38,7 +56,7 @@ export default function Stock() {
     return result;
   }, [batches]);
   const visibleProducts = products.filter(p => !p.deleted || nextBatchByProductId.has(p.id));
-  const todayKey = new Date().toISOString().slice(0, 10);
+  const todayKey = getLocalIsoDate();
   const expiringProductIds = new Set(batches
     .filter((batch) => {
       const expiration = new Date(`${batch.expiration_date}T00:00:00`).getTime();
@@ -67,26 +85,58 @@ export default function Stock() {
     .filter((suggestion): suggestion is PurchaseSuggestion => Boolean(suggestion))
     .sort((left, right) => (left.severity === right.severity ? right.suggestedQuantity - left.suggestedQuantity : left.severity === 'critical' ? -1 : 1));
   const hasStockToClear = activeProducts.some(product => product.stock > 0);
+  const selectedProductRecord = activeProducts.find(product => product.id === selectedProduct) ?? null;
+  const movementProductResults = filterProductsBySearch(activeProducts, movementProductSearch).slice(0, 8);
+  const parsedMovementQuantity = Number(qty.replace(',', '.'));
+  const movementPreview = useMemo(() => {
+    if (!selectedProductRecord || qty.trim() === '') return null;
+    try {
+      return calculateStockMovement(selectedProductRecord.stock, movType, parsedMovementQuantity);
+    } catch {
+      return null;
+    }
+  }, [movType, parsedMovementQuantity, qty, selectedProductRecord]);
+  const filteredMovements = stockMovements.filter((movement) => {
+    const product = products.find(item => item.id === movement.product_id);
+    const matchesProduct = !movementHistorySearch.trim()
+      || filterProductsBySearch(product ? [product] : [], movementHistorySearch).length > 0;
+    const direction = getStockMovementDirection(movement);
+    const movementDate = movement.date.slice(0, 10);
+    const matchesDate = (!movementDateFrom || movementDate >= movementDateFrom) && (!movementDateTo || movementDate <= movementDateTo);
+    return matchesProduct && matchesDate && (movementHistoryType === 'all' || movementHistoryType === direction || movementHistoryType === movement.type);
+  });
 
-  const openPurchaseMovement = (suggestion: PurchaseSuggestion) => {
-    setSelectedProduct(suggestion.productId);
-    setMovType('entrada');
-    setQty(String(suggestion.suggestedQuantity));
-    setReason(`Compra fornecedor - ${suggestion.supplierName}`);
-    setOpen(true);
+  const openPurchaseOrder = (suggestion: PurchaseSuggestion) => {
+    const params = new URLSearchParams({
+      tab: 'compras',
+      product: suggestion.productId,
+      quantity: String(suggestion.suggestedQuantity),
+      supplier: suggestion.supplierName,
+    });
+    navigate(`/operacoes?${params.toString()}`);
   };
 
   const handleSave = async () => {
-    if (!selectedProduct || !qty) { toast.error('Preencha produto e quantidade'); return; }
+    if (!selectedProduct || !qty || !reason) { toast.error('Preencha produto, quantidade e motivo'); return; }
     const product = products.find(p => p.id === selectedProduct);
     if (!product) return;
-    const quantity = parseInt(qty);
-    if (isNaN(quantity) || quantity <= 0) { toast.error('Quantidade inválida'); return; }
-
-    await addStockMovement(selectedProduct, movType, quantity, reason.trim());
-
-    setSelectedProduct(''); setQty(''); setReason(''); setOpen(false);
-    toast.success(`Estoque ${movType === 'entrada' ? 'adicionado' : 'removido'}!`);
+    try {
+      calculateStockMovement(product.stock, movType, parsedMovementQuantity);
+      setSavingMovement(true);
+      const fullReason = reasonNotes.trim() ? `${reason} - ${reasonNotes.trim()}` : reason;
+      await addStockMovement(selectedProduct, movType, parsedMovementQuantity, fullReason, { source: 'manual' });
+      setSelectedProduct('');
+      setMovementProductSearch('');
+      setQty('');
+      setReason('');
+      setReasonNotes('');
+      setOpen(false);
+      toast.success('Movimentação registrada.');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Não foi possível movimentar o estoque.');
+    } finally {
+      setSavingMovement(false);
+    }
   };
 
   const handleClearStock = async () => {
@@ -94,6 +144,7 @@ export default function Stock() {
       setClearingStock(true);
       await clearAllStock('Limpeza geral de estoque');
       toast.success('Estoque zerado!');
+      setClearConfirmation('');
     } catch (error) {
       console.error('Erro ao limpar estoque:', getRedactedLogValue(error));
       toast.error('Não foi possível limpar o estoque');
@@ -109,7 +160,7 @@ export default function Stock() {
         <div className="flex items-center gap-2">
           <AlertDialog>
             <AlertDialogTrigger asChild>
-              <Button size="sm" variant="destructive" disabled={!hasStockToClear || clearingStock}>
+              <Button size="sm" variant="outline" disabled={!hasStockToClear || clearingStock}>
                 Limpar estoque
               </Button>
             </AlertDialogTrigger>
@@ -119,31 +170,82 @@ export default function Stock() {
                 <AlertDialogDescription>
                   Todos os produtos com saldo em estoque serão ajustados para zero. Essa ação deve ser usada com cuidado.
                 </AlertDialogDescription>
+                <div className="space-y-2 py-2">
+                  <Label>Digite ZERAR ESTOQUE para confirmar</Label>
+                  <Input value={clearConfirmation} onChange={event => setClearConfirmation(toProductUppercase(event.target.value))} />
+                </div>
               </AlertDialogHeader>
               <AlertDialogFooter>
-                <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                <AlertDialogAction onClick={handleClearStock}>
+                <AlertDialogCancel onClick={() => setClearConfirmation('')}>Cancelar</AlertDialogCancel>
+                <AlertDialogAction onClick={handleClearStock} disabled={clearConfirmation !== 'ZERAR ESTOQUE' || clearingStock}>
                   Confirmar limpeza
                 </AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>
           </AlertDialog>
 
-          <Dialog open={open} onOpenChange={setOpen}>
+          <Dialog open={open} onOpenChange={(nextOpen) => {
+            setOpen(nextOpen);
+            if (!nextOpen) {
+              setSelectedProduct('');
+              setMovementProductSearch('');
+              setQty('');
+              setReason('');
+              setReasonNotes('');
+            }
+          }}>
             <DialogTrigger asChild><Button size="sm" data-tour-id="stock-move"><Plus className="h-4 w-4 mr-1" />Movimentar</Button></DialogTrigger>
             <DialogContent>
               <DialogHeader><DialogTitle>Movimentação de Estoque</DialogTitle></DialogHeader>
               <div className="space-y-3">
                 <div className="space-y-1">
-                  <Label>Produto</Label>
-                  <Select value={selectedProduct} onValueChange={setSelectedProduct}>
-                    <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
-                    <SelectContent>{activeProducts.map(p => <SelectItem key={p.id} value={p.id}>{p.name} (atual: {p.stock})</SelectItem>)}</SelectContent>
-                  </Select>
+                  <Label>Buscar produto</Label>
+                  <div className="relative">
+                    <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      className="pl-9"
+                      value={movementProductSearch}
+                      onChange={event => {
+                        setMovementProductSearch(toProductUppercase(event.target.value));
+                        setSelectedProduct('');
+                      }}
+                      placeholder="Nome, código ou código de barras"
+                      autoFocus
+                    />
+                  </div>
+                  {!selectedProductRecord && (
+                    <div className="max-h-48 overflow-y-auto rounded-md border">
+                      {movementProductResults.map(product => (
+                        <button
+                          key={product.id}
+                          type="button"
+                          className="flex w-full items-center justify-between gap-3 border-b px-3 py-2 text-left text-sm last:border-b-0 hover:bg-accent"
+                          onClick={() => {
+                            setSelectedProduct(product.id);
+                            setMovementProductSearch(product.name);
+                          }}
+                        >
+                          <span className="min-w-0 truncate">{product.name}</span>
+                          <span className="shrink-0 text-xs text-muted-foreground">{formatProductCode(product.code) || product.barcode || 'Sem código'} · saldo {product.stock}</span>
+                        </button>
+                      ))}
+                      {movementProductResults.length === 0 && <p className="p-3 text-center text-sm text-muted-foreground">Nenhum produto encontrado.</p>}
+                    </div>
+                  )}
+                  {selectedProductRecord && (
+                    <div className="flex items-center justify-between rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-sm">
+                      <div className="min-w-0"><p className="truncate font-medium">{selectedProductRecord.name}</p><p className="text-xs text-muted-foreground">Estoque atual: {selectedProductRecord.stock}</p></div>
+                      <Check className="h-4 w-4 text-primary" />
+                    </div>
+                  )}
                 </div>
                 <div className="space-y-1">
                   <Label>Tipo</Label>
-                  <Select value={movType} onValueChange={setMovType}>
+                  <Select value={movType} onValueChange={(value: StockMovementType) => {
+                    setMovType(value);
+                    setReason('');
+                    setQty('');
+                  }}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="entrada">📥 Entrada</SelectItem>
@@ -152,10 +254,27 @@ export default function Stock() {
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="space-y-1"><Label>Quantidade</Label><Input type="number" value={qty} onChange={e => setQty(e.target.value)} placeholder="0" /></div>
-                <div className="space-y-1"><Label>Motivo</Label><Input value={reason} onChange={e => setReason(e.target.value)} placeholder="Ex: Compra fornecedor" /></div>
+                <div className="space-y-1">
+                  <Label>{movType === 'ajuste' ? 'Novo saldo contado' : 'Quantidade'}</Label>
+                  <Input type="number" min="0" step="0.001" value={qty} onChange={e => setQty(e.target.value)} placeholder="0" />
+                </div>
+                <div className="space-y-1">
+                  <Label>Motivo</Label>
+                  <Select value={reason} onValueChange={setReason}>
+                    <SelectTrigger><SelectValue placeholder="Escolha o motivo" /></SelectTrigger>
+                    <SelectContent>{STOCK_MOVEMENT_REASONS[movType].map(item => <SelectItem key={item} value={item}>{item}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1"><Label>Observação</Label><Input value={reasonNotes} onChange={e => setReasonNotes(e.target.value)} placeholder="Opcional" /></div>
+                {selectedProductRecord && movementPreview && (
+                  <div className="flex items-center justify-center gap-3 rounded-md border bg-muted/30 p-3 text-sm">
+                    <span>Saldo {movementPreview.balanceBefore}</span>
+                    <ArrowRight className="h-4 w-4 text-muted-foreground" />
+                    <span className="font-semibold text-primary">Saldo {movementPreview.balanceAfter}</span>
+                  </div>
+                )}
               </div>
-              <DialogFooter><Button onClick={handleSave}>Confirmar</Button></DialogFooter>
+              <DialogFooter><Button onClick={handleSave} disabled={!movementPreview || !reason || savingMovement}>{savingMovement ? 'Salvando...' : 'Confirmar'}</Button></DialogFooter>
             </DialogContent>
           </Dialog>
         </div>
@@ -168,7 +287,7 @@ export default function Stock() {
             <div className="space-y-1">
               {expiringProducts.map((product) => {
                 const batch = nextBatchByProductId.get(product.id);
-                return <p key={product.id} className="text-xs"><span className="font-medium">{product.name}</span> · {batch ? new Date(`${batch.expiration_date}T12:00:00`).toLocaleDateString('pt-BR') : '-'}</p>;
+                return <p key={product.id} className="text-xs"><span className="font-medium">{formatProductCode(product.code) || product.barcode || 'Sem código'} · {product.name}</span> · {batch ? new Date(`${batch.expiration_date}T12:00:00`).toLocaleDateString('pt-BR') : '-'}</p>;
               })}
             </div>
           </CardContent>
@@ -211,8 +330,8 @@ export default function Stock() {
                       Atual {suggestion.currentStock} / mín. {suggestion.minStock} · {suggestion.supplierName}
                     </p>
                   </div>
-                  <Button size="sm" variant="outline" className="shrink-0" onClick={() => openPurchaseMovement(suggestion)}>
-                    +{suggestion.suggestedQuantity}
+                  <Button size="sm" variant="outline" className="shrink-0" onClick={() => openPurchaseOrder(suggestion)}>
+                    Pedir {suggestion.suggestedQuantity}
                   </Button>
                 </div>
               ))}
@@ -265,18 +384,37 @@ export default function Stock() {
       <Card className="border-border/50" data-tour-id="stock-movements">
         <CardHeader><CardTitle className="text-sm">Movimentações Recentes</CardTitle></CardHeader>
         <CardContent>
-          {stockMovements.length === 0 ? <p className="text-xs text-muted-foreground">Nenhuma movimentação</p> : (
+          <div className="mb-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-[1fr_170px_150px_150px]">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input className="pl-9" placeholder="Filtrar por produto" value={movementHistorySearch} onChange={event => setMovementHistorySearch(toProductUppercase(event.target.value))} />
+            </div>
+            <Select value={movementHistoryType} onValueChange={setMovementHistoryType}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos os tipos</SelectItem>
+                <SelectItem value="entrada">Entradas</SelectItem>
+                <SelectItem value="saida">Saídas</SelectItem>
+                <SelectItem value="ajuste">Ajustes</SelectItem>
+              </SelectContent>
+            </Select>
+            <Input type="date" value={movementDateFrom} onChange={event => setMovementDateFrom(event.target.value)} aria-label="Movimentações a partir de" />
+            <Input type="date" value={movementDateTo} onChange={event => setMovementDateTo(event.target.value)} aria-label="Movimentações até" />
+          </div>
+          {filteredMovements.length === 0 ? <p className="text-xs text-muted-foreground">Nenhuma movimentação encontrada</p> : (
             <div className="space-y-2">
-              {stockMovements.slice(0, 20).map(m => {
+              {filteredMovements.slice(0, 50).map(m => {
                 const product = products.find(p => p.id === m.product_id);
+                const direction = getStockMovementDirection(m);
                 return (
                   <div key={m.id} className="flex items-center justify-between p-2 rounded-lg bg-secondary/50 text-xs">
-                    <div>
+                    <div className="min-w-0">
                       <p className="font-medium">{product?.name || 'Produto removido'}</p>
-                      <p className="text-muted-foreground">{m.reason} — {formatDateTime(m.date)}</p>
+                      <p className="truncate text-muted-foreground">{m.source === 'purchase' || /compra/i.test(m.reason) ? 'Compra' : m.source === 'sale' || /venda/i.test(m.reason) ? 'Venda' : 'Manual'} · {m.reason} · {formatDateTime(m.date)}</p>
+                      {m.balance_before != null && m.balance_after != null && <p className="text-muted-foreground">Saldo {m.balance_before} → {m.balance_after}</p>}
                     </div>
-                    <span className={`font-bold ${m.type === 'entrada' ? 'text-green-500' : 'text-destructive'}`}>
-                      {m.type === 'entrada' ? '+' : '-'}{m.quantity}
+                    <span className={`ml-3 shrink-0 font-bold ${direction === 'entrada' ? 'text-green-500' : 'text-destructive'}`}>
+                      {direction === 'entrada' ? '+' : '-'}{m.quantity}
                     </span>
                   </div>
                 );

@@ -1,21 +1,26 @@
 import { ReactNode, useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Clock3, Home, Users, Package, Gift, Trash2, LogOut, Menu, X, UserCircle, Receipt, BarChart3, DollarSign, Boxes, ChevronDown, ChevronUp, FileText, Shield, Calculator, ShieldCheck, Database, Loader2, WifiOff, ClipboardList, HelpCircle } from 'lucide-react';
+import { Clock3, Home, Users, Package, Gift, Trash2, LogOut, Menu, X, UserCircle, Receipt, BarChart3, DollarSign, Boxes, ChevronDown, ChevronUp, FileText, Shield, Calculator, Database, Loader2, WifiOff, ClipboardList, HelpCircle, MapPin } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import { useData } from '@/contexts/DataContext';
 import { useDesktopRuntime } from '@/contexts/DesktopRuntimeContext';
+import { usePermissions } from '@/contexts/usePermissions';
+import { useOperationalScope } from '@/contexts/useOperationalScope';
 import { usePlanAccess } from '@/contexts/PlanContext';
 import happyCashLogo from '@/assets/happycash-logo.webp';
 import { roleLabel } from '@/lib/access';
 import { readDesktopActivation } from '@/lib/desktopActivation';
 import { canUseDesktopFiscalModule } from '@/lib/fiscalAccess';
 import { isGuidedTourEligiblePlan, requestGuidedTourStart } from '@/lib/guidedTour';
+import { isRuntimeScopeAllowed, type ErpPermissionKey, type RuntimeScope } from '@/lib/permissions';
 import { hasOfflineAdminAccess, readOfflineAdminAccess, saveOfflineAdminAccess } from '@/lib/offlineAdminAccess';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { DesktopOfflineAdminSetupDialog } from '@/components/DesktopOfflineAdminSetupDialog';
 import { getPublicErrorMessage } from '../../shared/security/redaction';
+import { readScopedCashSession } from '@/lib/cashSessionStorage';
 import {
   Dialog,
   DialogContent,
@@ -25,22 +30,34 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 
-const navItems = [
-  { path: '/', label: 'Painel', icon: Home, shortcut: '1', roles: ['admin', 'operator'], featureKey: 'dashboard.view', tourId: 'nav-dashboard' },
-  { path: '/pdv', label: 'PDV 🧾', icon: Receipt, shortcut: '2', roles: ['admin', 'operator'], featureKey: 'pdv.use', tourId: 'nav-pdv' },
-  { path: '/comandas', label: 'Comandas', icon: ClipboardList, shortcut: '3', roles: ['admin', 'operator', 'waiter'], featureKey: 'service_tickets.use', tourId: 'nav-service-tickets' },
-  { path: '/clientes', label: 'Clientes', icon: Users, shortcut: '4', roles: ['admin', 'operator'], featureKey: 'clients.manage', tourId: 'nav-clients' },
-  { path: '/produtos', label: 'Produtos', icon: Package, shortcut: '5', roles: ['admin', 'operator'], featureKey: 'products.manage', tourId: 'nav-products' },
-  { path: '/estoque', label: 'Estoque', icon: Boxes, shortcut: '6', roles: ['admin'], featureKey: 'stock.manage', tourId: 'nav-stock' },
-  { path: '/relatorios', label: 'Relatórios', icon: BarChart3, shortcut: '7', roles: ['admin'], featureKey: 'reports.view', tourId: 'nav-reports' },
-  { path: '/financeiro', label: 'Financeiro', icon: DollarSign, shortcut: '8', roles: ['admin'], featureKey: 'financial.manage', tourId: 'nav-financial' },
-  { path: '/operacoes', label: 'Operações', icon: ClipboardList, roles: ['admin'], featureKey: 'financial.manage', tourId: 'nav-operations' },
-  { path: '/notas', label: 'Notas', icon: FileText, roles: ['admin'], featureKey: 'notes.manage', tourId: 'nav-notes' },
-  { path: '/precificacao', label: 'Precificação', icon: Calculator, roles: ['admin'], featureKey: 'pricing.manage', tourId: 'nav-pricing' },
-  { path: '/acessos', label: 'Acessos', icon: Shield, roles: ['admin'], featureKey: 'settings.manage', tourId: 'nav-access' },
-  { path: '/auditoria', label: 'Auditoria', icon: ShieldCheck, roles: ['admin'], featureKey: 'settings.manage', tourId: 'nav-audit' },
-  { path: '/recompensas', label: 'Recompensas', icon: Gift, roles: ['admin'], featureKey: 'rewards.manage', tourId: 'nav-rewards' },
-  { path: '/excluidos', label: 'Excluídos', icon: Trash2, roles: ['admin'], featureKey: 'deleted.view', tourId: 'nav-deleted' },
+interface NavigationItem {
+  path: string;
+  label: string;
+  icon: typeof Home;
+  featureKey: string;
+  permissionKey: ErpPermissionKey;
+  runtimeScope: RuntimeScope;
+  tourId: string;
+  shortcut?: string;
+}
+
+// featureKey controla o plano contratado; permissionKey controla o colaborador.
+// runtimeScope evita oferecer e pre-carregar administracao Web no Electron.
+const navItems: NavigationItem[] = [
+  { path: '/', label: 'Painel', icon: Home, shortcut: '1', featureKey: 'dashboard.view', permissionKey: 'dashboard.view', runtimeScope: 'both', tourId: 'nav-dashboard' },
+  { path: '/pdv', label: 'PDV 🧾', icon: Receipt, shortcut: '2', featureKey: 'pdv.use', permissionKey: 'pdv.use', runtimeScope: 'both', tourId: 'nav-pdv' },
+  { path: '/comandas', label: 'Comandas', icon: ClipboardList, shortcut: '3', featureKey: 'service_tickets.use', permissionKey: 'service_tickets.use', runtimeScope: 'both', tourId: 'nav-service-tickets' },
+  { path: '/clientes', label: 'Clientes', icon: Users, shortcut: '4', featureKey: 'clients.manage', permissionKey: 'clients.view', runtimeScope: 'both', tourId: 'nav-clients' },
+  { path: '/produtos', label: 'Produtos', icon: Package, shortcut: '5', featureKey: 'products.manage', permissionKey: 'products.view', runtimeScope: 'both', tourId: 'nav-products' },
+  { path: '/estoque', label: 'Estoque', icon: Boxes, shortcut: '6', featureKey: 'stock.manage', permissionKey: 'stock.view', runtimeScope: 'both', tourId: 'nav-stock' },
+  { path: '/relatorios', label: 'Relatórios', icon: BarChart3, shortcut: '7', featureKey: 'reports.view', permissionKey: 'reports.view', runtimeScope: 'both', tourId: 'nav-reports' },
+  { path: '/financeiro', label: 'Financeiro', icon: DollarSign, shortcut: '8', featureKey: 'financial.manage', permissionKey: 'financial.view', runtimeScope: 'both', tourId: 'nav-financial' },
+  { path: '/operacoes', label: 'Operações', icon: ClipboardList, featureKey: 'financial.manage', permissionKey: 'purchases.view', runtimeScope: 'both', tourId: 'nav-operations' },
+  { path: '/notas', label: 'Notas', icon: FileText, featureKey: 'notes.manage', permissionKey: 'fiscal.view', runtimeScope: 'both', tourId: 'nav-notes' },
+  { path: '/precificacao', label: 'Precificação', icon: Calculator, featureKey: 'pricing.manage', permissionKey: 'pricing.view', runtimeScope: 'both', tourId: 'nav-pricing' },
+  { path: '/acessos', label: 'Acessos', icon: Shield, featureKey: 'settings.manage', permissionKey: 'access_monitor.view', runtimeScope: 'web', tourId: 'nav-access' },
+  { path: '/recompensas', label: 'Recompensas', icon: Gift, featureKey: 'rewards.manage', permissionKey: 'rewards.manage', runtimeScope: 'both', tourId: 'nav-rewards' },
+  { path: '/excluidos', label: 'Excluídos', icon: Trash2, featureKey: 'deleted.view', permissionKey: 'deleted.view', runtimeScope: 'both', tourId: 'nav-deleted' },
 ];
 
 const OFFLINE_VALIDATION_GRACE_DAYS = 5;
@@ -108,6 +125,14 @@ export function AppLayout({ children }: { children: ReactNode }) {
     validationExpiresAt: desktopValidationExpiresAt,
     usingOfflineValidationCache,
   } = useDesktopRuntime();
+  const { hasPermission } = usePermissions();
+  const {
+    loading: operationalScopeLoading,
+    scope: operationalScope,
+    locations: operationalLocations,
+    terminals: operationalTerminals,
+    selectWebScope,
+  } = useOperationalScope();
   const { hasFeature, planId } = usePlanAccess();
   const location = useLocation();
   const navigate = useNavigate();
@@ -130,12 +155,19 @@ export function AppLayout({ children }: { children: ReactNode }) {
   });
   const offlineAdminAccess = ownerUserId ? readOfflineAdminAccess(ownerUserId) : null;
   const visibleNavItems = navItems.filter(item => {
-    if (!item.roles.includes(role) || !hasFeature(item.featureKey)) return false;
-    if (item.featureKey === 'notes.manage') return canUseFiscalNotesModule;
+    if (!hasPermission(item.permissionKey) || !hasFeature(item.featureKey)) return false;
+    if (!isRuntimeScopeAllowed(item.runtimeScope, isDesktop)) return false;
+    if (item.path === '/notas') return canUseFiscalNotesModule;
     return true;
   });
-  const canOpenSettings = role === 'admin' && hasFeature('settings.manage');
+  const canOpenSettings = hasPermission('settings.manage') && hasFeature('settings.manage');
   const canUseGuidedTour = isGuidedTourEligiblePlan(planId);
+  const hasOpenLocalCashSession = Boolean(
+    ownerUserId && user?.id && readScopedCashSession(ownerUserId, user.id),
+  );
+  const terminalsForCurrentLocation = operationalScope
+    ? operationalTerminals.filter((terminal) => terminal.locationId === operationalScope.location.id)
+    : [];
   const fallbackValidationStartedAt = user?.id ? readOfflineValidationStartedAt(user.id) : null;
   const offlineValidationExpiresAt = desktopValidationExpiresAt
     || buildOfflineValidationExpiresAt(offlineValidationStartedAt || fallbackValidationStartedAt, desktopValidUntil);
@@ -590,6 +622,60 @@ export function AppLayout({ children }: { children: ReactNode }) {
           )}
         </div>
         <div className="shrink-0 space-y-2 border-t border-border p-4">
+          {operationalScope && (
+            <div className="rounded-lg border border-border/70 bg-background/70 p-3">
+              <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+                <MapPin className="h-3.5 w-3.5 text-primary" />
+                {isDesktop ? 'Terminal local' : 'Filial ativa'}
+              </div>
+              {isDesktop || operationalLocations.length <= 1 ? (
+                <div>
+                  <p className="truncate text-sm font-medium text-foreground">{operationalScope.location.name}</p>
+                  <p className="truncate text-xs text-muted-foreground">
+                    {operationalScope.terminal?.name ?? 'Sem terminal'}
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <Select
+                    value={operationalScope.location.id}
+                    disabled={operationalScopeLoading || hasOpenLocalCashSession}
+                    onValueChange={(locationId) => selectWebScope(locationId)}
+                  >
+                    <SelectTrigger className="h-9" aria-label="Selecionar filial operacional">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {operationalLocations.map((location) => (
+                        <SelectItem key={location.id} value={location.id}>{location.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {terminalsForCurrentLocation.length > 1 && (
+                    <Select
+                      value={operationalScope.terminal?.id ?? ''}
+                      disabled={hasOpenLocalCashSession}
+                      onValueChange={(terminalId) => selectWebScope(operationalScope.location.id, terminalId)}
+                    >
+                      <SelectTrigger className="h-9" aria-label="Selecionar terminal operacional">
+                        <SelectValue placeholder="Terminal" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {terminalsForCurrentLocation.map((terminal) => (
+                          <SelectItem key={terminal.id} value={terminal.id}>{terminal.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                  {hasOpenLocalCashSession && (
+                    <p className="text-[11px] leading-snug text-muted-foreground">
+                      Feche o caixa antes de trocar de filial.
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
           {user && (
             canOpenSettings ? (
               <button

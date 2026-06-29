@@ -14,6 +14,7 @@ import type {
   PurchaseOrderItem,
   SupplierSummary,
 } from '@/types/operations';
+import { formatProductCode } from '@/lib/productCode';
 
 type OperationsDetailsDialogProps = {
   detail: OperationsDetail | null;
@@ -259,7 +260,7 @@ export function OperationsDetailsDialog({
                   const expired = batch.expiration_date < new Date().toISOString().slice(0, 10);
                   return (
                     <TableRow key={batch.id}>
-                      <TableCell className="font-medium">{product?.name || batch.product_name || 'Produto não encontrado'}</TableCell>
+                      <TableCell><p className="font-medium">{product?.name || batch.product_name || 'Produto não encontrado'}</p><p className="text-xs text-muted-foreground">{product ? formatProductCode(product.code) || product.barcode || 'Sem código' : 'Cadastro não localizado'}</p></TableCell>
                       <TableCell>{batch.batch_code || '-'}</TableCell>
                       <TableCell><span className="inline-flex items-center gap-1"><AlertTriangle className="h-4 w-4 text-destructive" />{formatDate(batch.expiration_date)} {expired ? '(vencido)' : ''}</span></TableCell>
                       <TableCell>{batch.quantity}</TableCell>

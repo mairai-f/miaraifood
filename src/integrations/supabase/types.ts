@@ -18,6 +18,7 @@ export type Database = {
         Row: {
           created_at: string
           credit_limit: number | null
+          debt_due_date: string | null
           deleted: boolean
           deleted_at: string | null
           id: string
@@ -29,6 +30,7 @@ export type Database = {
         Insert: {
           created_at?: string
           credit_limit?: number | null
+          debt_due_date?: string | null
           deleted?: boolean
           deleted_at?: string | null
           id?: string
@@ -40,6 +42,7 @@ export type Database = {
         Update: {
           created_at?: string
           credit_limit?: number | null
+          debt_due_date?: string | null
           deleted?: boolean
           deleted_at?: string | null
           id?: string

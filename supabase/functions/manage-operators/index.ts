@@ -11,6 +11,9 @@ import { getOperatorCredentialError } from '../../../shared/security/operatorCre
 
 type ManageOperatorRequest =
   | {
+      action: 'list';
+    }
+  | {
       action: 'create';
       username?: string;
       password?: string;
@@ -159,6 +162,24 @@ Deno.serve(async (request): Promise<Response> => {
     if (accessError || !hasSettingsAccess) {
       return jsonResponse(request, { error: 'Seu plano atual nao libera configuracoes da loja.' }, 403);
     }
+  }
+
+  if (body.action === 'list') {
+    const { data: operators, error: operatorsError } = await serviceClient
+      .from('profiles')
+      .select('user_id, username, role')
+      .eq('owner_user_id', ownerUserId)
+      .in('role', staffRoles)
+      .order('username', { ascending: true });
+
+    if (operatorsError) {
+      return jsonResponse(request, { error: 'Nao foi possivel consultar os operadores.' }, 500);
+    }
+
+    return jsonResponse(request, {
+      success: true,
+      operators: operators ?? [],
+    });
   }
 
   if (body.action === 'create') {

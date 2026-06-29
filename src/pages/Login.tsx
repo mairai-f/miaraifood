@@ -1,4 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react';
+import { createClient } from '@supabase/supabase-js';
 import { useAuth } from '@/contexts/AuthContext';
 import { motion } from 'framer-motion';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -8,6 +9,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Eye, EyeOff, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import happyCashLogo from '@/assets/happycash-logo.webp';
@@ -19,9 +21,38 @@ import {
 import { clearDesktopActivation, readDesktopActivation } from '@/lib/desktopActivation';
 import { readOfflineAdminAccess } from '@/lib/offlineAdminAccess';
 import { LanguageSwitcher } from '../../shared/locale/LanguageSwitcher';
+import type { Database } from '@/integrations/supabase/types';
+import { getOperatorCredentialError } from '../../shared/security/operatorCredential';
 
 type LoginMode = 'admin' | 'operator';
 type AdminAccessMode = 'online' | 'offline';
+type OperatorRecoveryStep = 'email' | 'code' | 'reset';
+
+interface RecoveryOperator {
+  user_id: string;
+  username: string;
+  role: 'operator' | 'waiter';
+}
+
+interface OperatorRecoveryResponse {
+  success?: boolean;
+  operators?: RecoveryOperator[];
+  operator?: RecoveryOperator;
+  error?: string;
+}
+
+const operatorRecoveryClient = createClient<Database>(
+  import.meta.env.VITE_SUPABASE_URL,
+  import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+  {
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+      detectSessionInUrl: false,
+      storageKey: 'happycash-operator-recovery',
+    },
+  },
+);
 
 export default function Login() {
   const initialPreferences = getSystemLoginPreferences();
@@ -57,6 +88,14 @@ export default function Login() {
 
   const [resetOpen, setResetOpen] = useState(false);
   const [resetEmail, setResetEmail] = useState('');
+  const [operatorRecoveryOpen, setOperatorRecoveryOpen] = useState(false);
+  const [operatorRecoveryStep, setOperatorRecoveryStep] = useState<OperatorRecoveryStep>('email');
+  const [operatorRecoveryEmail, setOperatorRecoveryEmail] = useState('');
+  const [operatorRecoveryCode, setOperatorRecoveryCode] = useState('');
+  const [operatorRecoveryList, setOperatorRecoveryList] = useState<RecoveryOperator[]>([]);
+  const [operatorRecoveryUserId, setOperatorRecoveryUserId] = useState('');
+  const [operatorRecoveryPin, setOperatorRecoveryPin] = useState('');
+  const [operatorRecoveryBusy, setOperatorRecoveryBusy] = useState(false);
 
   useEffect(() => {
     const syncNetworkStatus = () => setIsOnline(navigator.onLine);
@@ -184,6 +223,119 @@ export default function Login() {
       setOauthSubmitting(false);
       toast.error(result || 'Nao foi possivel iniciar o login com Google.');
     }
+  };
+
+  const resetOperatorRecovery = () => {
+    setOperatorRecoveryStep('email');
+    setOperatorRecoveryEmail('');
+    setOperatorRecoveryCode('');
+    setOperatorRecoveryList([]);
+    setOperatorRecoveryUserId('');
+    setOperatorRecoveryPin('');
+    setOperatorRecoveryBusy(false);
+    void operatorRecoveryClient.auth.signOut();
+  };
+
+  const handleOperatorRecoveryOpenChange = (open: boolean) => {
+    setOperatorRecoveryOpen(open);
+    if (!open) resetOperatorRecovery();
+  };
+
+  const handleSendOperatorRecoveryCode = async () => {
+    const normalizedEmail = operatorRecoveryEmail.trim().toLowerCase();
+    if (!normalizedEmail) {
+      toast.error('Informe o email do administrador.');
+      return;
+    }
+
+    setOperatorRecoveryBusy(true);
+    const { error } = await operatorRecoveryClient.auth.signInWithOtp({
+      email: normalizedEmail,
+      options: { shouldCreateUser: false },
+    });
+    setOperatorRecoveryBusy(false);
+
+    if (error) {
+      toast.error('Nao foi possivel enviar o codigo de recuperacao.');
+      return;
+    }
+
+    setOperatorRecoveryEmail(normalizedEmail);
+    setOperatorRecoveryStep('code');
+    toast.success('Codigo enviado ao email do administrador.');
+  };
+
+  const handleVerifyOperatorRecoveryCode = async () => {
+    const code = operatorRecoveryCode.replace(/\D/g, '');
+    if (code.length < 6) {
+      toast.error('Informe o codigo recebido por email.');
+      return;
+    }
+
+    setOperatorRecoveryBusy(true);
+    const { data: verification, error: verificationError } = await operatorRecoveryClient.auth.verifyOtp({
+      email: operatorRecoveryEmail,
+      token: code,
+      type: 'email',
+    });
+
+    if (verificationError || !verification.session?.access_token) {
+      setOperatorRecoveryBusy(false);
+      toast.error('Codigo invalido ou expirado.');
+      return;
+    }
+
+    const { data, error } = await operatorRecoveryClient.functions.invoke<OperatorRecoveryResponse>('manage-operators', {
+      headers: { Authorization: `Bearer ${verification.session.access_token}` },
+      body: { action: 'list' },
+    });
+    setOperatorRecoveryBusy(false);
+
+    if (error || !data?.success || !data.operators?.length) {
+      toast.error(data?.error || 'Nenhum operador foi encontrado para esta loja.');
+      return;
+    }
+
+    setOperatorRecoveryList(data.operators);
+    setOperatorRecoveryUserId(data.operators[0].user_id);
+    setOperatorRecoveryStep('reset');
+  };
+
+  const handleResetOperatorCredential = async () => {
+    const credentialError = getOperatorCredentialError(operatorRecoveryPin.trim());
+    if (credentialError) {
+      toast.error(credentialError);
+      return;
+    }
+
+    const { data: sessionData } = await operatorRecoveryClient.auth.getSession();
+    const accessToken = sessionData.session?.access_token;
+    if (!accessToken || !operatorRecoveryUserId) {
+      toast.error('A recuperacao expirou. Solicite um novo codigo.');
+      return;
+    }
+
+    setOperatorRecoveryBusy(true);
+    const { data, error } = await operatorRecoveryClient.functions.invoke<OperatorRecoveryResponse>('manage-operators', {
+      headers: { Authorization: `Bearer ${accessToken}` },
+      body: {
+        action: 'reset_password',
+        operatorUserId: operatorRecoveryUserId,
+        password: operatorRecoveryPin.trim(),
+      },
+    });
+    setOperatorRecoveryBusy(false);
+
+    if (error || !data?.success || !data.operator) {
+      toast.error(data?.error || 'Nao foi possivel redefinir o PIN.');
+      return;
+    }
+
+    setOperatorUsername(data.operator.username);
+    setOperatorPassword('');
+    setOperatorRecoveryOpen(false);
+    resetOperatorRecovery();
+    toast.success(`Acesso de ${data.operator.username} recuperado. Informe o novo PIN para entrar.`);
   };
 
   return (
@@ -485,7 +637,16 @@ export default function Login() {
                       />
                     </div>
                     <div className="space-y-1.5">
-                      <Label>Senha ou PIN</Label>
+                      <div className="flex items-center justify-between gap-3">
+                        <Label>Senha ou PIN</Label>
+                        <button
+                          type="button"
+                          onClick={() => setOperatorRecoveryOpen(true)}
+                          className="shrink-0 text-xs text-muted-foreground transition-colors hover:text-yellow-300"
+                        >
+                          Esqueci usuario ou PIN
+                        </button>
+                      </div>
                       <div className="relative">
                         <Input
                           id="happycash-operator-password"
@@ -596,6 +757,84 @@ export default function Login() {
               )}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={operatorRecoveryOpen} onOpenChange={handleOperatorRecoveryOpenChange}>
+        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Recuperar acesso operacional</DialogTitle>
+          </DialogHeader>
+
+          {operatorRecoveryStep === 'email' && (
+            <div className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Um codigo sera enviado ao email do administrador da loja.
+              </p>
+              <div className="space-y-2">
+                <Label>Email do administrador</Label>
+                <Input
+                  type="email"
+                  value={operatorRecoveryEmail}
+                  onChange={event => setOperatorRecoveryEmail(event.target.value)}
+                  autoComplete="off"
+                  autoCapitalize="none"
+                />
+              </div>
+              <Button className="w-full" onClick={() => void handleSendOperatorRecoveryCode()} disabled={operatorRecoveryBusy}>
+                {operatorRecoveryBusy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                Enviar codigo
+              </Button>
+            </div>
+          )}
+
+          {operatorRecoveryStep === 'code' && (
+            <div className="space-y-4">
+              <p className="text-sm text-muted-foreground">Informe o codigo enviado para {operatorRecoveryEmail}.</p>
+              <div className="space-y-2">
+                <Label>Codigo</Label>
+                <Input
+                  inputMode="numeric"
+                  value={operatorRecoveryCode}
+                  onChange={event => setOperatorRecoveryCode(event.target.value.replace(/\D/g, '').slice(0, 8))}
+                  autoComplete="one-time-code"
+                />
+              </div>
+              <Button className="w-full" onClick={() => void handleVerifyOperatorRecoveryCode()} disabled={operatorRecoveryBusy}>
+                {operatorRecoveryBusy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                Validar codigo
+              </Button>
+            </div>
+          )}
+
+          {operatorRecoveryStep === 'reset' && (
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label>Usuario</Label>
+                <Select value={operatorRecoveryUserId} onValueChange={setOperatorRecoveryUserId}>
+                  <SelectTrigger><SelectValue placeholder="Selecione o usuario" /></SelectTrigger>
+                  <SelectContent>
+                    {operatorRecoveryList.map(operator => (
+                      <SelectItem key={operator.user_id} value={operator.user_id}>{operator.username}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Novo PIN ou senha</Label>
+                <Input
+                  type="password"
+                  value={operatorRecoveryPin}
+                  onChange={event => setOperatorRecoveryPin(event.target.value)}
+                  autoComplete="new-password"
+                />
+              </div>
+              <Button className="w-full" onClick={() => void handleResetOperatorCredential()} disabled={operatorRecoveryBusy}>
+                {operatorRecoveryBusy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                Salvar novo acesso
+              </Button>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>

@@ -9,13 +9,16 @@ import { GuidedTour } from '@/components/GuidedTour';
 import { LowStockNotifier } from '@/components/LowStockNotifier';
 import { SplashScreen } from '@/components/SplashScreen';
 import { useAuth } from '@/contexts/AuthContext';
+import { PermissionsProvider } from '@/contexts/PermissionsContext';
+import { OperationalScopeProvider } from '@/contexts/OperationalScopeContext';
+import { usePermissions } from '@/contexts/usePermissions';
 import { DataProvider } from '@/contexts/DataContext';
 import { useDesktopRuntime } from '@/contexts/DesktopRuntimeContext';
 import { usePlanAccess } from '@/contexts/PlanContext';
 import { hasSeenAppSplash, markAppSplashSeen } from '@/lib/appSplash';
 import { readDesktopActivation } from '@/lib/desktopActivation';
 import { canUseDesktopFiscalModule } from '@/lib/fiscalAccess';
-import type { UserRole } from '@/lib/access';
+import { isRuntimeScopeAllowed, type ErpPermissionKey, type RuntimeScope } from '@/lib/permissions';
 
 const pageLoaders = [
   () => import('@/pages/Dashboard'),
@@ -92,20 +95,23 @@ function LazyPage({ children }: { children: ReactNode }) {
 
 function ProtectedRoute({
   children,
-  allowedRoles,
   requiredFeature,
+  requiredPermission,
+  runtimeScope = 'both',
   requiredDesktopFiscalAccess = false,
 }: {
   children: ReactNode;
-  allowedRoles?: UserRole[];
   requiredFeature?: string;
+  requiredPermission: ErpPermissionKey;
+  runtimeScope?: RuntimeScope;
   requiredDesktopFiscalAccess?: boolean;
 }) {
   const { isAuthenticated, loading, role } = useAuth();
+  const { loading: permissionsLoading, hasPermission } = usePermissions();
   const { isDesktop, checking: checkingDesktopLicense, licensed } = useDesktopRuntime();
   const { loading: planLoading, hasFeature, planId } = usePlanAccess();
   const shouldBlockDesktopLicense = checkingDesktopLicense && (!isAuthenticated || (isDesktop && !licensed));
-  const shouldBlockAccess = loading || planLoading || shouldBlockDesktopLicense;
+  const shouldBlockAccess = loading || planLoading || permissionsLoading || shouldBlockDesktopLicense;
   const shouldShowSplash = !hasSeenAppSplash() && !isAuthenticated;
   const canUseFiscalNotesModule = !requiredDesktopFiscalAccess || canUseDesktopFiscalModule({
     isDesktop,
@@ -130,15 +136,21 @@ function ProtectedRoute({
 
   if (!isAuthenticated) return <Navigate to="/login" replace />;
   if (isDesktop && !licensed) return <DesktopLicenseBlocked />;
-  if (allowedRoles && !allowedRoles.includes(role)) return <Navigate to={role === 'waiter' ? '/comandas' : '/'} replace />;
+  if (!isRuntimeScopeAllowed(runtimeScope, isDesktop)) return <Navigate to="/" replace />;
+  if (!hasPermission(requiredPermission)) return <Navigate to={role === 'waiter' ? '/comandas' : '/'} replace />;
   if (requiredFeature && !hasFeature(requiredFeature)) return <AppLayout><FeatureLocked /></AppLayout>;
   if (!canUseFiscalNotesModule) return <Navigate to="/" replace />;
   return <AppLayout>{children}</AppLayout>;
 }
 
-const warmPageChunks = () => {
+const desktopPageLoaders = pageLoaders.filter((loader) =>
+  loader !== loadAccessMonitor && loader !== loadAuditLog,
+);
+
+const warmPageChunks = (isDesktop: boolean) => {
   const loadAllPages = () => {
-    pageLoaders.forEach(loader => {
+    const runtimeLoaders = isDesktop ? desktopPageLoaders : pageLoaders;
+    runtimeLoaders.forEach(loader => {
       void loader();
     });
   };
@@ -153,33 +165,38 @@ const warmPageChunks = () => {
 };
 
 const AuthenticatedArea = () => {
-  useEffect(() => warmPageChunks(), []);
+  const { isDesktop } = useDesktopRuntime();
+  useEffect(() => warmPageChunks(isDesktop), [isDesktop]);
 
   return (
-    <DataProvider>
-      <LowStockNotifier />
-      <GuidedTour />
-      <Routes>
-        <Route path="/" element={<ProtectedRoute allowedRoles={['admin', 'operator']} requiredFeature="dashboard.view"><LazyPage><Dashboard /></LazyPage></ProtectedRoute>} />
-        <Route path="/pdv" element={<ProtectedRoute allowedRoles={['admin', 'operator']} requiredFeature="pdv.use"><LazyPage><PDV /></LazyPage></ProtectedRoute>} />
-        <Route path="/comandas" element={<ProtectedRoute allowedRoles={['admin', 'operator', 'waiter']} requiredFeature="service_tickets.use"><LazyPage><ServiceTickets /></LazyPage></ProtectedRoute>} />
-        <Route path="/clientes" element={<ProtectedRoute allowedRoles={['admin', 'operator']} requiredFeature="clients.manage"><LazyPage><Clients /></LazyPage></ProtectedRoute>} />
-        <Route path="/produtos" element={<ProtectedRoute allowedRoles={['admin', 'operator']} requiredFeature="products.manage"><LazyPage><Products /></LazyPage></ProtectedRoute>} />
-        <Route path="/estoque" element={<ProtectedRoute allowedRoles={['admin']} requiredFeature="stock.manage"><LazyPage><Stock /></LazyPage></ProtectedRoute>} />
-        <Route path="/relatorios" element={<ProtectedRoute allowedRoles={['admin']} requiredFeature="reports.view"><LazyPage><Reports /></LazyPage></ProtectedRoute>} />
-        <Route path="/financeiro" element={<ProtectedRoute allowedRoles={['admin']} requiredFeature="financial.manage"><LazyPage><Financial /></LazyPage></ProtectedRoute>} />
-        <Route path="/operacoes" element={<ProtectedRoute allowedRoles={['admin']} requiredFeature="financial.manage"><LazyPage><Operations /></LazyPage></ProtectedRoute>} />
-        <Route path="/precificacao" element={<ProtectedRoute allowedRoles={['admin']} requiredFeature="pricing.manage"><LazyPage><PricingManager /></LazyPage></ProtectedRoute>} />
-        <Route path="/notas" element={<ProtectedRoute allowedRoles={['admin']} requiredFeature="notes.manage" requiredDesktopFiscalAccess><LazyPage><Notes /></LazyPage></ProtectedRoute>} />
-        <Route path="/configuracoes" element={<ProtectedRoute allowedRoles={['admin']} requiredFeature="settings.manage"><LazyPage><Settings /></LazyPage></ProtectedRoute>} />
-        <Route path="/acessos" element={<ProtectedRoute allowedRoles={['admin']} requiredFeature="settings.manage"><LazyPage><AccessMonitor /></LazyPage></ProtectedRoute>} />
-        <Route path="/auditoria" element={<ProtectedRoute allowedRoles={['admin']} requiredFeature="settings.manage"><LazyPage><AuditLog /></LazyPage></ProtectedRoute>} />
-        <Route path="/recompensas" element={<ProtectedRoute allowedRoles={['admin']} requiredFeature="rewards.manage"><LazyPage><Rewards /></LazyPage></ProtectedRoute>} />
-        <Route path="/cliente/:clientRef" element={<ProtectedRoute allowedRoles={['admin', 'operator']} requiredFeature="clients.manage"><LazyPage><ClientDetail /></LazyPage></ProtectedRoute>} />
-        <Route path="/excluidos" element={<ProtectedRoute allowedRoles={['admin']} requiredFeature="deleted.view"><LazyPage><DeletedClients /></LazyPage></ProtectedRoute>} />
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
-    </DataProvider>
+    <PermissionsProvider>
+      <OperationalScopeProvider>
+        <DataProvider>
+          <LowStockNotifier />
+          <GuidedTour />
+          <Routes>
+          <Route path="/" element={<ProtectedRoute requiredPermission="dashboard.view" requiredFeature="dashboard.view"><LazyPage><Dashboard /></LazyPage></ProtectedRoute>} />
+          <Route path="/pdv" element={<ProtectedRoute requiredPermission="pdv.use" requiredFeature="pdv.use"><LazyPage><PDV /></LazyPage></ProtectedRoute>} />
+          <Route path="/comandas" element={<ProtectedRoute requiredPermission="service_tickets.use" requiredFeature="service_tickets.use"><LazyPage><ServiceTickets /></LazyPage></ProtectedRoute>} />
+          <Route path="/clientes" element={<ProtectedRoute requiredPermission="clients.view" requiredFeature="clients.manage"><LazyPage><Clients /></LazyPage></ProtectedRoute>} />
+          <Route path="/produtos" element={<ProtectedRoute requiredPermission="products.view" requiredFeature="products.manage"><LazyPage><Products /></LazyPage></ProtectedRoute>} />
+          <Route path="/estoque" element={<ProtectedRoute requiredPermission="stock.view" requiredFeature="stock.manage"><LazyPage><Stock /></LazyPage></ProtectedRoute>} />
+          <Route path="/relatorios" element={<ProtectedRoute requiredPermission="reports.view" requiredFeature="reports.view"><LazyPage><Reports /></LazyPage></ProtectedRoute>} />
+          <Route path="/financeiro" element={<ProtectedRoute requiredPermission="financial.view" requiredFeature="financial.manage"><LazyPage><Financial /></LazyPage></ProtectedRoute>} />
+          <Route path="/operacoes" element={<ProtectedRoute requiredPermission="purchases.view" requiredFeature="financial.manage"><LazyPage><Operations /></LazyPage></ProtectedRoute>} />
+          <Route path="/precificacao" element={<ProtectedRoute requiredPermission="pricing.view" requiredFeature="pricing.manage"><LazyPage><PricingManager /></LazyPage></ProtectedRoute>} />
+          <Route path="/notas" element={<ProtectedRoute requiredPermission="fiscal.view" requiredFeature="notes.manage" requiredDesktopFiscalAccess><LazyPage><Notes /></LazyPage></ProtectedRoute>} />
+          <Route path="/configuracoes" element={<ProtectedRoute requiredPermission="settings.manage" requiredFeature="settings.manage"><LazyPage><Settings /></LazyPage></ProtectedRoute>} />
+          <Route path="/acessos" element={<ProtectedRoute requiredPermission="access_monitor.view" requiredFeature="settings.manage" runtimeScope="web"><LazyPage><AccessMonitor /></LazyPage></ProtectedRoute>} />
+          <Route path="/auditoria" element={<ProtectedRoute requiredPermission="audit.view" requiredFeature="settings.manage" runtimeScope="web"><LazyPage><AuditLog /></LazyPage></ProtectedRoute>} />
+          <Route path="/recompensas" element={<ProtectedRoute requiredPermission="rewards.manage" requiredFeature="rewards.manage"><LazyPage><Rewards /></LazyPage></ProtectedRoute>} />
+          <Route path="/cliente/:clientRef" element={<ProtectedRoute requiredPermission="clients.view" requiredFeature="clients.manage"><LazyPage><ClientDetail /></LazyPage></ProtectedRoute>} />
+          <Route path="/excluidos" element={<ProtectedRoute requiredPermission="deleted.view" requiredFeature="deleted.view"><LazyPage><DeletedClients /></LazyPage></ProtectedRoute>} />
+          <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </DataProvider>
+      </OperationalScopeProvider>
+    </PermissionsProvider>
   );
 };
 

@@ -6,6 +6,8 @@ import { toast } from 'sonner';
 import { useData } from '@/contexts/DataContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useDesktopRuntime } from '@/contexts/DesktopRuntimeContext';
+import { usePermissions } from '@/contexts/usePermissions';
+import { useOperationalScope } from '@/contexts/useOperationalScope';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -324,6 +326,10 @@ export default function PDV() {
     getClientTotalSpending,
   } = useData();
   const { user, username, session, role, ownerUserId, isAdmin } = useAuth();
+  const { hasPermission } = usePermissions();
+  const { scope: operationalScope } = useOperationalScope();
+  const operationalLocationId = operationalScope?.location.id ?? null;
+  const operationalTerminalId = operationalScope?.terminal?.id ?? null;
   const { isDesktop, licensed: desktopLicensed, offlineEnabled, planId: desktopPlanId } = useDesktopRuntime();
   const navigate = useNavigate();
   const location = useLocation();
@@ -335,6 +341,12 @@ export default function PDV() {
     planId: desktopPlanId,
     activation: desktopActivation,
   });
+  const canOpenCash = hasPermission('pdv.open_cash');
+  const canCloseCash = hasPermission('pdv.close_cash');
+  const canCashOut = hasPermission('pdv.cash_out');
+  const canCancelSale = hasPermission('pdv.cancel_sale');
+  const canEditPdvPrice = hasPermission('pdv.edit_price');
+  const canSellWithoutStock = hasPermission('pdv.sell_without_stock');
   const searchInputRef = useRef<HTMLInputElement>(null);
   const cashReceivedInputRef = useRef<HTMLInputElement>(null);
   const checkoutDialogRef = useRef<HTMLDivElement | null>(null);
@@ -445,9 +457,12 @@ export default function PDV() {
   const activeServiceTicket = activeServiceTicketId
     ? serviceTickets.find(ticket => ticket.id === activeServiceTicketId) ?? null
     : null;
-  const activeServiceTicketItems = activeServiceTicket
-    ? serviceTicketItems.filter(item => item.ticket_id === activeServiceTicket.id && item.status === 'active')
-    : [];
+  const activeServiceTicketItems = useMemo(
+    () => activeServiceTicket
+      ? serviceTicketItems.filter(item => item.ticket_id === activeServiceTicket.id && item.status === 'active')
+      : [],
+    [activeServiceTicket, serviceTicketItems],
+  );
   const buildCartFromServiceTicketItems = useCallback((ticketId: string) => {
     const groupedItems = new Map<string, CartItem>();
     const missingItems: string[] = [];
@@ -804,13 +819,19 @@ export default function PDV() {
         return;
       }
 
-      const { data, error } = await db
+      let openCashQuery = db
         .from('cash_sessions')
-        .select('id, opened_at, opening_amount, opened_by_name')
+        .select(operationalLocationId
+          ? 'id, opened_at, opening_amount, opened_by_name, location_id, terminal_id'
+          : 'id, opened_at, opening_amount, opened_by_name')
         .eq('owner_user_id', ownerUserId)
         .eq('operator_user_id', user.id)
         .eq('status', 'open')
-        .order('opened_at', { ascending: false })
+        .order('opened_at', { ascending: false });
+      if (operationalLocationId) {
+        openCashQuery = openCashQuery.eq('location_id', operationalLocationId);
+      }
+      const { data, error } = await openCashQuery
         .limit(1)
         .maybeSingle();
 
@@ -839,6 +860,8 @@ export default function PDV() {
         openedBy: data.opened_by_name,
         ownerUserId,
         operatorUserId: user.id,
+        locationId: data.location_id ?? operationalLocationId,
+        terminalId: data.terminal_id ?? operationalTerminalId,
       };
 
       setCashSession(nextSession);
@@ -851,7 +874,7 @@ export default function PDV() {
     return () => {
       active = false;
     };
-  }, [canUseDesktopOffline, ownerUserId, user]);
+  }, [canUseDesktopOffline, operationalLocationId, operationalTerminalId, ownerUserId, user]);
 
   useEffect(() => {
     if (closeCashWhatsappPhone.trim()) return;
@@ -1850,18 +1873,17 @@ export default function PDV() {
   const cashOutAmountValue = parsedCashOutAmount ?? 0;
   const cashOutExceedsBalance = cashOutAmountValue > currentCashBalance;
   const showOpenCashDialog = !cashSession && !showCloseCashReceipt && !cashSessionLoading;
-  const getCartQuantityForProduct = (productId: string) =>
+  const getCartQuantityForProduct = useCallback((productId: string) =>
     cart
       .filter(item => item.product.id === productId)
-      .reduce((sum, item) => sum + item.quantity, 0);
-  const getInsufficientStockMessage = (product: Product, requestedQuantity: number) => {
+      .reduce((sum, item) => sum + item.quantity, 0), [cart]);
+  const getInsufficientStockMessage = useCallback((product: Product, requestedQuantity: number) => {
+    if (canSellWithoutStock) return '';
     const availableStock = Number(product.stock || 0);
-    if (availableStock <= 0) return '';
-
     return availableStock < requestedQuantity
       ? `Estoque insuficiente para ${product.name}. Disponivel: ${availableStock}, solicitado: ${requestedQuantity}.`
       : '';
-  };
+  }, [canSellWithoutStock]);
   const validateCartStock = () => {
     for (const item of cart) {
       const product = products.find(currentProduct => currentProduct.id === item.product.id) ?? item.product;
@@ -2298,8 +2320,8 @@ export default function PDV() {
       return;
     }
 
-    if (!isAdmin) {
-      silentToast.error('Somente administrador pode alterar preço no caixa');
+    if (!canEditPdvPrice) {
+      silentToast.error('Seu usuario nao tem permissao para alterar preco no caixa');
       return;
     }
 
@@ -2313,8 +2335,8 @@ export default function PDV() {
       return;
     }
 
-    if (!isAdmin) {
-      silentToast.error('Somente administrador pode alterar preço no caixa');
+    if (!canEditPdvPrice) {
+      silentToast.error('Seu usuario nao tem permissao para alterar preco no caixa');
       return;
     }
 
@@ -2354,8 +2376,8 @@ export default function PDV() {
   };
 
   const openSelectedCartItemPriceEditor = () => {
-    if (!isAdmin) {
-      silentToast.error('Somente administrador pode alterar preço no caixa');
+    if (!canEditPdvPrice) {
+      silentToast.error('Seu usuario nao tem permissao para alterar preco no caixa');
       return;
     }
 
@@ -2373,10 +2395,10 @@ export default function PDV() {
     openCartItemPriceEditor(selectedItem);
   };
 
-  const closeCartItemPriceEditor = () => {
+  const closeCartItemPriceEditor = useCallback(() => {
     setCartItemPendingPriceEdit(null);
     setPendingCartItemPrice('');
-  };
+  }, []);
 
   const applyCartItemPriceChange = () => {
     if (!cartItemPendingPriceEdit) return;
@@ -2943,6 +2965,11 @@ export default function PDV() {
     void issueFiscalDocumentInHomologation(lastSaleData.saleId);
   };
   const handleOpenCash = async () => {
+    if (!canOpenCash) {
+      silentToast.error('Seu usuario nao tem permissao para abrir o caixa');
+      return;
+    }
+
     if (!user || !ownerUserId) {
       silentToast.error('Faça login novamente para abrir o caixa');
       return;
@@ -2985,6 +3012,10 @@ export default function PDV() {
           opening_amount: amount,
           opened_at: openedAt,
           status: 'open',
+          ...(operationalLocationId ? {
+            location_id: operationalLocationId,
+            terminal_id: operationalTerminalId,
+          } : {}),
         },
       });
 
@@ -3000,6 +3031,8 @@ export default function PDV() {
         openedBy: sellerName,
         ownerUserId,
         operatorUserId: user.id,
+        locationId: operationalLocationId,
+        terminalId: operationalTerminalId,
       };
 
       writeScopedCashSession(ownerUserId, user.id, session);
@@ -3021,8 +3054,14 @@ export default function PDV() {
         operator_name: sellerName,
         opened_by_name: sellerName,
         opening_amount: amount,
+        ...(operationalLocationId ? {
+          location_id: operationalLocationId,
+          terminal_id: operationalTerminalId,
+        } : {}),
       })
-      .select('id, opened_at, opening_amount, opened_by_name')
+      .select(operationalLocationId
+        ? 'id, opened_at, opening_amount, opened_by_name, location_id, terminal_id'
+        : 'id, opened_at, opening_amount, opened_by_name')
       .single();
 
     if (error || !data) {
@@ -3038,6 +3077,8 @@ export default function PDV() {
       openedBy: data.opened_by_name,
       ownerUserId,
       operatorUserId: user.id,
+      locationId: data.location_id ?? operationalLocationId,
+      terminalId: data.terminal_id ?? operationalTerminalId,
     };
 
     writeScopedCashSession(ownerUserId, user.id, session);
@@ -3051,6 +3092,10 @@ export default function PDV() {
   };
 
   const handleCloseCash = async (cashClient: typeof db = db) => {
+    if (!canCloseCash) {
+      silentToast.error('Seu usuario nao tem permissao para fechar o caixa');
+      return;
+    }
     if (!cashSession) return;
 
     const receipt: CashCloseReceipt = {
@@ -3235,6 +3280,10 @@ export default function PDV() {
   };
 
   const requestCloseCash = () => {
+    if (!canCloseCash) {
+      silentToast.error('Seu usuario nao tem permissao para fechar o caixa');
+      return;
+    }
     if (!cashSession) return;
     if (cart.length > 0) {
       silentToast.error('Finalize ou zere o carrinho antes de fechar o caixa');
@@ -3355,6 +3404,10 @@ export default function PDV() {
   };
 
   const handleCashOut = async () => {
+    if (!canCashOut) {
+      silentToast.error('Seu usuario nao tem permissao para realizar sangria');
+      return;
+    }
     if (!cashSession) { silentToast.error('Abra o caixa antes de registrar saída'); return; }
     const amount = cashOutAmountValue;
     if (!amount || amount <= 0) { silentToast.error('Valor inválido'); return; }
@@ -3380,6 +3433,10 @@ export default function PDV() {
   };
 
   const handleCancelSale = async () => {
+    if (!canCancelSale) {
+      silentToast.error('Seu usuario nao tem permissao para cancelar vendas');
+      return;
+    }
     if (!saleToCancel) return;
     if (!cancelReason.trim()) { silentToast.error('Informe o motivo do cancelamento'); return; }
 
@@ -3393,6 +3450,14 @@ export default function PDV() {
       const message = getPublicErrorMessage(error, 'Não foi possível cancelar a venda');
       silentToast.error(message);
     }
+  };
+
+  const requestCashOut = () => {
+    if (!canCashOut) {
+      silentToast.error('Seu usuario nao tem permissao para realizar sangria');
+      return;
+    }
+    setShowCashOut(true);
   };
 
   useEffect(() => {
@@ -3768,7 +3833,7 @@ export default function PDV() {
 
         if (event.key === '3') {
           event.preventDefault();
-          setShowCashOut(true);
+          requestCashOut();
           return;
         }
 
@@ -3792,7 +3857,7 @@ export default function PDV() {
 
         if (event.key === '6') {
           event.preventDefault();
-          setShowCashOut(true);
+          requestCashOut();
           return;
         }
 
@@ -3872,11 +3937,19 @@ export default function PDV() {
             <p className="text-sm text-muted-foreground">
               Operador do caixa: <span className="font-medium text-foreground">{sellerName}</span> • {roleName}
             </p>
+            {operationalScope && (
+              <p className="text-xs text-muted-foreground">
+                Filial: <span className="font-medium text-foreground">{operationalScope.location.name}</span>
+                {' • '}Terminal: <span className="font-medium text-foreground">{operationalScope.terminal?.name ?? 'padrao'}</span>
+              </p>
+            )}
           </div>
           <div className="flex flex-wrap justify-end gap-2" data-tour-id="pdv-actions">
             <Button variant="outline" size="sm" onClick={() => navigate('/')}>Menu (F1)</Button>
             <Button variant="outline" size="sm" onClick={() => setShowSalesSearch(true)}><History className="h-4 w-4 mr-1" />Buscar vendas (F12)</Button>
-            <Button variant="outline" size="sm" onClick={() => setShowCashOut(true)}><Wallet className="h-4 w-4 mr-1" />Saída de caixa</Button>
+            {canCashOut && (
+              <Button variant="outline" size="sm" onClick={requestCashOut}><Wallet className="h-4 w-4 mr-1" />Saída de caixa</Button>
+            )}
             <Button variant={cashierMode ? 'default' : 'outline'} size="sm" onClick={toggleCashierMode}>
               {cashierMode ? <Minimize2 className="h-4 w-4 mr-1" /> : <Maximize2 className="h-4 w-4 mr-1" />}
               {cashierMode ? 'Sair tela cheia' : 'Tela cheia'} (F11)
@@ -3884,7 +3957,9 @@ export default function PDV() {
             <span className="inline-flex items-center rounded border border-border px-2.5 py-1 text-sm font-semibold">
               Caixa: {cashSession ? formatMoney(currentCashBalance) : 'fechado'}
             </span>
-            <Button variant="destructive" size="sm" onClick={requestCloseCash} disabled={!cashSession}>Fechar caixa (F10)</Button>
+            {canCloseCash && (
+              <Button variant="destructive" size="sm" onClick={requestCloseCash} disabled={!cashSession}>Fechar caixa (F10)</Button>
+            )}
           </div>
         </div>
         <div className="mb-3 shrink-0" data-tour-id="pdv-ticket-lookup">
@@ -4072,7 +4147,7 @@ export default function PDV() {
                     {isCartItemPriceEdited(i) && (
                       <p className="text-xs text-muted-foreground">Preço base: {formatMoney(i.product.price)}</p>
                     )}
-                    {isAdmin && !activeServiceTicket && (
+                    {canEditPdvPrice && !activeServiceTicket && (
                       <Button
                         type="button"
                         variant="outline"
@@ -4708,7 +4783,7 @@ export default function PDV() {
                           )}
                         </div>
                         <div className="flex flex-wrap gap-2 lg:justify-end">
-                          {!isCancelled && (
+                          {!isCancelled && canCancelSale && (
                             <Button type="button" variant="outline" size="sm" onClick={() => printSaleCouponCopy(sale)}>
                               <Printer className="mr-1 h-4 w-4" />2ª via do cupom
                             </Button>
@@ -4957,8 +5032,8 @@ export default function PDV() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => navigate('/')}>Voltar ao menu</Button>
-            <Button onClick={handleOpenCash} disabled={isVerifyingOpenCashAdmin}>
-              {isVerifyingOpenCashAdmin ? 'Validando...' : 'Abrir caixa'}
+            <Button onClick={handleOpenCash} disabled={isVerifyingOpenCashAdmin || !canOpenCash}>
+              {!canOpenCash ? 'Sem permissao para abrir' : isVerifyingOpenCashAdmin ? 'Validando...' : 'Abrir caixa'}
             </Button>
           </DialogFooter>
         </DialogContent>

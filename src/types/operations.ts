@@ -2,11 +2,14 @@ import type { DebtEntry } from '@/types';
 
 export type PurchaseOrder = {
   id: string;
+  location_id?: string | null;
   supplier_id?: string | null;
   supplier_name: string;
   invoice_number: string;
   purchase_date: string;
   status: string;
+  due_date?: string | null;
+  received_at?: string | null;
   total_amount: number;
   notes: string;
 };
@@ -15,6 +18,12 @@ export type SupplierRecord = {
   id: string;
   name: string;
   whatsapp: string;
+  document: string;
+  contact_name: string;
+  email: string;
+  payment_terms_days: number;
+  delivery_lead_days: number;
+  minimum_order: number;
   notes: string;
   active: boolean;
 };
@@ -27,10 +36,12 @@ export type PurchaseOrderItem = {
   quantity: number;
   unit_cost: number;
   total_cost: number;
+  received_quantity: number;
 };
 
 export type FinancialAccount = {
   id: string;
+  location_id?: string | null;
   account_type: 'payable' | 'receivable';
   description: string;
   party_name: string;
@@ -39,6 +50,7 @@ export type FinancialAccount = {
   paid_at: string | null;
   status: 'pending' | 'paid' | 'canceled';
   source?: string;
+  reference_id?: string | null;
   notes?: string;
 };
 
@@ -69,6 +81,7 @@ export type SupplierSummary = {
   name: string;
   whatsapp: string;
   registered: boolean;
+  active: boolean;
   productsCount: number;
   productNames: string[];
   lowStockCount: number;

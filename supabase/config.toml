@@ -29,6 +29,10 @@ max_frequency = "1m0s"
 otp_length = 8
 otp_expiry = 3600
 
+[auth.email.template.magic_link]
+subject = "Codigo de recuperacao HappyCash"
+content_path = "./supabase/templates/magic-link.html"
+
 [auth.external.apple]
 skip_nonce_check = true
 email_optional = true

@@ -79,4 +79,26 @@ describe('OperationsDetailsDialog', () => {
     expect(screen.getByText('R$ 25,00')).toBeInTheDocument();
     expect(screen.queryByText(/Produto Fiado/)).not.toBeInTheDocument();
   });
+
+  it('uses the product code to distinguish batches with the same product name', () => {
+    render(
+      <OperationsDetailsDialog
+        {...baseProps}
+        detail="batches"
+        products={[
+          { id: 'product-1', user_id: 'owner-1', code: 1, name: 'LEITE', price: 8, cost_price: 5, category: '', barcode: '', stock: 3, min_stock: 0 },
+          { id: 'product-2', user_id: 'owner-1', code: 2, name: 'LEITE', price: 9, cost_price: 6, category: '', barcode: '', stock: 4, min_stock: 0 },
+        ]}
+        expiringBatches={[
+          { id: 'batch-1', product_id: 'product-1', product_name: 'LEITE', batch_code: 'A', quantity: 1, expiration_date: '2025-01-01', alert_days: 30 },
+          { id: 'batch-2', product_id: 'product-2', product_name: 'LEITE', batch_code: 'B', quantity: 2, expiration_date: '2025-02-01', alert_days: 30 },
+        ]}
+      />,
+    );
+
+    expect(screen.getByText('P01')).toBeInTheDocument();
+    expect(screen.getByText('P02')).toBeInTheDocument();
+    expect(screen.getByText('A')).toBeInTheDocument();
+    expect(screen.getByText('B')).toBeInTheDocument();
+  });
 });

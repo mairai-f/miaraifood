@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type ChangeEvent } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useState, type ChangeEvent } from 'react';
 import { Clock3, Download, Loader2, Settings as SettingsIcon, ShieldAlert } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import { CompanyProfileCard } from '@/components/CompanyProfileCard';
@@ -41,6 +41,26 @@ import {
 } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import { getPublicErrorMessage, getRedactedLogValue } from '../../shared/security/redaction';
+
+// A matriz RBAC e administrativa e relativamente grande. O carregamento lazy
+// garante que esse codigo seja baixado apenas no navegador, nunca no Desktop.
+const PermissionsManagementPanel = lazy(() =>
+  import('@/components/PermissionsManagementPanel').then((module) => ({
+    default: module.PermissionsManagementPanel,
+  })),
+);
+
+const LocationsTerminalsPanel = lazy(() =>
+  import('@/components/LocationsTerminalsPanel').then((module) => ({
+    default: module.LocationsTerminalsPanel,
+  })),
+);
+
+const CatalogConfigurationPanel = lazy(() =>
+  import('@/components/CatalogConfigurationPanel').then((module) => ({
+    default: module.CatalogConfigurationPanel,
+  })),
+);
 
 const CREATE_OPERATOR_MODAL = 'cadastrar-operador';
 const RESET_CONFIRM_TEXT = 'ZERAR';
@@ -168,19 +188,6 @@ export default function Settings() {
   useEffect(() => {
     void loadOfflineRuntime();
     void loadDesktopUpdateRuntime();
-
-    if (!isDesktop || !ownerUserId) {
-      return;
-    }
-
-    const intervalId = window.setInterval(() => {
-      void loadOfflineRuntime();
-      void loadDesktopUpdateRuntime();
-    }, 20_000);
-
-    return () => {
-      window.clearInterval(intervalId);
-    };
   }, [isDesktop, loadDesktopUpdateRuntime, loadOfflineRuntime, ownerUserId]);
 
   useEffect(() => {
@@ -998,6 +1005,46 @@ export default function Settings() {
         createDialogOpen={isCreateOperatorModalOpen}
         onCreateDialogOpenChange={handleCreateDialogOpenChange}
       />
+
+      {!isDesktop && (
+        <>
+          <Suspense
+            fallback={(
+              <Card>
+                <CardContent className="flex items-center gap-2 py-8 text-sm text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin" /> Carregando filiais e terminais...
+                </CardContent>
+              </Card>
+            )}
+          >
+            <LocationsTerminalsPanel />
+          </Suspense>
+
+          <Suspense
+            fallback={(
+              <Card>
+                <CardContent className="flex items-center gap-2 py-8 text-sm text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin" /> Carregando catalogo avancado...
+                </CardContent>
+              </Card>
+            )}
+          >
+            <CatalogConfigurationPanel />
+          </Suspense>
+
+          <Suspense
+            fallback={(
+              <Card>
+                <CardContent className="flex items-center gap-2 py-8 text-sm text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin" /> Carregando matriz de permissoes...
+                </CardContent>
+              </Card>
+            )}
+          >
+            <PermissionsManagementPanel />
+          </Suspense>
+        </>
+      )}
 
       <Card className="border-destructive/30">
         <CardHeader className="space-y-2">

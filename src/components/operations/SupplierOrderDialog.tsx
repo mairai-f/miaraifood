@@ -31,6 +31,9 @@ export function SupplierOrderDialog({ open, initialSupplierId, suppliers, produc
   const [quantity, setQuantity] = useState('1');
   const [items, setItems] = useState<SupplierOrderItem[]>([]);
   const [sending, setSending] = useState(false);
+  const selectedSupplier = suppliers.find((supplier) => supplier.id === supplierId);
+  const availableProducts = products.filter((product) => !supplierId || !product.supplier_id || product.supplier_id === supplierId);
+  const orderTotal = items.reduce((sum, item) => sum + item.quantity * item.unitCost, 0);
 
   useEffect(() => {
     if (!open) return;
@@ -43,8 +46,8 @@ export function SupplierOrderDialog({ open, initialSupplierId, suppliers, produc
   const findProduct = () => {
     const query = productSearch.trim().toLocaleUpperCase('pt-BR');
     if (!query) return null;
-    return products.find((product) => product.name.toLocaleUpperCase('pt-BR') === query)
-      ?? products.find((product) => product.name.toLocaleUpperCase('pt-BR').startsWith(query))
+    return availableProducts.find((product) => product.name.toLocaleUpperCase('pt-BR') === query || product.barcode.toLocaleUpperCase('pt-BR') === query)
+      ?? availableProducts.find((product) => product.name.toLocaleUpperCase('pt-BR').startsWith(query))
       ?? null;
   };
 
@@ -92,7 +95,11 @@ export function SupplierOrderDialog({ open, initialSupplierId, suppliers, produc
         <div className="grid gap-4">
           <div className="space-y-1.5">
             <Label>Fornecedor</Label>
-            <Select value={supplierId} onValueChange={setSupplierId}>
+            <Select value={supplierId} onValueChange={(value) => {
+              setSupplierId(value);
+              setProductSearch('');
+              setItems([]);
+            }}>
               <SelectTrigger><SelectValue placeholder="Escolha um fornecedor cadastrado" /></SelectTrigger>
               <SelectContent>{suppliers.map((supplier) => <SelectItem key={supplier.id} value={supplier.id}>{supplier.name}</SelectItem>)}</SelectContent>
             </Select>
@@ -101,8 +108,8 @@ export function SupplierOrderDialog({ open, initialSupplierId, suppliers, produc
           <div className="grid gap-3 sm:grid-cols-[1fr_100px_auto] sm:items-end">
             <div className="space-y-1.5">
               <Label>Produto</Label>
-              <Input list="supplier-order-products" value={productSearch} onChange={(event) => setProductSearch(event.target.value)} placeholder="Digite o nome do produto" />
-              <datalist id="supplier-order-products">{products.map((product) => <option key={product.id} value={product.name} />)}</datalist>
+              <Input list="supplier-order-products" value={productSearch} onChange={(event) => setProductSearch(event.target.value)} placeholder="Nome ou código de barras" />
+              <datalist id="supplier-order-products">{availableProducts.map((product) => <option key={product.id} value={product.name} />)}</datalist>
             </div>
             <div className="space-y-1.5">
               <Label>Quantidade</Label>
@@ -120,6 +127,10 @@ export function SupplierOrderDialog({ open, initialSupplierId, suppliers, produc
             ))}
             {items.length === 0 && <p className="py-5 text-center text-sm text-muted-foreground">Adicione os produtos que deseja pedir.</p>}
           </div>
+          <div className="flex items-center justify-between text-sm"><span className="text-muted-foreground">Total estimado</span><strong>R$ {orderTotal.toFixed(2)}</strong></div>
+          {selectedSupplier && selectedSupplier.minimum_order > orderTotal && (
+            <p className="text-sm text-amber-600">Pedido mínimo deste fornecedor: R$ {selectedSupplier.minimum_order.toFixed(2)}.</p>
+          )}
         </div>
 
         <DialogFooter>

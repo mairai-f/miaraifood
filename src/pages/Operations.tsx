@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Barcode, Boxes, CalendarClock, CheckCircle2, Edit, FileDown, Loader2, MessageCircle, PackagePlus, Percent, Plus, RefreshCw, ShieldCheck, Truck, WalletCards } from 'lucide-react';
+import { useSearchParams } from 'react-router-dom';
+import { Barcode, Boxes, CalendarClock, Check, CheckCircle2, Edit, FileDown, Loader2, MessageCircle, PackageCheck, PackagePlus, Percent, Plus, RefreshCw, Search, ShieldCheck, Trash2, Truck, WalletCards } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { OperationsDetailsDialog } from '@/components/operations/OperationsDetailsDialog';
@@ -9,6 +10,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -17,8 +19,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { useAuth } from '@/contexts/AuthContext';
 import { useData } from '@/contexts/DataContext';
+import { useOperationalScope } from '@/contexts/useOperationalScope';
 import { supabase } from '@/integrations/supabase/client';
 import { parseDecimalInput } from '@/lib/numberInput';
+import { getLocalIsoDate } from '@/lib/clientDebtDueDate';
+import { filterProductsBySearch, toProductUppercase } from '@/lib/productSearch';
 import { normalizePhone } from '@/lib/phone';
 import { openExternalUrl } from '@/lib/openExternalUrl';
 import { formatProductCode } from '@/lib/productCode';
@@ -27,7 +32,10 @@ import type { FinancialAccount, OpenDebtClient, OperationsDetail, ProductBatch, 
 import { getRedactedLogValue } from '../../shared/security/redaction';
 
 const fromTable = (table: string) => supabase.from(table as never);
-const today = () => new Date().toISOString().slice(0, 10);
+const operationsRpc = supabase as unknown as {
+  rpc: (name: string, args: Record<string, unknown>) => Promise<{ data: unknown; error: { message?: string } | null }>;
+};
+const today = getLocalIsoDate;
 const money = (value: number | string | null | undefined) =>
   new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(value ?? 0));
 const parseMoney = (value: string) => Math.max(0, parseDecimalInput(value));
@@ -41,8 +49,44 @@ const daysUntil = (value: string) => {
   const now = new Date(`${today()}T00:00:00`).getTime();
   return Math.ceil((date - now) / 86400000);
 };
+const dateAfterDays = (days: number) => {
+  const date = new Date();
+  date.setDate(date.getDate() + Math.max(0, days));
+  return getLocalIsoDate(date);
+};
+const createEmptySupplierForm = () => ({
+  id: '',
+  name: '',
+  whatsapp: '',
+  document: '',
+  contact_name: '',
+  email: '',
+  payment_terms_days: '0',
+  delivery_lead_days: '0',
+  minimum_order: '',
+  notes: '',
+});
+const supplierFormFromRecord = (record: SupplierRecord | undefined, fallbackName = '') => ({
+  id: record?.id ?? '',
+  name: record?.name ?? fallbackName,
+  whatsapp: record?.whatsapp ?? '',
+  document: record?.document ?? '',
+  contact_name: record?.contact_name ?? '',
+  email: record?.email ?? '',
+  payment_terms_days: String(record?.payment_terms_days ?? 0),
+  delivery_lead_days: String(record?.delivery_lead_days ?? 0),
+  minimum_order: record?.minimum_order ? String(record.minimum_order) : '',
+  notes: record?.notes ?? '',
+});
+const purchaseStatusLabel = (status: string) => ({
+  open: 'Aberto',
+  partially_received: 'Recebido parcialmente',
+  received: 'Recebido',
+  canceled: 'Cancelado',
+}[status] ?? status);
 
 export default function Operations() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const { user, ownerUserId } = useAuth();
   const {
     products,
@@ -53,13 +97,13 @@ export default function Operations() {
     stockMovements,
     expenses,
     getClientBalance,
-    updateProduct,
-    addStockMovement,
     offlinePreparationStatus,
     offlinePreparationMessage,
     offlineSnapshotUpdatedAt,
-    refetch,
+    syncNow,
   } = useData();
+  const { scope: operationalScope } = useOperationalScope();
+  const operationalLocationId = operationalScope?.location.id ?? null;
   const effectiveOwnerId = ownerUserId ?? user?.id ?? '';
   const activeProducts = useMemo(() => products.filter((product) => !product.deleted), [products]);
 
@@ -73,6 +117,46 @@ export default function Operations() {
   const [detail, setDetail] = useState<OperationsDetail | null>(null);
   const [supplierOrderOpen, setSupplierOrderOpen] = useState(false);
   const [supplierOrderInitialId, setSupplierOrderInitialId] = useState('');
+  const [activeTab, setActiveTab] = useState('compras');
+  const [syncing, setSyncing] = useState(false);
+  const [purchaseDraftItems, setPurchaseDraftItems] = useState<SupplierOrderItem[]>([]);
+  const [receivingPurchase, setReceivingPurchase] = useState<PurchaseOrder | null>(null);
+  const [receiveQuantities, setReceiveQuantities] = useState<Record<string, string>>({});
+  const [receiveCreatePayable, setReceiveCreatePayable] = useState(false);
+  const [receiveDueDate, setReceiveDueDate] = useState(today());
+  const [receiving, setReceiving] = useState(false);
+  const [supplierSearch, setSupplierSearch] = useState('');
+  const [purchaseSearch, setPurchaseSearch] = useState('');
+  const [purchaseStatus, setPurchaseStatus] = useState('all');
+
+  const handleManualSync = useCallback(async () => {
+    if (syncing) return;
+
+    setSyncing(true);
+    try {
+      await syncNow();
+      toast.success('Backup e sincronizacao atualizados.');
+    } catch (error) {
+      console.error('Erro ao sincronizar manualmente:', getRedactedLogValue(error));
+      toast.error('Nao foi possivel sincronizar agora.');
+    } finally {
+      setSyncing(false);
+    }
+  }, [syncNow, syncing]);
+
+  useEffect(() => {
+    if (activeTab !== 'backup') return;
+
+    const handleBackupShortcut = (event: KeyboardEvent) => {
+      if (event.key !== 'F5' || event.ctrlKey || event.altKey || event.metaKey || event.repeat) return;
+      event.preventDefault();
+      event.stopPropagation();
+      void handleManualSync();
+    };
+
+    document.addEventListener('keydown', handleBackupShortcut, true);
+    return () => document.removeEventListener('keydown', handleBackupShortcut, true);
+  }, [activeTab, handleManualSync]);
 
   const [purchaseForm, setPurchaseForm] = useState({
     supplier_name: '',
@@ -120,7 +204,23 @@ export default function Operations() {
     notes: '',
   });
   const [batchProductSearch, setBatchProductSearch] = useState('');
-  const [supplierForm, setSupplierForm] = useState({ id: '', name: '', whatsapp: '', notes: '' });
+  const [batchToRemove, setBatchToRemove] = useState<ProductBatch | null>(null);
+  const [removingBatch, setRemovingBatch] = useState(false);
+  const [supplierForm, setSupplierForm] = useState(createEmptySupplierForm);
+
+  const selectedBatchProduct = useMemo(
+    () => activeProducts.find((product) => product.id === batchForm.product_id) ?? null,
+    [activeProducts, batchForm.product_id],
+  );
+  const batchProductResults = useMemo(
+    () => batchProductSearch.trim() && !selectedBatchProduct
+      ? filterProductsBySearch(activeProducts, batchProductSearch).slice(0, 8)
+      : [],
+    [activeProducts, batchProductSearch, selectedBatchProduct],
+  );
+  const batchToRemoveProduct = batchToRemove?.product_id
+    ? products.find((product) => product.id === batchToRemove.product_id) ?? null
+    : null;
 
   const expiringBatches = useMemo(
     () => batches.filter((batch) => daysUntil(batch.expiration_date) <= Number(batch.alert_days ?? 30)),
@@ -202,6 +302,7 @@ export default function Operations() {
 
   const selectedPurchaseProduct = activeProducts.find((product) => product.id === purchaseForm.product_id);
   const selectedLabelProduct = activeProducts.find((product) => product.id === labelForm.product_id);
+  const purchaseDraftSubtotal = purchaseDraftItems.reduce((sum, item) => sum + item.quantity * item.unitCost, 0);
   const supplierSummaries = useMemo(() => {
     const summaries = new Map<string, SupplierSummary>();
 
@@ -215,6 +316,7 @@ export default function Operations() {
           current.id = record.id;
           current.whatsapp = record.whatsapp;
           current.registered = true;
+          current.active = record.active;
         }
         return current;
       }
@@ -224,6 +326,7 @@ export default function Operations() {
         name: normalizedName,
         whatsapp: record?.whatsapp ?? '',
         registered: Boolean(record),
+        active: record?.active ?? true,
         productsCount: 0,
         productNames: [],
         lowStockCount: 0,
@@ -241,7 +344,8 @@ export default function Operations() {
     });
 
     activeProducts.forEach((product) => {
-      const supplier = ensureSupplier(product.supplier_name || '');
+      const supplierRecord = suppliers.find((record) => record.id === product.supplier_id);
+      const supplier = ensureSupplier(supplierRecord?.name || product.supplier_name || '', supplierRecord);
       if (!supplier) return;
       supplier.productsCount += 1;
       supplier.productNames.push(product.name);
@@ -252,7 +356,8 @@ export default function Operations() {
     });
 
     purchases.forEach((purchase) => {
-      const supplier = ensureSupplier(purchase.supplier_name || '');
+      const supplierRecord = suppliers.find((record) => record.id === purchase.supplier_id);
+      const supplier = ensureSupplier(supplierRecord?.name || purchase.supplier_name || '', supplierRecord);
       if (!supplier) return;
       supplier.purchaseCount += 1;
       supplier.purchaseTotal += Number(purchase.total_amount ?? 0);
@@ -263,6 +368,25 @@ export default function Operations() {
 
     return Array.from(summaries.values()).sort((left, right) => right.purchaseTotal - left.purchaseTotal || left.name.localeCompare(right.name));
   }, [activeProducts, purchases, suppliers]);
+  const visibleSupplierSummaries = useMemo(() => {
+    const query = supplierSearch.trim().toLocaleUpperCase('pt-BR');
+    if (!query) return supplierSummaries;
+    return supplierSummaries.filter((supplier) => [supplier.name, supplier.whatsapp, ...supplier.productNames]
+      .some((value) => value.toLocaleUpperCase('pt-BR').includes(query)));
+  }, [supplierSearch, supplierSummaries]);
+  const visiblePurchases = useMemo(() => {
+    const query = purchaseSearch.trim().toLocaleUpperCase('pt-BR');
+    return purchases
+      .filter((purchase) => purchaseStatus === 'all' || purchase.status === purchaseStatus)
+      .filter((purchase) => !query || [purchase.supplier_name, purchase.invoice_number]
+        .some((value) => value?.toLocaleUpperCase('pt-BR').includes(query)))
+      .sort((left, right) => {
+        const leftPending = ['open', 'partially_received'].includes(left.status);
+        const rightPending = ['open', 'partially_received'].includes(right.status);
+        if (leftPending !== rightPending) return leftPending ? -1 : 1;
+        return right.purchase_date.localeCompare(left.purchase_date);
+      });
+  }, [purchaseSearch, purchaseStatus, purchases]);
 
   const auditEvents = useMemo(() => {
     const canceledSales = sales
@@ -302,10 +426,13 @@ export default function Operations() {
     if (!effectiveOwnerId) return;
     setLoading(true);
 
+    const locationQuery = <T extends { eq: (column: string, value: string) => T }>(query: T) =>
+      operationalLocationId ? query.eq('location_id', operationalLocationId) : query;
+
     const [purchaseResult, purchaseItemsResult, accountResult, promotionResult, batchResult, supplierResult] = await Promise.all([
-      fromTable('purchase_orders').select('*').eq('owner_user_id', effectiveOwnerId).order('purchase_date', { ascending: false }).limit(20),
+      locationQuery(fromTable('purchase_orders').select('*').eq('owner_user_id', effectiveOwnerId)).order('purchase_date', { ascending: false }).limit(200),
       fromTable('purchase_order_items').select('*').eq('owner_user_id', effectiveOwnerId).order('created_at', { ascending: false }).limit(200),
-      fromTable('financial_accounts').select('*').eq('owner_user_id', effectiveOwnerId).order('due_date', { ascending: true }).limit(80),
+      locationQuery(fromTable('financial_accounts').select('*').eq('owner_user_id', effectiveOwnerId)).order('due_date', { ascending: true }).limit(80),
       fromTable('product_promotions').select('*').eq('owner_user_id', effectiveOwnerId).order('created_at', { ascending: false }).limit(60),
       fromTable('product_batches').select('*').eq('owner_user_id', effectiveOwnerId).order('expiration_date', { ascending: true }).limit(80),
       fromTable('suppliers').select('*').eq('owner_user_id', effectiveOwnerId).order('name', { ascending: true }).limit(200),
@@ -331,43 +458,118 @@ export default function Operations() {
     } else {
       setSuppliers(supplierResult.data ?? []);
     }
-  }, [effectiveOwnerId]);
+  }, [effectiveOwnerId, operationalLocationId]);
 
   useEffect(() => {
     void loadOperations();
   }, [loadOperations]);
 
-  const savePurchase = async () => {
-    if (!effectiveOwnerId) return;
-    if (!purchaseForm.supplier_name.trim()) {
-      toast.error('Informe o fornecedor da compra.');
-      return;
-    }
-    if (!selectedPurchaseProduct) {
-      toast.error('Escolha o produto comprado.');
-      return;
-    }
+  useEffect(() => {
+    const requestedProductId = searchParams.get('product');
+    if (!requestedProductId) return;
+    const product = activeProducts.find((item) => item.id === requestedProductId);
+    if (!product) return;
 
+    const requestedSupplierName = searchParams.get('supplier')?.trim() || product.supplier_name || '';
+    const supplier = suppliers.find((item) => item.active && item.name.toLocaleUpperCase('pt-BR') === requestedSupplierName.toLocaleUpperCase('pt-BR'));
+    const quantity = Math.max(1, parseMoney(searchParams.get('quantity') || '1'));
+    const unitCost = Number(product.purchase_cost ?? product.cost_price ?? 0);
+
+    setActiveTab('compras');
+    setPurchaseForm((current) => ({
+      ...current,
+      supplier_name: supplier?.name ?? requestedSupplierName,
+      supplier_id: supplier?.id ?? '',
+      due_date: dateAfterDays(Number(supplier?.payment_terms_days ?? 0)),
+    }));
+    setPurchaseDraftItems((current) => current.some((item) => item.productId === product.id)
+      ? current
+      : [...current, { productId: product.id, productName: product.name, quantity, unitCost }]);
+    setSearchParams({}, { replace: true });
+  }, [activeProducts, searchParams, setSearchParams, suppliers]);
+
+  const resetPurchaseForm = () => {
+    setPurchaseForm({
+      supplier_name: '', supplier_id: '', invoice_number: '', purchase_date: today(),
+      product_id: '', quantity: '', unit_cost: '', freight_amount: '', tax_amount: '',
+      due_date: today(), create_payable: true, receive_stock: true, notes: '',
+    });
+    setPurchaseProductSearch('');
+    setPurchaseDraftItems([]);
+  };
+
+  const addPurchaseDraftItem = () => {
+    if (!selectedPurchaseProduct) {
+      toast.error('Escolha um produto cadastrado.');
+      return;
+    }
     const quantity = parseMoney(purchaseForm.quantity);
     const unitCost = parseMoney(purchaseForm.unit_cost);
-    const freight = parseMoney(purchaseForm.freight_amount);
-    const tax = parseMoney(purchaseForm.tax_amount);
-    const subtotal = quantity * unitCost;
-    const total = subtotal + freight + tax;
-
     if (quantity <= 0 || unitCost <= 0) {
       toast.error('Informe quantidade e custo unitário.');
       return;
     }
 
+    setPurchaseDraftItems((current) => {
+      const existing = current.find((item) => item.productId === selectedPurchaseProduct.id);
+      if (existing) {
+        return current.map((item) => item.productId === selectedPurchaseProduct.id
+          ? { ...item, quantity: item.quantity + quantity, unitCost }
+          : item);
+      }
+      return [...current, {
+        productId: selectedPurchaseProduct.id,
+        productName: selectedPurchaseProduct.name,
+        quantity,
+        unitCost,
+      }];
+    });
+    setPurchaseProductSearch('');
+    setPurchaseForm((current) => ({ ...current, product_id: '', quantity: '', unit_cost: '' }));
+  };
+
+  const receiveOrderItems = async (
+    order: PurchaseOrder,
+    receipts: Array<{ item_id: string; quantity: number }>,
+    createPayable: boolean,
+    dueDate: string,
+  ) => {
+    const { error } = await operationsRpc.rpc('receive_purchase_order', {
+      p_order_id: order.id,
+      p_receipts: receipts,
+      p_create_payable: createPayable,
+      p_due_date: dueDate,
+    });
+    if (error) throw error;
+  };
+
+  const savePurchase = async () => {
+    if (!effectiveOwnerId) return;
+    const supplier = suppliers.find((item) => item.id === purchaseForm.supplier_id && item.active);
+    if (!supplier) {
+      toast.error('Escolha um fornecedor cadastrado.');
+      return;
+    }
+    if (purchaseDraftItems.length === 0) {
+      toast.error('Adicione ao menos um produto à compra.');
+      return;
+    }
+
+    const freight = parseMoney(purchaseForm.freight_amount);
+    const tax = parseMoney(purchaseForm.tax_amount);
+    const subtotal = purchaseDraftSubtotal;
+    const total = subtotal + freight + tax;
+
     const { data: order, error: orderError } = await fromTable('purchase_orders')
       .insert({
         owner_user_id: effectiveOwnerId,
-        supplier_id: purchaseForm.supplier_id || null,
-        supplier_name: purchaseForm.supplier_name.trim(),
+        location_id: operationalLocationId,
+        supplier_id: supplier.id,
+        supplier_name: supplier.name,
         invoice_number: purchaseForm.invoice_number.trim(),
         purchase_date: purchaseForm.purchase_date,
-        status: purchaseForm.receive_stock ? 'received' : 'open',
+        due_date: purchaseForm.due_date,
+        status: 'open',
         subtotal,
         freight_amount: freight,
         tax_amount: tax,
@@ -383,70 +585,92 @@ export default function Operations() {
       return;
     }
 
-    const { error: itemError } = await fromTable('purchase_order_items').insert({
+    const { data: itemRows, error: itemError } = await fromTable('purchase_order_items').insert(purchaseDraftItems.map((item) => ({
       owner_user_id: effectiveOwnerId,
       purchase_order_id: order.id,
-      product_id: selectedPurchaseProduct.id,
-      product_name: selectedPurchaseProduct.name,
-      quantity,
-      unit_cost: unitCost,
-      total_cost: subtotal,
-    });
+      product_id: item.productId,
+      product_name: item.productName,
+      quantity: item.quantity,
+      unit_cost: item.unitCost,
+      total_cost: item.quantity * item.unitCost,
+      received_quantity: 0,
+    }))).select('*');
 
     if (itemError) {
       console.error('Erro ao salvar item da compra:', getRedactedLogValue(itemError));
-      toast.error('Compra criada, mas o item não foi registrado.');
+      await fromTable('purchase_orders').delete().eq('id', order.id);
+      toast.error('Não foi possível registrar os itens da compra.');
+      return;
     }
 
-    if (purchaseForm.create_payable) {
+    if (purchaseForm.receive_stock) {
+      try {
+        await receiveOrderItems(
+          order as PurchaseOrder,
+          (itemRows as PurchaseOrderItem[]).map((item) => ({ item_id: item.id, quantity: item.quantity })),
+          purchaseForm.create_payable,
+          purchaseForm.due_date,
+        );
+      } catch (error) {
+        console.error('Erro ao receber compra:', getRedactedLogValue(error));
+        toast.error('Pedido salvo, mas o estoque não foi recebido. Use a ação Receber.');
+        resetPurchaseForm();
+        await loadOperations();
+        return;
+      }
+    } else if (purchaseForm.create_payable) {
       await fromTable('financial_accounts').insert({
         owner_user_id: effectiveOwnerId,
+        location_id: operationalLocationId,
         account_type: 'payable',
-        description: `Compra ${selectedPurchaseProduct.name}`,
-        party_name: purchaseForm.supplier_name.trim(),
+        description: `Compra ${supplier.name}`,
+        party_name: supplier.name,
         amount: total,
         due_date: purchaseForm.due_date,
         source: 'purchase',
+        reference_id: order.id,
         notes: purchaseForm.invoice_number ? `NF ${purchaseForm.invoice_number}` : purchaseForm.notes.trim(),
       });
     }
 
-    if (purchaseForm.receive_stock) {
-      const unitFreight = quantity > 0 ? freight / quantity : 0;
-      const unitTax = quantity > 0 ? tax / quantity : 0;
+    toast.success(purchaseForm.receive_stock ? 'Compra registrada e estoque recebido.' : 'Pedido de compra registrado.');
+    resetPurchaseForm();
+    await syncNow();
+    await loadOperations();
+  };
 
-      await updateProduct(selectedPurchaseProduct.id, {
-        purchase_cost: unitCost,
-        freight_cost: unitFreight,
-        tax_cost: unitTax,
-        supplier_name: purchaseForm.supplier_name.trim(),
-      });
-      await addStockMovement(
-        selectedPurchaseProduct.id,
-        'entrada',
-        quantity,
-        `Compra${purchaseForm.supplier_name.trim() ? ` - ${purchaseForm.supplier_name.trim()}` : ''}${purchaseForm.invoice_number.trim() ? ` NF ${purchaseForm.invoice_number.trim()}` : ''}`,
-      );
+  const openPurchaseReceipt = (purchase: PurchaseOrder) => {
+    const items = purchaseItems.filter((item) => item.purchase_order_id === purchase.id && item.received_quantity < item.quantity);
+    setReceivingPurchase(purchase);
+    setReceiveQuantities(Object.fromEntries(items.map((item) => [item.id, String(item.quantity - item.received_quantity)])));
+    setReceiveCreatePayable(!accounts.some((account) => account.source === 'purchase' && account.reference_id === purchase.id));
+    setReceiveDueDate(purchase.due_date || today());
+  };
+
+  const submitPurchaseReceipt = async () => {
+    if (!receivingPurchase || receiving) return;
+    const receipts = purchaseItems
+      .filter((item) => item.purchase_order_id === receivingPurchase.id)
+      .map((item) => ({ item_id: item.id, quantity: parseMoney(receiveQuantities[item.id] || '0') }))
+      .filter((item) => item.quantity > 0);
+    if (receipts.length === 0) {
+      toast.error('Informe ao menos uma quantidade recebida.');
+      return;
     }
 
-    toast.success('Compra registrada.');
-    setPurchaseForm({
-      supplier_name: '',
-      supplier_id: '',
-      invoice_number: '',
-      purchase_date: today(),
-      product_id: '',
-      quantity: '',
-      unit_cost: '',
-      freight_amount: '',
-      tax_amount: '',
-      due_date: today(),
-      create_payable: true,
-      receive_stock: true,
-      notes: '',
-    });
-    setPurchaseProductSearch('');
-    await loadOperations();
+    setReceiving(true);
+    try {
+      await receiveOrderItems(receivingPurchase, receipts, receiveCreatePayable, receiveDueDate);
+      setReceivingPurchase(null);
+      toast.success('Recebimento registrado e estoque atualizado.');
+      await syncNow();
+      await loadOperations();
+    } catch (error) {
+      console.error('Erro ao receber pedido:', getRedactedLogValue(error));
+      toast.error('Não foi possível receber o pedido. Verifique as quantidades.');
+    } finally {
+      setReceiving(false);
+    }
   };
 
   const saveSupplier = async () => {
@@ -460,18 +684,34 @@ export default function Operations() {
       toast.error('Informe um WhatsApp válido com DDD.');
       return;
     }
+    const document = supplierForm.document.replace(/\D/g, '');
+    if (document && ![11, 14].includes(document.length)) {
+      toast.error('Informe um CPF ou CNPJ válido.');
+      return;
+    }
+    const email = supplierForm.email.trim().toLowerCase();
+    if (email && !/^\S+@\S+\.\S+$/.test(email)) {
+      toast.error('Informe um email válido.');
+      return;
+    }
 
     const payload = {
       owner_user_id: effectiveOwnerId,
       name: supplierForm.name.trim(),
       whatsapp,
+      document,
+      contact_name: supplierForm.contact_name.trim(),
+      email,
+      payment_terms_days: Math.max(0, Number.parseInt(supplierForm.payment_terms_days, 10) || 0),
+      delivery_lead_days: Math.max(0, Number.parseInt(supplierForm.delivery_lead_days, 10) || 0),
+      minimum_order: parseMoney(supplierForm.minimum_order),
       notes: supplierForm.notes.trim(),
       active: true,
     };
     const query = supplierForm.id
       ? fromTable('suppliers').update(payload).eq('id', supplierForm.id)
       : fromTable('suppliers').insert(payload);
-    const { error } = await query;
+    const { data: savedSupplier, error } = await query.select('*').single();
 
     if (error) {
       console.error('Erro ao salvar fornecedor:', getRedactedLogValue(error));
@@ -479,8 +719,32 @@ export default function Operations() {
       return;
     }
 
+    if (supplierForm.id) {
+      await fromTable('products')
+        .update({ supplier_name: payload.name })
+        .eq('supplier_id', supplierForm.id)
+        .eq('user_id', effectiveOwnerId);
+    } else if (savedSupplier?.id) {
+      await fromTable('products')
+        .update({ supplier_id: savedSupplier.id, supplier_name: payload.name })
+        .eq('user_id', effectiveOwnerId)
+        .is('supplier_id', null)
+        .ilike('supplier_name', payload.name);
+    }
+
     toast.success('Fornecedor salvo.');
-    setSupplierForm({ id: '', name: '', whatsapp: '', notes: '' });
+    setSupplierForm(createEmptySupplierForm());
+    await syncNow();
+    await loadOperations();
+  };
+
+  const toggleSupplierActive = async (supplier: SupplierRecord) => {
+    const { error } = await fromTable('suppliers').update({ active: !supplier.active }).eq('id', supplier.id);
+    if (error) {
+      toast.error('Não foi possível alterar o status do fornecedor.');
+      return;
+    }
+    toast.success(supplier.active ? 'Fornecedor inativado.' : 'Fornecedor reativado.');
     await loadOperations();
   };
 
@@ -500,6 +764,7 @@ export default function Operations() {
     const { data: order, error: orderError } = await fromTable('purchase_orders')
       .insert({
         owner_user_id: effectiveOwnerId,
+        location_id: operationalLocationId,
         supplier_id: supplier.id,
         supplier_name: supplier.name,
         invoice_number: '',
@@ -558,6 +823,7 @@ export default function Operations() {
 
     const { error } = await fromTable('financial_accounts').insert({
       owner_user_id: effectiveOwnerId,
+      location_id: operationalLocationId,
       account_type: accountForm.account_type,
       description: accountForm.description.trim(),
       party_name: accountForm.party_name.trim(),
@@ -693,15 +959,45 @@ export default function Operations() {
     await loadOperations();
   };
 
+  const removeBatch = async (adjustStock: boolean) => {
+    if (!batchToRemove || removingBatch) return;
+
+    setRemovingBatch(true);
+    const { data, error } = await operationsRpc.rpc('discard_product_batch', {
+      p_batch_id: batchToRemove.id,
+      p_adjust_stock: adjustStock,
+    });
+    setRemovingBatch(false);
+
+    if (error) {
+      console.error('Erro ao dar baixa no lote:', getRedactedLogValue(error));
+      toast.error(error.message || 'Não foi possível retirar o lote.');
+      return;
+    }
+
+    const result = (data ?? {}) as { stock_quantity?: number };
+    const adjustedQuantity = Number(result.stock_quantity ?? 0);
+    if (adjustStock && adjustedQuantity > 0) {
+      toast.success(`Lote retirado e ${adjustedQuantity} un. baixadas do estoque.`);
+    } else if (adjustStock) {
+      toast.success('Lote retirado. Não havia saldo disponível para baixar do estoque.');
+    } else {
+      toast.success('Controle de validade removido sem alterar o estoque.');
+    }
+
+    setBatchToRemove(null);
+    await Promise.all([loadOperations(), syncNow()]);
+  };
+
   const prepareSupplierOrder = (supplier: SupplierSummary) => {
     if (!supplier.id) {
-      setSupplierForm({ id: '', name: supplier.name, whatsapp: '', notes: '' });
+      setSupplierForm(supplierFormFromRecord(undefined, supplier.name));
       toast.error('Complete o cadastro e o WhatsApp deste fornecedor antes de criar o pedido.');
       return;
     }
     if (!supplier.whatsapp) {
       const record = suppliers.find((item) => item.id === supplier.id);
-      setSupplierForm({ id: supplier.id, name: supplier.name, whatsapp: '', notes: record?.notes ?? '' });
+      setSupplierForm(supplierFormFromRecord(record, supplier.name));
       toast.error('Cadastre o WhatsApp deste fornecedor antes de criar o pedido.');
       return;
     }
@@ -726,7 +1022,7 @@ export default function Operations() {
       <div className="grid gap-3 md:grid-cols-4">
         <OperationsMetricCard label="Compras recentes" value={purchases.length} onClick={() => setDetail('purchases')} />
         <OperationsMetricCard label="Pendente financeiro" value={money(pendingAccountsTotal)} onClick={() => setDetail('accounts')} />
-        <OperationsMetricCard label="Fornecedores ativos" value={supplierSummaries.length} onClick={() => setDetail('suppliers')} />
+        <OperationsMetricCard label="Fornecedores ativos" value={supplierSummaries.filter((supplier) => supplier.active).length} onClick={() => setDetail('suppliers')} />
         <OperationsMetricCard label="Promoções ativas" value={activePromotions.length} onClick={() => setDetail('promotions')} />
       </div>
 
@@ -737,7 +1033,7 @@ export default function Operations() {
         <OperationsMetricCard label="Fiado em aberto" value={money(openFiadoTotal)} onClick={() => setDetail('debts')} />
       </div>
 
-      <Tabs defaultValue="compras" className="space-y-4">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
         <TabsList className="h-auto flex-wrap justify-start">
           <TabsTrigger value="compras">Compras</TabsTrigger>
           <TabsTrigger value="fornecedores">Fornecedores</TabsTrigger>
@@ -753,11 +1049,21 @@ export default function Operations() {
           <Card className="min-w-0 overflow-hidden">
             <CardHeader><CardTitle>{supplierForm.id ? 'Editar fornecedor' : 'Cadastrar fornecedor'}</CardTitle></CardHeader>
             <CardContent className="grid gap-3">
-              <div className="space-y-1.5"><Label>Nome</Label><Input value={supplierForm.name} onChange={(event) => setSupplierForm((current) => ({ ...current, name: event.target.value }))} placeholder="Ex: Distribuidora Central" /></div>
-              <div className="space-y-1.5"><Label>WhatsApp</Label><Input value={supplierForm.whatsapp} onChange={(event) => setSupplierForm((current) => ({ ...current, whatsapp: event.target.value }))} inputMode="tel" placeholder="(11) 99999-9999" /></div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="space-y-1.5"><Label>Nome</Label><Input value={supplierForm.name} onChange={(event) => setSupplierForm((current) => ({ ...current, name: event.target.value }))} placeholder="Ex: Distribuidora Central" /></div>
+                <div className="space-y-1.5"><Label>CNPJ / CPF</Label><Input value={supplierForm.document} onChange={(event) => setSupplierForm((current) => ({ ...current, document: event.target.value.replace(/\D/g, '').slice(0, 14) }))} inputMode="numeric" /></div>
+                <div className="space-y-1.5"><Label>Contato</Label><Input value={supplierForm.contact_name} onChange={(event) => setSupplierForm((current) => ({ ...current, contact_name: event.target.value }))} /></div>
+                <div className="space-y-1.5"><Label>WhatsApp</Label><Input value={supplierForm.whatsapp} onChange={(event) => setSupplierForm((current) => ({ ...current, whatsapp: event.target.value }))} inputMode="tel" placeholder="(11) 99999-9999" /></div>
+              </div>
+              <div className="space-y-1.5"><Label>Email</Label><Input type="email" value={supplierForm.email} onChange={(event) => setSupplierForm((current) => ({ ...current, email: event.target.value }))} /></div>
+              <div className="grid gap-3 sm:grid-cols-3">
+                <div className="space-y-1.5"><Label>Prazo de pagamento</Label><Input type="number" min="0" value={supplierForm.payment_terms_days} onChange={(event) => setSupplierForm((current) => ({ ...current, payment_terms_days: event.target.value }))} /><p className="text-xs text-muted-foreground">dias</p></div>
+                <div className="space-y-1.5"><Label>Prazo de entrega</Label><Input type="number" min="0" value={supplierForm.delivery_lead_days} onChange={(event) => setSupplierForm((current) => ({ ...current, delivery_lead_days: event.target.value }))} /><p className="text-xs text-muted-foreground">dias</p></div>
+                <div className="space-y-1.5"><Label>Pedido mínimo</Label><Input inputMode="decimal" value={supplierForm.minimum_order} onChange={(event) => setSupplierForm((current) => ({ ...current, minimum_order: event.target.value }))} placeholder="R$ 0,00" /></div>
+              </div>
               <div className="space-y-1.5"><Label>Observações</Label><Textarea value={supplierForm.notes} onChange={(event) => setSupplierForm((current) => ({ ...current, notes: event.target.value }))} placeholder="Contato, prazo ou condição comercial" /></div>
               <div className="flex gap-2">
-                {supplierForm.id && <Button type="button" variant="outline" onClick={() => setSupplierForm({ id: '', name: '', whatsapp: '', notes: '' })}>Cancelar</Button>}
+                {supplierForm.id && <Button type="button" variant="outline" onClick={() => setSupplierForm(createEmptySupplierForm())}>Cancelar</Button>}
                 <Button type="button" onClick={() => void saveSupplier()}>{supplierForm.id ? 'Salvar alterações' : 'Cadastrar'}</Button>
               </div>
             </CardContent>
@@ -765,19 +1071,29 @@ export default function Operations() {
           <Card className="min-w-0 overflow-hidden">
             <CardHeader><CardTitle className="flex items-center gap-2"><Truck className="h-5 w-5" /> Fornecedores</CardTitle></CardHeader>
             <CardContent className="grid gap-3">
-              {supplierSummaries.map((supplier) => (
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input className="pl-9" value={supplierSearch} onChange={event => setSupplierSearch(event.target.value)} placeholder="Buscar fornecedor ou produto" />
+              </div>
+              {visibleSupplierSummaries.map((supplier) => (
                 <div key={supplier.name} className="min-w-0 rounded-lg border bg-muted/10 p-4">
                   <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                     <div className="min-w-0">
                       <p className="truncate font-semibold">{supplier.name}</p>
+                      {!supplier.active && <Badge variant="secondary" className="mt-1">Inativo</Badge>}
                       <p className="mt-1 break-words text-sm text-muted-foreground">WhatsApp: {supplier.whatsapp || 'Não cadastrado'}</p>
+                      {suppliers.find((item) => item.id === supplier.id)?.contact_name && <p className="text-sm text-muted-foreground">Contato: {suppliers.find((item) => item.id === supplier.id)?.contact_name}</p>}
                     </div>
                     <div className="flex shrink-0 flex-wrap gap-2">
                       <Button type="button" size="sm" variant="outline" onClick={() => {
                         const record = suppliers.find((item) => item.id === supplier.id);
-                        setSupplierForm({ id: supplier.id ?? '', name: supplier.name, whatsapp: supplier.whatsapp, notes: record?.notes ?? '' });
+                        setSupplierForm(supplierFormFromRecord(record, supplier.name));
                       }}><Edit className="mr-1 h-3.5 w-3.5" />Editar</Button>
-                      <Button type="button" size="sm" onClick={() => prepareSupplierOrder(supplier)}><MessageCircle className="mr-1 h-3.5 w-3.5" />Novo pedido</Button>
+                      {supplier.id && <Button type="button" size="sm" variant="outline" onClick={() => {
+                        const record = suppliers.find((item) => item.id === supplier.id);
+                        if (record) void toggleSupplierActive(record);
+                      }}>{supplier.active ? 'Inativar' : 'Reativar'}</Button>}
+                      {supplier.active && <Button type="button" size="sm" onClick={() => prepareSupplierOrder(supplier)}><MessageCircle className="mr-1 h-3.5 w-3.5" />Novo pedido</Button>}
                     </div>
                   </div>
                   <div className="mt-4 grid grid-cols-2 gap-3 text-sm sm:grid-cols-3 lg:grid-cols-5">
@@ -789,7 +1105,7 @@ export default function Operations() {
                   </div>
                 </div>
               ))}
-              {supplierSummaries.length === 0 && <p className="py-8 text-center text-sm text-muted-foreground">Nenhum fornecedor encontrado em produtos ou compras.</p>}
+              {visibleSupplierSummaries.length === 0 && <p className="py-8 text-center text-sm text-muted-foreground">Nenhum fornecedor encontrado.</p>}
             </CardContent>
           </Card>
         </TabsContent>
@@ -806,52 +1122,78 @@ export default function Operations() {
                     value={purchaseForm.supplier_name}
                     onChange={(event) => {
                       const name = event.target.value;
-                      const supplier = suppliers.find((item) => item.name.toLocaleUpperCase('pt-BR') === name.trim().toLocaleUpperCase('pt-BR'));
-                      setPurchaseForm((current) => ({ ...current, supplier_name: name, supplier_id: supplier?.id ?? '' }));
+                      const supplier = suppliers.find((item) => item.active && item.name.toLocaleUpperCase('pt-BR') === name.trim().toLocaleUpperCase('pt-BR'));
+                      setPurchaseForm((current) => ({
+                        ...current,
+                        supplier_name: name,
+                        supplier_id: supplier?.id ?? '',
+                        due_date: supplier ? dateAfterDays(Number(supplier.payment_terms_days ?? 0)) : current.due_date,
+                      }));
                     }}
                     placeholder="Digite ou escolha um fornecedor cadastrado"
                   />
-                  <datalist id="purchase-suppliers">{suppliers.map((supplier) => <option key={supplier.id} value={supplier.name} />)}</datalist>
+                  <datalist id="purchase-suppliers">{suppliers.filter((supplier) => supplier.active).map((supplier) => <option key={supplier.id} value={supplier.name} />)}</datalist>
                 </div>
                 <div className="space-y-1.5"><Label>NF / documento</Label><Input value={purchaseForm.invoice_number} onChange={(e) => setPurchaseForm({ ...purchaseForm, invoice_number: e.target.value })} /></div>
                 <div className="space-y-1.5"><Label>Data</Label><Input type="date" value={purchaseForm.purchase_date} onChange={(e) => setPurchaseForm({ ...purchaseForm, purchase_date: e.target.value })} /></div>
                 <div className="space-y-1.5"><Label>Vencimento</Label><Input type="date" value={purchaseForm.due_date} onChange={(e) => setPurchaseForm({ ...purchaseForm, due_date: e.target.value })} /></div>
               </div>
-              <div className="space-y-1.5">
-                <Label>Produto</Label>
-                <Input
-                  list="purchase-products"
-                  value={purchaseProductSearch}
-                  onChange={(event) => {
-                    const value = event.target.value;
-                    const query = value.trim().toLocaleUpperCase('pt-BR');
-                    const exactProduct = activeProducts.find((product) => product.name.toLocaleUpperCase('pt-BR') === query);
-                    const matchingProducts = activeProducts.filter((product) => product.name.toLocaleUpperCase('pt-BR').startsWith(query));
-                    const identifiedProduct = exactProduct ?? (matchingProducts.length === 1 ? matchingProducts[0] : null);
-                    setPurchaseProductSearch(value);
-                    setPurchaseForm((current) => ({ ...current, product_id: identifiedProduct?.id ?? '' }));
-                  }}
-                  placeholder="Digite o nome do produto"
-                />
-                <datalist id="purchase-products">{activeProducts.map((product) => <option key={product.id} value={product.name} />)}</datalist>
-                <p className="text-xs text-muted-foreground">{selectedPurchaseProduct ? `Produto identificado: ${selectedPurchaseProduct.name}` : 'Digite até identificar um produto cadastrado.'}</p>
+              <div className="grid gap-3">
+                <div className="space-y-1.5">
+                  <Label>Produto</Label>
+                  <Input
+                    list="purchase-products"
+                    value={purchaseProductSearch}
+                    onChange={(event) => {
+                      const value = event.target.value;
+                      const query = value.trim().toLocaleUpperCase('pt-BR');
+                      const exactProduct = activeProducts.find((product) => product.name.toLocaleUpperCase('pt-BR') === query || product.barcode.toLocaleUpperCase('pt-BR') === query);
+                      const matchingProducts = activeProducts.filter((product) => product.name.toLocaleUpperCase('pt-BR').startsWith(query));
+                      const identifiedProduct = exactProduct ?? (matchingProducts.length === 1 ? matchingProducts[0] : null);
+                      setPurchaseProductSearch(value);
+                      setPurchaseForm((current) => ({
+                        ...current,
+                        product_id: identifiedProduct?.id ?? '',
+                        unit_cost: identifiedProduct ? String(identifiedProduct.purchase_cost ?? identifiedProduct.cost_price ?? 0) : current.unit_cost,
+                      }));
+                    }}
+                    placeholder="Nome ou código de barras"
+                  />
+                  <datalist id="purchase-products">{activeProducts.map((product) => <option key={product.id} value={product.name} />)}</datalist>
+                </div>
+                <div className="grid gap-3 sm:grid-cols-[90px_120px_minmax(110px,1fr)] sm:items-end">
+                  <div className="space-y-1.5"><Label>Qtd.</Label><Input inputMode="decimal" value={purchaseForm.quantity} onChange={(e) => setPurchaseForm({ ...purchaseForm, quantity: e.target.value })} /></div>
+                  <div className="space-y-1.5"><Label>Custo un.</Label><Input inputMode="decimal" value={purchaseForm.unit_cost} onChange={(e) => setPurchaseForm({ ...purchaseForm, unit_cost: e.target.value })} /></div>
+                  <Button type="button" variant="outline" onClick={addPurchaseDraftItem} disabled={!selectedPurchaseProduct}><Plus className="mr-1 h-4 w-4" />Adicionar</Button>
+                </div>
               </div>
-              <div className="grid gap-3 sm:grid-cols-4">
-                <div className="space-y-1.5"><Label>Qtd.</Label><Input inputMode="decimal" value={purchaseForm.quantity} onChange={(e) => setPurchaseForm({ ...purchaseForm, quantity: e.target.value })} /></div>
-                <div className="space-y-1.5"><Label>Custo un.</Label><Input inputMode="decimal" value={purchaseForm.unit_cost} onChange={(e) => setPurchaseForm({ ...purchaseForm, unit_cost: e.target.value })} /></div>
-                <div className="space-y-1.5"><Label>Frete</Label><Input inputMode="decimal" value={purchaseForm.freight_amount} onChange={(e) => setPurchaseForm({ ...purchaseForm, freight_amount: e.target.value })} /></div>
-                <div className="space-y-1.5"><Label>Imposto</Label><Input inputMode="decimal" value={purchaseForm.tax_amount} onChange={(e) => setPurchaseForm({ ...purchaseForm, tax_amount: e.target.value })} /></div>
+              <div className="max-h-56 space-y-2 overflow-y-auto rounded-md border p-3">
+                {purchaseDraftItems.map((item) => (
+                  <div key={item.productId} className="flex items-center justify-between gap-3 rounded-md bg-muted/40 p-2 text-sm">
+                    <div className="min-w-0"><p className="truncate font-medium">{item.productName}</p><p className="text-xs text-muted-foreground">{item.quantity} × {money(item.unitCost)} = {money(item.quantity * item.unitCost)}</p></div>
+                    <Button type="button" size="icon" variant="ghost" onClick={() => setPurchaseDraftItems((current) => current.filter((currentItem) => currentItem.productId !== item.productId))} aria-label={`Remover ${item.productName}`}><Trash2 className="h-4 w-4" /></Button>
+                  </div>
+                ))}
+                {purchaseDraftItems.length === 0 && <p className="py-4 text-center text-sm text-muted-foreground">Adicione os produtos desta compra.</p>}
               </div>
+              <div className="grid gap-3 sm:grid-cols-3">
+                <div className="space-y-1.5"><Label>Frete total</Label><Input inputMode="decimal" value={purchaseForm.freight_amount} onChange={(e) => setPurchaseForm({ ...purchaseForm, freight_amount: e.target.value })} /></div>
+                <div className="space-y-1.5"><Label>Imposto total</Label><Input inputMode="decimal" value={purchaseForm.tax_amount} onChange={(e) => setPurchaseForm({ ...purchaseForm, tax_amount: e.target.value })} /></div>
+                <div className="rounded-md border bg-muted/30 p-3"><p className="text-xs text-muted-foreground">Total da compra</p><p className="font-semibold">{money(purchaseDraftSubtotal + parseMoney(purchaseForm.freight_amount) + parseMoney(purchaseForm.tax_amount))}</p></div>
+              </div>
+              {purchaseForm.supplier_id && Number(suppliers.find((item) => item.id === purchaseForm.supplier_id)?.minimum_order ?? 0) > purchaseDraftSubtotal && (
+                <p className="text-sm text-amber-600">O pedido está abaixo do mínimo de {money(suppliers.find((item) => item.id === purchaseForm.supplier_id)?.minimum_order)} deste fornecedor.</p>
+              )}
               <Textarea value={purchaseForm.notes} onChange={(e) => setPurchaseForm({ ...purchaseForm, notes: e.target.value })} placeholder="Observações da compra" />
               <div className="flex flex-wrap gap-2 text-sm">
-                <label className="flex items-center gap-2"><input type="checkbox" checked={purchaseForm.receive_stock} onChange={(e) => setPurchaseForm({ ...purchaseForm, receive_stock: e.target.checked })} /> Entrar no estoque</label>
+                <label className="flex items-center gap-2"><input type="checkbox" checked={purchaseForm.receive_stock} onChange={(e) => setPurchaseForm({ ...purchaseForm, receive_stock: e.target.checked })} /> Receber estoque agora</label>
                 <label className="flex items-center gap-2"><input type="checkbox" checked={purchaseForm.create_payable} onChange={(e) => setPurchaseForm({ ...purchaseForm, create_payable: e.target.checked })} /> Gerar conta a pagar</label>
               </div>
               <div className="flex flex-wrap gap-2">
-                <Button onClick={() => void savePurchase()} className="gap-2"><Plus className="h-4 w-4" /> Salvar compra</Button>
+                <Button onClick={() => void savePurchase()} className="gap-2" disabled={purchaseDraftItems.length === 0}><Plus className="h-4 w-4" /> Salvar compra</Button>
                 <Button type="button" variant="outline" onClick={() => {
-                  const supplier = suppliers.find((item) => item.id === purchaseForm.supplier_id)
-                    ?? suppliers.find((item) => item.name.toLocaleUpperCase('pt-BR') === purchaseForm.supplier_name.trim().toLocaleUpperCase('pt-BR'));
+                  const supplier = suppliers.find((item) => item.active && item.id === purchaseForm.supplier_id)
+                    ?? suppliers.find((item) => item.active && item.name.toLocaleUpperCase('pt-BR') === purchaseForm.supplier_name.trim().toLocaleUpperCase('pt-BR'));
                   if (!supplier) {
                     toast.error('Escolha um fornecedor cadastrado para enviar o pedido.');
                     return;
@@ -864,10 +1206,24 @@ export default function Operations() {
           <Card>
             <CardHeader><CardTitle>Últimas compras</CardTitle></CardHeader>
             <CardContent>
+              <div className="mb-3 grid gap-2 sm:grid-cols-[1fr_190px]">
+                <div className="relative"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" /><Input className="pl-9" value={purchaseSearch} onChange={event => setPurchaseSearch(event.target.value)} placeholder="Fornecedor ou NF" /></div>
+                <Select value={purchaseStatus} onValueChange={setPurchaseStatus}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent><SelectItem value="all">Todos os status</SelectItem><SelectItem value="open">Abertos</SelectItem><SelectItem value="partially_received">Parciais</SelectItem><SelectItem value="received">Recebidos</SelectItem><SelectItem value="canceled">Cancelados</SelectItem></SelectContent>
+                </Select>
+              </div>
               <Table>
-                <TableHeader><TableRow><TableHead>Data</TableHead><TableHead>Fornecedor</TableHead><TableHead>Total</TableHead><TableHead>Status</TableHead></TableRow></TableHeader>
-                <TableBody>{purchases.map((purchase) => (
-                  <TableRow key={purchase.id}><TableCell>{formatDate(purchase.purchase_date)}</TableCell><TableCell>{purchase.supplier_name || '-'}</TableCell><TableCell>{money(purchase.total_amount)}</TableCell><TableCell><Badge variant="outline">{purchase.status}</Badge></TableCell></TableRow>
+                <TableHeader><TableRow><TableHead>Data</TableHead><TableHead>Fornecedor</TableHead><TableHead>Itens</TableHead><TableHead>Total</TableHead><TableHead>Status</TableHead><TableHead></TableHead></TableRow></TableHeader>
+                <TableBody>{visiblePurchases.map((purchase) => (
+                  <TableRow key={purchase.id}>
+                    <TableCell>{formatDate(purchase.purchase_date)}</TableCell>
+                    <TableCell>{purchase.supplier_name || '-'}</TableCell>
+                    <TableCell>{purchaseItems.filter((item) => item.purchase_order_id === purchase.id).length}</TableCell>
+                    <TableCell>{money(purchase.total_amount)}</TableCell>
+                    <TableCell><Badge variant="outline">{purchaseStatusLabel(purchase.status)}</Badge></TableCell>
+                    <TableCell>{['open', 'partially_received'].includes(purchase.status) && <Button type="button" size="sm" variant="outline" onClick={() => openPurchaseReceipt(purchase)}><PackageCheck className="mr-1 h-4 w-4" />Receber</Button>}</TableCell>
+                  </TableRow>
                 ))}</TableBody>
               </Table>
             </CardContent>
@@ -996,23 +1352,46 @@ export default function Operations() {
             <CardHeader><CardTitle className="flex items-center gap-2"><CalendarClock className="h-5 w-5" /> Validade e lote</CardTitle></CardHeader>
             <CardContent className="grid gap-3">
               <div className="space-y-1.5">
-                <Label>Produto cadastrado</Label>
+                <Label htmlFor="batch-product-search">Produto cadastrado</Label>
                 <Input
-                  list="batch-products"
+                  id="batch-product-search"
                   value={batchProductSearch}
                   onChange={(event) => {
-                    const value = event.target.value;
-                    const query = value.trim().toLocaleUpperCase('pt-BR');
-                    const exactProduct = activeProducts.find((product) => product.name.toLocaleUpperCase('pt-BR') === query);
-                    const matchingProducts = activeProducts.filter((product) => product.name.toLocaleUpperCase('pt-BR').startsWith(query));
-                    const identifiedProduct = exactProduct ?? (matchingProducts.length === 1 ? matchingProducts[0] : null);
-                    setBatchProductSearch(value);
-                    setBatchForm((current) => ({ ...current, product_id: identifiedProduct?.id ?? '' }));
+                    setBatchProductSearch(toProductUppercase(event.target.value));
+                    setBatchForm((current) => ({ ...current, product_id: '' }));
                   }}
-                  placeholder="Digite o nome do produto"
+                  placeholder="Nome, código ou código de barras"
                 />
-                <datalist id="batch-products">{activeProducts.map((product) => <option key={product.id} value={product.name} />)}</datalist>
-                <p className="text-xs text-muted-foreground">{batchForm.product_id ? `Produto identificado: ${activeProducts.find((product) => product.id === batchForm.product_id)?.name}` : 'Digite até identificar um produto já cadastrado.'}</p>
+                {batchProductResults.length > 0 && (
+                  <div className="max-h-48 overflow-y-auto rounded-md border">
+                    {batchProductResults.map((product) => (
+                      <button
+                        key={product.id}
+                        type="button"
+                        className="flex w-full items-center justify-between gap-3 border-b px-3 py-2 text-left text-sm last:border-b-0 hover:bg-accent"
+                        onClick={() => {
+                          setBatchForm((current) => ({ ...current, product_id: product.id }));
+                          setBatchProductSearch(product.name);
+                        }}
+                      >
+                        <span className="min-w-0 truncate">{product.name}</span>
+                        <span className="shrink-0 text-xs text-muted-foreground">{formatProductCode(product.code) || product.barcode || 'Sem código'} · saldo {product.stock}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {batchProductSearch.trim() && !selectedBatchProduct && batchProductResults.length === 0 && (
+                  <p className="text-xs text-muted-foreground">Nenhum produto encontrado.</p>
+                )}
+                {selectedBatchProduct && (
+                  <div className="flex items-center justify-between rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-sm">
+                    <div className="min-w-0">
+                      <p className="truncate font-medium">{selectedBatchProduct.name}</p>
+                      <p className="text-xs text-muted-foreground">{formatProductCode(selectedBatchProduct.code) || selectedBatchProduct.barcode || 'Sem código'} · estoque atual {selectedBatchProduct.stock}</p>
+                    </div>
+                    <Check className="h-4 w-4 text-primary" />
+                  </div>
+                )}
               </div>
               <div className="grid gap-3 sm:grid-cols-2">
                 <Input placeholder="Lote" value={batchForm.batch_code} onChange={(e) => setBatchForm({ ...batchForm, batch_code: e.target.value })} />
@@ -1028,20 +1407,51 @@ export default function Operations() {
             <CardHeader><CardTitle>Lotes monitorados</CardTitle></CardHeader>
             <CardContent>
               <Table>
-                <TableHeader><TableRow><TableHead>Produto</TableHead><TableHead>Lote</TableHead><TableHead>Validade</TableHead><TableHead>Qtd.</TableHead><TableHead>Status</TableHead></TableRow></TableHeader>
+                <TableHeader><TableRow><TableHead>Produto</TableHead><TableHead>Lote</TableHead><TableHead>Validade</TableHead><TableHead>Qtd.</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Ação</TableHead></TableRow></TableHeader>
                 <TableBody>{batches.map((batch) => {
                   const remaining = daysUntil(batch.expiration_date);
+                  const product = batch.product_id ? products.find((item) => item.id === batch.product_id) : null;
                   return (
                     <TableRow key={batch.id}>
-                      <TableCell>{batch.product_name}</TableCell><TableCell>{batch.batch_code || '-'}</TableCell><TableCell>{formatDate(batch.expiration_date)}</TableCell><TableCell>{batch.quantity}</TableCell>
+                      <TableCell><p className="font-medium">{product?.name || batch.product_name}</p><p className="text-xs text-muted-foreground">{product ? formatProductCode(product.code) || product.barcode || 'Sem código' : 'Cadastro não localizado'}</p></TableCell><TableCell>{batch.batch_code || '-'}</TableCell><TableCell>{formatDate(batch.expiration_date)}</TableCell><TableCell>{batch.quantity}</TableCell>
                       <TableCell><Badge variant={remaining < 0 ? 'destructive' : remaining <= batch.alert_days ? 'secondary' : 'outline'}>{remaining < 0 ? 'Vencido' : `${remaining} dias`}</Badge></TableCell>
+                      <TableCell className="text-right"><Button type="button" size="sm" variant={remaining < 0 ? 'destructive' : 'outline'} onClick={() => setBatchToRemove(batch)}><Trash2 className="mr-1 h-4 w-4" />{remaining < 0 ? 'Dar baixa' : 'Remover'}</Button></TableCell>
                     </TableRow>
                   );
-                })}</TableBody>
+                })}
+                {batches.length === 0 && <TableRow><TableCell colSpan={6} className="py-8 text-center text-muted-foreground">Nenhum lote monitorado.</TableCell></TableRow>}
+                </TableBody>
               </Table>
             </CardContent>
           </Card>
         </TabsContent>
+
+        <Dialog open={Boolean(batchToRemove)} onOpenChange={(open) => { if (!open && !removingBatch) setBatchToRemove(null); }}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>{batchToRemove && daysUntil(batchToRemove.expiration_date) < 0 ? 'Dar baixa no lote vencido?' : 'Remover este lote?'}</DialogTitle>
+              <DialogDescription>Escolha se a retirada também deve diminuir o estoque físico.</DialogDescription>
+            </DialogHeader>
+            {batchToRemove && (
+              <div className="space-y-3 text-sm">
+                <div className="rounded-md border bg-muted/30 p-3">
+                  <p className="font-medium">{batchToRemoveProduct?.name || batchToRemove.product_name}</p>
+                  <p className="text-xs text-muted-foreground">{batchToRemoveProduct ? formatProductCode(batchToRemoveProduct.code) || batchToRemoveProduct.barcode || 'Sem código' : 'Cadastro não localizado'}</p>
+                  <p className="text-muted-foreground">Lote {batchToRemove.batch_code || 'não informado'} · validade {formatDate(batchToRemove.expiration_date)} · {batchToRemove.quantity} un.</p>
+                </div>
+                <p><strong>Dar baixa do estoque</strong> registra uma saída por vencimento e remove somente este lote. O cadastro do produto e os outros lotes continuam ativos.</p>
+                <p className="text-muted-foreground"><strong>Só remover o controle</strong> apaga apenas esta validade, sem mudar o saldo do estoque. Use para um lote cadastrado por engano.</p>
+              </div>
+            )}
+            <DialogFooter className="gap-2 sm:justify-between">
+              <Button type="button" variant="ghost" disabled={removingBatch} onClick={() => setBatchToRemove(null)}>Cancelar</Button>
+              <div className="flex flex-col-reverse gap-2 sm:flex-row">
+                <Button type="button" variant="outline" disabled={removingBatch} onClick={() => void removeBatch(false)}>Só remover o controle</Button>
+                <Button type="button" variant="destructive" disabled={removingBatch} onClick={() => void removeBatch(true)}>{removingBatch && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Dar baixa do estoque</Button>
+              </div>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         <TabsContent value="backup">
           <Card>
@@ -1059,7 +1469,10 @@ export default function Operations() {
                 <div className="rounded-md border p-3"><p className="text-xs text-muted-foreground">Produtos carregados</p><p className="font-semibold">{products.length}</p></div>
                 <div className="rounded-md border p-3"><p className="text-xs text-muted-foreground">Clientes carregados</p><p className="font-semibold">{clients.length}</p></div>
               </div>
-              <Button onClick={() => void refetch()} className="gap-2"><RefreshCw className="h-4 w-4" /> Sincronizar agora</Button>
+              <Button onClick={() => void handleManualSync()} className="gap-2" disabled={syncing}>
+                {syncing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                {syncing ? 'Sincronizando...' : 'Sincronizar agora (F5)'}
+              </Button>
             </CardContent>
           </Card>
         </TabsContent>
@@ -1087,6 +1500,35 @@ export default function Operations() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      <Dialog open={Boolean(receivingPurchase)} onOpenChange={(nextOpen) => { if (!nextOpen && !receiving) setReceivingPurchase(null); }}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader><DialogTitle>Receber pedido de compra</DialogTitle></DialogHeader>
+          <div className="space-y-4">
+            <div className="rounded-md border bg-muted/30 p-3 text-sm">
+              <p className="font-medium">{receivingPurchase?.supplier_name}</p>
+              <p className="text-muted-foreground">Pedido de {formatDate(receivingPurchase?.purchase_date)} · {money(receivingPurchase?.total_amount)}</p>
+            </div>
+            <div className="max-h-72 space-y-2 overflow-y-auto">
+              {purchaseItems.filter((item) => item.purchase_order_id === receivingPurchase?.id && item.received_quantity < item.quantity).map((item) => {
+                const remaining = item.quantity - item.received_quantity;
+                return (
+                  <div key={item.id} className="grid gap-2 rounded-md border p-3 sm:grid-cols-[1fr_130px] sm:items-center">
+                    <div><p className="font-medium">{item.product_name}</p><p className="text-xs text-muted-foreground">Pedido: {item.quantity} · já recebido: {item.received_quantity} · pendente: {remaining}</p></div>
+                    <div className="space-y-1"><Label>Receber agora</Label><Input type="number" min="0" max={remaining} step="0.001" value={receiveQuantities[item.id] ?? ''} onChange={event => setReceiveQuantities((current) => ({ ...current, [item.id]: event.target.value }))} /></div>
+                  </div>
+                );
+              })}
+            </div>
+            <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={receiveCreatePayable} onChange={event => setReceiveCreatePayable(event.target.checked)} /> Gerar conta a pagar se ainda não existir</label>
+            {receiveCreatePayable && <div className="space-y-1.5"><Label>Vencimento da conta</Label><Input type="date" value={receiveDueDate} onChange={event => setReceiveDueDate(event.target.value)} /></div>}
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setReceivingPurchase(null)} disabled={receiving}>Cancelar</Button>
+            <Button type="button" onClick={() => void submitPurchaseReceipt()} disabled={receiving}>{receiving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <PackageCheck className="mr-2 h-4 w-4" />}{receiving ? 'Recebendo...' : 'Confirmar recebimento'}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <OperationsDetailsDialog
         detail={detail}

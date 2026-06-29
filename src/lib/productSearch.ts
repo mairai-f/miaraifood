@@ -17,10 +17,12 @@ export const getProductSearchTokens = (query: string) =>
     .filter(Boolean);
 
 const getProductSearchFields = (product: Product) => [
+  product.code,
   product.name,
   product.category,
   product.supplier_name,
   product.barcode,
+  product.reference,
 ].map(normalizeProductSearchText);
 
 export const productMatchesSearch = (product: Product, query: string) => {

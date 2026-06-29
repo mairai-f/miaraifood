@@ -23,6 +23,8 @@ describe('cashSessionStorage', () => {
       openedAt: '2026-04-23T12:00:00.000Z',
       openingAmount: 25,
       openedBy: 'Celio',
+      locationId: 'location-1',
+      terminalId: 'terminal-1',
     });
 
     expect(readScopedCashSession('owner-1', 'operator-1')).toEqual({
@@ -32,6 +34,8 @@ describe('cashSessionStorage', () => {
       openedBy: 'Celio',
       ownerUserId: 'owner-1',
       operatorUserId: 'operator-1',
+      locationId: 'location-1',
+      terminalId: 'terminal-1',
     });
     expect(readScopedCashSession('owner-1', 'operator-2')).toBeNull();
     expect(readScopedCashSession('owner-2', 'operator-1')).toBeNull();

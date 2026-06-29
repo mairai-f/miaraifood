@@ -3,6 +3,7 @@ export interface Client {
   name: string;
   phone: string;
   credit_limit?: number | null;
+  debt_due_date?: string | null;
   created_at: string;
   deleted: boolean;
   deleted_at?: string | null;
@@ -46,7 +47,18 @@ export interface Product {
   operational_cost?: number;
   other_extra_cost?: number;
   custom_costs?: ProductCustomCost[];
+  supplier_id?: string | null;
   supplier_name?: string;
+  department_id?: string | null;
+  brand_id?: string | null;
+  product_group_id?: string | null;
+  product_subgroup_id?: string | null;
+  measurement_unit_id?: string | null;
+  primary_transport_company_id?: string | null;
+  reference?: string;
+  max_discount_pct?: number;
+  commission_type?: 'none' | 'percent' | 'amount';
+  commission_value?: number;
   target_markup_pct?: number;
   minimum_markup_pct?: number;
   minimum_price?: number;
@@ -69,6 +81,7 @@ export interface Product {
 
 export interface DebtEntry {
   id: string;
+  location_id?: string | null;
   client_id: string;
   product_id: string;
   product_name: string;
@@ -90,6 +103,7 @@ export interface DebtEntry {
 
 export interface Payment {
   id: string;
+  location_id?: string | null;
   client_id: string;
   amount: number;
   date: string;
@@ -105,6 +119,8 @@ export interface Sale {
   user_id: string;
   operator_user_id?: string | null;
   cash_session_id?: string | null;
+  location_id?: string | null;
+  terminal_id?: string | null;
   seller_name?: string | null;
   is_delivery?: boolean;
   service_ticket_number?: number | null;
@@ -149,6 +165,7 @@ export type ServiceTicketItemStatus = 'active' | 'cancelled';
 export interface ServiceTicket {
   id: string;
   owner_user_id: string;
+  location_id?: string | null;
   number: number;
   barcode: string;
   label?: string | null;
@@ -245,6 +262,12 @@ export interface StockMovement {
   quantity: number;
   reason: string;
   date: string;
+  source?: string;
+  reference_id?: string | null;
+  balance_before?: number | null;
+  balance_after?: number | null;
+  operator_user_id?: string | null;
+  location_id?: string | null;
   sync_status?: 'synced' | 'queued' | 'conflict';
   sync_error?: string | null;
 }
@@ -254,6 +277,7 @@ export interface Expense {
   user_id: string;
   operator_user_id?: string | null;
   cash_session_id?: string | null;
+  location_id?: string | null;
   description: string;
   party_name?: string | null;
   amount: number;

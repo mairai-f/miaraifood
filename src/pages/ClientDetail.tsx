@@ -31,6 +31,7 @@ import { DEFAULT_COMPANY_NAME, fetchCompanyDisplayName } from '@/lib/company';
 import { buildWhatsAppUrl, buildItemWhatsAppUrl, buildPaymentWhatsAppUrl } from '@/lib/whatsapp';
 import { normalizePhone } from '@/lib/phone';
 import { getAvailableClientCredit, getClientCreditLimit, getCreditLimitExceededMessage, normalizeCreditLimit } from '@/lib/creditLimit';
+import { formatClientDebtDueDate, isClientDebtOverdue } from '@/lib/clientDebtDueDate';
 import { verifyStoreAdminApproval } from '@/lib/adminApproval';
 import { getDebtPaymentCreditedAmount, getDebtPaymentMaxAmount, getDebtPaymentValidationMessage } from '@/lib/debtPayment';
 import { parseDecimalInput } from '@/lib/numberInput';
@@ -42,6 +43,7 @@ type ClientEditPayload = {
   name: string;
   phone: string;
   credit_limit: number | null;
+  debt_due_date: string | null;
 };
 
 type PendingProtectedAction =
@@ -95,6 +97,7 @@ export default function ClientDetail() {
   const [editName, setEditName] = useState('');
   const [editPhone, setEditPhone] = useState('');
   const [editCreditLimit, setEditCreditLimit] = useState('');
+  const [editDebtDueDate, setEditDebtDueDate] = useState('');
   const [historyFilter, setHistoryFilter] = useState<'all' | 'daily' | 'weekly' | 'monthly' | 'custom'>('all');
   const [customDateFrom, setCustomDateFrom] = useState('');
   const [customDateTo, setCustomDateTo] = useState('');
@@ -141,6 +144,7 @@ export default function ClientDetail() {
     [allClientEntries, clientPayments]
   );
   const balance = id ? data.getClientBalance(id) : 0;
+  const debtOverdue = isClientDebtOverdue(client?.debt_due_date, balance);
   const rawPaymentAmount = parseDecimalInput(payAmount);
   const rawDiscountValue = parseDecimalInput(discountValue);
   const calculatedDiscountAmount = discountOpen
@@ -566,6 +570,7 @@ export default function ClientDetail() {
     name: editName,
     phone: normalizePhone(editPhone),
     credit_limit: normalizeCreditLimit(editCreditLimit),
+    debt_due_date: editDebtDueDate || null,
   });
 
   const applyClientEdit = async (changes: ClientEditPayload) => {
@@ -683,6 +688,13 @@ export default function ClientDetail() {
         <div className="min-w-0">
           <h1 className="text-xl font-bold truncate">{client.name}</h1>
           {client.phone && <p className="text-xs text-muted-foreground">{client.phone}</p>}
+          {balance > 0 && client.debt_due_date && (
+            <p className={`mt-1 flex items-center gap-1 text-xs ${debtOverdue ? 'font-medium text-destructive' : 'text-muted-foreground'}`}>
+              <Calendar className="h-3 w-3" />
+              {debtOverdue ? 'Pagamento atrasado: ' : 'Pagamento previsto: '}
+              {formatClientDebtDueDate(client.debt_due_date)}
+            </p>
+          )}
         </div>
         <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
           <div className="flex gap-2">
@@ -693,6 +705,7 @@ export default function ClientDetail() {
                 setEditName(client.name);
                 setEditPhone(client.phone);
                 setEditCreditLimit(clientCreditLimit === null ? '' : clientCreditLimit.toFixed(2));
+                setEditDebtDueDate(client.debt_due_date || '');
                 setEditClientOpen(true);
               }}
               className="flex-1 sm:flex-none"
@@ -1290,6 +1303,11 @@ export default function ClientDetail() {
                 onChange={e => setEditCreditLimit(e.target.value)}
                 placeholder="Sem limite"
               />
+            </div>
+            <div className="space-y-2">
+              <Label>Data prevista para pagamento do fiado</Label>
+              <Input type="date" value={editDebtDueDate} onChange={e => setEditDebtDueDate(e.target.value)} />
+              <p className="text-xs text-muted-foreground">Deixe vazio para não definir vencimento.</p>
             </div>
           </div>
           <DialogFooter><Button onClick={handleEditClient} className="w-full sm:w-auto">Salvar</Button></DialogFooter>

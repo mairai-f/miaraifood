@@ -7,6 +7,8 @@ export interface ScopedCashSession {
   openedBy: string;
   ownerUserId: string;
   operatorUserId: string;
+  locationId?: string | null;
+  terminalId?: string | null;
 }
 
 const getCashSessionStorage = () => {

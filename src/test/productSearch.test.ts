@@ -40,18 +40,21 @@ describe('product search helpers', () => {
     expect(productMatchesSearch(product, 'cafe pil')).toBe(true);
   });
 
-  it('searches across name, category, supplier and barcode', () => {
+  it('searches across code, name, category, supplier, barcode and reference', () => {
     const product = makeProduct({
+      code: 42,
       name: 'REFRIGERANTE 2L',
       category: 'BEBIDAS',
       supplier_name: 'DISTRIBUIDORA NORTE',
       barcode: '789555',
+      reference: 'FAB-ABC-99',
     });
 
     expect(productMatchesSearch(product, 'bebidas')).toBe(true);
     expect(productMatchesSearch(product, 'norte')).toBe(true);
     expect(productMatchesSearch(product, '955')).toBe(true);
-    expect(productMatchesSearch(product, '42')).toBe(false);
+    expect(productMatchesSearch(product, '42')).toBe(true);
+    expect(productMatchesSearch(product, 'abc-99')).toBe(true);
   });
 
   it('filters products with the shared matcher', () => {
