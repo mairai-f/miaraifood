@@ -586,11 +586,11 @@ export default function Products() {
         {!readOnly && (
           <Dialog open={open} onOpenChange={v => { if (!v) resetForm(); setOpen(v); }}>
             <DialogTrigger asChild><Button size="sm" data-tour-id="products-new"><Plus className="h-4 w-4 mr-1" />Novo</Button></DialogTrigger>
-            <DialogContent>
+            <DialogContent className="grid max-h-[calc(100vh-1rem)] w-[calc(100vw-1rem)] max-w-5xl grid-rows-[auto_minmax(0,1fr)_auto] gap-3 overflow-hidden p-4 sm:max-h-[calc(100vh-2rem)] sm:w-[calc(100vw-2rem)] sm:gap-4 sm:p-6">
               <DialogHeader><DialogTitle>{editId ? 'Editar Produto' : 'Cadastrar Produto'}</DialogTitle></DialogHeader>
-              <div className="space-y-3 max-h-[60vh] overflow-auto">
+              <div className="min-h-0 min-w-0 space-y-3 overflow-y-auto overflow-x-hidden pr-1">
                 <div className="space-y-1"><Label>Nome / Marca</Label><Input value={name} onChange={e => setName(toProductUppercase(e.target.value))} placeholder="Ex: Skol 600ml" /></div>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div className="space-y-1"><Label>Preço Venda (R$)</Label><Input type="text" inputMode="decimal" value={price} onChange={e => setPrice(e.target.value)} placeholder="0,00" /></div>
                   <div className="space-y-1"><Label>Custo Real (R$)</Label><Input type="text" inputMode="decimal" value={costPrice} onChange={e => {
                     const nextCost = e.target.value;
@@ -628,13 +628,13 @@ export default function Products() {
                     <AlertDescription>A margem estimada está em {previewMargin.toFixed(1)}%.</AlertDescription>
                   </Alert>
                 )}
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div className="space-y-1"><Label>Código de Barras</Label><Input value={barcode} onChange={e => setBarcode(toProductUppercase(e.target.value))} placeholder="EAN/UPC/ITF" /></div>
                   <div className="space-y-1"><Label>Referência</Label><Input value={reference} onChange={e => setReference(toProductUppercase(e.target.value))} placeholder="Código interno/fabricante" /></div>
                 </div>
                 <div className="space-y-3 rounded-md border p-3">
                   <div><p className="text-sm font-semibold">Classificação</p><p className="text-xs text-muted-foreground">Setores, marcas, grupos e unidades são administrados nas Configurações Web.</p></div>
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                     <div className="space-y-1"><Label>Setor</Label><Select value={departmentId || '__none'} onValueChange={(value) => setDepartmentId(value === '__none' ? '' : value)}><SelectTrigger><SelectValue placeholder="Sem setor" /></SelectTrigger><SelectContent><SelectItem value="__none">Sem setor</SelectItem>{departments.map((row) => <SelectItem key={row.id} value={row.id}>{row.name}</SelectItem>)}</SelectContent></Select></div>
                     <div className="space-y-1"><Label>Marca</Label><Select value={brandId || '__none'} onValueChange={(value) => setBrandId(value === '__none' ? '' : value)}><SelectTrigger><SelectValue placeholder="Sem marca" /></SelectTrigger><SelectContent><SelectItem value="__none">Sem marca</SelectItem>{brands.map((row) => <SelectItem key={row.id} value={row.id}>{row.name}</SelectItem>)}</SelectContent></Select></div>
                     <div className="space-y-1"><Label>Grupo</Label><Select value={groupId || '__none'} onValueChange={(value) => { const nextGroupId = value === '__none' ? '' : value; setGroupId(nextGroupId); setSubgroupId(''); setCategory(groups.find((row) => row.id === nextGroupId)?.name ?? ''); }}><SelectTrigger><SelectValue placeholder="Sem grupo" /></SelectTrigger><SelectContent><SelectItem value="__none">Sem grupo</SelectItem>{groups.map((row) => <SelectItem key={row.id} value={row.id}>{row.name}</SelectItem>)}</SelectContent></Select></div>
@@ -663,7 +663,7 @@ export default function Products() {
                   <div><Label htmlFor="control-stock">Controlar estoque</Label><p className="text-xs text-muted-foreground">Bloqueia venda e fiado quando não houver saldo.</p></div>
                   <Switch id="control-stock" checked={controlStock} onCheckedChange={setControlStock} />
                 </div>
-                <div className="grid grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                   <div className="space-y-1"><Label>Estoque</Label><Input type="number" value={stock} disabled={!isHeadquartersScope || !controlStock} onChange={e => setStock(e.target.value)} placeholder="0" /></div>
                   <div className="space-y-1"><Label>Estoque Mínimo</Label><Input type="number" value={minStock} disabled={!isHeadquartersScope || !controlStock} onChange={e => setMinStock(e.target.value)} placeholder="0" /></div>
                   <div className="space-y-1"><Label>Estoque Máximo</Label><Input type="number" value={maxStock} disabled={!isHeadquartersScope || !controlStock} onChange={e => setMaxStock(e.target.value)} placeholder="Opcional" /></div>
@@ -684,8 +684,8 @@ export default function Products() {
                     </Button>
                   </div>
                   {packagingRows.map((row) => (
-                    <div key={row.draftId} className="space-y-2 rounded-md bg-muted/40 p-2">
-                      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                    <div key={row.draftId} className="min-w-0 space-y-2 rounded-md bg-muted/40 p-2">
+                      <div className="grid min-w-0 grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
                         <div className="space-y-1 sm:col-span-2"><Label>Nome</Label><Input value={row.name} onChange={(event) => updatePackagingRow(row.draftId, { name: toProductUppercase(event.target.value) })} placeholder="FARDO COM 6" /></div>
                         <div className="space-y-1"><Label>Unidades</Label><Input type="number" min="2" step="1" value={row.base_quantity} onChange={(event) => updatePackagingRow(row.draftId, { base_quantity: event.target.value })} /></div>
                         <div className="space-y-1"><Label>Codigo de barras</Label><Input value={row.barcode} onChange={(event) => updatePackagingRow(row.draftId, { barcode: toProductUppercase(event.target.value) })} /></div>
@@ -700,7 +700,7 @@ export default function Products() {
                 </div>
                 <div className="space-y-3 rounded-md border p-3">
                   <div><p className="text-sm font-semibold">Política comercial</p><p className="text-xs text-muted-foreground">Limites aplicados ao produto em qualquer filial.</p></div>
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                     <div className="space-y-1"><Label>Desconto máximo (%)</Label><Input inputMode="decimal" value={maxDiscount} onChange={e => setMaxDiscount(e.target.value)} /></div>
                     <div className="space-y-1"><Label>Tipo de comissão</Label><Select value={commissionType} onValueChange={(value) => { const nextType = value as CommissionType; setCommissionType(nextType); if (nextType === 'none') setCommissionValue('0'); }}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="none">Sem comissão</SelectItem><SelectItem value="percent">Percentual</SelectItem><SelectItem value="amount">Valor fixo</SelectItem></SelectContent></Select></div>
                     <div className="space-y-1"><Label>{commissionType === 'percent' ? 'Comissão (%)' : 'Comissão (R$)'}</Label><Input inputMode="decimal" value={commissionValue} disabled={commissionType === 'none'} onChange={e => setCommissionValue(e.target.value)} /></div>
@@ -711,7 +711,7 @@ export default function Products() {
                   <div className="space-y-3 rounded-md border p-3">
                     <div className="flex items-start justify-between gap-3"><div><p className="text-sm font-semibold">Tabelas e faixas de preço</p><p className="text-xs text-muted-foreground">O preço Varejo para uma unidade é o preço principal acima.</p></div><Button type="button" size="sm" variant="outline" onClick={addPriceRow}><Plus className="mr-1 h-3 w-3" /> Faixa</Button></div>
                     {priceRows.map((row) => (
-                      <div key={row.draftId} className="grid grid-cols-2 gap-2 rounded-md bg-muted/40 p-2 sm:grid-cols-5">
+                      <div key={row.draftId} className="grid min-w-0 grid-cols-1 gap-2 rounded-md bg-muted/40 p-2 sm:grid-cols-2 lg:grid-cols-5">
                         <div className="space-y-1 sm:col-span-2"><Label>Tabela</Label><Select value={row.price_table_id} onValueChange={(value) => updatePriceRow(row.draftId, { price_table_id: value })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{priceTables.map((table) => <SelectItem key={table.id} value={table.id}>{table.name}</SelectItem>)}</SelectContent></Select></div>
                         <div className="space-y-1"><Label>Qtd. mínima</Label><Input type="number" min="0.001" step="0.001" value={row.min_quantity} onChange={(event) => updatePriceRow(row.draftId, { min_quantity: Number(event.target.value) })} /></div>
                         <div className="space-y-1"><Label>Preço</Label><Input inputMode="decimal" value={row.price} onChange={(event) => updatePriceRow(row.draftId, { price: parseDecimalInput(event.target.value) })} /></div>
@@ -727,7 +727,7 @@ export default function Products() {
                       <p className="text-sm font-semibold">Fiscal para NFC-e</p>
                       <p className="text-xs text-muted-foreground">Disponivel somente no HappyCash Desktop PRO. Preencha com apoio do contador.</p>
                     </div>
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                       <div className="space-y-1"><Label>NCM</Label><Input inputMode="numeric" value={fiscalNcm} onChange={e => setFiscalNcm(e.target.value.replace(/\D/g, '').slice(0, 8))} placeholder="Ex: 22030000" /></div>
                       <div className="space-y-1"><Label>CFOP</Label><Input inputMode="numeric" value={fiscalCfop} onChange={e => setFiscalCfop(e.target.value.replace(/\D/g, '').slice(0, 4))} placeholder="Ex: 5102" /></div>
                       <div className="space-y-1"><Label>Origem</Label><Input inputMode="numeric" value={fiscalOrigin} onChange={e => setFiscalOrigin(e.target.value.replace(/[^\d]/g, '').slice(0, 1))} placeholder="0" /></div>

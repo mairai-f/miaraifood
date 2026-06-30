@@ -388,20 +388,20 @@ export default function Stock() {
         {filtered.map(p => {
           const nextBatch = nextBatchByProductId.get(p.id);
           return (
-          <Card key={p.id} className={`border-border/50 ${expiringProductIds.has(p.id) ? 'border-amber-500/60' : p.stock <= p.min_stock && p.min_stock > 0 ? 'border-destructive/50' : ''}`}>
-            <CardContent className="p-4">
+          <Card key={p.id} className={`relative overflow-hidden border-border/50 transition-colors hover:border-primary/60 focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/40 ${expiringProductIds.has(p.id) ? 'border-amber-500/60' : p.stock <= p.min_stock && p.min_stock > 0 ? 'border-destructive/50' : ''}`}>
+            <button
+              type="button"
+              data-tour-id="stock-move"
+              className="absolute inset-0 z-10 rounded-lg disabled:cursor-not-allowed"
+              disabled={Boolean(p.deleted)}
+              onClick={() => openProductMovement(p.id, p.name)}
+              aria-label={p.deleted ? `${p.name}: produto arquivado` : `Movimentar estoque de ${p.name}`}
+              title={p.deleted ? 'Produto arquivado' : `Movimentar estoque de ${p.name}`}
+            />
+            <CardContent className="pointer-events-none relative z-0 p-4">
               <div className="flex justify-between items-start mb-2">
                 <div className="min-w-0 mr-2">
-                  <button
-                    type="button"
-                    data-tour-id="stock-move"
-                    className="block max-w-full truncate text-left text-sm font-semibold text-foreground underline-offset-4 transition-colors hover:text-primary hover:underline focus:outline-none focus:ring-2 focus:ring-primary/60 disabled:cursor-not-allowed disabled:no-underline disabled:opacity-60"
-                    disabled={Boolean(p.deleted)}
-                    onClick={() => openProductMovement(p.id, p.name)}
-                    title={p.deleted ? 'Produto arquivado' : `Movimentar estoque de ${p.name}`}
-                  >
-                    {p.name}
-                  </button>
+                  <p className="truncate text-sm font-semibold text-foreground">{p.name}</p>
                   <p className="text-xs text-muted-foreground">{formatProductCode(p.code) || p.barcode || 'Sem código'}</p>
                   {p.deleted && <Badge variant="destructive" className="mt-1">Arquivado com lote monitorado</Badge>}
                   {p.category && <span className="text-xs text-muted-foreground">{p.category}</span>}
@@ -424,6 +424,9 @@ export default function Stock() {
                   Validade: {new Date(`${nextBatch.expiration_date}T12:00:00`).toLocaleDateString('pt-BR')} · lote {nextBatch.batch_code || 'não informado'}
                 </p>
               )}
+              <div className="mt-3 rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-center text-xs font-medium text-primary">
+                {p.deleted ? 'Produto arquivado' : 'Movimentar estoque'}
+              </div>
             </CardContent>
           </Card>
           );

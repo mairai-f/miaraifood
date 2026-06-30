@@ -41,3 +41,18 @@ test('configures a commercial package in the responsive product dialog', async (
   const horizontalOverflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
   expect(horizontalOverflow).toBe(false);
 });
+
+test('uses the available desktop width without horizontal dialog scrolling', async ({ page }) => {
+  await page.setViewportSize({ width: 1366, height: 768 });
+  await page.goto('/produtos');
+  await page.getByRole('button', { name: 'Novo' }).click();
+  await page.getByRole('button', { name: 'Embalagem' }).click();
+
+  const dialog = page.getByRole('dialog');
+  await expect(dialog).toBeVisible();
+  const bounds = await dialog.boundingBox();
+  expect(bounds?.width).toBeGreaterThan(800);
+
+  const hasHorizontalOverflow = await dialog.evaluate(element => element.scrollWidth > element.clientWidth);
+  expect(hasHorizontalOverflow).toBe(false);
+});
