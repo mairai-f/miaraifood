@@ -694,9 +694,6 @@ export default function Settings() {
             </CardTitle>
             {!loadingSubscription && <Badge variant={countdown.badgeVariant}>{statusLabel}</Badge>}
           </div>
-          <p className="text-sm text-muted-foreground">
-            Marcador rapido para acompanhar quanto tempo falta no plano atual antes do vencimento.
-          </p>
         </CardHeader>
         <CardContent className="space-y-4">
           {loadingSubscription ? (
@@ -739,7 +736,6 @@ export default function Settings() {
       {!activeSettingsSection && <section aria-labelledby="settings-navigation-title" className="space-y-3">
         <div>
           <h2 id="settings-navigation-title" className="text-xl font-semibold">Central administrativa</h2>
-          <p className="mt-1 text-sm text-muted-foreground">Escolha uma area. Os ajustes ficam organizados aqui, sem ocupar o menu operacional.</p>
         </div>
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           {visibleSettingsNavigationItems.map((item) => {
