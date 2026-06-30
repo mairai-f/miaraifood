@@ -17,7 +17,13 @@ type ManageOperatorRequest =
       action: 'create';
       username?: string;
       password?: string;
-      operatorRole?: string;
+      jobTitle?: string;
+      permissionKeys?: string[];
+    }
+  | {
+      action: 'update_access';
+      operatorUserId?: string;
+      jobTitle?: string;
       permissionKeys?: string[];
     }
   | {
@@ -52,8 +58,8 @@ interface OperatorLookupRow {
 
 type StaffRole = 'operator' | 'waiter';
 const staffRoles: StaffRole[] = ['operator', 'waiter'];
-const normalizeStaffRole = (value: string | undefined | null): StaffRole =>
-  value === 'waiter' ? 'waiter' : 'operator';
+const normalizeJobTitle = (value: string | undefined | null) => value?.trim().replace(/\s+/g, ' ') ?? '';
+const isValidJobTitle = (value: string) => value.length >= 2 && value.length <= 60;
 
 const jsonResponse = (request: Request, body: Record<string, unknown>, status = 200) =>
   new Response(JSON.stringify(body), {
@@ -168,7 +174,7 @@ Deno.serve(async (request): Promise<Response> => {
   if (body.action === 'list') {
     const { data: operators, error: operatorsError } = await serviceClient
       .from('profiles')
-      .select('user_id, username, role')
+      .select('user_id, username, role, job_title')
       .eq('owner_user_id', ownerUserId)
       .in('role', staffRoles)
       .order('username', { ascending: true });
@@ -186,7 +192,8 @@ Deno.serve(async (request): Promise<Response> => {
   if (body.action === 'create') {
     const normalizedUsername = normalizeOperatorUsername(body.username ?? '');
     const password = body.password?.trim();
-    const operatorRole = normalizeStaffRole(body.operatorRole);
+    const operatorRole: StaffRole = 'operator';
+    const jobTitle = normalizeJobTitle(body.jobTitle);
     const credentialError = getOperatorCredentialError(password || '');
     const authPassword = resolveOperatorAuthPassword(normalizedUsername, password || '');
     const requestedPermissionKeys = [...new Set(
@@ -201,6 +208,10 @@ Deno.serve(async (request): Promise<Response> => {
 
     if (!password || credentialError) {
       return jsonResponse(request, { error: credentialError || 'Informe a senha ou PIN do operador.' }, 400);
+    }
+
+    if (!isValidJobTitle(jobTitle)) {
+      return jsonResponse(request, { error: 'Informe uma funcao entre 2 e 60 caracteres.' }, 400);
     }
 
     if (requestedPermissionKeys.length === 0) {
@@ -244,6 +255,7 @@ Deno.serve(async (request): Promise<Response> => {
       user_metadata: {
         username: normalizedUsername,
         role: operatorRole,
+        job_title: jobTitle,
         owner_user_id: ownerUserId,
         created_by_user_id: user.id,
       },
@@ -264,6 +276,7 @@ Deno.serve(async (request): Promise<Response> => {
         username: normalizedUsername,
         email: generatedEmail,
         role: operatorRole,
+        job_title: jobTitle,
         owner_user_id: ownerUserId,
         created_by_user_id: user.id,
       }, { onConflict: 'user_id' });
@@ -296,6 +309,93 @@ Deno.serve(async (request): Promise<Response> => {
         user_id: createdUser.user.id,
         username: normalizedUsername,
         role: operatorRole,
+        job_title: jobTitle,
+        permission_keys: requestedPermissionKeys,
+      },
+    });
+  }
+
+  if (body.action === 'update_access') {
+    const operatorUserId = body.operatorUserId?.trim();
+    const jobTitle = normalizeJobTitle(body.jobTitle);
+    const requestedPermissionKeys = [...new Set(
+      (Array.isArray(body.permissionKeys) ? body.permissionKeys : []).filter(
+        (permissionKey): permissionKey is string => typeof permissionKey === 'string' && permissionKey.trim() !== '',
+      ),
+    )];
+
+    if (!operatorUserId) {
+      return jsonResponse(request, { error: 'Colaborador invalido.' }, 400);
+    }
+
+    if (!isValidJobTitle(jobTitle)) {
+      return jsonResponse(request, { error: 'Informe uma funcao entre 2 e 60 caracteres.' }, 400);
+    }
+
+    if (requestedPermissionKeys.length === 0) {
+      return jsonResponse(request, { error: 'Selecione ao menos um acesso para o colaborador.' }, 400);
+    }
+
+    const [{ data: targetProfile, error: targetProfileError }, { data: permissionCatalog, error: permissionCatalogError }] = await Promise.all([
+      serviceClient
+        .from('profiles')
+        .select('user_id, role, owner_user_id, username, job_title')
+        .eq('user_id', operatorUserId)
+        .single(),
+      serviceClient.from('erp_permission_catalog').select('permission_key'),
+    ]);
+
+    if (targetProfileError || !targetProfile) {
+      return jsonResponse(request, { error: 'Colaborador nao encontrado.' }, 404);
+    }
+
+    if (!staffRoles.includes(targetProfile.role) || targetProfile.owner_user_id !== ownerUserId) {
+      return jsonResponse(request, { error: 'Voce nao pode editar este colaborador.' }, 403);
+    }
+
+    if (permissionCatalogError) {
+      return jsonResponse(request, { error: 'Nao foi possivel validar os acessos selecionados.' }, 500);
+    }
+
+    const catalogKeys = new Set((permissionCatalog ?? []).map((permission) => permission.permission_key));
+    if (requestedPermissionKeys.some((permissionKey) => !catalogKeys.has(permissionKey))) {
+      return jsonResponse(request, { error: 'Um ou mais acessos selecionados sao invalidos.' }, 400);
+    }
+
+    const { error: updateProfileError } = await serviceClient
+      .from('profiles')
+      .update({ job_title: jobTitle, role: 'operator' })
+      .eq('user_id', operatorUserId);
+    if (updateProfileError) {
+      return jsonResponse(request, { error: 'Nao foi possivel atualizar a funcao do colaborador.' }, 500);
+    }
+
+    const selectedPermissionKeys = new Set(requestedPermissionKeys);
+    const permissionOverrides = [...catalogKeys].map((permissionKey) => ({
+      owner_user_id: ownerUserId,
+      user_id: operatorUserId,
+      permission_key: permissionKey,
+      allowed: selectedPermissionKeys.has(permissionKey),
+    }));
+    const { error: permissionError } = await serviceClient
+      .from('erp_staff_permission_overrides')
+      .upsert(permissionOverrides, { onConflict: 'user_id,permission_key' });
+
+    if (permissionError) {
+      await serviceClient
+        .from('profiles')
+        .update({ job_title: targetProfile.job_title, role: targetProfile.role })
+        .eq('user_id', operatorUserId);
+      return jsonResponse(request, { error: 'Nao foi possivel salvar os acessos do colaborador.' }, 500);
+    }
+
+    return jsonResponse(request, {
+      success: true,
+      operator: {
+        user_id: targetProfile.user_id,
+        username: targetProfile.username,
+        role: 'operator',
+        job_title: jobTitle,
         permission_keys: requestedPermissionKeys,
       },
     });

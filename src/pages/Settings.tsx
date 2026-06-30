@@ -1,11 +1,13 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState, type ChangeEvent } from 'react';
-import { Clock3, Download, Loader2, Settings as SettingsIcon, ShieldAlert } from 'lucide-react';
-import { useSearchParams } from 'react-router-dom';
+import { BarChart3, Calculator, ChevronRight, ClipboardList, Clock3, Download, FileText, Gift, Loader2, Settings as SettingsIcon, Shield, ShieldAlert, Trash2 } from 'lucide-react';
+import { Link, useSearchParams } from 'react-router-dom';
 import { CompanyProfileCard } from '@/components/CompanyProfileCard';
 import { PrinterSettingsCard } from '@/components/PrinterSettingsCard';
 import { OperatorManagementPanel } from '@/components/OperatorManagementPanel';
 import { useAuth } from '@/contexts/AuthContext';
 import { useDesktopRuntime } from '@/contexts/DesktopRuntimeContext';
+import { usePermissions } from '@/contexts/usePermissions';
+import { usePlanAccess } from '@/contexts/PlanContext';
 import { useData } from '@/contexts/DataContext';
 import { useCurrentSubscription } from '@/hooks/use-current-subscription';
 import { supabase } from '@/integrations/supabase/client';
@@ -41,14 +43,9 @@ import {
 } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import { getPublicErrorMessage, getRedactedLogValue } from '../../shared/security/redaction';
-
-// A matriz RBAC e administrativa e relativamente grande. O carregamento lazy
-// garante que esse codigo seja baixado apenas no navegador, nunca no Desktop.
-const PermissionsManagementPanel = lazy(() =>
-  import('@/components/PermissionsManagementPanel').then((module) => ({
-    default: module.PermissionsManagementPanel,
-  })),
-);
+import { isRuntimeScopeAllowed, type ErpPermissionKey, type RuntimeScope } from '@/lib/permissions';
+import { canUseDesktopFiscalModule } from '@/lib/fiscalAccess';
+import { readDesktopActivation } from '@/lib/desktopActivation';
 
 const LocationsTerminalsPanel = lazy(() =>
   import('@/components/LocationsTerminalsPanel').then((module) => ({
@@ -66,6 +63,27 @@ const CREATE_OPERATOR_MODAL = 'cadastrar-operador';
 const RESET_CONFIRM_TEXT = 'ZERAR';
 const RESTORE_CONFIRM_TEXT = 'RESTAURAR';
 type ResetTarget = 'financial' | 'reports';
+
+interface SettingsNavigationItem {
+  path: string;
+  title: string;
+  description: string;
+  icon: typeof BarChart3;
+  featureKey: string;
+  permissionKey: ErpPermissionKey;
+  runtimeScope: RuntimeScope;
+  fiscalDesktopAccess?: boolean;
+}
+
+const settingsNavigationItems: SettingsNavigationItem[] = [
+  { path: '/relatorios', title: 'Relatorios', description: 'Vendas, caixa, estoque e indicadores.', icon: BarChart3, featureKey: 'reports.view', permissionKey: 'reports.view', runtimeScope: 'both' },
+  { path: '/operacoes', title: 'Operacoes', description: 'Compras, fornecedores e reposicao.', icon: ClipboardList, featureKey: 'financial.manage', permissionKey: 'purchases.view', runtimeScope: 'both' },
+  { path: '/acessos', title: 'Acessos', description: 'Monitoramento e seguranca da equipe.', icon: Shield, featureKey: 'settings.manage', permissionKey: 'access_monitor.view', runtimeScope: 'web' },
+  { path: '/recompensas', title: 'Recompensas', description: 'Fidelidade e beneficios dos clientes.', icon: Gift, featureKey: 'rewards.manage', permissionKey: 'rewards.manage', runtimeScope: 'both' },
+  { path: '/precificacao', title: 'Precificacao', description: 'Custos, margens e regras de preco.', icon: Calculator, featureKey: 'pricing.manage', permissionKey: 'pricing.view', runtimeScope: 'both' },
+  { path: '/notas', title: 'Notas', description: 'Configuracao e emissao fiscal.', icon: FileText, featureKey: 'notes.manage', permissionKey: 'fiscal.view', runtimeScope: 'both', fiscalDesktopAccess: true },
+  { path: '/excluidos', title: 'Excluidos', description: 'Consulte cadastros removidos.', icon: Trash2, featureKey: 'deleted.view', permissionKey: 'deleted.view', runtimeScope: 'both' },
+];
 
 interface ResetActionResponse {
   success?: boolean;
@@ -115,7 +133,9 @@ const formatBytes = (value: number | null | undefined) => {
 
 export default function Settings() {
   const { session, ownerUserId } = useAuth();
-  const { isDesktop, offlineEnabled, validUntil: desktopValidUntil, refresh: refreshDesktopLicense } = useDesktopRuntime();
+  const { isDesktop, licensed: desktopLicensed, offlineEnabled, validUntil: desktopValidUntil, refresh: refreshDesktopLicense } = useDesktopRuntime();
+  const { hasPermission } = usePermissions();
+  const { hasFeature, planId } = usePlanAccess();
   const data = useData();
   const { refetch } = data;
   const { subscription, countdown, statusLabel, loading: loadingSubscription } = useCurrentSubscription();
@@ -603,6 +623,17 @@ export default function Settings() {
   const updateIsDownloaded = desktopUpdateStatus?.status === 'downloaded';
   const updateIsInstalling = desktopUpdateStatus?.status === 'installing';
   const updateHasError = desktopUpdateStatus?.status === 'error';
+  const visibleSettingsNavigationItems = settingsNavigationItems.filter((item) => {
+    if (!hasPermission(item.permissionKey) || !hasFeature(item.featureKey)) return false;
+    if (!isRuntimeScopeAllowed(item.runtimeScope, isDesktop)) return false;
+    if (!item.fiscalDesktopAccess) return true;
+    return canUseDesktopFiscalModule({
+      isDesktop,
+      licensed: desktopLicensed,
+      planId,
+      activation: readDesktopActivation(),
+    });
+  });
 
   return (
     <div className="space-y-6">
@@ -630,9 +661,36 @@ export default function Settings() {
           Configuracoes
         </h1>
         <p className="page-subtitle">
-          Gerencie acessos da loja e abra o cadastro de operadores pelo seu nome no menu lateral.
+          Acesse os modulos administrativos e gerencie a equipe sem sobrecarregar o menu operacional.
         </p>
       </div>
+
+      <section aria-labelledby="settings-navigation-title" className="space-y-3">
+        <div>
+          <h2 id="settings-navigation-title" className="text-xl font-semibold">Central administrativa</h2>
+          <p className="mt-1 text-sm text-muted-foreground">Escolha uma area. Estes modulos ficam fora do menu operacional para deixar o dia a dia mais limpo.</p>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          {visibleSettingsNavigationItems.map((item) => (
+            <Link
+              key={item.path}
+              to={item.path}
+              className="group flex min-h-36 flex-col justify-between rounded-xl border border-border/70 bg-card p-5 transition-all hover:-translate-y-0.5 hover:border-primary/50 hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-primary/60"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary transition-colors group-hover:bg-primary group-hover:text-primary-foreground">
+                  <item.icon className="h-6 w-6" />
+                </span>
+                <ChevronRight className="h-5 w-5 text-muted-foreground transition-transform group-hover:translate-x-1 group-hover:text-primary" />
+              </div>
+              <div className="mt-5">
+                <h3 className="text-lg font-semibold">{item.title}</h3>
+                <p className="mt-1 text-sm leading-snug text-muted-foreground">{item.description}</p>
+              </div>
+            </Link>
+          ))}
+        </div>
+      </section>
 
       <Card>
         <CardHeader className="space-y-3">
@@ -1032,17 +1090,6 @@ export default function Settings() {
             <CatalogConfigurationPanel />
           </Suspense>
 
-          <Suspense
-            fallback={(
-              <Card>
-                <CardContent className="flex items-center gap-2 py-8 text-sm text-muted-foreground">
-                  <Loader2 className="h-4 w-4 animate-spin" /> Carregando matriz de permissoes...
-                </CardContent>
-              </Card>
-            )}
-          >
-            <PermissionsManagementPanel />
-          </Suspense>
         </>
       )}
 
@@ -1058,7 +1105,7 @@ export default function Settings() {
         </CardHeader>
         <CardContent className="space-y-3">
           <p className="text-sm text-muted-foreground">
-            Os clientes, produtos e operadores continuam cadastrados.
+            Os clientes, produtos e colaboradores continuam cadastrados.
           </p>
 
           <Dialog open={resetDialogOpen} onOpenChange={handleResetDialogOpenChange}>

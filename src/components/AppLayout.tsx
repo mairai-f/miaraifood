@@ -1,6 +1,6 @@
 import { ReactNode, useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Clock3, Home, Users, Package, Gift, Trash2, LogOut, Menu, X, UserCircle, Receipt, BarChart3, DollarSign, Boxes, ChevronDown, ChevronUp, FileText, Shield, Calculator, Database, Loader2, WifiOff, ClipboardList, HelpCircle, MapPin } from 'lucide-react';
+import { Clock3, Home, Users, Package, LogOut, Menu, X, UserCircle, Receipt, DollarSign, Boxes, ChevronDown, ChevronUp, Settings, Database, Loader2, WifiOff, ClipboardList, HelpCircle, MapPin } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import { useData } from '@/contexts/DataContext';
@@ -11,10 +11,9 @@ import { usePlanAccess } from '@/contexts/PlanContext';
 import happyCashLogo from '@/assets/happycash-logo.webp';
 import { roleLabel } from '@/lib/access';
 import { readDesktopActivation } from '@/lib/desktopActivation';
-import { canUseDesktopFiscalModule } from '@/lib/fiscalAccess';
 import { isGuidedTourEligiblePlan, requestGuidedTourStart } from '@/lib/guidedTour';
 import { isRuntimeScopeAllowed, type ErpPermissionKey, type RuntimeScope } from '@/lib/permissions';
-import { hasOfflineAdminAccess, readOfflineAdminAccess, saveOfflineAdminAccess } from '@/lib/offlineAdminAccess';
+import { hasOfflineAdminAccess, saveOfflineAdminAccess } from '@/lib/offlineAdminAccess';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -50,14 +49,8 @@ const navItems: NavigationItem[] = [
   { path: '/clientes', label: 'Clientes', icon: Users, shortcut: '4', featureKey: 'clients.manage', permissionKey: 'clients.view', runtimeScope: 'both', tourId: 'nav-clients' },
   { path: '/produtos', label: 'Produtos', icon: Package, shortcut: '5', featureKey: 'products.manage', permissionKey: 'products.view', runtimeScope: 'both', tourId: 'nav-products' },
   { path: '/estoque', label: 'Estoque', icon: Boxes, shortcut: '6', featureKey: 'stock.manage', permissionKey: 'stock.view', runtimeScope: 'both', tourId: 'nav-stock' },
-  { path: '/relatorios', label: 'Relatórios', icon: BarChart3, shortcut: '7', featureKey: 'reports.view', permissionKey: 'reports.view', runtimeScope: 'both', tourId: 'nav-reports' },
-  { path: '/financeiro', label: 'Financeiro', icon: DollarSign, shortcut: '8', featureKey: 'financial.manage', permissionKey: 'financial.view', runtimeScope: 'both', tourId: 'nav-financial' },
-  { path: '/operacoes', label: 'Operações', icon: ClipboardList, featureKey: 'financial.manage', permissionKey: 'purchases.view', runtimeScope: 'both', tourId: 'nav-operations' },
-  { path: '/notas', label: 'Notas', icon: FileText, featureKey: 'notes.manage', permissionKey: 'fiscal.view', runtimeScope: 'both', tourId: 'nav-notes' },
-  { path: '/precificacao', label: 'Precificação', icon: Calculator, featureKey: 'pricing.manage', permissionKey: 'pricing.view', runtimeScope: 'both', tourId: 'nav-pricing' },
-  { path: '/acessos', label: 'Acessos', icon: Shield, featureKey: 'settings.manage', permissionKey: 'access_monitor.view', runtimeScope: 'web', tourId: 'nav-access' },
-  { path: '/recompensas', label: 'Recompensas', icon: Gift, featureKey: 'rewards.manage', permissionKey: 'rewards.manage', runtimeScope: 'both', tourId: 'nav-rewards' },
-  { path: '/excluidos', label: 'Excluídos', icon: Trash2, featureKey: 'deleted.view', permissionKey: 'deleted.view', runtimeScope: 'both', tourId: 'nav-deleted' },
+  { path: '/financeiro', label: 'Financeiro', icon: DollarSign, shortcut: '7', featureKey: 'financial.manage', permissionKey: 'financial.view', runtimeScope: 'both', tourId: 'nav-financial' },
+  { path: '/configuracoes', label: 'Configurações', icon: Settings, shortcut: '8', featureKey: 'settings.manage', permissionKey: 'settings.manage', runtimeScope: 'both', tourId: 'nav-settings' },
 ];
 
 const OFFLINE_VALIDATION_GRACE_DAYS = 5;
@@ -142,22 +135,13 @@ export function AppLayout({ children }: { children: ReactNode }) {
   const [offlineReminderOpen, setOfflineReminderOpen] = useState(false);
   const [offlineValidationStartedAt, setOfflineValidationStartedAt] = useState<string | null>(null);
   const [isOnline, setIsOnline] = useState(() => (typeof navigator === 'undefined' ? true : navigator.onLine));
-  const [latestOfflineAdminPin, setLatestOfflineAdminPin] = useState<string | null>(null);
   const navRef = useRef<HTMLElement | null>(null);
   const [scrollHints, setScrollHints] = useState({ top: false, bottom: false });
   const isPdvMode = location.pathname === '/pdv';
   const desktopActivation = readDesktopActivation();
-  const canUseFiscalNotesModule = canUseDesktopFiscalModule({
-    isDesktop,
-    licensed: desktopLicensed,
-    planId,
-    activation: desktopActivation,
-  });
-  const offlineAdminAccess = ownerUserId ? readOfflineAdminAccess(ownerUserId) : null;
   const visibleNavItems = navItems.filter(item => {
     if (!hasPermission(item.permissionKey) || !hasFeature(item.featureKey)) return false;
     if (!isRuntimeScopeAllowed(item.runtimeScope, isDesktop)) return false;
-    if (item.path === '/notas') return canUseFiscalNotesModule;
     return true;
   });
   const canOpenSettings = hasPermission('settings.manage') && hasFeature('settings.manage');
@@ -414,7 +398,6 @@ export function AppLayout({ children }: { children: ReactNode }) {
       toast.message('Preparando banco local desta maquina...');
       await refetch();
       setOfflineAdminSetupOpen(false);
-      setLatestOfflineAdminPin(payload.pin);
       toast.success('Acesso offline do administrador configurado e dados locais atualizados.');
     } catch (error) {
       toast.error(getPublicErrorMessage(error, 'Nao foi possivel salvar o acesso offline do administrador.'));
@@ -488,17 +471,6 @@ export function AppLayout({ children }: { children: ReactNode }) {
     );
   }
 
-  const offlineAdminCredentialSummary = role === 'admin' && offlineAdminAccess ? (
-    <div className="mt-2 space-y-1 rounded-md border border-primary/15 bg-primary/5 px-3 py-2 text-[11px] leading-snug text-muted-foreground">
-      <p className="truncate">
-        <span className="font-semibold text-foreground">Admin local:</span> {offlineAdminAccess.username}
-      </p>
-      <p>
-        <span className="font-semibold text-foreground">PIN offline:</span> {latestOfflineAdminPin || 'configurado nesta maquina'}
-      </p>
-    </div>
-  ) : null;
-
   return (
     <div className="flex h-screen overflow-hidden bg-background">
       <DesktopOfflineAdminSetupDialog
@@ -556,24 +528,110 @@ export function AppLayout({ children }: { children: ReactNode }) {
 
       {open && <div className="fixed inset-0 bg-background/80 z-40 lg:hidden" onClick={() => setOpen(false)} />}
       <aside className={`fixed inset-y-0 left-0 z-50 flex h-full w-64 flex-col overflow-hidden border-r border-border bg-card transition-transform duration-300 lg:static lg:h-screen lg:translate-x-0 lg:shrink-0 ${open ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}>
-        <div className="shrink-0 border-b border-border px-4 py-5">
+        <div className="shrink-0 border-b border-border px-3 py-3">
           <div className="relative flex items-start justify-end">
             <div className="min-w-0 flex-1 pr-2 text-center">
               <img
                 src={happyCashLogo}
                 alt="Logo do sistema"
-                className="mx-auto h-auto w-full max-w-[168px] object-contain"
+                className="mx-auto h-auto w-full max-w-[118px] object-contain"
                 width={768}
                 height={512}
                 loading="eager"
                 decoding="async"
               />
-              <p className="mt-2 text-[11px] font-semibold tracking-[0.08em] text-muted-foreground">
+              <p className="mt-1 text-[9px] font-semibold tracking-[0.08em] text-muted-foreground">
                 SISTEMA DE GESTAO 2.0
               </p>
             </div>
             <button className="lg:hidden text-muted-foreground" onClick={() => setOpen(false)}><X className="h-5 w-5" /></button>
           </div>
+        </div>
+        <div className="shrink-0 space-y-2 border-b border-border px-3 py-2.5">
+          {operationalScope && (
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <MapPin className="h-4 w-4 shrink-0 text-primary" />
+                <div className="min-w-0 flex-1">
+                  <p className="text-[9px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+                    {isDesktop ? 'Terminal local' : 'Filial ativa'}
+                  </p>
+                  {isDesktop || operationalLocations.length <= 1 ? (
+                    <p className="truncate text-xs font-semibold text-foreground">
+                      {operationalScope.location.name} · {operationalScope.terminal?.name ?? 'Sem terminal'}
+                    </p>
+                  ) : (
+                    <Select
+                      value={operationalScope.location.id}
+                      disabled={operationalScopeLoading || hasOpenLocalCashSession}
+                      onValueChange={(locationId) => selectWebScope(locationId)}
+                    >
+                      <SelectTrigger className="h-7 border-0 bg-transparent p-0 text-xs font-semibold shadow-none" aria-label="Selecionar filial operacional">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {operationalLocations.map((storeLocation) => (
+                          <SelectItem key={storeLocation.id} value={storeLocation.id}>{storeLocation.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                </div>
+              </div>
+              {!isDesktop && terminalsForCurrentLocation.length > 1 && (
+                <Select
+                  value={operationalScope.terminal?.id ?? ''}
+                  disabled={hasOpenLocalCashSession}
+                  onValueChange={(terminalId) => selectWebScope(operationalScope.location.id, terminalId)}
+                >
+                  <SelectTrigger className="ml-6 h-7 w-[calc(100%_-_1.5rem)] text-[11px]" aria-label="Selecionar terminal operacional">
+                    <SelectValue placeholder="Terminal" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {terminalsForCurrentLocation.map((terminal) => (
+                      <SelectItem key={terminal.id} value={terminal.id}>{terminal.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
+          )}
+
+          <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-1.5">
+            {user && (
+              <button
+                type="button"
+                onClick={handleAccountClick}
+                disabled={!canOpenSettings}
+                data-tour-id="account-settings"
+                className="flex h-8 min-w-0 items-center gap-2 rounded-md px-2 text-left text-xs text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground disabled:cursor-default disabled:hover:bg-transparent"
+              >
+                <UserCircle className="h-4 w-4 shrink-0 text-primary" />
+                <span className="min-w-0">
+                  <span className="block truncate font-semibold text-foreground">{username ?? user.email}</span>
+                  <span className="block truncate text-[9px] uppercase tracking-wide">{roleLabel[role]}</span>
+                </span>
+              </button>
+            )}
+            {canUseGuidedTour && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-8 gap-1.5 px-2 text-xs"
+                onClick={() => {
+                  setOpen(false);
+                  requestGuidedTourStart();
+                }}
+              >
+                <HelpCircle className="h-4 w-4" />
+                Tutorial
+              </Button>
+            )}
+          </div>
+          {hasOpenLocalCashSession && operationalLocations.length > 1 && (
+            <p className="text-[10px] text-muted-foreground">Feche o caixa antes de trocar de filial.</p>
+          )}
         </div>
         <div className="relative min-h-0 flex-1">
           {scrollHints.top && (
@@ -621,107 +679,9 @@ export function AppLayout({ children }: { children: ReactNode }) {
             </div>
           )}
         </div>
-        <div className="shrink-0 space-y-2 border-t border-border p-4">
-          {operationalScope && (
-            <div className="rounded-lg border border-border/70 bg-background/70 p-3">
-              <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-                <MapPin className="h-3.5 w-3.5 text-primary" />
-                {isDesktop ? 'Terminal local' : 'Filial ativa'}
-              </div>
-              {isDesktop || operationalLocations.length <= 1 ? (
-                <div>
-                  <p className="truncate text-sm font-medium text-foreground">{operationalScope.location.name}</p>
-                  <p className="truncate text-xs text-muted-foreground">
-                    {operationalScope.terminal?.name ?? 'Sem terminal'}
-                  </p>
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  <Select
-                    value={operationalScope.location.id}
-                    disabled={operationalScopeLoading || hasOpenLocalCashSession}
-                    onValueChange={(locationId) => selectWebScope(locationId)}
-                  >
-                    <SelectTrigger className="h-9" aria-label="Selecionar filial operacional">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {operationalLocations.map((location) => (
-                        <SelectItem key={location.id} value={location.id}>{location.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  {terminalsForCurrentLocation.length > 1 && (
-                    <Select
-                      value={operationalScope.terminal?.id ?? ''}
-                      disabled={hasOpenLocalCashSession}
-                      onValueChange={(terminalId) => selectWebScope(operationalScope.location.id, terminalId)}
-                    >
-                      <SelectTrigger className="h-9" aria-label="Selecionar terminal operacional">
-                        <SelectValue placeholder="Terminal" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {terminalsForCurrentLocation.map((terminal) => (
-                          <SelectItem key={terminal.id} value={terminal.id}>{terminal.name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  )}
-                  {hasOpenLocalCashSession && (
-                    <p className="text-[11px] leading-snug text-muted-foreground">
-                      Feche o caixa antes de trocar de filial.
-                    </p>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
-          {user && (
-            canOpenSettings ? (
-              <button
-                type="button"
-                onClick={handleAccountClick}
-                data-tour-id="account-settings"
-                className="w-full rounded-lg px-4 py-2 text-left text-sm text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
-              >
-                <div className="flex items-center gap-2">
-                  <UserCircle className="h-5 w-5 text-primary" />
-                  <span className="truncate font-medium">{username ?? user.email}</span>
-                </div>
-                <p className="mt-1 pl-7 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground/80">
-                  {roleLabel[role]} • Configuracoes
-                </p>
-                {offlineAdminCredentialSummary}
-              </button>
-            ) : (
-              <div className="px-4 py-2 text-sm text-muted-foreground">
-                <div className="flex items-center gap-2">
-                  <UserCircle className="h-5 w-5 text-primary" />
-                  <span className="truncate font-medium">{username ?? user.email}</span>
-                </div>
-                <p className="mt-1 pl-7 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground/80">
-                  {roleLabel[role]}
-                </p>
-                {offlineAdminCredentialSummary}
-              </div>
-            )
-          )}
-          {canUseGuidedTour && (
-            <Button
-              type="button"
-              variant="outline"
-              className="h-10 w-full justify-start gap-3 px-4"
-              onClick={() => {
-                setOpen(false);
-                requestGuidedTourStart();
-              }}
-            >
-              <HelpCircle className="h-5 w-5" />
-              Ver tutorial
-            </Button>
-          )}
-          <button onClick={logout} className="flex items-center gap-3 px-4 py-3 rounded-lg text-muted-foreground hover:bg-destructive/10 hover:text-destructive w-full transition-colors">
-            <LogOut className="h-5 w-5" /><span>Sair</span>
+        <div className="shrink-0 border-t border-border p-2.5">
+          <button onClick={logout} className="flex h-9 w-full items-center gap-3 rounded-lg px-3 text-sm text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive">
+            <LogOut className="h-4 w-4" /><span>Sair</span>
           </button>
         </div>
       </aside>

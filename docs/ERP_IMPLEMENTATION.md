@@ -381,13 +381,37 @@ Teste manual obrigatório: em uma empresa de teste, crie um produto controlado c
 ### Cadastro de colaborador com acesso explícito
 
 - não existe perfil-base no modal;
-- o administrador escolhe somente a função operacional e marca cada acesso;
+- o administrador escreve livremente o nome da função e marca cada acesso;
+- `profiles.job_title` guarda somente o nome exibido; ele não concede permissões;
+- todos os novos colaboradores usam o papel técnico interno `operator`, sem opções predefinidas como operador ou garçom;
 - a mesma permissão vale para Web, Desktop e Mobile onde o recurso estiver disponível;
 - dependências como `products.manage` → `products.view` são aplicadas automaticamente;
 - desktop usa modal largo com dados e matriz lado a lado;
 - mobile usa as etapas Dados, Acessos e Revisão;
 - criação do usuário e gravação das permissões possuem compensação: falha ao salvar acessos remove o usuário recém-criado;
+- o botão **Editar** abre o mesmo modal para alterar função e acessos do colaborador;
+- a lista de equipe voltou ao formato compacto, sem matriz de permissões aberta na página;
 - operadores antigos têm o acesso efetivo convertido para regras explícitas pela migração `20260630120000`.
+
+Migração complementar: `20260630130000_add_staff_job_titles.sql`. Ela preserva a descrição dos cadastros antigos em `job_title` e converte o antigo papel técnico `waiter` para `operator`; os acessos continuam sendo decididos pelas regras explícitas já gravadas.
+
+### Navegação administrativa compacta
+
+- o menu lateral principal contém apenas Painel, PDV, Comandas, Clientes, Produtos, Estoque, Financeiro e Configurações;
+- filial/terminal ativo, usuário e Tutorial ficam fixos no topo em formato compacto;
+- Relatórios, Operações, Acessos, Recompensas, Precificação, Notas e Excluídos ficam na Central administrativa de Configurações;
+- os cartões da central respeitam plano, permissão e disponibilidade Web/Desktop;
+- Acessos continua somente Web e Notas continua respeitando a licença fiscal do Desktop.
+
+Teste manual obrigatório desta mudança:
+
+1. Abrir Configurações e confirmar os cartões administrativos grandes.
+2. Conferir que os sete módulos administrativos não aparecem mais no menu lateral.
+3. Trocar filial e terminal pelo cabeçalho compacto e verificar o bloqueio durante caixa aberto.
+4. Cadastrar colaborador informando uma função livre e permissões próprias.
+5. Clicar em Editar, alterar função e acessos, sair e entrar com o colaborador.
+6. Confirmar os mesmos menus no Web, Desktop e WebView Mobile, respeitando recursos exclusivos do Web.
+7. Em tela estreita, percorrer Dados, Acessos e Revisão sem rolagem horizontal.
 
 ### Fase 4 — pagamentos e conciliacao
 

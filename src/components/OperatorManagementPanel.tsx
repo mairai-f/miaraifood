@@ -9,7 +9,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { PasswordInput } from '@/components/ui/password-input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -23,9 +22,8 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { toast } from 'sonner';
-import { Eye, KeyRound, Plus, Trash2, Users, Wallet } from 'lucide-react';
+import { Eye, KeyRound, Pencil, Plus, Trash2, Users, Wallet } from 'lucide-react';
 import type { Expense, Sale } from '@/types';
-import { formatDateTime } from '../../shared/locale/format';
 import { getOperatorCredentialError, operatorCredentialHint } from '../../shared/security/operatorCredential';
 import { getPublicErrorMessage, getRedactedLogValue } from '../../shared/security/redaction';
 import { readDesktopActivation } from '@/lib/desktopActivation';
@@ -53,6 +51,7 @@ interface OperatorProfile {
   user_id: string;
   username: string;
   role: StaffRole;
+  job_title: string | null;
   created_at: string;
 }
 
@@ -87,6 +86,7 @@ interface OperatorFunctionResponse {
     user_id: string;
     username: string;
     role?: StaffRole;
+    job_title?: string;
   };
   error?: string;
 }
@@ -96,19 +96,10 @@ interface OperatorManagementPanelProps {
   onCreateDialogOpenChange?: (open: boolean) => void;
 }
 
-const paymentMethodCards: Array<{ key: PaymentMethodKey; label: string }> = [
-  { key: 'dinheiro', label: 'Dinheiro' },
-  { key: 'cartao_debito', label: 'Debito' },
-  { key: 'pix', label: 'Pix' },
-  { key: 'cartao_credito', label: 'Credito' },
-];
-
-const staffRoleLabel: Record<StaffRole, string> = {
-  operator: 'Operador do caixa',
-  waiter: 'Garcom',
+const fallbackJobTitle: Record<StaffRole, string> = {
+  operator: 'Colaborador',
+  waiter: 'Colaborador',
 };
-
-const canOperateCash = (operator: OperatorProfile) => operator.role === 'operator';
 
 const normalizeLabel = (value: string | null | undefined) => value?.trim().toLowerCase() ?? '';
 const formatMoney = (value: number) => `R$ ${value.toFixed(2)}`;
@@ -129,9 +120,10 @@ export function OperatorManagementPanel({
   const [deletingOperatorId, setDeletingOperatorId] = useState<string | null>(null);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const [staffRole, setStaffRole] = useState<StaffRole>('operator');
+  const [jobTitle, setJobTitle] = useState('');
   const [permissionOptions, setPermissionOptions] = useState<OperatorPermissionOption[]>([]);
   const [selectedPermissionKeys, setSelectedPermissionKeys] = useState<Set<ErpPermissionKey>>(new Set());
+  const [permissionKeysByOperatorId, setPermissionKeysByOperatorId] = useState<Record<string, Set<ErpPermissionKey>>>({});
   const [loadingPermissionOptions, setLoadingPermissionOptions] = useState(false);
   const [createStep, setCreateStep] = useState<'data' | 'permissions' | 'review'>('data');
   const [openingAmount, setOpeningAmount] = useState('');
@@ -145,12 +137,13 @@ export function OperatorManagementPanel({
     summary: OpenCashSummary | null;
   } | null>(null);
   const [selectedOperator, setSelectedOperator] = useState<OperatorProfile | null>(null);
+  const [editingOperator, setEditingOperator] = useState<OperatorProfile | null>(null);
   const [closeCashAdminEmail, setCloseCashAdminEmail] = useState('');
   const [closeCashAdminPassword, setCloseCashAdminPassword] = useState('');
   const [closeCashError, setCloseCashError] = useState('');
   const [latestCredential, setLatestCredential] = useState<{
     username: string;
-    role: StaffRole;
+    jobTitle: string;
   } | null>(null);
   const [internalCreateDialogOpen, setInternalCreateDialogOpen] = useState(false);
 
@@ -160,7 +153,7 @@ export function OperatorManagementPanel({
   const resetCreateForm = useCallback(() => {
     setUsername('');
     setPassword('');
-    setStaffRole('operator');
+    setJobTitle('');
     setSelectedPermissionKeys(new Set());
     setCreateStep('data');
   }, []);
@@ -169,12 +162,22 @@ export function OperatorManagementPanel({
     setCreateDialogOpen(open);
 
     if (!open) {
+      setEditingOperator(null);
       resetCreateForm();
     }
   }, [resetCreateForm, setCreateDialogOpen]);
 
+  const accessDialogOpen = createDialogOpen || Boolean(editingOperator);
+
+  const handleAccessDialogOpenChange = useCallback((open: boolean) => {
+    if (open) return;
+    setEditingOperator(null);
+    if (createDialogOpen) setCreateDialogOpen(false);
+    resetCreateForm();
+  }, [createDialogOpen, resetCreateForm, setCreateDialogOpen]);
+
   useEffect(() => {
-    if (!createDialogOpen || permissionOptions.length > 0) return;
+    if (!accessDialogOpen || permissionOptions.length > 0) return;
     setLoadingPermissionOptions(true);
     void db.from('erp_permission_catalog')
       .select('permission_key, module_key, name, description')
@@ -189,7 +192,7 @@ export function OperatorManagementPanel({
         setPermissionOptions(((data ?? []) as OperatorPermissionOption[]).filter((permission) => isErpPermissionKey(permission.permission_key)));
       })
       .finally(() => setLoadingPermissionOptions(false));
-  }, [createDialogOpen, permissionOptions.length]);
+  }, [accessDialogOpen, permissionOptions.length]);
 
   const resolveFunctionErrorMessage = useCallback(async (
     error: unknown,
@@ -214,7 +217,6 @@ export function OperatorManagementPanel({
 
   const saveOperatorOfflineAccessIfPossible = useCallback(async (
     operator: OperatorFunctionResponse['operator'],
-    role: StaffRole,
     secret: string,
   ) => {
     if (!operator || !ownerUserId || typeof window === 'undefined' || !window.electronAPI) {
@@ -232,12 +234,12 @@ export function OperatorManagementPanel({
         ownerUserId,
         username: operator.username,
         email: null,
-        role,
+        role: 'operator',
         secret,
       });
     } catch (error) {
       console.error('Nao foi possivel salvar o acesso offline do operador:', getRedactedLogValue(error));
-      toast.warning('Operador salvo online, mas nao foi possivel preparar o login offline nesta maquina.');
+          toast.warning('Colaborador salvo online, mas nao foi possivel preparar o login offline nesta maquina.');
     }
   }, [ownerUserId]);
 
@@ -251,10 +253,14 @@ export function OperatorManagementPanel({
 
     setLoading(true);
 
-    const [{ data: operatorRows, error: operatorError }, { data: openRows, error: openError }] = await Promise.all([
+    const [
+      { data: operatorRows, error: operatorError },
+      { data: openRows, error: openError },
+      { data: permissionRows, error: permissionError },
+    ] = await Promise.all([
       db
         .from('profiles')
-        .select('user_id, username, role, created_at')
+        .select('user_id, username, role, job_title, created_at')
         .eq('owner_user_id', ownerUserId)
         .in('role', ['operator', 'waiter'])
         .order('created_at', { ascending: false }),
@@ -264,11 +270,16 @@ export function OperatorManagementPanel({
         .eq('owner_user_id', ownerUserId)
         .eq('status', 'open')
         .order('opened_at', { ascending: false }),
+      db
+        .from('erp_staff_permission_overrides')
+        .select('user_id, permission_key, allowed')
+        .eq('owner_user_id', ownerUserId)
+        .eq('allowed', true),
     ]);
 
     if (operatorError) {
       console.error('Erro ao carregar operadores:', getRedactedLogValue(operatorError));
-      toast.error('Não foi possível carregar os operadores');
+      toast.error('Não foi possível carregar os colaboradores');
     }
 
     if (openError) {
@@ -276,11 +287,23 @@ export function OperatorManagementPanel({
       toast.error('Não foi possível carregar os caixas abertos');
     }
 
+    if (permissionError) {
+      console.error('Erro ao carregar acessos dos colaboradores:', getRedactedLogValue(permissionError));
+      toast.error('Nao foi possivel carregar os acessos dos colaboradores');
+    }
+
     setOperators(((operatorRows as OperatorProfile[]) ?? []).map(operator => ({
       ...operator,
       role: operator.role === 'waiter' ? 'waiter' : 'operator',
     })));
     setOpenCashSessions((openRows as OpenCashSession[]) ?? []);
+    const nextPermissionKeysByOperatorId: Record<string, Set<ErpPermissionKey>> = {};
+    for (const row of (permissionRows ?? []) as Array<{ user_id: string; permission_key: string }>) {
+      if (!isErpPermissionKey(row.permission_key)) continue;
+      nextPermissionKeysByOperatorId[row.user_id] ??= new Set<ErpPermissionKey>();
+      nextPermissionKeysByOperatorId[row.user_id].add(row.permission_key);
+    }
+    setPermissionKeysByOperatorId(nextPermissionKeysByOperatorId);
     setLoading(false);
   }, [isAdmin, ownerUserId]);
 
@@ -366,16 +389,28 @@ export function OperatorManagementPanel({
     .filter((permission) => selectedPermissionKeys.has(permission.permission_key))
     .map((permission) => permission.name);
 
+  const operatorCanOperateCash = (operator: OperatorProfile) =>
+    permissionKeysByOperatorId[operator.user_id]?.has('pdv.open_cash') ?? false;
+
+  const handleEditOperator = (operator: OperatorProfile) => {
+    setEditingOperator(operator);
+    setUsername(operator.username);
+    setPassword('');
+    setJobTitle(operator.job_title?.trim() || fallbackJobTitle[operator.role]);
+    setSelectedPermissionKeys(new Set(permissionKeysByOperatorId[operator.user_id] ?? []));
+    setCreateStep('data');
+  };
+
   if (!isAdmin) return null;
 
   const handleCreateOperator = async () => {
     if (!session?.access_token) {
-      toast.error('Sua sessão expirou. Entre novamente para cadastrar operadores.');
+      toast.error('Sua sessão expirou. Entre novamente para cadastrar colaboradores.');
       return;
     }
 
-    if (!username.trim() || !password.trim()) {
-      toast.error('Preencha usuário e senha ou PIN');
+    if (!username.trim() || !password.trim() || !jobTitle.trim()) {
+      toast.error('Preencha funcao, usuario e senha ou PIN');
       return;
     }
 
@@ -401,25 +436,65 @@ export function OperatorManagementPanel({
         action: 'create',
         username: username.trim(),
         password: password.trim(),
-        operatorRole: staffRole,
+        jobTitle: jobTitle.trim(),
         permissionKeys: [...selectedPermissionKeys],
       },
     });
 
     if (error || !data?.success || !data.operator) {
-      toast.error(await resolveFunctionErrorMessage(error, 'Não foi possível criar o operador', data));
+      toast.error(await resolveFunctionErrorMessage(error, 'Não foi possível criar o colaborador', data));
       setCreating(false);
       return;
     }
 
     setLatestCredential({
       username: data.operator.username,
-      role: staffRole,
+      jobTitle: data.operator.job_title || jobTitle.trim(),
     });
-    await saveOperatorOfflineAccessIfPossible(data.operator, staffRole, password.trim());
+    await saveOperatorOfflineAccessIfPossible(data.operator, password.trim());
     resetCreateForm();
     handleCreateDialogOpenChange(false);
-    toast.success(`${staffRoleLabel[staffRole]} criado com sucesso`);
+    toast.success('Colaborador criado com sucesso');
+    await loadData();
+    setCreating(false);
+  };
+
+  const handleUpdateOperatorAccess = async () => {
+    if (!session?.access_token || !editingOperator) {
+      toast.error('Sua sessao expirou. Entre novamente para editar colaboradores.');
+      return;
+    }
+
+    if (jobTitle.trim().length < 2 || jobTitle.trim().length > 60) {
+      toast.error('Informe uma funcao entre 2 e 60 caracteres.');
+      return;
+    }
+
+    if (selectedPermissionKeys.size === 0) {
+      toast.error('Selecione ao menos um acesso para o colaborador.');
+      setCreateStep('permissions');
+      return;
+    }
+
+    setCreating(true);
+    const { data, error } = await supabase.functions.invoke<OperatorFunctionResponse>('manage-operators', {
+      headers: { Authorization: `Bearer ${session.access_token}` },
+      body: {
+        action: 'update_access',
+        operatorUserId: editingOperator.user_id,
+        jobTitle: jobTitle.trim(),
+        permissionKeys: [...selectedPermissionKeys],
+      },
+    });
+
+    if (error || !data?.success) {
+      toast.error(await resolveFunctionErrorMessage(error, 'Nao foi possivel atualizar o colaborador', data));
+      setCreating(false);
+      return;
+    }
+
+    handleAccessDialogOpenChange(false);
+    toast.success('Funcao e acessos atualizados');
     await loadData();
     setCreating(false);
   };
@@ -462,9 +537,9 @@ export function OperatorManagementPanel({
 
     setLatestCredential({
       username: data.operator.username,
-      role: selectedOperator.role,
+      jobTitle: selectedOperator.job_title?.trim() || fallbackJobTitle[selectedOperator.role],
     });
-    await saveOperatorOfflineAccessIfPossible(data.operator, selectedOperator.role, resetPassword.trim());
+    await saveOperatorOfflineAccessIfPossible(data.operator, resetPassword.trim());
     setResetPassword('');
     setSelectedOperator(null);
     setResetDialogOpen(false);
@@ -502,7 +577,7 @@ export function OperatorManagementPanel({
 
     if (error || !data?.success || !data.cashSession) {
       console.error('Erro ao abrir caixa do operador:', getRedactedLogValue(error));
-      toast.error(await resolveFunctionErrorMessage(error, 'Não foi possível abrir o caixa para este operador', data));
+      toast.error(await resolveFunctionErrorMessage(error, 'Não foi possível abrir o caixa para este colaborador', data));
       setOpeningCash(false);
       return;
     }
@@ -605,7 +680,7 @@ export function OperatorManagementPanel({
 
   const handleDeleteOperator = async (operator: OperatorProfile) => {
     if (!session?.access_token) {
-      toast.error('Sua sessão expirou. Entre novamente para excluir operadores.');
+      toast.error('Sua sessão expirou. Entre novamente para excluir colaboradores.');
       return;
     }
 
@@ -623,12 +698,12 @@ export function OperatorManagementPanel({
 
     if (error || !data?.success) {
       console.error('Erro ao excluir operador:', getRedactedLogValue(error));
-      toast.error(await resolveFunctionErrorMessage(error, 'Não foi possível excluir o operador', data));
+      toast.error(await resolveFunctionErrorMessage(error, 'Não foi possível excluir o colaborador', data));
       setDeletingOperatorId(null);
       return;
     }
 
-    toast.success(`Operador ${operator.username} excluido com sucesso`);
+    toast.success(`Colaborador ${operator.username} excluido com sucesso`);
     await loadData();
     setDeletingOperatorId(null);
   };
@@ -639,16 +714,16 @@ export function OperatorManagementPanel({
         <CardHeader className="gap-4">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
             <div className="space-y-2">
-              <CardTitle className="text-lg">Equipe e Caixa</CardTitle>
+              <CardTitle className="text-lg">Colaboradores e caixa</CardTitle>
               <p className="text-sm text-muted-foreground">
-                Cadastre operadores, redefina acessos e acompanhe quem esta com o caixa aberto.
+                A lista fica compacta; use Editar para abrir a funcao e os acessos individuais.
               </p>
             </div>
 
             <div className="flex flex-col gap-3 lg:items-end">
               <Button onClick={() => handleCreateDialogOpenChange(true)} className="w-full lg:w-auto">
                 <Plus className="mr-2 h-4 w-4" />
-                Cadastrar operador
+                Cadastrar colaborador
               </Button>
 
               <div className="grid grid-cols-2 gap-2 sm:w-[280px]">
@@ -671,134 +746,58 @@ export function OperatorManagementPanel({
           </div>
         </CardHeader>
 
-        <CardContent className="space-y-6">
-          <div className="space-y-3 rounded-lg border border-border p-4">
-            <div className="flex items-center gap-2">
-              <Eye className="h-4 w-4 text-primary" />
-              <h3 className="font-semibold">Credencial protegida</h3>
-            </div>
-
-            {latestCredential ? (
-              <div className="space-y-2 rounded-lg border border-primary/20 bg-primary/5 p-4 text-sm">
-                <p><strong>Usuário:</strong> {latestCredential.username}</p>
-                <p><strong>Funcao:</strong> {staffRoleLabel[latestCredential.role]}</p>
-                <p>A credencial foi definida e nao sera exibida novamente.</p>
+        <CardContent className="space-y-4">
+          {latestCredential && (
+            <div className="flex flex-col gap-2 rounded-lg border border-primary/20 bg-primary/5 px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-center gap-2">
+                <Eye className="h-4 w-4 shrink-0 text-primary" />
+                <span><strong>{latestCredential.username}</strong> · {latestCredential.jobTitle}</span>
               </div>
-            ) : (
-              <p className="text-sm text-muted-foreground">
-                O usuário e a funcao aparecem apos criar ou redefinir um acesso operacional. Credenciais internas nunca aparecem nesta tela.
-              </p>
-            )}
+              <span className="text-xs text-muted-foreground">Credencial salva e protegida.</span>
+            </div>
+          )}
 
-            <p className="text-xs text-muted-foreground">
-              Por seguranca, o sistema mostra apenas o usuario operacional nesta confirmacao.
-            </p>
-          </div>
-
-          <div className="space-y-3">
+          <div className="space-y-2">
             <h3 className="font-semibold">Equipe cadastrada</h3>
             {isLoading ? (
               <p className="text-sm text-muted-foreground">Carregando equipe...</p>
             ) : operators.length === 0 ? (
               <p className="text-sm text-muted-foreground">Nenhum acesso operacional cadastrado.</p>
             ) : (
-              <div className="grid gap-3 md:grid-cols-2">
+              <div className="divide-y rounded-lg border border-border/70">
                 {operators.map(operator => {
                   const openSession = openSessionByOperatorId.get(operator.user_id);
                   const openCashSummary = openSession ? openCashSummaryByOperatorId.get(operator.user_id) : null;
+                  const canOperateCash = operatorCanOperateCash(operator);
 
                   return (
-                    <Card key={operator.user_id} className="border-border/50">
-                      <CardContent className="space-y-3 p-4">
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="min-w-0">
-                            <p className="truncate font-semibold">{operator.username}</p>
-                            <p className="truncate text-sm text-muted-foreground">{staffRoleLabel[operator.role]}</p>
-                          </div>
-                          <span className={`rounded-full px-2 py-1 text-[11px] font-semibold ${openSession ? 'bg-primary/15 text-primary' : 'bg-secondary text-muted-foreground'}`}>
-                            {operator.role === 'waiter' ? 'Lancamento' : openSession ? 'Caixa aberto' : 'Caixa fechado'}
-                          </span>
+                    <div key={operator.user_id} className="flex flex-col gap-3 p-3 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="flex min-w-0 items-center gap-3">
+                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-bold text-primary">
+                          {operator.username.slice(0, 1).toUpperCase()}
                         </div>
-
-                        {openSession ? (
-                          <div className="space-y-3 rounded-lg border border-border bg-secondary/20 p-3 text-sm">
-                            <div className="grid gap-2 sm:grid-cols-2">
-                              <div className="rounded-md border border-border/70 bg-background/80 p-3">
-                                <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Operador</p>
-                                <p className="mt-1 font-semibold">{openSession.operator_name}</p>
-                              </div>
-                              <div className="rounded-md border border-border/70 bg-background/80 p-3">
-                                <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Abertura</p>
-                                <p className="mt-1 font-semibold">{formatDateTime(openSession.opened_at)}</p>
-                              </div>
-                            </div>
-
-                            <div className="grid gap-2 sm:grid-cols-3">
-                              <div className="rounded-md border border-border/70 bg-background/80 p-3">
-                                <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Valor inicial</p>
-                                <p className="mt-1 text-base font-semibold">{formatMoney(Number(openSession.opening_amount || 0))}</p>
-                              </div>
-                              <div className="rounded-md border border-emerald-200/70 bg-emerald-50/60 p-3">
-                                <p className="text-[11px] uppercase tracking-wide text-emerald-700/80">Entradas</p>
-                                <p className="mt-1 text-base font-semibold text-emerald-700">
-                                  {formatMoney(openCashSummary?.entriesTotal ?? 0)}
-                                </p>
-                                <p className="text-xs text-emerald-700/80">
-                                  {openCashSummary?.salesCount ?? 0} venda{(openCashSummary?.salesCount ?? 0) === 1 ? '' : 's'}
-                                </p>
-                              </div>
-                              <div className="rounded-md border border-rose-200/70 bg-rose-50/60 p-3">
-                                <p className="text-[11px] uppercase tracking-wide text-rose-700/80">Saidas</p>
-                                <p className="mt-1 text-base font-semibold text-rose-700">
-                                  {formatMoney(openCashSummary?.cashOutTotal ?? 0)}
-                                </p>
-                                <p className="text-xs text-rose-700/80">
-                                  {openCashSummary?.cashOutCount ?? 0} registro{(openCashSummary?.cashOutCount ?? 0) === 1 ? '' : 's'}
-                                </p>
-                              </div>
-                            </div>
-
-                            <div className="rounded-md border border-primary/20 bg-primary/5 p-3">
-                              <p className="text-[11px] uppercase tracking-wide text-primary/80">Total do caixa aberto</p>
-                              <p className="mt-1 text-lg font-semibold text-primary">
-                                {formatMoney(openCashSummary?.currentBalance ?? Number(openSession.opening_amount || 0))}
-                              </p>
-                            </div>
-
-                            <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-                              {paymentMethodCards.map(paymentMethod => (
-                                <div key={paymentMethod.key} className="rounded-md border border-border/70 bg-background/80 p-3">
-                                  <p className="text-[11px] uppercase tracking-wide text-muted-foreground">{paymentMethod.label}</p>
-                                  <p className="mt-1 font-semibold">
-                                    {formatMoney(openCashSummary?.paymentTotals[paymentMethod.key] ?? 0)}
-                                  </p>
-                                </div>
-                              ))}
-                            </div>
-
-                            {(openCashSummary?.otherEntriesTotal ?? 0) > 0 && (
-                              <p className="text-xs text-muted-foreground">
-                                Outras entradas registradas neste caixa: {formatMoney(openCashSummary?.otherEntriesTotal ?? 0)}
-                              </p>
-                            )}
-
-                            {openCashSummary?.hasLegacyCashOutGap && (
-                              <p className="text-xs text-muted-foreground">
-                                Saidas antigas sem vinculo direto com operador podem nao aparecer neste resumo.
-                              </p>
-                            )}
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <p className="truncate font-semibold">{operator.username}</p>
+                            <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${openSession ? 'bg-primary/15 text-primary' : 'bg-secondary text-muted-foreground'}`}>
+                              {openSession ? 'Caixa aberto' : canOperateCash ? 'Caixa fechado' : 'Sem caixa'}
+                            </span>
                           </div>
-                        ) : canOperateCash(operator) ? (
-                          <p className="text-sm text-muted-foreground">Nenhum caixa aberto para este operador agora.</p>
-                        ) : (
-                          <p className="text-sm text-muted-foreground">Garcom acessa apenas a tela de comandas para lancar pedidos.</p>
-                        )}
+                          <p className="truncate text-sm text-muted-foreground">
+                            {operator.job_title?.trim() || fallbackJobTitle[operator.role]}
+                            {openSession ? ` · ${formatMoney(openCashSummary?.currentBalance ?? Number(openSession.opening_amount || 0))}` : ''}
+                          </p>
+                        </div>
+                      </div>
 
-                        <div className="flex gap-2">
+                      <div className="flex flex-wrap gap-2 sm:justify-end">
+                          <Button variant="outline" size="sm" onClick={() => handleEditOperator(operator)}>
+                            <Pencil className="mr-2 h-4 w-4" />
+                            Editar
+                          </Button>
                           <Button
                             variant="outline"
                             size="sm"
-                            className="flex-1"
                             onClick={() => {
                               setSelectedOperator(operator);
                               setResetPassword('');
@@ -806,13 +805,12 @@ export function OperatorManagementPanel({
                             }}
                           >
                             <KeyRound className="mr-2 h-4 w-4" />
-                            Redefinir senha
+                            Senha
                           </Button>
-                          {!openSession && canOperateCash(operator) && (
+                          {!openSession && canOperateCash && (
                             <Button
                               variant="outline"
                               size="sm"
-                              className="flex-1"
                               onClick={() => {
                                 setOperatorToOpenCash(operator);
                                 setOpeningAmount('0.00');
@@ -823,11 +821,10 @@ export function OperatorManagementPanel({
                               Abrir caixa
                             </Button>
                           )}
-                          {openSession && canOperateCash(operator) && (
+                          {openSession && canOperateCash && (
                             <Button
                               variant="outline"
                               size="sm"
-                              className="flex-1"
                               onClick={() => {
                                 setCashSessionToClose({
                                   operator,
@@ -849,7 +846,6 @@ export function OperatorManagementPanel({
                               <Button
                                 variant="destructive"
                                 size="sm"
-                                className="flex-1"
                                 disabled={deletingOperatorId === operator.user_id}
                               >
                                 <Trash2 className="mr-2 h-4 w-4" />
@@ -858,9 +854,9 @@ export function OperatorManagementPanel({
                             </AlertDialogTrigger>
                             <AlertDialogContent>
                               <AlertDialogHeader>
-                                <AlertDialogTitle>Excluir operador?</AlertDialogTitle>
+                                <AlertDialogTitle>Excluir colaborador?</AlertDialogTitle>
                                 <AlertDialogDescription>
-                                  O operador "{operator.username}" sera removido do sistema.
+                                  O colaborador "{operator.username}" sera removido do sistema.
                                 </AlertDialogDescription>
                               </AlertDialogHeader>
                               <AlertDialogFooter>
@@ -869,14 +865,13 @@ export function OperatorManagementPanel({
                                   className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                                   onClick={() => void handleDeleteOperator(operator)}
                                 >
-                                  Excluir operador
+                                  Excluir colaborador
                                 </AlertDialogAction>
                               </AlertDialogFooter>
                             </AlertDialogContent>
                           </AlertDialog>
-                        </div>
-                      </CardContent>
-                    </Card>
+                      </div>
+                    </div>
                   );
                 })}
               </div>
@@ -885,11 +880,11 @@ export function OperatorManagementPanel({
         </CardContent>
       </Card>
 
-      <Dialog open={createDialogOpen} onOpenChange={handleCreateDialogOpenChange}>
+      <Dialog open={accessDialogOpen} onOpenChange={handleAccessDialogOpenChange}>
         <DialogContent className="flex h-[100dvh] w-screen max-w-none flex-col gap-0 overflow-hidden rounded-none p-0 sm:h-[90vh] sm:max-w-6xl sm:rounded-lg">
           <DialogHeader>
             <div className="border-b px-4 py-4 sm:px-6">
-              <DialogTitle>Cadastrar acesso operacional</DialogTitle>
+              <DialogTitle>{editingOperator ? 'Editar colaborador e acessos' : 'Cadastrar colaborador'}</DialogTitle>
               <p className="mt-1 text-sm text-muted-foreground">A função identifica o colaborador; os acessos são escolhidos individualmente.</p>
               <div className="mt-3 grid grid-cols-3 gap-2 md:hidden">
                 {(['data', 'permissions', 'review'] as const).map((step, index) => (
@@ -906,28 +901,36 @@ export function OperatorManagementPanel({
               <div className="space-y-4">
                 <div className="space-y-1">
                   <Label>Função</Label>
-                  <Select value={staffRole} onValueChange={value => setStaffRole(value === 'waiter' ? 'waiter' : 'operator')}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="operator">Operador do caixa</SelectItem>
-                      <SelectItem value="waiter">Garçom</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <p className="text-xs text-muted-foreground">A função não libera permissões automaticamente.</p>
+                  <Input
+                    value={jobTitle}
+                    onChange={event => setJobTitle(event.target.value)}
+                    placeholder="Ex: Caixa da manha, Gerente, Atendimento"
+                    maxLength={60}
+                  />
+                  <p className="text-xs text-muted-foreground">O administrador escreve o nome. A função não libera permissões automaticamente.</p>
                 </div>
                 <div className="space-y-1">
                   <Label>Usuário</Label>
-                  <Input value={username} onChange={event => setUsername(event.target.value)} placeholder="Ex: operador.caixa" />
+                  <Input
+                    value={username}
+                    onChange={event => setUsername(event.target.value)}
+                    placeholder="Ex: colaborador.caixa"
+                    readOnly={Boolean(editingOperator)}
+                  />
                 </div>
-                <div className="space-y-1">
-                  <Label>Senha ou PIN inicial</Label>
-                  <PasswordInput value={password} onChange={event => setPassword(event.target.value)} placeholder="Use uma senha forte ou PIN" />
-                  <p className="text-xs text-muted-foreground">{operatorCredentialHint}</p>
-                </div>
-                <p className="text-xs text-muted-foreground">Use de 3 a 24 caracteres com letras, números, ponto, hífen ou underscore.</p>
+                {!editingOperator && (
+                  <div className="space-y-1">
+                    <Label>Senha ou PIN inicial</Label>
+                    <PasswordInput value={password} onChange={event => setPassword(event.target.value)} placeholder="Use uma senha forte ou PIN" />
+                    <p className="text-xs text-muted-foreground">{operatorCredentialHint}</p>
+                  </div>
+                )}
+                <p className="text-xs text-muted-foreground">
+                  {editingOperator ? 'O usuário não muda nesta tela para preservar o login.' : 'Use de 3 a 24 caracteres com letras, números, ponto, hífen ou underscore.'}
+                </p>
                 <div className="hidden rounded-lg border bg-muted/30 p-3 text-sm md:block">
                   <p className="font-medium">Resumo</p>
-                  <p className="text-muted-foreground">{staffRoleLabel[staffRole]} · {selectedPermissionKeys.size} acessos</p>
+                  <p className="text-muted-foreground">{jobTitle || 'Funcao nao informada'} · {selectedPermissionKeys.size} acessos</p>
                 </div>
               </div>
             </div>
@@ -944,7 +947,7 @@ export function OperatorManagementPanel({
 
             <div className={`${createStep === 'review' ? 'block' : 'hidden'} overflow-y-auto p-4 md:hidden`}>
               <div className="space-y-4 rounded-lg border p-4">
-                <div><p className="text-xs text-muted-foreground">Função</p><p className="font-semibold">{staffRoleLabel[staffRole]}</p></div>
+                <div><p className="text-xs text-muted-foreground">Função</p><p className="font-semibold">{jobTitle || 'Não informada'}</p></div>
                 <div><p className="text-xs text-muted-foreground">Usuário</p><p className="font-semibold">{username || 'Não informado'}</p></div>
                 <div><p className="text-xs text-muted-foreground">Acessos ({selectedPermissionNames.length})</p><p className="mt-1 text-sm">{selectedPermissionNames.join(', ') || 'Nenhum acesso selecionado'}</p></div>
               </div>
@@ -953,16 +956,25 @@ export function OperatorManagementPanel({
 
           <DialogFooter className="border-t p-4 sm:px-6">
             <div className="hidden w-full justify-end gap-2 md:flex">
-              <Button variant="outline" onClick={() => handleCreateDialogOpenChange(false)}>Cancelar</Button>
-              <Button onClick={() => void handleCreateOperator()} disabled={creating || loadingPermissionOptions}>{creating ? 'Criando...' : 'Criar acesso'}</Button>
+              <Button variant="outline" onClick={() => handleAccessDialogOpenChange(false)}>Cancelar</Button>
+              <Button
+                onClick={() => void (editingOperator ? handleUpdateOperatorAccess() : handleCreateOperator())}
+                disabled={creating || loadingPermissionOptions}
+              >
+                {creating ? 'Salvando...' : editingOperator ? 'Salvar alteracoes' : 'Criar acesso'}
+              </Button>
             </div>
             <div className="flex w-full justify-between gap-2 md:hidden">
-              <Button variant="outline" onClick={() => createStep === 'data' ? handleCreateDialogOpenChange(false) : setCreateStep(createStep === 'review' ? 'permissions' : 'data')}>
+              <Button variant="outline" onClick={() => createStep === 'data' ? handleAccessDialogOpenChange(false) : setCreateStep(createStep === 'review' ? 'permissions' : 'data')}>
                 {createStep === 'data' ? 'Cancelar' : 'Voltar'}
               </Button>
               {createStep === 'data' && <Button onClick={() => setCreateStep('permissions')}>Continuar</Button>}
               {createStep === 'permissions' && <Button onClick={() => setCreateStep('review')} disabled={selectedPermissionKeys.size === 0}>Revisar</Button>}
-              {createStep === 'review' && <Button onClick={() => void handleCreateOperator()} disabled={creating}>{creating ? 'Criando...' : 'Criar acesso'}</Button>}
+              {createStep === 'review' && (
+                <Button onClick={() => void (editingOperator ? handleUpdateOperatorAccess() : handleCreateOperator())} disabled={creating}>
+                  {creating ? 'Salvando...' : editingOperator ? 'Salvar' : 'Criar acesso'}
+                </Button>
+              )}
             </div>
           </DialogFooter>
         </DialogContent>
@@ -978,12 +990,12 @@ export function OperatorManagementPanel({
       >
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Fechar caixa do operador</DialogTitle>
+            <DialogTitle>Fechar caixa do colaborador</DialogTitle>
           </DialogHeader>
 
           <div className="space-y-3">
             <div className="rounded-md border border-border bg-secondary/30 p-3 text-sm">
-              <p className="text-muted-foreground">Operador</p>
+              <p className="text-muted-foreground">Colaborador</p>
               <p className="font-semibold">{cashSessionToClose?.operator.username || '-'}</p>
               <p className="mt-2 text-muted-foreground">Total atual</p>
               <p className="font-semibold">
@@ -1040,12 +1052,12 @@ export function OperatorManagementPanel({
       >
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Abrir caixa para operador</DialogTitle>
+            <DialogTitle>Abrir caixa para colaborador</DialogTitle>
           </DialogHeader>
 
           <div className="space-y-3">
             <div className="space-y-1">
-              <Label>Operador</Label>
+              <Label>Colaborador</Label>
               <Input value={operatorToOpenCash?.username || ''} readOnly />
             </div>
             <div className="space-y-1">
@@ -1060,7 +1072,7 @@ export function OperatorManagementPanel({
               />
             </div>
             <p className="text-xs text-muted-foreground">
-              O operador selecionado tera o caixa aberto com este valor inicial.
+              O colaborador selecionado tera o caixa aberto com este valor inicial.
             </p>
           </div>
 
@@ -1087,11 +1099,11 @@ export function OperatorManagementPanel({
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Redefinir senha do operador</DialogTitle>
+            <DialogTitle>Redefinir senha do colaborador</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
             <div className="space-y-1">
-              <Label>Operador</Label>
+              <Label>Colaborador</Label>
               <Input value={selectedOperator?.username || ''} readOnly />
             </div>
             <div className="space-y-1">
