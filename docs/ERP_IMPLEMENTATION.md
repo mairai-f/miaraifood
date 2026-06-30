@@ -400,7 +400,9 @@ Migração complementar: `20260630130000_add_staff_job_titles.sql`. Ela preserva
 - o menu lateral principal contém apenas Painel, PDV, Comandas, Clientes, Produtos, Estoque e Configurações;
 - filial/terminal ativo, usuário administrador e Tutorial ficam em uma barra horizontal fixa acima do conteúdo;
 - Licença e validade aparece antes da Central administrativa;
-- Empresa, Backup, Colaboradores, Filiais e terminais e Catálogo avançado possuem cartões que levam à seção correspondente;
+- Empresa, Backup, Colaboradores, Filiais e terminais e Catálogo avançado possuem páginas próprias abertas pelos cartões;
+- a rota principal de Configurações não exibe formulários ou listas abaixo da Central;
+- cada página interna possui **Voltar para a Central**, sem usar rolagem para localizar conteúdo;
 - Financeiro, Relatórios, Operações, Acessos, Recompensas, Precificação, Notas e Excluídos ficam na Central administrativa de Configurações;
 - os cartões da central respeitam plano, permissão e disponibilidade Web/Desktop;
 - Acessos continua somente Web e Notas continua respeitando a licença fiscal do Desktop.

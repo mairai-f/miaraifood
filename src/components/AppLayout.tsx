@@ -562,7 +562,9 @@ export function AppLayout({ children }: { children: ReactNode }) {
           )}
           <nav ref={navRef} className="no-scrollbar min-h-0 h-full overflow-y-auto p-4 space-y-1">
             {visibleNavItems.map(item => {
-              const active = location.pathname === item.path;
+              const active = item.path === '/configuracoes'
+                ? location.pathname.startsWith('/configuracoes')
+                : location.pathname === item.path;
               return (
                 <Link key={item.path} to={item.path} onClick={() => setOpen(false)}
                   data-tour-id={item.tourId}

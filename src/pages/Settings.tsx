@@ -1,6 +1,6 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState, type ChangeEvent } from 'react';
-import { BarChart3, Building2, Calculator, ChevronRight, ClipboardList, Clock3, DatabaseBackup, Download, FileText, Gift, Loader2, MapPinned, PackageSearch, Settings as SettingsIcon, Shield, ShieldAlert, Trash2, UserRoundCog, WalletCards } from 'lucide-react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { ArrowLeft, BarChart3, Building2, Calculator, ChevronRight, ClipboardList, Clock3, DatabaseBackup, Download, FileText, Gift, Laptop, Loader2, MapPinned, PackageSearch, Settings as SettingsIcon, Shield, ShieldAlert, Trash2, UserRoundCog, WalletCards } from 'lucide-react';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { CompanyProfileCard } from '@/components/CompanyProfileCard';
 import { PrinterSettingsCard } from '@/components/PrinterSettingsCard';
 import { OperatorManagementPanel } from '@/components/OperatorManagementPanel';
@@ -63,6 +63,7 @@ const CREATE_OPERATOR_MODAL = 'cadastrar-operador';
 const RESET_CONFIRM_TEXT = 'ZERAR';
 const RESTORE_CONFIRM_TEXT = 'RESTAURAR';
 type ResetTarget = 'financial' | 'reports';
+type SettingsSection = 'empresa' | 'backup' | 'colaboradores' | 'filiais' | 'catalogo' | 'desktop' | 'risco';
 
 interface SettingsNavigationItem {
   path: string;
@@ -73,15 +74,17 @@ interface SettingsNavigationItem {
   permissionKey: ErpPermissionKey;
   runtimeScope: RuntimeScope;
   fiscalDesktopAccess?: boolean;
-  sectionId?: string;
+  section?: SettingsSection;
 }
 
 const settingsNavigationItems: SettingsNavigationItem[] = [
-  { path: '#empresa', sectionId: 'empresa', title: 'Empresa', description: 'Dados, identidade e informacoes da loja.', icon: Building2, featureKey: 'settings.manage', permissionKey: 'settings.manage', runtimeScope: 'both' },
-  { path: '#backup', sectionId: 'backup', title: 'Backup', description: 'Exportacao e restauracao dos dados.', icon: DatabaseBackup, featureKey: 'settings.manage', permissionKey: 'settings.manage', runtimeScope: 'both' },
-  { path: '#colaboradores', sectionId: 'colaboradores', title: 'Colaboradores', description: 'Equipe, funcoes, acessos e caixas.', icon: UserRoundCog, featureKey: 'settings.manage', permissionKey: 'staff.manage', runtimeScope: 'both' },
-  { path: '#filiais', sectionId: 'filiais', title: 'Filiais e terminais', description: 'Lojas, terminais e escopo operacional.', icon: MapPinned, featureKey: 'settings.manage', permissionKey: 'multi_store.manage', runtimeScope: 'web' },
-  { path: '#catalogo', sectionId: 'catalogo', title: 'Catalogo avancado', description: 'Marcas, grupos, unidades e tabelas.', icon: PackageSearch, featureKey: 'settings.manage', permissionKey: 'products.manage', runtimeScope: 'web' },
+  { path: '/configuracoes/empresa', section: 'empresa', title: 'Empresa', description: 'Dados, identidade e configuracao de impressao.', icon: Building2, featureKey: 'settings.manage', permissionKey: 'settings.manage', runtimeScope: 'both' },
+  { path: '/configuracoes/backup', section: 'backup', title: 'Backup', description: 'Exportacao e restauracao dos dados.', icon: DatabaseBackup, featureKey: 'settings.manage', permissionKey: 'settings.manage', runtimeScope: 'both' },
+  { path: '/configuracoes/colaboradores', section: 'colaboradores', title: 'Colaboradores', description: 'Equipe, funcoes, acessos e caixas.', icon: UserRoundCog, featureKey: 'settings.manage', permissionKey: 'staff.manage', runtimeScope: 'both' },
+  { path: '/configuracoes/filiais', section: 'filiais', title: 'Filiais e terminais', description: 'Lojas, terminais e escopo operacional.', icon: MapPinned, featureKey: 'settings.manage', permissionKey: 'multi_store.manage', runtimeScope: 'web' },
+  { path: '/configuracoes/catalogo', section: 'catalogo', title: 'Catalogo avancado', description: 'Marcas, grupos, unidades e tabelas.', icon: PackageSearch, featureKey: 'settings.manage', permissionKey: 'products.manage', runtimeScope: 'web' },
+  { path: '/configuracoes/desktop', section: 'desktop', title: 'Desktop e offline', description: 'Atualizacoes, sincronizacao e conflitos.', icon: Laptop, featureKey: 'settings.manage', permissionKey: 'settings.manage', runtimeScope: 'desktop' },
+  { path: '/configuracoes/risco', section: 'risco', title: 'Zona de risco', description: 'Limpeza protegida de dados operacionais.', icon: ShieldAlert, featureKey: 'settings.manage', permissionKey: 'settings.manage', runtimeScope: 'both' },
   { path: '/financeiro', title: 'Financeiro', description: 'Despesas, fiados e fluxo financeiro.', icon: WalletCards, featureKey: 'financial.manage', permissionKey: 'financial.view', runtimeScope: 'both' },
   { path: '/notas', title: 'Notas', description: 'Configuracao e emissao fiscal.', icon: FileText, featureKey: 'notes.manage', permissionKey: 'fiscal.view', runtimeScope: 'both', fiscalDesktopAccess: true },
   { path: '/relatorios', title: 'Relatorios', description: 'Vendas, caixa, estoque e indicadores.', icon: BarChart3, featureKey: 'reports.view', permissionKey: 'reports.view', runtimeScope: 'both' },
@@ -146,8 +149,13 @@ export default function Settings() {
   const data = useData();
   const { refetch } = data;
   const { subscription, countdown, statusLabel, loading: loadingSubscription } = useCurrentSubscription();
+  const { section: routeSection } = useParams<{ section?: string }>();
   const [searchParams, setSearchParams] = useSearchParams();
   const isCreateOperatorModalOpen = searchParams.get('modal') === CREATE_OPERATOR_MODAL;
+  const matchedSettingsSection = settingsNavigationItems.find((item) => item.section === routeSection)?.section ?? null;
+  const activeSettingsSection: SettingsSection | null = isCreateOperatorModalOpen
+    ? 'colaboradores'
+    : matchedSettingsSection;
   const [resetTarget, setResetTarget] = useState<ResetTarget | null>(null);
   const [resetDialogOpen, setResetDialogOpen] = useState(false);
   const [adminEmail, setAdminEmail] = useState('');
@@ -641,13 +649,7 @@ export default function Settings() {
       activation: readDesktopActivation(),
     });
   });
-  const handleSettingsSectionOpen = useCallback((sectionId: string) => {
-    const target = document.getElementById(sectionId);
-    if (!target) return;
-    window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}#${sectionId}`);
-    target.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  }, []);
-
+  const activeSettingsTitle = settingsNavigationItems.find((item) => item.section === activeSettingsSection)?.title;
   return (
     <div className="space-y-6">
       {updateIsInstalling && (
@@ -669,16 +671,23 @@ export default function Settings() {
       )}
 
       <div className="page-header">
+        {activeSettingsSection && (
+          <Button asChild variant="ghost" size="sm" className="mb-2 -ml-2 w-fit">
+            <Link to="/configuracoes"><ArrowLeft className="mr-2 h-4 w-4" />Voltar para a Central</Link>
+          </Button>
+        )}
         <h1 className="page-title flex items-center gap-3">
           <SettingsIcon className="h-6 w-6 text-primary" />
-          Configuracoes
+          {activeSettingsTitle || 'Configuracoes'}
         </h1>
         <p className="page-subtitle">
-          Acesse os modulos administrativos e gerencie a equipe sem sobrecarregar o menu operacional.
+          {activeSettingsSection
+            ? 'Área administrativa aberta separadamente da Central de Configurações.'
+            : 'Acesse os modulos administrativos e gerencie a equipe sem sobrecarregar o menu operacional.'}
         </p>
       </div>
 
-      <Card>
+      {!activeSettingsSection && <Card>
         <CardHeader className="space-y-3">
           <div className="flex flex-wrap items-center gap-2">
             <CardTitle className="flex items-center gap-2 text-base">
@@ -727,16 +736,15 @@ export default function Settings() {
             </>
           )}
         </CardContent>
-      </Card>
+      </Card>}
 
-      <section aria-labelledby="settings-navigation-title" className="space-y-3">
+      {!activeSettingsSection && <section aria-labelledby="settings-navigation-title" className="space-y-3">
         <div>
           <h2 id="settings-navigation-title" className="text-xl font-semibold">Central administrativa</h2>
           <p className="mt-1 text-sm text-muted-foreground">Escolha uma area. Os ajustes ficam organizados aqui, sem ocupar o menu operacional.</p>
         </div>
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           {visibleSettingsNavigationItems.map((item) => {
-            const sectionId = item.sectionId;
             const cardContent = (
               <>
                 <div className="flex items-start justify-between gap-3">
@@ -753,25 +761,16 @@ export default function Settings() {
             );
             const cardClassName = 'group flex min-h-36 flex-col justify-between rounded-xl border border-border/70 bg-card p-5 text-left transition-all hover:-translate-y-0.5 hover:border-primary/50 hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-primary/60';
 
-            return sectionId ? (
-              <button
-                key={item.path}
-                type="button"
-                className={cardClassName}
-                onClick={() => handleSettingsSectionOpen(sectionId)}
-              >
-                {cardContent}
-              </button>
-            ) : (
+            return (
               <Link key={item.path} to={item.path} className={cardClassName}>
                 {cardContent}
               </Link>
             );
           })}
         </div>
-      </section>
+      </section>}
 
-      {isDesktop && (
+      {activeSettingsSection === 'desktop' && isDesktop && (
         <Card>
           <CardHeader className="space-y-3">
             <div className="flex flex-wrap items-center gap-2">
@@ -965,13 +964,14 @@ export default function Settings() {
         </Card>
       )}
 
-      <div id="empresa" className="scroll-mt-20">
-        <CompanyProfileCard />
-      </div>
+      {activeSettingsSection === 'empresa' && (
+        <>
+          <CompanyProfileCard />
+          <PrinterSettingsCard />
+        </>
+      )}
 
-      <PrinterSettingsCard />
-
-      <Card id="backup" className="scroll-mt-20">
+      {activeSettingsSection === 'backup' && <Card>
         <CardHeader className="space-y-2">
           <CardTitle className="flex items-center gap-2 text-base">
             <Download className="h-4 w-4 text-primary" />
@@ -1087,49 +1087,44 @@ export default function Settings() {
             </Dialog>
           </div>
         </CardContent>
-      </Card>
+      </Card>}
 
-      <div id="colaboradores" className="scroll-mt-20">
+      {activeSettingsSection === 'colaboradores' && <div>
         <OperatorManagementPanel
           createDialogOpen={isCreateOperatorModalOpen}
           onCreateDialogOpenChange={handleCreateDialogOpenChange}
         />
-      </div>
+      </div>}
 
-      {!isDesktop && (
-        <>
-          <div id="filiais" className="scroll-mt-20">
-            <Suspense
-              fallback={(
-                <Card>
-                  <CardContent className="flex items-center gap-2 py-8 text-sm text-muted-foreground">
-                    <Loader2 className="h-4 w-4 animate-spin" /> Carregando filiais e terminais...
-                  </CardContent>
-                </Card>
-              )}
-            >
-              <LocationsTerminalsPanel />
-            </Suspense>
-          </div>
-
-          <div id="catalogo" className="scroll-mt-20">
-            <Suspense
-              fallback={(
-                <Card>
-                  <CardContent className="flex items-center gap-2 py-8 text-sm text-muted-foreground">
-                    <Loader2 className="h-4 w-4 animate-spin" /> Carregando catalogo avancado...
-                  </CardContent>
-                </Card>
-              )}
-            >
-              <CatalogConfigurationPanel />
-            </Suspense>
-          </div>
-
-        </>
+      {activeSettingsSection === 'filiais' && !isDesktop && (
+        <Suspense
+          fallback={(
+            <Card>
+              <CardContent className="flex items-center gap-2 py-8 text-sm text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" /> Carregando filiais e terminais...
+              </CardContent>
+            </Card>
+          )}
+        >
+          <LocationsTerminalsPanel />
+        </Suspense>
       )}
 
-      <Card className="border-destructive/30">
+      {activeSettingsSection === 'catalogo' && !isDesktop && (
+        <Suspense
+          fallback={(
+            <Card>
+              <CardContent className="flex items-center gap-2 py-8 text-sm text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" /> Carregando catalogo avancado...
+              </CardContent>
+            </Card>
+          )}
+        >
+          <CatalogConfigurationPanel />
+        </Suspense>
+      )}
+
+      {activeSettingsSection === 'risco' && <Card className="border-destructive/30">
         <CardHeader className="space-y-2">
           <CardTitle className="flex items-center gap-2 text-base text-destructive">
             <ShieldAlert className="h-4 w-4" />
@@ -1221,7 +1216,7 @@ export default function Settings() {
             </DialogContent>
           </Dialog>
         </CardContent>
-      </Card>
+      </Card>}
     </div>
   );
 }
