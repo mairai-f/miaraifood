@@ -680,11 +680,9 @@ export default function Settings() {
           <SettingsIcon className="h-6 w-6 text-primary" />
           {activeSettingsTitle || 'Configuracoes'}
         </h1>
-        <p className="page-subtitle">
-          {activeSettingsSection
-            ? 'Área administrativa aberta separadamente da Central de Configurações.'
-            : 'Acesse os modulos administrativos e gerencie a equipe sem sobrecarregar o menu operacional.'}
-        </p>
+        {activeSettingsSection && (
+          <p className="page-subtitle">Área administrativa aberta separadamente da Central de Configurações.</p>
+        )}
       </div>
 
       {!activeSettingsSection && <Card>
