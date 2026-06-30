@@ -1,6 +1,6 @@
 import { ReactNode, useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Clock3, Home, Users, Package, LogOut, Menu, X, UserCircle, Receipt, Boxes, ChevronDown, ChevronUp, Settings, Database, Loader2, WifiOff, ClipboardList, HelpCircle, MapPin } from 'lucide-react';
+import { ArrowLeft, Clock3, Home, Users, Package, LogOut, Menu, X, UserCircle, Receipt, Boxes, ChevronDown, ChevronUp, Settings, Database, Loader2, WifiOff, ClipboardList, HelpCircle, MapPin } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import { useData } from '@/contexts/DataContext';
@@ -51,6 +51,11 @@ const navItems: NavigationItem[] = [
   { path: '/estoque', label: 'Estoque', icon: Boxes, shortcut: '6', featureKey: 'stock.manage', permissionKey: 'stock.view', runtimeScope: 'both', tourId: 'nav-stock' },
   { path: '/configuracoes', label: 'Configurações', icon: Settings, shortcut: '7', featureKey: 'settings.manage', permissionKey: 'settings.manage', runtimeScope: 'both', tourId: 'nav-settings' },
 ];
+
+const centralAdministrativePaths = new Set([
+  '/financeiro', '/relatorios', '/operacoes', '/notas', '/acessos', '/auditoria',
+  '/recompensas', '/precificacao', '/excluidos',
+]);
 
 const OFFLINE_VALIDATION_GRACE_DAYS = 5;
 const OFFLINE_VALIDATION_GRACE_MS = OFFLINE_VALIDATION_GRACE_DAYS * 24 * 60 * 60 * 1000;
@@ -137,6 +142,8 @@ export function AppLayout({ children }: { children: ReactNode }) {
   const navRef = useRef<HTMLElement | null>(null);
   const [scrollHints, setScrollHints] = useState({ top: false, bottom: false });
   const isPdvMode = location.pathname === '/pdv';
+  const showCentralBackButton = location.pathname.startsWith('/configuracoes/')
+    || centralAdministrativePaths.has(location.pathname);
   const desktopActivation = readDesktopActivation();
   const visibleNavItems = navItems.filter(item => {
     if (!hasPermission(item.permissionKey) || !hasFeature(item.featureKey)) return false;
@@ -605,6 +612,16 @@ export function AppLayout({ children }: { children: ReactNode }) {
           <button type="button" onClick={() => setOpen(true)} className="shrink-0 text-muted-foreground hover:text-foreground lg:hidden" aria-label="Abrir menu">
             <Menu className="h-6 w-6" />
           </button>
+
+          {showCentralBackButton && (
+            <Button asChild variant="ghost" size="sm" className="h-9 shrink-0 px-2 sm:px-3">
+              <Link to="/configuracoes">
+                <ArrowLeft className="mr-1.5 h-4 w-4 sm:mr-2" />
+                <span className="sm:hidden">Central</span>
+                <span className="hidden sm:inline">Voltar para a Central</span>
+              </Link>
+            </Button>
+          )}
 
           {operationalScope && (
             <div className="flex min-w-0 items-center gap-2">

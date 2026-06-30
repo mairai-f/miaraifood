@@ -8,9 +8,9 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Label } from '@/components/ui/label';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { BarChart3, CalendarClock, Download, Search, Plus, AlertTriangle, Package, Check, ArrowRight } from 'lucide-react';
+import { BarChart3, CalendarClock, Download, Search, AlertTriangle, Package, Check, ArrowRight } from 'lucide-react';
 import { toast } from 'sonner';
 import { formatDateTime } from '../../shared/locale/format';
 import { getRedactedLogValue } from '../../shared/security/redaction';
@@ -129,6 +129,16 @@ export default function Stock() {
     navigate(`/operacoes?${params.toString()}`);
   };
 
+  const openProductMovement = (productId: string, productName: string) => {
+    setSelectedProduct(productId);
+    setMovementProductSearch(productName);
+    setMovType('entrada');
+    setQty('');
+    setReason('');
+    setReasonNotes('');
+    setOpen(true);
+  };
+
   const handleSave = async () => {
     if (!selectedProduct || !qty || !reason) { toast.error('Preencha produto, quantidade e motivo'); return; }
     const product = products.find(p => p.id === selectedProduct);
@@ -224,7 +234,6 @@ export default function Stock() {
               setReasonNotes('');
             }
           }}>
-            <DialogTrigger asChild><Button size="sm" data-tour-id="stock-move"><Plus className="h-4 w-4 mr-1" />Movimentar</Button></DialogTrigger>
             <DialogContent>
               <DialogHeader><DialogTitle>Movimentação de Estoque</DialogTitle></DialogHeader>
               <div className="space-y-3">
@@ -383,7 +392,16 @@ export default function Stock() {
             <CardContent className="p-4">
               <div className="flex justify-between items-start mb-2">
                 <div className="min-w-0 mr-2">
-                  <h3 className="font-semibold text-sm truncate">{p.name}</h3>
+                  <button
+                    type="button"
+                    data-tour-id="stock-move"
+                    className="block max-w-full truncate text-left text-sm font-semibold text-foreground underline-offset-4 transition-colors hover:text-primary hover:underline focus:outline-none focus:ring-2 focus:ring-primary/60 disabled:cursor-not-allowed disabled:no-underline disabled:opacity-60"
+                    disabled={Boolean(p.deleted)}
+                    onClick={() => openProductMovement(p.id, p.name)}
+                    title={p.deleted ? 'Produto arquivado' : `Movimentar estoque de ${p.name}`}
+                  >
+                    {p.name}
+                  </button>
                   <p className="text-xs text-muted-foreground">{formatProductCode(p.code) || p.barcode || 'Sem código'}</p>
                   {p.deleted && <Badge variant="destructive" className="mt-1">Arquivado com lote monitorado</Badge>}
                   {p.category && <span className="text-xs text-muted-foreground">{p.category}</span>}

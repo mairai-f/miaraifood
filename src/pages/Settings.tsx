@@ -1,5 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState, type ChangeEvent } from 'react';
-import { ArrowLeft, BarChart3, Building2, Calculator, ChevronRight, ClipboardList, Clock3, DatabaseBackup, Download, FileText, Gift, Laptop, Loader2, MapPinned, PackageSearch, Settings as SettingsIcon, Shield, ShieldAlert, Trash2, UserRoundCog, WalletCards } from 'lucide-react';
+import { BarChart3, Building2, Calculator, ChevronRight, ClipboardList, Clock3, DatabaseBackup, Download, FileText, Gift, Laptop, Loader2, MapPinned, PackageSearch, Settings as SettingsIcon, Shield, ShieldAlert, Trash2, UserRoundCog, WalletCards } from 'lucide-react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { CompanyProfileCard } from '@/components/CompanyProfileCard';
 import { PrinterSettingsCard } from '@/components/PrinterSettingsCard';
@@ -671,11 +671,6 @@ export default function Settings() {
       )}
 
       <div className="page-header">
-        {activeSettingsSection && (
-          <Button asChild variant="ghost" size="sm" className="mb-2 -ml-2 w-fit">
-            <Link to="/configuracoes"><ArrowLeft className="mr-2 h-4 w-4" />Voltar para a Central</Link>
-          </Button>
-        )}
         <h1 className="page-title flex items-center gap-3">
           <SettingsIcon className="h-6 w-6 text-primary" />
           {activeSettingsTitle || 'Configuracoes'}

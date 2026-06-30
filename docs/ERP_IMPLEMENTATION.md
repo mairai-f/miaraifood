@@ -403,9 +403,22 @@ Migração complementar: `20260630130000_add_staff_job_titles.sql`. Ela preserva
 - Empresa, Backup, Colaboradores, Filiais e terminais e Catálogo avançado possuem páginas próprias abertas pelos cartões;
 - a rota principal de Configurações não exibe formulários ou listas abaixo da Central;
 - cada página interna possui **Voltar para a Central**, sem usar rolagem para localizar conteúdo;
+- o mesmo retorno fica fixo no cabeçalho de Financeiro, Relatórios, Operações, Acessos, Auditoria, Recompensas, Precificação, Notas e Excluídos;
 - Financeiro, Relatórios, Operações, Acessos, Recompensas, Precificação, Notas e Excluídos ficam na Central administrativa de Configurações;
 - os cartões da central respeitam plano, permissão e disponibilidade Web/Desktop;
 - Acessos continua somente Web e Notas continua respeitando a licença fiscal do Desktop.
+
+Na tela de Estoque, o produto encontrado é a própria ação de movimentação: pesquise pelo nome/código e clique no nome para abrir entrada, saída ou ajuste. O botão genérico **Movimentar** foi removido para evitar uma segunda busca desnecessária.
+
+### Embalagens comerciais — desenho aprovado para implementação
+
+- o saldo continua armazenado na unidade-base do produto;
+- cada embalagem pertence ao mesmo `product_id` e informa nome, quantidade-base, código de barras, custo e preço de venda;
+- vender ou comprar um fardo converte a quantidade para unidades-base antes da movimentação;
+- preço de embalagem usa blocos completos; quantidades restantes usam o preço avulso;
+- a conversão automática de unidades soltas para preço de fardo é configurável por embalagem;
+- PDV, fiado, cancelamento, estoque e relatórios devem usar o mesmo resolvedor de embalagem e preço;
+- custo de compra e preço de venda permanecem separados para não aplicar custo como preço ao cliente.
 
 Teste manual obrigatório desta mudança:
 
