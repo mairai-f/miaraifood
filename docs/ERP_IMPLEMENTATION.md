@@ -397,9 +397,11 @@ Migração complementar: `20260630130000_add_staff_job_titles.sql`. Ela preserva
 
 ### Navegação administrativa compacta
 
-- o menu lateral principal contém apenas Painel, PDV, Comandas, Clientes, Produtos, Estoque, Financeiro e Configurações;
-- filial/terminal ativo, usuário e Tutorial ficam fixos no topo em formato compacto;
-- Relatórios, Operações, Acessos, Recompensas, Precificação, Notas e Excluídos ficam na Central administrativa de Configurações;
+- o menu lateral principal contém apenas Painel, PDV, Comandas, Clientes, Produtos, Estoque e Configurações;
+- filial/terminal ativo, usuário administrador e Tutorial ficam em uma barra horizontal fixa acima do conteúdo;
+- Licença e validade aparece antes da Central administrativa;
+- Empresa, Backup, Colaboradores, Filiais e terminais e Catálogo avançado possuem cartões que levam à seção correspondente;
+- Financeiro, Relatórios, Operações, Acessos, Recompensas, Precificação, Notas e Excluídos ficam na Central administrativa de Configurações;
 - os cartões da central respeitam plano, permissão e disponibilidade Web/Desktop;
 - Acessos continua somente Web e Notas continua respeitando a licença fiscal do Desktop.
 

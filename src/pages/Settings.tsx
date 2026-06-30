@@ -1,5 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState, type ChangeEvent } from 'react';
-import { BarChart3, Calculator, ChevronRight, ClipboardList, Clock3, Download, FileText, Gift, Loader2, Settings as SettingsIcon, Shield, ShieldAlert, Trash2 } from 'lucide-react';
+import { BarChart3, Building2, Calculator, ChevronRight, ClipboardList, Clock3, DatabaseBackup, Download, FileText, Gift, Loader2, MapPinned, PackageSearch, Settings as SettingsIcon, Shield, ShieldAlert, Trash2, UserRoundCog, WalletCards } from 'lucide-react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { CompanyProfileCard } from '@/components/CompanyProfileCard';
 import { PrinterSettingsCard } from '@/components/PrinterSettingsCard';
@@ -73,15 +73,22 @@ interface SettingsNavigationItem {
   permissionKey: ErpPermissionKey;
   runtimeScope: RuntimeScope;
   fiscalDesktopAccess?: boolean;
+  sectionId?: string;
 }
 
 const settingsNavigationItems: SettingsNavigationItem[] = [
+  { path: '#empresa', sectionId: 'empresa', title: 'Empresa', description: 'Dados, identidade e informacoes da loja.', icon: Building2, featureKey: 'settings.manage', permissionKey: 'settings.manage', runtimeScope: 'both' },
+  { path: '#backup', sectionId: 'backup', title: 'Backup', description: 'Exportacao e restauracao dos dados.', icon: DatabaseBackup, featureKey: 'settings.manage', permissionKey: 'settings.manage', runtimeScope: 'both' },
+  { path: '#colaboradores', sectionId: 'colaboradores', title: 'Colaboradores', description: 'Equipe, funcoes, acessos e caixas.', icon: UserRoundCog, featureKey: 'settings.manage', permissionKey: 'staff.manage', runtimeScope: 'both' },
+  { path: '#filiais', sectionId: 'filiais', title: 'Filiais e terminais', description: 'Lojas, terminais e escopo operacional.', icon: MapPinned, featureKey: 'settings.manage', permissionKey: 'multi_store.manage', runtimeScope: 'web' },
+  { path: '#catalogo', sectionId: 'catalogo', title: 'Catalogo avancado', description: 'Marcas, grupos, unidades e tabelas.', icon: PackageSearch, featureKey: 'settings.manage', permissionKey: 'products.manage', runtimeScope: 'web' },
+  { path: '/financeiro', title: 'Financeiro', description: 'Despesas, fiados e fluxo financeiro.', icon: WalletCards, featureKey: 'financial.manage', permissionKey: 'financial.view', runtimeScope: 'both' },
+  { path: '/notas', title: 'Notas', description: 'Configuracao e emissao fiscal.', icon: FileText, featureKey: 'notes.manage', permissionKey: 'fiscal.view', runtimeScope: 'both', fiscalDesktopAccess: true },
   { path: '/relatorios', title: 'Relatorios', description: 'Vendas, caixa, estoque e indicadores.', icon: BarChart3, featureKey: 'reports.view', permissionKey: 'reports.view', runtimeScope: 'both' },
   { path: '/operacoes', title: 'Operacoes', description: 'Compras, fornecedores e reposicao.', icon: ClipboardList, featureKey: 'financial.manage', permissionKey: 'purchases.view', runtimeScope: 'both' },
   { path: '/acessos', title: 'Acessos', description: 'Monitoramento e seguranca da equipe.', icon: Shield, featureKey: 'settings.manage', permissionKey: 'access_monitor.view', runtimeScope: 'web' },
   { path: '/recompensas', title: 'Recompensas', description: 'Fidelidade e beneficios dos clientes.', icon: Gift, featureKey: 'rewards.manage', permissionKey: 'rewards.manage', runtimeScope: 'both' },
   { path: '/precificacao', title: 'Precificacao', description: 'Custos, margens e regras de preco.', icon: Calculator, featureKey: 'pricing.manage', permissionKey: 'pricing.view', runtimeScope: 'both' },
-  { path: '/notas', title: 'Notas', description: 'Configuracao e emissao fiscal.', icon: FileText, featureKey: 'notes.manage', permissionKey: 'fiscal.view', runtimeScope: 'both', fiscalDesktopAccess: true },
   { path: '/excluidos', title: 'Excluidos', description: 'Consulte cadastros removidos.', icon: Trash2, featureKey: 'deleted.view', permissionKey: 'deleted.view', runtimeScope: 'both' },
 ];
 
@@ -634,6 +641,12 @@ export default function Settings() {
       activation: readDesktopActivation(),
     });
   });
+  const handleSettingsSectionOpen = useCallback((sectionId: string) => {
+    const target = document.getElementById(sectionId);
+    if (!target) return;
+    window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}#${sectionId}`);
+    target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, []);
 
   return (
     <div className="space-y-6">
@@ -664,33 +677,6 @@ export default function Settings() {
           Acesse os modulos administrativos e gerencie a equipe sem sobrecarregar o menu operacional.
         </p>
       </div>
-
-      <section aria-labelledby="settings-navigation-title" className="space-y-3">
-        <div>
-          <h2 id="settings-navigation-title" className="text-xl font-semibold">Central administrativa</h2>
-          <p className="mt-1 text-sm text-muted-foreground">Escolha uma area. Estes modulos ficam fora do menu operacional para deixar o dia a dia mais limpo.</p>
-        </div>
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          {visibleSettingsNavigationItems.map((item) => (
-            <Link
-              key={item.path}
-              to={item.path}
-              className="group flex min-h-36 flex-col justify-between rounded-xl border border-border/70 bg-card p-5 transition-all hover:-translate-y-0.5 hover:border-primary/50 hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-primary/60"
-            >
-              <div className="flex items-start justify-between gap-3">
-                <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary transition-colors group-hover:bg-primary group-hover:text-primary-foreground">
-                  <item.icon className="h-6 w-6" />
-                </span>
-                <ChevronRight className="h-5 w-5 text-muted-foreground transition-transform group-hover:translate-x-1 group-hover:text-primary" />
-              </div>
-              <div className="mt-5">
-                <h3 className="text-lg font-semibold">{item.title}</h3>
-                <p className="mt-1 text-sm leading-snug text-muted-foreground">{item.description}</p>
-              </div>
-            </Link>
-          ))}
-        </div>
-      </section>
 
       <Card>
         <CardHeader className="space-y-3">
@@ -742,6 +728,48 @@ export default function Settings() {
           )}
         </CardContent>
       </Card>
+
+      <section aria-labelledby="settings-navigation-title" className="space-y-3">
+        <div>
+          <h2 id="settings-navigation-title" className="text-xl font-semibold">Central administrativa</h2>
+          <p className="mt-1 text-sm text-muted-foreground">Escolha uma area. Os ajustes ficam organizados aqui, sem ocupar o menu operacional.</p>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          {visibleSettingsNavigationItems.map((item) => {
+            const sectionId = item.sectionId;
+            const cardContent = (
+              <>
+                <div className="flex items-start justify-between gap-3">
+                  <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary transition-colors group-hover:bg-primary group-hover:text-primary-foreground">
+                    <item.icon className="h-6 w-6" />
+                  </span>
+                  <ChevronRight className="h-5 w-5 text-muted-foreground transition-transform group-hover:translate-x-1 group-hover:text-primary" />
+                </div>
+                <div className="mt-5">
+                  <h3 className="text-lg font-semibold">{item.title}</h3>
+                  <p className="mt-1 text-sm leading-snug text-muted-foreground">{item.description}</p>
+                </div>
+              </>
+            );
+            const cardClassName = 'group flex min-h-36 flex-col justify-between rounded-xl border border-border/70 bg-card p-5 text-left transition-all hover:-translate-y-0.5 hover:border-primary/50 hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-primary/60';
+
+            return sectionId ? (
+              <button
+                key={item.path}
+                type="button"
+                className={cardClassName}
+                onClick={() => handleSettingsSectionOpen(sectionId)}
+              >
+                {cardContent}
+              </button>
+            ) : (
+              <Link key={item.path} to={item.path} className={cardClassName}>
+                {cardContent}
+              </Link>
+            );
+          })}
+        </div>
+      </section>
 
       {isDesktop && (
         <Card>
@@ -937,11 +965,13 @@ export default function Settings() {
         </Card>
       )}
 
-      <CompanyProfileCard />
+      <div id="empresa" className="scroll-mt-20">
+        <CompanyProfileCard />
+      </div>
 
       <PrinterSettingsCard />
 
-      <Card>
+      <Card id="backup" className="scroll-mt-20">
         <CardHeader className="space-y-2">
           <CardTitle className="flex items-center gap-2 text-base">
             <Download className="h-4 w-4 text-primary" />
@@ -1059,36 +1089,42 @@ export default function Settings() {
         </CardContent>
       </Card>
 
-      <OperatorManagementPanel
-        createDialogOpen={isCreateOperatorModalOpen}
-        onCreateDialogOpenChange={handleCreateDialogOpenChange}
-      />
+      <div id="colaboradores" className="scroll-mt-20">
+        <OperatorManagementPanel
+          createDialogOpen={isCreateOperatorModalOpen}
+          onCreateDialogOpenChange={handleCreateDialogOpenChange}
+        />
+      </div>
 
       {!isDesktop && (
         <>
-          <Suspense
-            fallback={(
-              <Card>
-                <CardContent className="flex items-center gap-2 py-8 text-sm text-muted-foreground">
-                  <Loader2 className="h-4 w-4 animate-spin" /> Carregando filiais e terminais...
-                </CardContent>
-              </Card>
-            )}
-          >
-            <LocationsTerminalsPanel />
-          </Suspense>
+          <div id="filiais" className="scroll-mt-20">
+            <Suspense
+              fallback={(
+                <Card>
+                  <CardContent className="flex items-center gap-2 py-8 text-sm text-muted-foreground">
+                    <Loader2 className="h-4 w-4 animate-spin" /> Carregando filiais e terminais...
+                  </CardContent>
+                </Card>
+              )}
+            >
+              <LocationsTerminalsPanel />
+            </Suspense>
+          </div>
 
-          <Suspense
-            fallback={(
-              <Card>
-                <CardContent className="flex items-center gap-2 py-8 text-sm text-muted-foreground">
-                  <Loader2 className="h-4 w-4 animate-spin" /> Carregando catalogo avancado...
-                </CardContent>
-              </Card>
-            )}
-          >
-            <CatalogConfigurationPanel />
-          </Suspense>
+          <div id="catalogo" className="scroll-mt-20">
+            <Suspense
+              fallback={(
+                <Card>
+                  <CardContent className="flex items-center gap-2 py-8 text-sm text-muted-foreground">
+                    <Loader2 className="h-4 w-4 animate-spin" /> Carregando catalogo avancado...
+                  </CardContent>
+                </Card>
+              )}
+            >
+              <CatalogConfigurationPanel />
+            </Suspense>
+          </div>
 
         </>
       )}

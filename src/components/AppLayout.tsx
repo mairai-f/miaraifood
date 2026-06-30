@@ -1,6 +1,6 @@
 import { ReactNode, useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Clock3, Home, Users, Package, LogOut, Menu, X, UserCircle, Receipt, DollarSign, Boxes, ChevronDown, ChevronUp, Settings, Database, Loader2, WifiOff, ClipboardList, HelpCircle, MapPin } from 'lucide-react';
+import { Clock3, Home, Users, Package, LogOut, Menu, X, UserCircle, Receipt, Boxes, ChevronDown, ChevronUp, Settings, Database, Loader2, WifiOff, ClipboardList, HelpCircle, MapPin } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import { useData } from '@/contexts/DataContext';
@@ -49,8 +49,7 @@ const navItems: NavigationItem[] = [
   { path: '/clientes', label: 'Clientes', icon: Users, shortcut: '4', featureKey: 'clients.manage', permissionKey: 'clients.view', runtimeScope: 'both', tourId: 'nav-clients' },
   { path: '/produtos', label: 'Produtos', icon: Package, shortcut: '5', featureKey: 'products.manage', permissionKey: 'products.view', runtimeScope: 'both', tourId: 'nav-products' },
   { path: '/estoque', label: 'Estoque', icon: Boxes, shortcut: '6', featureKey: 'stock.manage', permissionKey: 'stock.view', runtimeScope: 'both', tourId: 'nav-stock' },
-  { path: '/financeiro', label: 'Financeiro', icon: DollarSign, shortcut: '7', featureKey: 'financial.manage', permissionKey: 'financial.view', runtimeScope: 'both', tourId: 'nav-financial' },
-  { path: '/configuracoes', label: 'Configurações', icon: Settings, shortcut: '8', featureKey: 'settings.manage', permissionKey: 'settings.manage', runtimeScope: 'both', tourId: 'nav-settings' },
+  { path: '/configuracoes', label: 'Configurações', icon: Settings, shortcut: '7', featureKey: 'settings.manage', permissionKey: 'settings.manage', runtimeScope: 'both', tourId: 'nav-settings' },
 ];
 
 const OFFLINE_VALIDATION_GRACE_DAYS = 5;
@@ -547,92 +546,6 @@ export function AppLayout({ children }: { children: ReactNode }) {
             <button className="lg:hidden text-muted-foreground" onClick={() => setOpen(false)}><X className="h-5 w-5" /></button>
           </div>
         </div>
-        <div className="shrink-0 space-y-2 border-b border-border px-3 py-2.5">
-          {operationalScope && (
-            <div className="space-y-1">
-              <div className="flex items-center gap-2">
-                <MapPin className="h-4 w-4 shrink-0 text-primary" />
-                <div className="min-w-0 flex-1">
-                  <p className="text-[9px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-                    {isDesktop ? 'Terminal local' : 'Filial ativa'}
-                  </p>
-                  {isDesktop || operationalLocations.length <= 1 ? (
-                    <p className="truncate text-xs font-semibold text-foreground">
-                      {operationalScope.location.name} · {operationalScope.terminal?.name ?? 'Sem terminal'}
-                    </p>
-                  ) : (
-                    <Select
-                      value={operationalScope.location.id}
-                      disabled={operationalScopeLoading || hasOpenLocalCashSession}
-                      onValueChange={(locationId) => selectWebScope(locationId)}
-                    >
-                      <SelectTrigger className="h-7 border-0 bg-transparent p-0 text-xs font-semibold shadow-none" aria-label="Selecionar filial operacional">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {operationalLocations.map((storeLocation) => (
-                          <SelectItem key={storeLocation.id} value={storeLocation.id}>{storeLocation.name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  )}
-                </div>
-              </div>
-              {!isDesktop && terminalsForCurrentLocation.length > 1 && (
-                <Select
-                  value={operationalScope.terminal?.id ?? ''}
-                  disabled={hasOpenLocalCashSession}
-                  onValueChange={(terminalId) => selectWebScope(operationalScope.location.id, terminalId)}
-                >
-                  <SelectTrigger className="ml-6 h-7 w-[calc(100%_-_1.5rem)] text-[11px]" aria-label="Selecionar terminal operacional">
-                    <SelectValue placeholder="Terminal" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {terminalsForCurrentLocation.map((terminal) => (
-                      <SelectItem key={terminal.id} value={terminal.id}>{terminal.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
-            </div>
-          )}
-
-          <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-1.5">
-            {user && (
-              <button
-                type="button"
-                onClick={handleAccountClick}
-                disabled={!canOpenSettings}
-                data-tour-id="account-settings"
-                className="flex h-8 min-w-0 items-center gap-2 rounded-md px-2 text-left text-xs text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground disabled:cursor-default disabled:hover:bg-transparent"
-              >
-                <UserCircle className="h-4 w-4 shrink-0 text-primary" />
-                <span className="min-w-0">
-                  <span className="block truncate font-semibold text-foreground">{username ?? user.email}</span>
-                  <span className="block truncate text-[9px] uppercase tracking-wide">{roleLabel[role]}</span>
-                </span>
-              </button>
-            )}
-            {canUseGuidedTour && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="h-8 gap-1.5 px-2 text-xs"
-                onClick={() => {
-                  setOpen(false);
-                  requestGuidedTourStart();
-                }}
-              >
-                <HelpCircle className="h-4 w-4" />
-                Tutorial
-              </Button>
-            )}
-          </div>
-          {hasOpenLocalCashSession && operationalLocations.length > 1 && (
-            <p className="text-[10px] text-muted-foreground">Feche o caixa antes de trocar de filial.</p>
-          )}
-        </div>
         <div className="relative min-h-0 flex-1">
           {scrollHints.top && (
             <div className="pointer-events-none absolute inset-x-4 top-0 z-10 flex justify-center bg-gradient-to-b from-card via-card/85 to-transparent pb-4 pt-2">
@@ -686,8 +599,90 @@ export function AppLayout({ children }: { children: ReactNode }) {
         </div>
       </aside>
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-        <header className="shrink-0 border-b border-border p-3 sm:p-4 lg:hidden">
-          <button onClick={() => setOpen(true)} className="text-muted-foreground hover:text-foreground"><Menu className="h-6 w-6" /></button>
+        <header className="z-30 flex min-h-14 shrink-0 items-center gap-2 border-b border-border bg-card/95 px-3 backdrop-blur-sm sm:gap-4 sm:px-5">
+          <button type="button" onClick={() => setOpen(true)} className="shrink-0 text-muted-foreground hover:text-foreground lg:hidden" aria-label="Abrir menu">
+            <Menu className="h-6 w-6" />
+          </button>
+
+          {operationalScope && (
+            <div className="flex min-w-0 items-center gap-2">
+              <MapPin className="h-4 w-4 shrink-0 text-primary" />
+              <div className="min-w-0">
+                <p className="text-[9px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+                  {isDesktop ? 'Terminal local' : 'Filial ativa'}
+                </p>
+                {isDesktop || operationalLocations.length <= 1 ? (
+                  <p className="max-w-40 truncate text-xs font-semibold text-foreground sm:max-w-64">
+                    {operationalScope.location.name} · {operationalScope.terminal?.name ?? 'Sem terminal'}
+                  </p>
+                ) : (
+                  <Select
+                    value={operationalScope.location.id}
+                    disabled={operationalScopeLoading || hasOpenLocalCashSession}
+                    onValueChange={(locationId) => selectWebScope(locationId)}
+                  >
+                    <SelectTrigger className="h-6 max-w-40 border-0 bg-transparent p-0 text-xs font-semibold shadow-none sm:max-w-64" aria-label="Selecionar filial operacional">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {operationalLocations.map((storeLocation) => (
+                        <SelectItem key={storeLocation.id} value={storeLocation.id}>{storeLocation.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              </div>
+              {!isDesktop && terminalsForCurrentLocation.length > 1 && (
+                <Select
+                  value={operationalScope.terminal?.id ?? ''}
+                  disabled={hasOpenLocalCashSession}
+                  onValueChange={(terminalId) => selectWebScope(operationalScope.location.id, terminalId)}
+                >
+                  <SelectTrigger className="hidden h-8 w-36 text-xs md:flex" aria-label="Selecionar terminal operacional">
+                    <SelectValue placeholder="Terminal" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {terminalsForCurrentLocation.map((terminal) => (
+                      <SelectItem key={terminal.id} value={terminal.id}>{terminal.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
+          )}
+
+          <div className="ml-auto flex shrink-0 items-center gap-1 sm:gap-2">
+            {user && (
+              <button
+                type="button"
+                onClick={handleAccountClick}
+                disabled={!canOpenSettings}
+                data-tour-id="account-settings"
+                className="flex h-9 min-w-0 items-center gap-2 rounded-md px-2 text-left text-xs text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground disabled:cursor-default disabled:hover:bg-transparent"
+              >
+                <UserCircle className="h-4 w-4 shrink-0 text-primary" />
+                <span className="hidden min-w-0 sm:block">
+                  <span className="block max-w-32 truncate font-semibold text-foreground">{username ?? user.email}</span>
+                  <span className="block truncate text-[9px] uppercase tracking-wide">{roleLabel[role]}</span>
+                </span>
+              </button>
+            )}
+            {canUseGuidedTour && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-9 gap-1.5 px-2 text-xs"
+                onClick={() => {
+                  setOpen(false);
+                  requestGuidedTourStart();
+                }}
+              >
+                <HelpCircle className="h-4 w-4" />
+                <span className="hidden sm:inline">Tutorial</span>
+              </Button>
+            )}
+          </div>
         </header>
         <main className="flex-1 overflow-y-auto p-3 sm:p-4 lg:p-8">
           {shouldShowOfflinePreparationBanner && (
