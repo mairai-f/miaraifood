@@ -2,6 +2,7 @@ import { formatCurrency, formatDateTime, getActiveLocale, translateCurrentText }
 
 export interface RetailCouponPrintItem {
   productName: string;
+  packagingName?: string | null;
   quantity: number;
   unitPrice: number;
   total: number;
@@ -189,6 +190,7 @@ export const buildRetailCouponHtml = (
     ? payload.items.map(item => `
         <div class="item">
           <div class="item-name">${escapeHtml(item.productName)}</div>
+          ${item.packagingName ? `<div class="item-package">Embalagem: ${escapeHtml(item.packagingName)}</div>` : ''}
           <div class="item-meta">
             <span>${item.quantity} x ${escapeHtml(formatMoney(item.unitPrice))}</span>
             <strong>${escapeHtml(formatMoney(item.total))}</strong>
@@ -437,6 +439,12 @@ export const buildRetailCouponHtml = (
             font-weight: 700;
             line-height: 1.35;
             overflow-wrap: anywhere;
+          }
+
+          .item-package {
+            margin-top: 1px;
+            font-size: 10px;
+            font-weight: 600;
           }
 
           .item-meta {

@@ -37,6 +37,8 @@ import { getDebtPaymentCreditedAmount, getDebtPaymentMaxAmount, getDebtPaymentVa
 import { parseDecimalInput } from '@/lib/numberInput';
 import { formatProductCode } from '@/lib/productCode';
 import { toProductUppercase } from '@/lib/productSearch';
+import { calculatePackagingPrice, filterProductsWithPackagings, packagingMatchesSearch } from '@/lib/productPackaging';
+import type { Product, ProductPackaging } from '@/types';
 import { getPublicErrorMessage, getRedactedLogValue } from '../../shared/security/redaction';
 
 type ClientEditPayload = {
@@ -58,8 +60,15 @@ const samePaymentMoment = (left?: string | null, right?: string | null) => {
   return Math.abs(new Date(left).getTime() - new Date(right).getTime()) < 1000;
 };
 
-type HistoryItem = { kind: 'debt'; date: string; productName: string; quantity: number; total: number; registered_by?: string };
+type HistoryItem = { kind: 'debt'; date: string; productName: string; quantity: number; total: number; packagingName?: string | null; registered_by?: string };
 type DeletedHistoryItem = HistoryItem & { deleted_at?: string | null; deleted_reason?: string | null; deleted_by?: string | null };
+type SelectedDebtProduct = { product: Product; packaging: ProductPackaging | null };
+type DebtCartItem = {
+  lineId: string;
+  product: Product;
+  quantity: number;
+  packagingId: string | null;
+};
 const isManualDeletedDebtEntry = (entry: { manual_deleted?: boolean }) => entry.manual_deleted === true;
 const isLegacyDeletedDebtEntry = (entry: { deleted: boolean; status: string; manual_deleted?: boolean }) =>
   entry.deleted === true && entry.status !== 'paid' && !isManualDeletedDebtEntry(entry);
@@ -74,10 +83,10 @@ export default function ClientDetail() {
   const companyDisplayName = useCompanyDisplayName();
 
   const [productSearch, setProductSearch] = useState('');
-  const [selectedProduct, setSelectedProduct] = useState<{ id: string; name: string; price: number } | null>(null);
+  const [selectedProduct, setSelectedProduct] = useState<SelectedDebtProduct | null>(null);
   const [quantity, setQuantity] = useState('1');
   const [showSearch, setShowSearch] = useState(false);
-  const [cart, setCart] = useState<{ id: string; name: string; price: number; quantity: number }[]>([]);
+  const [cart, setCart] = useState<DebtCartItem[]>([]);
   const [submittingCart, setSubmittingCart] = useState(false);
   const submittingCartRef = useRef(false);
 
@@ -162,27 +171,40 @@ export default function ClientDetail() {
     : null;
   const clientCreditLimit = getClientCreditLimit(client);
   const availableCredit = getAvailableClientCredit(client, balance);
-  const cartTotal = cart.reduce((s, c) => s + c.quantity * c.price, 0);
+  const getDebtCartPricing = (item: DebtCartItem) => calculatePackagingPrice(
+    item.product,
+    item.quantity,
+    data.productPackagings,
+    item.packagingId,
+  );
+  const cartTotal = cart.reduce((sum, item) => sum + getDebtCartPricing(item).total, 0);
   const cartExceedsCreditLimit = clientCreditLimit !== null && cartTotal > (availableCredit ?? 0) + 0.009;
-  const matched = data.searchProducts(productSearch);
+  const matched = filterProductsWithPackagings(
+    data.products.filter(product => !product.deleted),
+    data.productPackagings,
+    productSearch,
+  );
   const getCartQuantityForProduct = (productId: string) =>
     cart
-      .filter(item => item.id === productId)
+      .filter(item => item.product.id === productId)
       .reduce((sum, item) => sum + item.quantity, 0);
   const getInsufficientStockMessage = (productId: string, productName: string, requestedQuantity: number) => {
     const product = data.products.find(item => item.id === productId);
     if (!product) return '';
 
-    const availableStock = Number(product.stock || 0);
-    if (availableStock <= 0) return '';
+    if (product.control_stock === false) return '';
+    const availableStock = Math.max(0, Number(product.stock || 0));
 
     return availableStock < requestedQuantity
       ? `Estoque insuficiente para ${product.name || productName}. Disponivel: ${availableStock}, solicitado: ${requestedQuantity}.`
       : '';
   };
   const validateCartStock = () => {
-    for (const item of cart) {
-      const message = getInsufficientStockMessage(item.id, item.name, item.quantity);
+    const productIds = new Set(cart.map(item => item.product.id));
+    for (const productId of productIds) {
+      const product = cart.find(item => item.product.id === productId)?.product;
+      if (!product) continue;
+      const message = getInsufficientStockMessage(productId, product.name, getCartQuantityForProduct(productId));
       if (message) {
         toast.error(message);
         return false;
@@ -248,7 +270,7 @@ export default function ClientDetail() {
   const filteredHistory = useMemo((): HistoryItem[] => {
     const all: HistoryItem[] = allClientEntries
       .filter(isVisibleDebtEntry)
-      .map(e => ({ kind: 'debt' as const, date: e.date_added, productName: e.product_name, quantity: e.quantity, total: e.total, registered_by: e.registered_by }))
+      .map(e => ({ kind: 'debt' as const, date: e.date_added, productName: e.product_name, quantity: e.quantity, total: e.total, packagingName: e.packaging_name, registered_by: e.registered_by }))
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
     if (historyFilter === 'daily') return all.filter(i => isClientDateToday(i.date));
@@ -276,6 +298,7 @@ export default function ClientDetail() {
         productName: e.product_name,
         quantity: e.quantity,
         total: e.total,
+        packagingName: e.packaging_name,
         registered_by: e.registered_by,
         deleted_at: e.deleted_at,
         deleted_reason: e.deleted_reason,
@@ -348,25 +371,27 @@ export default function ClientDetail() {
   const handleAddToCart = () => {
     if (!selectedProduct) { toast.error('Selecione um produto'); return; }
     const qty = parseInt(quantity) || 1;
-    const requestedQuantity = getCartQuantityForProduct(selectedProduct.id) + qty;
-    const stockMessage = getInsufficientStockMessage(selectedProduct.id, selectedProduct.name, requestedQuantity);
+    const { product, packaging } = selectedProduct;
+    const requestedQuantity = getCartQuantityForProduct(product.id) + qty;
+    const stockMessage = getInsufficientStockMessage(product.id, product.name, requestedQuantity);
     if (stockMessage) {
       toast.error(stockMessage);
       return;
     }
 
     setCart(prev => {
-      const existing = prev.find(c => c.id === selectedProduct.id);
-      if (existing) return prev.map(c => c.id === selectedProduct.id ? { ...c, quantity: c.quantity + qty } : c);
-      return [...prev, { id: selectedProduct.id, name: selectedProduct.name, price: selectedProduct.price, quantity: qty }];
+      const lineId = `${product.id}:${packaging?.id ?? 'base'}`;
+      const existing = prev.find(item => item.lineId === lineId);
+      if (existing) return prev.map(item => item.lineId === lineId ? { ...item, quantity: item.quantity + qty } : item);
+      return [...prev, { lineId, product, quantity: qty, packagingId: packaging?.id ?? null }];
     });
     setSelectedProduct(null);
     setProductSearch('');
     setQuantity('1');
   };
 
-  const handleRemoveFromCart = (productId: string) => {
-    setCart(prev => prev.filter(c => c.id !== productId));
+  const handleRemoveFromCart = (lineId: string) => {
+    setCart(prev => prev.filter(item => item.lineId !== lineId));
   };
 
   const handleSubmitCart = async (sendWhatsApp: boolean = true) => {
@@ -386,15 +411,23 @@ export default function ClientDetail() {
 
     try {
       await data.addDebtEntries(
-        submittedCart.map(item => ({
-          clientId: id,
-          productId: item.id,
-          productName: item.name,
-          quantity: item.quantity,
-          unitPrice: item.price,
-          dateAdded,
-          registeredBy: username ?? undefined,
-        }))
+        submittedCart.map(item => {
+          const pricing = getDebtCartPricing(item);
+          return {
+            clientId: id,
+            productId: item.product.id,
+            productName: item.product.name,
+            quantity: item.quantity,
+            unitPrice: pricing.effectiveUnitPrice,
+            total: pricing.total,
+            packagingId: pricing.packaging?.id ?? null,
+            packagingName: pricing.packaging?.name ?? null,
+            packagingQuantity: pricing.packaging?.base_quantity ?? null,
+            packagingPrice: pricing.packaging?.sale_price ?? null,
+            dateAdded,
+            registeredBy: username ?? undefined,
+          };
+        })
       );
     } catch (error) {
       console.error('Erro ao marcar produtos:', getRedactedLogValue(error));
@@ -421,14 +454,21 @@ export default function ClientDetail() {
       const storeName = companyDisplayName !== DEFAULT_COMPANY_NAME || !ownerUserId
         ? companyDisplayName
         : await fetchCompanyDisplayName(ownerUserId);
-      const submittedCartTotal = submittedCart.reduce((s, c) => s + c.quantity * c.price, 0);
+      const submittedCartTotal = submittedCart.reduce((sum, item) => sum + getDebtCartPricing(item).total, 0);
       const newBalance = balance + submittedCartTotal;
-      const cartEntries = submittedCart.map(c => ({
-        id: '', client_id: id, product_id: c.id, product_name: c.name,
-        quantity: c.quantity, unit_price: c.price, total: c.quantity * c.price,
-        date_added: dateAdded, status: 'pending', deleted: false,
-        date_paid: null, registered_by: username,
-      }));
+      const cartEntries = submittedCart.map(item => {
+        const pricing = getDebtCartPricing(item);
+        return {
+          id: '', client_id: id, product_id: item.product.id, product_name: item.product.name,
+          quantity: item.quantity, unit_price: pricing.effectiveUnitPrice, total: pricing.total,
+          packaging_id: pricing.packaging?.id ?? null,
+          packaging_name: pricing.packaging?.name ?? null,
+          packaging_quantity: pricing.packaging?.base_quantity ?? null,
+          packaging_price: pricing.packaging?.sale_price ?? null,
+          date_added: dateAdded, status: 'pending' as const, deleted: false,
+          date_paid: null, registered_by: username,
+        };
+      });
       const url = buildItemWhatsAppUrl(client.phone, client.name, cartEntries, newBalance, storeName);
       if (!openExternalUrl(url)) {
         toast.error('Não foi possível abrir o WhatsApp.');
@@ -769,7 +809,9 @@ export default function ClientDetail() {
                 <div className="relative">
                   <Label className="text-xs">Produto</Label>
                   <Input
-                    value={selectedProduct ? selectedProduct.name : productSearch}
+                    value={selectedProduct
+                      ? `${selectedProduct.product.name}${selectedProduct.packaging ? ` · ${selectedProduct.packaging.name}` : ''}`
+                      : productSearch}
                     onChange={e => { setProductSearch(toProductUppercase(e.target.value)); setSelectedProduct(null); setShowSearch(true); }}
                     onFocus={() => setShowSearch(true)}
                     placeholder="Buscar produto pelo nome, código ou barras..."
@@ -777,13 +819,26 @@ export default function ClientDetail() {
                   />
                   {showSearch && productSearch && !selectedProduct && (
                     <div className="absolute z-10 top-full left-0 right-0 bg-popover border border-border rounded-lg mt-1 max-h-40 overflow-auto shadow-lg">
-                      {matched.map(p => (
-                        <button key={p.id} className="w-full text-left px-3 py-2 hover:bg-accent/50 transition-colors flex justify-between text-sm"
-                          onClick={() => { setSelectedProduct(p); setProductSearch(''); setShowSearch(false); }}>
-                          <span className="truncate mr-2">{formatProductCode(p.code) ? `${formatProductCode(p.code)} ` : ''}{p.name}</span>
-                          <span className="text-muted-foreground whitespace-nowrap">R$ {p.price.toFixed(2)}</span>
-                        </button>
-                      ))}
+                      {matched.map(product => {
+                        const packaging = data.productPackagings.find(item => (
+                          item.product_id === product.id && packagingMatchesSearch(item, productSearch)
+                        )) ?? null;
+                        return (
+                          <button key={product.id} className="w-full text-left px-3 py-2 hover:bg-accent/50 transition-colors flex justify-between gap-3 text-sm"
+                            onClick={() => {
+                              setSelectedProduct({ product, packaging });
+                              setQuantity(String(packaging?.base_quantity ?? 1));
+                              setProductSearch('');
+                              setShowSearch(false);
+                            }}>
+                            <span className="min-w-0">
+                              <span className="block truncate">{formatProductCode(product.code) ? `${formatProductCode(product.code)} ` : ''}{product.name}</span>
+                              {packaging && <span className="block text-xs text-primary">{packaging.name} · {packaging.base_quantity} unidades</span>}
+                            </span>
+                            <span className="text-muted-foreground whitespace-nowrap">R$ {(packaging?.sale_price ?? product.price).toFixed(2)}</span>
+                          </button>
+                        );
+                      })}
                       {matched.length === 0 && <p className="px-3 py-2 text-muted-foreground text-xs">Nenhum produto</p>}
                     </div>
                   )}
@@ -804,19 +859,28 @@ export default function ClientDetail() {
                     <p className="text-xs font-medium text-muted-foreground">
                       Lista ({cart.length} item{cart.length > 1 ? 's' : ''}):
                     </p>
-                    {cart.map(item => (
-                      <div key={item.id} className="flex items-center justify-between gap-2 text-sm">
-                        <span className="truncate min-w-0">
-                          {item.name} <span className="text-muted-foreground">x{item.quantity}</span>
-                        </span>
-                        <div className="flex items-center gap-2 shrink-0">
-                          <span className="font-medium">R$ {(item.quantity * item.price).toFixed(2)}</span>
-                          <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => handleRemoveFromCart(item.id)}>
-                            <X className="h-3 w-3" />
-                          </Button>
+                    {cart.map(item => {
+                      const pricing = getDebtCartPricing(item);
+                      return (
+                        <div key={item.lineId} className="flex items-center justify-between gap-2 text-sm">
+                          <span className="truncate min-w-0">
+                            {item.product.name} <span className="text-muted-foreground">x{item.quantity}</span>
+                            {pricing.packaging && (
+                              <span className="block text-xs text-primary">
+                                {pricing.packageCount} × {pricing.packaging.name}
+                                {pricing.remainderQuantity > 0 ? ` + ${pricing.remainderQuantity} un.` : ''}
+                              </span>
+                            )}
+                          </span>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <span className="font-medium">R$ {pricing.total.toFixed(2)}</span>
+                            <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => handleRemoveFromCart(item.lineId)}>
+                              <X className="h-3 w-3" />
+                            </Button>
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                     <div className="border-t border-border pt-2 flex items-center justify-between text-sm font-bold">
                       <span>Total:</span>
                       <span>R$ {cartTotal.toFixed(2)}</span>
@@ -884,6 +948,7 @@ export default function ClientDetail() {
                                   x{e.quantity} — {formatClientDateTime(e.date_added)}
                                   {e.date_paid && ` • Pago: ${formatClientDateTime(e.date_paid)}`}
                                 </p>
+                                {e.packaging_name && <p className="text-xs font-medium text-primary">Embalagem: {e.packaging_name}</p>}
                                 {e.registered_by && <p className="text-xs text-muted-foreground">Por: {e.registered_by}</p>}
                                 <p className="text-xs text-muted-foreground">Estoque: saída vinculada ao fiado</p>
                               </div>
@@ -985,6 +1050,7 @@ export default function ClientDetail() {
                           <div className="flex items-start justify-between gap-2 px-1">
                             <div className="min-w-0">
                               <p className="text-sm font-medium truncate">{item.productName} x{item.quantity}</p>
+                              {item.packagingName && <p className="text-xs font-medium text-primary">Embalagem: {item.packagingName}</p>}
                               <p className="text-xs text-muted-foreground">{formatClientDateTime(item.date)}</p>
                               {item.registered_by && <p className="text-xs text-muted-foreground">Por: {item.registered_by}</p>}
                             </div>
@@ -1011,6 +1077,7 @@ export default function ClientDetail() {
                   <div className="flex items-center justify-between gap-2">
                     <div className="min-w-0">
                       <p className="text-sm font-medium truncate">{item.productName} x{item.quantity}</p>
+                      {item.packagingName && <p className="text-xs font-medium text-primary">Embalagem: {item.packagingName}</p>}
                       <p className="text-xs text-muted-foreground">Lançado em {formatClientDateTime(item.date)}</p>
                       <p className="text-xs text-muted-foreground">Apagado em {item.deleted_at ? formatClientDateTime(item.deleted_at) : '-'}</p>
                     </div>

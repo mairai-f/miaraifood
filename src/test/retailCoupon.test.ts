@@ -33,7 +33,7 @@ describe('retail coupon', () => {
       subtotal: 25,
       serviceTicketNumber: 42,
       creditBalanceAfter: 75,
-      items: [{ productName: 'Produto', quantity: 2, unitPrice: 12.5, total: 25 }],
+      items: [{ productName: 'Produto', packagingName: 'FARDO COM 6', quantity: 2, unitPrice: 12.5, total: 25 }],
     }, { attachBrowserPrintScript: false });
 
     expect(html).toContain('Nao e documento fiscal');
@@ -45,6 +45,7 @@ describe('retail coupon', () => {
     expect(html).toContain('Comanda');
     expect(html).toContain('#42');
     expect(html).toContain('Itens (2)');
+    expect(html).toContain('Embalagem: FARDO COM 6');
     expect(html).toContain('Saldo fiado apos esta venda');
     expect(html).toContain('data-sale-id="12345678-aaaa-bbbb-cccc-123456789000"');
     expect(html).toContain('font-size: 12px');

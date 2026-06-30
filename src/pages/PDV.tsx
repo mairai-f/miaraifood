@@ -20,7 +20,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Ban, FileText, History, Loader2, Maximize2, Minimize2, Minus, Plus, Printer, Receipt, Search, ShoppingCart, Wallet, X } from 'lucide-react';
-import type { Expense, Product, Reward, Sale } from '@/types';
+import type { Expense, Product, ProductPackaging, Reward, Sale } from '@/types';
 import { INTERNET_REQUIRED_MESSAGE, isInternetUnavailable, openExternalUrl } from '@/lib/openExternalUrl';
 import { normalizePhone } from '@/lib/phone';
 import { openRetailCouponPrintWindow } from '@/lib/retailCoupon';
@@ -37,7 +37,8 @@ import { enqueueOfflineOperation, isOfflineConcentratorAvailable } from '@/lib/o
 import { verifyOfflineAdminAccess } from '@/lib/offlineAdminAccess';
 import { readScopedCashSession, writeScopedCashSession, type ScopedCashSession } from '@/lib/cashSessionStorage';
 import { parseDecimalInput, parseOptionalDecimalInput } from '@/lib/numberInput';
-import { filterProductsBySearch, isExactProductSearchMatch, normalizeProductSearchText, toProductUppercase } from '@/lib/productSearch';
+import { isExactProductSearchMatch, normalizeProductSearchText, toProductUppercase } from '@/lib/productSearch';
+import { calculatePackagingPrice, filterProductsWithPackagings, findExactPackagingMatch, packagingMatchesSearch } from '@/lib/productPackaging';
 import { findServiceTicketByLookup } from '@/lib/serviceTicket';
 import { formatProductCode } from '@/lib/productCode';
 import { readDesktopActivation } from '@/lib/desktopActivation';
@@ -64,7 +65,15 @@ interface CartItem {
   product: Product;
   quantity: number;
   unitPrice: number;
+  packagingId?: string | null;
+  manualPrice?: boolean;
 }
+
+const getCartItemKey = (item: CartItem) => [
+  item.product.id,
+  item.packagingId ?? 'base',
+  item.manualPrice ? `manual-${item.unitPrice}` : 'catalog',
+].join(':');
 
 interface PendingServiceTicketAdminAction {
   type: 'decrease' | 'remove';
@@ -312,6 +321,7 @@ const getPdvRewardLabel = (reward: Reward) => {
 export default function PDV() {
   const {
     products,
+    productPackagings,
     clients,
     rewards,
     sales,
@@ -548,8 +558,19 @@ export default function PDV() {
   ), []);
 
   const formatMoney = (value: number) => formatCurrency(value);
-  const getCartItemTotal = (item: CartItem) => item.unitPrice * item.quantity;
-  const isCartItemPriceEdited = (item: CartItem) => Math.abs(item.unitPrice - item.product.price) > 0.009;
+  const getCartItemPricing = (item: CartItem) => item.manualPrice
+    ? {
+        total: item.unitPrice * item.quantity,
+        effectiveUnitPrice: item.unitPrice,
+        totalCost: (item.product.cost_price || 0) * item.quantity,
+        effectiveUnitCost: item.product.cost_price || 0,
+        packaging: null,
+        packageCount: 0,
+        remainderQuantity: item.quantity,
+      }
+    : calculatePackagingPrice(item.product, item.quantity, productPackagings, item.packagingId);
+  const getCartItemTotal = (item: CartItem) => getCartItemPricing(item).total;
+  const isCartItemPriceEdited = (item: CartItem) => Boolean(item.manualPrice);
   const formatSaleDate = (value: string) => formatDateTime(value);
   const formatPaymentMethod = (value: string) => getPaymentMethodLabel(value);
   const closeCashEmailDestination = user?.email?.trim() || '';
@@ -900,8 +921,8 @@ export default function PDV() {
   const hasSearchQuery = search.trim().length > 0;
   const filtered = useMemo(() => {
     if (!hasSearchQuery) return [];
-    return filterProductsBySearch(activeProducts, search);
-  }, [activeProducts, hasSearchQuery, search]);
+    return filterProductsWithPackagings(activeProducts, productPackagings, search);
+  }, [activeProducts, hasSearchQuery, productPackagings, search]);
   const showIdleProductsState = (!hasSearchQuery || isUnifiedServiceTicketQuery) && cart.length === 0 && !activeServiceTicket;
   const showActiveEmptyTicketState = (!hasSearchQuery || isUnifiedServiceTicketQuery) && cart.length === 0 && Boolean(activeServiceTicket);
   const showProductResultsState = hasSearchQuery && !isUnifiedServiceTicketQuery && filtered.length > 0;
@@ -1003,7 +1024,7 @@ export default function PDV() {
   }, [searchSelectedIndex, filtered, scrollProductSelectionIntoView]);
 
   const subtotal = cart.reduce((s, i) => s + getCartItemTotal(i), 0);
-  const cartRealCost = cart.reduce((sum, item) => sum + (item.product.cost_price || 0) * item.quantity, 0);
+  const cartRealCost = cart.reduce((sum, item) => sum + getCartItemPricing(item).totalCost, 0);
   const cartUnits = cart.reduce((sum, item) => sum + item.quantity, 0);
   const manualDiscountValue = parseDecimalInput(discountInput);
   const cashReceivedAmount = parseDecimalInput(cashReceived);
@@ -1893,9 +1914,12 @@ export default function PDV() {
       : '';
   }, []);
   const validateCartStock = () => {
-    for (const item of cart) {
-      const product = products.find(currentProduct => currentProduct.id === item.product.id) ?? item.product;
-      const message = getInsufficientStockMessage(product, item.quantity);
+    const productIds = new Set(cart.map(item => item.product.id));
+    for (const productId of productIds) {
+      const fallback = cart.find(item => item.product.id === productId)?.product;
+      const product = products.find(currentProduct => currentProduct.id === productId) ?? fallback;
+      if (!product) continue;
+      const message = getInsufficientStockMessage(product, getCartQuantityForProduct(productId));
       if (message) {
         silentToast.error(message);
         return false;
@@ -2030,8 +2054,9 @@ export default function PDV() {
     setCart(nextCart);
   }, [activeServiceTicketId, buildCartFromServiceTicketItems]);
 
-  const addToCart = useCallback(async (p: Product) => {
-    const requestedQuantity = getCartQuantityForProduct(p.id) + 1;
+  const addToCart = useCallback(async (p: Product, packaging?: ProductPackaging | null) => {
+    const addedQuantity = packaging?.base_quantity ?? 1;
+    const requestedQuantity = getCartQuantityForProduct(p.id) + addedQuantity;
     const stockMessage = getInsufficientStockMessage(p, requestedQuantity);
     if (stockMessage) {
       silentToast.error(stockMessage);
@@ -2039,11 +2064,15 @@ export default function PDV() {
     }
 
     if (activeServiceTicket) {
+      if (packaging) {
+        silentToast.error('Embalagens comerciais ainda nao podem ser lancadas em comandas. Selecione a unidade do produto.');
+        return false;
+      }
       try {
         await addServiceTicketItem(activeServiceTicket.id, {
           productId: p.id,
           productName: p.name,
-          quantity: 1,
+          quantity: addedQuantity,
           unitPrice: p.price,
           addedByName: sellerName,
         });
@@ -2056,17 +2085,27 @@ export default function PDV() {
     }
 
     setCart(prev => {
-      const existing = prev.find(i => i.product.id === p.id);
-      if (existing) return prev.map(i => i.product.id === p.id ? { ...i, quantity: i.quantity + 1 } : i);
-      return [...prev, { product: p, quantity: 1, unitPrice: p.price }];
+      const packagingId = packaging?.id ?? null;
+      const existing = prev.find(i => i.product.id === p.id && (i.packagingId ?? null) === packagingId && !i.manualPrice);
+      if (existing) return prev.map(i => i === existing ? {
+        ...i,
+        quantity: i.quantity + addedQuantity,
+      } : i);
+      return [...prev, {
+        product: p,
+        quantity: addedQuantity,
+        unitPrice: p.price,
+        packagingId: packaging?.id ?? null,
+        manualPrice: false,
+      }];
     });
     searchInputRef.current?.blur();
     return true;
   }, [activeServiceTicket, addServiceTicketItem, getCartQuantityForProduct, getInsufficientStockMessage, sellerName]);
 
-  const handleProductSelection = useCallback(async (product: Product, options?: { focusAfterSuccess?: boolean }) => {
+  const handleProductSelection = useCallback(async (product: Product, options?: { focusAfterSuccess?: boolean; packaging?: ProductPackaging | null }) => {
     const focusAfterSuccess = options?.focusAfterSuccess ?? true;
-    const added = await addToCart(product);
+    const added = await addToCart(product, options?.packaging);
     if (!added) return false;
 
     setSearch('');
@@ -2094,8 +2133,9 @@ export default function PDV() {
       at: now,
     };
 
-    await handleProductSelection(product);
-  }, [handleProductSelection]);
+    const packaging = productPackagings.find((item) => item.product_id === product.id && packagingMatchesSearch(item, search)) ?? null;
+    await handleProductSelection(product, { packaging });
+  }, [handleProductSelection, productPackagings, search]);
 
   const addSearchResultToCart = useCallback(async (options?: {
     silentIfNotFound?: boolean;
@@ -2110,6 +2150,10 @@ export default function PDV() {
     const normalizedQuery = normalizeProductSearchText(query);
     const isPureNumericQuery = /^\d+$/.test(query);
     const matchingTicket = query ? findServiceTicket(query) : null;
+    const exactPackaging = query ? findExactPackagingMatch(productPackagings, query) : null;
+    const packagingProduct = exactPackaging
+      ? activeProducts.find((product) => product.id === exactPackaging.product_id) ?? null
+      : null;
     const exactProduct = query
       ? activeProducts.find(product => isExactProductSearchMatch(product, query))
       : null;
@@ -2137,7 +2181,7 @@ export default function PDV() {
     const partialMatch = /[A-Z]/.test(normalizedQuery)
       ? selectedProduct ?? filtered[0] ?? null
       : selectedProduct;
-    const product = exactProduct ?? partialMatch;
+    const product = packagingProduct ?? exactProduct ?? partialMatch;
 
     if (!product && matchingTicket) {
       if (loadServiceTicketToCart(query, { showNotFoundModal: !silentIfNotFound })) {
@@ -2163,15 +2207,20 @@ export default function PDV() {
       return;
     }
 
-    const added = await handleProductSelection(product, { focusAfterSuccess });
+    const matchingPackaging = exactPackaging
+      ?? productPackagings.find((packaging) => packaging.product_id === product.id && packagingMatchesSearch(packaging, query))
+      ?? null;
+    const added = await handleProductSelection(product, { focusAfterSuccess, packaging: matchingPackaging });
     if (!added) return;
     resetScannerTracking();
     silentToast.success(
       activeServiceTicket
         ? `${product.name} lancado na comanda ${activeServiceTicket.number}`
-        : `${product.name} adicionado`
+        : matchingPackaging
+          ? `${matchingPackaging.name} adicionado (${matchingPackaging.base_quantity} unidades)`
+          : `${product.name} adicionado`
     );
-  }, [activeProducts, activeServiceTicket, filtered, findServiceTicket, focusProductSearch, handleProductSelection, loadServiceTicketToCart, openScannerNotFoundDialog, resetScannerTracking, search, searchSelectedIndex]);
+  }, [activeProducts, activeServiceTicket, filtered, findServiceTicket, focusProductSearch, handleProductSelection, loadServiceTicketToCart, openScannerNotFoundDialog, productPackagings, resetScannerTracking, search, searchSelectedIndex]);
 
   useEffect(() => {
     if (!cashierMode) return;
@@ -2316,7 +2365,7 @@ export default function PDV() {
     }
 
     setCart(prev => prev.map(i => {
-      if (i.product.id !== cartItem.product.id) return i;
+      if (i !== cartItem) return i;
       const newQty = i.quantity + delta;
       return newQty <= 0 ? i : { ...i, quantity: newQty };
     }));
@@ -2419,15 +2468,15 @@ export default function PDV() {
 
     const nextPrice = Math.round(parsedPrice * 100) / 100;
     setCart(prev => prev.map(item =>
-      item.product.id === cartItemPendingPriceEdit.product.id
-        ? { ...item, unitPrice: nextPrice }
+      item === cartItemPendingPriceEdit
+        ? { ...item, unitPrice: nextPrice, manualPrice: true, packagingId: null }
         : item
     ));
     closeCartItemPriceEditor();
     silentToast.success('Preço atualizado');
   };
 
-  const removeFromCart = (productId: string) => setCart(prev => prev.filter(i => i.product.id !== productId));
+  const removeFromCart = (target: CartItem) => setCart(prev => prev.filter(item => item !== target));
   const requestRemoveFromCart = (item: CartItem) => {
     if (activeServiceTicket) {
       requestServiceTicketAdminAction({ type: 'remove', cartItem: item });
@@ -2438,7 +2487,7 @@ export default function PDV() {
   };
   const confirmRemoveFromCart = () => {
     if (!cartItemPendingRemoval) return;
-    removeFromCart(cartItemPendingRemoval.product.id);
+    removeFromCart(cartItemPendingRemoval);
     setCartItemPendingRemoval(null);
   };
 
@@ -2711,15 +2760,22 @@ export default function PDV() {
     finalizeLockRef.current = true;
     setIsFinalizingSale(true);
     try {
-      const items = cart.map(i => ({
-        product_id: i.product.id,
-        product_code: i.product.code ?? null,
-        product_name: i.product.name,
-        quantity: i.quantity,
-        unit_price: i.unitPrice,
-        cost_price: i.product.cost_price || 0,
-        total: getCartItemTotal(i),
-      }));
+      const items = cart.map(i => {
+        const pricing = getCartItemPricing(i);
+        return {
+          product_id: i.product.id,
+          product_code: i.product.code ?? null,
+          product_name: i.product.name,
+          quantity: i.quantity,
+          unit_price: pricing.effectiveUnitPrice,
+          cost_price: pricing.effectiveUnitCost,
+          total: pricing.total,
+          packaging_id: pricing.packaging?.id ?? null,
+          packaging_name: pricing.packaging?.name ?? null,
+          packaging_quantity: pricing.packaging?.base_quantity ?? null,
+          packaging_price: pricing.packaging?.sale_price ?? null,
+        };
+      });
 
       const { sale } = await createSale({
         client_id: selectedClientId || null,
@@ -2744,14 +2800,23 @@ export default function PDV() {
         try {
           const debtFactor = subtotal > 0 ? total / subtotal : 1;
           await addDebtEntries(
-            items.map(i => ({
-              clientId: selectedClientId,
-              productId: i.product_id,
-              productName: i.product_name,
-              quantity: i.quantity,
-              unitPrice: i.unit_price * debtFactor,
-              registeredBy: username || user?.email,
-            })),
+            items.map(i => {
+              const discountedTotal = Math.round(i.total * debtFactor * 100) / 100;
+              const keepPackaging = Math.abs(debtFactor - 1) < 0.000001;
+              return {
+                clientId: selectedClientId,
+                productId: i.product_id,
+                productName: i.product_name,
+                quantity: i.quantity,
+                unitPrice: discountedTotal / i.quantity,
+                total: discountedTotal,
+                packagingId: keepPackaging ? i.packaging_id : null,
+                packagingName: keepPackaging ? i.packaging_name : null,
+                packagingQuantity: keepPackaging ? i.packaging_quantity : null,
+                packagingPrice: keepPackaging ? i.packaging_price : null,
+                registeredBy: username || user?.email,
+              };
+            }),
             { adjustStock: false },
           );
         } catch (debtError) {
@@ -2912,6 +2977,7 @@ export default function PDV() {
       creditBalanceAfter: saleReceiptData.creditBalanceAfter,
       items: saleReceiptData.items.map(item => ({
         productName: item.product.name,
+        packagingName: getCartItemPricing(item).packaging?.name ?? null,
         quantity: item.quantity,
         unitPrice: item.unitPrice,
         total: getCartItemTotal(item),
@@ -2960,6 +3026,7 @@ export default function PDV() {
       serviceTicketNumber: sale.service_ticket_number,
       items: items.map(item => ({
         productName: item.product_name,
+        packagingName: item.packaging_name ?? null,
         quantity: item.quantity,
         unitPrice: item.unit_price,
         total: item.total,
@@ -4114,7 +4181,12 @@ export default function PDV() {
                       {p.name}
                     </p>
                     <p className="text-xs text-muted-foreground">{formatProductCode(p.code) || p.barcode || 'Sem código'}</p>
-                    <p className="text-primary font-bold text-base">R$ {p.price.toFixed(2)}</p>
+                    {(() => {
+                      const packaging = productPackagings.find((item) => item.product_id === p.id && packagingMatchesSearch(item, search));
+                      return packaging ? (
+                        <div><Badge variant="secondary">{packaging.name} · {packaging.base_quantity} un</Badge><p className="mt-1 text-base font-bold text-primary">R$ {packaging.sale_price.toFixed(2)}</p></div>
+                      ) : <p className="text-primary font-bold text-base">R$ {p.price.toFixed(2)}</p>;
+                    })()}
                     {p.control_stock !== false && p.stock <= (p.min_stock || 5) && (
                       <p className="text-xs text-destructive">⚠️ Estoque: {p.stock}</p>
                     )}
@@ -4151,9 +4223,11 @@ export default function PDV() {
           </CardHeader>
           <CardContent className="flex min-h-0 flex-1 flex-col gap-3 p-4 pt-0">
             <div className="min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
-              {cart.map((i, index) => (
+              {cart.map((i, index) => {
+                const pricing = getCartItemPricing(i);
+                return (
                 <div
-                  key={i.product.id}
+                  key={getCartItemKey(i)}
                   ref={element => {
                     cartItemSelectionRefs.current[index] = element;
                   }}
@@ -4167,7 +4241,14 @@ export default function PDV() {
                   <div className="min-w-0 flex-1 space-y-1.5">
                     <p className="text-sm font-medium leading-tight whitespace-normal break-words">{i.product.name}</p>
                     <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                      <span>{i.quantity} x {formatMoney(i.unitPrice)}</span>
+                      <span>{i.quantity} unidade{i.quantity === 1 ? '' : 's'}</span>
+                      {pricing.packaging && (
+                        <Badge variant="secondary">
+                          {pricing.packaging.name} · {pricing.packageCount} pacote{pricing.packageCount === 1 ? '' : 's'}
+                          {pricing.remainderQuantity > 0 ? ` + ${pricing.remainderQuantity} un.` : ''}
+                        </Badge>
+                      )}
+                      {!pricing.packaging && <span>x {formatMoney(i.unitPrice)}</span>}
                       {isCartItemPriceEdited(i) && <Badge variant="secondary">Preço alterado</Badge>}
                     </div>
                     {isCartItemPriceEdited(i) && (
@@ -4214,7 +4295,8 @@ export default function PDV() {
                     </Button>
                   </div>
                 </div>
-              ))}
+                );
+              })}
               {cart.length === 0 && <p className="text-sm text-muted-foreground text-center py-8">Carrinho vazio</p>}
             </div>
 
@@ -4377,7 +4459,7 @@ export default function PDV() {
                 <p className="mb-2 text-sm font-semibold">Itens do carrinho</p>
                 <div className="max-h-[22svh] space-y-1.5 overflow-y-auto pr-1 sm:max-h-[36vh]">
                   {cart.map(i => (
-                    <div key={i.product.id} className="flex items-start justify-between gap-3 text-sm">
+                    <div key={getCartItemKey(i)} className="flex items-start justify-between gap-3 text-sm">
                       <div className="min-w-0">
                         <span className="block whitespace-normal break-words">{i.product.name}</span>
                         <span className="text-xs text-muted-foreground">{i.quantity} x {formatMoney(i.unitPrice)}</span>

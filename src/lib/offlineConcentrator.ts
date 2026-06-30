@@ -4,6 +4,7 @@ import type {
   Expense,
   Payment,
   Product,
+  ProductPackaging,
   ProductCategoryPricingRule,
   ProductPriceHistoryEntry,
   Reward,
@@ -47,6 +48,7 @@ export type OfflineOperationType =
 export interface OfflineSnapshot {
   clients: Client[];
   products: Product[];
+  productPackagings: ProductPackaging[];
   debtEntries: DebtEntry[];
   payments: Payment[];
   rewards: Reward[];

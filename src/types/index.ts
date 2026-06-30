@@ -81,6 +81,23 @@ export interface Product {
   sync_error?: string | null;
 }
 
+export interface ProductPackaging {
+  id: string;
+  store_account_id: string;
+  owner_user_id: string;
+  product_id: string;
+  name: string;
+  base_quantity: number;
+  barcode: string;
+  purchase_cost: number;
+  sale_price: number;
+  auto_apply: boolean;
+  closed_only: boolean;
+  active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface DebtEntry {
   id: string;
   location_id?: string | null;
@@ -90,6 +107,10 @@ export interface DebtEntry {
   product_name: string;
   quantity: number;
   unit_price: number;
+  packaging_id?: string | null;
+  packaging_name?: string | null;
+  packaging_quantity?: number | null;
+  packaging_price?: number | null;
   total: number;
   date_added: string;
   date_paid?: string | null;
@@ -151,6 +172,10 @@ export interface SaleItem {
   product_name: string;
   quantity: number;
   unit_price: number;
+  packaging_id?: string | null;
+  packaging_name?: string | null;
+  packaging_quantity?: number | null;
+  packaging_price?: number | null;
   cost_price: number;
   total: number;
   discount_amount?: number;

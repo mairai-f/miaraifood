@@ -7,6 +7,7 @@ import { useOperationalScope } from './useOperationalScope';
 import type {
   Client,
   Product,
+  ProductPackaging,
   DebtEntry,
   Payment,
   Sale,
@@ -174,6 +175,11 @@ type DebtEntryInput = {
   productName: string;
   quantity: number;
   unitPrice: number;
+  total?: number;
+  packagingId?: string | null;
+  packagingName?: string | null;
+  packagingQuantity?: number | null;
+  packagingPrice?: number | null;
   dateAdded?: string;
   registeredBy?: string;
 };
@@ -193,7 +199,7 @@ type FetchAllOptions = {
 };
 
 interface DataContextType {
-  clients: Client[]; products: Product[]; debtEntries: DebtEntry[]; payments: Payment[]; rewards: Reward[];
+  clients: Client[]; products: Product[]; productPackagings: ProductPackaging[]; debtEntries: DebtEntry[]; payments: Payment[]; rewards: Reward[];
   sales: Sale[]; saleItems: SaleItem[]; stockMovements: StockMovement[]; expenses: Expense[];
   serviceTickets: ServiceTicket[]; serviceTicketItems: ServiceTicketItem[];
   pricingRules: ProductCategoryPricingRule[]; priceHistory: ProductPriceHistoryEntry[];
@@ -293,6 +299,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const isHeadquartersScope = operationalScope?.location.isHeadquarters ?? true;
   const [clients, setClients] = useState<Client[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
+  const [productPackagings, setProductPackagings] = useState<ProductPackaging[]>([]);
   const [debtEntries, setDebtEntries] = useState<DebtEntry[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
   const [rewards, setRewards] = useState<Reward[]>([]);
@@ -315,6 +322,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const clearStoreData = useCallback(() => {
     setClients([]);
     setProducts([]);
+    setProductPackagings([]);
     setDebtEntries([]);
     setPayments([]);
     setRewards([]);
@@ -380,6 +388,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const applyOfflineSnapshot = useCallback((snapshot: OfflineSnapshot) => {
     setClients(sortClientsByCreatedAt(snapshot.clients ?? []));
     setProducts(productsWithDisplayCodes(snapshot.products ?? []));
+    setProductPackagings(snapshot.productPackagings ?? []);
     setDebtEntries(sortDebtEntriesByDateAdded(snapshot.debtEntries ?? []));
     setPayments(sortPaymentsByDate(snapshot.payments ?? []));
     setRewards(snapshot.rewards ?? []);
@@ -472,9 +481,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
     const locationQuery = <T extends { eq: (column: string, value: string) => T }>(query: T) =>
       operationalLocationId ? query.eq('location_id', operationalLocationId) : query;
 
-    const [c, p, inventory, d, pay, r, s, si, st, sti, sm, exp, pr, ph] = await Promise.all([
+    const [c, p, pkg, inventory, d, pay, r, s, si, st, sti, sm, exp, pr, ph] = await Promise.all([
       canReadClients ? db.from('clients').select('*').order('created_at', { ascending: false }).limit(1000) : emptyResult,
       Promise.resolve(productsResponse),
+      canReadProducts ? db.from('product_packagings').select('*').eq('active', true).order('base_quantity', { ascending: false }) : emptyResult,
       canReadProducts && operationalLocationId
         ? db.from('location_inventory').select('product_id, stock, min_stock').eq('location_id', operationalLocationId)
         : emptyResult,
@@ -491,7 +501,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       canReadPricing ? db.from('product_price_history').select('*').order('created_at', { ascending: false }).limit(1000) : emptyResult,
     ]);
 
-    const remoteErrors = [c, p, inventory, d, pay, r, s, si, st, sti, sm, exp, pr, ph]
+    const remoteErrors = [c, p, pkg, inventory, d, pay, r, s, si, st, sti, sm, exp, pr, ph]
       .map(result => result.error)
       .filter(Boolean);
     const hasRemoteError = remoteErrors.length > 0;
@@ -524,6 +534,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         ? { ...product, stock: Number(localInventory.stock || 0), min_stock: Number(localInventory.min_stock || 0) }
         : product;
     });
+    const nextProductPackagings = (pkg.data as ProductPackaging[]) ?? [];
     const nextDebtEntries = (d.data as DebtEntry[]) ?? [];
     const nextPayments = (pay.data as Payment[]) ?? [];
     const nextRewards = (r.data as Reward[]) ?? [];
@@ -538,6 +549,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
     setClients(nextClients);
     setProducts(nextProducts);
+    setProductPackagings(nextProductPackagings);
     setDebtEntries(nextDebtEntries);
     setPayments(nextPayments);
     setRewards(nextRewards);
@@ -555,6 +567,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       const snapshot: OfflineSnapshot = {
         clients: nextClients,
         products: nextProducts,
+        productPackagings: nextProductPackagings,
         debtEntries: nextDebtEntries,
         payments: nextPayments,
         rewards: nextRewards,
@@ -595,6 +608,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     const snapshot: OfflineSnapshot = {
       clients,
       products,
+      productPackagings,
       debtEntries,
       payments,
       rewards,
@@ -633,6 +647,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     priceHistory,
     pricingRules,
     products,
+    productPackagings,
     rewards,
     saleItems,
     sales,
@@ -1969,7 +1984,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     const shouldAdjustStock = options.adjustStock !== false && hasFeature('stock.manage');
     const stockReason = options.stockReason ?? 'Fiado';
     const totalsByClient = entries.reduce((map, entry) => {
-      map.set(entry.clientId, (map.get(entry.clientId) || 0) + entry.quantity * entry.unitPrice);
+      map.set(entry.clientId, (map.get(entry.clientId) || 0) + (entry.total ?? entry.quantity * entry.unitPrice));
       return map;
     }, new Map<string, number>());
 
@@ -2028,7 +2043,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
         product_name: entry.productName,
         quantity: entry.quantity,
         unit_price: entry.unitPrice,
-        total: entry.quantity * entry.unitPrice,
+        total: entry.total ?? entry.quantity * entry.unitPrice,
+        packaging_id: entry.packagingId ?? null,
+        packaging_name: entry.packagingName ?? null,
+        packaging_quantity: entry.packagingQuantity ?? null,
+        packaging_price: entry.packagingPrice ?? null,
         date_added: entry.dateAdded || nowIso(),
         date_paid: null,
         status: 'pending',
@@ -2052,7 +2071,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
         product_name: entry.productName,
         quantity: entry.quantity,
         unit_price: entry.unitPrice,
-        total: entry.quantity * entry.unitPrice,
+        total: entry.total ?? entry.quantity * entry.unitPrice,
+        packaging_id: entry.packagingId ?? null,
+        packaging_name: entry.packagingName ?? null,
+        packaging_quantity: entry.packagingQuantity ?? null,
+        packaging_price: entry.packagingPrice ?? null,
         date_added: entry.dateAdded || nowIso(),
         date_paid: null,
         status: 'pending',
@@ -2090,6 +2113,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
           product_id: entry.productId,
           quantity: entry.quantity,
           unit_price: entry.unitPrice,
+          total: entry.total ?? entry.quantity * entry.unitPrice,
+          packaging_id: entry.packagingId ?? null,
           date_added: entry.dateAdded || new Date().toISOString(),
           registered_by: entry.registeredBy,
         })),
@@ -3672,7 +3697,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
   return (
     <DataContext.Provider value={{
-      clients, products, debtEntries, payments, rewards, sales, saleItems, serviceTickets, serviceTicketItems, stockMovements, expenses, pricingRules, priceHistory, loading,
+      clients, products, productPackagings, debtEntries, payments, rewards, sales, saleItems, serviceTickets, serviceTicketItems, stockMovements, expenses, pricingRules, priceHistory, loading,
       offlinePreparationStatus, offlinePreparationMessage, offlineSnapshotUpdatedAt,
       addClient, updateClient, softDeleteClient,
       addProduct, updateProduct, deleteProduct, searchProducts,

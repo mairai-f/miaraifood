@@ -17,7 +17,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch';
 import { Plus, Search, Edit, Trash2, TrendingUp } from 'lucide-react';
 import { toast } from 'sonner';
-import { Product } from '@/types';
+import type { Product, ProductPackaging } from '@/types';
 import { getMarginPercent, getMarkupPercent, getPriceFromMarkup, getUnitProfit } from '@/lib/pricing';
 import { verifyPricingManagerApproval } from '@/lib/pricingManagerApproval';
 import { parseDecimalInput } from '@/lib/numberInput';
@@ -44,6 +44,17 @@ const LOW_MARGIN_WARNING_PCT = 15;
 
 interface DraftPriceRow extends ProductPriceTableItem {
   draftId: string;
+}
+
+interface DraftPackaging {
+  draftId: string;
+  name: string;
+  base_quantity: number | string;
+  barcode: string;
+  purchase_cost: number | string;
+  sale_price: number | string;
+  auto_apply: boolean;
+  closed_only: boolean;
 }
 
 export default function Products() {
@@ -89,6 +100,7 @@ export default function Products() {
   const [commissionType, setCommissionType] = useState<CommissionType>('none');
   const [commissionValue, setCommissionValue] = useState('0');
   const [priceRows, setPriceRows] = useState<DraftPriceRow[]>([]);
+  const [packagingRows, setPackagingRows] = useState<DraftPackaging[]>([]);
   const [barcode, setBarcode] = useState('');
   const [stock, setStock] = useState('');
   const [minStock, setMinStock] = useState('');
@@ -146,6 +158,9 @@ export default function Products() {
           canManagePricing && editId
             ? db.from('product_price_table_items').select('*').eq('product_id', editId).eq('active', true).order('min_quantity')
             : Promise.resolve({ data: [], error: null }),
+          editId
+            ? db.from('product_packagings').select('*').eq('product_id', editId).eq('active', true).order('base_quantity', { ascending: false })
+            : Promise.resolve({ data: [], error: null }),
         ]);
         const failed = results.find((result) => result.error);
         if (failed?.error) throw failed.error;
@@ -166,6 +181,16 @@ export default function Products() {
         setPriceRows(loadedItems
           .filter((item) => !(item.price_table_id === defaultTable?.id && Number(item.min_quantity) === 1))
           .map((item) => ({ ...item, draftId: item.id ?? crypto.randomUUID() })));
+        setPackagingRows(((results[9].data ?? []) as ProductPackaging[]).map((item) => ({
+          draftId: item.id,
+          name: item.name,
+          base_quantity: item.base_quantity,
+          barcode: item.barcode,
+          purchase_cost: item.purchase_cost,
+          sale_price: item.sale_price,
+          auto_apply: item.auto_apply,
+          closed_only: item.closed_only,
+        })));
       } catch (error) {
         console.error('Erro ao carregar dependencias do catalogo:', getRedactedLogValue(error));
         toast.error('Catalogo avancado indisponivel. Aplique a migracao da Fase 3.');
@@ -218,12 +243,40 @@ export default function Products() {
     }
   };
 
+  const syncProductPackagings = async (productId: string) => {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const db = supabase as any;
+      const { error } = await db.rpc('replace_product_packagings', {
+        target_product_id: productId,
+        target_items: packagingRows.map((row) => ({
+          name: row.name.trim(),
+          base_quantity: parseDecimalInput(String(row.base_quantity)),
+          barcode: row.barcode.trim(),
+          purchase_cost: parseDecimalInput(String(row.purchase_cost)),
+          sale_price: parseDecimalInput(String(row.sale_price)),
+          auto_apply: row.closed_only ? false : row.auto_apply,
+          closed_only: row.closed_only,
+        })),
+      });
+      if (error) throw error;
+      return true;
+    } catch (error) {
+      console.error('Erro ao salvar embalagens:', getRedactedLogValue(error));
+      toast.error('Produto salvo, mas as embalagens nao foram atualizadas.');
+      return false;
+    }
+  };
+
   const persistSave = async (targetEditId: string | null, data: Partial<Product>) => {
     if (targetEditId) {
       try {
         await updateProduct(targetEditId, data);
-        const pricingSaved = await syncAdditionalPriceRows(targetEditId);
-        if (pricingSaved) toast.success('Produto atualizado!');
+        const [pricingSaved, packagingsSaved] = await Promise.all([
+          syncAdditionalPriceRows(targetEditId),
+          syncProductPackagings(targetEditId),
+        ]);
+        if (pricingSaved && packagingsSaved) toast.success('Produto atualizado!');
       } catch (error) {
         console.error('Erro ao atualizar produto:', getRedactedLogValue(error));
         toast.error(getPublicErrorMessage(error, 'Não foi possível atualizar o produto'));
@@ -252,8 +305,11 @@ export default function Products() {
             return;
           }
         }
-        const pricingSaved = await syncAdditionalPriceRows(createdProduct.id);
-        if (pricingSaved) toast.success('Produto cadastrado!');
+        const [pricingSaved, packagingsSaved] = await Promise.all([
+          syncAdditionalPriceRows(createdProduct.id),
+          syncProductPackagings(createdProduct.id),
+        ]);
+        if (pricingSaved && packagingsSaved) toast.success('Produto cadastrado!');
       } catch (error) {
         console.error('Erro ao cadastrar produto:', getRedactedLogValue(error));
         toast.error(getPublicErrorMessage(error, 'Não foi possível cadastrar o produto'));
@@ -294,6 +350,20 @@ export default function Products() {
         toast.error('Nao repita a mesma quantidade minima dentro de uma tabela de preco.');
         return;
       }
+    }
+    if (packagingRows.some((row) => (
+      row.name.trim().length < 2
+      || parseDecimalInput(String(row.base_quantity)) <= 1
+      || parseDecimalInput(String(row.sale_price)) < 0
+      || parseDecimalInput(String(row.purchase_cost)) < 0
+    ))) {
+      toast.error('Revise nome, quantidade, custo e preco das embalagens.');
+      return;
+    }
+    const packagingBarcodes = packagingRows.map((row) => row.barcode.trim()).filter(Boolean);
+    if (new Set(packagingBarcodes).size !== packagingBarcodes.length) {
+      toast.error('Nao repita o codigo de barras entre embalagens.');
+      return;
     }
     const selectedGroup = groups.find((group) => group.id === groupId);
     const data: Partial<Product> = {
@@ -421,6 +491,7 @@ export default function Products() {
     setCommissionType('none');
     setCommissionValue('0');
     setPriceRows([]);
+    setPackagingRows([]);
     setBarcode('');
     setStock('');
     setMinStock('');
@@ -482,6 +553,27 @@ export default function Products() {
 
   const removePriceRow = (draftId: string) => {
     setPriceRows((current) => current.filter((row) => row.draftId !== draftId));
+  };
+
+  const addPackagingRow = () => {
+    setPackagingRows((current) => [...current, {
+      draftId: crypto.randomUUID(),
+      name: '',
+      base_quantity: 6,
+      barcode: '',
+      purchase_cost: 0,
+      sale_price: parseDecimalInput(price) * 6,
+      auto_apply: true,
+      closed_only: false,
+    }]);
+  };
+
+  const updatePackagingRow = (draftId: string, changes: Partial<DraftPackaging>) => {
+    setPackagingRows((current) => current.map((row) => row.draftId === draftId ? { ...row, ...changes } : row));
+  };
+
+  const removePackagingRow = (draftId: string) => {
+    setPackagingRows((current) => current.filter((row) => row.draftId !== draftId));
   };
 
   return (
@@ -581,6 +673,31 @@ export default function Products() {
                     Na filial {operationalScope?.location.name}, altere quantidades pelo modulo Estoque.
                   </p>
                 )}
+                <div className="space-y-3 rounded-md border p-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold">Embalagens comerciais</p>
+                      <p className="text-xs text-muted-foreground">Fardo, caixa ou pacote vinculados ao mesmo produto e estoque-base.</p>
+                    </div>
+                    <Button type="button" size="sm" variant="outline" onClick={addPackagingRow}>
+                      <Plus className="mr-1 h-3 w-3" /> Embalagem
+                    </Button>
+                  </div>
+                  {packagingRows.map((row) => (
+                    <div key={row.draftId} className="space-y-2 rounded-md bg-muted/40 p-2">
+                      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                        <div className="space-y-1 sm:col-span-2"><Label>Nome</Label><Input value={row.name} onChange={(event) => updatePackagingRow(row.draftId, { name: toProductUppercase(event.target.value) })} placeholder="FARDO COM 6" /></div>
+                        <div className="space-y-1"><Label>Unidades</Label><Input type="number" min="2" step="1" value={row.base_quantity} onChange={(event) => updatePackagingRow(row.draftId, { base_quantity: event.target.value })} /></div>
+                        <div className="space-y-1"><Label>Codigo de barras</Label><Input value={row.barcode} onChange={(event) => updatePackagingRow(row.draftId, { barcode: toProductUppercase(event.target.value) })} /></div>
+                        <div className="space-y-1"><Label>Custo da embalagem</Label><Input inputMode="decimal" value={row.purchase_cost} onChange={(event) => updatePackagingRow(row.draftId, { purchase_cost: event.target.value })} /></div>
+                        <div className="space-y-1"><Label>Preco da embalagem</Label><Input inputMode="decimal" value={row.sale_price} onChange={(event) => updatePackagingRow(row.draftId, { sale_price: event.target.value })} /></div>
+                        <label className="flex items-center justify-between gap-2 rounded-md border px-2 py-1.5 text-xs"><span>Aplicar ao atingir a quantidade</span><Switch checked={row.auto_apply} disabled={row.closed_only} onCheckedChange={(auto_apply) => updatePackagingRow(row.draftId, { auto_apply })} /></label>
+                        <div className="flex items-center justify-between gap-2 rounded-md border px-2 py-1.5 text-xs"><label className="flex flex-1 items-center justify-between gap-2"><span>Somente embalagem fechada</span><Switch checked={row.closed_only} onCheckedChange={(closed_only) => updatePackagingRow(row.draftId, { closed_only, auto_apply: closed_only ? false : row.auto_apply })} /></label><Button type="button" variant="ghost" size="icon" onClick={() => removePackagingRow(row.draftId)} aria-label="Remover embalagem"><Trash2 className="h-4 w-4" /></Button></div>
+                      </div>
+                    </div>
+                  ))}
+                  {packagingRows.length === 0 && <p className="text-xs text-muted-foreground">Nenhuma embalagem. O produto sera vendido somente na unidade-base.</p>}
+                </div>
                 <div className="space-y-3 rounded-md border p-3">
                   <div><p className="text-sm font-semibold">Política comercial</p><p className="text-xs text-muted-foreground">Limites aplicados ao produto em qualquer filial.</p></div>
                   <div className="grid grid-cols-2 gap-3">

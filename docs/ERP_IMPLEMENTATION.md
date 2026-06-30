@@ -410,15 +410,20 @@ Migração complementar: `20260630130000_add_staff_job_titles.sql`. Ela preserva
 
 Na tela de Estoque, o produto encontrado é a própria ação de movimentação: pesquise pelo nome/código e clique no nome para abrir entrada, saída ou ajuste. O botão genérico **Movimentar** foi removido para evitar uma segunda busca desnecessária.
 
-### Embalagens comerciais — desenho aprovado para implementação
+### Embalagens comerciais — implementadas
 
 - o saldo continua armazenado na unidade-base do produto;
 - cada embalagem pertence ao mesmo `product_id` e informa nome, quantidade-base, código de barras, custo e preço de venda;
-- vender ou comprar um fardo converte a quantidade para unidades-base antes da movimentação;
+- PDV e fiado baixam a quantidade-base da embalagem em uma única transação com o estoque;
 - preço de embalagem usa blocos completos; quantidades restantes usam o preço avulso;
 - a conversão automática de unidades soltas para preço de fardo é configurável por embalagem;
-- PDV, fiado, cancelamento, estoque e relatórios devem usar o mesmo resolvedor de embalagem e preço;
+- busca por nome ou código de barras da embalagem usa o mesmo catálogo do PDV e do fiado;
+- venda, fiado e cancelamento preservam `product_id`; os itens guardam também a identificação e os valores da embalagem usados naquele momento;
+- cancelamento restaura a quantidade de unidades-base originalmente baixada;
+- comandas continuam aceitando unidades; embalagens ficam bloqueadas nesse fluxo até a persistência própria da comanda ser ampliada;
 - custo de compra e preço de venda permanecem separados para não aplicar custo como preço ao cliente.
+
+Banco: `supabase/migrations/20260630140000_add_product_packagings.sql`.
 
 Teste manual obrigatório desta mudança:
 
@@ -429,6 +434,13 @@ Teste manual obrigatório desta mudança:
 5. Clicar em Editar, alterar função e acessos, sair e entrar com o colaborador.
 6. Confirmar os mesmos menus no Web, Desktop e WebView Mobile, respeitando recursos exclusivos do Web.
 7. Em tela estreita, percorrer Dados, Acessos e Revisão sem rolagem horizontal.
+8. Cadastrar uma embalagem `FARDO COM 6`, custo `45`, preço `50` e código de barras exclusivo.
+9. No PDV, buscar pelo código do fardo e confirmar 6 unidades, total de R$ 50 e baixa de 6 no estoque.
+10. Com aplicação automática ligada, adicionar 6 unidades avulsas e confirmar R$ 50; desligada, confirmar R$ 54 para produto de R$ 9.
+11. Adicionar 7 unidades e confirmar um fardo mais uma unidade: R$ 59.
+12. Repetir pelo fiado, conferir a embalagem no registro e validar o limite de crédito pelo total de R$ 50.
+13. Com saldo 5, tentar vender ou lançar um fardo de 6 e confirmar que nada é gravado nem baixado.
+14. Cancelar a venda do fardo e confirmar a devolução exata de 6 unidades ao estoque.
 
 ### Fase 4 — pagamentos e conciliacao
 
