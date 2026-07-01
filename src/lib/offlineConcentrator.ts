@@ -22,6 +22,7 @@ export type OfflineOperationType =
   | 'client.create'
   | 'client.update'
   | 'client.soft_delete'
+  | 'store_operational_settings.update'
   | 'product.create'
   | 'product.update'
   | 'product.soft_delete'
@@ -48,6 +49,9 @@ export type OfflineOperationType =
 export interface OfflineSnapshot {
   clients: Client[];
   products: Product[];
+  storeOperationalSettings?: {
+    blockSaleWithoutStock: boolean;
+  };
   productPackagings: ProductPackaging[];
   debtEntries: DebtEntry[];
   payments: Payment[];
@@ -94,6 +98,10 @@ export interface OfflineProductPayload {
 export interface OfflineProductMutationPayload {
   productId: string;
   changes: Partial<Product>;
+}
+
+export interface OfflineStoreOperationalSettingsPayload {
+  blockSaleWithoutStock: boolean;
 }
 
 export interface OfflinePricingRulePayload {
@@ -205,6 +213,7 @@ export type OfflineOperationPayload =
   | OfflineCashSessionClosePayload
   | OfflineClientPayload
   | OfflineClientMutationPayload
+  | OfflineStoreOperationalSettingsPayload
   | OfflineProductPayload
   | OfflineProductMutationPayload
   | OfflinePricingRulePayload

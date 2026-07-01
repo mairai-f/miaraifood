@@ -54,6 +54,7 @@ import {
   type OfflineSaleCreatePayload,
   type OfflineSaleCancelPayload,
   type OfflineSnapshot,
+  type OfflineStoreOperationalSettingsPayload,
   type OfflineStockMovementPayload,
 } from '@/lib/offlineConcentrator';
 import { shouldUseOfflineSnapshotFallback } from '@/lib/offlineSnapshotPolicy';
@@ -204,6 +205,7 @@ interface DataContextType {
   serviceTickets: ServiceTicket[]; serviceTicketItems: ServiceTicketItem[];
   pricingRules: ProductCategoryPricingRule[]; priceHistory: ProductPriceHistoryEntry[];
   loading: boolean;
+  blockSaleWithoutStock: boolean;
   offlinePreparationStatus: OfflinePreparationStatus;
   offlinePreparationMessage: string | null;
   offlineSnapshotUpdatedAt: string | null;
@@ -280,6 +282,7 @@ interface DataContextType {
     }
   ) => Promise<void>;
   deleteExpense: (id: string) => Promise<void>;
+  updateStoreOperationalSettings: (settings: { blockSaleWithoutStock: boolean }) => Promise<void>;
   addReward: (name: string, description: string, minimum_spending: number, options?: Partial<Reward>) => Promise<void>;
   updateReward: (id: string, data: Partial<Reward>) => Promise<void>;
   deleteReward: (id: string) => Promise<void>;
@@ -312,6 +315,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [pricingRules, setPricingRules] = useState<ProductCategoryPricingRule[]>([]);
   const [priceHistory, setPriceHistory] = useState<ProductPriceHistoryEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [blockSaleWithoutStock, setBlockSaleWithoutStock] = useState(true);
   const [offlinePreparationStatus, setOfflinePreparationStatus] = useState<OfflinePreparationStatus>('unavailable');
   const [offlinePreparationMessage, setOfflinePreparationMessage] = useState<string | null>(null);
   const [offlineSnapshotUpdatedAt, setOfflineSnapshotUpdatedAt] = useState<string | null>(null);
@@ -335,6 +339,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     setExpenses([]);
     setPricingRules([]);
     setPriceHistory([]);
+    setBlockSaleWithoutStock(true);
   }, []);
 
   const markOfflineNotReady = useCallback((message = 'Este computador ainda nao foi preparado para uso offline. Conecte a internet, entre uma vez e aguarde o download dos dados da loja terminar.') => {
@@ -389,6 +394,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const applyOfflineSnapshot = useCallback((snapshot: OfflineSnapshot) => {
     setClients(sortClientsByCreatedAt(snapshot.clients ?? []));
     setProducts(productsWithDisplayCodes(snapshot.products ?? []));
+    setBlockSaleWithoutStock(snapshot.storeOperationalSettings?.blockSaleWithoutStock ?? true);
     setProductPackagings(snapshot.productPackagings ?? []);
     setDebtEntries(sortDebtEntriesByDateAdded(snapshot.debtEntries ?? []));
     setPayments(sortPaymentsByDate(snapshot.payments ?? []));
@@ -421,6 +427,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
     setLoading(false);
     return true;
   }, [applyOfflineSnapshot, canUseOfflineConcentrator, clearStoreData, markOfflineNotReady, ownerUserId]);
+
+  const getNextTrackedStock = useCallback((currentStock: number, quantityDelta: number) => {
+    const nextStock = Number(currentStock || 0) + quantityDelta;
+    return blockSaleWithoutStock ? Math.max(0, nextStock) : nextStock;
+  }, [blockSaleWithoutStock]);
 
   const fetchAll = useCallback(async (options: FetchAllOptions = {}) => {
     const silent = options.silent === true;
@@ -482,7 +493,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
     const locationQuery = <T extends { eq: (column: string, value: string) => T }>(query: T) =>
       operationalLocationId ? query.eq('location_id', operationalLocationId) : query;
 
-    const [c, p, pkg, inventory, d, pay, r, s, si, st, sti, sm, exp, pr, ph] = await Promise.all([
+    const [settings, c, p, pkg, inventory, d, pay, r, s, si, st, sti, sm, exp, pr, ph] = await Promise.all([
+      db.rpc('get_store_operational_settings').single(),
       canReadClients ? db.from('clients').select('*').order('created_at', { ascending: false }).limit(1000) : emptyResult,
       Promise.resolve(productsResponse),
       canReadProducts ? db.from('product_packagings').select('*').eq('active', true).order('base_quantity', { ascending: false }) : emptyResult,
@@ -502,7 +514,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       canReadPricing ? db.from('product_price_history').select('*').order('created_at', { ascending: false }).limit(1000) : emptyResult,
     ]);
 
-    const remoteErrors = [c, p, pkg, inventory, d, pay, r, s, si, st, sti, sm, exp, pr, ph]
+    const remoteErrors = [settings, c, p, pkg, inventory, d, pay, r, s, si, st, sti, sm, exp, pr, ph]
       .map(result => result.error)
       .filter(Boolean);
     const hasRemoteError = remoteErrors.length > 0;
@@ -535,6 +547,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         ? { ...product, stock: Number(localInventory.stock || 0), min_stock: Number(localInventory.min_stock || 0) }
         : product;
     });
+    const nextBlockSaleWithoutStock = Boolean(settings.data?.block_sale_without_stock ?? true);
     const nextProductPackagings = (pkg.data as ProductPackaging[]) ?? [];
     const nextDebtEntries = (d.data as DebtEntry[]) ?? [];
     const nextPayments = (pay.data as Payment[]) ?? [];
@@ -550,6 +563,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
     setClients(nextClients);
     setProducts(nextProducts);
+    setBlockSaleWithoutStock(nextBlockSaleWithoutStock);
     setProductPackagings(nextProductPackagings);
     setDebtEntries(nextDebtEntries);
     setPayments(nextPayments);
@@ -568,6 +582,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
       const snapshot: OfflineSnapshot = {
         clients: nextClients,
         products: nextProducts,
+        storeOperationalSettings: {
+          blockSaleWithoutStock: nextBlockSaleWithoutStock,
+        },
         productPackagings: nextProductPackagings,
         debtEntries: nextDebtEntries,
         payments: nextPayments,
@@ -648,6 +665,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
     const snapshot: OfflineSnapshot = {
       clients,
       products,
+      storeOperationalSettings: {
+        blockSaleWithoutStock,
+      },
       productPackagings,
       debtEntries,
       payments,
@@ -694,6 +714,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     serviceTicketItems,
     serviceTickets,
     stockMovements,
+    blockSaleWithoutStock,
     user,
   ]);
 
@@ -798,6 +819,12 @@ export function DataProvider({ children }: { children: ReactNode }) {
     }
 
     ensureSuccess(await db.from('clients').update(remoteClientPayload).eq('id', payload.clientId));
+  }, []);
+
+  const syncQueuedStoreOperationalSettingsOperation = useCallback(async (payload: OfflineStoreOperationalSettingsPayload) => {
+    ensureSuccess(await db.rpc('update_store_operational_settings', {
+      p_block_sale_without_stock: payload.blockSaleWithoutStock,
+    }));
   }, []);
 
   const syncQueuedProductCreateOperation = useCallback(async (payload: OfflineProductPayload) => {
@@ -1196,6 +1223,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
             await syncQueuedClientMutationOperation('client.update', queueItem.payload as OfflineClientMutationPayload);
           } else if (queueItem.operationType === 'client.soft_delete' && queueItem.payload) {
             await syncQueuedClientMutationOperation('client.soft_delete', queueItem.payload as OfflineClientMutationPayload);
+          } else if (queueItem.operationType === 'store_operational_settings.update' && queueItem.payload) {
+            await syncQueuedStoreOperationalSettingsOperation(queueItem.payload as OfflineStoreOperationalSettingsPayload);
           } else if (queueItem.operationType === 'product.create' && queueItem.payload) {
             await syncQueuedProductCreateOperation(queueItem.payload as OfflineProductPayload);
           } else if (queueItem.operationType === 'product.update' && queueItem.payload) {
@@ -1289,6 +1318,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     syncQueuedClearHistoryOperation,
     syncQueuedClientCreateOperation,
     syncQueuedClientMutationOperation,
+    syncQueuedStoreOperationalSettingsOperation,
     syncQueuedCloseAllDebtOperation,
     syncQueuedClearAllStockOperation,
     syncQueuedDebtEntriesOperation,
@@ -1819,6 +1849,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
     }
   };
   const ensureStockAvailable = (demands: StockDemand[]) => {
+    if (!blockSaleWithoutStock) return;
+
     const demandByProduct = demands
       .filter(item => item.productId && item.quantity > 0)
       .reduce((map, item) => {
@@ -1975,6 +2007,45 @@ export function DataProvider({ children }: { children: ReactNode }) {
       throw error;
     }
   };
+  const updateStoreOperationalSettings = async (settings: { blockSaleWithoutStock: boolean }) => {
+    const nextBlockSaleWithoutStock = settings.blockSaleWithoutStock !== false;
+
+    if (isDemoMode) {
+      setBlockSaleWithoutStock(nextBlockSaleWithoutStock);
+      return;
+    }
+
+    const updateOfflineStoreOperationalSettings = async () => {
+      const queued = await enqueueOfflineOperation(ownerUserId!, 'store_operational_settings.update', {
+        blockSaleWithoutStock: nextBlockSaleWithoutStock,
+      });
+      if (!queued) {
+        throw new Error('Nao foi possivel registrar a configuracao da loja na fila offline.');
+      }
+
+      setBlockSaleWithoutStock(nextBlockSaleWithoutStock);
+    };
+
+    if (canUseOfflineConcentrator && typeof navigator !== 'undefined' && navigator.onLine === false) {
+      await updateOfflineStoreOperationalSettings();
+      return;
+    }
+
+    try {
+      const { data, error } = await db.rpc('update_store_operational_settings', {
+        p_block_sale_without_stock: nextBlockSaleWithoutStock,
+      }).single();
+      if (error) throw error;
+      setBlockSaleWithoutStock(Boolean(data?.block_sale_without_stock ?? nextBlockSaleWithoutStock));
+    } catch (error) {
+      if (canUseOfflineConcentrator && isProbablyOfflineError(error)) {
+        await updateOfflineStoreOperationalSettings();
+        return;
+      }
+
+      throw error;
+    }
+  };
   const searchProducts = (q: string) => {
     const activeProducts = products.filter(p => !p.deleted);
     if (!q) return activeProducts;
@@ -2072,7 +2143,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
           .filter(movement => movement.product_id === product.id)
           .reduce((sum, movement) => sum + movement.quantity, 0);
         if (soldQuantity === 0) return product;
-        return { ...product, stock: Math.max(0, (product.stock || 0) - soldQuantity) };
+        return { ...product, stock: getNextTrackedStock(product.stock || 0, -soldQuantity) };
       }));
       setStockMovements(prev => [...stockMovements, ...prev]);
     };
@@ -2728,7 +2799,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       setProducts(prev => prev.map(product => {
         if (product.control_stock === false) return product;
         const soldQuantity = itemsWithMetrics.filter(item => item.product_id === product.id).reduce((sum, item) => sum + item.quantity, 0);
-        return soldQuantity > 0 ? { ...product, stock: Math.max(0, (product.stock || 0) - soldQuantity) } : product;
+        return soldQuantity > 0 ? { ...product, stock: getNextTrackedStock(product.stock || 0, -soldQuantity) } : product;
       }));
       if (movements.length > 0) {
         setStockMovements(prev => [...movements, ...prev]);
@@ -2795,7 +2866,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
           .filter(item => item.product_id === product.id)
           .reduce((sum, item) => sum + item.quantity, 0);
         if (soldQuantity === 0) return product;
-        return { ...product, stock: Math.max(0, (product.stock || 0) - soldQuantity) };
+        return { ...product, stock: getNextTrackedStock(product.stock || 0, -soldQuantity) };
       }));
       if (movements.length > 0) {
         setStockMovements(prev => [...movements, ...prev]);
@@ -2835,7 +2906,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
           .filter(item => item.product_id === product.id)
           .reduce((sum, item) => sum + item.quantity, 0);
         if (soldQuantity === 0) return product;
-        return { ...product, stock: Math.max(0, (product.stock || 0) - soldQuantity) };
+        return { ...product, stock: getNextTrackedStock(product.stock || 0, -soldQuantity) };
       }));
       await fetchAll({ silent: true });
 
@@ -3742,6 +3813,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   return (
     <DataContext.Provider value={{
       clients, products, productPackagings, debtEntries, payments, rewards, sales, saleItems, serviceTickets, serviceTicketItems, stockMovements, expenses, pricingRules, priceHistory, loading,
+      blockSaleWithoutStock,
       offlinePreparationStatus, offlinePreparationMessage, offlineSnapshotUpdatedAt,
       addClient, updateClient, softDeleteClient,
       addProduct, updateProduct, deleteProduct, searchProducts,
@@ -3751,6 +3823,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       createSale, cancelSale,
       createServiceTicket, addServiceTicketItem, updateServiceTicketStatus, updateServiceTicketItemQuantity, cancelServiceTicketItem,
       addStockMovement, clearAllStock, addExpense, deleteExpense,
+      updateStoreOperationalSettings,
       addReward, updateReward, deleteReward,
       syncNow,
       refetch: fetchAll,

@@ -660,7 +660,7 @@ export default function Products() {
                   {supplierName && !supplierId && <p className="text-xs text-amber-600">Cadastre ou selecione este fornecedor em Operações para criar o vínculo.</p>}
                 </div>
                 <div className="flex items-center justify-between rounded-md border p-3">
-                  <div><Label htmlFor="control-stock">Controlar estoque</Label><p className="text-xs text-muted-foreground">Bloqueia venda e fiado quando não houver saldo.</p></div>
+                  <div><Label htmlFor="control-stock">Controlar estoque</Label><p className="text-xs text-muted-foreground">Controla saldo, baixa e validade. A trava de venda segue a configuracao global da loja.</p></div>
                   <Switch id="control-stock" checked={controlStock} onCheckedChange={setControlStock} />
                 </div>
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">

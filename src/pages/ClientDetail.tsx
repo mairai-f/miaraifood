@@ -192,8 +192,9 @@ export default function ClientDetail() {
     const product = data.products.find(item => item.id === productId);
     if (!product) return '';
 
+    if (!data.blockSaleWithoutStock) return '';
     if (product.control_stock === false) return '';
-    const availableStock = Math.max(0, Number(product.stock || 0));
+    const availableStock = Number(product.stock || 0);
 
     return availableStock < requestedQuantity
       ? `Estoque insuficiente para ${product.name || productName}. Disponivel: ${availableStock}, solicitado: ${requestedQuantity}.`

@@ -322,6 +322,7 @@ export default function PDV() {
   const {
     products,
     productPackagings,
+    blockSaleWithoutStock,
     clients,
     rewards,
     sales,
@@ -1907,12 +1908,13 @@ export default function PDV() {
       .filter(item => item.product.id === productId)
       .reduce((sum, item) => sum + item.quantity, 0), [cart]);
   const getInsufficientStockMessage = useCallback((product: Product, requestedQuantity: number) => {
+    if (!blockSaleWithoutStock) return '';
     if (product.control_stock === false) return '';
     const availableStock = Number(product.stock || 0);
     return availableStock < requestedQuantity
       ? `Estoque insuficiente para ${product.name}. Disponivel: ${availableStock}, solicitado: ${requestedQuantity}.`
       : '';
-  }, []);
+  }, [blockSaleWithoutStock]);
   const validateCartStock = () => {
     const productIds = new Set(cart.map(item => item.product.id));
     for (const productId of productIds) {

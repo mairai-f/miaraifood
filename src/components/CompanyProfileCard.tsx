@@ -3,6 +3,7 @@ import { Building2, FileBadge2, KeyRound, Loader2, Save } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { useAuth } from '@/contexts/AuthContext';
+import { useData } from '@/contexts/DataContext';
 import { usePlanAccess } from '@/contexts/PlanContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useCurrentSubscription } from '@/hooks/use-current-subscription';
@@ -20,6 +21,7 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
 import { maskDocument } from '../../shared/security/redaction';
 
 interface CompanyForm {
@@ -58,6 +60,7 @@ const toOptionalText = (value: string) => {
 
 export function CompanyProfileCard() {
   const { ownerUserId, user, isAdmin } = useAuth();
+  const { blockSaleWithoutStock, updateStoreOperationalSettings } = useData();
   const { planId } = usePlanAccess();
   const { subscription, loading: loadingSubscription } = useCurrentSubscription();
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -65,6 +68,7 @@ export function CompanyProfileCard() {
   const [form, setForm] = useState<CompanyForm>(defaultForm);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [savingStockPolicy, setSavingStockPolicy] = useState(false);
   const isDemoMode = planId === 'demo';
   const isDesktopRuntime = typeof window !== 'undefined' && Boolean(window.electronAPI);
 
@@ -229,6 +233,21 @@ export function CompanyProfileCard() {
     }
   };
 
+  const handleStockPolicyChange = async (nextValue: boolean) => {
+    setSavingStockPolicy(true);
+
+    try {
+      await updateStoreOperationalSettings({ blockSaleWithoutStock: nextValue });
+      toast.success(nextValue
+        ? 'Venda sem saldo voltou a ser bloqueada para produtos com controle de estoque.'
+        : 'Venda sem saldo liberada. O sistema pode levar o estoque para negativo.');
+    } catch {
+      toast.error('Nao foi possivel atualizar a politica de venda sem estoque agora.');
+    } finally {
+      setSavingStockPolicy(false);
+    }
+  };
+
   return (
     <Card>
       <CardHeader className="space-y-3">
@@ -341,6 +360,22 @@ export function CompanyProfileCard() {
               <p className="mt-1 text-sm text-muted-foreground">
                 O cupom vai usar o nome da empresa, mantendo a assinatura do sistema HappyCash no rodape.
               </p>
+            </div>
+
+            <div className="rounded-lg border border-border/70 bg-background/70 p-4">
+              <div className="flex items-center justify-between gap-4">
+                <div className="space-y-1">
+                  <p className="text-sm font-semibold">Travar venda sem saldo</p>
+                  <p className="text-sm text-muted-foreground">
+                    Ligado: produtos com controle de estoque travam no PDV e no fiado. Desligado: a venda pode levar o saldo para negativo.
+                  </p>
+                </div>
+                <Switch
+                  checked={blockSaleWithoutStock}
+                  disabled={loading || savingStockPolicy || !ownerUserId}
+                  onCheckedChange={(checked) => void handleStockPolicyChange(checked)}
+                />
+              </div>
             </div>
 
             <div className="rounded-lg border border-primary/15 bg-primary/5 p-4">
