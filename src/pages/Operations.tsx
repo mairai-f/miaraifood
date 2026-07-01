@@ -144,20 +144,6 @@ export default function Operations() {
     }
   }, [syncNow, syncing]);
 
-  useEffect(() => {
-    if (activeTab !== 'backup') return;
-
-    const handleBackupShortcut = (event: KeyboardEvent) => {
-      if (event.key !== 'F5' || event.ctrlKey || event.altKey || event.metaKey || event.repeat) return;
-      event.preventDefault();
-      event.stopPropagation();
-      void handleManualSync();
-    };
-
-    document.addEventListener('keydown', handleBackupShortcut, true);
-    return () => document.removeEventListener('keydown', handleBackupShortcut, true);
-  }, [activeTab, handleManualSync]);
-
   const [purchaseForm, setPurchaseForm] = useState({
     supplier_name: '',
     supplier_id: '',
@@ -1471,7 +1457,7 @@ export default function Operations() {
               </div>
               <Button onClick={() => void handleManualSync()} className="gap-2" disabled={syncing}>
                 {syncing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-                {syncing ? 'Sincronizando...' : 'Sincronizar agora (F5)'}
+                {syncing ? 'Sincronizando...' : 'Sincronizar agora'}
               </Button>
             </CardContent>
           </Card>

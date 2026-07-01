@@ -147,7 +147,7 @@ export default function Settings() {
   const { hasPermission } = usePermissions();
   const { hasFeature, planId } = usePlanAccess();
   const data = useData();
-  const { refetch } = data;
+  const { refetch, syncNow } = data;
   const { subscription, countdown, statusLabel, loading: loadingSubscription } = useCurrentSubscription();
   const { section: routeSection } = useParams<{ section?: string }>();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -167,6 +167,7 @@ export default function Settings() {
   const [offlineConflictCount, setOfflineConflictCount] = useState(0);
   const [offlineConflicts, setOfflineConflicts] = useState<OfflineConflictRecord[]>([]);
   const [loadingOfflineStatus, setLoadingOfflineStatus] = useState(false);
+  const [syncingOfflineNow, setSyncingOfflineNow] = useState(false);
   const [desktopUpdateStatus, setDesktopUpdateStatus] = useState<DesktopUpdateStatus | null>(null);
   const [checkingDesktopUpdate, setCheckingDesktopUpdate] = useState(false);
   const [restoreDialogOpen, setRestoreDialogOpen] = useState(false);
@@ -229,6 +230,23 @@ export default function Settings() {
     if (!isDesktop) return;
     return onDesktopUpdateStatus(setDesktopUpdateStatus);
   }, [isDesktop]);
+
+  const handleManualOfflineSync = useCallback(async () => {
+    if (!isDesktop || syncingOfflineNow) return;
+
+    setSyncingOfflineNow(true);
+
+    try {
+      await syncNow();
+      await loadOfflineRuntime();
+      toast.success('Sincronizacao do desktop atualizada.');
+    } catch (error) {
+      console.error('Nao foi possivel sincronizar o desktop agora:', getRedactedLogValue(error));
+      toast.error('Nao foi possivel sincronizar o desktop agora.');
+    } finally {
+      setSyncingOfflineNow(false);
+    }
+  }, [isDesktop, loadOfflineRuntime, syncNow, syncingOfflineNow]);
 
   const handleCreateDialogOpenChange = (open: boolean) => {
     const nextSearchParams = new URLSearchParams(searchParams);
@@ -870,6 +888,9 @@ export default function Settings() {
             )}
 
             <div className="flex flex-wrap gap-3">
+              <Button type="button" onClick={() => void handleManualOfflineSync()} disabled={syncingOfflineNow}>
+                {syncingOfflineNow ? 'Sincronizando desktop...' : 'Sincronizar desktop agora'}
+              </Button>
               <Button type="button" variant="outline" onClick={() => void loadOfflineRuntime()} disabled={loadingOfflineStatus}>
                 Atualizar status offline
               </Button>

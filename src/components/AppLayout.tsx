@@ -1,6 +1,6 @@
 import { ReactNode, useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Clock3, Home, Users, Package, LogOut, Menu, X, UserCircle, Receipt, Boxes, ChevronDown, ChevronUp, Settings, Database, Loader2, WifiOff, ClipboardList, HelpCircle, MapPin } from 'lucide-react';
+import { ArrowLeft, Clock3, Home, Users, Package, LogOut, Menu, X, UserCircle, Receipt, Boxes, ChevronDown, ChevronUp, Settings, Database, Loader2, WifiOff, ClipboardList, HelpCircle, MapPin, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import { useData } from '@/contexts/DataContext';
@@ -18,7 +18,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { DesktopOfflineAdminSetupDialog } from '@/components/DesktopOfflineAdminSetupDialog';
-import { getPublicErrorMessage } from '../../shared/security/redaction';
+import { getPublicErrorMessage, getRedactedLogValue } from '../../shared/security/redaction';
 import { readScopedCashSession } from '@/lib/cashSessionStorage';
 import {
   Dialog,
@@ -113,6 +113,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
     offlinePreparationMessage,
     offlineSnapshotUpdatedAt,
     refetch,
+    syncNow,
   } = useData();
   const {
     isDesktop,
@@ -139,6 +140,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
   const [offlineReminderOpen, setOfflineReminderOpen] = useState(false);
   const [offlineValidationStartedAt, setOfflineValidationStartedAt] = useState<string | null>(null);
   const [isOnline, setIsOnline] = useState(() => (typeof navigator === 'undefined' ? true : navigator.onLine));
+  const [syncingNow, setSyncingNow] = useState(false);
   const navRef = useRef<HTMLElement | null>(null);
   const [scrollHints, setScrollHints] = useState({ top: false, bottom: false });
   const isPdvMode = location.pathname === '/pdv';
@@ -211,6 +213,22 @@ export function AppLayout({ children }: { children: ReactNode }) {
     navigate('/configuracoes');
   };
 
+  const handleGlobalSync = useCallback(async () => {
+    if (syncingNow) return;
+
+    setSyncingNow(true);
+
+    try {
+      await syncNow();
+      toast.success(isDesktop ? 'Desktop e web atualizados.' : 'Dados atualizados.');
+    } catch (error) {
+      console.error('Nao foi possivel sincronizar pelo atalho global:', getRedactedLogValue(error));
+      toast.error('Nao foi possivel sincronizar agora.');
+    } finally {
+      setSyncingNow(false);
+    }
+  }, [isDesktop, syncNow, syncingNow]);
+
   const defaultOfflineAdminUsername = (username || user?.email || 'admin')
     .trim()
     .toLowerCase()
@@ -262,12 +280,22 @@ export function AppLayout({ children }: { children: ReactNode }) {
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (isPdvMode) return;
-      if (event.ctrlKey || event.altKey || event.metaKey) return;
       if (isEditableTarget(event.target)) return;
+      if (
+        event.altKey
+        && event.shiftKey
+        && !event.ctrlKey
+        && !event.metaKey
+        && event.key.toLowerCase() === 's'
+      ) {
+        event.preventDefault();
+        void handleGlobalSync();
+        return;
+      }
+      if (event.ctrlKey || event.altKey || event.metaKey) return;
       const pathByKey = visibleNavItems.reduce<Record<string, string>>((acc, item) => {
         if (!item.shortcut) return acc;
         acc[item.shortcut] = item.path;
-        acc[`F${item.shortcut}`] = item.path;
         return acc;
       }, {});
       const path = pathByKey[event.key];
@@ -279,7 +307,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isPdvMode, navigate, visibleNavItems]);
+  }, [handleGlobalSync, isPdvMode, navigate, visibleNavItems]);
 
   useEffect(() => {
     const nav = navRef.current;
@@ -671,6 +699,19 @@ export function AppLayout({ children }: { children: ReactNode }) {
           )}
 
           <div className="ml-auto flex shrink-0 items-center gap-1 sm:gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-9 gap-1.5 px-2 sm:px-3"
+              title="Sincronizar agora (Alt+Shift+S)"
+              onClick={() => void handleGlobalSync()}
+              disabled={syncingNow}
+            >
+              {syncingNow ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+              <span className="hidden sm:inline">{syncingNow ? 'Sincronizando...' : 'Sincronizar'}</span>
+              {!syncingNow && <span className="hidden xl:inline text-[10px] text-muted-foreground">Alt+Shift+S</span>}
+            </Button>
             {user && (
               <button
                 type="button"

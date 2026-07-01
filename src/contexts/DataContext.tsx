@@ -318,6 +318,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const isDemoMode = planId === 'demo';
   const canUseOfflineConcentrator = isDesktop && offlineEnabled && isOfflineConcentratorAvailable();
   const offlineSyncInFlightRef = useRef(false);
+  const lastPassiveRefreshAtRef = useRef(0);
 
   const clearStoreData = useCallback(() => {
     setClients([]);
@@ -599,6 +600,45 @@ export function DataProvider({ children }: { children: ReactNode }) {
   }, [authLoading, canUseOfflineConcentrator, clearStoreData, hasFeature, isDemoMode, isLocalOfflineSession, loadOfflineSnapshotFallback, operationalLocationId, ownerUserId, planLoading, user]);
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
+
+  useEffect(() => {
+    if (authLoading || planLoading || !user || isDemoMode) {
+      return;
+    }
+
+    const silentlyRefreshRemoteState = () => {
+      if (loading) return;
+      if (typeof navigator !== 'undefined' && navigator.onLine === false) return;
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
+
+      const now = Date.now();
+      if (now - lastPassiveRefreshAtRef.current < 10000) return;
+      lastPassiveRefreshAtRef.current = now;
+
+      void fetchAll({ silent: true });
+    };
+
+    const intervalId = window.setInterval(silentlyRefreshRemoteState, 20000);
+    const handleFocus = () => {
+      silentlyRefreshRemoteState();
+    };
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        silentlyRefreshRemoteState();
+      }
+    };
+
+    window.addEventListener('focus', handleFocus);
+    window.addEventListener('online', handleFocus);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      window.clearInterval(intervalId);
+      window.removeEventListener('focus', handleFocus);
+      window.removeEventListener('online', handleFocus);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [authLoading, fetchAll, isDemoMode, loading, planLoading, user]);
 
   useEffect(() => {
     if (!canUseOfflineConcentrator || !ownerUserId || loading || !user || isDemoMode) {
@@ -1274,17 +1314,21 @@ export function DataProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    const handleOnline = () => {
+    const handleRetry = () => {
       void syncOfflineQueue();
     };
+    const intervalId = window.setInterval(handleRetry, 30000);
 
     void cleanupOfflineData(ownerUserId);
 
-    window.addEventListener('online', handleOnline);
+    window.addEventListener('online', handleRetry);
+    window.addEventListener('focus', handleRetry);
     void syncOfflineQueue();
 
     return () => {
-      window.removeEventListener('online', handleOnline);
+      window.clearInterval(intervalId);
+      window.removeEventListener('online', handleRetry);
+      window.removeEventListener('focus', handleRetry);
     };
   }, [canUseOfflineConcentrator, isDemoMode, ownerUserId, syncOfflineQueue]);
 
