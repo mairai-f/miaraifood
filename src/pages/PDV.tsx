@@ -44,6 +44,7 @@ import { formatProductCode } from '@/lib/productCode';
 import { readDesktopActivation } from '@/lib/desktopActivation';
 import { buildDesktopFiscalAccessPayload, canUseDesktopFiscalModule } from '@/lib/fiscalAccess';
 import { getPublicErrorMessage, getRedactedLogValue } from '../../shared/security/redaction';
+import { requestTurnstileToken } from '../../shared/security/turnstile';
 import {
   type FiscalDocumentRecord,
   type FiscalRuntimeStatus,
@@ -3432,9 +3433,18 @@ export default function PDV() {
       return { ok: true as const, adminDb: db };
     }
 
+    let captchaToken: string | undefined;
+    try {
+      captchaToken = await requestTurnstileToken('app-admin-verification');
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'Nao foi possivel concluir a verificacao de seguranca.');
+      return { ok: false as const, adminDb: null };
+    }
+
     const { data: authData, error } = await adminVerificationClient.auth.signInWithPassword({
       email: normalizedLogin,
       password: normalizedSecret,
+      options: { captchaToken },
     });
 
     if (error) {

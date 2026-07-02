@@ -26,6 +26,7 @@ import { Eye, KeyRound, Pencil, Plus, Trash2, Users, Wallet } from 'lucide-react
 import type { Expense, Sale } from '@/types';
 import { getOperatorCredentialError, operatorCredentialHint } from '../../shared/security/operatorCredential';
 import { getPublicErrorMessage, getRedactedLogValue } from '../../shared/security/redaction';
+import { requestTurnstileToken } from '../../shared/security/turnstile';
 import { readDesktopActivation } from '@/lib/desktopActivation';
 import { saveOfflineOperatorAccess } from '@/lib/offlineOperatorAccess';
 import { OperatorPermissionSelector, type OperatorPermissionOption } from '@/components/OperatorPermissionSelector';
@@ -617,9 +618,11 @@ export function OperatorManagementPanel({
     setCloseCashError('');
 
     try {
+      const captchaToken = await requestTurnstileToken('app-admin-verification');
       const { data: authData, error: authError } = await adminVerificationClient.auth.signInWithPassword({
         email: normalizedAdminEmail,
         password: adminPassword,
+        options: { captchaToken },
       });
 
       if (authError || !authData.user?.id) {

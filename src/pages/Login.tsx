@@ -24,6 +24,7 @@ import { readOfflineAdminAccess } from '@/lib/offlineAdminAccess';
 import { LanguageSwitcher } from '../../shared/locale/LanguageSwitcher';
 import type { Database } from '@/integrations/supabase/types';
 import { getOperatorCredentialError } from '../../shared/security/operatorCredential';
+import { requestTurnstileToken } from '../../shared/security/turnstile';
 
 type LoginMode = 'admin' | 'operator';
 type AdminAccessMode = 'online' | 'offline';
@@ -279,9 +280,18 @@ export default function Login() {
     }
 
     setOperatorRecoveryBusy(true);
+    let captchaToken: string | undefined;
+    try {
+      captchaToken = await requestTurnstileToken('app-operator-recovery');
+    } catch (error) {
+      setOperatorRecoveryBusy(false);
+      toast.error(error instanceof Error ? error.message : 'Nao foi possivel concluir a verificacao de seguranca.');
+      return;
+    }
+
     const { error } = await operatorRecoveryClient.auth.signInWithOtp({
       email: normalizedEmail,
-      options: { shouldCreateUser: false },
+      options: { shouldCreateUser: false, captchaToken },
     });
     setOperatorRecoveryBusy(false);
 

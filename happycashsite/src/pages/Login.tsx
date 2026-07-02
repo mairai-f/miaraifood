@@ -20,6 +20,7 @@ import { isPublicPlanId, publicPlanContent } from '@/lib/subscriptionPlans';
 import logo from '@/assets/logo-happycash.webp';
 import { LanguageSwitcher } from '../../../shared/locale/LanguageSwitcher';
 import { getPublicAuthErrorMessage } from '../../../shared/security/redaction';
+import { requestTurnstileToken } from '../../../shared/security/turnstile';
 
 const resolveLoginErrorMessage = (error: unknown) => {
   const message = getPublicAuthErrorMessage(error, 'Nao foi possivel entrar agora.');
@@ -99,9 +100,11 @@ const Login = () => {
     setLoginError(null);
 
     try {
+      const captchaToken = await requestTurnstileToken('site-login');
       const { error } = await supabase.auth.signInWithPassword({
         email: normalizedEmail,
         password,
+        options: { captchaToken },
       });
 
       if (error) {
@@ -117,6 +120,10 @@ const Login = () => {
       applySiteSessionPreference(keepConnected);
       toast({ title: 'Bem-vindo de volta!' });
       navigate(nextPath || (selectedPlanQuery ? `/dashboard?${selectedPlanQuery}` : '/dashboard'));
+    } catch (error) {
+      const resolvedError = getPublicAuthErrorMessage(error, 'Nao foi possivel concluir a verificacao de seguranca.');
+      setLoginError(resolvedError);
+      toast({ title: 'Erro ao entrar', description: resolvedError, variant: 'destructive' });
     } finally {
       setLoading(false);
     }
@@ -134,8 +141,10 @@ const Login = () => {
 
     try {
       const normalizedResetEmail = normalizeEmail(resetEmail);
+      const captchaToken = await requestTurnstileToken('site-password-reset');
       const { error } = await supabase.auth.resetPasswordForEmail(normalizedResetEmail, {
         redirectTo: `${window.location.origin}/reset-password`,
+        captchaToken,
       });
 
       if (error) {
@@ -154,6 +163,9 @@ const Login = () => {
       });
       setResetOpen(false);
       setResetEmail(normalizedResetEmail);
+    } catch (error) {
+      const resolvedError = getPublicAuthErrorMessage(error, 'Nao foi possivel concluir a verificacao de seguranca.');
+      toast({ title: 'Erro ao enviar email', description: resolvedError, variant: 'destructive' });
     } finally {
       setResettingPassword(false);
     }

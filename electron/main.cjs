@@ -43,6 +43,8 @@ const APP_USER_MODEL_ID = PRODUCT_CONTEXT === 'happycashfood'
   ? 'com.happycash.food.desktop'
   : 'com.happycash.desktop';
 const HAPPYCASH_SITE_ORIGIN = (process.env.HAPPYCASH_SITE_ORIGIN || 'https://www.happycashsite.com.br').replace(/\/+$/, '');
+const HAPPYCASH_APP_ORIGIN = (process.env.HAPPYCASH_APP_ORIGIN || 'https://app.happycashsite.com.br').replace(/\/+$/, '');
+const DESKTOP_TURNSTILE_TIMEOUT_MS = 130_000;
 const VALID_UPDATE_CHANNELS = new Set(['latest', 'beta', 'alpha']);
 const OFFLINE_DB_FILENAME = PRODUCT_CONTEXT === 'happycashfood'
   ? 'happycashfood-concentrator.sqlite'
@@ -56,6 +58,7 @@ const OFFLINE_DB_SCHEMA_VERSION = 2;
 const OFFLINE_SYNC_RETENTION_DAYS = Number.parseInt(process.env.HAPPYCASH_OFFLINE_SYNC_RETENTION_DAYS || '30', 10);
 const OFFLINE_CONFLICT_RETENTION_DAYS = Number.parseInt(process.env.HAPPYCASH_OFFLINE_CONFLICT_RETENTION_DAYS || '30', 10);
 let offlineDb = null;
+const pendingTurnstileRequests = new Map();
 let updateState = {
   status: isDevelopment ? 'disabled' : 'idle',
   channel: null,
@@ -1174,6 +1177,136 @@ const setupAutoUpdates = (mainWindow) => {
   });
 };
 
+const normalizeTurnstileAction = (value) => {
+  const normalized = String(value || 'desktop-auth')
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]/g, '-')
+    .slice(0, 32);
+  return normalized || 'desktop-auth';
+};
+
+const getDesktopTurnstileUrl = (action) => {
+  const url = new URL('/desktop-turnstile', HAPPYCASH_APP_ORIGIN);
+  if (url.protocol !== 'https:') {
+    throw new Error('A verificacao do Desktop exige o dominio HTTPS oficial do HappyCash.');
+  }
+  url.searchParams.set('action', normalizeTurnstileAction(action));
+  return url.toString();
+};
+
+const finishTurnstileRequest = (webContentsId, result) => {
+  const pending = pendingTurnstileRequests.get(webContentsId);
+  if (!pending) return;
+  pending.finish(result);
+};
+
+const requestDesktopTurnstileToken = (sender, action) => {
+  if (PRODUCT_CONTEXT !== 'happycash') {
+    return Promise.resolve({
+      success: false,
+      error: 'A verificacao Turnstile esta habilitada somente no HappyCash Desktop.',
+    });
+  }
+
+  let challengeUrl;
+  try {
+    challengeUrl = getDesktopTurnstileUrl(action);
+  } catch (error) {
+    return Promise.resolve({
+      success: false,
+      error: error instanceof Error ? error.message : 'Configuracao HTTPS invalida para a verificacao.',
+    });
+  }
+
+  const parentWindow = BrowserWindow.fromWebContents(sender) ?? undefined;
+  const challengeWindow = new BrowserWindow({
+    parent: parentWindow,
+    modal: Boolean(parentWindow),
+    show: false,
+    width: 460,
+    height: 620,
+    minWidth: 400,
+    minHeight: 520,
+    autoHideMenuBar: true,
+    backgroundColor: '#050505',
+    title: 'Verificacao de seguranca - HappyCash',
+    webPreferences: {
+      preload: path.join(__dirname, 'turnstile-preload.cjs'),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+    },
+  });
+  const webContentsId = challengeWindow.webContents.id;
+
+  challengeWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+  challengeWindow.webContents.on('will-navigate', (event, navigationUrl) => {
+    if (navigationUrl !== challengeUrl) event.preventDefault();
+  });
+
+  return new Promise((resolve) => {
+    let settled = false;
+    const timeoutId = setTimeout(() => {
+      finishTurnstileRequest(webContentsId, {
+        success: false,
+        error: 'A verificacao de seguranca expirou. Tente novamente.',
+      });
+    }, DESKTOP_TURNSTILE_TIMEOUT_MS);
+
+    const finish = (result) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeoutId);
+      pendingTurnstileRequests.delete(webContentsId);
+      if (!challengeWindow.isDestroyed()) challengeWindow.close();
+      resolve(result);
+    };
+
+    pendingTurnstileRequests.set(webContentsId, { finish });
+    challengeWindow.once('closed', () => {
+      finish({ success: false, error: 'A verificacao de seguranca foi cancelada.' });
+    });
+    challengeWindow.webContents.once('did-fail-load', (_event, _code, description) => {
+      finish({
+        success: false,
+        error: description || 'Nao foi possivel abrir a verificacao de seguranca.',
+      });
+    });
+    challengeWindow.once('ready-to-show', () => {
+      if (!challengeWindow.isDestroyed()) challengeWindow.show();
+    });
+
+    void challengeWindow.loadURL(challengeUrl).catch((error) => {
+      finish({
+        success: false,
+        error: error instanceof Error ? error.message : 'Nao foi possivel abrir a verificacao de seguranca.',
+      });
+    });
+  });
+};
+
+ipcMain.on('turnstile:complete', (event, token) => {
+  const normalizedToken = typeof token === 'string' ? token.trim() : '';
+  if (normalizedToken.length < 10 || normalizedToken.length > 4096) {
+    finishTurnstileRequest(event.sender.id, {
+      success: false,
+      error: 'A verificacao de seguranca retornou um token invalido.',
+    });
+    return;
+  }
+
+  finishTurnstileRequest(event.sender.id, { success: true, token: normalizedToken });
+});
+
+ipcMain.on('turnstile:cancel', (event, message) => {
+  finishTurnstileRequest(event.sender.id, {
+    success: false,
+    error: typeof message === 'string' && message.trim()
+      ? message.trim().slice(0, 240)
+      : 'A verificacao de seguranca foi cancelada.',
+  });
+});
+
 const createMainWindow = async () => {
   const mainWindow = new BrowserWindow({
     show: false,
@@ -1251,6 +1384,10 @@ ipcMain.on('open-external-url', (event, url) => {
   shell.openExternal(url);
   event.returnValue = true;
 });
+
+ipcMain.handle('turnstile:request', (event, payload) => (
+  requestDesktopTurnstileToken(event.sender, payload?.action)
+));
 
 ipcMain.handle('print-html', async (_event, html) => {
   return printHtml(html);

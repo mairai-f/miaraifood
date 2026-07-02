@@ -18,6 +18,7 @@ import {
   type DesktopActivationRecord,
 } from "@/lib/desktopActivation";
 import { LocaleProvider } from "../shared/locale/LocaleContext";
+import DesktopTurnstileChallenge from "@/pages/DesktopTurnstileChallenge";
 
 const queryClient = new QueryClient();
 const Router = typeof window !== "undefined" && window.location.protocol === "file:" ? HashRouter : BrowserRouter;
@@ -125,24 +126,30 @@ function AppRoutes() {
   );
 }
 
-const App = () => (
-  <LocaleProvider>
-    <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <AuthProvider>
-          <DesktopRuntimeProvider>
-            <PlanProvider>
-              <Router>
-                <AppRoutes />
-              </Router>
-            </PlanProvider>
-          </DesktopRuntimeProvider>
-        </AuthProvider>
-      </TooltipProvider>
-    </QueryClientProvider>
-  </LocaleProvider>
-);
+const App = () => {
+  if (typeof window !== "undefined" && window.location.pathname === "/desktop-turnstile") {
+    return <DesktopTurnstileChallenge />;
+  }
+
+  return (
+    <LocaleProvider>
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+          <Toaster />
+          <Sonner />
+          <AuthProvider>
+            <DesktopRuntimeProvider>
+              <PlanProvider>
+                <Router>
+                  <AppRoutes />
+                </Router>
+              </PlanProvider>
+            </DesktopRuntimeProvider>
+          </AuthProvider>
+        </TooltipProvider>
+      </QueryClientProvider>
+    </LocaleProvider>
+  );
+};
 
 export default App;

@@ -44,6 +44,7 @@ import {
 } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import { getPublicErrorMessage, getRedactedLogValue } from '../../shared/security/redaction';
+import { requestTurnstileToken } from '../../shared/security/turnstile';
 import { isRuntimeScopeAllowed, type ErpPermissionKey, type RuntimeScope } from '@/lib/permissions';
 import { canUseDesktopFiscalModule } from '@/lib/fiscalAccess';
 import { readDesktopActivation } from '@/lib/desktopActivation';
@@ -575,9 +576,11 @@ export default function Settings() {
     setRestoreError('');
 
     try {
+      const captchaToken = await requestTurnstileToken('app-backup-restore');
       const { error: authError } = await supabase.auth.signInWithPassword({
         email: restoreAdminEmail.trim(),
         password: restoreAdminPassword,
+        options: { captchaToken },
       });
 
       if (authError) {

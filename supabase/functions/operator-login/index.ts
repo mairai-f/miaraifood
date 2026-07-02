@@ -11,6 +11,7 @@ type OperatorLoginRequest = {
   username?: string;
   password?: string;
   ownerUserId?: string | null;
+  captchaToken?: string;
 };
 
 type OperatorProfileRow = {
@@ -164,6 +165,7 @@ Deno.serve(async (request) => {
   const normalizedUsername = normalizeOperatorUsername(body?.username ?? '');
   const password = body?.password?.trim();
   const ownerUserId = body?.ownerUserId?.trim() || null;
+  const captchaToken = body?.captchaToken?.trim() || undefined;
   const origin = request.headers.get('origin');
   const userAgent = request.headers.get('user-agent');
   const clientIp = extractClientIp(request);
@@ -317,6 +319,7 @@ Deno.serve(async (request) => {
         const { data: sessionData, error: loginError } = await authClient.auth.signInWithPassword({
           email: operatorEmail,
           password: authPassword,
+          options: { captchaToken },
         });
 
         if (loginError || !sessionData.session) {

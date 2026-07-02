@@ -2,6 +2,7 @@
 
 interface ImportMetaEnv {
   readonly VITE_SUPABASE_AUTH_URL?: string;
+  readonly VITE_TURNSTILE_SITE_KEY?: string;
 }
 
 interface Window {
@@ -34,6 +35,13 @@ interface Window {
         error?: string | null;
       }>;
     };
+    turnstile?: {
+      requestToken: (action: string) => Promise<{
+        success: boolean;
+        token?: string;
+        error?: string;
+      }>;
+    };
     app?: {
       getRuntimeInfo: () => Promise<{
         appVersion: string;
@@ -62,5 +70,9 @@ interface Window {
       cleanupData: (payload: unknown) => Promise<unknown>;
       getStatus: (payload: unknown) => Promise<unknown>;
     };
+  };
+  desktopTurnstile?: {
+    complete: (token: string) => void;
+    cancel: (message: string) => void;
   };
 }

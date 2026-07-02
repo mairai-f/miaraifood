@@ -13,6 +13,7 @@ import { verifyOfflineAdminAccess } from '@/lib/offlineAdminAccess';
 import { saveOfflineOperatorAccess, verifyOfflineOperatorAccess } from '@/lib/offlineOperatorAccess';
 import { isDesktopRuntime, isProbablyOfflineError } from '@/lib/offlineConcentrator';
 import { getPasskeyErrorMessage, getPasskeySupportErrorMessage, type PasskeyEntry } from '@/lib/passkeys';
+import { requestTurnstileToken } from '../../shared/security/turnstile';
 import { getPasswordPolicyError } from '../../shared/security/passwordPolicy';
 import { getPublicAuthErrorMessage, getPublicErrorMessage, getRedactedLogValue } from '../../shared/security/redaction';
 import { normalizeProductContext, type ProductContext } from '../../shared/productContext';
@@ -512,7 +513,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [fetchProfile]);
 
   const login = async (email: string, password: string): Promise<string | true> => {
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    let captchaToken: string | undefined;
+    try {
+      captchaToken = await requestTurnstileToken('app-login');
+    } catch (error) {
+      return getPublicAuthErrorMessage(error, 'Nao foi possivel concluir a verificacao de seguranca.');
+    }
+
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+      options: { captchaToken },
+    });
     if (error || !data.user) return getPublicAuthErrorMessage(error, 'Nao foi possivel iniciar a sessao.');
 
     return validateSignedInAdminSession(data.user);
@@ -655,11 +667,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return tryOfflineOperatorLogin();
     }
 
+    let captchaToken: string | undefined;
+    try {
+      captchaToken = await requestTurnstileToken('app-operator-login');
+    } catch (error) {
+      return getPublicAuthErrorMessage(error, 'Nao foi possivel concluir a verificacao de seguranca.');
+    }
+
     const { data, error } = await supabase.functions.invoke<OperatorLoginResponse>('operator-login', {
       body: {
         username,
         password,
         ownerUserId: activation?.ownerUserId ?? null,
+        captchaToken,
       },
     }).catch((error) => ({ data: null, error }));
 
@@ -746,10 +766,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .eq('role', 'admin');
     if ((count ?? 0) >= 2) return 'Limite de 2 administradores atingido.';
 
+    let captchaToken: string | undefined;
+    try {
+      captchaToken = await requestTurnstileToken('app-signup');
+    } catch (error) {
+      return getPublicAuthErrorMessage(error, 'Nao foi possivel concluir a verificacao de seguranca.');
+    }
+
     const { error } = await supabase.auth.signUp({
       email,
       password,
-      options: { data: { username: uname, role: 'admin' } }
+      options: { data: { username: uname, role: 'admin' }, captchaToken }
     });
     if (error) return getPublicErrorMessage(error, 'Nao foi possivel criar o administrador.');
     return true;
@@ -796,8 +823,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const resetPassword = async (email: string): Promise<boolean> => {
+    let captchaToken: string | undefined;
+    try {
+      captchaToken = await requestTurnstileToken('app-password-reset');
+    } catch {
+      return false;
+    }
+
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/reset-password`
+      redirectTo: `${window.location.origin}/reset-password`,
+      captchaToken,
     });
     return !error;
   };

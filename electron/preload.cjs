@@ -14,6 +14,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   fiscal: {
     archiveDocument: (payload) => ipcRenderer.invoke('fiscal:archive-document', payload),
   },
+  turnstile: {
+    requestToken: (action) => ipcRenderer.invoke('turnstile:request', { action }),
+  },
   app: {
     getRuntimeInfo: () => ipcRenderer.invoke('app:get-runtime-info'),
     getUpdateStatus: () => ipcRenderer.invoke('app:get-update-status'),

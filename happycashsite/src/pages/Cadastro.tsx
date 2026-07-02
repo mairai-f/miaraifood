@@ -12,6 +12,7 @@ import { isPublicPlanId, publicPlanContent } from "@/lib/subscriptionPlans";
 import logo from "@/assets/logo-happycash.webp";
 import { Eye, EyeOff, Loader2, PlayCircle, UserPlus } from "lucide-react";
 import { getPasswordPolicyError, passwordPolicyHint } from "../../../shared/security/passwordPolicy";
+import { requestTurnstileToken } from "../../../shared/security/turnstile";
 
 interface RegisterAccountResponse {
   success?: boolean;
@@ -156,6 +157,7 @@ const Cadastro = () => {
 
     setLoading(true);
     try {
+      const captchaToken = await requestTurnstileToken("site-signup");
       const { data, error } = await supabase.functions.invoke<RegisterAccountResponse>("register-account", {
         body: {
           email,
@@ -176,6 +178,7 @@ const Cadastro = () => {
           estado,
           redirectTo: createSiteUrl(emailConfirmPath),
           website,
+          captchaToken,
         },
       });
 
