@@ -75,6 +75,19 @@ const ensureSuccess = <T extends { error?: unknown }>(result: T) => {
   return result;
 };
 
+const isMissingRpcError = (error: unknown, functionName?: string) => {
+  if (!error || typeof error !== 'object') return false;
+
+  const code = 'code' in error && typeof error.code === 'string' ? error.code : '';
+  const message = 'message' in error && typeof error.message === 'string' ? error.message : '';
+  const details = 'details' in error && typeof error.details === 'string' ? error.details : '';
+
+  if (code !== 'PGRST202') return false;
+  if (!functionName) return true;
+
+  return `${message} ${details}`.toLowerCase().includes(functionName.toLowerCase());
+};
+
 class OfflineSyncConflictError extends Error {
   readonly operationType: OfflineOperationType;
 
@@ -514,10 +527,15 @@ export function DataProvider({ children }: { children: ReactNode }) {
       canReadPricing ? db.from('product_price_history').select('*').order('created_at', { ascending: false }).limit(1000) : emptyResult,
     ]);
 
+    const canFallbackOperationalSettings = isMissingRpcError(settings.error, 'get_store_operational_settings');
     const remoteErrors = [settings, c, p, pkg, inventory, d, pay, r, s, si, st, sti, sm, exp, pr, ph]
       .map(result => result.error)
-      .filter(Boolean);
+      .filter(error => Boolean(error) && !isMissingRpcError(error, 'get_store_operational_settings'));
     const hasRemoteError = remoteErrors.length > 0;
+
+    if (canFallbackOperationalSettings) {
+      console.warn('RPC get_store_operational_settings ausente no banco remoto; usando block_sale_without_stock=true por padrao.');
+    }
 
     if (hasRemoteError) {
       if (shouldUseOfflineSnapshotFallback(remoteErrors)) {
@@ -547,7 +565,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
         ? { ...product, stock: Number(localInventory.stock || 0), min_stock: Number(localInventory.min_stock || 0) }
         : product;
     });
-    const nextBlockSaleWithoutStock = Boolean(settings.data?.block_sale_without_stock ?? true);
+    const nextBlockSaleWithoutStock = canFallbackOperationalSettings
+      ? true
+      : Boolean(settings.data?.block_sale_without_stock ?? true);
     const nextProductPackagings = (pkg.data as ProductPackaging[]) ?? [];
     const nextDebtEntries = (d.data as DebtEntry[]) ?? [];
     const nextPayments = (pay.data as Payment[]) ?? [];

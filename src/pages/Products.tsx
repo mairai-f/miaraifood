@@ -58,7 +58,14 @@ interface DraftPackaging {
 }
 
 export default function Products() {
-  const { products, addProduct, updateProduct, deleteProduct } = useData();
+  const {
+    products,
+    addProduct,
+    updateProduct,
+    deleteProduct,
+    blockSaleWithoutStock,
+    updateStoreOperationalSettings,
+  } = useData();
   const { session, user, ownerUserId } = useAuth();
   const { hasPermission } = usePermissions();
   const { scope: operationalScope } = useOperationalScope();
@@ -124,9 +131,11 @@ export default function Products() {
   const [approvalPassword, setApprovalPassword] = useState('');
   const [approvalError, setApprovalError] = useState('');
   const [approvalLoading, setApprovalLoading] = useState(false);
+  const [savingStockPolicy, setSavingStockPolicy] = useState(false);
   const [pendingSave, setPendingSave] = useState<{ id: string; data: Partial<Product> } | null>(null);
   // A rota exige products.view; esta permissao adicional libera as mutacoes.
   const readOnly = !hasPermission('products.manage');
+  const canManageStockPolicy = hasPermission('settings.manage');
   // Faixas sao administradas apenas no Web; o Desktop usa o preco principal
   // e recebe somente o resultado operacional, mantendo o bundle e o fluxo leves.
   const canManagePricing = !isDesktop && hasPermission('pricing.manage');
@@ -576,6 +585,21 @@ export default function Products() {
     setPackagingRows((current) => current.filter((row) => row.draftId !== draftId));
   };
 
+  const handleStockPolicyChange = async (nextValue: boolean) => {
+    setSavingStockPolicy(true);
+
+    try {
+      await updateStoreOperationalSettings({ blockSaleWithoutStock: nextValue });
+      toast.success(nextValue
+        ? 'Venda sem saldo voltou a ser bloqueada para produtos com controle de estoque.'
+        : 'Venda sem saldo liberada. O sistema pode levar o estoque para negativo.');
+    } catch {
+      toast.error('Nao foi possivel atualizar a politica de venda sem estoque agora.');
+    } finally {
+      setSavingStockPolicy(false);
+    }
+  };
+
   return (
     <div>
       <div className="flex items-center justify-between mb-4 gap-3" data-tour-id="products-header">
@@ -799,6 +823,27 @@ export default function Products() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {canManageStockPolicy && (
+        <Card className="mb-4">
+          <CardContent className="pt-6">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="space-y-1">
+                <p className="text-sm font-semibold">Travar venda sem saldo</p>
+                <p className="text-sm text-muted-foreground">
+                  Ligado: qualquer produto com controle de estoque trava no PDV e no fiado quando zerar.
+                  Desligado: a venda pode levar o saldo para negativo.
+                </p>
+              </div>
+              <Switch
+                checked={blockSaleWithoutStock}
+                disabled={savingStockPolicy || !ownerUserId}
+                onCheckedChange={(checked) => void handleStockPolicyChange(checked)}
+              />
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <div className="relative mb-4" data-tour-id="products-search">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />

@@ -12,6 +12,7 @@ import { getActivatedDesktopOwnerUserId, readDesktopActivation } from '@/lib/des
 import { verifyOfflineAdminAccess } from '@/lib/offlineAdminAccess';
 import { saveOfflineOperatorAccess, verifyOfflineOperatorAccess } from '@/lib/offlineOperatorAccess';
 import { isDesktopRuntime, isProbablyOfflineError } from '@/lib/offlineConcentrator';
+import { getPasskeyErrorMessage, getPasskeySupportErrorMessage, type PasskeyEntry } from '@/lib/passkeys';
 import { getPasswordPolicyError } from '../../shared/security/passwordPolicy';
 import { getPublicAuthErrorMessage, getPublicErrorMessage, getRedactedLogValue } from '../../shared/security/redaction';
 import { normalizeProductContext, type ProductContext } from '../../shared/productContext';
@@ -60,9 +61,13 @@ interface AuthContextType {
   isOperator: boolean;
   login: (email: string, password: string) => Promise<string | true>;
   signInWithGoogle: () => Promise<string | true>;
+  signInWithPasskey: () => Promise<string | true>;
   loginOfflineAdmin: (username: string, pin: string) => Promise<string | true>;
   loginOperator: (username: string, password: string) => Promise<string | true>;
   register: (email: string, password: string, username: string) => Promise<string | true>;
+  registerPasskey: () => Promise<PasskeyEntry>;
+  listPasskeys: () => Promise<PasskeyEntry[]>;
+  deletePasskey: (passkeyId: string) => Promise<void>;
   resetPassword: (email: string) => Promise<boolean>;
   logout: () => Promise<void>;
   isAuthenticated: boolean;
@@ -481,18 +486,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, [session?.access_token, user]);
 
-  const login = async (email: string, password: string): Promise<string | true> => {
+  const validateSignedInAdminSession = useCallback(async (signedInUser: User) => {
     const activation = readDesktopActivation();
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error || !data.user) return getPublicAuthErrorMessage(error, 'Nao foi possivel iniciar a sessao.');
 
     try {
-      const profile = await fetchProfile(data.user);
-      if (activation?.ownerUserId) {
-        if ((profile.owner_user_id ?? data.user.id) !== activation.ownerUserId) {
-          await supabase.auth.signOut({ scope: 'local' });
-          return `Este login nao pertence a empresa ativada neste desktop: ${activation.companyName}.`;
-        }
+      const profile = await fetchProfile(signedInUser);
+      if (activation?.ownerUserId && (profile.owner_user_id ?? signedInUser.id) !== activation.ownerUserId) {
+        await supabase.auth.signOut({ scope: 'local' });
+        return `Este login nao pertence a empresa ativada neste desktop: ${activation.companyName}.`;
       }
     } catch (activationError) {
       await supabase.auth.signOut({ scope: 'local' });
@@ -508,6 +509,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     return true;
+  }, [fetchProfile]);
+
+  const login = async (email: string, password: string): Promise<string | true> => {
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error || !data.user) return getPublicAuthErrorMessage(error, 'Nao foi possivel iniciar a sessao.');
+
+    return validateSignedInAdminSession(data.user);
+  };
+
+  const signInWithPasskey = async (): Promise<string | true> => {
+    const supportError = getPasskeySupportErrorMessage();
+    if (supportError) return supportError;
+
+    const { data, error } = await supabase.auth.signInWithPasskey();
+    if (error || !data.user) {
+      return getPasskeyErrorMessage(error, 'Nao foi possivel iniciar o login com biometria.');
+    }
+
+    return validateSignedInAdminSession(data.user);
   };
 
   const signInWithGoogle = async (): Promise<string | true> => {
@@ -735,6 +755,46 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return true;
   };
 
+  const registerPasskey = async () => {
+    const supportError = getPasskeySupportErrorMessage();
+    if (supportError) {
+      throw new Error(supportError);
+    }
+
+    const { data, error } = await supabase.auth.registerPasskey();
+    if (error || !data) {
+      throw new Error(getPasskeyErrorMessage(error, 'Nao foi possivel cadastrar a biometria.'));
+    }
+
+    return data;
+  };
+
+  const listPasskeys = async () => {
+    const supportError = getPasskeySupportErrorMessage();
+    if (supportError) {
+      throw new Error(supportError);
+    }
+
+    const { data, error } = await supabase.auth.passkey.list();
+    if (error || !data) {
+      throw new Error(getPasskeyErrorMessage(error, 'Nao foi possivel carregar as biometrias cadastradas.'));
+    }
+
+    return data;
+  };
+
+  const deletePasskey = async (passkeyId: string) => {
+    const supportError = getPasskeySupportErrorMessage();
+    if (supportError) {
+      throw new Error(supportError);
+    }
+
+    const { error } = await supabase.auth.passkey.delete({ passkeyId });
+    if (error) {
+      throw new Error(getPasskeyErrorMessage(error, 'Nao foi possivel remover esta biometria.'));
+    }
+  };
+
   const resetPassword = async (email: string): Promise<boolean> => {
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
       redirectTo: `${window.location.origin}/reset-password`
@@ -772,9 +832,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isOperator: role === 'operator',
         login,
         signInWithGoogle,
+        signInWithPasskey,
         loginOfflineAdmin,
         loginOperator,
         register,
+        registerPasskey,
+        listPasskeys,
+        deletePasskey,
         resetPassword,
         logout,
         isAuthenticated: !!user,

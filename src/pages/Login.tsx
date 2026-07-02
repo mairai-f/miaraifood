@@ -10,7 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Eye, EyeOff, Loader2 } from 'lucide-react';
+import { Eye, EyeOff, Fingerprint, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import happyCashLogo from '@/assets/happycash-logo.webp';
 import {
@@ -19,6 +19,7 @@ import {
   saveSystemLoginPreferences,
 } from '@/lib/authSessionPreferences';
 import { clearDesktopActivation, readDesktopActivation } from '@/lib/desktopActivation';
+import { getPasskeySupportErrorMessage } from '@/lib/passkeys';
 import { readOfflineAdminAccess } from '@/lib/offlineAdminAccess';
 import { LanguageSwitcher } from '../../shared/locale/LanguageSwitcher';
 import type { Database } from '@/integrations/supabase/types';
@@ -81,10 +82,13 @@ export default function Login() {
   const [keepConnected, setKeepConnected] = useState(initialPreferences.keepConnected);
   const [submitting, setSubmitting] = useState(false);
   const [oauthSubmitting, setOauthSubmitting] = useState(false);
+  const [passkeySubmitting, setPasskeySubmitting] = useState(false);
   const [resettingPassword, setResettingPassword] = useState(false);
-  const { login, signInWithGoogle, loginOfflineAdmin, loginOperator, resetPassword } = useAuth();
+  const { login, signInWithGoogle, signInWithPasskey, loginOfflineAdmin, loginOperator, resetPassword } = useAuth();
   const isDesktop = typeof window !== 'undefined' && Boolean(window.electronAPI);
+  const passkeySupportError = getPasskeySupportErrorMessage();
   const canUseGoogleLogin = adminAccessMode === 'online' && typeof window !== 'undefined' && /^https?:$/.test(window.location.protocol);
+  const canUsePasskeyLogin = adminAccessMode === 'online' && !passkeySupportError;
 
   const [resetOpen, setResetOpen] = useState(false);
   const [resetEmail, setResetEmail] = useState('');
@@ -222,6 +226,32 @@ export default function Login() {
     if (result !== true) {
       setOauthSubmitting(false);
       toast.error(result || 'Nao foi possivel iniciar o login com Google.');
+    }
+  };
+
+  const handlePasskeyLogin = async () => {
+    if (passkeySubmitting || !canUsePasskeyLogin) return;
+
+    saveSystemLoginPreferences({
+      loginMode: 'admin',
+      rememberAccount,
+      keepConnected,
+      adminEmail: email,
+      operatorUsername,
+    });
+
+    setPasskeySubmitting(true);
+
+    try {
+      const result = await signInWithPasskey();
+      if (result !== true) {
+        toast.error(result || 'Nao foi possivel iniciar o login com biometria.');
+        return;
+      }
+
+      applySystemSessionPreference(keepConnected);
+    } finally {
+      setPasskeySubmitting(false);
     }
   };
 
@@ -584,7 +614,7 @@ export default function Login() {
                     <Button
                       type="submit"
                       className="h-9 w-full px-4 text-center text-sm font-semibold text-black hover:bg-yellow-300 sm:h-10 bg-yellow-400"
-                      disabled={submitting || oauthSubmitting || (adminAccessMode === 'offline' && !offlineAdminAvailable)}
+                      disabled={submitting || oauthSubmitting || passkeySubmitting || (adminAccessMode === 'offline' && !offlineAdminAvailable)}
                     >
                       {submitting ? (
                         <>
@@ -595,12 +625,38 @@ export default function Login() {
                         'Entrar'
                       )}
                     </Button>
+                    {canUsePasskeyLogin && (
+                      <>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="h-9 w-full border-yellow-400/30 bg-transparent text-sm font-semibold text-foreground hover:bg-yellow-400/10 sm:h-10"
+                          disabled={submitting || oauthSubmitting || passkeySubmitting}
+                          onClick={() => void handlePasskeyLogin()}
+                        >
+                          {passkeySubmitting ? (
+                            <>
+                              <Loader2 className="mr-2 animate-spin" />
+                              Validando biometria...
+                            </>
+                          ) : (
+                            <>
+                              <Fingerprint className="mr-2 h-4 w-4" />
+                              Entrar com biometria
+                            </>
+                          )}
+                        </Button>
+                        <p className="px-1 text-[10px] leading-snug text-muted-foreground sm:text-[11px]">
+                          Use depois de cadastrar a biometria em Configuracoes &gt; Empresa.
+                        </p>
+                      </>
+                    )}
                     {canUseGoogleLogin && (
                       <Button
                         type="button"
                         variant="outline"
                         className="h-9 w-full border-yellow-400/30 bg-transparent text-sm font-semibold text-foreground hover:bg-yellow-400/10 sm:h-10"
-                        disabled={submitting || oauthSubmitting}
+                        disabled={submitting || oauthSubmitting || passkeySubmitting}
                         onClick={() => void handleGoogleLogin()}
                       >
                         {oauthSubmitting ? (

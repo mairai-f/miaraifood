@@ -2,6 +2,7 @@ import { lazy, Suspense, useCallback, useEffect, useMemo, useState, type ChangeE
 import { BarChart3, Building2, Calculator, ChevronRight, ClipboardList, Clock3, DatabaseBackup, Download, FileText, Gift, Laptop, Loader2, MapPinned, PackageSearch, Settings as SettingsIcon, Shield, ShieldAlert, Trash2, UserRoundCog, WalletCards } from 'lucide-react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { CompanyProfileCard } from '@/components/CompanyProfileCard';
+import { PasskeySettingsCard } from '@/components/PasskeySettingsCard';
 import { PrinterSettingsCard } from '@/components/PrinterSettingsCard';
 import { OperatorManagementPanel } from '@/components/OperatorManagementPanel';
 import { useAuth } from '@/contexts/AuthContext';
@@ -977,6 +978,7 @@ export default function Settings() {
       {activeSettingsSection === 'empresa' && (
         <>
           <CompanyProfileCard />
+          <PasskeySettingsCard />
           <PrinterSettingsCard />
         </>
       )}

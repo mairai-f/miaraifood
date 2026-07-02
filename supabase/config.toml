@@ -33,6 +33,19 @@ otp_expiry = 3600
 subject = "Codigo de recuperacao HappyCash"
 content_path = "./supabase/templates/magic-link.html"
 
+[auth.passkey]
+enabled = true
+
+[auth.webauthn]
+rp_display_name = "HappyCash"
+rp_id = "happycashsite.com.br"
+rp_origins = [
+  "https://www.happycashsite.com.br",
+  "https://app.happycashsite.com.br",
+  "https://food.happycashsite.com.br",
+  "https://agenda.happycashsite.com.br",
+]
+
 [auth.external.apple]
 skip_nonce_check = true
 email_optional = true
@@ -95,3 +108,6 @@ verify_jwt = false
 
 [functions.send-agenda-reminders]
 verify_jwt = false
+
+[vector]
+enabled = false
