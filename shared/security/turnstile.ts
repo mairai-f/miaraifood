@@ -5,8 +5,8 @@ const TURNSTILE_TIMEOUT_MS = 120_000;
 interface TurnstileRenderOptions {
   sitekey: string;
   action: string;
-  appearance: 'interaction-only';
-  execution: 'execute';
+  appearance: 'interaction-only' | 'always';
+  execution: 'execute' | 'render';
   theme: 'auto';
   size: 'flexible';
   callback: (token: string) => void;
@@ -88,7 +88,14 @@ const normalizeAction = (action: string) => {
   return normalized || 'auth';
 };
 
-export const requestTurnstileToken = async (action: string): Promise<string | undefined> => {
+interface TurnstileRequestOptions {
+  visible?: boolean;
+}
+
+export const requestTurnstileToken = async (
+  action: string,
+  options: TurnstileRequestOptions = {},
+): Promise<string | undefined> => {
   if (typeof window !== 'undefined' && window.electronAPI?.turnstile?.requestToken) {
     const result = await window.electronAPI.turnstile.requestToken(normalizeAction(action));
     if (result.success && result.token) return result.token;
@@ -150,11 +157,12 @@ export const requestTurnstileToken = async (action: string): Promise<string | un
       finish(undefined, 'A verificacao de seguranca expirou. Tente novamente.');
     }, TURNSTILE_TIMEOUT_MS);
 
+    const execution = options.visible ? 'render' : 'execute';
     widgetId = turnstile.render(container, {
       sitekey,
       action: normalizeAction(action),
-      appearance: 'interaction-only',
-      execution: 'execute',
+      appearance: options.visible ? 'always' : 'interaction-only',
+      execution,
       theme: 'auto',
       size: 'flexible',
       callback: token => finish(token),
@@ -166,6 +174,6 @@ export const requestTurnstileToken = async (action: string): Promise<string | un
       'timeout-callback': () => finish(undefined, 'A verificacao de seguranca expirou. Tente novamente.'),
     });
 
-    turnstile.execute(widgetId);
+    if (execution === 'execute') turnstile.execute(widgetId);
   });
 };

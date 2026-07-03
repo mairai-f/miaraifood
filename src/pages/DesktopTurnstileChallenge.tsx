@@ -8,6 +8,33 @@ const getRequestedAction = () => {
   return value.toLowerCase().replace(/[^a-z0-9_-]/g, '-').slice(0, 32) || 'desktop-auth';
 };
 
+const getBrowserCallback = () => {
+  const params = new URLSearchParams(window.location.search);
+  const callbackValue = params.get('callback');
+  const state = params.get('state') ?? '';
+  if (!callbackValue || !/^[A-Za-z0-9_-]{32,128}$/.test(state)) return null;
+
+  try {
+    const callbackUrl = new URL(callbackValue);
+    const validPort = Number(callbackUrl.port) >= 1024 && Number(callbackUrl.port) <= 65535;
+    if (
+      callbackUrl.protocol !== 'http:'
+      || callbackUrl.hostname !== '127.0.0.1'
+      || callbackUrl.pathname !== '/turnstile-callback'
+      || !validPort
+      || callbackUrl.username
+      || callbackUrl.password
+    ) {
+      return null;
+    }
+    callbackUrl.search = '';
+    callbackUrl.hash = '';
+    return { callbackUrl, state };
+  } catch {
+    return null;
+  }
+};
+
 export default function DesktopTurnstileChallenge() {
   const [error, setError] = useState('');
 
@@ -15,23 +42,38 @@ export default function DesktopTurnstileChallenge() {
     let active = true;
 
     const runChallenge = async () => {
-      if (!window.desktopTurnstile) {
+      const browserCallback = getBrowserCallback();
+      if (!window.desktopTurnstile && !browserCallback) {
         setError('Esta verificacao deve ser aberta pelo HappyCash Desktop.');
         return;
       }
 
       try {
-        const token = await requestTurnstileToken(getRequestedAction());
+        const token = await requestTurnstileToken(getRequestedAction(), {
+          visible: Boolean(browserCallback),
+        });
         if (!token) throw new Error('A verificacao de seguranca nao retornou um token valido.');
         if (!active) return;
-        window.desktopTurnstile.complete(token);
+        if (browserCallback) {
+          browserCallback.callbackUrl.searchParams.set('state', browserCallback.state);
+          browserCallback.callbackUrl.searchParams.set('token', token);
+          window.location.replace(browserCallback.callbackUrl.toString());
+          return;
+        }
+        window.desktopTurnstile?.complete(token);
       } catch (challengeError) {
         if (!active) return;
         const message = challengeError instanceof Error
           ? challengeError.message
           : 'Nao foi possivel concluir a verificacao de seguranca.';
         setError(message);
-        window.desktopTurnstile.cancel(message);
+        if (browserCallback) {
+          browserCallback.callbackUrl.searchParams.set('state', browserCallback.state);
+          browserCallback.callbackUrl.searchParams.set('error', message.slice(0, 240));
+          window.location.replace(browserCallback.callbackUrl.toString());
+          return;
+        }
+        window.desktopTurnstile?.cancel(message);
       }
     };
 
