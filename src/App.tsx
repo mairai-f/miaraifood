@@ -10,6 +10,7 @@ import { DesktopRuntimeProvider, useDesktopRuntime } from "@/contexts/DesktopRun
 import { PlanProvider, usePlanAccess } from "@/contexts/PlanContext";
 import { DesktopActivationScreen } from "@/components/DesktopActivationScreen";
 import Login from "@/pages/Login";
+import ResetPassword from "@/pages/ResetPassword";
 import { SplashScreen } from "@/components/SplashScreen";
 import { hasSeenAppSplash, markAppSplashSeen } from "@/lib/appSplash";
 import {
@@ -112,6 +113,7 @@ function AppRoutes() {
   return (
     <Routes>
       <Route path="/login" element={isAuthenticated ? <Navigate to="/" /> : <Login />} />
+      <Route path="/reset-password" element={<ResetPassword />} />
       <Route
         path="/*"
         element={

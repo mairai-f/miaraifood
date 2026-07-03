@@ -131,8 +131,29 @@ Deno.serve(async (request) => {
     password: adminPassword,
   });
 
-  if (approvalError || !approvalSession.user) {
-    return jsonResponse(request, { error: 'Login ou senha do administrador invalidos.' }, 401);
+  if (approvalError) {
+    const approvalMessage = approvalError.message?.toLowerCase() ?? '';
+    if (approvalMessage.includes('captcha')) {
+      return jsonResponse(
+        request,
+        { error: 'O login por senha do administrador foi bloqueado pelo CAPTCHA do Supabase. Desative o CAPTCHA ou envie o token no frontend.' },
+        503,
+      );
+    }
+
+    return jsonResponse(
+      request,
+      { error: 'Login ou senha do administrador invalidos. Use a senha cadastrada na conta do HappyCash.' },
+      401,
+    );
+  }
+
+  if (!approvalSession.user) {
+    return jsonResponse(
+      request,
+      { error: 'Login ou senha do administrador invalidos. Use a senha cadastrada na conta do HappyCash.' },
+      401,
+    );
   }
 
   const { data: approvalProfile, error: approvalProfileError } = await serviceClient

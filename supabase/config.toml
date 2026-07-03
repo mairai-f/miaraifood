@@ -33,6 +33,9 @@ otp_expiry = 3600
 subject = "Codigo de recuperacao HappyCash"
 content_path = "./supabase/templates/magic-link.html"
 
+[auth.captcha]
+enabled = false
+
 [auth.passkey]
 enabled = true
 
