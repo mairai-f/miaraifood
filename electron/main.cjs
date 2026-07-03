@@ -1201,13 +1201,6 @@ const finishTurnstileRequest = (webContentsId, result) => {
 };
 
 const requestDesktopTurnstileToken = (sender, action) => {
-  if (PRODUCT_CONTEXT !== 'happycash') {
-    return Promise.resolve({
-      success: false,
-      error: 'A verificacao Turnstile esta habilitada somente no HappyCash Desktop.',
-    });
-  }
-
   let challengeUrl;
   try {
     challengeUrl = getDesktopTurnstileUrl(action);

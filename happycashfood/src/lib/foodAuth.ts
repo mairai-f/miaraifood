@@ -10,6 +10,7 @@ import { createAdaptiveStorage } from "../../../shared/security/browserStorage";
 import { createKeepConnectedReader } from "../../../shared/security/authPersistence";
 import { getPublicAuthErrorMessage } from "../../../shared/security/redaction";
 import { cleanupLegacySupabaseAuthStorage } from "../../../shared/security/supabaseAuthStorage";
+import { requestTurnstileToken } from "../../../shared/security/turnstile";
 
 type FoodProfileRow = {
   username: string | null;
@@ -161,9 +162,11 @@ export const signInFoodAdmin = async (
   }
 
   const normalizedEmail = normalizeEmail(email);
+  const captchaToken = await requestTurnstileToken("food-login");
   const { data: authData, error: authError } = await foodSupabase.auth.signInWithPassword({
     email: normalizedEmail,
     password,
+    options: { captchaToken },
   });
 
   if (authError || !authData.user) {
@@ -231,8 +234,10 @@ export const requestFoodPasswordReset = async (email: string) => {
   }
 
   const normalizedEmail = normalizeEmail(email);
+  const captchaToken = await requestTurnstileToken("food-password-reset");
   const { error } = await foodSupabase.auth.resetPasswordForEmail(normalizedEmail, {
     redirectTo: resolveResetRedirectUrl(),
+    captchaToken,
   });
 
   if (error) {

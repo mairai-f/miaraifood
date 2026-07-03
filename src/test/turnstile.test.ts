@@ -24,8 +24,8 @@ describe('Cloudflare Turnstile', () => {
     Object.defineProperty(window, 'isSecureContext', { configurable: true, value: originalSecureContext });
   });
 
-  it('usa a janela HTTPS do Electron para validar o Desktop online', async () => {
-    vi.stubEnv('VITE_TURNSTILE_SITE_KEY', 'site-key-test');
+  it('usa a janela HTTPS do Electron mesmo quando o build local nao embute a chave publica', async () => {
+    vi.stubEnv('VITE_TURNSTILE_SITE_KEY', '');
     const originalElectronApi = window.electronAPI;
     const requestToken = vi.fn().mockResolvedValue({ success: true, token: 'desktop-token-validado' });
     Object.defineProperty(window, 'electronAPI', {

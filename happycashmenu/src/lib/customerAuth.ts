@@ -1,6 +1,7 @@
 import { menuCustomerSupabase } from "@/lib/supabase";
 import type { CustomerInfo } from "@/types";
 import { getPublicErrorMessage } from "../../../shared/security/redaction";
+import { requestTurnstileToken } from "../../../shared/security/turnstile";
 
 export type MenuCustomerAccount = {
   email: string;
@@ -66,9 +67,11 @@ export const signInMenuCustomer = async (
   current: CustomerInfo,
 ) => {
   const normalizedEmail = normalizeEmail(email);
+  const captchaToken = await requestTurnstileToken("menu-customer-login");
   const { data, error } = await menuCustomerSupabase.auth.signInWithPassword({
     email: normalizedEmail,
     password,
+    options: { captchaToken },
   });
 
   if (error || !data.user) {
@@ -85,10 +88,12 @@ export const signUpMenuCustomer = async (
   customer: CustomerInfo,
 ) => {
   const normalizedEmail = normalizeEmail(email);
+  const captchaToken = await requestTurnstileToken("menu-customer-signup");
   const { data, error } = await menuCustomerSupabase.auth.signUp({
     email: normalizedEmail,
     password,
     options: {
+      captchaToken,
       data: {
         name: customer.name.trim(),
         phone: customer.phone.trim(),

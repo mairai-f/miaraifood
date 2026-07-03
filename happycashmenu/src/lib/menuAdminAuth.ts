@@ -1,5 +1,6 @@
 import { menuAdminSupabase } from "@/lib/supabase";
 import { getPublicErrorMessage } from "../../../shared/security/redaction";
+import { requestTurnstileToken } from "../../../shared/security/turnstile";
 
 type MenuProfileRow = {
   username: string | null;
@@ -48,9 +49,11 @@ const resolveResetRedirectUrl = () => {
 
 export const signInMenuAdmin = async (email: string, password: string) => {
   const normalizedEmail = normalizeEmail(email);
+  const captchaToken = await requestTurnstileToken("menu-admin-login");
   const { data: authData, error: authError } = await menuAdminSupabase.auth.signInWithPassword({
     email: normalizedEmail,
     password,
+    options: { captchaToken },
   });
 
   if (authError || !authData.user) {
@@ -112,8 +115,10 @@ export const signInMenuAdmin = async (email: string, password: string) => {
 
 export const requestMenuAdminPasswordReset = async (email: string) => {
   const normalizedEmail = normalizeEmail(email);
+  const captchaToken = await requestTurnstileToken("menu-admin-password-reset");
   const { error } = await menuAdminSupabase.auth.resetPasswordForEmail(normalizedEmail, {
     redirectTo: resolveResetRedirectUrl(),
+    captchaToken,
   });
 
   if (error) {

@@ -11,6 +11,7 @@ import {
   resolveAgendaOwnerUserId,
   validateAgendaAdminAccess,
 } from "@/lib/agendaAuth";
+import { requestTurnstileToken } from "../../../shared/security/turnstile";
 
 type SignUpInput = {
   fullName: string;
@@ -219,54 +220,70 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signIn = async (email: string, password: string) => {
     const normalizedEmail = email.trim().toLowerCase();
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email: normalizedEmail,
-      password,
-    });
+    try {
+      const captchaToken = await requestTurnstileToken("agenda-login");
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: normalizedEmail,
+        password,
+        options: { captchaToken },
+      });
 
-    if (error || !data.user) {
+      if (error || !data.user) {
+        setIsAdmin(false);
+        return { error: error ?? new Error("Nao foi possivel entrar."), isAdmin: false };
+      }
+
+      const adminProfile = await syncUserAccess(data.user);
+      return { error: null, isAdmin: adminProfile };
+    } catch (error) {
       setIsAdmin(false);
-      return { error: error ?? new Error("Nao foi possivel entrar."), isAdmin: false };
+      return { error: error instanceof Error ? error : new Error("Nao foi possivel concluir a verificacao de seguranca."), isAdmin: false };
     }
-
-    const adminProfile = await syncUserAccess(data.user);
-    return { error: null, isAdmin: adminProfile };
   };
 
   const signUp = async ({ fullName, email, password, phone }: SignUpInput) => {
     const normalizedEmail = email.trim().toLowerCase();
     const normalizedPhone = normalizePhone(phone);
     const redirectUrl = `${window.location.origin}${window.location.pathname}${window.location.search}`;
-    const { data, error } = await supabase.auth.signUp({
-      email: normalizedEmail,
-      password,
-      options: {
-        emailRedirectTo: redirectUrl,
-        data: {
-          role: "client",
-          full_name: fullName.trim(),
-          phone: normalizedPhone,
+    try {
+      const captchaToken = await requestTurnstileToken("agenda-signup");
+      const { data, error } = await supabase.auth.signUp({
+        email: normalizedEmail,
+        password,
+        options: {
+          emailRedirectTo: redirectUrl,
+          captchaToken,
+          data: {
+            role: "client",
+            full_name: fullName.trim(),
+            phone: normalizedPhone,
+          },
         },
-      },
-    });
-
-    if (error) {
-      return { error, needsEmailConfirmation: false };
-    }
-
-    if (data.user && data.session) {
-      await syncProfileMetadata(data.user, await getAgendaProfile(data.user.id), {
-        forceClientRole: true,
-        fullName,
-        phone: normalizedPhone,
       });
-      await syncUserAccess(data.user);
-    }
 
-    return {
-      error: null,
-      needsEmailConfirmation: !data.session,
-    };
+      if (error) {
+        return { error, needsEmailConfirmation: false };
+      }
+
+      if (data.user && data.session) {
+        await syncProfileMetadata(data.user, await getAgendaProfile(data.user.id), {
+          forceClientRole: true,
+          fullName,
+          phone: normalizedPhone,
+        });
+        await syncUserAccess(data.user);
+      }
+
+      return {
+        error: null,
+        needsEmailConfirmation: !data.session,
+      };
+    } catch (error) {
+      return {
+        error: error instanceof Error ? error : new Error("Nao foi possivel concluir a verificacao de seguranca."),
+        needsEmailConfirmation: false,
+      };
+    }
   };
 
   const signInWithGoogle = async () => {
@@ -287,10 +304,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const resetPassword = async (email: string) => {
     const redirectUrl = `${window.location.origin}/reset-password`;
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: redirectUrl,
-    });
-    return { error };
+    try {
+      const captchaToken = await requestTurnstileToken("agenda-password-reset");
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: redirectUrl,
+        captchaToken,
+      });
+      return { error };
+    } catch (error) {
+      return { error: error instanceof Error ? error : new Error("Nao foi possivel concluir a verificacao de seguranca.") };
+    }
   };
 
   const signOut = async () => {

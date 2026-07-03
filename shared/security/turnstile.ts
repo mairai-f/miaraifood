@@ -89,22 +89,21 @@ const normalizeAction = (action: string) => {
 };
 
 export const requestTurnstileToken = async (action: string): Promise<string | undefined> => {
-  const sitekey = getTurnstileSiteKey();
-  if (!sitekey) return undefined;
-
   if (typeof window !== 'undefined' && window.electronAPI?.turnstile?.requestToken) {
     const result = await window.electronAPI.turnstile.requestToken(normalizeAction(action));
     if (result.success && result.token) return result.token;
     throw new Error(result.error || 'Nao foi possivel concluir a verificacao de seguranca no Desktop.');
   }
 
+  const sitekey = getTurnstileSiteKey();
+  if (!sitekey) return undefined;
+
   if (
     typeof window === 'undefined'
     || !/^https?:$/.test(window.location.protocol)
     || !window.isSecureContext
   ) {
-    // The Electron build keeps its existing authenticated/offline flow. Supabase
-    // CAPTCHA must remain disabled globally until the native challenge exists.
+    // Runtimes sem origem HTTPS nao conseguem executar o widget web.
     return undefined;
   }
 
