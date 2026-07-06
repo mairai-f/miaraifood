@@ -2,12 +2,9 @@ import { Button } from "@/components/ui/button";
 import { ArrowLeft, CreditCard, ShieldCheck } from "lucide-react";
 import { Link } from "react-router-dom";
 import logo from "@/assets/logo-happycash.webp";
+import { publicPlanContent, type PaidPlanId } from "@/lib/subscriptionPlans";
 
-const plans = [
-  { name: "Plano Fiado", display: "R$ 100,00 / 30 dias" },
-  { name: "Plano Completo", display: "R$ 189,00 / 30 dias" },
-  { name: "Plano PRO", display: "R$ 250,00 / 30 dias" },
-];
+const plans: PaidPlanId[] = ["fiado", "completo", "pro"];
 
 const Pix = () => {
   return (
@@ -28,10 +25,12 @@ const Pix = () => {
           </div>
 
           <div className="grid gap-3 md:grid-cols-3">
-            {plans.map((plan) => (
-              <div key={plan.name} className="rounded-xl border border-border bg-muted/30 p-4 text-center">
-                <p className="text-sm font-medium">{plan.name}</p>
-                <p className="mt-2 text-lg font-bold text-primary">{plan.display}</p>
+            {plans.map((planId) => (
+              <div key={planId} className="rounded-xl border border-border bg-muted/30 p-4 text-center">
+                <p className="text-sm font-medium">{publicPlanContent[planId].name}</p>
+                <p className="mt-2 text-lg font-bold text-primary">
+                  {publicPlanContent[planId].priceLabel} / {publicPlanContent[planId].durationLabel}
+                </p>
               </div>
             ))}
           </div>
