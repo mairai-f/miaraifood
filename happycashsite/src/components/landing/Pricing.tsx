@@ -28,8 +28,8 @@ const plans = [
   {
     id: "fiado",
     name: "Caderneta Fiado Digital",
-    price: 100,
-    annualPrice: 997,
+    price: 79.9,
+    annualPrice: 799,
     description: "Ideal para quem vive de fiado e precisa de controle simples por 30 dias",
     popular: false,
     features: [
@@ -46,8 +46,8 @@ const plans = [
     id: "completo",
     name: "Plano Completo",
     subtitle: "PDV + Fiado",
-    price: 189,
-    annualPrice: 1887,
+    price: 119.99,
+    annualPrice: 1199.9,
     description: "Gestão completa do seu negócio com ciclo de 30 dias",
     popular: true,
     features: [
@@ -67,8 +67,8 @@ const plans = [
     id: "pro",
     name: "Plano PRO",
     subtitle: "Completo + App",
-    price: 250,
-    annualPrice: 2497,
+    price: 159.99,
+    annualPrice: 1599.9,
     description: "Desktop PRO com ativação por máquina, mobile e mais segurança para a operação",
     popular: false,
     features: [
@@ -104,7 +104,13 @@ const plans = [
   },
 ];
 
-const formatPrice = (value: number) => value.toLocaleString("pt-BR", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+const formatPrice = (value: number) => {
+  const hasDecimals = !Number.isInteger(value);
+  return value.toLocaleString("pt-BR", {
+    minimumFractionDigits: hasDecimals ? 2 : 0,
+    maximumFractionDigits: 2,
+  });
+};
 
 const Pricing = () => {
   const ref = useRef<HTMLElement>(null);

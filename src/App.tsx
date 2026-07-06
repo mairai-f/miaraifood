@@ -10,14 +10,24 @@ import { DesktopRuntimeProvider, useDesktopRuntime } from "@/contexts/DesktopRun
 import { PlanProvider, usePlanAccess } from "@/contexts/PlanContext";
 import { DesktopActivationScreen } from "@/components/DesktopActivationScreen";
 import Login from "@/pages/Login";
+import ResetPassword from "@/pages/ResetPassword";
 import { SplashScreen } from "@/components/SplashScreen";
 import { hasSeenAppSplash, markAppSplashSeen } from "@/lib/appSplash";
+import { getDesktopUpdateSplashSummary } from "@/lib/desktopUpdateSplash";
 import {
   isDesktopActivationRequired,
   readDesktopActivation,
   type DesktopActivationRecord,
 } from "@/lib/desktopActivation";
+import {
+  checkDesktopUpdates,
+  installDesktopUpdate,
+  onDesktopUpdateStatus,
+  readDesktopUpdateStatus,
+  type DesktopUpdateStatus,
+} from "@/lib/offlineConcentrator";
 import { LocaleProvider } from "../shared/locale/LocaleContext";
+import { toast } from "sonner";
 
 const queryClient = new QueryClient();
 const Router = typeof window !== "undefined" && window.location.protocol === "file:" ? HashRouter : BrowserRouter;
@@ -42,8 +52,12 @@ function AppRoutes() {
   const [progress, setProgress] = useState(0);
   const [minimumSplashDone, setMinimumSplashDone] = useState(hasSeenAppSplash());
   const [showSplash, setShowSplash] = useState(!hasSeenAppSplash());
+  const [desktopUpdateStatus, setDesktopUpdateStatus] = useState<DesktopUpdateStatus | null>(null);
+  const [desktopUpdatePreflightStarted, setDesktopUpdatePreflightStarted] = useState(false);
   const shouldBlockSplash = loading || planLoading || checkingDesktopLicense;
   const requiresDesktopActivation = isDesktop && isDesktopActivationRequired() && !desktopActivation;
+  const desktopUpdateSplashSummary = getDesktopUpdateSplashSummary(desktopUpdateStatus);
+  const canInstallDesktopUpdateFromSplash = desktopUpdateStatus?.status === "downloaded";
 
   useEffect(() => {
     if (hasSeenAppSplash()) {
@@ -92,6 +106,40 @@ function AppRoutes() {
     setDesktopActivation(readDesktopActivation());
   }, [isAuthenticated, isDesktop]);
 
+  useEffect(() => {
+    if (!isDesktop) {
+      setDesktopUpdateStatus(null);
+      setDesktopUpdatePreflightStarted(false);
+      return;
+    }
+
+    void readDesktopUpdateStatus()
+      .then((status) => {
+        setDesktopUpdateStatus(status);
+      })
+      .catch(() => {
+        // Ignore startup update status read failures and keep the normal splash flow.
+      });
+
+    return onDesktopUpdateStatus((status) => {
+      setDesktopUpdateStatus(status);
+    });
+  }, [isDesktop]);
+
+  useEffect(() => {
+    if (!isDesktop || !showSplash || desktopUpdatePreflightStarted) return;
+
+    setDesktopUpdatePreflightStarted(true);
+
+    void checkDesktopUpdates()
+      .then((status) => {
+        setDesktopUpdateStatus(status);
+      })
+      .catch(() => {
+        // Keep opening the ERP even if the preflight update check fails.
+      });
+  }, [desktopUpdatePreflightStarted, isDesktop, showSplash]);
+
   const handleDesktopActivated = async (activation: DesktopActivationRecord) => {
     if (isAuthenticated) {
       await logout();
@@ -100,8 +148,27 @@ function AppRoutes() {
     setDesktopActivation(activation);
   };
 
+  const handleInstallDesktopUpdateFromSplash = async () => {
+    try {
+      const result = await installDesktopUpdate();
+      if (!result?.success) {
+        toast.error(result?.error || "Nenhuma atualização pronta para instalar.");
+      }
+    } catch {
+      toast.error("Não foi possível iniciar a instalação da atualização.");
+    }
+  };
+
   if (showSplash && !isAuthenticated) {
-    return <SplashScreen progress={progress} />;
+    return (
+      <SplashScreen
+        progress={progress}
+        updateStatus={desktopUpdateSplashSummary}
+        updateActionLabel={canInstallDesktopUpdateFromSplash ? "Reiniciar e instalar" : null}
+        onUpdateAction={canInstallDesktopUpdateFromSplash ? () => void handleInstallDesktopUpdateFromSplash() : null}
+        updateActionDisabled={desktopUpdateStatus?.status === "installing"}
+      />
+    );
   }
 
   if (requiresDesktopActivation) {
@@ -111,6 +178,7 @@ function AppRoutes() {
   return (
     <Routes>
       <Route path="/login" element={isAuthenticated ? <Navigate to="/" /> : <Login />} />
+      <Route path="/reset-password" element={<ResetPassword />} />
       <Route
         path="/*"
         element={
