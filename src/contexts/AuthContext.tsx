@@ -106,9 +106,7 @@ interface LocalOfflineSession {
 const normalizeOfflineStaffRole = (value: string | null | undefined): UserRole =>
   value === 'waiter' ? 'waiter' : 'operator';
 
-const DEFAULT_HAPPYCASH_AUTH_URL = 'https://app.happycashsite.com.br';
-const SUPABASE_AUTH_URL = (import.meta.env.VITE_SUPABASE_AUTH_URL as string | undefined)?.trim() || DEFAULT_HAPPYCASH_AUTH_URL;
-const SUPABASE_API_URL = (import.meta.env.VITE_SUPABASE_URL as string | undefined)?.trim();
+const SUPABASE_AUTH_URL = (import.meta.env.VITE_SUPABASE_AUTH_URL as string | undefined)?.trim() || null;
 
 const parseUrlOrNull = (value: string | null | undefined) => {
   if (!value) return null;
@@ -118,11 +116,6 @@ const parseUrlOrNull = (value: string | null | undefined) => {
   } catch {
     return null;
   }
-};
-
-const isSupabaseHostedUrl = (value: string | null | undefined) => {
-  const parsed = parseUrlOrNull(value);
-  return parsed?.hostname.endsWith('.supabase.co') ?? false;
 };
 
 const getHappyCashAuthOrigin = () => {
@@ -136,8 +129,6 @@ const profileCacheKey = (userId: string) => `happycash:system:profile:${userId}`
 const DESKTOP_ACTIVATION_OWNER_MISMATCH = 'DESKTOP_ACTIVATION_OWNER_MISMATCH';
 const SYSTEM_PRODUCT_CONTEXT_MISMATCH = 'SYSTEM_PRODUCT_CONTEXT_MISMATCH';
 const SYSTEM_PRODUCT_CONTEXT_MISMATCH_MESSAGE = 'Email ou senha incorretos.';
-const GOOGLE_AUTH_DOMAIN_MESSAGE = 'Configure o dominio de autenticacao do HappyCash para entrar com Google sem exibir Supabase.';
-
 const readCachedProfile = (userId: string): UserProfile | null => {
   if (typeof window === 'undefined') return null;
 
@@ -548,10 +539,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     const happyCashAuthOrigin = getHappyCashAuthOrigin();
-    if (!happyCashAuthOrigin && isSupabaseHostedUrl(SUPABASE_API_URL)) {
-      return GOOGLE_AUTH_DOMAIN_MESSAGE;
-    }
-
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
@@ -575,6 +562,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const providerUrl = new URL(data.url);
 
+      // Only rewrite the auth URL when a custom auth proxy was configured explicitly.
       if (happyCashAuthOrigin) {
         const authOrigin = new URL(happyCashAuthOrigin);
         providerUrl.protocol = authOrigin.protocol;

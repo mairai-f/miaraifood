@@ -3,6 +3,9 @@
 # acidentalmente o happycashsite para outro projeto Supabase.
 project_id = "ymffclntmynwfdiarlaw"
 
+[auth.captcha]
+enabled = false
+
 [functions.register-account]
 verify_jwt = false
 

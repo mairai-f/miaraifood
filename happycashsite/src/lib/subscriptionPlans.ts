@@ -31,8 +31,8 @@ export const publicPlanContent: Record<PublicPlanId, PublicPlanContent> = {
   fiado: {
     id: "fiado",
     name: "Plano Fiado",
-    price: 100,
-    priceLabel: "R$ 100",
+    price: 79.9,
+    priceLabel: "R$ 79,90",
     durationLabel: "30 dias",
     summary: "Painel, clientes, produtos, excluidos, fiado e cobrancas por 30 dias.",
     description: "Ideal para quem precisa controlar fiado com operacao simples e sem configuracoes.",
@@ -49,8 +49,8 @@ export const publicPlanContent: Record<PublicPlanId, PublicPlanContent> = {
   completo: {
     id: "completo",
     name: "Plano Completo",
-    price: 189,
-    priceLabel: "R$ 189",
+    price: 119.99,
+    priceLabel: "R$ 119,99",
     durationLabel: "30 dias",
     summary: "Tudo do Fiado com PDV, estoque, relatorios, caixa e configuracoes por 30 dias.",
     description: "Gestao completa do HappyCash no web com todos os recursos principais da operacao.",
@@ -68,8 +68,8 @@ export const publicPlanContent: Record<PublicPlanId, PublicPlanContent> = {
   pro: {
     id: "pro",
     name: "Plano PRO",
-    price: 250,
-    priceLabel: "R$ 250",
+    price: 159.99,
+    priceLabel: "R$ 159,99",
     durationLabel: "30 dias",
     summary: "Tudo do Completo com desktop PRO, chave por maquina, mobile e offline local por 5 dias.",
     description: "Plano para operar no web e no desktop PRO com ativacao por maquina e login de operador com usuario e PIN.",
