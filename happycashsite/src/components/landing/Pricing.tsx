@@ -7,6 +7,7 @@ import { Check, Star, Zap, Monitor, Smartphone, Download } from "lucide-react";
 import { useAuthSession } from "@/hooks/use-auth-session";
 import { useLandingAccountActions } from "@/hooks/use-landing-account-actions";
 import { FiscalResponsibilityNotice } from "@/components/FiscalResponsibilityNotice";
+import { commercialPaidPlanPricing } from "../../../../shared/subscriptionPlanPricing";
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -28,8 +29,8 @@ const plans = [
   {
     id: "fiado",
     name: "Caderneta Fiado Digital",
-    price: 79.9,
-    annualPrice: 799,
+    price: commercialPaidPlanPricing.fiado.monthlyPrice,
+    annualPrice: commercialPaidPlanPricing.fiado.annualPrice,
     description: "Ideal para quem vive de fiado e precisa de controle simples por 30 dias",
     popular: false,
     features: [
@@ -46,8 +47,8 @@ const plans = [
     id: "completo",
     name: "Plano Completo",
     subtitle: "PDV + Fiado",
-    price: 119.99,
-    annualPrice: 1199.9,
+    price: commercialPaidPlanPricing.completo.monthlyPrice,
+    annualPrice: commercialPaidPlanPricing.completo.annualPrice,
     description: "Gestão completa do seu negócio com ciclo de 30 dias",
     popular: true,
     features: [
@@ -67,8 +68,8 @@ const plans = [
     id: "pro",
     name: "Plano PRO",
     subtitle: "Completo + App",
-    price: 159.99,
-    annualPrice: 1599.9,
+    price: commercialPaidPlanPricing.pro.monthlyPrice,
+    annualPrice: commercialPaidPlanPricing.pro.annualPrice,
     description: "Desktop PRO com ativação por máquina, mobile e mais segurança para a operação",
     popular: false,
     features: [
@@ -88,8 +89,8 @@ const plans = [
     id: "agenda",
     name: "HappyCash Agenda",
     subtitle: "Agendamentos",
-    price: 80,
-    annualPrice: 800,
+    price: commercialPaidPlanPricing.agenda.monthlyPrice,
+    annualPrice: commercialPaidPlanPricing.agenda.annualPrice,
     description: "Agenda online para serviços com profissionais, clientes, WhatsApp e QR Code",
     popular: false,
     features: [

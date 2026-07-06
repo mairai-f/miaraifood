@@ -1,3 +1,5 @@
+import { commercialPaidPlanPricing } from "../../../shared/subscriptionPlanPricing";
+
 export type PublicPlanId = "demo" | "fiado" | "completo" | "pro" | "agenda";
 export type PaidPlanId = Exclude<PublicPlanId, "demo">;
 
@@ -5,6 +7,7 @@ export interface PublicPlanContent {
   id: PublicPlanId;
   name: string;
   price: number;
+  annualPrice?: number;
   priceLabel: string;
   durationLabel: string;
   summary: string;
@@ -31,9 +34,10 @@ export const publicPlanContent: Record<PublicPlanId, PublicPlanContent> = {
   fiado: {
     id: "fiado",
     name: "Plano Fiado",
-    price: 79.9,
+    price: commercialPaidPlanPricing.fiado.monthlyPrice,
+    annualPrice: commercialPaidPlanPricing.fiado.annualPrice,
     priceLabel: "R$ 79,90",
-    durationLabel: "30 dias",
+    durationLabel: `${commercialPaidPlanPricing.fiado.durationDays} dias`,
     summary: "Painel, clientes, produtos, excluidos, fiado e cobrancas por 30 dias.",
     description: "Ideal para quem precisa controlar fiado com operacao simples e sem configuracoes.",
     features: [
@@ -49,9 +53,10 @@ export const publicPlanContent: Record<PublicPlanId, PublicPlanContent> = {
   completo: {
     id: "completo",
     name: "Plano Completo",
-    price: 119.99,
+    price: commercialPaidPlanPricing.completo.monthlyPrice,
+    annualPrice: commercialPaidPlanPricing.completo.annualPrice,
     priceLabel: "R$ 119,99",
-    durationLabel: "30 dias",
+    durationLabel: `${commercialPaidPlanPricing.completo.durationDays} dias`,
     summary: "Tudo do Fiado com PDV, estoque, relatorios, caixa e configuracoes por 30 dias.",
     description: "Gestao completa do HappyCash no web com todos os recursos principais da operacao.",
     features: [
@@ -68,9 +73,10 @@ export const publicPlanContent: Record<PublicPlanId, PublicPlanContent> = {
   pro: {
     id: "pro",
     name: "Plano PRO",
-    price: 159.99,
+    price: commercialPaidPlanPricing.pro.monthlyPrice,
+    annualPrice: commercialPaidPlanPricing.pro.annualPrice,
     priceLabel: "R$ 159,99",
-    durationLabel: "30 dias",
+    durationLabel: `${commercialPaidPlanPricing.pro.durationDays} dias`,
     summary: "Tudo do Completo com desktop PRO, chave por maquina, mobile e offline local por 5 dias.",
     description: "Plano para operar no web e no desktop PRO com ativacao por maquina e login de operador com usuario e PIN.",
     features: [
@@ -89,9 +95,10 @@ export const publicPlanContent: Record<PublicPlanId, PublicPlanContent> = {
   agenda: {
     id: "agenda",
     name: "HappyCash Agenda",
-    price: 80,
+    price: commercialPaidPlanPricing.agenda.monthlyPrice,
+    annualPrice: commercialPaidPlanPricing.agenda.annualPrice,
     priceLabel: "R$ 80",
-    durationLabel: "30 dias",
+    durationLabel: `${commercialPaidPlanPricing.agenda.durationDays} dias`,
     summary: "Agenda online para servicos com profissionais, WhatsApp, QR Code, pagamentos e relatorios.",
     description: "Modulo de agendamentos para barbearias, saloes, clinicas, pet shops, oficinas, consultorias e servicos em geral.",
     features: [

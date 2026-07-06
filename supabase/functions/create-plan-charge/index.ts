@@ -21,6 +21,7 @@ import {
   resolveProductContextFromPlanId,
   type ProductContext,
 } from "../_shared/productContext.ts";
+import { getCommercialPaidPlanPricing } from "../../../shared/subscriptionPlanPricing.ts";
 
 type SupportedPaidPlan = "fiado" | "completo" | "pro" | "food" | "food_offline" | "agenda";
 type CheckoutPaymentMethod = "pix" | "card";
@@ -577,10 +578,13 @@ Deno.serve(async (request) => {
   const accountProductContext = normalizeProductContext(storeAccount.product_context);
   const productDisplayName = getProductContextLabel(accountProductContext);
   const billingType = resolveBillingType(paymentMethod);
+  const canonicalPricing = getCommercialPaidPlanPricing(plan.id);
   const chargeValue = billingPeriod === "annual"
-    ? Number(plan.annual_price || 0)
-    : Number(plan.price);
-  const periodDays = billingPeriod === "annual" ? 365 : Math.max(1, Number(plan.duration_days || 30));
+    ? Number(canonicalPricing?.annualPrice ?? plan.annual_price || 0)
+    : Number(canonicalPricing?.monthlyPrice ?? plan.price);
+  const periodDays = billingPeriod === "annual"
+    ? 365
+    : Math.max(1, Number(canonicalPricing?.durationDays ?? plan.duration_days || 30));
 
   if (!Number.isFinite(chargeValue) || chargeValue <= 0) {
     return jsonResponse(request, { error: "Preço do plano inválido para o periodo escolhido." }, 400);

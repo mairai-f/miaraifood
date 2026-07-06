@@ -26,6 +26,7 @@ import { downloads } from "@/lib/desktopDownloads";
 import { getFreshSiteSession } from "@/lib/siteSession";
 import { getSubscriptionCountdown, getSubscriptionEndAt, getSubscriptionStatusLabel, isCurrentSubscription } from "@/lib/subscriptionStatus";
 import { publicPlanContent, publicPlanList, isPaidPlanId, isPublicPlanId, type PaidPlanId, type PublicPlanId } from "@/lib/subscriptionPlans";
+import { getCommercialPaidPlanPricing } from "../../../shared/subscriptionPlanPricing";
 import { HAPPYCASH_AGENDA_SYSTEM_APP_URL, HAPPYCASH_SYSTEM_APP_URL } from "@/lib/systemUrls";
 import {
   getPublicPlanIdsForProductContext,
@@ -542,13 +543,14 @@ const Dashboard = () => {
     .filter((fallbackPlan) => allowedPlanIds.has(fallbackPlan.id))
     .map((fallbackPlan) => {
       const dbPlan = plans.find((plan) => plan.id === fallbackPlan.id);
+      const canonicalPricing = getCommercialPaidPlanPricing(fallbackPlan.id);
       return {
         ...fallbackPlan,
         name: dbPlan?.name || fallbackPlan.name,
         description: dbPlan?.description || fallbackPlan.description,
-        price: Number(dbPlan?.price ?? fallbackPlan.price),
-        annual_price: Number(dbPlan?.annual_price ?? fallbackPlan.price * 10),
-        duration_days: Number(dbPlan?.duration_days ?? (fallbackPlan.id === "demo" ? 0 : 30)),
+        price: Number(canonicalPricing?.monthlyPrice ?? dbPlan?.price ?? fallbackPlan.price),
+        annual_price: Number(canonicalPricing?.annualPrice ?? dbPlan?.annual_price ?? fallbackPlan.annualPrice ?? fallbackPlan.price * 10),
+        duration_days: Number(canonicalPricing?.durationDays ?? dbPlan?.duration_days ?? (fallbackPlan.id === "demo" ? 0 : 30)),
       };
     });
 
