@@ -34,7 +34,7 @@ const PoliticaDePrivacidade = () => (
       {
         title: "2. Dados que podemos coletar",
         bullets: [
-          "Dados de cadastro da conta: nome, email, telefone, senha protegida, plano escolhido e informações da loja.",
+          "Dados de cadastro da conta: nome, email, telefone,cpf,cnpj senha protegida, plano escolhido e informações da loja.",
           "Dados operacionais inseridos pelo usuário: clientes, telefones, histórico de fiado, vendas, pagamentos, produtos, estoque, despesas e observações cadastradas no sistema.",
           "Dados de pagamento e assinatura: plano, status de cobrança, período contratado, meio de pagamento e referências de transação retornadas por provedores de pagamento.",
           "Dados técnicos: endereço IP, navegador, sistema operacional, dispositivo, registros de acesso, cookies, identificadores de sessão e eventos de segurança.",
