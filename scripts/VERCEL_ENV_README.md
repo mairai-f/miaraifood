@@ -16,10 +16,12 @@ export VERCEL_TOKEN=your_vercel_token_here
 ```
 
 Observações:
+
 - O script tenta resolver `project-id` a partir do nome do projeto. Se não encontrar, passe o `project-id` diretamente.
 - Você também pode definir `development` ou `preview` como `environment`.
 - O script usa a API oficial do Vercel para criar ou atualizar variáveis do projeto.
 
 Segurança:
+
 - Não comite tokens nem valores de secrets no repositório.
 - Para produção, prefira definir a variável pelo dashboard do Vercel ou CI seguro.
