@@ -9,7 +9,7 @@ const TermosDeServico = () => (
   <LegalDocumentPage
     seo={{
       title: "Termos de Serviço | HappyCash",
-      description: "Conheça as condições de uso do HappyCash para controle de fiado, PDV, estoque, desktop, Agenda, planos, suporte e cancelamento.",
+      description: "Conheça as condições de uso do HappyCash para controle de fiado, PDV, estoque, desktop, planos, suporte e cancelamento.",
       path,
       keywords: ["termos de serviço happycash", "termos de uso happycash", "contrato sistema pdv", "termos controle de fiado"],
       jsonLd: {
@@ -21,7 +21,7 @@ const TermosDeServico = () => (
     }}
     eyebrow="Termos"
     title="Termos de Serviço"
-    description="Estes Termos regulam o uso do site, área do cliente, sistema HappyCash, HappyCash Agenda, recursos de desktop, planos, testes gratuitos e funcionalidades relacionadas."
+    description="Estes Termos regulam o uso do site, área do cliente, sistema HappyCash, recursos de desktop, planos, testes gratuitos e funcionalidades relacionadas."
     updatedAt={updatedAt}
     sections={[
       {
@@ -34,7 +34,7 @@ const TermosDeServico = () => (
       {
         title: "2. O que o HappyCash oferece",
         paragraphs: [
-          "O HappyCash fornece ferramentas digitais para gestão comercial, incluindo controle de fiado, cadastro de clientes, PDV, estoque, relatórios, operadores, recursos desktop, HappyCash Agenda e modo offline em planos compatíveis.",
+          "O HappyCash fornece ferramentas digitais para gestão comercial, incluindo controle de fiado, cadastro de clientes, PDV, estoque, relatórios, operadores, recursos desktop e modo offline em planos compatíveis.",
           "As funcionalidades disponíveis variam conforme plano, produto, ambiente, configuração da conta e disponibilidade técnica.",
         ],
       },

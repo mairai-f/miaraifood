@@ -20,8 +20,8 @@ export default {
     },
     extend: {
       fontFamily: {
-        body: ["Inter", "Avenir Next", "Segoe UI", "system-ui", "sans-serif"],
-        heading: ["Avenir Next", "Trebuchet MS", "Arial", "sans-serif"],
+        body: ["Plus Jakarta Sans", "Avenir Next", "Segoe UI", "system-ui", "sans-serif"],
+        heading: ["Sora", "Plus Jakarta Sans", "Avenir Next", "Segoe UI", "sans-serif"],
       },
       colors: {
         border: "hsl(var(--border))",
@@ -64,7 +64,7 @@ export default {
         sm: "4px",
       },
       boxShadow: {
-        panel: "0 22px 70px hsl(220 25% 4% / 0.34)",
+        panel: "0 28px 80px hsl(25 58% 16% / 0.18)",
       },
     },
   },

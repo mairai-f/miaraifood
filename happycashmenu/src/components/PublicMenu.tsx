@@ -8,14 +8,14 @@ import {
   MessageSquareText,
   Minus,
   ReceiptText,
-  ShieldCheck,
   Search,
+  ShieldCheck,
   ShoppingBag,
   Trash2,
-  Utensils,
   UserPlus,
+  Utensils,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 
 import { BrandMark } from "@/components/BrandMark";
 import { FoodImage } from "@/components/FoodImage";
@@ -94,6 +94,162 @@ const useRevealOnScroll = (watchKey: string) => {
     return () => observer.disconnect();
   }, [watchKey]);
 };
+
+function SectionHeading({
+  eyebrow,
+  title,
+  description,
+  action,
+}: {
+  eyebrow: string;
+  title: string;
+  description: string;
+  action?: ReactNode;
+}) {
+  return (
+    <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+      <div>
+        <p className="hc-label">{eyebrow}</p>
+        <h2 className="mt-2 text-3xl font-extrabold tracking-[-0.05em] text-foreground sm:text-[2rem]">{title}</h2>
+        <p className="mt-2 max-w-2xl text-sm font-semibold leading-6 text-muted-foreground">{description}</p>
+      </div>
+      {action ? <div className="shrink-0">{action}</div> : null}
+    </div>
+  );
+}
+
+function FeaturedMenuCard({
+  item,
+  index,
+  onSelect,
+}: {
+  item: MenuItem;
+  index: number;
+  onSelect: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      data-reveal
+      style={{ transitionDelay: `${Math.min(index * 60, 260)}ms` }}
+      className="reveal-on-scroll menu-surface group relative min-w-[284px] max-w-[320px] flex-1 overflow-hidden rounded-[32px] text-left transition duration-300 hover:-translate-y-1 hover:shadow-panel"
+      onClick={onSelect}
+    >
+      <div className="relative">
+        <FoodImage
+          src={item.imageUrl}
+          alt={item.imageAlt}
+          className="aspect-[1.24] w-full transition duration-700 group-hover:scale-[1.05]"
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-[#1f1710]/78 via-[#1f1710]/8 to-transparent" />
+        <div className="absolute inset-x-0 top-0 flex items-start justify-between gap-3 p-4">
+          {item.promotion ? (
+            <span className="menu-chip bg-white text-[#ff7a00] shadow-[0_10px_24px_rgba(24,16,8,0.18)]">
+              {item.promotion.badgeLabel}
+            </span>
+          ) : (
+            <span className="menu-chip bg-white/14 text-white backdrop-blur">
+              <Clock size={14} /> {item.prepMinutes} min
+            </span>
+          )}
+          {item.compareAtPrice ? (
+            <span className="rounded-full bg-[#1c140f]/72 px-3 py-1 text-xs font-extrabold text-white/78 backdrop-blur">
+              {currency(item.compareAtPrice)}
+            </span>
+          ) : null}
+        </div>
+        <div className="absolute inset-x-0 bottom-0 p-5 text-white">
+          <p className="text-2xl font-extrabold tracking-[-0.04em]">{item.displayName}</p>
+          <p className="mt-2 line-clamp-2 max-w-[22rem] text-sm font-semibold leading-6 text-white/78">{item.description}</p>
+        </div>
+      </div>
+      <div className="flex items-center justify-between gap-3 p-5">
+        <div>
+          {item.promotion ? <p className="text-xs font-extrabold uppercase tracking-[0.24em] text-[#ff7a00]">{item.promotion.title}</p> : null}
+          <p className="mt-1 text-2xl font-extrabold tracking-[-0.04em] text-foreground">{currency(item.price)}</p>
+        </div>
+        <span className="inline-flex h-12 items-center rounded-full bg-[#fff1e3] px-4 text-sm font-extrabold text-[#ff7a00]">
+          <ShoppingBag className="mr-2" size={17} />
+          Ver
+        </span>
+      </div>
+    </button>
+  );
+}
+
+function MenuProductCard({
+  item,
+  index,
+  onSelect,
+}: {
+  item: MenuItem;
+  index: number;
+  onSelect: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      data-reveal
+      style={{ transitionDelay: `${Math.min(index * 45, 260)}ms` }}
+      className="reveal-on-scroll menu-surface group rounded-[30px] p-4 text-left transition duration-300 hover:-translate-y-1 hover:shadow-panel"
+      onClick={onSelect}
+    >
+      <div className="flex items-start gap-4">
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            {item.promotion ? (
+              <span className="menu-chip bg-[#fff1e3] text-[#ff7a00]">
+                {item.promotion.badgeLabel}
+              </span>
+            ) : null}
+            <span className="menu-chip bg-[#fff7f0] text-muted-foreground">
+              <Clock size={14} /> {item.prepMinutes} min
+            </span>
+          </div>
+
+          <div className="mt-4 flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <h3 className="truncate text-xl font-extrabold tracking-[-0.04em] text-foreground">{item.displayName}</h3>
+              {item.promotion ? <p className="mt-1 text-xs font-extrabold uppercase tracking-[0.22em] text-[#ff7a00]">{item.promotion.title}</p> : null}
+            </div>
+            <div className="shrink-0 text-right">
+              {item.compareAtPrice ? (
+                <p className="text-xs font-extrabold text-muted-foreground line-through">{currency(item.compareAtPrice)}</p>
+              ) : null}
+              <p className="text-lg font-extrabold tracking-[-0.04em] text-foreground">{currency(item.price)}</p>
+            </div>
+          </div>
+
+          <p className="mt-3 line-clamp-3 text-sm font-semibold leading-6 text-muted-foreground">{item.description}</p>
+
+          <div className="mt-4 flex flex-wrap gap-2">
+            {item.tags.slice(0, 3).map((tag) => (
+              <span key={tag} className="rounded-full bg-[#fff7f0] px-3 py-1 text-[11px] font-extrabold uppercase tracking-[0.18em] text-[#7c6553]">
+                {tag}
+              </span>
+            ))}
+          </div>
+        </div>
+
+        <FoodImage
+          src={item.imageUrl}
+          alt={item.imageAlt}
+          className="h-28 w-24 rounded-[24px] shadow-[0_16px_32px_rgba(56,35,16,0.14)] transition duration-500 group-hover:scale-[1.03] sm:h-32 sm:w-28"
+        />
+      </div>
+
+      <div className="mt-4 flex items-center justify-between gap-3">
+        <span className="text-sm font-semibold text-muted-foreground">
+          {item.options.length > 0 ? `${item.options.length} personalizacao(oes)` : "Pronto para adicionar"}
+        </span>
+        <span className="inline-flex items-center rounded-full bg-[#17120d] px-4 py-2 text-sm font-extrabold text-white">
+          <ShoppingBag className="mr-2" size={16} />
+          Adicionar
+        </span>
+      </div>
+    </button>
+  );
+}
 
 function ProductModal({
   product,
@@ -191,7 +347,8 @@ function ProductModal({
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <QuantityStepper value={quantity} onChange={setQuantity} />
           <button
-            className="hc-button-primary flex-1 sm:flex-none"
+            type="button"
+            className="hc-button-primary flex-1 sm:min-w-[240px] sm:flex-none"
             disabled={missingRequired}
             onClick={() => {
               onAdd({
@@ -216,42 +373,53 @@ function ProductModal({
       }
     >
       <div className="grid gap-5 md:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
-        <FoodImage src={product.imageUrl} alt={product.imageAlt} className="aspect-[4/3] w-full rounded-lg" />
+        <div className="menu-surface overflow-hidden rounded-[32px] p-3">
+          <FoodImage src={product.imageUrl} alt={product.imageAlt} className="aspect-[4/3] w-full rounded-[28px]" />
+        </div>
         <div className="space-y-4">
           {product.promotion ? (
-            <div className="rounded-lg border border-primary/30 bg-primary/10 p-3">
-              <p className="text-sm font-black text-primary">{product.promotion.badgeLabel} - {product.promotion.title}</p>
-              {product.promotion.description ? <p className="mt-1 text-xs font-bold text-muted-foreground">{product.promotion.description}</p> : null}
+            <div className="menu-surface rounded-[28px] p-4">
+              <p className="text-sm font-extrabold uppercase tracking-[0.22em] text-[#ff7a00]">
+                {product.promotion.badgeLabel} | {product.promotion.title}
+              </p>
+              {product.promotion.description ? (
+                <p className="mt-2 text-sm font-semibold leading-6 text-muted-foreground">{product.promotion.description}</p>
+              ) : null}
             </div>
           ) : null}
-          <p className="text-sm font-semibold leading-6 text-muted-foreground">{product.description}</p>
-          <div className="flex items-end gap-2">
-            {product.compareAtPrice ? <span className="text-sm font-black text-muted-foreground line-through">{currency(product.compareAtPrice)}</span> : null}
-            <span className="text-2xl font-black text-primary">{currency(product.price)}</span>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {product.tags.map((tag) => (
-              <span key={tag} className="rounded-full bg-muted px-3 py-1 text-xs font-black text-muted-foreground">
-                {tag}
+
+          <div className="space-y-3">
+            <p className="text-sm font-semibold leading-6 text-muted-foreground">{product.description}</p>
+            <div className="flex items-end gap-2">
+              {product.compareAtPrice ? <span className="text-sm font-extrabold text-muted-foreground line-through">{currency(product.compareAtPrice)}</span> : null}
+              <span className="text-3xl font-extrabold tracking-[-0.05em] text-foreground">{currency(product.price)}</span>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {product.tags.map((tag) => (
+                <span key={tag} className="rounded-full bg-[#fff7f0] px-3 py-1 text-[11px] font-extrabold uppercase tracking-[0.18em] text-[#7c6553]">
+                  {tag}
+                </span>
+              ))}
+              <span className="rounded-full bg-[#ebfff4] px-3 py-1 text-[11px] font-extrabold uppercase tracking-[0.18em] text-[#188a4d]">
+                {product.prepMinutes} min
               </span>
-            ))}
-            <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-black text-emerald-800">{product.prepMinutes} min</span>
+            </div>
           </div>
 
           {product.options.map((group) => (
-            <div key={group.id} className="rounded-lg border bg-background p-3">
+            <div key={group.id} className="menu-surface rounded-[28px] p-4">
               <div className="mb-3 flex items-center justify-between gap-3">
                 <div>
-                  <p className="text-sm font-black">{group.name}</p>
-                  <p className="text-xs font-bold text-muted-foreground">{group.required ? "Obrigatorio" : "Opcional"}</p>
+                  <p className="text-sm font-extrabold">{group.name}</p>
+                  <p className="text-xs font-bold uppercase tracking-[0.18em] text-muted-foreground">{group.required ? "Obrigatorio" : "Opcional"}</p>
                 </div>
-                {group.maxSelected ? <span className="text-xs font-black text-muted-foreground">ate {group.maxSelected}</span> : null}
+                {group.maxSelected ? <span className="text-xs font-extrabold text-muted-foreground">ate {group.maxSelected}</span> : null}
               </div>
               <div className="space-y-2">
                 {group.values.filter((value) => value.active).map((value) => {
                   const checked = Boolean(selected[optionKey(group.id, value.id)]);
                   return (
-                    <label key={value.id} className="flex min-h-11 cursor-pointer items-center justify-between gap-3 rounded-lg border bg-card px-3 py-2">
+                    <label key={value.id} className={`flex min-h-12 cursor-pointer items-center justify-between gap-3 rounded-[22px] border px-4 py-3 transition ${checked ? "border-[#ffb26b] bg-[#fff4e7]" : "border-white/70 bg-card hover:bg-[#fff9f4]"}`}>
                       <span className="flex items-center gap-3">
                         <input
                           type={group.optionType === "single" ? "radio" : "checkbox"}
@@ -261,7 +429,7 @@ function ProductModal({
                         />
                         <span className="text-sm font-bold">{value.name}</span>
                       </span>
-                      <span className="text-sm font-black">{value.priceDelta > 0 ? `+ ${currency(value.priceDelta)}` : ""}</span>
+                      <span className="text-sm font-extrabold">{value.priceDelta > 0 ? `+ ${currency(value.priceDelta)}` : ""}</span>
                     </label>
                   );
                 })}
@@ -270,16 +438,16 @@ function ProductModal({
           ))}
 
           {removableIngredients.length > 0 ? (
-            <div className="rounded-lg border bg-background p-3">
+            <div className="menu-surface rounded-[28px] p-4">
               <div className="mb-3">
-                <p className="text-sm font-black">Tirar ingredientes</p>
-                <p className="text-xs font-bold text-muted-foreground">Nao altera o valor do produto.</p>
+                <p className="text-sm font-extrabold">Tirar ingredientes</p>
+                <p className="text-xs font-bold uppercase tracking-[0.18em] text-muted-foreground">Nao altera o valor do produto</p>
               </div>
               <div className="grid gap-2 sm:grid-cols-2">
                 {removableIngredients.map((ingredient) => {
                   const checked = removedIngredients.includes(ingredient);
                   return (
-                    <label key={ingredient} className="flex min-h-11 cursor-pointer items-center gap-3 rounded-lg border bg-card px-3 py-2">
+                    <label key={ingredient} className={`flex min-h-12 cursor-pointer items-center gap-3 rounded-[22px] border px-4 py-3 transition ${checked ? "border-[#ffb26b] bg-[#fff4e7]" : "border-white/70 bg-card hover:bg-[#fff9f4]"}`}>
                       <input type="checkbox" checked={checked} onChange={() => toggleRemovedIngredient(ingredient)} />
                       <span className="text-sm font-bold">Sem {ingredient}</span>
                     </label>
@@ -370,11 +538,11 @@ export function PublicMenu({ slug, tableSlug }: PublicMenuProps) {
         clearStoredCustomerProfile(payload.store.id);
         setCustomer((current) => ({ ...current, city: current.city || payload.store.city, state: current.state || payload.store.state }));
       })
-      .catch((error) => {
+      .catch((nextError) => {
         if (!active) return;
         setMenu(null);
         setLoading(false);
-        setLoadError(getPublicErrorMessage(error, "Cardapio indisponivel."));
+        setLoadError(getPublicErrorMessage(nextError, "Cardapio indisponivel."));
       });
     return () => {
       active = false;
@@ -394,17 +562,62 @@ export function PublicMenu({ slug, tableSlug }: PublicMenuProps) {
       })
       .sort((a, b) => Number(b.featured) - Number(a.featured) || a.sortOrder - b.sortOrder || a.displayName.localeCompare(b.displayName));
   }, [activeCategory, menu, query, serviceType]);
+
+  const visibleCategories = useMemo(() => {
+    if (!menu) return [];
+    return menu.categories
+      .filter((category) => category.active && category.qrVisible)
+      .sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name));
+  }, [menu]);
+
+  const featuredItems = useMemo(() => visibleItems.filter((item) => item.featured).slice(0, 6), [visibleItems]);
+  const quickPicks = featuredItems.length > 0 ? featuredItems : visibleItems.slice(0, 6);
+  const currentCategory = activeCategory === "all"
+    ? null
+    : visibleCategories.find((category) => category.id === activeCategory) || null;
+
   useRevealOnScroll(`${activeCategory}:${query}:${serviceType}:${visibleItems.map((item) => item.id).join(",")}`);
 
   const subtotal = cart.reduce((sum, item) => sum + cartItemTotal(item), 0);
   const deliveryFee = menu && serviceType === "delivery" ? menu.store.deliveryFee : 0;
   const total = subtotal + deliveryFee;
+  const minimumGap = menu && serviceType === "delivery" ? Math.max(0, menu.store.minimumOrderAmount - subtotal) : 0;
   const canCheckout = cart.length > 0 && (!menu || subtotal >= menu.store.minimumOrderAmount || serviceType !== "delivery");
   const estimatedWaitLabel = serviceType === "delivery"
     ? `${menu?.store.estimatedDeliveryMinutes || 0} min para entrega`
     : `${menu?.store.estimatedDeliveryMinutes || 0} min de espera`;
   const isCustomerSignedIn = Boolean(customerAccountEmail.trim() && customer.loyaltyOptIn);
   const customerDisplayName = customer.name.trim() || customerAccountEmail;
+  const serviceLabel = serviceType === "delivery" ? "Delivery" : serviceType === "dine_in" ? "Mesa" : "Retirada";
+  const orderHelperText = serviceType === "delivery"
+    ? minimumGap > 0
+      ? `Faltam ${currency(minimumGap)} para liberar o envio.`
+      : `Entrega confirmada em media ${menu?.store.estimatedDeliveryMinutes || 0} min.`
+    : serviceType === "dine_in"
+      ? "Seu pedido vai direto para a mesa."
+      : "Retire no balcao quando estiver pronto.";
+  const currentServiceDescription = serviceType === "delivery"
+    ? "Envio para o endereco salvo no checkout."
+    : serviceType === "dine_in"
+      ? "Os itens saem para a mesa assim que forem preparados."
+      : "Retirada no balcao com fila e status simplificados.";
+  const paymentMethodLabels = {
+    pix: "Pix",
+    debit: "Debito",
+    credit: "Credito",
+    voucher: "Voucher",
+    card: "Cartao",
+    cash: "Dinheiro",
+  } as const;
+  const whatsappHref = menu?.store.whatsapp.trim()
+    ? `https://wa.me/${menu.store.whatsapp.replace(/\D/g, "")}`
+    : null;
+
+  const scrollToSection = (id: string) => {
+    const element = document.getElementById(id);
+    if (!element) return;
+    element.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
 
   const saveCustomerProfile = async () => {
     setLoyaltyError(null);
@@ -430,8 +643,8 @@ export function PublicMenu({ slug, tableSlug }: PublicMenuProps) {
       setCustomer(profile);
       setCustomerAuthMessage("Cadastro salvo.");
       setLoyaltyOpen(false);
-    } catch (error) {
-      setLoyaltyError(getPublicErrorMessage(error, "Nao foi possivel salvar o cadastro."));
+    } catch (nextError) {
+      setLoyaltyError(getPublicErrorMessage(nextError, "Nao foi possivel salvar o cadastro."));
     } finally {
       setCustomerAuthLoading(false);
     }
@@ -492,8 +705,8 @@ export function PublicMenu({ slug, tableSlug }: PublicMenuProps) {
         setCustomerAuthMessage("Voce entrou no cardapio.");
         setLoyaltyOpen(false);
       }
-    } catch (error) {
-      setLoyaltyError(getPublicErrorMessage(error, "Nao foi possivel entrar agora."));
+    } catch (nextError) {
+      setLoyaltyError(getPublicErrorMessage(nextError, "Nao foi possivel entrar agora."));
     } finally {
       setCustomerAuthLoading(false);
     }
@@ -613,9 +826,13 @@ export function PublicMenu({ slug, tableSlug }: PublicMenuProps) {
   if (loading) {
     return (
       <main className="app-shell grid min-h-dvh place-items-center p-4">
-        <div className="rounded-lg border bg-card p-6 text-center shadow-panel">
-          <ChefHat className="mx-auto text-primary" size={34} />
-          <p className="mt-3 text-sm font-black">Carregando cardapio</p>
+        <div className="menu-surface w-full max-w-sm rounded-[34px] p-8 text-center">
+          <div className="mx-auto grid size-16 place-items-center rounded-[24px] bg-[#fff0df] text-primary shadow-[0_18px_36px_rgba(255,124,32,0.16)]">
+            <ChefHat size={30} />
+          </div>
+          <p className="mt-5 text-sm font-extrabold uppercase tracking-[0.24em] text-[#ff7a00]">HappyCashFood</p>
+          <h1 className="mt-3 text-2xl font-extrabold tracking-[-0.05em]">Carregando cardapio</h1>
+          <p className="mt-2 text-sm font-semibold text-muted-foreground">Preparando o menu, categorias e checkout rapido.</p>
         </div>
       </main>
     );
@@ -624,183 +841,421 @@ export function PublicMenu({ slug, tableSlug }: PublicMenuProps) {
   if (loadError || !menu) {
     return (
       <main className="app-shell grid min-h-dvh place-items-center p-4">
-        <div className="w-full max-w-md rounded-lg border bg-card p-6 text-center shadow-panel">
-          <ChefHat className="mx-auto text-primary" size={34} />
-          <h1 className="mt-3 text-xl font-black">Cardapio indisponivel</h1>
-          <p className="mt-2 text-sm font-semibold text-muted-foreground">{loadError || "Nao foi possivel abrir este cardapio."}</p>
-          <p className="mt-4 text-xs font-black text-muted-foreground">HappyCashFood</p>
+        <div className="menu-surface w-full max-w-md rounded-[34px] p-8 text-center">
+          <div className="mx-auto grid size-16 place-items-center rounded-[24px] bg-[#fff0df] text-primary shadow-[0_18px_36px_rgba(255,124,32,0.16)]">
+            <ChefHat size={30} />
+          </div>
+          <h1 className="mt-5 text-3xl font-extrabold tracking-[-0.05em]">Cardapio indisponivel</h1>
+          <p className="mt-3 text-sm font-semibold leading-6 text-muted-foreground">{loadError || "Nao foi possivel abrir este cardapio."}</p>
+          <p className="mt-5 text-xs font-extrabold uppercase tracking-[0.24em] text-[#ff7a00]">HappyCashFood</p>
         </div>
       </main>
     );
   }
 
-  return (
-    <main className="app-shell pb-28">
-      <header className="relative overflow-hidden bg-zinc-950 text-white">
-        <FoodImage
-          src={menu.store.coverUrl}
-          alt={menu.store.displayName}
-          className="absolute inset-x-0 top-0 h-[125%] w-full opacity-50 will-change-transform"
-          style={{ transform: `translate3d(0, ${Math.min(scrollY * 0.18, 90)}px, 0) scale(1.04)` }}
-        />
-        <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(6,8,12,0.18),rgba(6,8,12,0.86)),radial-gradient(circle_at_top_left,rgba(250,204,21,0.24),transparent_38%),radial-gradient(circle_at_bottom_right,rgba(34,211,238,0.16),transparent_42%)]" />
-        <div className="container relative z-10 flex min-h-[310px] flex-col justify-end gap-5 py-6">
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <BrandMark name={menu.store.displayName} logoUrl={menu.store.logoUrl} />
-            <div className="flex flex-wrap items-center justify-end gap-2">
-              <button className="rounded-full bg-white/12 px-3 py-2 text-xs font-black text-white backdrop-blur" onClick={() => setLoyaltyOpen(true)}>
-                <ShieldCheck className="mr-1 inline" size={14} />
-                {isCustomerSignedIn ? customerDisplayName : "Entrar"}
-              </button>
-            <span className={`rounded-full px-3 py-2 text-xs font-black ${menu.store.isOpen ? "bg-success text-success-foreground" : "bg-slate-200 text-slate-900"}`}>
-                {menu.store.isOpen ? "Aberto" : "Fechado"}
-              </span>
-            </div>
-          </div>
-          <div className="max-w-3xl">
-            <h1 className="text-3xl font-black leading-tight sm:text-5xl">{menu.store.displayName}</h1>
-            <p className="mt-3 max-w-2xl text-sm font-semibold leading-6 text-slate-200 sm:text-base">{menu.store.description}</p>
-          </div>
-          <div className="flex flex-wrap gap-2 text-xs font-black text-slate-100">
-            <span className="inline-flex items-center gap-2 rounded-full bg-white/12 px-3 py-2 backdrop-blur">
-              <Clock size={15} /> {estimatedWaitLabel}
-            </span>
-            <span className="inline-flex items-center gap-2 rounded-full bg-white/12 px-3 py-2 backdrop-blur">
-              <MapPin size={15} /> {menu.store.addressLine || `${menu.store.city} - ${menu.store.state}`}
-            </span>
-            {menu.table ? (
-              <span className="inline-flex items-center gap-2 rounded-full bg-primary px-3 py-2 text-primary-foreground">
-                <Utensils size={15} /> {menu.table.name || `Mesa ${menu.table.code}`}
-              </span>
-            ) : null}
-          </div>
-          {menu.table ? (
-            <div className="space-y-2">
-              <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setError(null);
-                    setWaiterModalOpen(true);
-                  }}
-                  disabled={Boolean(tableActionLoading)}
-                  className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-white px-4 py-2 text-sm font-black text-zinc-950 shadow-sm transition hover:bg-amber-200 disabled:cursor-wait disabled:opacity-70"
-                >
-                  <MessageSquareText size={17} />
-                  {tableActionLoading === "call_waiter" ? "Chamando..." : "Chamar garcom"}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void submitTableAction("request_bill")}
-                  disabled={Boolean(tableActionLoading)}
-                  className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-white/25 bg-white/12 px-4 py-2 text-sm font-black text-white backdrop-blur transition hover:border-primary disabled:cursor-wait disabled:opacity-70"
-                >
-                  <ReceiptText size={17} />
-                  {tableActionLoading === "request_bill" ? "Chamando..." : "Fechar conta"}
-                </button>
-              </div>
-              {error && !checkoutOpen ? <p className="rounded-lg bg-red-500/20 px-3 py-2 text-sm font-black text-red-100">{error}</p> : null}
-            </div>
-          ) : null}
-        </div>
-      </header>
+  const serviceOptions = [
+    menu.store.acceptsDineIn && menu.table ? {
+      key: "dine_in" as const,
+      label: "Mesa",
+      detail: menu.table.name || `Mesa ${menu.table.code}`,
+      icon: <Utensils size={18} />,
+    } : null,
+    menu.store.acceptsDelivery ? {
+      key: "delivery" as const,
+      label: "Delivery",
+      detail: `${menu.store.estimatedDeliveryMinutes} min para entrega`,
+      icon: <ShoppingBag size={18} />,
+    } : null,
+    {
+      key: "takeaway" as const,
+      label: "Retirada",
+      detail: "Buscar no balcao",
+      icon: <ChefHat size={18} />,
+    },
+  ].filter(Boolean) as Array<{
+    key: "dine_in" | "delivery" | "takeaway";
+    label: string;
+    detail: string;
+    icon: ReactNode;
+  }>;
 
-      <section className="sticky top-0 z-30 border-b bg-background/95 backdrop-blur">
-        <div className="container py-3">
-          <div className="grid gap-3 lg:grid-cols-[auto_minmax(0,1fr)] lg:items-center">
-            <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-thin">
-              {menu.store.acceptsDineIn && menu.table ? (
-                <button className={serviceType === "dine_in" ? "hc-button-primary whitespace-nowrap" : "hc-button-soft whitespace-nowrap"} onClick={() => setServiceType("dine_in")}>
-                  <Utensils size={17} /> Mesa
-                </button>
-              ) : null}
-              {menu.store.acceptsDelivery ? (
-                <button className={serviceType === "delivery" ? "hc-button-primary whitespace-nowrap" : "hc-button-soft whitespace-nowrap"} onClick={() => setServiceType("delivery")}>
-                  <ShoppingBag size={17} /> Delivery
-                </button>
-              ) : null}
-              <button className={serviceType === "takeaway" ? "hc-button-primary whitespace-nowrap" : "hc-button-soft whitespace-nowrap"} onClick={() => setServiceType("takeaway")}>
-                <ChefHat size={17} /> No local
-              </button>
+  return (
+    <main className="app-shell pb-[11rem] sm:pb-36" id="menu-top">
+      <section className="relative overflow-hidden px-4 pt-4 sm:px-6 lg:px-8">
+        <div className="absolute left-4 top-8 h-24 w-24 rounded-full bg-[#ffb15d]/18 blur-3xl" />
+        <div className="absolute right-6 top-32 h-20 w-20 rounded-full bg-[#ffd999]/22 blur-3xl" />
+
+        <div className="container relative">
+          <div className="menu-surface overflow-hidden rounded-[36px]">
+            <div className="relative min-h-[340px] sm:min-h-[400px]">
+              <FoodImage
+                src={menu.store.coverUrl}
+                alt={menu.store.displayName}
+                className="absolute inset-0 h-[118%] w-full"
+                style={{ transform: `translate3d(0, ${Math.min(scrollY * 0.16, 84)}px, 0) scale(1.04)` }}
+              />
+              <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(14,11,8,0.22),rgba(14,11,8,0.84)),radial-gradient(circle_at_top_left,rgba(255,179,100,0.26),transparent_34%),radial-gradient(circle_at_bottom_right,rgba(255,255,255,0.14),transparent_38%)]" />
+
+              <div className="absolute inset-x-0 top-0 flex flex-wrap items-start justify-between gap-3 p-4 sm:p-6">
+                <div className="rounded-[22px] bg-white/14 px-3 py-2 text-white backdrop-blur-md">
+                  <BrandMark name={menu.store.displayName} logoUrl={menu.store.logoUrl} compact />
+                </div>
+                <div className="flex max-w-full flex-wrap items-center justify-end gap-2">
+                  <button
+                    type="button"
+                    className="menu-chip max-w-[14rem] bg-white/16 text-white backdrop-blur-md"
+                    onClick={() => setLoyaltyOpen(true)}
+                  >
+                    <ShieldCheck size={15} />
+                    <span className="truncate">{isCustomerSignedIn ? customerDisplayName : "Entrar"}</span>
+                  </button>
+                  <span className={`menu-chip ${menu.store.isOpen ? "bg-[#ebfff4] text-[#177f48]" : "bg-white text-[#2f2419]"}`}>
+                    {menu.store.isOpen ? "Aberto" : "Fechado"}
+                  </span>
+                </div>
+              </div>
+
+              <div className="absolute inset-x-0 bottom-0 p-5 sm:p-7">
+                <div className="max-w-3xl">
+                  <p className="text-[11px] font-extrabold uppercase tracking-[0.32em] text-white/72">HappyCashFood menu</p>
+                  <h1 className="mt-2 text-[2.3rem] font-extrabold leading-none tracking-[-0.07em] text-white sm:text-[4rem]">
+                    {menu.store.displayName}
+                  </h1>
+                  <p className="mt-4 max-w-2xl text-sm font-semibold leading-6 text-white/78 sm:text-base">
+                    {menu.store.description}
+                  </p>
+                </div>
+
+                <div className="mt-5 flex flex-wrap gap-2">
+                  <span className="menu-chip bg-white/14 text-white backdrop-blur">
+                    <Clock size={15} /> {estimatedWaitLabel}
+                  </span>
+                  <span className="menu-chip bg-white/14 text-white backdrop-blur">
+                    <MapPin size={15} /> {menu.store.addressLine || `${menu.store.city} - ${menu.store.state}`}
+                  </span>
+                  {serviceType === "delivery" ? (
+                    <span className="menu-chip bg-white/14 text-white backdrop-blur">
+                      <CreditCard size={15} /> Taxa {currency(menu.store.deliveryFee)}
+                    </span>
+                  ) : null}
+                  {menu.table ? (
+                    <span className="menu-chip bg-white text-[#23160d]">
+                      <Utensils size={15} /> {menu.table.name || `Mesa ${menu.table.code}`}
+                    </span>
+                  ) : null}
+                </div>
+              </div>
             </div>
-            <label className="relative block">
-              <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={18} />
-              <input value={query} onChange={(event) => setQuery(event.target.value)} className="hc-input pl-10" placeholder="Buscar produto" />
-            </label>
-          </div>
-          <div className="mt-3 flex gap-2 overflow-x-auto pb-1 scrollbar-thin">
-            <button className={activeCategory === "all" ? "hc-button-accent whitespace-nowrap" : "hc-button-soft whitespace-nowrap"} onClick={() => setActiveCategory("all")}>
-              Todos
-            </button>
-            {menu.categories.filter((category) => category.active && category.qrVisible).map((category) => (
-              <button key={category.id} className={activeCategory === category.id ? "hc-button-accent whitespace-nowrap" : "hc-button-soft whitespace-nowrap"} onClick={() => setActiveCategory(category.id)}>
-                {category.name}
-              </button>
-            ))}
+
+            <div className="grid gap-4 border-t border-[#f3e6d7] bg-white/92 p-4 sm:p-5 lg:grid-cols-[minmax(0,1.2fr)_minmax(320px,0.8fr)]">
+              <div>
+                <div className="flex flex-wrap items-end justify-between gap-3">
+                  <div>
+                    <p className="hc-label">Fluxo do pedido</p>
+                    <p className="mt-2 text-2xl font-extrabold tracking-[-0.05em] text-foreground">Peça do seu jeito</p>
+                  </div>
+                  <span className="menu-chip bg-[#fff4e7] text-[#ff7a00]">{serviceLabel}</span>
+                </div>
+
+                <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                  {serviceOptions.map((option) => {
+                    const activeOption = serviceType === option.key;
+                    return (
+                      <button
+                        key={option.key}
+                        type="button"
+                        className={`rounded-[28px] border p-4 text-left transition duration-200 ${activeOption ? "border-[#ffb26b] bg-[#fff4e7] shadow-[0_18px_40px_rgba(255,124,32,0.14)]" : "border-white/70 bg-[#fffaf5] hover:-translate-y-0.5 hover:bg-white"}`}
+                        onClick={() => setServiceType(option.key)}
+                      >
+                        <div className="flex items-center justify-between gap-3">
+                          <span className={`${activeOption ? "text-[#ff7a00]" : "text-foreground"}`}>{option.icon}</span>
+                          <span className={`rounded-full px-2.5 py-1 text-[11px] font-extrabold uppercase tracking-[0.18em] ${activeOption ? "bg-white text-[#ff7a00]" : "bg-[#fff0df] text-[#7c6553]"}`}>
+                            {activeOption ? "Ativo" : "Trocar"}
+                          </span>
+                        </div>
+                        <p className="mt-4 text-lg font-extrabold tracking-[-0.04em] text-foreground">{option.label}</p>
+                        <p className="mt-1 text-sm font-semibold leading-6 text-muted-foreground">{option.detail}</p>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {menu.table ? (
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
+                  <button
+                    type="button"
+                    className="menu-glass rounded-[28px] p-4 text-left transition duration-200 hover:-translate-y-0.5"
+                    onClick={() => {
+                      setError(null);
+                      setWaiterModalOpen(true);
+                    }}
+                    disabled={Boolean(tableActionLoading)}
+                  >
+                    <span className="menu-chip bg-white text-[#ff7a00]">
+                      <MessageSquareText size={15} /> Atendimento
+                    </span>
+                    <p className="mt-4 text-lg font-extrabold tracking-[-0.04em] text-foreground">
+                      {tableActionLoading === "call_waiter" ? "Chamando..." : "Chamar garcom"}
+                    </p>
+                    <p className="mt-1 text-sm font-semibold leading-6 text-muted-foreground">Avise a equipe sem criar pedido na cozinha.</p>
+                  </button>
+
+                  <button
+                    type="button"
+                    className="menu-glass rounded-[28px] p-4 text-left transition duration-200 hover:-translate-y-0.5"
+                    onClick={() => void submitTableAction("request_bill")}
+                    disabled={Boolean(tableActionLoading)}
+                  >
+                    <span className="menu-chip bg-white text-[#ff7a00]">
+                      <ReceiptText size={15} /> Conta
+                    </span>
+                    <p className="mt-4 text-lg font-extrabold tracking-[-0.04em] text-foreground">
+                      {tableActionLoading === "request_bill" ? "Solicitando..." : "Fechar conta"}
+                    </p>
+                    <p className="mt-1 text-sm font-semibold leading-6 text-muted-foreground">Peça o fechamento quando terminar a refeicao.</p>
+                  </button>
+                </div>
+              ) : (
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="menu-glass rounded-[28px] p-4">
+                    <span className="menu-chip bg-white text-[#ff7a00]">
+                      <ShoppingBag size={15} /> Pedido minimo
+                    </span>
+                    <p className="mt-4 text-3xl font-extrabold tracking-[-0.06em] text-foreground">{currency(menu.store.minimumOrderAmount)}</p>
+                    <p className="mt-1 text-sm font-semibold leading-6 text-muted-foreground">Valor minimo para liberar delivery no checkout.</p>
+                  </div>
+
+                  {whatsappHref ? (
+                    <a
+                      href={whatsappHref}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="menu-glass rounded-[28px] p-4 transition duration-200 hover:-translate-y-0.5"
+                    >
+                      <span className="menu-chip bg-white text-[#ff7a00]">
+                        <MessageSquareText size={15} /> Suporte
+                      </span>
+                      <p className="mt-4 text-lg font-extrabold tracking-[-0.04em] text-foreground">Falar no WhatsApp</p>
+                      <p className="mt-1 text-sm font-semibold leading-6 text-muted-foreground">{menu.store.phone || menu.store.whatsapp}</p>
+                    </a>
+                  ) : (
+                    <div className="menu-glass rounded-[28px] p-4">
+                      <span className="menu-chip bg-white text-[#ff7a00]">
+                        <CreditCard size={15} /> Pagamento
+                      </span>
+                      <p className="mt-4 text-lg font-extrabold tracking-[-0.04em] text-foreground">Pix, cartao e dinheiro</p>
+                      <p className="mt-1 text-sm font-semibold leading-6 text-muted-foreground">Escolha como pagar no final do pedido.</p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </section>
 
-      <section className="container py-5">
+      <section className="sticky top-3 z-30 px-4 pt-4 sm:px-6 lg:px-8" id="menu-filters">
+        <div className="container">
+          <div className="menu-glass rounded-[30px] p-3 sm:p-4">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <p className="text-lg font-extrabold tracking-[-0.04em] text-foreground">
+                  {currentCategory ? currentCategory.name : "Encontre seu proximo pedido"}
+                </p>
+                <p className="mt-1 text-sm font-semibold text-muted-foreground">
+                  {visibleItems.length} item(ns) ativos em {serviceLabel.toLowerCase()}.
+                </p>
+              </div>
+              {(query || activeCategory !== "all") ? (
+                <button
+                  type="button"
+                  className="menu-chip bg-[#fff4e7] text-[#ff7a00]"
+                  onClick={() => {
+                    setQuery("");
+                    setActiveCategory("all");
+                  }}
+                >
+                  Limpar filtros
+                </button>
+              ) : (
+                <span className="menu-chip bg-white text-[#7c6553]">{orderHelperText}</span>
+              )}
+            </div>
+
+            <label className="relative mt-4 block">
+              <Search className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground" size={18} />
+              <input
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                className="hc-input pl-11"
+                placeholder={serviceType === "delivery" ? "Buscar pratos, combos e sobremesas" : "Buscar itens do cardapio"}
+              />
+            </label>
+
+            <div className="mt-4 flex gap-2 overflow-x-auto pb-1 scrollbar-thin">
+              <button
+                type="button"
+                className={activeCategory === "all" ? "hc-button-primary whitespace-nowrap" : "hc-button-soft whitespace-nowrap"}
+                onClick={() => setActiveCategory("all")}
+              >
+                Todos
+              </button>
+              {visibleCategories.map((category) => (
+                <button
+                  key={category.id}
+                  type="button"
+                  className={activeCategory === category.id ? "hc-button-accent whitespace-nowrap" : "hc-button-soft whitespace-nowrap"}
+                  onClick={() => setActiveCategory(category.id)}
+                >
+                  {category.name}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {quickPicks.length > 0 ? (
+        <section className="container py-6" id="menu-highlights">
+          <SectionHeading
+            eyebrow="Destaques"
+            title="Escolhas em foco"
+            description="Uma faixa mais visual para os itens com mais apelo, no mesmo clima de app food mobile."
+            action={(
+              <button type="button" className="menu-chip bg-white text-[#ff7a00]" onClick={() => scrollToSection("menu-list")}>
+                Ver menu
+              </button>
+            )}
+          />
+
+          <div className="mt-5 flex gap-4 overflow-x-auto pb-2 scrollbar-thin">
+            {quickPicks.map((item, index) => (
+              <FeaturedMenuCard
+                key={item.id}
+                item={item}
+                index={index}
+                onSelect={() => setSelectedProduct(item)}
+              />
+            ))}
+          </div>
+        </section>
+      ) : null}
+
+      <section className="container pb-10" id="menu-list">
+        <SectionHeading
+          eyebrow={currentCategory ? "Categoria ativa" : "Cardapio"}
+          title={currentCategory ? currentCategory.name : "Explore o menu"}
+          description={currentCategory?.description || currentServiceDescription}
+        />
+
         {visibleItems.length === 0 ? (
-          <div className="rounded-lg border bg-card p-8 text-center">
-            <p className="text-sm font-black">Nenhum item encontrado</p>
+          <div className="menu-surface mt-5 rounded-[32px] p-8 text-center">
+            <div className="mx-auto grid size-16 place-items-center rounded-[24px] bg-[#fff0df] text-primary shadow-[0_18px_36px_rgba(255,124,32,0.16)]">
+              <Search size={28} />
+            </div>
+            <h3 className="mt-5 text-2xl font-extrabold tracking-[-0.05em]">Nenhum item encontrado</h3>
+            <p className="mt-2 text-sm font-semibold leading-6 text-muted-foreground">
+              Ajuste a busca ou troque a categoria para ver mais opcoes desse cardapio.
+            </p>
+            <button
+              type="button"
+              className="hc-button-primary mt-5"
+              onClick={() => {
+                setQuery("");
+                setActiveCategory("all");
+              }}
+            >
+              Limpar busca
+            </button>
           </div>
         ) : (
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="mt-5 grid gap-4 xl:grid-cols-2">
             {visibleItems.map((item, index) => (
-              <button
+              <MenuProductCard
                 key={item.id}
-                data-reveal
-                style={{ transitionDelay: `${Math.min(index * 45, 260)}ms` }}
-                className="reveal-on-scroll group overflow-hidden rounded-lg border bg-card text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-panel"
-                onClick={() => setSelectedProduct(item)}
-              >
-                <div className="relative overflow-hidden">
-                  <FoodImage src={item.imageUrl} alt={item.imageAlt} className="aspect-[16/10] w-full transition duration-500 group-hover:scale-[1.04]" />
-                  {item.promotion ? (
-                    <span className="absolute left-3 top-3 rounded-full bg-primary px-3 py-1 text-xs font-black text-primary-foreground shadow-sm">
-                      {item.promotion.badgeLabel}
-                    </span>
-                  ) : null}
-                </div>
-                <div className="space-y-3 p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <h2 className="text-base font-black leading-tight">{item.displayName}</h2>
-                    <span className="shrink-0 text-right">
-                      {item.compareAtPrice ? <span className="block text-xs font-black text-muted-foreground line-through">{currency(item.compareAtPrice)}</span> : null}
-                      <span className="block text-sm font-black text-primary">{currency(item.price)}</span>
-                    </span>
-                  </div>
-                  {item.promotion ? <p className="text-xs font-black text-accent">{item.promotion.title}</p> : null}
-                  <p className="line-clamp-2 min-h-10 text-sm font-semibold leading-5 text-muted-foreground">{item.description}</p>
-                  <div className="flex items-center justify-between gap-3">
-                    <span className="inline-flex items-center gap-1 text-xs font-black text-muted-foreground">
-                      <Clock size={14} /> {item.prepMinutes} min
-                    </span>
-                    <span className="text-xs font-black text-primary">Adicionar</span>
-                  </div>
-                </div>
-              </button>
+                item={item}
+                index={index}
+                onSelect={() => setSelectedProduct(item)}
+              />
             ))}
           </div>
         )}
       </section>
 
       {cart.length > 0 ? (
-        <div className="fixed inset-x-0 bottom-0 z-40 border-t bg-card/95 p-3 shadow-panel backdrop-blur safe-bottom">
-          <div className="container flex items-center justify-between gap-3">
-            <div className="min-w-0">
-              <p className="truncate text-sm font-black">{cart.length} item(ns) no carrinho</p>
-              <p className="text-xs font-bold text-muted-foreground">Total {currency(total)}</p>
+        <div className="pointer-events-none fixed inset-x-0 bottom-[5.9rem] z-40 px-4 sm:bottom-6 sm:px-6">
+          <div className="container">
+            <div className="pointer-events-auto ml-auto flex w-full max-w-xl items-center gap-3 rounded-[30px] bg-[#17120d] p-3 text-white shadow-[0_30px_70px_rgba(23,18,13,0.34)]">
+              <div className="grid size-12 shrink-0 place-items-center rounded-[18px] bg-primary text-white shadow-[0_18px_36px_rgba(255,124,32,0.28)]">
+                <ShoppingBag size={20} />
+              </div>
+
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-extrabold">{cart.length} item(ns) no pedido</p>
+                <p className="truncate text-xs font-semibold text-white/68">
+                  {serviceType === "delivery" && minimumGap > 0 ? `Faltam ${currency(minimumGap)} para o minimo.` : orderHelperText}
+                </p>
+              </div>
+
+              <div className="shrink-0 text-right">
+                <p className="text-xl font-extrabold tracking-[-0.04em]">{currency(total)}</p>
+                <button
+                  type="button"
+                  className="mt-2 inline-flex min-h-11 items-center rounded-full bg-white px-4 text-sm font-extrabold text-[#17120d] transition hover:bg-[#fff3e7]"
+                  disabled={!canCheckout}
+                  onClick={() => setCheckoutOpen(true)}
+                >
+                  Ver pedido
+                </button>
+              </div>
             </div>
-            <button className="hc-button-primary" disabled={!canCheckout} onClick={() => setCheckoutOpen(true)}>
-              <ShoppingBag size={18} />
-              Ver pedido
-            </button>
           </div>
         </div>
       ) : null}
+
+      <div className="fixed inset-x-0 bottom-0 z-30 px-4 pb-3 sm:hidden safe-bottom">
+        <div className="menu-mobile-nav mx-auto flex max-w-md items-center justify-between rounded-[28px] px-3 py-2">
+          <button
+            type="button"
+            className="flex min-w-[72px] flex-col items-center gap-1 rounded-[20px] px-3 py-2 text-[11px] font-extrabold uppercase tracking-[0.16em] text-[#7c6553]"
+            onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+          >
+            <ChefHat size={18} />
+            Menu
+          </button>
+          <button
+            type="button"
+            className="flex min-w-[72px] flex-col items-center gap-1 rounded-[20px] px-3 py-2 text-[11px] font-extrabold uppercase tracking-[0.16em] text-[#7c6553]"
+            onClick={() => scrollToSection("menu-filters")}
+          >
+            <Search size={18} />
+            Buscar
+          </button>
+          <button
+            type="button"
+            className={`flex min-w-[72px] flex-col items-center gap-1 rounded-[20px] px-3 py-2 text-[11px] font-extrabold uppercase tracking-[0.16em] ${cart.length > 0 ? "bg-[#fff1e3] text-[#ff7a00]" : "text-[#7c6553]"}`}
+            onClick={() => {
+              if (cart.length > 0) {
+                setCheckoutOpen(true);
+                return;
+              }
+              scrollToSection("menu-list");
+            }}
+          >
+            <ShoppingBag size={18} />
+            Pedido
+          </button>
+          <button
+            type="button"
+            className={`flex min-w-[72px] flex-col items-center gap-1 rounded-[20px] px-3 py-2 text-[11px] font-extrabold uppercase tracking-[0.16em] ${isCustomerSignedIn ? "bg-[#ebfff4] text-[#177f48]" : "text-[#7c6553]"}`}
+            onClick={() => setLoyaltyOpen(true)}
+          >
+            <ShieldCheck size={18} />
+            Conta
+          </button>
+        </div>
+      </div>
 
       <ProductModal
         product={selectedProduct}
@@ -811,138 +1266,165 @@ export function PublicMenu({ slug, tableSlug }: PublicMenuProps) {
 
       <Modal
         title="Finalizar pedido"
-        subtitle={`${menu.store.receiptName} + HappyCashFood`}
+        subtitle={`${menu.store.receiptName} | HappyCashFood`}
         open={checkoutOpen}
         onClose={() => setCheckoutOpen(false)}
         size="lg"
         disableEscape={loyaltyOpen || Boolean(pendingRemoval)}
-        footer={
+        footer={(
           <div className="space-y-3">
-            {error ? <p className="rounded-lg bg-red-50 p-3 text-sm font-bold text-red-700">{error}</p> : null}
+            {error ? <p className="rounded-[22px] bg-[#fff1ef] p-3 text-sm font-bold text-red-700">{error}</p> : null}
             <button className="hc-button-primary w-full" disabled={submitting || !canCheckout} onClick={submitOrder}>
               <CreditCard size={18} />
-              {submitting ? "Enviando..." : paymentTiming === "now" ? `Pagar agora ${currency(total)}` : `Pedir e pagar no caixa ${currency(total)}`}
+              {submitting ? "Enviando..." : paymentTiming === "now" ? `Pagar agora ${currency(total)}` : `Enviar pedido ${currency(total)}`}
             </button>
           </div>
-        }
+        )}
       >
-        <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_340px]">
-          <div className="space-y-4">
-            <div className="rounded-lg border bg-background p-3">
+        <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">
+          <div className="space-y-5">
+            <div className="menu-surface rounded-[30px] p-4">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                  <p className="text-sm font-black">{isCustomerSignedIn ? `Cliente: ${customerDisplayName}` : "Entre para enviar o pedido"}</p>
-                  <p className="text-xs font-bold text-muted-foreground">{estimatedWaitLabel}</p>
+                  <p className="hc-label">Conta</p>
+                  <p className="mt-2 text-xl font-extrabold tracking-[-0.04em] text-foreground">
+                    {isCustomerSignedIn ? customerDisplayName : "Entre para enviar o pedido"}
+                  </p>
+                  <p className="mt-1 text-sm font-semibold leading-6 text-muted-foreground">{currentServiceDescription}</p>
                 </div>
-                <button className="hc-button-soft" onClick={() => setLoyaltyOpen(true)}>
+                <button type="button" className="hc-button-soft" onClick={() => setLoyaltyOpen(true)}>
                   <ShieldCheck size={17} />
                   {isCustomerSignedIn ? "Editar dados" : "Entrar"}
                 </button>
               </div>
             </div>
 
-            <div>
-              <span className="hc-label">Como deseja pagar</span>
-              <div className="mt-2 grid gap-2 sm:grid-cols-2">
+            <div className="menu-surface rounded-[30px] p-4">
+              <p className="hc-label">Momento do pagamento</p>
+              <div className="mt-4 grid gap-3 sm:grid-cols-2">
                 {([
-                  ["cashier", "Pagar no caixa/balcao"],
-                  ["now", "Pagar agora"],
-                ] as Array<[PaymentTiming, string]>).map(([mode, label]) => (
+                  ["cashier", "Pagar no caixa/balcao", "Fluxo mais simples para fechar o pedido."],
+                  ["now", "Pagar agora", "Use Pix ou cartao assim que confirmar."],
+                ] as Array<[PaymentTiming, string, string]>).map(([mode, label, description]) => (
                   <button
                     key={mode}
                     type="button"
-                    className={paymentTiming === mode ? "hc-button-primary" : "hc-button-soft"}
+                    className={`rounded-[26px] border p-4 text-left transition duration-200 ${paymentTiming === mode ? "border-[#ffb26b] bg-[#fff4e7] shadow-[0_18px_40px_rgba(255,124,32,0.14)]" : "border-white/70 bg-card hover:-translate-y-0.5 hover:bg-[#fff9f4]"}`}
                     onClick={() => setPaymentTiming(mode)}
                   >
-                    {label}
+                    <p className="text-base font-extrabold tracking-[-0.03em] text-foreground">{label}</p>
+                    <p className="mt-2 text-sm font-semibold leading-6 text-muted-foreground">{description}</p>
                   </button>
                 ))}
               </div>
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-2">
-              <label>
-                <span className="hc-label">Email</span>
-                <input value={customer.email} onChange={(event) => setCustomer((current) => ({ ...current, email: event.target.value }))} className="hc-input mt-2" type="email" autoComplete="email" />
-              </label>
-              <label>
-                <span className="hc-label">Nome</span>
-                <input value={customer.name} onChange={(event) => setCustomer((current) => ({ ...current, name: event.target.value }))} className="hc-input mt-2" />
-              </label>
-              <label>
-                <span className="hc-label">Telefone</span>
-                <input value={customer.phone} onChange={(event) => setCustomer((current) => ({ ...current, phone: event.target.value }))} className="hc-input mt-2" inputMode="tel" />
-              </label>
+            <div className="menu-surface rounded-[30px] p-4">
+              <p className="hc-label">Seus dados</p>
+              <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                <label>
+                  <span className="hc-label">Email</span>
+                  <input value={customer.email} onChange={(event) => setCustomer((current) => ({ ...current, email: event.target.value }))} className="hc-input mt-2" type="email" autoComplete="email" />
+                </label>
+                <label>
+                  <span className="hc-label">Nome</span>
+                  <input value={customer.name} onChange={(event) => setCustomer((current) => ({ ...current, name: event.target.value }))} className="hc-input mt-2" autoComplete="name" />
+                </label>
+                <label className="sm:col-span-2">
+                  <span className="hc-label">Telefone</span>
+                  <input value={customer.phone} onChange={(event) => setCustomer((current) => ({ ...current, phone: event.target.value }))} className="hc-input mt-2" inputMode="tel" autoComplete="tel" />
+                </label>
+              </div>
             </div>
 
             {serviceType === "delivery" ? (
-              <div className="grid gap-3 sm:grid-cols-[1fr_120px]">
-                <label>
-                  <span className="hc-label">Endereco</span>
-                  <input value={customer.address} onChange={(event) => setCustomer((current) => ({ ...current, address: event.target.value }))} className="hc-input mt-2" />
-                </label>
-                <label>
-                  <span className="hc-label">Numero</span>
-                  <input value={customer.number} onChange={(event) => setCustomer((current) => ({ ...current, number: event.target.value }))} className="hc-input mt-2" />
-                </label>
-                <label>
-                  <span className="hc-label">Bairro</span>
-                  <input value={customer.neighborhood} onChange={(event) => setCustomer((current) => ({ ...current, neighborhood: event.target.value }))} className="hc-input mt-2" />
-                </label>
-                <label>
-                  <span className="hc-label">Complemento</span>
-                  <input value={customer.complement} onChange={(event) => setCustomer((current) => ({ ...current, complement: event.target.value }))} className="hc-input mt-2" />
-                </label>
+              <div className="menu-surface rounded-[30px] p-4">
+                <p className="hc-label">Endereco de entrega</p>
+                <div className="mt-4 grid gap-3 sm:grid-cols-[1fr_120px]">
+                  <label>
+                    <span className="hc-label">Endereco</span>
+                    <input value={customer.address} onChange={(event) => setCustomer((current) => ({ ...current, address: event.target.value }))} className="hc-input mt-2" autoComplete="street-address" />
+                  </label>
+                  <label>
+                    <span className="hc-label">Numero</span>
+                    <input value={customer.number} onChange={(event) => setCustomer((current) => ({ ...current, number: event.target.value }))} className="hc-input mt-2" />
+                  </label>
+                  <label>
+                    <span className="hc-label">Bairro</span>
+                    <input value={customer.neighborhood} onChange={(event) => setCustomer((current) => ({ ...current, neighborhood: event.target.value }))} className="hc-input mt-2" />
+                  </label>
+                  <label>
+                    <span className="hc-label">Complemento</span>
+                    <input value={customer.complement} onChange={(event) => setCustomer((current) => ({ ...current, complement: event.target.value }))} className="hc-input mt-2" />
+                  </label>
+                </div>
               </div>
             ) : null}
 
-            <div>
-              <span className="hc-label">Pagamento</span>
-              <div className="mt-2 grid gap-2 sm:grid-cols-3">
-                {(["pix", "debit", "credit", "voucher", "card", "cash"] as const).map((method) => (
+            <div className="menu-surface rounded-[30px] p-4">
+              <p className="hc-label">Forma de pagamento</p>
+              <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                {(Object.keys(paymentMethodLabels) as Array<keyof typeof paymentMethodLabels>).map((method) => (
                   <button
                     type="button"
                     key={method}
                     className={customer.paymentMethod === method ? "hc-button-primary" : "hc-button-soft"}
                     onClick={() => setCustomer((current) => ({ ...current, paymentMethod: method }))}
                   >
-                    {method === "pix" ? "Pix" : method === "debit" ? "Debito" : method === "credit" ? "Credito" : method === "voucher" ? "Voucher" : method === "card" ? "Cartao" : "Dinheiro"}
+                    {paymentMethodLabels[method]}
                   </button>
                 ))}
               </div>
             </div>
           </div>
 
-          <aside className="rounded-lg border bg-background p-3">
-            <p className="mb-3 text-sm font-black">Resumo</p>
-            <div className="max-h-72 space-y-3 overflow-auto pr-1 scrollbar-thin">
+          <aside className="menu-surface rounded-[30px] p-4">
+            <div className="rounded-[28px] bg-[#17120d] p-5 text-white">
+              <p className="text-xs font-extrabold uppercase tracking-[0.24em] text-white/62">Resumo do pedido</p>
+              <p className="mt-3 text-4xl font-extrabold tracking-[-0.06em]">{currency(total)}</p>
+              <p className="mt-2 text-sm font-semibold leading-6 text-white/68">
+                {serviceType === "delivery" ? `Inclui taxa de entrega de ${currency(deliveryFee)}.` : estimatedWaitLabel}
+              </p>
+            </div>
+
+            <p className="mt-5 text-sm font-extrabold uppercase tracking-[0.2em] text-muted-foreground">Itens</p>
+            <div className="mt-3 max-h-80 space-y-3 overflow-auto pr-1 scrollbar-thin">
               {cart.map((item) => (
-                <div key={item.cartId} className="flex gap-3">
-                  <FoodImage src={item.imageUrl} alt={item.name} className="size-14 rounded-lg" />
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-black">{item.quantity}x {item.name}</p>
-                    {item.options.map((option) => (
-                      <p key={`${item.cartId}-${option.valueId}`} className="text-xs font-bold text-muted-foreground">{option.valueName}</p>
-                    ))}
-                    {(item.removedIngredients || []).length > 0 ? <p className="text-xs font-black text-primary">Sem: {item.removedIngredients.join(", ")}</p> : null}
-                    {item.notes ? <p className="text-xs font-bold text-muted-foreground">Obs: {item.notes}</p> : null}
-                  </div>
-                  <div className="flex shrink-0 flex-col items-end gap-2">
-                    <p className="text-sm font-black">{currency(cartItemTotal(item))}</p>
-                    <button className="inline-flex items-center gap-1 text-xs font-black text-primary" onClick={() => editCartItem(item)}>
-                      Editar
-                    </button>
-                    <button className="inline-flex items-center gap-1 text-xs font-black text-red-600" onClick={() => removeCartItem(item.cartId)}>
-                      <Trash2 size={14} /> Tirar
-                    </button>
+                <div key={item.cartId} className="rounded-[24px] bg-[#fff8f2] p-3">
+                  <div className="flex gap-3">
+                    <FoodImage src={item.imageUrl} alt={item.name} className="size-16 rounded-[20px]" />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-extrabold">{item.quantity}x {item.name}</p>
+                          {item.options.map((option) => (
+                            <p key={`${item.cartId}-${option.valueId}`} className="text-xs font-bold text-muted-foreground">{option.valueName}</p>
+                          ))}
+                          {(item.removedIngredients || []).length > 0 ? <p className="text-xs font-extrabold text-[#ff7a00]">Sem: {item.removedIngredients.join(", ")}</p> : null}
+                          {item.notes ? <p className="text-xs font-bold text-muted-foreground">Obs: {item.notes}</p> : null}
+                        </div>
+                        <p className="shrink-0 text-sm font-extrabold">{currency(cartItemTotal(item))}</p>
+                      </div>
+
+                      <div className="mt-3 flex items-center gap-3">
+                        <button type="button" className="text-xs font-extrabold text-[#ff7a00]" onClick={() => editCartItem(item)}>
+                          Editar
+                        </button>
+                        <button type="button" className="inline-flex items-center gap-1 text-xs font-extrabold text-red-600" onClick={() => removeCartItem(item.cartId)}>
+                          <Trash2 size={14} />
+                          Tirar
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 </div>
               ))}
             </div>
-            <div className="mt-4 space-y-2 border-t pt-3 text-sm font-bold">
+
+            <div className="mt-5 space-y-2 border-t border-border/70 pt-4 text-sm font-bold">
               <div className="flex justify-between"><span>Subtotal</span><span>{currency(subtotal)}</span></div>
               {serviceType === "delivery" ? <div className="flex justify-between"><span>Entrega</span><span>{currency(deliveryFee)}</span></div> : null}
-              <div className="flex justify-between text-base font-black"><span>Total</span><span>{currency(total)}</span></div>
+              <div className="flex justify-between text-base font-extrabold"><span>Total</span><span>{currency(total)}</span></div>
             </div>
           </aside>
         </div>
@@ -950,14 +1432,14 @@ export function PublicMenu({ slug, tableSlug }: PublicMenuProps) {
 
       <Modal
         title="Chamar garcom"
-        subtitle={menu.table ? `${menu.table.name || "Mesa " + menu.table.code} | HappyCashFood` : "HappyCashFood"}
+        subtitle={menu.table ? `${menu.table.name || `Mesa ${menu.table.code}`} | HappyCashFood` : "HappyCashFood"}
         open={waiterModalOpen}
         onClose={() => {
           if (tableActionLoading !== "call_waiter") setWaiterModalOpen(false);
         }}
         size="sm"
         disableEscape={tableActionLoading === "call_waiter"}
-        footer={
+        footer={(
           <div className="grid gap-2 sm:grid-cols-2">
             <button
               type="button"
@@ -980,12 +1462,14 @@ export function PublicMenu({ slug, tableSlug }: PublicMenuProps) {
               {tableActionLoading === "call_waiter" ? "Chamando..." : "Chamar garcom"}
             </button>
           </div>
-        }
+        )}
       >
         <div className="space-y-4">
-          <p className="text-sm font-semibold leading-6 text-muted-foreground">
-            Confirme para avisar a equipe da mesa. Essa acao nao cria pedido na cozinha.
-          </p>
+          <div className="rounded-[24px] bg-[#fff8f2] p-4">
+            <p className="text-sm font-semibold leading-6 text-muted-foreground">
+              Confirme para avisar a equipe da mesa. Essa acao nao cria pedido na cozinha.
+            </p>
+          </div>
           <div className="grid gap-2">
             {waiterReasons.map((reason) => (
               <button
@@ -1008,7 +1492,7 @@ export function PublicMenu({ slug, tableSlug }: PublicMenuProps) {
               placeholder="Ex: estou na area externa, preciso falar sobre a conta"
             />
           </label>
-          {error ? <p className="rounded-lg bg-red-50 p-3 text-sm font-bold text-red-700">{error}</p> : null}
+          {error ? <p className="rounded-[22px] bg-[#fff1ef] p-3 text-sm font-bold text-red-700">{error}</p> : null}
         </div>
       </Modal>
 
@@ -1020,7 +1504,7 @@ export function PublicMenu({ slug, tableSlug }: PublicMenuProps) {
         size="sm"
       >
         <div className="space-y-4">
-          <div className={`grid rounded-lg bg-muted p-1 ${isCustomerSignedIn ? "grid-cols-3" : "grid-cols-2"}`}>
+          <div className={`grid rounded-[24px] bg-[#fff7f0] p-1 ${isCustomerSignedIn ? "grid-cols-3" : "grid-cols-2"}`}>
             {([
               ["signin", "Entrar"],
               ["signup", "Criar"],
@@ -1029,7 +1513,7 @@ export function PublicMenu({ slug, tableSlug }: PublicMenuProps) {
               <button
                 key={mode}
                 type="button"
-                className={`min-h-10 rounded-md text-sm font-black transition ${customerMode === mode ? "bg-card text-primary shadow-sm" : "text-muted-foreground"}`}
+                className={`min-h-11 rounded-[18px] text-sm font-extrabold transition ${customerMode === mode ? "bg-card text-[#ff7a00] shadow-[0_12px_24px_rgba(56,35,16,0.08)]" : "text-muted-foreground"}`}
                 onClick={() => {
                   setCustomerMode(mode);
                   setLoyaltyError(null);
@@ -1106,8 +1590,8 @@ export function PublicMenu({ slug, tableSlug }: PublicMenuProps) {
             </div>
           ) : null}
 
-          {customerAuthMessage ? <p className="rounded-lg bg-muted p-3 text-sm font-bold text-muted-foreground">{customerAuthMessage}</p> : null}
-          {loyaltyError ? <p className="rounded-lg bg-red-50 p-3 text-sm font-bold text-red-700">{loyaltyError}</p> : null}
+          {customerAuthMessage ? <p className="rounded-[22px] bg-[#fff8f2] p-3 text-sm font-bold text-muted-foreground">{customerAuthMessage}</p> : null}
+          {loyaltyError ? <p className="rounded-[22px] bg-[#fff1ef] p-3 text-sm font-bold text-red-700">{loyaltyError}</p> : null}
 
           <div className="flex flex-col gap-2 sm:flex-row">
             {customerMode === "signin" ? (
@@ -1143,12 +1627,12 @@ export function PublicMenu({ slug, tableSlug }: PublicMenuProps) {
       >
         {pendingRemoval ? (
           <div className="space-y-4">
-            <p className="text-sm font-bold text-muted-foreground">
+            <p className="rounded-[22px] bg-[#fff8f2] p-4 text-sm font-bold text-muted-foreground">
               Quer realmente tirar {pendingRemoval.quantity}x {pendingRemoval.name} do carrinho?
             </p>
             <div className="grid gap-2 sm:grid-cols-2">
-              <button className="hc-button-soft" onClick={() => setPendingRemoval(null)}>Cancelar</button>
-              <button className="hc-button-primary" onClick={confirmRemoveCartItem}>
+              <button type="button" className="hc-button-soft" onClick={() => setPendingRemoval(null)}>Cancelar</button>
+              <button type="button" className="hc-button-primary" onClick={confirmRemoveCartItem}>
                 <Trash2 size={18} /> Tirar item
               </button>
             </div>
@@ -1159,14 +1643,16 @@ export function PublicMenu({ slug, tableSlug }: PublicMenuProps) {
       <Modal title="Pedido enviado" open={Boolean(receipt)} onClose={() => setReceipt(null)} size="sm">
         {receipt ? (
           <div className="space-y-4 text-center">
-            <CheckCircle2 className="mx-auto text-accent" size={42} />
+            <div className="mx-auto grid size-16 place-items-center rounded-[24px] bg-[#ebfff4] text-accent">
+              <CheckCircle2 size={36} />
+            </div>
             <div>
-              <p className="text-xl font-black">{receipt.title}</p>
+              <p className="text-2xl font-extrabold tracking-[-0.05em]">{receipt.title}</p>
               <p className="mt-1 text-sm font-bold text-muted-foreground">{receipt.brand}</p>
             </div>
-            <div className="rounded-lg border bg-background p-4">
-              <p className="text-xs font-black uppercase tracking-wide text-muted-foreground">Comprovante</p>
-              <p className="mt-1 text-lg font-black">{receipt.number}</p>
+            <div className="rounded-[24px] bg-[#fff8f2] p-4">
+              <p className="text-xs font-extrabold uppercase tracking-[0.24em] text-muted-foreground">Comprovante</p>
+              <p className="mt-2 text-xl font-extrabold tracking-[-0.04em]">{receipt.number}</p>
             </div>
             <p className="inline-flex items-center justify-center gap-2 text-sm font-bold text-muted-foreground">
               <MessageSquareText size={16} /> {receipt.kind === "service" ? "A equipe foi avisada." : "A loja recebeu seu pedido."}

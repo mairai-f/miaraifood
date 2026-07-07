@@ -40,14 +40,14 @@ function App() {
   useEffect(() => {
     if (hasSeenMenuSplash()) return undefined;
 
-    const stepValues = [24, 52, 78, 100];
+    const stepValues = [14, 31, 49, 68, 86, 100];
     const timerIds = stepValues.map((stepValue, index) =>
-      window.setTimeout(() => setProgress(stepValue), (index + 1) * 320),
+      window.setTimeout(() => setProgress(stepValue), 180 + (index + 1) * 260),
     );
     const doneTimer = window.setTimeout(() => {
       markMenuSplashSeen();
       setShowSplash(false);
-    }, 1520);
+    }, 2140);
 
     return () => {
       timerIds.forEach((timerId) => window.clearTimeout(timerId));
@@ -59,7 +59,7 @@ function App() {
     return (
       <AppSplash
         progress={progress}
-        title="HappyCashMenu"
+        title="HappyCashFood"
         subtitle="Cardapio digital | QR mesa | delivery"
       />
     );
