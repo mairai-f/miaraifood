@@ -6,6 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { Download, TrendingUp, Package, Users, DollarSign } from 'lucide-react';
+import { DataRouteLoader } from '@/components/DataRouteLoader';
 import { formatDateOnly, translateCurrentText } from '../../shared/locale/format';
 import { ReportDetailsDialog, type ReportDetail } from '@/components/reports/ReportDetailsDialog';
 import { ReportMetricCard } from '@/components/reports/ReportMetricCard';
@@ -14,7 +15,7 @@ import { formatProductCode } from '@/lib/productCode';
 const COLORS = ['hsl(var(--primary))', 'hsl(var(--destructive))', 'hsl(var(--accent))', '#8884d8', '#82ca9d', '#ffc658'];
 
 export default function Reports() {
-  const { sales, saleItems, clients, products, debtEntries, payments } = useData();
+  const { sales, saleItems, clients, products, debtEntries, payments, loading } = useData();
   const today = new Date();
   const [startDate, setStartDate] = useState(() => {
     const d = new Date(today); d.setMonth(d.getMonth() - 1);
@@ -296,6 +297,10 @@ export default function Reports() {
     link.click();
     URL.revokeObjectURL(url);
   };
+
+  if (loading) {
+    return <DataRouteLoader label="Carregando relatorios..." />;
+  }
 
   return (
     <div className="space-y-4">

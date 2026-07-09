@@ -2,6 +2,7 @@ import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { DataRouteLoader } from '@/components/DataRouteLoader';
 import { useData } from '@/contexts/DataContext';
 import { Users, AlertTriangle, DollarSign, TrendingUp, Clock } from 'lucide-react';
 import { formatClientDateTime, isClientDateToday } from '@/lib/clientDateTime';
@@ -14,7 +15,7 @@ const container = { hidden: {}, show: { transition: { staggerChildren: 0.1 } } }
 const item = { hidden: { opacity: 0, y: 20 }, show: { opacity: 1, y: 0 } };
 
 export default function Dashboard() {
-  const { clients, payments, getClientBalance, getClientTotalSpending } = useData();
+  const { clients, payments, getClientBalance, getClientTotalSpending, loading } = useData();
   const navigate = useNavigate();
   const [showDebtorsOnly, setShowDebtorsOnly] = useState(false);
   const [showPaymentsModal, setShowPaymentsModal] = useState(false);
@@ -71,6 +72,10 @@ export default function Dashboard() {
       onClick: () => setShowPaymentsModal(true)
     },
   ];
+
+  if (loading) {
+    return <DataRouteLoader label="Carregando painel..." />;
+  }
 
   return (
     <div>

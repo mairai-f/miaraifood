@@ -1,13 +1,18 @@
 import { motion } from 'framer-motion';
 import { useData } from '@/contexts/DataContext';
+import { DataRouteLoader } from '@/components/DataRouteLoader';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { format } from 'date-fns';
 import { UserX } from 'lucide-react';
 import { getDateFnsLocale } from '../../shared/locale/dateFnsLocale';
 
 export default function DeletedClients() {
-  const { clients, debtEntries, payments } = useData();
+  const { clients, debtEntries, payments, loading } = useData();
   const deleted = clients.filter(c => c.deleted);
+
+  if (loading) {
+    return <DataRouteLoader label="Carregando clientes excluidos..." />;
+  }
 
   return (
     <div>

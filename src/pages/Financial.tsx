@@ -9,10 +9,11 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { TrendingUp, TrendingDown, DollarSign, Plus, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { DataRouteLoader } from '@/components/DataRouteLoader';
 import { formatDateOnly } from '../../shared/locale/format';
 
 export default function Financial() {
-  const { sales, expenses, addExpense, deleteExpense, clients, getClientBalance } = useData();
+  const { sales, expenses, addExpense, deleteExpense, clients, getClientBalance, loading } = useData();
   const { user } = useAuth();
   const [open, setOpen] = useState(false);
   const [desc, setDesc] = useState('');
@@ -51,6 +52,10 @@ export default function Financial() {
     setDesc(''); setAmount(''); setCategory(''); setPartyName(''); setOpen(false);
     toast.success('Despesa registrada!');
   };
+
+  if (loading) {
+    return <DataRouteLoader label="Carregando financeiro..." />;
+  }
 
   return (
     <div className="space-y-4">

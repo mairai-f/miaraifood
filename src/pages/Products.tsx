@@ -5,6 +5,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { usePermissions } from '@/contexts/usePermissions';
 import { useOperationalScope } from '@/contexts/useOperationalScope';
 import { useDesktopRuntime } from '@/contexts/DesktopRuntimeContext';
+import { DataRouteLoader } from '@/components/DataRouteLoader';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -64,6 +65,7 @@ export default function Products() {
     updateProduct,
     deleteProduct,
     blockSaleWithoutStock,
+    loading,
     updateStoreOperationalSettings,
   } = useData();
   const { session, user, ownerUserId } = useAuth();
@@ -218,6 +220,10 @@ export default function Products() {
   const previewMargin = numericPrice > 0 ? getMarginPercent(numericPrice, numericCostPrice) : 0;
   const priceBelowCost = numericPrice > 0 && numericPrice < numericCostPrice;
   const lowMargin = !priceBelowCost && previewMargin > 0 && previewMargin < LOW_MARGIN_WARNING_PCT;
+
+  if (loading) {
+    return <DataRouteLoader label="Carregando produtos..." />;
+  }
   const availableSubgroups = filterSubgroupsByGroup(subgroups, groupId);
 
   const resetApprovalState = () => {

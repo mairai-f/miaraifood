@@ -1,6 +1,7 @@
 import { useState, type MouseEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useData } from '@/contexts/DataContext';
+import { DataRouteLoader } from '@/components/DataRouteLoader';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -23,7 +24,7 @@ import { getRedactedLogValue } from '../../shared/security/redaction';
 type ClientFilter = 'all' | 'debtors' | 'oldDebt' | 'inactive' | 'vip';
 
 export default function Clients() {
-  const { clients, debtEntries, payments, sales, addClient, getClientBalance, getClientTotalSpending } = useData();
+  const { clients, debtEntries, payments, sales, addClient, getClientBalance, getClientTotalSpending, loading } = useData();
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<ClientFilter>('all');
   const [name, setName] = useState('');
@@ -128,6 +129,10 @@ export default function Clients() {
     { key: 'inactive' as const, label: 'Inativos', value: inactiveCount, icon: Clock3 },
     { key: 'vip' as const, label: 'VIP', value: vipCount, icon: Star },
   ];
+
+  if (loading) {
+    return <DataRouteLoader label="Carregando clientes..." />;
+  }
 
   return (
     <div>

@@ -10,6 +10,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { DataRouteLoader } from '@/components/DataRouteLoader';
 import { BarChart3, CalendarClock, Download, Search, AlertTriangle, Package, Check, ArrowRight } from 'lucide-react';
 import { toast } from 'sonner';
 import { formatDateTime } from '../../shared/locale/format';
@@ -27,7 +28,7 @@ import { formatProductCode } from '@/lib/productCode';
 import { getLocalIsoDate } from '@/lib/clientDebtDueDate';
 
 export default function Stock() {
-  const { products, stockMovements, sales, saleItems, addStockMovement, clearAllStock } = useData();
+  const { products, stockMovements, sales, saleItems, addStockMovement, clearAllStock, loading } = useData();
   const { user } = useAuth();
   const { batches } = useProductBatches();
   const navigate = useNavigate();
@@ -192,6 +193,10 @@ export default function Stock() {
     link.href = url; link.download = `movimentacoes-estoque-${new Date().toISOString().slice(0, 10)}.csv`; link.click();
     URL.revokeObjectURL(url);
   };
+
+  if (loading) {
+    return <DataRouteLoader label="Carregando estoque..." />;
+  }
 
   return (
     <div className="space-y-4">

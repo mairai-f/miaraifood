@@ -1,6 +1,7 @@
 import { useDeferredValue, useMemo, useState } from 'react';
 import { AlertTriangle, BarChart3, Calculator, Package, Pencil, Plus, Save, Search, Sparkles, Trash2, TrendingDown, TrendingUp, Wallet } from 'lucide-react';
 import { toast } from 'sonner';
+import { DataRouteLoader } from '@/components/DataRouteLoader';
 import { useData } from '@/contexts/DataContext';
 import { useAuth } from '@/contexts/AuthContext';
 import type { Product, ProductCategoryPricingRule, PricingRoundingRule } from '@/types';
@@ -351,6 +352,7 @@ export default function PricingManager() {
     priceHistory,
     saleItems,
     sales,
+    loading,
     addProduct,
     updateProduct,
     addPricingRule,
@@ -908,6 +910,10 @@ export default function PricingManager() {
       cost_items: ensureCostItems(current.cost_items.filter((item) => item.id !== id)),
     }));
   };
+
+  if (loading) {
+    return <DataRouteLoader label="Carregando precificacao..." />;
+  }
 
   return (
     <div className="space-y-6">

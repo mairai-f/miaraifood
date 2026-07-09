@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { useData } from '@/contexts/DataContext';
+import { DataRouteLoader } from '@/components/DataRouteLoader';
 import type { Reward } from '@/types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -65,7 +66,7 @@ const formatRewardValue = (reward: Reward) => {
 };
 
 export default function Rewards() {
-  const { rewards, addReward, updateReward, deleteReward } = useData();
+  const { rewards, addReward, updateReward, deleteReward, loading } = useData();
   const [open, setOpen] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
   const [name, setName] = useState('');
@@ -173,6 +174,10 @@ export default function Rewards() {
   };
 
   const showRewardValue = rewardTypesWithValue.has(rewardType);
+
+  if (loading) {
+    return <DataRouteLoader label="Carregando recompensas..." />;
+  }
 
   return (
     <div>

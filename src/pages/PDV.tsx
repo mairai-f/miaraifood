@@ -11,6 +11,7 @@ import { useOperationalScope } from '@/contexts/useOperationalScope';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { DataRouteLoader } from '@/components/DataRouteLoader';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -333,6 +334,7 @@ export default function PDV() {
     serviceTickets,
     serviceTicketItems,
     expenses,
+    loading,
     createSale,
     addDebtEntries,
     addExpense,
@@ -4066,6 +4068,10 @@ export default function PDV() {
     // Memoizing every command here makes this already-large component harder to audit.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeProducts, filtered, search, cart, cartKeyboardSelectionIndex, cartItemPendingPriceEdit, discount, paymentMethod, cashReceived, selectedClientId, total, change, canFinalizeCheckout, cashierMode, showCheckout, showFinalizeConfirm, showCreditInstallmentsDialog, showReceipt, showSalesSearch, showCancelledSales, showCashOut, showCloseCashReceipt, showOpenCashDialog, saleToCancel, navigate, isAdmin, creditInstallments, pendingCreditInstallments, showScannerNotFoundDialog, addSearchResultToCart, focusProductSearch, isLikelyScannerSubmit, pendingServiceTicketAdminAction, registerScannerLikeKey, isMobile]);
+
+  if (loading) {
+    return <DataRouteLoader label="Carregando PDV..." />;
+  }
 
   return (
     <div

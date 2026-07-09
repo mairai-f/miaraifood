@@ -2,6 +2,7 @@ import { lazy, Suspense, useCallback, useEffect, useMemo, useState, type ChangeE
 import { BarChart3, Building2, Calculator, ChevronRight, ClipboardList, Clock3, DatabaseBackup, Download, FileText, Gift, Laptop, Loader2, MapPinned, PackageSearch, Settings as SettingsIcon, Shield, ShieldAlert, Trash2, UserRoundCog, WalletCards } from 'lucide-react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { CompanyProfileCard } from '@/components/CompanyProfileCard';
+import { DataRouteLoader } from '@/components/DataRouteLoader';
 import { PasskeySettingsCard } from '@/components/PasskeySettingsCard';
 import { PrinterSettingsCard } from '@/components/PrinterSettingsCard';
 import { OperatorManagementPanel } from '@/components/OperatorManagementPanel';
@@ -149,7 +150,7 @@ export default function Settings() {
   const { hasPermission } = usePermissions();
   const { hasFeature, planId } = usePlanAccess();
   const data = useData();
-  const { refetch, syncNow } = data;
+  const { refetch, syncNow, loading: dataLoading } = data;
   const { subscription, countdown, statusLabel, loading: loadingSubscription } = useCurrentSubscription();
   const { section: routeSection } = useParams<{ section?: string }>();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -672,6 +673,11 @@ export default function Settings() {
     });
   });
   const activeSettingsTitle = settingsNavigationItems.find((item) => item.section === activeSettingsSection)?.title;
+
+  if (dataLoading) {
+    return <DataRouteLoader label="Carregando configuracoes..." />;
+  }
+
   return (
     <div className="space-y-6">
       {updateIsInstalling && (

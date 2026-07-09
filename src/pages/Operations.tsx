@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import { OperationsDetailsDialog } from '@/components/operations/OperationsDetailsDialog';
 import { OperationsMetricCard } from '@/components/operations/OperationsMetricCard';
 import { SupplierOrderDialog, type SupplierOrderItem } from '@/components/operations/SupplierOrderDialog';
+import { DataRouteLoader } from '@/components/DataRouteLoader';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -100,6 +101,7 @@ export default function Operations() {
     offlinePreparationStatus,
     offlinePreparationMessage,
     offlineSnapshotUpdatedAt,
+    loading: dataLoading,
     syncNow,
   } = useData();
   const { scope: operationalScope } = useOperationalScope();
@@ -989,6 +991,10 @@ export default function Operations() {
     }
     openSupplierOrder(supplier.id);
   };
+
+  if (dataLoading) {
+    return <DataRouteLoader label="Carregando operacoes..." />;
+  }
 
   return (
     <div className="space-y-6">

@@ -1,4 +1,5 @@
-import { createContext, useContext, useState, useEffect, useCallback, useRef, type ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef, type ReactNode } from 'react';
+import { useLocation } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './AuthContext';
 import { useDesktopRuntime } from './DesktopRuntimeContext';
@@ -212,6 +213,95 @@ export type OfflinePreparationStatus = 'unavailable' | 'not-ready' | 'preparing'
 
 type FetchAllOptions = {
   silent?: boolean;
+  fullStore?: boolean;
+  modules?: DataModule[];
+};
+
+type DataModule =
+  | 'storeOperationalSettings'
+  | 'clients'
+  | 'products'
+  | 'rewards'
+  | 'sales'
+  | 'saleItems'
+  | 'serviceTickets'
+  | 'serviceTicketItems'
+  | 'stock'
+  | 'expenses'
+  | 'pricing';
+
+const ALL_DATA_MODULES: DataModule[] = [
+  'storeOperationalSettings',
+  'clients',
+  'products',
+  'rewards',
+  'sales',
+  'saleItems',
+  'serviceTickets',
+  'serviceTicketItems',
+  'stock',
+  'expenses',
+  'pricing',
+];
+
+const BASE_DATA_MODULES: DataModule[] = [
+  'storeOperationalSettings',
+  'clients',
+  'products',
+  'rewards',
+  'sales',
+];
+
+const createEmptyModuleLoadState = (): Record<DataModule, boolean> => ({
+  storeOperationalSettings: false,
+  clients: false,
+  products: false,
+  rewards: false,
+  sales: false,
+  saleItems: false,
+  serviceTickets: false,
+  serviceTicketItems: false,
+  stock: false,
+  expenses: false,
+  pricing: false,
+});
+
+const uniqueModules = (modules: DataModule[]) => Array.from(new Set(modules));
+
+const getRouteSpecificModules = (pathname: string): DataModule[] => {
+  if (pathname.startsWith('/pdv')) {
+    return ['saleItems', 'serviceTickets', 'serviceTicketItems', 'expenses'];
+  }
+
+  if (pathname.startsWith('/comandas')) {
+    return ['serviceTickets', 'serviceTicketItems'];
+  }
+
+  if (pathname.startsWith('/relatorios')) {
+    return ['saleItems'];
+  }
+
+  if (pathname.startsWith('/estoque')) {
+    return ['saleItems', 'stock'];
+  }
+
+  if (pathname.startsWith('/financeiro')) {
+    return ['expenses'];
+  }
+
+  if (pathname.startsWith('/operacoes')) {
+    return ['saleItems', 'stock', 'expenses'];
+  }
+
+  if (pathname.startsWith('/precificacao')) {
+    return ['saleItems', 'pricing'];
+  }
+
+  if (pathname.startsWith('/configuracoes')) {
+    return ALL_DATA_MODULES;
+  }
+
+  return [];
 };
 
 interface DataContextType {
@@ -312,6 +402,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const { isDesktop, offlineEnabled } = useDesktopRuntime();
   const { hasFeature, loading: planLoading, planId } = usePlanAccess();
   const { scope: operationalScope } = useOperationalScope();
+  const location = useLocation();
   const operationalLocationId = operationalScope?.location.id ?? null;
   const operationalTerminalId = operationalScope?.terminal?.id ?? null;
   const isHeadquartersScope = operationalScope?.location.isHeadquarters ?? true;
@@ -330,6 +421,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [pricingRules, setPricingRules] = useState<ProductCategoryPricingRule[]>([]);
   const [priceHistory, setPriceHistory] = useState<ProductPriceHistoryEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadedModules, setLoadedModules] = useState<Record<DataModule, boolean>>(createEmptyModuleLoadState);
   const [blockSaleWithoutStock, setBlockSaleWithoutStock] = useState(true);
   const [offlinePreparationStatus, setOfflinePreparationStatus] = useState<OfflinePreparationStatus>('unavailable');
   const [offlinePreparationMessage, setOfflinePreparationMessage] = useState<string | null>(null);
@@ -338,6 +430,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const canUseOfflineConcentrator = isDesktop && offlineEnabled && isOfflineConcentratorAvailable();
   const offlineSyncInFlightRef = useRef(false);
   const lastPassiveRefreshAtRef = useRef(0);
+  const fullSnapshotPrimedRef = useRef(false);
+  const routeRequiredModules = useMemo(
+    () => uniqueModules([...BASE_DATA_MODULES, ...getRouteSpecificModules(location.pathname)]),
+    [location.pathname],
+  );
 
   const clearStoreData = useCallback(() => {
     setClients([]);
@@ -354,7 +451,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
     setExpenses([]);
     setPricingRules([]);
     setPriceHistory([]);
+    setLoadedModules(createEmptyModuleLoadState());
     setBlockSaleWithoutStock(true);
+    fullSnapshotPrimedRef.current = false;
   }, []);
 
   const markOfflineNotReady = useCallback((message = 'Este computador ainda nao foi preparado para uso offline. Conecte a internet, entre uma vez e aguarde o download dos dados da loja terminar.') => {
@@ -422,6 +521,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
     setExpenses(snapshot.expenses ?? []);
     setPricingRules((snapshot.pricingRules ?? []).map(normalizePricingRuleRow));
     setPriceHistory(snapshot.priceHistory ?? []);
+    setLoadedModules(ALL_DATA_MODULES.reduce((state, module) => ({ ...state, [module]: true }), createEmptyModuleLoadState()));
+    fullSnapshotPrimedRef.current = true;
   }, []);
 
   const loadOfflineSnapshotFallback = useCallback(async () => {
@@ -443,27 +544,41 @@ export function DataProvider({ children }: { children: ReactNode }) {
     return true;
   }, [applyOfflineSnapshot, canUseOfflineConcentrator, clearStoreData, markOfflineNotReady, ownerUserId]);
 
-  const getNextTrackedStock = useCallback((product: Product, quantityDelta: number) => {
+    const getNextTrackedStock = useCallback((product: Product, quantityDelta: number) => {
     const nextStock = Number(product.stock || 0) + quantityDelta;
     return clampTrackedStock(product, nextStock, blockSaleWithoutStock);
   }, [blockSaleWithoutStock]);
 
   const fetchAll = useCallback(async (options: FetchAllOptions = {}) => {
     const silent = options.silent === true;
+    const requestedModules = uniqueModules(
+      options.fullStore
+        ? ALL_DATA_MODULES
+        : options.modules && options.modules.length > 0
+          ? options.modules
+          : routeRequiredModules,
+    );
+    const shouldRefreshOfflineSnapshot = canUseOfflineConcentrator && ownerUserId && options.fullStore === true;
+    const hasMissingRequestedModules = requestedModules.some((module) => !loadedModules[module]);
 
     if (authLoading || planLoading) {
-      if (!silent) setLoading(true);
+      if (!silent && hasMissingRequestedModules) setLoading(true);
       return;
     }
 
     if (!user || !ownerUserId) {
       clearStoreData();
-      if (!silent) setLoading(false);
+      if (!silent && hasMissingRequestedModules) setLoading(false);
       return;
     }
 
     if (isDemoMode) {
-      if (!silent) setLoading(false);
+      if (!silent && hasMissingRequestedModules) setLoading(false);
+      return;
+    }
+
+    if (requestedModules.length === 0) {
+      if (!silent && hasMissingRequestedModules) setLoading(false);
       return;
     }
 
@@ -477,24 +592,37 @@ export function DataProvider({ children }: { children: ReactNode }) {
       }
     }
 
-    if (!silent) setLoading(true);
+    if (!silent && hasMissingRequestedModules) setLoading(true);
 
-    if (canUseOfflineConcentrator && ownerUserId && !silent) {
+    if (shouldRefreshOfflineSnapshot) {
       setOfflinePreparationStatus('preparing');
       setOfflinePreparationMessage('Preparando acesso offline... baixando e salvando os dados da loja neste computador.');
     }
 
-    const canReadClients = hasFeature('clients.manage');
-    const canReadProducts = hasFeature('products.manage');
-    const canReadFiado = hasFeature('fiado.manage');
-    const canReadRewards = hasFeature('rewards.manage');
-    const canReadSales = hasFeature('pdv.use');
-    const canReadServiceTickets = hasFeature('service_tickets.use');
-    const canReadStock = hasFeature('stock.manage');
-    const canReadExpenses = hasFeature('financial.manage');
-    const canReadPricing = hasFeature('pricing.manage');
+    const needsOperationalSettings = requestedModules.includes('storeOperationalSettings');
+    const needsClients = requestedModules.includes('clients');
+    const needsProducts = requestedModules.includes('products');
+    const needsRewards = requestedModules.includes('rewards');
+    const needsSales = requestedModules.includes('sales');
+    const needsSaleItems = requestedModules.includes('saleItems');
+    const needsServiceTickets = requestedModules.includes('serviceTickets');
+    const needsServiceTicketItems = requestedModules.includes('serviceTicketItems');
+    const needsStock = requestedModules.includes('stock');
+    const needsExpenses = requestedModules.includes('expenses');
+    const needsPricing = requestedModules.includes('pricing');
+
+    const canReadClients = needsClients && hasFeature('clients.manage');
+    const canReadProducts = needsProducts && hasFeature('products.manage');
+    const canReadFiado = needsClients && hasFeature('fiado.manage');
+    const canReadRewards = needsRewards && hasFeature('rewards.manage');
+    const canReadSales = (needsSales || needsSaleItems) && hasFeature('pdv.use');
+    const canReadServiceTickets = (needsServiceTickets || needsServiceTicketItems) && hasFeature('service_tickets.use');
+    const canReadStock = needsStock && hasFeature('stock.manage');
+    const canReadExpenses = needsExpenses && hasFeature('financial.manage');
+    const canReadPricing = needsPricing && hasFeature('pricing.manage');
 
     const emptyResult = Promise.resolve({ data: [], error: null });
+    const emptySingleResult = Promise.resolve({ data: null, error: null });
 
     let productsResponse = { data: [], error: null };
 
@@ -509,7 +637,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       operationalLocationId ? query.eq('location_id', operationalLocationId) : query;
 
     const [settings, c, p, pkg, inventory, d, pay, r, s, si, st, sti, sm, exp, pr, ph] = await Promise.all([
-      db.rpc('get_store_operational_settings').single(),
+      needsOperationalSettings ? db.rpc('get_store_operational_settings').single() : emptySingleResult,
       canReadClients ? db.from('clients').select('*').order('created_at', { ascending: false }).limit(1000) : emptyResult,
       Promise.resolve(productsResponse),
       canReadProducts ? db.from('product_packagings').select('*').eq('active', true).order('base_quantity', { ascending: false }) : emptyResult,
@@ -520,17 +648,35 @@ export function DataProvider({ children }: { children: ReactNode }) {
       canReadFiado ? db.from('payments').select('*').order('date', { ascending: false }).limit(2000) : emptyResult,
       canReadRewards ? db.from('rewards').select('*').order('created_at', { ascending: false }).limit(1000) : emptyResult,
       canReadSales ? locationQuery(db.from('sales').select('*')).order('date', { ascending: false }).limit(2000) : emptyResult,
-      canReadSales ? db.from('sale_items').select('*').limit(5000) : emptyResult,
+      canReadSales && needsSaleItems ? db.from('sale_items').select('*').limit(5000) : emptyResult,
       canReadServiceTickets ? locationQuery(db.from('service_tickets').select('*')).order('number', { ascending: true }).limit(1000) : emptyResult,
-      canReadServiceTickets ? db.from('service_ticket_items').select('*').order('created_at', { ascending: true }).limit(5000) : emptyResult,
+      canReadServiceTickets && needsServiceTicketItems ? db.from('service_ticket_items').select('*').order('created_at', { ascending: true }).limit(5000) : emptyResult,
       canReadStock ? locationQuery(db.from('stock_movements').select('*')).order('date', { ascending: false }).limit(2000) : emptyResult,
       canReadExpenses ? locationQuery(db.from('expenses').select('*')).order('date', { ascending: false }).limit(1000) : emptyResult,
       canReadPricing ? db.from('product_category_pricing_rules').select('*').order('category', { ascending: true }) : emptyResult,
       canReadPricing ? db.from('product_price_history').select('*').order('created_at', { ascending: false }).limit(1000) : emptyResult,
     ]);
 
-    const canFallbackOperationalSettings = isMissingRpcError(settings.error, 'get_store_operational_settings');
-    const remoteErrors = [settings, c, p, pkg, inventory, d, pay, r, s, si, st, sti, sm, exp, pr, ph]
+    const canFallbackOperationalSettings = needsOperationalSettings && isMissingRpcError(settings.error, 'get_store_operational_settings');
+    const remoteErrors = [
+      needsOperationalSettings ? settings : null,
+      needsClients ? c : null,
+      needsProducts ? p : null,
+      needsProducts ? pkg : null,
+      needsProducts && operationalLocationId ? inventory : null,
+      needsClients ? d : null,
+      needsClients ? pay : null,
+      needsRewards ? r : null,
+      needsSales ? s : null,
+      needsSaleItems ? si : null,
+      needsServiceTickets ? st : null,
+      needsServiceTicketItems ? sti : null,
+      needsStock ? sm : null,
+      needsExpenses ? exp : null,
+      needsPricing ? pr : null,
+      needsPricing ? ph : null,
+    ]
+      .filter(Boolean)
       .map(result => result.error)
       .filter(error => Boolean(error) && !isMissingRpcError(error, 'get_store_operational_settings'));
     const hasRemoteError = remoteErrors.length > 0;
@@ -552,55 +698,80 @@ export function DataProvider({ children }: { children: ReactNode }) {
         setOfflinePreparationStatus('error');
         setOfflinePreparationMessage('Nao foi possivel baixar os dados para uso offline agora. Verifique a internet e tente novamente.');
       }
-      if (!silent) setLoading(false);
+      if (!silent && hasMissingRequestedModules) setLoading(false);
       return;
     }
 
-    const nextClients = (c.data as Client[]) ?? [];
+    const nextClients = needsClients ? ((c.data as Client[]) ?? []) : clients;
     const inventoryByProductId = new Map(
-      ((inventory.data ?? []) as Array<{ product_id: string; stock: number; min_stock: number }>)
+      (((needsProducts ? inventory.data : []) ?? []) as Array<{ product_id: string; stock: number; min_stock: number }>)
         .map((row) => [row.product_id, row]),
     );
-    const nextProducts = productsWithDisplayCodes((p.data as Product[]) ?? []).map((product) => {
-      const localInventory = inventoryByProductId.get(product.id);
-      return localInventory
-        ? { ...product, stock: Number(localInventory.stock || 0), min_stock: Number(localInventory.min_stock || 0) }
-        : product;
-    });
+    const nextProducts = needsProducts
+      ? productsWithDisplayCodes((p.data as Product[]) ?? []).map((product) => {
+        const localInventory = inventoryByProductId.get(product.id);
+        return localInventory
+          ? { ...product, stock: Number(localInventory.stock || 0), min_stock: Number(localInventory.min_stock || 0) }
+          : product;
+      })
+      : products;
     const nextBlockSaleWithoutStock = canFallbackOperationalSettings
       ? true
-      : Boolean(settings.data?.block_sale_without_stock ?? true);
-    const nextProductPackagings = (pkg.data as ProductPackaging[]) ?? [];
-    const nextDebtEntries = (d.data as DebtEntry[]) ?? [];
-    const nextPayments = (pay.data as Payment[]) ?? [];
-    const nextRewards = (r.data as Reward[]) ?? [];
-    const nextSales = (s.data as Sale[]) ?? [];
-    const nextSaleItems = (si.data as SaleItem[]) ?? [];
-    const nextServiceTickets = sortServiceTicketsByNumber(((st.data as ServiceTicket[]) ?? []).map(normalizeServiceTicketRecord));
-    const nextServiceTicketItems = sortServiceTicketItemsByCreatedAt((sti.data as ServiceTicketItem[]) ?? []);
-    const nextStockMovements = (sm.data as StockMovement[]) ?? [];
-    const nextExpenses = (exp.data as Expense[]) ?? [];
-    const nextPricingRules = (((pr.data as ProductCategoryPricingRule[]) ?? []).map(normalizePricingRuleRow));
-    const nextPriceHistory = (ph.data as ProductPriceHistoryEntry[]) ?? [];
+      : needsOperationalSettings
+        ? Boolean(settings.data?.block_sale_without_stock ?? true)
+        : blockSaleWithoutStock;
+    const nextProductPackagings = needsProducts ? ((pkg.data as ProductPackaging[]) ?? []) : productPackagings;
+    const nextDebtEntries = needsClients ? ((d.data as DebtEntry[]) ?? []) : debtEntries;
+    const nextPayments = needsClients ? ((pay.data as Payment[]) ?? []) : payments;
+    const nextRewards = needsRewards ? ((r.data as Reward[]) ?? []) : rewards;
+    const nextSales = needsSales ? ((s.data as Sale[]) ?? []) : sales;
+    const nextSaleItems = needsSaleItems ? ((si.data as SaleItem[]) ?? []) : saleItems;
+    const nextServiceTickets = needsServiceTickets
+      ? sortServiceTicketsByNumber(((st.data as ServiceTicket[]) ?? []).map(normalizeServiceTicketRecord))
+      : serviceTickets;
+    const nextServiceTicketItems = needsServiceTicketItems
+      ? sortServiceTicketItemsByCreatedAt((sti.data as ServiceTicketItem[]) ?? [])
+      : serviceTicketItems;
+    const nextStockMovements = needsStock ? ((sm.data as StockMovement[]) ?? []) : stockMovements;
+    const nextExpenses = needsExpenses ? ((exp.data as Expense[]) ?? []) : expenses;
+    const nextPricingRules = needsPricing
+      ? (((pr.data as ProductCategoryPricingRule[]) ?? []).map(normalizePricingRuleRow))
+      : pricingRules;
+    const nextPriceHistory = needsPricing ? ((ph.data as ProductPriceHistoryEntry[]) ?? []) : priceHistory;
 
-    setClients(nextClients);
-    setProducts(nextProducts);
-    setBlockSaleWithoutStock(nextBlockSaleWithoutStock);
-    setProductPackagings(nextProductPackagings);
-    setDebtEntries(nextDebtEntries);
-    setPayments(nextPayments);
-    setRewards(nextRewards);
-    setSales(nextSales);
-    setSaleItems(nextSaleItems);
-    setServiceTickets(nextServiceTickets);
-    setServiceTicketItems(nextServiceTicketItems);
-    setStockMovements(nextStockMovements);
-    setExpenses(nextExpenses);
-    setPricingRules(nextPricingRules);
-    setPriceHistory(nextPriceHistory);
-    if (!silent) setLoading(false);
+    if (needsClients) {
+      setClients(nextClients);
+      setDebtEntries(nextDebtEntries);
+      setPayments(nextPayments);
+    }
+    if (needsProducts) {
+      setProducts(nextProducts);
+      setProductPackagings(nextProductPackagings);
+    }
+    if (needsOperationalSettings) {
+      setBlockSaleWithoutStock(nextBlockSaleWithoutStock);
+    }
+    if (needsRewards) setRewards(nextRewards);
+    if (needsSales) setSales(nextSales);
+    if (needsSaleItems) setSaleItems(nextSaleItems);
+    if (needsServiceTickets) setServiceTickets(nextServiceTickets);
+    if (needsServiceTicketItems) setServiceTicketItems(nextServiceTicketItems);
+    if (needsStock) setStockMovements(nextStockMovements);
+    if (needsExpenses) setExpenses(nextExpenses);
+    if (needsPricing) {
+      setPricingRules(nextPricingRules);
+      setPriceHistory(nextPriceHistory);
+    }
+    setLoadedModules((previous) => {
+      const nextState = { ...previous };
+      requestedModules.forEach((module) => {
+        nextState[module] = true;
+      });
+      return nextState;
+    });
+    if (!silent && hasMissingRequestedModules) setLoading(false);
 
-    if (canUseOfflineConcentrator && ownerUserId) {
+    if (shouldRefreshOfflineSnapshot) {
       const snapshot: OfflineSnapshot = {
         clients: nextClients,
         products: nextProducts,
@@ -622,23 +793,76 @@ export function DataProvider({ children }: { children: ReactNode }) {
         savedAt: nowIso(),
       };
 
-      if (silent) {
-        void replaceOfflineSnapshot(ownerUserId, snapshot).then(() => {
-          setOfflinePreparationStatus('ready');
-          setOfflineSnapshotUpdatedAt(snapshot.savedAt);
-        }).catch(error => {
-          console.error('Falha ao atualizar o snapshot offline em segundo plano:', getRedactedLogValue(error));
-        });
-      } else {
+      try {
         await replaceOfflineSnapshot(ownerUserId, snapshot);
         setOfflinePreparationStatus('ready');
         setOfflinePreparationMessage('Acesso offline pronto. Se a internet cair, estes dados serao carregados deste computador.');
         setOfflineSnapshotUpdatedAt(snapshot.savedAt);
+        fullSnapshotPrimedRef.current = true;
+      } catch (error) {
+        console.error('Falha ao atualizar o snapshot offline em segundo plano:', getRedactedLogValue(error));
       }
     }
-  }, [authLoading, canUseOfflineConcentrator, clearStoreData, hasFeature, isDemoMode, isLocalOfflineSession, loadOfflineSnapshotFallback, operationalLocationId, ownerUserId, planLoading, user]);
+  }, [
+    authLoading,
+    blockSaleWithoutStock,
+    canUseOfflineConcentrator,
+    clearStoreData,
+    clients,
+    debtEntries,
+    expenses,
+    hasFeature,
+    isDemoMode,
+    isLocalOfflineSession,
+    loadOfflineSnapshotFallback,
+    loadedModules,
+    operationalLocationId,
+    ownerUserId,
+    payments,
+    planLoading,
+    priceHistory,
+    pricingRules,
+    productPackagings,
+    products,
+    rewards,
+    routeRequiredModules,
+    saleItems,
+    sales,
+    serviceTicketItems,
+    serviceTickets,
+    stockMovements,
+    user,
+  ]);
 
-  useEffect(() => { fetchAll(); }, [fetchAll]);
+  useEffect(() => {
+    if (authLoading || planLoading || !user || isDemoMode) return;
+
+    const missingModules = routeRequiredModules.filter((module) => !loadedModules[module]);
+    if (missingModules.length === 0) {
+      setLoading(false);
+      return;
+    }
+
+    void fetchAll({ modules: missingModules });
+  }, [authLoading, fetchAll, isDemoMode, loadedModules, planLoading, routeRequiredModules, user]);
+
+  useEffect(() => {
+    if (
+      authLoading
+      || planLoading
+      || !user
+      || !ownerUserId
+      || isDemoMode
+      || !canUseOfflineConcentrator
+      || fullSnapshotPrimedRef.current
+      || loading
+      || (typeof navigator !== 'undefined' && navigator.onLine === false)
+    ) {
+      return;
+    }
+
+    void fetchAll({ silent: true, fullStore: true });
+  }, [authLoading, canUseOfflineConcentrator, fetchAll, isDemoMode, loading, ownerUserId, planLoading, user]);
 
   useEffect(() => {
     if (authLoading || planLoading || !user || isDemoMode) {
@@ -651,13 +875,13 @@ export function DataProvider({ children }: { children: ReactNode }) {
       if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
 
       const now = Date.now();
-      if (now - lastPassiveRefreshAtRef.current < 10000) return;
+      if (now - lastPassiveRefreshAtRef.current < 30000) return;
       lastPassiveRefreshAtRef.current = now;
 
       void fetchAll({ silent: true });
     };
 
-    const intervalId = window.setInterval(silentlyRefreshRemoteState, 20000);
+    const intervalId = window.setInterval(silentlyRefreshRemoteState, 60000);
     const handleFocus = () => {
       silentlyRefreshRemoteState();
     };
@@ -680,7 +904,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   }, [authLoading, fetchAll, isDemoMode, loading, planLoading, user]);
 
   useEffect(() => {
-    if (!canUseOfflineConcentrator || !ownerUserId || loading || !user || isDemoMode) {
+    if (!canUseOfflineConcentrator || !ownerUserId || loading || !user || isDemoMode || !fullSnapshotPrimedRef.current) {
       return;
     }
 
@@ -1325,6 +1549,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
       }
 
       await fetchAll({ silent: true });
+      if (fullSnapshotPrimedRef.current) {
+        await fetchAll({ silent: true, fullStore: true });
+      }
       await cleanupOfflineData(ownerUserId);
     } finally {
       offlineSyncInFlightRef.current = false;
@@ -1389,7 +1616,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       await syncOfflineQueue();
     }
 
-    await fetchAll();
+    await fetchAll({ fullStore: canUseOfflineConcentrator });
   }, [canUseOfflineConcentrator, fetchAll, isDemoMode, ownerUserId, syncOfflineQueue]);
 
   // --- Clients ---
