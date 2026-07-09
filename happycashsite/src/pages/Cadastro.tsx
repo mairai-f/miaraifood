@@ -2,9 +2,19 @@ import { useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { FunctionsHttpError } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { createSiteUrl } from "@/lib/siteSeo";
@@ -21,6 +31,7 @@ import {
   LEGAL_TERMS_VERSION,
   LEGAL_UPDATED_AT_LABEL,
 } from "../../../shared/legal/legalAcceptance";
+import { LEGAL_MODAL_DOCUMENTS } from "../../../shared/legal/legalModalDocuments";
 
 interface RegisterAccountResponse {
   success?: boolean;
@@ -38,6 +49,12 @@ const tiposEstabelecimento = [
 const estados = [
   "AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS","MG","PA",
   "PB","PR","PE","PI","RJ","RN","RS","RO","RR","SC","SP","SE","TO",
+];
+
+const registrationLegalHighlights = [
+  "Coletamos dados do responsável e da empresa, como nome, email, telefone, CPF ou CNPJ e endereço do estabelecimento.",
+  "Também podemos tratar os dados inseridos no sistema pela loja, como nome, CPF, CNPJ, telefone, endereço, vendas, fiado, pagamentos, produtos, estoque, despesas, agendamentos e observações.",
+  "O sistema mantém regras de acesso, separação de dados por empresa, registros de segurança e atendimento de correção ou exclusão quando possível.",
 ];
 
 const getPasswordStrength = (value: string) => {
@@ -115,6 +132,7 @@ const Cadastro = () => {
   const [bairro, setBairro] = useState("");
   const [cidade, setCidade] = useState("");
   const [estado, setEstado] = useState("");
+  const [legalModalOpen, setLegalModalOpen] = useState(false);
   const [legalDecision, setLegalDecision] = useState<"accepted" | "declined" | null>(null);
   const passwordStrength = getPasswordStrength(password);
 
@@ -159,12 +177,13 @@ const Cadastro = () => {
       return;
     }
 
-    if (step < 3) {
-      setStep(current => Math.min(3, current + 1));
+    if (step < 4) {
+      setStep(current => Math.min(4, current + 1));
       return;
     }
 
     if (legalDecision !== "accepted") {
+      setLegalModalOpen(true);
       toast({
         title: "Aceite obrigatório",
         description: "Concorde com os Termos de Uso, a Politica de Privacidade e a LGPD para concluir o cadastro.",
@@ -231,7 +250,12 @@ const Cadastro = () => {
     }
   };
 
-  const stepTitles = ["Conta", "Empresa", "Endereço"];
+  const stepTitles = ["Conta", "Empresa", "Endereço", "Termos"];
+  const registrationLegalDocuments = [
+    LEGAL_MODAL_DOCUMENTS.terms,
+    LEGAL_MODAL_DOCUMENTS.privacy,
+    LEGAL_MODAL_DOCUMENTS.lgpd,
+  ];
 
   if (confirmationEmail) {
     return (
@@ -308,7 +332,7 @@ const Cadastro = () => {
               <span className={`text-xs hidden sm:inline ${step === i + 1 ? "text-primary font-medium" : "text-muted-foreground"}`}>
                 {title}
               </span>
-              {i < 2 && <div className="w-8 h-px bg-border" />}
+              {i < stepTitles.length - 1 && <div className="w-8 h-px bg-border" />}
             </div>
           ))}
         </div>
@@ -463,49 +487,66 @@ const Cadastro = () => {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="space-y-3 rounded-xl border border-primary/20 bg-primary/5 p-4">
+            </>
+          )}
+
+          {step === 4 && (
+            <div className="space-y-4">
+              <div className="flex flex-wrap items-start justify-between gap-3 rounded-xl border border-primary/20 bg-primary/5 p-4">
                 <div className="space-y-1">
                   <p className="text-sm font-semibold text-foreground">Termos de Uso, Política de Privacidade e LGPD</p>
                   <p className="text-xs leading-5 text-muted-foreground">
-                    Leia os documentos legais antes de concluir o cadastro. Última atualização: {LEGAL_UPDATED_AT_LABEL}.
+                    Esta é a etapa final do cadastro. Leia os documentos legais no modal antes de criar sua conta. Última atualização: {LEGAL_UPDATED_AT_LABEL}.
                   </p>
                 </div>
-                <div className="flex flex-wrap gap-2">
-                  <Link to={LEGAL_PATHS.terms} target="_blank" rel="noreferrer" className="text-sm font-medium text-primary hover:underline">
+                <Badge variant={legalDecision === "accepted" ? "default" : legalDecision === "declined" ? "destructive" : "outline"}>
+                  {legalDecision === "accepted" ? "Aceite registrado" : legalDecision === "declined" ? "Aceite recusado" : "Leitura pendente"}
+                </Badge>
+              </div>
+
+              <div className="space-y-3 rounded-xl border border-border bg-muted/30 p-4">
+                <p className="text-sm font-medium text-foreground">O que os documentos deixam claro</p>
+                <ul className="space-y-2 text-sm leading-6 text-muted-foreground">
+                  {registrationLegalHighlights.map((item) => (
+                    <li key={item} className="flex gap-2">
+                      <span className="text-primary">•</span>
+                      <span>{item}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              <div className="flex flex-col gap-3 sm:flex-row">
+                <Button type="button" className="h-12 flex-1" onClick={() => setLegalModalOpen(true)}>
+                  Ler e decidir no modal
+                </Button>
+                <div className="flex flex-1 flex-wrap items-center gap-2 text-sm">
+                  <Link to={LEGAL_PATHS.terms} target="_blank" rel="noreferrer" className="font-medium text-primary hover:underline">
                     Termos de Uso
                   </Link>
                   <span className="text-muted-foreground">•</span>
-                  <Link to={LEGAL_PATHS.privacy} target="_blank" rel="noreferrer" className="text-sm font-medium text-primary hover:underline">
+                  <Link to={LEGAL_PATHS.privacy} target="_blank" rel="noreferrer" className="font-medium text-primary hover:underline">
                     Política de Privacidade
                   </Link>
                   <span className="text-muted-foreground">•</span>
-                  <Link to={LEGAL_PATHS.lgpd} target="_blank" rel="noreferrer" className="text-sm font-medium text-primary hover:underline">
+                  <Link to={LEGAL_PATHS.lgpd} target="_blank" rel="noreferrer" className="font-medium text-primary hover:underline">
                     LGPD
                   </Link>
                 </div>
-                <div className="grid gap-2 sm:grid-cols-2">
-                  <Button
-                    type="button"
-                    variant={legalDecision === "accepted" ? "default" : "outline"}
-                    onClick={() => setLegalDecision("accepted")}
-                  >
-                    Concordo
-                  </Button>
-                  <Button
-                    type="button"
-                    variant={legalDecision === "declined" ? "destructive" : "outline"}
-                    onClick={() => setLegalDecision("declined")}
-                  >
-                    Não concordo
-                  </Button>
-                </div>
-                {legalDecision === "declined" && (
-                  <p className="text-xs text-destructive">
-                    Sem o aceite legal, o cadastro não pode ser concluído.
-                  </p>
-                )}
               </div>
-            </>
+
+              {legalDecision === "accepted" && (
+                <p className="text-xs text-emerald-600">
+                  O aceite desta versão foi marcado. Agora você já pode concluir o cadastro.
+                </p>
+              )}
+
+              {legalDecision === "declined" && (
+                <p className="text-xs text-destructive">
+                  Sem o aceite legal, o cadastro não pode ser concluído.
+                </p>
+              )}
+            </div>
           )}
 
           <div className="absolute left-[-9999px] top-auto h-px w-px overflow-hidden opacity-0" aria-hidden="true">
@@ -531,7 +572,7 @@ const Cadastro = () => {
                   <Loader2 className="mr-2 animate-spin" />
                   Criando...
                 </>
-              ) : step < 3 ? (
+              ) : step < 4 ? (
                 "Próximo"
               ) : (
                 <>
@@ -550,6 +591,69 @@ const Cadastro = () => {
           </p>
         </form>
       </div>
+
+      <Dialog open={legalModalOpen} onOpenChange={setLegalModalOpen}>
+        <DialogContent className="max-w-[calc(100vw-2rem)] overflow-hidden border-yellow-400/15 bg-zinc-950 p-0 text-foreground sm:max-w-3xl">
+          <DialogHeader className="border-b border-border px-6 pb-4 pt-6 text-left">
+            <DialogTitle className="font-heading text-2xl">Etapa 4: Termos, Privacidade e LGPD</DialogTitle>
+            <DialogDescription className="leading-6">
+              Revise os documentos legais do HappyCash e escolha se concorda ou não concorda com esta versão do cadastro.
+            </DialogDescription>
+          </DialogHeader>
+
+          <ScrollArea className="max-h-[58vh] px-6 py-5">
+            <div className="space-y-6 pr-3">
+              {registrationLegalDocuments.map((document) => (
+                <section key={document.title} className="space-y-4 rounded-xl border border-border/70 bg-background/5 p-4">
+                  <div className="space-y-1">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <h3 className="font-heading text-lg font-semibold text-foreground">{document.title}</h3>
+                      <Link to={document.path} target="_blank" rel="noreferrer" className="text-sm font-medium text-primary hover:underline">
+                        Abrir página completa
+                      </Link>
+                    </div>
+                    <p className="text-sm leading-6 text-muted-foreground">{document.description}</p>
+                  </div>
+
+                  <div className="space-y-4">
+                    {document.sections.map((section) => (
+                      <div key={section.title} className="space-y-1.5">
+                        <p className="text-sm font-semibold text-foreground">{section.title}</p>
+                        <p className="text-sm leading-6 text-muted-foreground">{section.text}</p>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              ))}
+            </div>
+          </ScrollArea>
+
+          <DialogFooter className="border-t border-border px-6 py-4 sm:justify-between sm:space-x-0">
+            <span className="text-xs text-muted-foreground">Última atualização: {LEGAL_UPDATED_AT_LABEL}</span>
+            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end sm:space-x-0">
+              <Button
+                type="button"
+                variant="destructive"
+                onClick={() => {
+                  setLegalDecision("declined");
+                  setLegalModalOpen(false);
+                }}
+              >
+                Não concordo
+              </Button>
+              <Button
+                type="button"
+                onClick={() => {
+                  setLegalDecision("accepted");
+                  setLegalModalOpen(false);
+                }}
+              >
+                Concordo e continuar
+              </Button>
+            </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

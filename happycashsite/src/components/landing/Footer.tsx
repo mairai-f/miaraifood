@@ -5,81 +5,23 @@ import { Instagram, Mail } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
-  LEGAL_PATHS,
-  LEGAL_SUPPORT_EMAIL,
   LEGAL_UPDATED_AT_LABEL,
+  LEGAL_SUPPORT_EMAIL,
 } from "../../../../shared/legal/legalAcceptance";
+import {
+  LEGAL_MODAL_DOCUMENTS,
+  type LegalDocumentKey,
+} from "../../../../shared/legal/legalModalDocuments";
 
 const SUPPORT_EMAIL = LEGAL_SUPPORT_EMAIL;
 const INSTAGRAM_URL = "https://www.instagram.com/happycashsystem/";
-const legalDocuments = {
-  privacy: {
-    title: "Política de Privacidade",
-    path: LEGAL_PATHS.privacy,
-    description: "Como o HappyCash trata dados pessoais no site, cadastro, área do cliente, PDV, fiado, estoque, Agenda e recursos relacionados.",
-    sections: [
-      {
-        title: "Dados tratados",
-        text: "Podemos tratar dados de cadastro, contato, loja, plano, suporte, pagamento, acesso técnico e informações operacionais cadastradas pelo usuário, como clientes, vendas, fiado, estoque e agendamentos.",
-      },
-      {
-        title: "Finalidades",
-        text: "Usamos esses dados para criar e proteger contas, liberar recursos contratados, operar o sistema, processar assinaturas, prestar suporte, prevenir fraude, melhorar o produto e cumprir obrigações legais.",
-      },
-      {
-        title: "Direitos e contato",
-        text: `O titular pode solicitar acesso, correção, eliminação, confirmação de tratamento e outras informações previstas na LGPD pelo email ${SUPPORT_EMAIL}.`,
-      },
-    ],
-  },
-  terms: {
-    title: "Termos de Uso",
-    path: LEGAL_PATHS.terms,
-    description: "Condições principais para uso do HappyCash, incluindo planos, teste gratuito, conta, suporte, desktop, offline, relatórios e responsabilidades do usuário.",
-    sections: [
-      {
-        title: "Uso da conta",
-        text: "Ao criar conta, contratar plano, usar teste grátis ou acessar produtos HappyCash, o usuário concorda em manter dados verdadeiros, proteger senha, PINs, operadores e dispositivos.",
-      },
-      {
-        title: "Planos e operação",
-        text: "Recursos podem variar conforme plano, pagamento, ambiente e configuração. Informações de caixa, fiado, estoque, relatórios e dados fiscais são ferramentas de apoio e devem ser conferidas pelo estabelecimento.",
-      },
-      {
-        title: "Responsabilidades",
-        text: "O usuário deve usar o sistema conforme a lei, obter autorização para cadastrar dados de terceiros e não utilizar o HappyCash para fraude, abuso, atividade ilegal ou violação de direitos.",
-      },
-    ],
-  },
-  lgpd: {
-    title: "LGPD",
-    path: LEGAL_PATHS.lgpd,
-    description: "Compromissos práticos do HappyCash para tratamento de dados, direitos dos titulares, segregação por empresa e responsabilização conforme a LGPD.",
-    sections: [
-      {
-        title: "Compromisso operacional",
-        text: "O mais importante: não é só ter texto no site. O sistema precisa controlar acesso, separar dados por empresa, permitir exclusão e correção quando possível, guardar logs e deixar claro o que faz com os dados.",
-      },
-      {
-        title: "Direitos dos titulares",
-        text: "O titular pode solicitar confirmação de tratamento, acesso, correção, eliminação, portabilidade e outras informações previstas na LGPD pelos canais oficiais do HappyCash, sem prejuízo da responsabilidade da loja controladora quando os dados tiverem sido cadastrados por ela.",
-      },
-      {
-        title: "ANPD e sanções",
-        text: "A ANPD pode aplicar sanções em caso de descumprimento da LGPD, e o regulamento de dosimetria orienta como as penalidades são calculadas quando cabíveis.",
-      },
-    ],
-  },
-};
-
-type LegalDocumentKey = keyof typeof legalDocuments;
 
 const Footer = () => {
   const [legalModal, setLegalModal] = useState<LegalDocumentKey | null>(null);
   const location = useLocation();
   const isHomePage = location.pathname === "/" || location.pathname === "/index" || location.pathname === "/paginainicial";
   const buildHomeSectionHref = (id: string) => (isHomePage ? `#${id}` : `/#${id}`);
-  const activeLegalDocument = legalModal ? legalDocuments[legalModal] : null;
+  const activeLegalDocument = legalModal ? LEGAL_MODAL_DOCUMENTS[legalModal] : null;
 
   const openLegalModal = (event: MouseEvent<HTMLAnchorElement>, documentKey: LegalDocumentKey) => {
     event.preventDefault();
@@ -178,25 +120,25 @@ const Footer = () => {
             <div className="flex flex-col items-center justify-between gap-4 md:flex-row">
             <p>© HappyCash. Todos os direitos reservados.</p>
             <nav className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2">
-              <a
-                href={legalDocuments.privacy.path}
-                className="hover:text-primary transition-colors"
-                onClick={(event) => openLegalModal(event, "privacy")}
-              >
+                <a
+                  href={LEGAL_MODAL_DOCUMENTS.privacy.path}
+                  className="hover:text-primary transition-colors"
+                  onClick={(event) => openLegalModal(event, "privacy")}
+                >
                 Política de Privacidade
               </a>
-              <a
-                href={legalDocuments.terms.path}
-                className="hover:text-primary transition-colors"
-                onClick={(event) => openLegalModal(event, "terms")}
-              >
+                <a
+                  href={LEGAL_MODAL_DOCUMENTS.terms.path}
+                  className="hover:text-primary transition-colors"
+                  onClick={(event) => openLegalModal(event, "terms")}
+                >
                 Termos de Uso
               </a>
-              <a
-                href={legalDocuments.lgpd.path}
-                className="hover:text-primary transition-colors"
-                onClick={(event) => openLegalModal(event, "lgpd")}
-              >
+                <a
+                  href={LEGAL_MODAL_DOCUMENTS.lgpd.path}
+                  className="hover:text-primary transition-colors"
+                  onClick={(event) => openLegalModal(event, "lgpd")}
+                >
                 LGPD
               </a>
             </nav>

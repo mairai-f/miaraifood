@@ -1,6 +1,6 @@
-export const LEGAL_TERMS_VERSION = "2026-07-08";
-export const LEGAL_PRIVACY_VERSION = "2026-07-08";
-export const LEGAL_LGPD_VERSION = "2026-07-08";
+export const LEGAL_TERMS_VERSION = "2026-07-09";
+export const LEGAL_PRIVACY_VERSION = "2026-07-09";
+export const LEGAL_LGPD_VERSION = "2026-07-09";
 
 export const LEGAL_ACCEPTANCE_SOURCES = {
   siteSignup: "site-signup",

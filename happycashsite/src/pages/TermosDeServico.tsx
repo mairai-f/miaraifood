@@ -105,7 +105,8 @@ const TermosDeServico = () => (
       {
         title: "11. Conteúdo e dados cadastrados",
         paragraphs: [
-          "Os dados que você cadastra no sistema continuam relacionados ao seu estabelecimento e à sua operação. Ao usar o HappyCash, você nos autoriza a hospedar, processar e transmitir esses dados somente na medida necessária para prestar o serviço, proteger a plataforma e cumprir estes Termos.",
+          "Os dados que você cadastra no sistema continuam relacionados ao seu estabelecimento e à sua operação. Isso pode incluir dados do responsável e da empresa, como nome, email, telefone, CPF ou CNPJ e endereço do estabelecimento.",
+          "Também pode incluir dados operacionais inseridos pela loja, como nome, CPF, CNPJ, telefone, endereço, histórico de fiado, vendas, pagamentos, produtos, estoque, despesas, relatórios, agendamentos, observações e demais registros lançados no sistema. Ao usar o HappyCash, você nos autoriza a hospedar, processar e transmitir esses dados somente na medida necessária para prestar o serviço, proteger a plataforma e cumprir estes Termos.",
         ],
       },
       {
