@@ -614,9 +614,9 @@ export default function Products() {
         {!readOnly && (
           <Dialog open={open} onOpenChange={v => { if (!v) resetForm(); setOpen(v); }}>
             <DialogTrigger asChild><Button size="sm" data-tour-id="products-new"><Plus className="h-4 w-4 mr-1" />Novo</Button></DialogTrigger>
-            <DialogContent className="grid max-h-[calc(100vh-1rem)] w-[calc(100vw-1rem)] max-w-5xl grid-rows-[auto_minmax(0,1fr)_auto] gap-3 overflow-hidden p-4 sm:max-h-[calc(100vh-2rem)] sm:w-[calc(100vw-2rem)] sm:gap-4 sm:p-6">
+            <DialogContent className="grid max-h-[calc(100dvh-1rem)] w-[calc(100vw-1rem)] max-w-5xl grid-rows-[auto_minmax(0,1fr)_auto] gap-3 overflow-hidden p-3 sm:max-h-[calc(100dvh-2rem)] sm:w-[calc(100vw-2rem)] sm:gap-4 sm:p-6">
               <DialogHeader><DialogTitle>{editId ? 'Editar Produto' : 'Cadastrar Produto'}</DialogTitle></DialogHeader>
-              <div className="min-h-0 min-w-0 space-y-3 overflow-y-auto overflow-x-hidden pr-1">
+              <div className="min-h-0 min-w-0 space-y-3 overflow-y-auto overflow-x-hidden pr-1 pb-1 sm:pr-2">
                 <div className="space-y-1"><Label>Nome / Marca</Label><Input value={name} onChange={e => setName(toProductUppercase(e.target.value))} placeholder="Ex: Skol 600ml" /></div>
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div className="space-y-1"><Label>Preço Venda (R$)</Label><Input type="text" inputMode="decimal" value={price} onChange={e => setPrice(e.target.value)} placeholder="0,00" /></div>
@@ -798,7 +798,9 @@ export default function Products() {
                   </div>
                 )}
               </div>
-              <DialogFooter><Button onClick={handleSave} className="w-full sm:w-auto">{editId ? 'Salvar' : 'Cadastrar'}</Button></DialogFooter>
+              <DialogFooter className="shrink-0 border-t border-border pt-3 pb-[max(0.25rem,env(safe-area-inset-bottom))]">
+                <Button onClick={handleSave} className="w-full sm:w-auto">{editId ? 'Salvar' : 'Cadastrar'}</Button>
+              </DialogFooter>
             </DialogContent>
           </Dialog>
         )}

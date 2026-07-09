@@ -607,7 +607,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
                   <item.icon className="h-5 w-5" />
                   <span className="font-medium">{item.label}</span>
                   {'shortcut' in item && item.shortcut && (
-                    <span className={`ml-auto rounded border px-1.5 py-0.5 text-[10px] font-semibold ${active ? 'border-primary-foreground/40 text-primary-foreground' : 'border-border text-muted-foreground'}`}>
+                    <span className={`ml-auto hidden rounded border px-1.5 py-0.5 text-[10px] font-semibold md:inline-flex ${active ? 'border-primary-foreground/40 text-primary-foreground' : 'border-border text-muted-foreground'}`}>
                       {item.shortcut}
                     </span>
                   )}

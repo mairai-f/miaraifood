@@ -606,16 +606,16 @@ const Cadastro = () => {
       </div>
 
       <Dialog open={legalModalOpen} onOpenChange={setLegalModalOpen}>
-        <DialogContent className="max-w-[calc(100vw-2rem)] overflow-hidden border-yellow-400/15 bg-zinc-950 p-0 text-foreground sm:max-w-3xl">
-          <DialogHeader className="border-b border-border px-6 pb-4 pt-6 text-left">
+        <DialogContent className="grid max-h-[calc(100dvh-1rem)] w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden border-yellow-400/15 bg-zinc-950 p-0 text-foreground sm:max-h-[calc(100dvh-2rem)] sm:max-w-3xl">
+          <DialogHeader className="border-b border-border px-4 pb-3 pt-5 text-left sm:px-6 sm:pb-4 sm:pt-6">
             <DialogTitle className="font-heading text-2xl">Etapa 2: Termos, Privacidade e LGPD</DialogTitle>
             <DialogDescription className="leading-6">
               Revise os documentos legais do HappyCash e escolha se concorda ou não concorda com esta versão do cadastro.
             </DialogDescription>
           </DialogHeader>
 
-          <ScrollArea className="max-h-[58vh] px-6 py-5">
-            <div className="space-y-6 pr-3">
+          <ScrollArea className="min-h-0 px-4 py-4 sm:px-6 sm:py-5">
+            <div className="space-y-6 pr-0 sm:pr-3">
               {registrationLegalDocuments.map((document) => (
                 <section key={document.title} className="space-y-4 rounded-xl border border-border/70 bg-background/5 p-4">
                   <div className="space-y-1">
@@ -641,12 +641,13 @@ const Cadastro = () => {
             </div>
           </ScrollArea>
 
-          <DialogFooter className="border-t border-border px-6 py-4 sm:justify-between sm:space-x-0">
+          <DialogFooter className="shrink-0 flex-col gap-3 border-t border-border px-4 py-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:flex-row sm:justify-between sm:space-x-0 sm:px-6">
             <span className="text-xs text-muted-foreground">Última atualização: {LEGAL_UPDATED_AT_LABEL}</span>
-            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end sm:space-x-0">
+            <div className="flex flex-col gap-2 sm:flex-row sm:justify-end sm:space-x-0">
               <Button
                 type="button"
                 variant="destructive"
+                className="w-full sm:w-auto"
                 onClick={() => {
                   setLegalDecision("declined");
                   setLegalModalOpen(false);
@@ -656,6 +657,7 @@ const Cadastro = () => {
               </Button>
               <Button
                 type="button"
+                className="w-full sm:w-auto"
                 onClick={() => {
                   setLegalDecision("accepted");
                   setLegalModalOpen(false);

@@ -44,6 +44,7 @@ import { blocksSaleWithoutStock } from '@/lib/stockSalePolicy';
 import { formatProductCode } from '@/lib/productCode';
 import { readDesktopActivation } from '@/lib/desktopActivation';
 import { buildDesktopFiscalAccessPayload, canUseDesktopFiscalModule } from '@/lib/fiscalAccess';
+import { useIsMobile } from '@/hooks/use-mobile';
 import { getPublicErrorMessage, getRedactedLogValue } from '../../shared/security/redaction';
 import { requestTurnstileToken } from '../../shared/security/turnstile';
 import {
@@ -408,6 +409,7 @@ export default function PDV() {
   const [selectedRewardId, setSelectedRewardId] = useState<string>('');
   const [isDelivery, setIsDelivery] = useState(false);
   const [showCheckout, setShowCheckout] = useState(false);
+  const isMobile = useIsMobile();
   const [showFinalizeConfirm, setShowFinalizeConfirm] = useState(false);
   const [showCreditInstallmentsDialog, setShowCreditInstallmentsDialog] = useState(false);
   const [showScannerNotFoundDialog, setShowScannerNotFoundDialog] = useState(false);
@@ -939,6 +941,15 @@ export default function PDV() {
       // Local persistence is only a convenience for the operator screen mode.
     }
   }, [cashierMode]);
+
+  useEffect(() => {
+    if (!isMobile || !cashierMode) return;
+
+    setCashierMode(false);
+    if (document.fullscreenElement) {
+      void document.exitFullscreen?.().catch(() => undefined);
+    }
+  }, [cashierMode, isMobile]);
 
   useEffect(() => {
     const handleFullscreenChange = () => {
@@ -3879,7 +3890,7 @@ export default function PDV() {
         return;
       }
 
-      if (event.key === 'F11') {
+      if (!isMobile && event.key === 'F11') {
         event.preventDefault();
         toggleCashierMode();
         return;
@@ -4054,7 +4065,7 @@ export default function PDV() {
     // The keyboard handler intentionally tracks the current PDV render state.
     // Memoizing every command here makes this already-large component harder to audit.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeProducts, filtered, search, cart, cartKeyboardSelectionIndex, cartItemPendingPriceEdit, discount, paymentMethod, cashReceived, selectedClientId, total, change, canFinalizeCheckout, cashierMode, showCheckout, showFinalizeConfirm, showCreditInstallmentsDialog, showReceipt, showSalesSearch, showCancelledSales, showCashOut, showCloseCashReceipt, showOpenCashDialog, saleToCancel, navigate, isAdmin, creditInstallments, pendingCreditInstallments, showScannerNotFoundDialog, addSearchResultToCart, focusProductSearch, isLikelyScannerSubmit, pendingServiceTicketAdminAction, registerScannerLikeKey]);
+  }, [activeProducts, filtered, search, cart, cartKeyboardSelectionIndex, cartItemPendingPriceEdit, discount, paymentMethod, cashReceived, selectedClientId, total, change, canFinalizeCheckout, cashierMode, showCheckout, showFinalizeConfirm, showCreditInstallmentsDialog, showReceipt, showSalesSearch, showCancelledSales, showCashOut, showCloseCashReceipt, showOpenCashDialog, saleToCancel, navigate, isAdmin, creditInstallments, pendingCreditInstallments, showScannerNotFoundDialog, addSearchResultToCart, focusProductSearch, isLikelyScannerSubmit, pendingServiceTicketAdminAction, registerScannerLikeKey, isMobile]);
 
   return (
     <div
@@ -4118,21 +4129,34 @@ export default function PDV() {
               </p>
             )}
           </div>
-          <div className="flex flex-wrap justify-end gap-2" data-tour-id="pdv-actions">
-            <Button variant="outline" size="sm" onClick={() => navigate('/')}>Menu (F1)</Button>
-            <Button variant="outline" size="sm" onClick={() => setShowSalesSearch(true)}><History className="h-4 w-4 mr-1" />Buscar vendas (F12)</Button>
+          <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:flex-wrap sm:justify-end" data-tour-id="pdv-actions">
+            <Button variant="outline" size="sm" className="w-full sm:w-auto" onClick={() => navigate('/')}>
+              Menu
+              <span className="hidden md:inline"> (F1)</span>
+            </Button>
+            <Button variant="outline" size="sm" className="w-full sm:w-auto" onClick={() => setShowSalesSearch(true)}>
+              <History className="mr-1 h-4 w-4" />
+              Buscar vendas
+              <span className="hidden md:inline"> (F12)</span>
+            </Button>
             {canCashOut && (
-              <Button variant="outline" size="sm" onClick={requestCashOut}><Wallet className="h-4 w-4 mr-1" />Saída de caixa</Button>
+              <Button variant="outline" size="sm" className="w-full sm:w-auto" onClick={requestCashOut}>
+                <Wallet className="mr-1 h-4 w-4" />
+                Saída de caixa
+              </Button>
             )}
-            <Button variant={cashierMode ? 'default' : 'outline'} size="sm" onClick={toggleCashierMode}>
-              {cashierMode ? <Minimize2 className="h-4 w-4 mr-1" /> : <Maximize2 className="h-4 w-4 mr-1" />}
+            <Button variant={cashierMode ? 'default' : 'outline'} size="sm" className="hidden md:inline-flex" onClick={toggleCashierMode}>
+              {cashierMode ? <Minimize2 className="mr-1 h-4 w-4" /> : <Maximize2 className="mr-1 h-4 w-4" />}
               {cashierMode ? 'Sair tela cheia' : 'Tela cheia'} (F11)
             </Button>
-            <span className="inline-flex items-center rounded border border-border px-2.5 py-1 text-sm font-semibold">
+            <span className="inline-flex w-full items-center justify-center rounded border border-border px-2.5 py-2 text-sm font-semibold sm:w-auto sm:justify-start">
               Caixa: {cashSession ? formatMoney(currentCashBalance) : 'fechado'}
             </span>
             {canCloseCash && (
-              <Button variant="destructive" size="sm" onClick={requestCloseCash} disabled={!cashSession}>Fechar caixa (F10)</Button>
+              <Button variant="destructive" size="sm" className="w-full sm:w-auto" onClick={requestCloseCash} disabled={!cashSession}>
+                Fechar caixa
+                <span className="hidden md:inline"> (F10)</span>
+              </Button>
             )}
           </div>
         </div>
