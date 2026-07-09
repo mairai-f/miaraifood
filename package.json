@@ -184,10 +184,14 @@
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
-      "license": "build/license-win.html",
-      "installerHeader": "build/installerHeader.bmp",
-      "installerSidebar": "build/installerSidebar.bmp",
-      "uninstallerSidebar": "build/uninstallerSidebar.bmp",
+      "license": "build/license.txt",
+      "installerHeader": null,
+      "installerSidebar": null,
+      "uninstallerSidebar": null,
+      "installerLanguages": [
+        "pt_BR"
+      ],
+      "language": "1046",
       "include": "build/installer.nsh"
     },
     "linux": {

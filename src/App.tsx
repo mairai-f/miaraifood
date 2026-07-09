@@ -55,10 +55,18 @@ function AppRoutes() {
   const [showSplash, setShowSplash] = useState(!hasSeenAppSplash());
   const [desktopUpdateStatus, setDesktopUpdateStatus] = useState<DesktopUpdateStatus | null>(null);
   const [desktopUpdatePreflightStarted, setDesktopUpdatePreflightStarted] = useState(false);
-  const shouldBlockSplash = loading || planLoading || checkingDesktopLicense;
+  const [desktopUpdatePreflightDone, setDesktopUpdatePreflightDone] = useState(false);
+  const [desktopUpdateAutoInstallStarted, setDesktopUpdateAutoInstallStarted] = useState(false);
+  const desktopUpdateBlocksSplash = isDesktop && (
+    !desktopUpdatePreflightDone
+    || desktopUpdateStatus?.status === "checking"
+    || desktopUpdateStatus?.status === "downloading"
+    || desktopUpdateStatus?.status === "downloaded"
+    || desktopUpdateStatus?.status === "installing"
+  );
+  const shouldBlockSplash = loading || planLoading || checkingDesktopLicense || desktopUpdateBlocksSplash;
   const requiresDesktopActivation = isDesktop && isDesktopActivationRequired() && !desktopActivation;
   const desktopUpdateSplashSummary = getDesktopUpdateSplashSummary(desktopUpdateStatus);
-  const canInstallDesktopUpdateFromSplash = desktopUpdateStatus?.status === "downloaded";
 
   useEffect(() => {
     if (hasSeenAppSplash()) {
@@ -111,8 +119,12 @@ function AppRoutes() {
     if (!isDesktop) {
       setDesktopUpdateStatus(null);
       setDesktopUpdatePreflightStarted(false);
+      setDesktopUpdatePreflightDone(true);
+      setDesktopUpdateAutoInstallStarted(false);
       return;
     }
+
+    setDesktopUpdatePreflightDone(false);
 
     void readDesktopUpdateStatus()
       .then((status) => {
@@ -131,6 +143,7 @@ function AppRoutes() {
     if (!isDesktop || !showSplash || desktopUpdatePreflightStarted) return;
 
     setDesktopUpdatePreflightStarted(true);
+    setDesktopUpdatePreflightDone(false);
 
     void checkDesktopUpdates()
       .then((status) => {
@@ -138,8 +151,45 @@ function AppRoutes() {
       })
       .catch(() => {
         // Keep opening the ERP even if the preflight update check fails.
+      })
+      .finally(() => {
+        setDesktopUpdatePreflightDone(true);
       });
   }, [desktopUpdatePreflightStarted, isDesktop, showSplash]);
+
+  useEffect(() => {
+    if (!showSplash || !isDesktop || desktopUpdateStatus?.status !== "downloaded" || desktopUpdateAutoInstallStarted) {
+      return;
+    }
+
+    setDesktopUpdateAutoInstallStarted(true);
+
+    const timerId = window.setTimeout(() => {
+      void installDesktopUpdate()
+        .then((result) => {
+          if (result?.success) return;
+
+          setDesktopUpdateAutoInstallStarted(false);
+          setDesktopUpdateStatus((current) => current ? {
+            ...current,
+            status: "error",
+            error: result?.error || "Não foi possível iniciar a instalação da atualização.",
+          } : current);
+          toast.error(result?.error || "Não foi possível iniciar a instalação da atualização.");
+        })
+        .catch(() => {
+          setDesktopUpdateAutoInstallStarted(false);
+          setDesktopUpdateStatus((current) => current ? {
+            ...current,
+            status: "error",
+            error: "Não foi possível iniciar a instalação da atualização.",
+          } : current);
+          toast.error("Não foi possível iniciar a instalação da atualização.");
+        });
+    }, 900);
+
+    return () => window.clearTimeout(timerId);
+  }, [desktopUpdateAutoInstallStarted, desktopUpdateStatus?.status, isDesktop, showSplash]);
 
   const handleDesktopActivated = async (activation: DesktopActivationRecord) => {
     if (isAuthenticated) {
@@ -149,25 +199,11 @@ function AppRoutes() {
     setDesktopActivation(activation);
   };
 
-  const handleInstallDesktopUpdateFromSplash = async () => {
-    try {
-      const result = await installDesktopUpdate();
-      if (!result?.success) {
-        toast.error(result?.error || "Nenhuma atualização pronta para instalar.");
-      }
-    } catch {
-      toast.error("Não foi possível iniciar a instalação da atualização.");
-    }
-  };
-
   if (showSplash && !isAuthenticated) {
     return (
       <SplashScreen
         progress={progress}
         updateStatus={desktopUpdateSplashSummary}
-        updateActionLabel={canInstallDesktopUpdateFromSplash ? "Reiniciar e instalar" : null}
-        onUpdateAction={canInstallDesktopUpdateFromSplash ? () => void handleInstallDesktopUpdateFromSplash() : null}
-        updateActionDisabled={desktopUpdateStatus?.status === "installing"}
       />
     );
   }

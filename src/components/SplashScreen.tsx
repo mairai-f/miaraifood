@@ -1,35 +1,44 @@
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 
 import happyCashLogo from "@/assets/happycash-logo.webp";
-import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import type { DesktopUpdateSplashSummary } from "@/lib/desktopUpdateSplash";
 
 interface SplashScreenProps {
   progress: number;
   updateStatus?: DesktopUpdateSplashSummary | null;
-  updateActionLabel?: string | null;
-  onUpdateAction?: (() => void) | null;
-  updateActionDisabled?: boolean;
 }
-
-const splashToneClasses: Record<NonNullable<SplashScreenProps["updateStatus"]>["tone"], string> = {
-  default: "border-yellow-400/15 bg-white/5 text-yellow-50",
-  warning: "border-amber-300/20 bg-amber-200/10 text-amber-50",
-  error: "border-red-300/20 bg-red-200/10 text-red-50",
-};
 
 export function SplashScreen({
   progress,
   updateStatus = null,
-  updateActionLabel = null,
-  onUpdateAction = null,
-  updateActionDisabled = false,
 }: SplashScreenProps) {
+  const [ellipsisFrame, setEllipsisFrame] = useState(0);
   const safeProgress = Math.max(0, Math.min(progress, 100));
   const safeUpdateProgress = updateStatus?.progress == null
     ? null
     : Math.max(0, Math.min(updateStatus.progress, 100));
+  const isPrimaryUpdateMode = Boolean(updateStatus?.primary);
+  const displayProgress = isPrimaryUpdateMode
+    ? safeUpdateProgress ?? 0
+    : safeProgress;
+  const ellipsis = updateStatus?.animateEllipsis
+    ? ".".repeat((ellipsisFrame % 3) + 1)
+    : "";
+
+  useEffect(() => {
+    if (!updateStatus?.animateEllipsis) {
+      setEllipsisFrame(0);
+      return;
+    }
+
+    const timerId = window.setInterval(() => {
+      setEllipsisFrame((current) => (current + 1) % 3);
+    }, 420);
+
+    return () => window.clearInterval(timerId);
+  }, [updateStatus?.animateEllipsis]);
 
   return (
     <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[#050505] px-5 py-8">
@@ -78,50 +87,25 @@ export function SplashScreen({
           transition={{ duration: 0.5, delay: 0.28 }}
         >
           <div className="flex items-center justify-between text-[10px] font-semibold uppercase tracking-[0.32em] text-yellow-100/70 sm:text-xs">
-            <span>Carregando</span>
-            <span>{Math.round(safeProgress)}%</span>
+            <span>{isPrimaryUpdateMode ? "Atualizando" : "Carregando"}</span>
+            <span>{Math.round(displayProgress)}%</span>
           </div>
           <Progress
-            value={safeProgress}
+            value={displayProgress}
             className="mt-3 h-2.5 bg-white/10 [&>div]:bg-gradient-to-r [&>div]:from-[#facc15] [&>div]:via-[#f59e0b] [&>div]:to-[#fde68a]"
           />
+          {isPrimaryUpdateMode && (
+            <>
+              <p className="mt-4 text-left text-sm font-semibold text-yellow-50 sm:text-[15px]">
+                {updateStatus?.label}
+                {ellipsis}
+              </p>
+              <p className="mt-2 text-left text-xs leading-relaxed text-yellow-100/75 sm:text-sm">
+                {updateStatus?.detail}
+              </p>
+            </>
+          )}
         </motion.div>
-
-        {updateStatus && (
-          <motion.div
-            className={`mt-4 rounded-[24px] border p-4 text-left shadow-[0_18px_60px_rgba(0,0,0,0.28)] backdrop-blur-md ${splashToneClasses[updateStatus.tone]}`}
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.45, delay: 0.34 }}
-          >
-            <div className="flex items-center justify-between gap-3 text-[10px] font-semibold uppercase tracking-[0.28em] text-current/75 sm:text-xs">
-              <span>Atualização do desktop</span>
-              {safeUpdateProgress != null && <span>{Math.round(safeUpdateProgress)}%</span>}
-            </div>
-            <p className="mt-3 text-sm font-semibold text-current sm:text-[15px]">
-              {updateStatus.label}
-            </p>
-            <p className="mt-2 text-xs leading-relaxed text-current/80 sm:text-sm">
-              {updateStatus.detail}
-            </p>
-            {safeUpdateProgress != null && (
-              <Progress
-                value={safeUpdateProgress}
-                className="mt-3 h-2 bg-white/10 [&>div]:bg-gradient-to-r [&>div]:from-[#facc15] [&>div]:via-[#f59e0b] [&>div]:to-[#fde68a]"
-              />
-            )}
-            {updateActionLabel && onUpdateAction && (
-              <Button
-                type="button"
-                onClick={onUpdateAction}
-                disabled={updateActionDisabled}
-                className="mt-4 h-11 w-full bg-yellow-300 text-zinc-950 hover:bg-yellow-200 disabled:bg-yellow-300/70 disabled:text-zinc-950/70"
-              >
-                {updateActionLabel}
-              </Button>
-            )}
-          </motion.div>
-        )}
       </motion.div>
     </div>
   );

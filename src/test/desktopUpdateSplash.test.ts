@@ -38,10 +38,12 @@ describe("desktopUpdateSplash", () => {
         }),
       ),
     ).toEqual({
-      label: "Baixando atualização 0.1.48.",
-      detail: "O ERP vai abrir normalmente enquanto o download continua em segundo plano.",
+      label: "Atualizando para a nova versão 0.1.48",
+      detail: "Após a atualização, o sistema será reiniciado automaticamente.",
       progress: 42.7,
       tone: "default",
+      primary: true,
+      animateEllipsis: true,
     });
   });
 
@@ -54,10 +56,12 @@ describe("desktopUpdateSplash", () => {
         }),
       ),
     ).toEqual({
-      label: "Atualização 0.1.48 pronta para instalar.",
-      detail: "Você só vai precisar reiniciar o HappyCash para concluir a instalação.",
+      label: "Atualizando para a nova versão 0.1.48",
+      detail: "Após a atualização, o sistema será reiniciado automaticamente.",
       progress: 100,
       tone: "default",
+      primary: true,
+      animateEllipsis: true,
     });
   });
 
@@ -74,6 +78,8 @@ describe("desktopUpdateSplash", () => {
       detail: "O ERP vai continuar abrindo e você pode tentar novamente em Configurações.",
       progress: null,
       tone: "error",
+      primary: false,
+      animateEllipsis: false,
     });
   });
 });

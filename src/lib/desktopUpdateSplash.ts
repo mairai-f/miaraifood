@@ -5,6 +5,8 @@ export interface DesktopUpdateSplashSummary {
   detail: string;
   progress: number | null;
   tone: "default" | "warning" | "error";
+  primary: boolean;
+  animateEllipsis: boolean;
 }
 
 const clampProgress = (value: number | null | undefined) => {
@@ -30,6 +32,8 @@ export const getDesktopUpdateSplashSummary = (
         detail: "O HappyCash vai abrir normalmente enquanto você estiver em desenvolvimento local.",
         progress: null,
         tone: "warning",
+        primary: false,
+        animateEllipsis: false,
       };
     case "checking":
       return {
@@ -37,6 +41,8 @@ export const getDesktopUpdateSplashSummary = (
         detail: "Se houver nova versão, o download começa sozinho sem exigir acesso ao site.",
         progress: null,
         tone: "default",
+        primary: false,
+        animateEllipsis: true,
       };
     case "publishing":
       return {
@@ -44,27 +50,35 @@ export const getDesktopUpdateSplashSummary = (
         detail: status.error || "O HappyCash vai tentar novamente automaticamente em instantes.",
         progress: null,
         tone: "warning",
+        primary: false,
+        animateEllipsis: false,
       };
     case "downloading":
       return {
-        label: `Baixando atualização${versionSuffix}.`,
-        detail: "O ERP vai abrir normalmente enquanto o download continua em segundo plano.",
+        label: `Atualizando para a nova versão${versionSuffix}`,
+        detail: "Após a atualização, o sistema será reiniciado automaticamente.",
         progress: clampProgress(status.progress),
         tone: "default",
+        primary: true,
+        animateEllipsis: true,
       };
     case "downloaded":
       return {
-        label: `Atualização${versionSuffix} pronta para instalar.`,
-        detail: "Você só vai precisar reiniciar o HappyCash para concluir a instalação.",
+        label: `Atualizando para a nova versão${versionSuffix}`,
+        detail: "Após a atualização, o sistema será reiniciado automaticamente.",
         progress: 100,
         tone: "default",
+        primary: true,
+        animateEllipsis: true,
       };
     case "installing":
       return {
-        label: `Instalando atualização${versionSuffix}.`,
-        detail: "O HappyCash vai reiniciar sozinho em instantes.",
+        label: `Atualizando para a nova versão${versionSuffix}`,
+        detail: "Após a atualização, o sistema será reiniciado automaticamente.",
         progress: 100,
         tone: "default",
+        primary: true,
+        animateEllipsis: true,
       };
     case "error":
       return {
@@ -72,6 +86,8 @@ export const getDesktopUpdateSplashSummary = (
         detail: "O ERP vai continuar abrindo e você pode tentar novamente em Configurações.",
         progress: null,
         tone: "error",
+        primary: false,
+        animateEllipsis: false,
       };
     case "idle":
       if (!status.checkedAt) return null;
@@ -80,6 +96,8 @@ export const getDesktopUpdateSplashSummary = (
         detail: `Canal ${status.channel || "latest"} validado para a versão atual do HappyCash.`,
         progress: null,
         tone: "default",
+        primary: false,
+        animateEllipsis: false,
       };
     default:
       return null;
