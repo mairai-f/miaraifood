@@ -608,7 +608,7 @@ const Cadastro = () => {
       <Dialog open={legalModalOpen} onOpenChange={setLegalModalOpen}>
         <DialogContent className="max-w-[calc(100vw-2rem)] overflow-hidden border-yellow-400/15 bg-zinc-950 p-0 text-foreground sm:max-w-3xl">
           <DialogHeader className="border-b border-border px-6 pb-4 pt-6 text-left">
-            <DialogTitle className="font-heading text-2xl">Etapa 4: Termos, Privacidade e LGPD</DialogTitle>
+            <DialogTitle className="font-heading text-2xl">Etapa 2: Termos, Privacidade e LGPD</DialogTitle>
             <DialogDescription className="leading-6">
               Revise os documentos legais do HappyCash e escolha se concorda ou não concorda com esta versão do cadastro.
             </DialogDescription>
