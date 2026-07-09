@@ -1,6 +1,6 @@
 import { Suspense, lazy, useEffect } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Navigate, Route, Routes, useLocation } from "react-router-dom";
+import { BrowserRouter, Route, Routes, useLocation } from "react-router-dom";
 import { Loader2 } from "lucide-react";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
@@ -21,6 +21,7 @@ const FiadoDigital = lazy(() => import("./pages/FiadoDigital.tsx"));
 const SistemaPdv = lazy(() => import("./pages/SistemaPdv.tsx"));
 const SistemaGestaoNegocios = lazy(() => import("./pages/SistemaGestaoNegocios.tsx"));
 const ControleEstoque = lazy(() => import("./pages/ControleEstoque.tsx"));
+const HappyCashAgenda = lazy(() => import("./pages/HappyCashAgenda.tsx"));
 const ControleDeFiado = lazy(() => import("./pages/ControleDeFiado.tsx"));
 const AppParaFiado = lazy(() => import("./pages/AppParaFiado.tsx"));
 const GestaoClientesFiado = lazy(() => import("./pages/GestaoClientesFiado.tsx"));
@@ -98,8 +99,8 @@ const App = () => (
               <Route path="/sistema-de-gestao" element={<SistemaGestaoNegocios />} />
               <Route path="/sistema-de-gestao-de-negocios" element={<SistemaGestaoNegocios />} />
               <Route path="/controle-de-estoque" element={<ControleEstoque />} />
-              <Route path="/happycash-agenda" element={<Navigate to="/sistema-de-gestao-de-negocios" replace />} />
-              <Route path="/sistema-de-agendamento" element={<Navigate to="/sistema-de-gestao-de-negocios" replace />} />
+              <Route path="/happycash-agenda" element={<HappyCashAgenda />} />
+              <Route path="/sistema-de-agendamento" element={<HappyCashAgenda />} />
               <Route path="/controle-de-fiado" element={<ControleDeFiado />} />
               <Route path="/app-para-fiado" element={<AppParaFiado />} />
               <Route path="/gestao-de-clientes-fiado" element={<GestaoClientesFiado />} />

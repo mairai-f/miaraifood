@@ -11,7 +11,7 @@ type FoodImageProps = {
 export function FoodImage({ src, alt, className = "", style }: FoodImageProps) {
   if (!src) {
     return (
-      <div style={style} className={`grid place-items-center bg-gradient-to-br from-[#fff0df] via-white to-[#ffe2c2] text-muted-foreground ${className}`}>
+      <div style={style} className={`grid place-items-center bg-gradient-to-br from-slate-200 via-white to-emerald-100 text-muted-foreground ${className}`}>
         <ImageIcon size={28} />
       </div>
     );

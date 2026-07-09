@@ -35,7 +35,7 @@ const TermosDeServico = () => (
       {
         title: "2. O que o HappyCash oferece",
         paragraphs: [
-          "O HappyCash fornece ferramentas digitais para gestão comercial, incluindo controle de fiado, cadastro de clientes, PDV, estoque, relatórios, operadores, recursos desktop e modo offline em planos compatíveis.",
+          "O HappyCash fornece ferramentas digitais para gestão comercial, incluindo controle de fiado, cadastro de clientes, PDV, estoque, relatórios, operadores, recursos desktop, HappyCash Agenda e modo offline em planos compatíveis.",
           "As funcionalidades disponíveis variam conforme plano, produto, ambiente, configuração da conta e disponibilidade técnica.",
         ],
       },
