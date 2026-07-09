@@ -1,5 +1,9 @@
 !include "FileFunc.nsh"
 
+!macro customWelcomePage
+  !insertmacro MUI_PAGE_WELCOME
+!macroend
+
 !macro customInstall
   GetTempFileName $0
   Delete $0

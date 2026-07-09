@@ -30,6 +30,13 @@ export function DesktopActivationScreen({ onActivated }: DesktopActivationScreen
   const [submitting, setSubmitting] = useState(false);
   const [recognizedCompany, setRecognizedCompany] = useState<DesktopActivationRecord | null>(null);
   const [legalDecision, setLegalDecision] = useState<'accepted' | 'declined' | null>(null);
+  const requiresInAppLegalAcceptance = useMemo(() => {
+    try {
+      return window.electronAPI?.app?.getRuntimeInfoSync?.().platform === 'linux';
+    } catch {
+      return false;
+    }
+  }, []);
 
   const normalizedKey = useMemo(
     () => licenseKey.toUpperCase().replace(/[^A-Z0-9-]/g, ''),
@@ -52,8 +59,8 @@ export function DesktopActivationScreen({ onActivated }: DesktopActivationScreen
       return;
     }
 
-    if (legalDecision !== 'accepted') {
-      toast.error('Concorde com os Termos de Uso, a Politica de Privacidade e a LGPD para continuar.');
+    if (requiresInAppLegalAcceptance && legalDecision !== 'accepted') {
+      toast.error('Concorde com os Termos de Uso e com a Politica de Privacidade para continuar.');
       return;
     }
 
@@ -61,7 +68,7 @@ export function DesktopActivationScreen({ onActivated }: DesktopActivationScreen
 
     try {
       const result = await activateDesktopWithLicenseKey(normalizedKey, {
-        accepted: true,
+        accepted: !requiresInAppLegalAcceptance || legalDecision === 'accepted',
         source: LEGAL_ACCEPTANCE_SOURCES.desktopActivation,
       });
       if (!result.success) {
@@ -134,48 +141,47 @@ export function DesktopActivationScreen({ onActivated }: DesktopActivationScreen
                 </div>
               </div>
 
-              <div className="space-y-3 rounded-xl border border-yellow-400/15 bg-yellow-500/5 p-4">
-                <div className="space-y-1">
-                  <p className="text-sm font-semibold text-yellow-200">Termos, privacidade e LGPD</p>
-                  <p className="text-xs leading-5 text-muted-foreground">
-                    Para ativar esta instalacao, leia os documentos legais e registre o aceite desta maquina.
-                    Ultima atualizacao: {LEGAL_UPDATED_AT_LABEL}.
-                  </p>
+              {requiresInAppLegalAcceptance && (
+                <div className="space-y-3 rounded-xl border border-yellow-400/15 bg-yellow-500/5 p-4">
+                  <div className="space-y-1">
+                    <p className="text-sm font-semibold text-yellow-200">Termos e politica de privacidade</p>
+                    <p className="text-xs leading-5 text-muted-foreground">
+                      No Linux, leia os documentos legais no site e registre o aceite desta maquina antes de continuar.
+                      Ultima atualizacao: {LEGAL_UPDATED_AT_LABEL}.
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <Button type="button" variant="outline" size="sm" onClick={() => openLegalDocument(LEGAL_PATHS.terms)}>
+                      Termos de Uso
+                    </Button>
+                    <Button type="button" variant="outline" size="sm" onClick={() => openLegalDocument(LEGAL_PATHS.privacy)}>
+                      Politica de Privacidade
+                    </Button>
+                  </div>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    <Button
+                      type="button"
+                      variant={legalDecision === 'accepted' ? 'default' : 'outline'}
+                      className={legalDecision === 'accepted' ? 'bg-yellow-400 text-black hover:bg-yellow-300' : ''}
+                      onClick={() => setLegalDecision('accepted')}
+                    >
+                      Concordo
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={legalDecision === 'declined' ? 'destructive' : 'outline'}
+                      onClick={() => setLegalDecision('declined')}
+                    >
+                      Nao concordo
+                    </Button>
+                  </div>
+                  {legalDecision === 'declined' && (
+                    <p className="text-xs text-red-300">
+                      Sem o aceite legal nao e possivel concluir a ativacao desta maquina.
+                    </p>
+                  )}
                 </div>
-                <div className="flex flex-wrap gap-2">
-                  <Button type="button" variant="outline" size="sm" onClick={() => openLegalDocument(LEGAL_PATHS.terms)}>
-                    Termos de Uso
-                  </Button>
-                  <Button type="button" variant="outline" size="sm" onClick={() => openLegalDocument(LEGAL_PATHS.privacy)}>
-                    Politica de Privacidade
-                  </Button>
-                  <Button type="button" variant="outline" size="sm" onClick={() => openLegalDocument(LEGAL_PATHS.lgpd)}>
-                    LGPD
-                  </Button>
-                </div>
-                <div className="grid gap-2 sm:grid-cols-2">
-                  <Button
-                    type="button"
-                    variant={legalDecision === 'accepted' ? 'default' : 'outline'}
-                    className={legalDecision === 'accepted' ? 'bg-yellow-400 text-black hover:bg-yellow-300' : ''}
-                    onClick={() => setLegalDecision('accepted')}
-                  >
-                    Concordo
-                  </Button>
-                  <Button
-                    type="button"
-                    variant={legalDecision === 'declined' ? 'destructive' : 'outline'}
-                    onClick={() => setLegalDecision('declined')}
-                  >
-                    Nao concordo
-                  </Button>
-                </div>
-                {legalDecision === 'declined' && (
-                  <p className="text-xs text-red-300">
-                    Sem o aceite legal nao e possivel concluir a ativacao desta maquina.
-                  </p>
-                )}
-              </div>
+              )}
 
               <Button type="submit" className="h-11 w-full bg-yellow-400 font-semibold text-black hover:bg-yellow-300" disabled={submitting}>
                 {submitting ? (
