@@ -40,6 +40,7 @@ import { parseDecimalInput, parseOptionalDecimalInput } from '@/lib/numberInput'
 import { isExactProductSearchMatch, normalizeProductSearchText, toProductUppercase } from '@/lib/productSearch';
 import { calculatePackagingPrice, filterProductsWithPackagings, findExactPackagingMatch, packagingMatchesSearch } from '@/lib/productPackaging';
 import { findServiceTicketByLookup } from '@/lib/serviceTicket';
+import { blocksSaleWithoutStock } from '@/lib/stockSalePolicy';
 import { formatProductCode } from '@/lib/productCode';
 import { readDesktopActivation } from '@/lib/desktopActivation';
 import { buildDesktopFiscalAccessPayload, canUseDesktopFiscalModule } from '@/lib/fiscalAccess';
@@ -391,6 +392,7 @@ export default function PDV() {
   });
   const [searchSelectedIndex, setSearchSelectedIndex] = useState(-1);
   const [cart, setCart] = useState<CartItem[]>([]);
+  const [cartQuantityDrafts, setCartQuantityDrafts] = useState<Record<string, string>>({});
   const [activeServiceTicketId, setActiveServiceTicketId] = useState<string | null>(null);
   const [mobilePanel, setMobilePanel] = useState<'products' | 'cart'>('products');
   const [cartKeyboardSelectionIndex, setCartKeyboardSelectionIndex] = useState<number | null>(null);
@@ -1909,13 +1911,55 @@ export default function PDV() {
       .filter(item => item.product.id === productId)
       .reduce((sum, item) => sum + item.quantity, 0), [cart]);
   const getInsufficientStockMessage = useCallback((product: Product, requestedQuantity: number) => {
-    if (!blockSaleWithoutStock) return '';
-    if (product.control_stock === false) return '';
+    if (!blocksSaleWithoutStock(product, blockSaleWithoutStock)) return '';
     const availableStock = Number(product.stock || 0);
     return availableStock < requestedQuantity
       ? `Estoque insuficiente para ${product.name}. Disponivel: ${availableStock}, solicitado: ${requestedQuantity}.`
       : '';
   }, [blockSaleWithoutStock]);
+  const setCartQuantityDraft = useCallback((item: CartItem, quantity: number) => {
+    setCartQuantityDrafts((current) => ({
+      ...current,
+      [getCartItemKey(item)]: String(quantity),
+    }));
+  }, []);
+  const clearCartQuantityDrafts = useCallback(() => {
+    setCartQuantityDrafts({});
+  }, []);
+  const commitCartQuantityInput = useCallback((item: CartItem, rawValue: string) => {
+    if (activeServiceTicket) {
+      setCartQuantityDraft(item, item.quantity);
+      return;
+    }
+
+    const sanitized = rawValue.replace(/[^\d]/g, '');
+    if (!sanitized) {
+      setCartQuantityDraft(item, item.quantity);
+      return;
+    }
+
+    const parsedQuantity = Number.parseInt(sanitized, 10);
+    if (!Number.isFinite(parsedQuantity) || parsedQuantity <= 0) {
+      setCartQuantityDraft(item, item.quantity);
+      return;
+    }
+
+    const otherQuantity = getCartQuantityForProduct(item.product.id) - item.quantity;
+    const requestedTotal = otherQuantity + parsedQuantity;
+    const stockMessage = getInsufficientStockMessage(item.product, requestedTotal);
+    let nextQuantity = parsedQuantity;
+
+    if (stockMessage) {
+      const availableForItem = Math.max(1, Number(item.product.stock || 0) - otherQuantity);
+      nextQuantity = availableForItem;
+      silentToast.error(stockMessage);
+    }
+
+    setCart(prev => prev.map(currentItem =>
+      currentItem === item ? { ...currentItem, quantity: nextQuantity } : currentItem
+    ));
+    setCartQuantityDraft(item, nextQuantity);
+  }, [activeServiceTicket, getCartQuantityForProduct, getInsufficientStockMessage, setCartQuantityDraft]);
   const validateCartStock = () => {
     const productIds = new Set(cart.map(item => item.product.id));
     for (const productId of productIds) {
@@ -2029,6 +2073,7 @@ export default function PDV() {
     setSearch('');
     setSearchSelectedIndex(-1);
     resetScannerTracking();
+    clearCartQuantityDrafts();
     setCart(nextCart);
     setActiveServiceTicketId(ticket.id);
     setMobilePanel('cart');
@@ -2038,7 +2083,7 @@ export default function PDV() {
         : `Comanda ${ticket.number} aberta no caixa`
     );
     return true;
-  }, [activeServiceTicketId, blurPdvInputs, buildCartFromServiceTicketItems, findServiceTicket, openScannerNotFoundDialog, resetScannerTracking, role]);
+  }, [activeServiceTicketId, blurPdvInputs, buildCartFromServiceTicketItems, clearCartQuantityDrafts, findServiceTicket, openScannerNotFoundDialog, resetScannerTracking, role]);
 
   useEffect(() => {
     const query = new URLSearchParams(location.search).get('comanda')?.trim() || '';
@@ -2054,8 +2099,9 @@ export default function PDV() {
     if (!activeServiceTicketId) return;
 
     const { cart: nextCart } = buildCartFromServiceTicketItems(activeServiceTicketId);
+    clearCartQuantityDrafts();
     setCart(nextCart);
-  }, [activeServiceTicketId, buildCartFromServiceTicketItems]);
+  }, [activeServiceTicketId, buildCartFromServiceTicketItems, clearCartQuantityDrafts]);
 
   const addToCart = useCallback(async (p: Product, packaging?: ProductPackaging | null) => {
     const addedQuantity = packaging?.base_quantity ?? 1;
@@ -2087,6 +2133,7 @@ export default function PDV() {
       }
     }
 
+    clearCartQuantityDrafts();
     setCart(prev => {
       const packagingId = packaging?.id ?? null;
       const existing = prev.find(i => i.product.id === p.id && (i.packagingId ?? null) === packagingId && !i.manualPrice);
@@ -2104,7 +2151,7 @@ export default function PDV() {
     });
     searchInputRef.current?.blur();
     return true;
-  }, [activeServiceTicket, addServiceTicketItem, getCartQuantityForProduct, getInsufficientStockMessage, sellerName]);
+  }, [activeServiceTicket, addServiceTicketItem, clearCartQuantityDrafts, getCartQuantityForProduct, getInsufficientStockMessage, sellerName]);
 
   const handleProductSelection = useCallback(async (product: Product, options?: { focusAfterSuccess?: boolean; packaging?: ProductPackaging | null }) => {
     const focusAfterSuccess = options?.focusAfterSuccess ?? true;
@@ -2367,6 +2414,19 @@ export default function PDV() {
       return;
     }
 
+    if (delta > 0) {
+      const stockMessage = getInsufficientStockMessage(
+        cartItem.product,
+        getCartQuantityForProduct(cartItem.product.id) + delta,
+      );
+      if (stockMessage) {
+        silentToast.error(stockMessage);
+        setCartQuantityDraft(cartItem, cartItem.quantity);
+        return;
+      }
+    }
+
+    clearCartQuantityDrafts();
     setCart(prev => prev.map(i => {
       if (i !== cartItem) return i;
       const newQty = i.quantity + delta;
@@ -2470,6 +2530,7 @@ export default function PDV() {
     }
 
     const nextPrice = Math.round(parsedPrice * 100) / 100;
+    clearCartQuantityDrafts();
     setCart(prev => prev.map(item =>
       item === cartItemPendingPriceEdit
         ? { ...item, unitPrice: nextPrice, manualPrice: true, packagingId: null }
@@ -2479,7 +2540,14 @@ export default function PDV() {
     silentToast.success('Preço atualizado');
   };
 
-  const removeFromCart = (target: CartItem) => setCart(prev => prev.filter(item => item !== target));
+  const removeFromCart = (target: CartItem) => {
+    setCartQuantityDrafts((current) => {
+      const nextDrafts = { ...current };
+      delete nextDrafts[getCartItemKey(target)];
+      return nextDrafts;
+    });
+    setCart(prev => prev.filter(item => item !== target));
+  };
   const requestRemoveFromCart = (item: CartItem) => {
     if (activeServiceTicket) {
       requestServiceTicketAdminAction({ type: 'remove', cartItem: item });
@@ -2498,6 +2566,7 @@ export default function PDV() {
     if (cart.length === 0 && !activeServiceTicketId) return;
     const wasViewingServiceTicket = Boolean(activeServiceTicketId);
     setCart([]);
+    clearCartQuantityDrafts();
     setActiveServiceTicketId(null);
     setCartKeyboardSelectionIndex(null);
     closeCartItemPriceEditor();
@@ -2507,7 +2576,7 @@ export default function PDV() {
       silentToast.success(wasViewingServiceTicket ? 'Comanda retirada da tela do PDV' : 'Carrinho zerado');
     }
     searchInputRef.current?.blur();
-  }, [activeServiceTicketId, cart.length, closeCartItemPriceEditor]);
+  }, [activeServiceTicketId, cart.length, clearCartQuantityDrafts, closeCartItemPriceEditor]);
 
   const confirmCloseServiceTicketView = useCallback(() => {
     const nextTicketLookup = pendingServiceTicketLookup;
@@ -2871,6 +2940,7 @@ export default function PDV() {
       setShowFinalizeConfirm(false);
       setShowCheckout(false);
       setShowReceipt(false);
+      clearCartQuantityDrafts();
       setCart([]);
       setActiveServiceTicketId(null);
       setDiscountInput('');
@@ -4288,7 +4358,38 @@ export default function PDV() {
                     >
                       <Minus className="h-4 w-4" />
                     </Button>
-                    <span className="text-sm w-8 text-center font-medium">{i.quantity}</span>
+                    {activeServiceTicket ? (
+                      <span className="text-sm w-10 text-center font-medium">{i.quantity}</span>
+                    ) : (
+                      <Input
+                        type="text"
+                        inputMode="numeric"
+                        value={cartQuantityDrafts[getCartItemKey(i)] ?? String(i.quantity)}
+                        onChange={(event) => {
+                          const sanitized = event.target.value.replace(/[^\d]/g, '');
+                          setCartQuantityDrafts((current) => ({
+                            ...current,
+                            [getCartItemKey(i)]: sanitized,
+                          }));
+                        }}
+                        onBlur={(event) => commitCartQuantityInput(i, event.target.value)}
+                        onFocus={(event) => event.target.select()}
+                        onKeyDown={(event) => {
+                          if (event.key === 'Enter') {
+                            event.preventDefault();
+                            commitCartQuantityInput(i, event.currentTarget.value);
+                            event.currentTarget.blur();
+                          }
+                          if (event.key === 'Escape') {
+                            event.preventDefault();
+                            setCartQuantityDraft(i, i.quantity);
+                            event.currentTarget.blur();
+                          }
+                        }}
+                        className="h-8 w-14 px-1 text-center text-sm font-medium"
+                        aria-label={`Quantidade de ${i.product.name}`}
+                      />
+                    )}
                     <Button
                       variant="outline"
                       size="icon"

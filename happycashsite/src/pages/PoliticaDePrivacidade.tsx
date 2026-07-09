@@ -1,9 +1,10 @@
 import LegalDocumentPage from "@/components/landing/LegalDocumentPage";
 import { createSiteUrl } from "@/lib/siteSeo";
+import { LEGAL_SUPPORT_EMAIL, LEGAL_UPDATED_AT_LABEL } from "../../../shared/legal/legalAcceptance";
 
 const path = "/politica-de-privacidade";
-const updatedAt = "12 de junho de 2026";
-const supportEmail = "happycashsupport@gmail.com";
+const updatedAt = LEGAL_UPDATED_AT_LABEL;
+const supportEmail = LEGAL_SUPPORT_EMAIL;
 
 const PoliticaDePrivacidade = () => (
   <LegalDocumentPage
@@ -83,7 +84,7 @@ const PoliticaDePrivacidade = () => (
       {
         title: "8. Segurança",
         paragraphs: [
-          "Adotamos medidas técnicas e administrativas para proteger os dados, incluindo autenticação, controle de acesso, armazenamento protegido, registros de segurança e boas práticas de desenvolvimento. Ainda assim, nenhum sistema conectado à internet é totalmente imune a riscos.",
+          "Adotamos medidas técnicas e administrativas para proteger os dados, incluindo autenticação, controle de acesso por perfil, segregação de dados por empresa, armazenamento protegido, registros de segurança e boas práticas de desenvolvimento. Ainda assim, nenhum sistema conectado à internet é totalmente imune a riscos.",
           "O usuário também precisa proteger suas credenciais, usar senhas fortes, controlar acessos de operadores e manter seus dispositivos seguros.",
         ],
       },
@@ -92,6 +93,7 @@ const PoliticaDePrivacidade = () => (
         paragraphs: [
           "Nos termos da LGPD, titulares podem solicitar confirmação de tratamento, acesso, correção, eliminação, portabilidade, informações sobre compartilhamento, revisão de consentimento e oposição quando aplicável.",
           `Para exercer direitos relacionados a dados tratados diretamente pelo HappyCash, envie uma solicitação para ${supportEmail}. Quando os dados foram cadastrados por uma loja usuária do sistema, a solicitação pode precisar ser encaminhada ao responsável por essa loja.`,
+          "Quando tecnicamente possível e compatível com exigências legais, o sistema permite correção, exclusão lógica, revisão de dados e rastreabilidade mínima das ações administrativas realizadas na conta.",
         ],
       },
       {

@@ -40,6 +40,7 @@ export interface Product {
   min_stock: number;
   max_stock?: number | null;
   control_stock?: boolean;
+  block_sale_without_stock?: boolean;
   purchase_cost?: number;
   freight_cost?: number;
   tax_cost?: number;

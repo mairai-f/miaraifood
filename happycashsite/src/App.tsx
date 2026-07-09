@@ -26,6 +26,7 @@ const AppParaFiado = lazy(() => import("./pages/AppParaFiado.tsx"));
 const GestaoClientesFiado = lazy(() => import("./pages/GestaoClientesFiado.tsx"));
 const ComoControlarFiadoMercadinho = lazy(() => import("./pages/ComoControlarFiadoMercadinho.tsx"));
 const PlanilhaFiadoVsApp = lazy(() => import("./pages/PlanilhaFiadoVsApp.tsx"));
+const Lgpd = lazy(() => import("./pages/Lgpd.tsx"));
 const PoliticaDePrivacidade = lazy(() => import("./pages/PoliticaDePrivacidade.tsx"));
 const TermosDeServico = lazy(() => import("./pages/TermosDeServico.tsx"));
 const NotFound = lazy(() => import("./pages/NotFound.tsx"));
@@ -104,7 +105,9 @@ const App = () => (
               <Route path="/gestao-de-clientes-fiado" element={<GestaoClientesFiado />} />
               <Route path="/blog/como-controlar-fiado-no-mercadinho" element={<ComoControlarFiadoMercadinho />} />
               <Route path="/blog/planilha-de-fiado-vs-app" element={<PlanilhaFiadoVsApp />} />
+              <Route path="/lgpd" element={<Lgpd />} />
               <Route path="/politica-de-privacidade" element={<PoliticaDePrivacidade />} />
+              <Route path="/termos-de-uso" element={<TermosDeServico />} />
               <Route path="/termos-de-servico" element={<TermosDeServico />} />
               <Route path="/downloads/:platform" element={<DownloadRedirect />} />
               <Route path="*" element={<NotFound />} />

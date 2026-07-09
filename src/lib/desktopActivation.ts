@@ -1,5 +1,11 @@
 import { supabase } from '@/integrations/supabase/client';
 import { getPublicErrorMessage } from '../../shared/security/redaction';
+import {
+  LEGAL_LGPD_VERSION,
+  LEGAL_PRIVACY_VERSION,
+  LEGAL_TERMS_VERSION,
+  type LegalAcceptanceSource,
+} from '../../shared/legal/legalAcceptance';
 
 export interface DesktopActivationRecord {
   ownerUserId: string;
@@ -11,6 +17,7 @@ export interface DesktopActivationRecord {
   installationId: string;
   appContext: 'happycash' | 'happycashfood';
   storeAccountId: string | null;
+  installerToken: string | null;
 }
 
 interface DesktopActivationResponse {
@@ -25,10 +32,29 @@ interface DesktopActivationResponse {
   error?: string;
 }
 
+export interface DesktopLegalAcceptanceInput {
+  accepted: boolean;
+  source: LegalAcceptanceSource;
+}
+
 const activationStorageKey = 'happycash:desktop:activation';
 const installationIdStorageKey = 'happycash:desktop:installation-id';
 
 const isBrowser = () => typeof window !== 'undefined';
+const normalizeInstallerToken = (value?: string | null) => {
+  const normalized = value?.trim();
+  return normalized ? normalized : null;
+};
+
+const readRuntimeInstallerToken = () => {
+  if (!isBrowser()) return null;
+
+  try {
+    return normalizeInstallerToken(window.electronAPI?.app?.getRuntimeInfoSync?.().installerToken ?? null);
+  } catch {
+    return null;
+  }
+};
 
 export const isDesktopActivationRequired = () =>
   typeof window !== 'undefined' && Boolean(window.electronAPI);
@@ -39,7 +65,15 @@ export const readDesktopActivation = (): DesktopActivationRecord | null => {
   try {
     const stored = window.localStorage.getItem(activationStorageKey);
     if (!stored) return null;
-    return JSON.parse(stored) as DesktopActivationRecord;
+    const activation = JSON.parse(stored) as DesktopActivationRecord;
+    const runtimeInstallerToken = readRuntimeInstallerToken();
+
+    if (runtimeInstallerToken && activation.installerToken !== runtimeInstallerToken) {
+      clearDesktopActivation({ clearInstallationId: true });
+      return null;
+    }
+
+    return activation;
   } catch {
     return null;
   }
@@ -50,9 +84,12 @@ export const writeDesktopActivation = (payload: DesktopActivationRecord) => {
   window.localStorage.setItem(activationStorageKey, JSON.stringify(payload));
 };
 
-export const clearDesktopActivation = () => {
+export const clearDesktopActivation = (options?: { clearInstallationId?: boolean }) => {
   if (!isBrowser()) return;
   window.localStorage.removeItem(activationStorageKey);
+  if (options?.clearInstallationId) {
+    window.localStorage.removeItem(installationIdStorageKey);
+  }
 };
 
 export const getDesktopInstallationId = () => {
@@ -71,9 +108,20 @@ export const getDesktopInstallationId = () => {
 
 export const getActivatedDesktopOwnerUserId = () => readDesktopActivation()?.ownerUserId ?? null;
 
-export const activateDesktopWithLicenseKey = async (licenseKey: string) => {
+export const activateDesktopWithLicenseKey = async (
+  licenseKey: string,
+  legalAcceptance: DesktopLegalAcceptanceInput,
+) => {
   const runtimeInfo = await window.electronAPI?.app?.getRuntimeInfo?.();
   const installationId = getDesktopInstallationId();
+  const installerToken = normalizeInstallerToken(runtimeInfo?.installerToken ?? null);
+
+  if (!legalAcceptance.accepted) {
+    return {
+      success: false as const,
+      error: 'Concorde com os Termos de Uso, a Politica de Privacidade e a LGPD para ativar esta maquina.',
+    };
+  }
 
   const { data, error } = await supabase.functions.invoke<DesktopActivationResponse>('desktop-activate', {
     body: {
@@ -82,6 +130,13 @@ export const activateDesktopWithLicenseKey = async (licenseKey: string) => {
       platform: runtimeInfo?.platform ?? null,
       appVersion: runtimeInfo?.appVersion ?? null,
       appContext: runtimeInfo?.productContext ?? 'happycash',
+      legalAcceptanceSource: legalAcceptance.source,
+      termsAccepted: true,
+      termsVersion: LEGAL_TERMS_VERSION,
+      privacyAccepted: true,
+      privacyVersion: LEGAL_PRIVACY_VERSION,
+      lgpdAccepted: true,
+      lgpdVersion: LEGAL_LGPD_VERSION,
     },
   });
 
@@ -113,6 +168,7 @@ export const activateDesktopWithLicenseKey = async (licenseKey: string) => {
     installationId,
     appContext: data.appContext === 'happycashfood' ? 'happycashfood' : 'happycash',
     storeAccountId: data.storeAccountId ?? null,
+    installerToken,
   };
 
   writeDesktopActivation(activationRecord);

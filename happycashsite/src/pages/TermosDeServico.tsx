@@ -1,26 +1,27 @@
 import LegalDocumentPage from "@/components/landing/LegalDocumentPage";
 import { createSiteUrl } from "@/lib/siteSeo";
+import { LEGAL_SUPPORT_EMAIL, LEGAL_UPDATED_AT_LABEL } from "../../../shared/legal/legalAcceptance";
 
-const path = "/termos-de-servico";
-const updatedAt = "12 de junho de 2026";
-const supportEmail = "happycashsupport@gmail.com";
+const path = "/termos-de-uso";
+const updatedAt = LEGAL_UPDATED_AT_LABEL;
+const supportEmail = LEGAL_SUPPORT_EMAIL;
 
 const TermosDeServico = () => (
   <LegalDocumentPage
     seo={{
-      title: "Termos de Serviço | HappyCash",
+      title: "Termos de Uso | HappyCash",
       description: "Conheça as condições de uso do HappyCash para controle de fiado, PDV, estoque, desktop, planos, suporte e cancelamento.",
       path,
       keywords: ["termos de serviço happycash", "termos de uso happycash", "contrato sistema pdv", "termos controle de fiado"],
       jsonLd: {
         "@context": "https://schema.org",
         "@type": "WebPage",
-        name: "Termos de Serviço do HappyCash",
+        name: "Termos de Uso do HappyCash",
         url: createSiteUrl(path),
       },
     }}
     eyebrow="Termos"
-    title="Termos de Serviço"
+    title="Termos de Uso"
     description="Estes Termos regulam o uso do site, área do cliente, sistema HappyCash, recursos de desktop, planos, testes gratuitos e funcionalidades relacionadas."
     updatedAt={updatedAt}
     sections={[
@@ -84,6 +85,7 @@ const TermosDeServico = () => (
         paragraphs: [
           "Alguns planos podem permitir uso em desktop, validação de máquina, acesso offline, usuários locais, PINs ou sincronização posterior. Esses recursos dependem de configuração correta, dispositivo compatível, armazenamento local e validações periódicas.",
           "O usuário deve proteger o computador, controlar quem usa a máquina, manter internet quando necessária e conferir dados sincronizados. Operações feitas offline podem depender de reconciliação posterior com o servidor.",
+          "Instalações por instalador podem exigir nova chave de licença da empresa para reconhecer a máquina e registrar novo aceite legal da instalação.",
         ],
       },
       {

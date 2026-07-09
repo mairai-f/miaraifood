@@ -2,6 +2,10 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 
 import { validateDesktopLicense } from "../_shared/desktopAccess.ts";
 import { buildCorsHeaders, handleCorsPreflight } from "../_shared/cors.ts";
+import {
+  LEGAL_ACCEPTANCE_SOURCES,
+  requireLegalAcceptance,
+} from "../_shared/legalAcceptance.ts";
 import { normalizeProductContext, type ProductContext } from "../_shared/productContext.ts";
 import { checkRedisRateLimit, readRateLimitEnv } from "../_shared/rateLimit.ts";
 
@@ -11,6 +15,13 @@ type DesktopActivateRequest = {
   platform?: string | null;
   appVersion?: string | null;
   appContext?: string | null;
+  termsAccepted?: boolean;
+  termsVersion?: string;
+  privacyAccepted?: boolean;
+  privacyVersion?: string;
+  lgpdAccepted?: boolean;
+  lgpdVersion?: string;
+  legalAcceptanceSource?: string | null;
 };
 
 type StoreAccountRow = {
@@ -76,6 +87,7 @@ Deno.serve(async (request) => {
   const platform = normalizeOptionalText(body?.platform, 40);
   const appVersion = normalizeOptionalText(body?.appVersion, 40);
   const appContext = normalizeAppContext(body?.appContext);
+  let legalAcceptance;
 
   if (!licenseKey) {
     return jsonResponse(request, { error: "Digite a chave da licenca desta empresa." }, 400);
@@ -83,6 +95,16 @@ Deno.serve(async (request) => {
 
   if (!installationId) {
     return jsonResponse(request, { error: "Nao foi possivel identificar esta instalacao." }, 400);
+  }
+
+  try {
+    legalAcceptance = requireLegalAcceptance(body ?? {}, LEGAL_ACCEPTANCE_SOURCES.desktopActivation);
+  } catch (error) {
+    return jsonResponse(
+      request,
+      { error: error instanceof Error ? error.message : "Aceite legal obrigatorio." },
+      400,
+    );
   }
 
   const rateLimit = await checkRedisRateLimit(request, {
@@ -171,12 +193,25 @@ Deno.serve(async (request) => {
       activated_at: now,
       last_seen_at: now,
       updated_at: now,
+      ...legalAcceptance,
     }, {
       onConflict: "store_account_id,app_context,installation_id",
     });
 
   if (activationError) {
     return jsonResponse(request, { error: "A empresa foi reconhecida, mas nao foi possivel concluir a ativacao desta maquina." }, 503);
+  }
+
+  const { error: legalUpdateError } = await serviceClient
+    .from("store_accounts")
+    .update({
+      ...legalAcceptance,
+      updated_at: now,
+    })
+    .eq("id", account.id);
+
+  if (legalUpdateError) {
+    return jsonResponse(request, { error: "A empresa foi reconhecida, mas nao foi possivel registrar o aceite legal desta maquina." }, 503);
   }
 
   return jsonResponse(request, {

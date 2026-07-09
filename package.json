@@ -1,7 +1,7 @@
 {
   "name": "happycash",
   "private": true,
-  "version": "0.1.50",
+  "version": "0.1.51",
   "description": "HappyCash POS e gestao com desktop comercial e concentrador offline.",
   "author": "Celio Antonio <celioantonio7@users.noreply.github.com>",
   "main": "electron/main.cjs",
@@ -183,7 +183,9 @@
     },
     "nsis": {
       "oneClick": false,
-      "allowToChangeInstallationDirectory": true
+      "allowToChangeInstallationDirectory": true,
+      "license": "build/license.txt",
+      "include": "build/installer.nsh"
     },
     "linux": {
       "icon": "build/icon.png",

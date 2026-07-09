@@ -63,6 +63,7 @@ import { getClientCreditLimit, getCreditLimitExceededMessage, normalizeCreditLim
 import { normalizeClientDebtDueDate } from '@/lib/clientDebtDueDate';
 import { filterProductsBySearch, toProductUppercase } from '@/lib/productSearch';
 import { calculateStockMovement, type StockMovementType } from '@/lib/stockMovement';
+import { blocksSaleWithoutStock, clampTrackedStock } from '@/lib/stockSalePolicy';
 import { buildServiceTicketBarcode, isServiceTicketBarcode, isValidServiceTicketNumber, normalizeServiceTicketRecord } from '@/lib/serviceTicket';
 import { getPublicErrorMessage, getRedactedLogValue } from '../../shared/security/redaction';
 
@@ -105,6 +106,7 @@ const normalizeProductRow = (row: Product) => {
     ...row,
     ...normalized,
     rounding_rule: normalizePricingRoundingRule(normalized.rounding_rule),
+    block_sale_without_stock: row.block_sale_without_stock !== false,
   } as Product;
 };
 
@@ -441,9 +443,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
     return true;
   }, [applyOfflineSnapshot, canUseOfflineConcentrator, clearStoreData, markOfflineNotReady, ownerUserId]);
 
-  const getNextTrackedStock = useCallback((currentStock: number, quantityDelta: number) => {
-    const nextStock = Number(currentStock || 0) + quantityDelta;
-    return blockSaleWithoutStock ? Math.max(0, nextStock) : nextStock;
+  const getNextTrackedStock = useCallback((product: Product, quantityDelta: number) => {
+    const nextStock = Number(product.stock || 0) + quantityDelta;
+    return clampTrackedStock(product, nextStock, blockSaleWithoutStock);
   }, [blockSaleWithoutStock]);
 
   const fetchAll = useCallback(async (options: FetchAllOptions = {}) => {
@@ -1634,6 +1636,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         min_stock: productPayload.min_stock ?? 0,
         max_stock: productPayload.max_stock ?? null,
         control_stock: productPayload.control_stock ?? true,
+        block_sale_without_stock: productPayload.block_sale_without_stock ?? true,
         deleted: false,
         deleted_at: null,
       } as Product, products);
@@ -1679,6 +1682,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         min_stock: productPayload.min_stock ?? 0,
         max_stock: productPayload.max_stock ?? null,
         control_stock: productPayload.control_stock ?? true,
+        block_sale_without_stock: productPayload.block_sale_without_stock ?? true,
         deleted: false,
         deleted_at: null,
         sync_status: 'queued',
@@ -1869,8 +1873,6 @@ export function DataProvider({ children }: { children: ReactNode }) {
     }
   };
   const ensureStockAvailable = (demands: StockDemand[]) => {
-    if (!blockSaleWithoutStock) return;
-
     const demandByProduct = demands
       .filter(item => item.productId && item.quantity > 0)
       .reduce((map, item) => {
@@ -1884,7 +1886,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     for (const [productId, demand] of demandByProduct.entries()) {
       const product = products.find(item => item.id === productId);
       if (!product || product.deleted) continue;
-      if (product.control_stock === false) continue;
+      if (!blocksSaleWithoutStock(product, blockSaleWithoutStock)) continue;
 
       const availableStock = Number(product.stock || 0);
       if (availableStock < demand.quantity) {
@@ -2163,7 +2165,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
           .filter(movement => movement.product_id === product.id)
           .reduce((sum, movement) => sum + movement.quantity, 0);
         if (soldQuantity === 0) return product;
-        return { ...product, stock: getNextTrackedStock(product.stock || 0, -soldQuantity) };
+        return { ...product, stock: getNextTrackedStock(product, -soldQuantity) };
       }));
       setStockMovements(prev => [...stockMovements, ...prev]);
     };
@@ -2819,7 +2821,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       setProducts(prev => prev.map(product => {
         if (product.control_stock === false) return product;
         const soldQuantity = itemsWithMetrics.filter(item => item.product_id === product.id).reduce((sum, item) => sum + item.quantity, 0);
-        return soldQuantity > 0 ? { ...product, stock: getNextTrackedStock(product.stock || 0, -soldQuantity) } : product;
+        return soldQuantity > 0 ? { ...product, stock: getNextTrackedStock(product, -soldQuantity) } : product;
       }));
       if (movements.length > 0) {
         setStockMovements(prev => [...movements, ...prev]);
@@ -2886,7 +2888,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
           .filter(item => item.product_id === product.id)
           .reduce((sum, item) => sum + item.quantity, 0);
         if (soldQuantity === 0) return product;
-        return { ...product, stock: getNextTrackedStock(product.stock || 0, -soldQuantity) };
+        return { ...product, stock: getNextTrackedStock(product, -soldQuantity) };
       }));
       if (movements.length > 0) {
         setStockMovements(prev => [...movements, ...prev]);
@@ -2926,7 +2928,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
           .filter(item => item.product_id === product.id)
           .reduce((sum, item) => sum + item.quantity, 0);
         if (soldQuantity === 0) return product;
-        return { ...product, stock: getNextTrackedStock(product.stock || 0, -soldQuantity) };
+        return { ...product, stock: getNextTrackedStock(product, -soldQuantity) };
       }));
       await fetchAll({ silent: true });
 

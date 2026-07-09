@@ -91,6 +91,35 @@ const appendPrintLog = (event, details = {}) => {
   }
 };
 
+const getInstallerTokenPath = () => {
+  if (!app.isPackaged) return null;
+
+  const installDir = path.dirname(process.execPath);
+  return path.join(installDir, 'install-token.txt');
+};
+
+const readInstallerToken = () => {
+  const tokenPath = getInstallerTokenPath();
+  if (!tokenPath) return null;
+
+  try {
+    const rawValue = fs.readFileSync(tokenPath, 'utf8').trim();
+    return rawValue || null;
+  } catch {
+    return null;
+  }
+};
+
+const getRuntimeInfo = () => ({
+  appVersion: app.getVersion(),
+  isPackaged: app.isPackaged,
+  platform: process.platform,
+  databasePath: getOfflineDbPath(),
+  updateChannel: getUpdateChannel(),
+  productContext: PRODUCT_CONTEXT,
+  installerToken: readInstallerToken(),
+});
+
 const getPrinterSettingsPath = () => path.join(app.getPath('userData'), 'printer-settings.json');
 const readSelectedPrinterName = () => {
   try {
@@ -1315,14 +1344,11 @@ ipcMain.handle('printer:test', async () => printHtml(`
   </body></html>
 `));
 
-ipcMain.handle('app:get-runtime-info', () => ({
-  appVersion: app.getVersion(),
-  isPackaged: app.isPackaged,
-  platform: process.platform,
-  databasePath: getOfflineDbPath(),
-  updateChannel: getUpdateChannel(),
-  productContext: PRODUCT_CONTEXT,
-}));
+ipcMain.handle('app:get-runtime-info', () => getRuntimeInfo());
+
+ipcMain.on('app:get-runtime-info-sync', (event) => {
+  event.returnValue = getRuntimeInfo();
+});
 
 ipcMain.handle('app:get-update-status', () => {
   return getUpdateState();

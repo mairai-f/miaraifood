@@ -4,6 +4,7 @@ import Footer from "@/components/landing/Footer";
 import Header from "@/components/landing/Header";
 import SiteSeo from "@/components/seo/SiteSeo";
 import type { SiteSeoConfig } from "@/lib/siteSeo";
+import { LEGAL_PATHS } from "../../../../shared/legal/legalAcceptance";
 
 interface LegalSection {
   title: string;
@@ -82,11 +83,14 @@ const LegalDocumentPage = ({
           <aside className="rounded-2xl border border-border/70 bg-card/60 p-6 lg:sticky lg:top-28">
             <h2 className="font-heading text-lg font-semibold">Documentos</h2>
             <div className="mt-5 grid gap-3">
-              <Link to="/politica-de-privacidade" className="rounded-xl border border-border/60 bg-background/70 p-4 text-sm font-medium transition-colors hover:border-primary/40 hover:text-primary">
+              <Link to={LEGAL_PATHS.privacy} className="rounded-xl border border-border/60 bg-background/70 p-4 text-sm font-medium transition-colors hover:border-primary/40 hover:text-primary">
                 Política de Privacidade
               </Link>
-              <Link to="/termos-de-servico" className="rounded-xl border border-border/60 bg-background/70 p-4 text-sm font-medium transition-colors hover:border-primary/40 hover:text-primary">
-                Termos de Serviço
+              <Link to={LEGAL_PATHS.terms} className="rounded-xl border border-border/60 bg-background/70 p-4 text-sm font-medium transition-colors hover:border-primary/40 hover:text-primary">
+                Termos de Uso
+              </Link>
+              <Link to={LEGAL_PATHS.lgpd} className="rounded-xl border border-border/60 bg-background/70 p-4 text-sm font-medium transition-colors hover:border-primary/40 hover:text-primary">
+                LGPD
               </Link>
             </div>
           </aside>

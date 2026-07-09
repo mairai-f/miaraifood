@@ -113,6 +113,7 @@ export default function Products() {
   const [minStock, setMinStock] = useState('');
   const [maxStock, setMaxStock] = useState('');
   const [controlStock, setControlStock] = useState(true);
+  const [productBlocksSaleWithoutStock, setProductBlocksSaleWithoutStock] = useState(true);
   const [fiscalNcm, setFiscalNcm] = useState('');
   const [fiscalCfop, setFiscalCfop] = useState('');
   const [fiscalOrigin, setFiscalOrigin] = useState('');
@@ -403,6 +404,7 @@ export default function Products() {
       data.max_stock = maxStock.trim() ? Math.max(0, parseDecimalInput(maxStock)) : null;
     }
     data.control_stock = controlStock;
+    data.block_sale_without_stock = productBlocksSaleWithoutStock;
 
     if (canEditFiscalProductData) {
       Object.assign(data, {
@@ -506,6 +508,7 @@ export default function Products() {
     setMinStock('');
     setMaxStock('');
     setControlStock(true);
+    setProductBlocksSaleWithoutStock(true);
     setFiscalNcm('');
     setFiscalCfop('');
     setFiscalOrigin('');
@@ -529,6 +532,7 @@ export default function Products() {
     setCostPrice((p.cost_price || 0).toString()); setCategory(toProductUppercase(p.category)); setSupplierId(p.supplier_id || ''); setSupplierName(toProductUppercase(p.supplier_name || ''));
     setBarcode(toProductUppercase(p.barcode || '')); setStock((p.stock || 0).toString()); setMinStock((p.min_stock || 0).toString());
     setMaxStock(p.max_stock == null ? '' : String(p.max_stock)); setControlStock(p.control_stock !== false);
+    setProductBlocksSaleWithoutStock(p.block_sale_without_stock !== false);
     setDepartmentId(p.department_id || ''); setBrandId(p.brand_id || ''); setGroupId(p.product_group_id || ''); setSubgroupId(p.product_subgroup_id || '');
     setUnitId(p.measurement_unit_id || ''); setTransportCompanyId(p.primary_transport_company_id || ''); setReference(toProductUppercase(p.reference || ''));
     setMaxDiscount(String(p.max_discount_pct ?? 0)); setCommissionType(p.commission_type ?? 'none'); setCommissionValue(String(p.commission_value ?? 0));
@@ -686,6 +690,24 @@ export default function Products() {
                 <div className="flex items-center justify-between rounded-md border p-3">
                   <div><Label htmlFor="control-stock">Controlar estoque</Label><p className="text-xs text-muted-foreground">Controla saldo, baixa e validade. A trava de venda segue a configuracao global da loja.</p></div>
                   <Switch id="control-stock" checked={controlStock} onCheckedChange={setControlStock} />
+                </div>
+                <div className="flex items-center justify-between rounded-md border p-3">
+                  <div>
+                    <Label htmlFor="product-block-sale-without-stock">Travar venda sem saldo neste produto</Label>
+                    <p className="text-xs text-muted-foreground">
+                      {!controlStock
+                        ? 'Sem controle de estoque, este produto ja pode vender sem saldo e nao gera baixa.'
+                        : blockSaleWithoutStock
+                          ? 'Desligue apenas neste produto para permitir venda sem estoque sem liberar os demais itens da loja.'
+                          : 'A trava global da loja esta desligada. Esta marcacao volta a valer quando a loja reativar a trava.'}
+                    </p>
+                  </div>
+                  <Switch
+                    id="product-block-sale-without-stock"
+                    checked={productBlocksSaleWithoutStock}
+                    disabled={!controlStock}
+                    onCheckedChange={setProductBlocksSaleWithoutStock}
+                  />
                 </div>
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                   <div className="space-y-1"><Label>Estoque</Label><Input type="number" value={stock} disabled={!isHeadquartersScope || !controlStock} onChange={e => setStock(e.target.value)} placeholder="0" /></div>

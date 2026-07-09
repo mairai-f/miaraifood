@@ -33,6 +33,13 @@ interface PendingRegistrationRow {
   store_account_id: string | null;
   trial_ends_at: string | null;
   product_context: ProductContext;
+  terms_accepted_at: string | null;
+  terms_version: string | null;
+  privacy_accepted_at: string | null;
+  privacy_version: string | null;
+  lgpd_accepted_at: string | null;
+  lgpd_version: string | null;
+  legal_acceptance_source: string | null;
 }
 
 interface StoreAccountRow {
@@ -329,6 +336,13 @@ Deno.serve(async (request) => {
         "store_account_id",
         "trial_ends_at",
         "product_context",
+        "terms_accepted_at",
+        "terms_version",
+        "privacy_accepted_at",
+        "privacy_version",
+        "lgpd_accepted_at",
+        "lgpd_version",
+        "legal_acceptance_source",
       ].join(", "),
     )
     .eq("owner_user_id", user.id)
@@ -396,6 +410,20 @@ Deno.serve(async (request) => {
     const accountProductContext = normalizeProductContext(
       existingStoreAccount?.product_context ?? registrationProductContext,
     );
+    const legalAcceptanceUpdate = {
+      terms_accepted_at: registration.terms_accepted_at,
+      terms_version: registration.terms_version,
+      privacy_accepted_at: registration.privacy_accepted_at,
+      privacy_version: registration.privacy_version,
+      lgpd_accepted_at: registration.lgpd_accepted_at,
+      lgpd_version: registration.lgpd_version,
+      legal_acceptance_source: registration.legal_acceptance_source,
+    };
+    const shouldSyncLegalAcceptance = Boolean(
+      registration.terms_accepted_at
+      || registration.privacy_accepted_at
+      || registration.lgpd_accepted_at,
+    );
 
     if (
       existingStoreAccount
@@ -425,6 +453,7 @@ Deno.serve(async (request) => {
           cidade: registration.cidade,
           estado: registration.estado,
           product_context: accountProductContext,
+          ...legalAcceptanceUpdate,
         })
         .select("id, product_context")
         .single();
@@ -434,6 +463,17 @@ Deno.serve(async (request) => {
       }
 
       storeAccountId = (createdStoreAccountData as StoreAccountRow).id;
+    }
+
+    if (storeAccountId && shouldSyncLegalAcceptance) {
+      const { error: legalSyncError } = await serviceClient
+        .from("store_accounts")
+        .update(legalAcceptanceUpdate)
+        .eq("id", storeAccountId);
+
+      if (legalSyncError) {
+        throw new Error(legalSyncError.message || "Nao foi possivel registrar o aceite legal da conta.");
+      }
     }
 
     let asaasCustomerId: string | null = null;

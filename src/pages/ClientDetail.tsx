@@ -38,6 +38,7 @@ import { parseDecimalInput } from '@/lib/numberInput';
 import { formatProductCode } from '@/lib/productCode';
 import { toProductUppercase } from '@/lib/productSearch';
 import { calculatePackagingPrice, filterProductsWithPackagings, packagingMatchesSearch } from '@/lib/productPackaging';
+import { blocksSaleWithoutStock } from '@/lib/stockSalePolicy';
 import type { Product, ProductPackaging } from '@/types';
 import { getPublicErrorMessage, getRedactedLogValue } from '../../shared/security/redaction';
 
@@ -192,8 +193,7 @@ export default function ClientDetail() {
     const product = data.products.find(item => item.id === productId);
     if (!product) return '';
 
-    if (!data.blockSaleWithoutStock) return '';
-    if (product.control_stock === false) return '';
+    if (!blocksSaleWithoutStock(product, data.blockSaleWithoutStock)) return '';
     const availableStock = Number(product.stock || 0);
 
     return availableStock < requestedQuantity

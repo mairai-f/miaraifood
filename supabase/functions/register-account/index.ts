@@ -1,5 +1,9 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { buildCorsHeaders, handleCorsPreflight } from "../_shared/cors.ts";
+import {
+  LEGAL_ACCEPTANCE_SOURCES,
+  requireLegalAcceptance,
+} from "../_shared/legalAcceptance.ts";
 import { getPasswordPolicyError } from "../_shared/passwordPolicy.ts";
 import { normalizeProductContext, resolveProductContextFromPlanId } from "../_shared/productContext.ts";
 
@@ -23,6 +27,13 @@ interface RegisterAccountRequest {
   website?: string;
   captchaToken?: string;
   planId?: string | null;
+  termsAccepted?: boolean;
+  termsVersion?: string;
+  privacyAccepted?: boolean;
+  privacyVersion?: string;
+  lgpdAccepted?: boolean;
+  lgpdVersion?: string;
+  legalAcceptanceSource?: string | null;
 }
 
 interface RegisterAccountResponse {
@@ -149,6 +160,7 @@ const validatePayload = (payload: RegisterAccountRequest) => {
     payload.planId ? resolveProductContextFromPlanId(payload.planId) : "happycash",
   );
   const passwordError = getPasswordPolicyError(password);
+  const legalAcceptance = requireLegalAcceptance(payload, LEGAL_ACCEPTANCE_SOURCES.siteSignup);
 
   if (!email || !email.includes("@")) throw new Error("Informe um email valido.");
   if (passwordError) throw new Error(passwordError);
@@ -181,6 +193,7 @@ const validatePayload = (payload: RegisterAccountRequest) => {
     redirectTo,
     captchaToken,
     productContext,
+    legalAcceptance,
   };
 };
 
@@ -537,6 +550,7 @@ Deno.serve(async (request) => {
           store_account_id: null,
           trial_ends_at: null,
           product_context: data.productContext,
+          ...data.legalAcceptance,
         },
         { onConflict: "owner_user_id" },
       );

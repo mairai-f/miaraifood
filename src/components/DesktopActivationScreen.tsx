@@ -11,7 +11,14 @@ import {
   activateDesktopWithLicenseKey,
   type DesktopActivationRecord,
 } from '@/lib/desktopActivation';
+import { openExternalUrl } from '@/lib/openExternalUrl';
 import { getPublicErrorMessage, maskDocument } from '../../shared/security/redaction';
+import {
+  LEGAL_ACCEPTANCE_SOURCES,
+  LEGAL_PATHS,
+  LEGAL_UPDATED_AT_LABEL,
+  buildLegalUrl,
+} from '../../shared/legal/legalAcceptance';
 
 interface DesktopActivationScreenProps {
   onActivated: (activation: DesktopActivationRecord) => void | Promise<void>;
@@ -22,11 +29,19 @@ export function DesktopActivationScreen({ onActivated }: DesktopActivationScreen
   const [showLicenseKey, setShowLicenseKey] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [recognizedCompany, setRecognizedCompany] = useState<DesktopActivationRecord | null>(null);
+  const [legalDecision, setLegalDecision] = useState<'accepted' | 'declined' | null>(null);
 
   const normalizedKey = useMemo(
     () => licenseKey.toUpperCase().replace(/[^A-Z0-9-]/g, ''),
     [licenseKey],
   );
+
+  const openLegalDocument = (path: string) => {
+    const opened = openExternalUrl(buildLegalUrl(path));
+    if (!opened) {
+      toast.error('Conecte esta maquina a internet para abrir o documento legal.');
+    }
+  };
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
@@ -37,10 +52,18 @@ export function DesktopActivationScreen({ onActivated }: DesktopActivationScreen
       return;
     }
 
+    if (legalDecision !== 'accepted') {
+      toast.error('Concorde com os Termos de Uso, a Politica de Privacidade e a LGPD para continuar.');
+      return;
+    }
+
     setSubmitting(true);
 
     try {
-      const result = await activateDesktopWithLicenseKey(normalizedKey);
+      const result = await activateDesktopWithLicenseKey(normalizedKey, {
+        accepted: true,
+        source: LEGAL_ACCEPTANCE_SOURCES.desktopActivation,
+      });
       if (!result.success) {
         toast.error(getPublicErrorMessage(result.error, 'Nao foi possivel validar a chave desta empresa.'));
         return;
@@ -88,27 +111,70 @@ export function DesktopActivationScreen({ onActivated }: DesktopActivationScreen
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="desktop-license-key">Chave da empresa</Label>
-                  <div className="relative">
-                    <Input
-                      id="desktop-license-key"
-                      type={showLicenseKey ? 'text' : 'password'}
-                      value={normalizedKey}
-                      onChange={(event) => setLicenseKey(event.target.value)}
-                      placeholder="Informe a chave recebida"
-                      autoCapitalize="characters"
-                      autoCorrect="off"
-                      spellCheck={false}
-                      className="h-11 pr-11 tracking-[0.18em] uppercase"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowLicenseKey(current => !current)}
-                      className="absolute inset-y-0 right-0 grid w-11 place-items-center text-muted-foreground transition hover:text-foreground"
-                      aria-label={showLicenseKey ? 'Ocultar chave' : 'Mostrar chave'}
-                    >
-                      {showLicenseKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                    </button>
-                  </div>
+                <div className="relative">
+                  <Input
+                    id="desktop-license-key"
+                    type={showLicenseKey ? 'text' : 'password'}
+                    value={normalizedKey}
+                    onChange={(event) => setLicenseKey(event.target.value)}
+                    placeholder="Informe a chave recebida"
+                    autoCapitalize="characters"
+                    autoCorrect="off"
+                    spellCheck={false}
+                    className="h-11 pr-11 tracking-[0.18em] uppercase"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowLicenseKey(current => !current)}
+                    className="absolute inset-y-0 right-0 grid w-11 place-items-center text-muted-foreground transition hover:text-foreground"
+                    aria-label={showLicenseKey ? 'Ocultar chave' : 'Mostrar chave'}
+                  >
+                    {showLicenseKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
+              </div>
+
+              <div className="space-y-3 rounded-xl border border-yellow-400/15 bg-yellow-500/5 p-4">
+                <div className="space-y-1">
+                  <p className="text-sm font-semibold text-yellow-200">Termos, privacidade e LGPD</p>
+                  <p className="text-xs leading-5 text-muted-foreground">
+                    Para ativar esta instalacao, leia os documentos legais e registre o aceite desta maquina.
+                    Ultima atualizacao: {LEGAL_UPDATED_AT_LABEL}.
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button type="button" variant="outline" size="sm" onClick={() => openLegalDocument(LEGAL_PATHS.terms)}>
+                    Termos de Uso
+                  </Button>
+                  <Button type="button" variant="outline" size="sm" onClick={() => openLegalDocument(LEGAL_PATHS.privacy)}>
+                    Politica de Privacidade
+                  </Button>
+                  <Button type="button" variant="outline" size="sm" onClick={() => openLegalDocument(LEGAL_PATHS.lgpd)}>
+                    LGPD
+                  </Button>
+                </div>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <Button
+                    type="button"
+                    variant={legalDecision === 'accepted' ? 'default' : 'outline'}
+                    className={legalDecision === 'accepted' ? 'bg-yellow-400 text-black hover:bg-yellow-300' : ''}
+                    onClick={() => setLegalDecision('accepted')}
+                  >
+                    Concordo
+                  </Button>
+                  <Button
+                    type="button"
+                    variant={legalDecision === 'declined' ? 'destructive' : 'outline'}
+                    onClick={() => setLegalDecision('declined')}
+                  >
+                    Nao concordo
+                  </Button>
+                </div>
+                {legalDecision === 'declined' && (
+                  <p className="text-xs text-red-300">
+                    Sem o aceite legal nao e possivel concluir a ativacao desta maquina.
+                  </p>
+                )}
               </div>
 
               <Button type="submit" className="h-11 w-full bg-yellow-400 font-semibold text-black hover:bg-yellow-300" disabled={submitting}>

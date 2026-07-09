@@ -39,7 +39,9 @@
   },
   "nsis": {
     "oneClick": false,
-    "allowToChangeInstallationDirectory": true
+    "allowToChangeInstallationDirectory": true,
+    "license": "build/license.txt",
+    "include": "build/installer.nsh"
   },
   "linux": {
     "icon": "build/happycashfood-icon.png",

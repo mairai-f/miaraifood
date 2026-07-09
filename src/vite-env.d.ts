@@ -50,7 +50,17 @@ interface Window {
         databasePath: string;
         updateChannel: string;
         productContext: "happycash" | "happycashfood";
+        installerToken: string | null;
       }>;
+      getRuntimeInfoSync: () => {
+        appVersion: string;
+        isPackaged: boolean;
+        platform: string;
+        databasePath: string;
+        updateChannel: string;
+        productContext: "happycash" | "happycashfood";
+        installerToken: string | null;
+      };
       getUpdateStatus: () => Promise<unknown>;
       checkForUpdates: () => Promise<unknown>;
       installUpdate: () => Promise<unknown>;

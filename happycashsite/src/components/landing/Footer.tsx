@@ -4,13 +4,18 @@ import logo from "@/assets/logo-happycash.webp";
 import { Instagram, Mail } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  LEGAL_PATHS,
+  LEGAL_SUPPORT_EMAIL,
+  LEGAL_UPDATED_AT_LABEL,
+} from "../../../../shared/legal/legalAcceptance";
 
-const SUPPORT_EMAIL = "happycashsupport@gmail.com";
+const SUPPORT_EMAIL = LEGAL_SUPPORT_EMAIL;
 const INSTAGRAM_URL = "https://www.instagram.com/happycashsystem/";
 const legalDocuments = {
   privacy: {
     title: "Política de Privacidade",
-    path: "/politica-de-privacidade",
+    path: LEGAL_PATHS.privacy,
     description: "Como o HappyCash trata dados pessoais no site, cadastro, área do cliente, PDV, fiado, estoque, Agenda e recursos relacionados.",
     sections: [
       {
@@ -28,8 +33,8 @@ const legalDocuments = {
     ],
   },
   terms: {
-    title: "Termos de Serviço",
-    path: "/termos-de-servico",
+    title: "Termos de Uso",
+    path: LEGAL_PATHS.terms,
     description: "Condições principais para uso do HappyCash, incluindo planos, teste gratuito, conta, suporte, desktop, offline, relatórios e responsabilidades do usuário.",
     sections: [
       {
@@ -43,6 +48,25 @@ const legalDocuments = {
       {
         title: "Responsabilidades",
         text: "O usuário deve usar o sistema conforme a lei, obter autorização para cadastrar dados de terceiros e não utilizar o HappyCash para fraude, abuso, atividade ilegal ou violação de direitos.",
+      },
+    ],
+  },
+  lgpd: {
+    title: "LGPD",
+    path: LEGAL_PATHS.lgpd,
+    description: "Compromissos práticos do HappyCash para tratamento de dados, direitos dos titulares, segregação por empresa e responsabilização conforme a LGPD.",
+    sections: [
+      {
+        title: "Compromisso operacional",
+        text: "O mais importante: não é só ter texto no site. O sistema precisa controlar acesso, separar dados por empresa, permitir exclusão e correção quando possível, guardar logs e deixar claro o que faz com os dados.",
+      },
+      {
+        title: "Direitos dos titulares",
+        text: "O titular pode solicitar confirmação de tratamento, acesso, correção, eliminação, portabilidade e outras informações previstas na LGPD pelos canais oficiais do HappyCash, sem prejuízo da responsabilidade da loja controladora quando os dados tiverem sido cadastrados por ela.",
+      },
+      {
+        title: "ANPD e sanções",
+        text: "A ANPD pode aplicar sanções em caso de descumprimento da LGPD, e o regulamento de dosimetria orienta como as penalidades são calculadas quando cabíveis.",
       },
     ],
   },
@@ -147,8 +171,12 @@ const Footer = () => {
             </div>
           </div>
 
-          <div className="mt-14 flex flex-col items-center justify-between gap-4 border-t border-border/50 pt-8 text-xs text-muted-foreground md:flex-row">
-            <p>© {new Date().getFullYear()} HappyCash — Todos os direitos reservados.</p>
+          <div className="mt-14 space-y-4 border-t border-border/50 pt-8 text-xs text-muted-foreground">
+            <p className="max-w-4xl leading-6 text-center md:text-left">
+              O mais importante: não é só ter texto no site. Você precisa que o sistema realmente respeite isso: controlar acesso, separar dados por empresa, permitir exclusão/correção quando possível, guardar logs e deixar claro o que faz com os dados. A ANPD pode aplicar sanções em caso de descumprimento da LGPD, e o regulamento de dosimetria orienta como as penalidades são calculadas quando cabíveis.
+            </p>
+            <div className="flex flex-col items-center justify-between gap-4 md:flex-row">
+            <p>© HappyCash. Todos os direitos reservados.</p>
             <nav className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2">
               <a
                 href={legalDocuments.privacy.path}
@@ -162,9 +190,17 @@ const Footer = () => {
                 className="hover:text-primary transition-colors"
                 onClick={(event) => openLegalModal(event, "terms")}
               >
-                Termos de Serviço
+                Termos de Uso
+              </a>
+              <a
+                href={legalDocuments.lgpd.path}
+                className="hover:text-primary transition-colors"
+                onClick={(event) => openLegalModal(event, "lgpd")}
+              >
+                LGPD
               </a>
             </nav>
+            </div>
           </div>
         </div>
       </footer>
@@ -193,7 +229,7 @@ const Footer = () => {
                 </div>
               </ScrollArea>
               <div className="flex flex-col gap-3 border-t border-border px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
-                <span className="text-xs text-muted-foreground">Última atualização: 12 de junho de 2026</span>
+                <span className="text-xs text-muted-foreground">Última atualização: {LEGAL_UPDATED_AT_LABEL}</span>
                 <Link
                   to={activeLegalDocument.path}
                   className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90"

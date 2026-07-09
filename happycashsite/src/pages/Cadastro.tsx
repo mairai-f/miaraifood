@@ -13,6 +13,14 @@ import logo from "@/assets/logo-happycash.webp";
 import { Eye, EyeOff, Loader2, PlayCircle, UserPlus } from "lucide-react";
 import { getPasswordPolicyError, passwordPolicyHint } from "../../../shared/security/passwordPolicy";
 import { requestTurnstileToken } from "../../../shared/security/turnstile";
+import {
+  LEGAL_ACCEPTANCE_SOURCES,
+  LEGAL_LGPD_VERSION,
+  LEGAL_PATHS,
+  LEGAL_PRIVACY_VERSION,
+  LEGAL_TERMS_VERSION,
+  LEGAL_UPDATED_AT_LABEL,
+} from "../../../shared/legal/legalAcceptance";
 
 interface RegisterAccountResponse {
   success?: boolean;
@@ -107,6 +115,7 @@ const Cadastro = () => {
   const [bairro, setBairro] = useState("");
   const [cidade, setCidade] = useState("");
   const [estado, setEstado] = useState("");
+  const [legalDecision, setLegalDecision] = useState<"accepted" | "declined" | null>(null);
   const passwordStrength = getPasswordStrength(password);
 
   const fetchCep = async (value: string) => {
@@ -155,6 +164,15 @@ const Cadastro = () => {
       return;
     }
 
+    if (legalDecision !== "accepted") {
+      toast({
+        title: "Aceite obrigatório",
+        description: "Concorde com os Termos de Uso, a Politica de Privacidade e a LGPD para concluir o cadastro.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setLoading(true);
     try {
       const captchaToken = await requestTurnstileToken("site-signup");
@@ -179,6 +197,13 @@ const Cadastro = () => {
           redirectTo: createSiteUrl(emailConfirmPath),
           website,
           captchaToken,
+          legalAcceptanceSource: LEGAL_ACCEPTANCE_SOURCES.siteSignup,
+          termsAccepted: true,
+          termsVersion: LEGAL_TERMS_VERSION,
+          privacyAccepted: true,
+          privacyVersion: LEGAL_PRIVACY_VERSION,
+          lgpdAccepted: true,
+          lgpdVersion: LEGAL_LGPD_VERSION,
         },
       });
 
@@ -437,6 +462,48 @@ const Cadastro = () => {
                     ))}
                   </SelectContent>
                 </Select>
+              </div>
+              <div className="space-y-3 rounded-xl border border-primary/20 bg-primary/5 p-4">
+                <div className="space-y-1">
+                  <p className="text-sm font-semibold text-foreground">Termos de Uso, Política de Privacidade e LGPD</p>
+                  <p className="text-xs leading-5 text-muted-foreground">
+                    Leia os documentos legais antes de concluir o cadastro. Última atualização: {LEGAL_UPDATED_AT_LABEL}.
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Link to={LEGAL_PATHS.terms} target="_blank" rel="noreferrer" className="text-sm font-medium text-primary hover:underline">
+                    Termos de Uso
+                  </Link>
+                  <span className="text-muted-foreground">•</span>
+                  <Link to={LEGAL_PATHS.privacy} target="_blank" rel="noreferrer" className="text-sm font-medium text-primary hover:underline">
+                    Política de Privacidade
+                  </Link>
+                  <span className="text-muted-foreground">•</span>
+                  <Link to={LEGAL_PATHS.lgpd} target="_blank" rel="noreferrer" className="text-sm font-medium text-primary hover:underline">
+                    LGPD
+                  </Link>
+                </div>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <Button
+                    type="button"
+                    variant={legalDecision === "accepted" ? "default" : "outline"}
+                    onClick={() => setLegalDecision("accepted")}
+                  >
+                    Concordo
+                  </Button>
+                  <Button
+                    type="button"
+                    variant={legalDecision === "declined" ? "destructive" : "outline"}
+                    onClick={() => setLegalDecision("declined")}
+                  >
+                    Não concordo
+                  </Button>
+                </div>
+                {legalDecision === "declined" && (
+                  <p className="text-xs text-destructive">
+                    Sem o aceite legal, o cadastro não pode ser concluído.
+                  </p>
+                )}
               </div>
             </>
           )}

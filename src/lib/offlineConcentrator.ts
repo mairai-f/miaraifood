@@ -272,6 +272,8 @@ export interface DesktopRuntimeInfo {
   platform: string;
   databasePath: string;
   updateChannel: string;
+  productContext?: 'happycash' | 'happycashfood';
+  installerToken?: string | null;
 }
 
 export interface DesktopUpdateStatus {
@@ -312,6 +314,8 @@ export type OfflineStatus = {
     platform: string;
     databasePath: string;
     updateChannel: string;
+    productContext?: 'happycash' | 'happycashfood';
+    installerToken?: string | null;
   };
 };
 
