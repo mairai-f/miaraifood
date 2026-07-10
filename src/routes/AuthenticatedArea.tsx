@@ -32,6 +32,9 @@ const pageLoaders = [
   () => import('@/pages/Reports'),
   () => import('@/pages/Financial'),
   () => import('@/pages/Stock'),
+  () => import('@/pages/StockMovements'),
+  () => import('@/pages/StockAbcCurve'),
+  () => import('@/pages/StockPurchaseSuggestions'),
   () => import('@/pages/PricingManager'),
   () => import('@/pages/Operations'),
   () => import('@/pages/Notes'),
@@ -52,6 +55,9 @@ const [
   loadReports,
   loadFinancial,
   loadStock,
+  loadStockMovements,
+  loadStockAbcCurve,
+  loadStockPurchaseSuggestions,
   loadPricingManager,
   loadOperations,
   loadNotes,
@@ -71,6 +77,9 @@ const ServiceTickets = lazy(loadServiceTickets);
 const Reports = lazy(loadReports);
 const Financial = lazy(loadFinancial);
 const Stock = lazy(loadStock);
+const StockMovements = lazy(loadStockMovements);
+const StockAbcCurve = lazy(loadStockAbcCurve);
+const StockPurchaseSuggestions = lazy(loadStockPurchaseSuggestions);
 const PricingManager = lazy(loadPricingManager);
 const Operations = lazy(loadOperations);
 const Notes = lazy(loadNotes);
@@ -204,6 +213,9 @@ const AuthenticatedArea = () => {
           <Route path="/clientes" element={<ProtectedRoute requiredPermission="clients.view" requiredFeature="clients.manage"><LazyPage><Clients /></LazyPage></ProtectedRoute>} />
           <Route path="/produtos" element={<ProtectedRoute requiredPermission="products.view" requiredFeature="products.manage"><LazyPage><Products /></LazyPage></ProtectedRoute>} />
           <Route path="/estoque" element={<ProtectedRoute requiredPermission="stock.view" requiredFeature="stock.manage"><LazyPage><Stock /></LazyPage></ProtectedRoute>} />
+          <Route path="/estoque/movimentacoes" element={<ProtectedRoute requiredPermission="stock.view" requiredFeature="stock.manage"><LazyPage><StockMovements /></LazyPage></ProtectedRoute>} />
+          <Route path="/estoque/curva-abc" element={<ProtectedRoute requiredPermission="stock.view" requiredFeature="stock.manage"><LazyPage><StockAbcCurve /></LazyPage></ProtectedRoute>} />
+          <Route path="/estoque/sugestoes-compra" element={<ProtectedRoute requiredPermission="stock.view" requiredFeature="stock.manage"><LazyPage><StockPurchaseSuggestions /></LazyPage></ProtectedRoute>} />
           <Route path="/relatorios" element={<ProtectedRoute requiredPermission="reports.view" requiredFeature="reports.view"><LazyPage><Reports /></LazyPage></ProtectedRoute>} />
           <Route path="/financeiro" element={<ProtectedRoute requiredPermission="financial.view" requiredFeature="financial.manage"><LazyPage><Financial /></LazyPage></ProtectedRoute>} />
           <Route path="/operacoes" element={<ProtectedRoute requiredPermission="purchases.view" requiredFeature="financial.manage"><LazyPage><Operations /></LazyPage></ProtectedRoute>} />

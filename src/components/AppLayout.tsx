@@ -599,6 +599,8 @@ export function AppLayout({ children }: { children: ReactNode }) {
             {visibleNavItems.map(item => {
               const active = item.path === '/configuracoes'
                 ? location.pathname.startsWith('/configuracoes')
+                : item.path === '/estoque'
+                  ? location.pathname.startsWith('/estoque')
                 : location.pathname === item.path;
               return (
                 <Link key={item.path} to={item.path} onClick={() => setOpen(false)}
