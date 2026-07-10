@@ -5,6 +5,7 @@ import { Loader2 } from "lucide-react";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { WhatsAppFloatingButton } from "@/components/WhatsAppFloatingButton";
 import Index from "./pages/Index.tsx";
 import { LocaleProvider } from "../../shared/locale/LocaleContext";
 
@@ -82,6 +83,7 @@ const App = () => (
         <Sonner />
         <BrowserRouter>
           <ScrollToRouteTop />
+          <WhatsAppFloatingButton />
           <Suspense fallback={<RouteLoader />}>
             <Routes>
               <Route path="/" element={<Index />} />

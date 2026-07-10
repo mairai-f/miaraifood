@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useData } from '@/contexts/DataContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -26,10 +26,19 @@ import {
 } from '@/lib/stockMovement';
 import { formatProductCode } from '@/lib/productCode';
 import { getLocalIsoDate } from '@/lib/clientDebtDueDate';
+import { supabase } from '@/integrations/supabase/client';
+
+const db = supabase as any;
+
+type MovementActorProfile = {
+  user_id: string;
+  username?: string | null;
+  email?: string | null;
+};
 
 export default function Stock() {
   const { products, stockMovements, sales, saleItems, addStockMovement, clearAllStock, loading } = useData();
-  const { user } = useAuth();
+  const { ownerUserId } = useAuth();
   const { batches } = useProductBatches();
   const navigate = useNavigate();
   const [search, setSearch] = useState('');
@@ -47,6 +56,7 @@ export default function Stock() {
   const [movementHistoryType, setMovementHistoryType] = useState('all');
   const [movementDateFrom, setMovementDateFrom] = useState('');
   const [movementDateTo, setMovementDateTo] = useState('');
+  const [movementActorNames, setMovementActorNames] = useState<Record<string, string>>({});
 
   const activeProducts = useMemo(() => products.filter(p => !p.deleted), [products]);
   const nextBatchByProductId = useMemo(() => {
@@ -119,6 +129,58 @@ export default function Stock() {
     const matchesDate = (!movementDateFrom || movementDate >= movementDateFrom) && (!movementDateTo || movementDate <= movementDateTo);
     return matchesProduct && matchesDate && (movementHistoryType === 'all' || movementHistoryType === direction || movementHistoryType === movement.type);
   });
+  const unresolvedMovementOperatorIds = useMemo(() => (
+    [...new Set(
+      stockMovements
+        .filter((movement) => !movement.actor_label && movement.operator_user_id && !movementActorNames[movement.operator_user_id])
+        .map((movement) => movement.operator_user_id as string)
+    )]
+  ), [movementActorNames, stockMovements]);
+
+  useEffect(() => {
+    if (!ownerUserId || unresolvedMovementOperatorIds.length === 0) return;
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) return;
+
+    let cancelled = false;
+
+    const loadMovementActors = async () => {
+      const { data, error } = await db
+        .from('profiles')
+        .select('user_id, username, email')
+        .eq('owner_user_id', ownerUserId)
+        .in('user_id', unresolvedMovementOperatorIds);
+
+      if (error) {
+        console.warn('Nao foi possivel resolver os usuarios das movimentacoes de estoque:', getRedactedLogValue(error));
+        return;
+      }
+
+      if (cancelled) return;
+
+      const nextNames = ((data ?? []) as MovementActorProfile[]).reduce<Record<string, string>>((map, profile) => {
+        const label = profile.username?.trim() || profile.email?.trim() || profile.user_id;
+        map[profile.user_id] = label;
+        return map;
+      }, {});
+
+      if (Object.keys(nextNames).length === 0) return;
+
+      setMovementActorNames((current) => ({ ...current, ...nextNames }));
+    };
+
+    void loadMovementActors();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [ownerUserId, unresolvedMovementOperatorIds]);
+
+  const getMovementActorLabel = (movement: (typeof stockMovements)[number]) => (
+    movement.actor_label
+    || (movement.operator_user_id ? movementActorNames[movement.operator_user_id] : null)
+    || movement.operator_user_id
+    || 'Sistema'
+  );
 
   const openPurchaseOrder = (suggestion: PurchaseSuggestion) => {
     const params = new URLSearchParams({
@@ -184,7 +246,7 @@ export default function Stock() {
       const product = products.find((item) => item.id === movement.product_id);
       lines.push([
         formatDateTime(movement.date), formatProductCode(product?.code), product?.name ?? 'Produto removido',
-        getStockMovementDirection(movement), movement.quantity, movement.source ?? 'manual', movement.actor_label ?? movement.operator_user_id ?? 'Sistema',
+        getStockMovementDirection(movement), movement.quantity, movement.source ?? 'manual', getMovementActorLabel(movement),
         movement.balance_before ?? '', movement.balance_after ?? '', movement.reason,
       ].map(escapeCsv).join(';'));
     });
@@ -481,7 +543,7 @@ export default function Stock() {
                     <div className="min-w-0">
                       <p className="font-medium">{formatProductCode(product?.code) || 'Sem código'} · {product?.name || 'Produto removido'}</p>
                       <p className="truncate text-muted-foreground">{m.source === 'purchase' || /compra/i.test(m.reason) ? 'Compra' : m.source === 'sale' || /venda/i.test(m.reason) ? 'Venda' : 'Manual'} · {m.reason} · {formatDateTime(m.date)}</p>
-                      <p className="text-muted-foreground">Usuário: {m.actor_label || m.operator_user_id || 'Sistema'}</p>
+                      <p className="text-muted-foreground">Usuário: {getMovementActorLabel(m)}</p>
                       {m.balance_before != null && m.balance_after != null && <p className="text-muted-foreground">Saldo {m.balance_before} → {m.balance_after}</p>}
                     </div>
                     <span className={`ml-3 shrink-0 font-bold ${direction === 'entrada' ? 'text-green-500' : 'text-destructive'}`}>

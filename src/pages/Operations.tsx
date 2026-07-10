@@ -1,11 +1,10 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Barcode, Boxes, CalendarClock, Check, CheckCircle2, Edit, FileDown, Loader2, MessageCircle, PackageCheck, PackagePlus, Percent, Plus, RefreshCw, Search, ShieldCheck, Trash2, Truck, WalletCards } from 'lucide-react';
 import { toast } from 'sonner';
 
-import { OperationsDetailsDialog } from '@/components/operations/OperationsDetailsDialog';
 import { OperationsMetricCard } from '@/components/operations/OperationsMetricCard';
-import { SupplierOrderDialog, type SupplierOrderItem } from '@/components/operations/SupplierOrderDialog';
+import type { SupplierOrderItem } from '@/components/operations/SupplierOrderDialog';
 import { DataRouteLoader } from '@/components/DataRouteLoader';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
@@ -31,6 +30,18 @@ import { formatProductCode } from '@/lib/productCode';
 import { buildSupplierOrderWhatsAppUrl } from '@/lib/whatsapp';
 import type { FinancialAccount, OpenDebtClient, OperationsDetail, ProductBatch, ProductPromotion, PurchaseOrder, PurchaseOrderItem, SupplierRecord, SupplierSummary } from '@/types/operations';
 import { getRedactedLogValue } from '../../shared/security/redaction';
+
+const OperationsDetailsDialog = lazy(() =>
+  import('@/components/operations/OperationsDetailsDialog').then((module) => ({
+    default: module.OperationsDetailsDialog,
+  })),
+);
+
+const SupplierOrderDialog = lazy(() =>
+  import('@/components/operations/SupplierOrderDialog').then((module) => ({
+    default: module.SupplierOrderDialog,
+  })),
+);
 
 const fromTable = (table: string) => supabase.from(table as never);
 const operationsRpc = supabase as unknown as {
@@ -1522,30 +1533,38 @@ export default function Operations() {
         </DialogContent>
       </Dialog>
 
-      <OperationsDetailsDialog
-        detail={detail}
-        onOpenChange={(open) => { if (!open) setDetail(null); }}
-        purchases={purchases}
-        purchaseItems={purchaseItems}
-        pendingAccounts={pendingAccounts}
-        suppliers={supplierSummaries}
-        activePromotions={activePromotions}
-        todaySales={todaySales}
-        todaySaleItems={todaySaleItems}
-        monthExpenses={monthExpenses}
-        openDebtClients={openDebtClients}
-        expiringBatches={expiringBatches}
-        products={products}
-        clients={clients}
-      />
-      <SupplierOrderDialog
-        open={supplierOrderOpen}
-        initialSupplierId={supplierOrderInitialId}
-        suppliers={suppliers.filter((supplier) => supplier.active)}
-        products={activeProducts}
-        onOpenChange={setSupplierOrderOpen}
-        onSend={sendSupplierOrder}
-      />
+      {detail !== null && (
+        <Suspense fallback={null}>
+          <OperationsDetailsDialog
+            detail={detail}
+            onOpenChange={(open) => { if (!open) setDetail(null); }}
+            purchases={purchases}
+            purchaseItems={purchaseItems}
+            pendingAccounts={pendingAccounts}
+            suppliers={supplierSummaries}
+            activePromotions={activePromotions}
+            todaySales={todaySales}
+            todaySaleItems={todaySaleItems}
+            monthExpenses={monthExpenses}
+            openDebtClients={openDebtClients}
+            expiringBatches={expiringBatches}
+            products={products}
+            clients={clients}
+          />
+        </Suspense>
+      )}
+      {supplierOrderOpen && (
+        <Suspense fallback={null}>
+          <SupplierOrderDialog
+            open={supplierOrderOpen}
+            initialSupplierId={supplierOrderInitialId}
+            suppliers={suppliers.filter((supplier) => supplier.active)}
+            products={activeProducts}
+            onOpenChange={setSupplierOrderOpen}
+            onSend={sendSupplierOrder}
+          />
+        </Suspense>
+      )}
     </div>
   );
 }

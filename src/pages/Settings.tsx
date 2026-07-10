@@ -1,11 +1,7 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState, type ChangeEvent } from 'react';
 import { BarChart3, Building2, Calculator, ChevronRight, ClipboardList, Clock3, DatabaseBackup, Download, FileText, Gift, Laptop, Loader2, MapPinned, PackageSearch, Settings as SettingsIcon, Shield, ShieldAlert, Trash2, UserRoundCog, WalletCards } from 'lucide-react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
-import { CompanyProfileCard } from '@/components/CompanyProfileCard';
 import { DataRouteLoader } from '@/components/DataRouteLoader';
-import { PasskeySettingsCard } from '@/components/PasskeySettingsCard';
-import { PrinterSettingsCard } from '@/components/PrinterSettingsCard';
-import { OperatorManagementPanel } from '@/components/OperatorManagementPanel';
 import { useAuth } from '@/contexts/AuthContext';
 import { useDesktopRuntime } from '@/contexts/DesktopRuntimeContext';
 import { usePermissions } from '@/contexts/usePermissions';
@@ -49,6 +45,30 @@ import { requestTurnstileToken } from '../../shared/security/turnstile';
 import { isRuntimeScopeAllowed, type ErpPermissionKey, type RuntimeScope } from '@/lib/permissions';
 import { canUseDesktopFiscalModule } from '@/lib/fiscalAccess';
 import { readDesktopActivation } from '@/lib/desktopActivation';
+
+const CompanyProfileCard = lazy(() =>
+  import('@/components/CompanyProfileCard').then((module) => ({
+    default: module.CompanyProfileCard,
+  })),
+);
+
+const PasskeySettingsCard = lazy(() =>
+  import('@/components/PasskeySettingsCard').then((module) => ({
+    default: module.PasskeySettingsCard,
+  })),
+);
+
+const PrinterSettingsCard = lazy(() =>
+  import('@/components/PrinterSettingsCard').then((module) => ({
+    default: module.PrinterSettingsCard,
+  })),
+);
+
+const OperatorManagementPanel = lazy(() =>
+  import('@/components/OperatorManagementPanel').then((module) => ({
+    default: module.OperatorManagementPanel,
+  })),
+);
 
 const LocationsTerminalsPanel = lazy(() =>
   import('@/components/LocationsTerminalsPanel').then((module) => ({
@@ -143,6 +163,14 @@ const formatBytes = (value: number | null | undefined) => {
 
   return `${nextValue.toFixed(unitIndex === 0 ? 0 : 1)} ${units[unitIndex]}`;
 };
+
+const SettingsSectionLoader = ({ label }: { label: string }) => (
+  <Card>
+    <CardContent className="flex items-center gap-2 py-8 text-sm text-muted-foreground">
+      <Loader2 className="h-4 w-4 animate-spin" /> {label}
+    </CardContent>
+  </Card>
+);
 
 export default function Settings() {
   const { session, ownerUserId } = useAuth();
@@ -985,11 +1013,13 @@ export default function Settings() {
       )}
 
       {activeSettingsSection === 'empresa' && (
-        <>
-          <CompanyProfileCard />
-          <PasskeySettingsCard />
-          <PrinterSettingsCard />
-        </>
+        <Suspense fallback={<SettingsSectionLoader label="Carregando dados da empresa..." />}>
+          <>
+            <CompanyProfileCard />
+            <PasskeySettingsCard />
+            <PrinterSettingsCard />
+          </>
+        </Suspense>
       )}
 
       {activeSettingsSection === 'backup' && <Card>
@@ -1110,22 +1140,20 @@ export default function Settings() {
         </CardContent>
       </Card>}
 
-      {activeSettingsSection === 'colaboradores' && <div>
-        <OperatorManagementPanel
-          createDialogOpen={isCreateOperatorModalOpen}
-          onCreateDialogOpenChange={handleCreateDialogOpenChange}
-        />
-      </div>}
+      {activeSettingsSection === 'colaboradores' && (
+        <Suspense fallback={<SettingsSectionLoader label="Carregando equipe e acessos..." />}>
+          <div>
+            <OperatorManagementPanel
+              createDialogOpen={isCreateOperatorModalOpen}
+              onCreateDialogOpenChange={handleCreateDialogOpenChange}
+            />
+          </div>
+        </Suspense>
+      )}
 
       {activeSettingsSection === 'filiais' && !isDesktop && (
         <Suspense
-          fallback={(
-            <Card>
-              <CardContent className="flex items-center gap-2 py-8 text-sm text-muted-foreground">
-                <Loader2 className="h-4 w-4 animate-spin" /> Carregando filiais e terminais...
-              </CardContent>
-            </Card>
-          )}
+          fallback={<SettingsSectionLoader label="Carregando filiais e terminais..." />}
         >
           <LocationsTerminalsPanel />
         </Suspense>
@@ -1133,13 +1161,7 @@ export default function Settings() {
 
       {activeSettingsSection === 'catalogo' && !isDesktop && (
         <Suspense
-          fallback={(
-            <Card>
-              <CardContent className="flex items-center gap-2 py-8 text-sm text-muted-foreground">
-                <Loader2 className="h-4 w-4 animate-spin" /> Carregando catalogo avancado...
-              </CardContent>
-            </Card>
-          )}
+          fallback={<SettingsSectionLoader label="Carregando catalogo avancado..." />}
         >
           <CatalogConfigurationPanel />
         </Suspense>

@@ -143,25 +143,48 @@ function ProtectedRoute({
   return <AppLayout>{children}</AppLayout>;
 }
 
-const desktopPageLoaders = pageLoaders.filter((loader) =>
-  loader !== loadAccessMonitor && loader !== loadAuditLog,
-);
+const desktopWarmPageLoaders = [
+  loadDashboard,
+  loadClients,
+  loadProducts,
+  loadPDV,
+  loadStock,
+  loadFinancial,
+];
+
+const webWarmPageLoaders = [
+  loadDashboard,
+  loadClients,
+  loadProducts,
+  loadPDV,
+];
 
 const warmPageChunks = (isDesktop: boolean) => {
-  const loadAllPages = () => {
-    const runtimeLoaders = isDesktop ? desktopPageLoaders : pageLoaders;
-    runtimeLoaders.forEach(loader => {
-      void loader();
+  const runtimeLoaders = isDesktop ? desktopWarmPageLoaders : webWarmPageLoaders;
+  const preloadTimers: number[] = [];
+
+  const loadPreferredPages = () => {
+    runtimeLoaders.forEach((loader, index) => {
+      const timerId = window.setTimeout(() => {
+        void loader();
+      }, index * 220);
+      preloadTimers.push(timerId);
     });
   };
 
   if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
-    const idleId = window.requestIdleCallback(loadAllPages, { timeout: 2500 });
-    return () => window.cancelIdleCallback(idleId);
+    const idleId = window.requestIdleCallback(loadPreferredPages, { timeout: 3500 });
+    return () => {
+      window.cancelIdleCallback(idleId);
+      preloadTimers.forEach((timerId) => window.clearTimeout(timerId));
+    };
   }
 
-  const timeoutId = window.setTimeout(loadAllPages, 500);
-  return () => window.clearTimeout(timeoutId);
+  const timeoutId = window.setTimeout(loadPreferredPages, 1200);
+  return () => {
+    window.clearTimeout(timeoutId);
+    preloadTimers.forEach((timerId) => window.clearTimeout(timerId));
+  };
 };
 
 const AuthenticatedArea = () => {

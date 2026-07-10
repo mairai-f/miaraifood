@@ -1,18 +1,27 @@
-import { useState, useMemo } from 'react';
+import { Suspense, lazy, useMemo, useState } from 'react';
 import { useData } from '@/contexts/DataContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { Download, TrendingUp, Package, Users, DollarSign } from 'lucide-react';
 import { DataRouteLoader } from '@/components/DataRouteLoader';
 import { formatDateOnly, translateCurrentText } from '../../shared/locale/format';
-import { ReportDetailsDialog, type ReportDetail } from '@/components/reports/ReportDetailsDialog';
+import type { ReportDetail } from '@/components/reports/ReportDetailsDialog';
 import { ReportMetricCard } from '@/components/reports/ReportMetricCard';
 import { formatProductCode } from '@/lib/productCode';
 
-const COLORS = ['hsl(var(--primary))', 'hsl(var(--destructive))', 'hsl(var(--accent))', '#8884d8', '#82ca9d', '#ffc658'];
+const ReportsChartsSection = lazy(() =>
+  import('@/components/reports/ReportsChartsSection').then((module) => ({
+    default: module.ReportsChartsSection,
+  })),
+);
+
+const ReportDetailsDialog = lazy(() =>
+  import('@/components/reports/ReportDetailsDialog').then((module) => ({
+    default: module.ReportDetailsDialog,
+  })),
+);
 
 export default function Reports() {
   const { sales, saleItems, clients, products, debtEntries, payments, loading } = useData();
@@ -364,53 +373,25 @@ export default function Reports() {
         </Card>
       </div>
 
-      {/* Sales by day chart */}
-      {salesByDay.length > 0 && (
-        <Card className="border-border/50">
-          <CardHeader><CardTitle className="text-sm">Vendas por Dia</CardTitle></CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={250}>
-              <BarChart data={salesByDay}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="day" fontSize={10} /><YAxis fontSize={10} /><Tooltip formatter={(v: number) => `R$ ${v.toFixed(2)}`} /><Bar dataKey="total" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} /></BarChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-      )}
-
-      {salesByHour.length > 0 && (
-        <Card className="border-border/50">
-          <CardHeader>
-            <CardTitle className="text-sm">Horários de Maior Movimento</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="grid gap-2 sm:grid-cols-3">
-              <div className="rounded-lg border border-border bg-secondary/30 p-3">
-                <p className="text-xs text-muted-foreground">Melhor horário</p>
-                <p className="text-lg font-bold">{bestSalesHour.label}</p>
-                <p className="text-[11px] text-muted-foreground">R$ {bestSalesHour.total.toFixed(2)} em {bestSalesHour.count} venda(s)</p>
-              </div>
-              <div className="rounded-lg border border-border bg-secondary/30 p-3">
-                <p className="text-xs text-muted-foreground">Itens vendidos</p>
-                <p className="text-lg font-bold">{totalUnitsSold}</p>
-                <p className="text-[11px] text-muted-foreground">No período filtrado</p>
-              </div>
-              <div className="rounded-lg border border-border bg-secondary/30 p-3">
-                <p className="text-xs text-muted-foreground">Vendas canceladas</p>
-                <p className="text-lg font-bold">{filteredSales.length - activeFilteredSales.length}</p>
-                <p className="text-[11px] text-muted-foreground">Fora do faturamento</p>
-              </div>
-            </div>
-            <ResponsiveContainer width="100%" height={220}>
-              <BarChart data={salesByHour}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="label" fontSize={10} />
-                <YAxis fontSize={10} />
-                <Tooltip formatter={(v: number) => `R$ ${v.toFixed(2)}`} />
-                <Bar dataKey="total" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-      )}
+      <Suspense
+        fallback={(
+          <Card className="border-border/50">
+            <CardContent className="py-10 text-sm text-muted-foreground">
+              Carregando graficos e analises visuais...
+            </CardContent>
+          </Card>
+        )}
+      >
+        <ReportsChartsSection
+          salesByDay={salesByDay}
+          salesByHour={salesByHour}
+          bestSalesHour={bestSalesHour}
+          totalUnitsSold={totalUnitsSold}
+          filteredSalesCount={filteredSales.length}
+          activeFilteredSalesCount={activeFilteredSales.length}
+          paymentBreakdown={paymentBreakdown}
+        />
+      </Suspense>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4" data-tour-id="reports-rankings">
         {/* Top products */}
@@ -429,20 +410,6 @@ export default function Reports() {
             )}
           </CardContent>
         </Card>
-
-        {/* Payment breakdown */}
-        {paymentBreakdown.length > 0 && (
-          <Card className="border-border/50">
-            <CardHeader><CardTitle className="text-sm">Formas de Pagamento</CardTitle></CardHeader>
-            <CardContent>
-              <ResponsiveContainer width="100%" height={200}>
-                <PieChart><Pie data={paymentBreakdown} cx="50%" cy="50%" innerRadius={40} outerRadius={70} paddingAngle={3} dataKey="value" label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`} fontSize={10}>
-                  {paymentBreakdown.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
-                </Pie><Tooltip formatter={(v: number) => `R$ ${v.toFixed(2)}`} /></PieChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
-        )}
 
         <Card className="border-border/50">
           <CardHeader><CardTitle className="text-sm">Clientes por Receita</CardTitle></CardHeader>
@@ -516,14 +483,18 @@ export default function Reports() {
         </Card>
       </div>
 
-      <ReportDetailsDialog
-        detail={detail}
-        sales={activeFilteredSales}
-        saleItems={filteredItems}
-        debts={pendingDebtEntries}
-        clients={clients}
-        onOpenChange={(open) => { if (!open) setDetail(null); }}
-      />
+      {detail !== null && (
+        <Suspense fallback={null}>
+          <ReportDetailsDialog
+            detail={detail}
+            sales={activeFilteredSales}
+            saleItems={filteredItems}
+            debts={pendingDebtEntries}
+            clients={clients}
+            onOpenChange={(open) => { if (!open) setDetail(null); }}
+          />
+        </Suspense>
+      )}
     </div>
   );
 }

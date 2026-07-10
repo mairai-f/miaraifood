@@ -398,7 +398,7 @@ interface DataContextType {
 const DataContext = createContext<DataContextType | null>(null);
 
 export function DataProvider({ children }: { children: ReactNode }) {
-  const { user, ownerUserId, loading: authLoading, isAdmin, isLocalOfflineSession } = useAuth();
+  const { user, username, profileEmail, ownerUserId, loading: authLoading, isAdmin, isLocalOfflineSession } = useAuth();
   const { isDesktop, offlineEnabled } = useDesktopRuntime();
   const { hasFeature, loading: planLoading, planId } = usePlanAccess();
   const { scope: operationalScope } = useOperationalScope();
@@ -428,6 +428,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [offlineSnapshotUpdatedAt, setOfflineSnapshotUpdatedAt] = useState<string | null>(null);
   const isDemoMode = planId === 'demo';
   const canUseOfflineConcentrator = isDesktop && offlineEnabled && isOfflineConcentratorAvailable();
+  const actorDisplayName = username?.trim()
+    || profileEmail?.trim()
+    || user?.email?.trim()
+    || user?.id
+    || null;
   const offlineSyncInFlightRef = useRef(false);
   const lastPassiveRefreshAtRef = useRef(0);
   const fullSnapshotPrimedRef = useRef(false);
@@ -3616,6 +3621,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       balance_before: calculation.balanceBefore,
       balance_after: calculation.balanceAfter,
       operator_user_id: user?.id ?? null,
+      actor_label: actorDisplayName,
       location_id: operationalLocationId,
     };
     const applyStockMovementState = (movement: StockMovement) => {
@@ -3709,6 +3715,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
           quantity: product.stock,
           reason,
           date: movementDate,
+          operator_user_id: user?.id ?? null,
+          actor_label: actorDisplayName,
           location_id: operationalLocationId,
         } as StockMovement)),
         ...prev,
@@ -3726,6 +3734,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
         quantity: product.stock,
         reason,
         date: movementDate,
+        operator_user_id: user?.id ?? null,
+        actor_label: actorDisplayName,
         location_id: operationalLocationId,
         sync_status: 'queued',
         sync_error: null,
@@ -3774,6 +3784,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
         type: 'saida',
         quantity: product.stock,
         reason,
+        operator_user_id: user?.id ?? null,
+        actor_label: actorDisplayName,
         location_id: operationalLocationId,
       }));
 
