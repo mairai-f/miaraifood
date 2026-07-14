@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { MessageCircle } from "lucide-react";
 
 const WHATSAPP_PHONE = "5512988918792";
@@ -5,11 +6,41 @@ const WHATSAPP_MESSAGE = "Olá! Vim pelo site da HappyCash e quero um primeiro a
 const WHATSAPP_URL = `https://wa.me/${WHATSAPP_PHONE}?text=${encodeURIComponent(WHATSAPP_MESSAGE)}`;
 
 export function WhatsAppFloatingButton() {
+  const [footerOffset, setFooterOffset] = useState(0);
+
+  useEffect(() => {
+    const footer = document.querySelector<HTMLElement>("[data-site-footer]");
+    if (!footer) return;
+
+    let frameId = 0;
+
+    const updateOffset = () => {
+      const footerRect = footer.getBoundingClientRect();
+      const nextOffset = Math.max(0, Math.ceil(window.innerHeight - footerRect.top + 24));
+      setFooterOffset((current) => (current === nextOffset ? current : nextOffset));
+    };
+
+    const requestUpdate = () => {
+      window.cancelAnimationFrame(frameId);
+      frameId = window.requestAnimationFrame(updateOffset);
+    };
+
+    updateOffset();
+    window.addEventListener("scroll", requestUpdate, { passive: true });
+    window.addEventListener("resize", requestUpdate);
+
+    return () => {
+      window.cancelAnimationFrame(frameId);
+      window.removeEventListener("scroll", requestUpdate);
+      window.removeEventListener("resize", requestUpdate);
+    };
+  }, []);
+
   return (
     <div
-      className="pointer-events-none fixed bottom-4 right-4 z-[70] flex max-w-[calc(100vw-1.5rem)] flex-col items-end gap-2 sm:bottom-5 sm:right-5 md:bottom-6 md:right-6"
+      className="pointer-events-none fixed right-4 z-[70] flex max-w-[calc(100vw-1.5rem)] flex-col items-end gap-2 sm:right-5 md:right-6"
       style={{
-        paddingBottom: "env(safe-area-inset-bottom, 0px)",
+        bottom: `calc(env(safe-area-inset-bottom, 0px) + clamp(1rem, 2vw, 1.5rem) + ${footerOffset}px)`,
         paddingRight: "env(safe-area-inset-right, 0px)",
       }}
     >

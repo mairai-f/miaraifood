@@ -1,35 +1,46 @@
 import { useMemo, useState, type FormEvent } from 'react';
-import { Building2, Eye, EyeOff, KeyRound, Loader2 } from 'lucide-react';
+import { Building2, Eye, EyeOff, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 
-import happyCashLogo from '@/assets/happycash-logo.webp';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import happyCashLogo from '@/assets/login/happycash.svg';
 import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   activateDesktopWithLicenseKey,
   type DesktopActivationRecord,
 } from '@/lib/desktopActivation';
-import { openExternalUrl } from '@/lib/openExternalUrl';
-import { getPublicErrorMessage, maskDocument } from '../../shared/security/redaction';
+import { LanguageSwitcher } from '../../shared/locale/LanguageSwitcher';
+import { useLocale } from '../../shared/locale/useLocale';
 import {
   LEGAL_ACCEPTANCE_SOURCES,
-  LEGAL_PATHS,
   LEGAL_UPDATED_AT_LABEL,
-  buildLegalUrl,
 } from '../../shared/legal/legalAcceptance';
+import { LEGAL_MODAL_DOCUMENTS } from '../../shared/legal/legalModalDocuments';
+import { getPublicErrorMessage, maskDocument } from '../../shared/security/redaction';
 
 interface DesktopActivationScreenProps {
   onActivated: (activation: DesktopActivationRecord) => void | Promise<void>;
 }
 
+type ActivationLegalDocumentKey = 'terms' | 'privacy';
+
 export function DesktopActivationScreen({ onActivated }: DesktopActivationScreenProps) {
+  const { locale } = useLocale();
   const [licenseKey, setLicenseKey] = useState('');
   const [showLicenseKey, setShowLicenseKey] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [recognizedCompany, setRecognizedCompany] = useState<DesktopActivationRecord | null>(null);
   const [legalDecision, setLegalDecision] = useState<'accepted' | 'declined' | null>(null);
+  const [legalModal, setLegalModal] = useState<ActivationLegalDocumentKey | null>(null);
   const requiresInAppLegalAcceptance = useMemo(() => {
     try {
       return window.electronAPI?.app?.getRuntimeInfoSync?.().platform === 'linux';
@@ -38,29 +49,123 @@ export function DesktopActivationScreen({ onActivated }: DesktopActivationScreen
     }
   }, []);
 
+  const copy = locale === 'pt-BR'
+      ? {
+        tagline: 'Tecnologia simples para sua empresa.',
+        pill: 'Ativação do desktop',
+        title: 'Chave da licença',
+        description: '',
+        companyKeyLabel: 'Chave da empresa',
+        companyKeyPlaceholder: 'Informe a chave recebida',
+        showKey: 'Mostrar chave',
+        hideKey: 'Ocultar chave',
+        legalTitle: 'Termos e política de privacidade',
+        legalDescription: 'Leia os documentos antes de continuar.',
+        terms: 'Termos de Uso',
+        privacy: 'Política de Privacidade',
+        accept: 'Concordo',
+        decline: 'Não concordo',
+        declinedMessage: 'Sem o aceite legal não é possível concluir a ativação desta máquina.',
+        submit: 'Validar e continuar',
+        submitLoading: 'Validando chave...',
+        companyRecognized: 'Empresa reconhecida.',
+        companyRecognizedMessage: 'Agora o administrador entra com email e senha para configurar usuário, PIN e os dados locais desta máquina.',
+        emptyKeyError: 'Digite a chave da licença para ativar esta máquina.',
+        legalRequiredError: 'Concorde com os Termos de Uso e com a Política de Privacidade para continuar.',
+        activationError: 'Não foi possível validar a chave desta empresa.',
+        activationSuccess: 'Empresa reconhecida com sucesso.',
+        close: 'Fechar',
+        lastUpdated: 'Última atualização',
+      }
+    : {
+        tagline: 'Simple technology for your business.',
+        pill: 'Desktop activation',
+        title: 'License key',
+        description: '',
+        companyKeyLabel: 'Company key',
+        companyKeyPlaceholder: 'Enter the license key',
+        showKey: 'Show key',
+        hideKey: 'Hide key',
+        legalTitle: 'Terms and privacy policy',
+        legalDescription: 'Read the documents before continuing.',
+        terms: 'Terms of Use',
+        privacy: 'Privacy Policy',
+        accept: 'I agree',
+        decline: 'I do not agree',
+        declinedMessage: 'Without legal acceptance, this machine cannot be activated.',
+        submit: 'Validate and continue',
+        submitLoading: 'Validating key...',
+        companyRecognized: 'Company recognized.',
+        companyRecognizedMessage: 'The administrator can now sign in with email and password to configure user, PIN, and local machine data.',
+        emptyKeyError: 'Enter the license key to activate this machine.',
+        legalRequiredError: 'Accept the Terms of Use and the Privacy Policy to continue.',
+        activationError: 'Could not validate this company key.',
+        activationSuccess: 'Company recognized successfully.',
+        close: 'Close',
+        lastUpdated: 'Last update',
+      };
+
+  const legalDocuments = locale === 'pt-BR'
+    ? {
+        terms: LEGAL_MODAL_DOCUMENTS.terms,
+        privacy: LEGAL_MODAL_DOCUMENTS.privacy,
+      }
+    : {
+        terms: {
+          title: 'Terms of Use',
+          description: 'Main conditions for using HappyCash, including plans, trial period, account, support, desktop, offline use, reports, and user responsibilities.',
+          sections: [
+            {
+              title: 'Account use',
+              text: 'When creating an account, subscribing to a plan, using the free trial, or accessing HappyCash products, the user agrees to keep accurate data and protect passwords, PINs, operators, and devices.',
+            },
+            {
+              title: 'Data and operation',
+              text: 'Using HappyCash may involve owner and company data such as name, email, phone number, CPF or CNPJ, and establishment address, as well as operational data entered by the store, including customer and third-party records, CPF or CNPJ when informed, sales, tabs, payments, products, stock, expenses, reports, appointments, and notes.',
+            },
+            {
+              title: 'Responsibilities',
+              text: 'The user must use the system according to the law, obtain authorization before registering third-party data, and must not use HappyCash for fraud, abuse, illegal activity, or rights violations.',
+            },
+          ],
+        },
+        privacy: {
+          title: 'Privacy Policy',
+          description: 'How HappyCash handles personal data across the site, registration, client area, POS, tabs, inventory, schedule, and related features.',
+          sections: [
+            {
+              title: 'Processed data',
+              text: 'We may process owner and company data such as full name, email, phone number, CPF or CNPJ, establishment name, business type, ZIP code, street, number, complement, neighborhood, city, and state. We also process data entered by the store in the system, including name, CPF, CNPJ, phone number, address, tabs, sales, payments, products, inventory, expenses, appointments, notes, and other operational or financial records.',
+            },
+            {
+              title: 'Purposes',
+              text: 'We use this data to create and protect accounts, unlock subscribed features, operate the system, process subscriptions, provide support, prevent fraud, improve the product, and comply with legal obligations.',
+            },
+            {
+              title: 'Rights and contact',
+              text: 'Data subjects may request access, correction, deletion, processing confirmation, and other information under LGPD by emailing happycashsupport@gmail.com.',
+            },
+          ],
+        },
+      };
+  const activeLegalDocument = legalModal ? legalDocuments[legalModal] : null;
+
   const normalizedKey = useMemo(
     () => licenseKey.toUpperCase().replace(/[^A-Z0-9-]/g, ''),
     [licenseKey],
   );
-
-  const openLegalDocument = (path: string) => {
-    const opened = openExternalUrl(buildLegalUrl(path));
-    if (!opened) {
-      toast.error('Conecte esta maquina a internet para abrir o documento legal.');
-    }
-  };
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
     if (submitting) return;
 
     if (!normalizedKey.trim()) {
-      toast.error('Digite a chave da licença para ativar esta máquina.');
+      toast.error(copy.emptyKeyError);
       return;
     }
 
     if (requiresInAppLegalAcceptance && legalDecision !== 'accepted') {
-      toast.error('Concorde com os Termos de Uso e com a Politica de Privacidade para continuar.');
+      toast.error(copy.legalRequiredError);
       return;
     }
 
@@ -72,12 +177,12 @@ export function DesktopActivationScreen({ onActivated }: DesktopActivationScreen
         source: LEGAL_ACCEPTANCE_SOURCES.desktopActivation,
       });
       if (!result.success) {
-        toast.error(getPublicErrorMessage(result.error, 'Nao foi possivel validar a chave desta empresa.'));
+        toast.error(getPublicErrorMessage(result.error, copy.activationError));
         return;
       }
 
       setRecognizedCompany(result.activation);
-      toast.success('Empresa reconhecida com sucesso.');
+      toast.success(copy.activationSuccess);
       await onActivated(result.activation);
     } finally {
       setSubmitting(false);
@@ -85,56 +190,65 @@ export function DesktopActivationScreen({ onActivated }: DesktopActivationScreen
   };
 
   return (
-    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[#050505] px-4 py-6">
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(250,204,21,0.18),_transparent_35%),radial-gradient(circle_at_bottom_right,_rgba(245,158,11,0.12),_transparent_42%)]" />
-      <div className="relative w-full max-w-md">
-        <div className="mb-4 text-center">
-          <img
-            src={happyCashLogo}
-            alt="HappyCash"
-            className="mx-auto h-auto w-[clamp(7rem,30vw,10rem)] max-w-full object-contain"
-            width={768}
-            height={512}
-            loading="eager"
-            decoding="async"
-          />
-          <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-yellow-200/80">
-            Ativação do Desktop
-          </p>
-        </div>
+    <div className="relative h-[100dvh] overflow-hidden bg-[linear-gradient(180deg,#5e79ff_0%,#5571f4_48%,#4d69e8_100%)]">
+      <LanguageSwitcher className="left-1/2 top-[calc(env(safe-area-inset-top,0px)+0.55rem)] right-auto bottom-auto z-30 -translate-x-1/2 sm:hidden" />
+      <LanguageSwitcher className="hidden sm:flex top-[calc(env(safe-area-inset-top,0px)+1rem)] right-4 bottom-auto left-auto z-30 translate-x-0" />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(255,255,255,0.2),_transparent_32%),radial-gradient(circle_at_bottom_right,_rgba(21,41,113,0.2),_transparent_42%)]" />
+      <div className="absolute left-[12%] top-[14%] h-72 w-72 rounded-full bg-white/14 blur-3xl" />
+      <div className="absolute bottom-[10%] right-[8%] h-80 w-80 rounded-full bg-[#183b8c]/22 blur-3xl" />
 
-        <Card className="border-yellow-400/15 bg-black/45 shadow-[0_24px_60px_rgba(0,0,0,0.35)] backdrop-blur-md">
-          <CardHeader className="space-y-3 text-center">
-            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-yellow-400/10 text-yellow-300">
-              <KeyRound className="h-5 w-5" />
+      <main className="relative flex h-full items-center justify-center px-4 pb-4 pt-[calc(env(safe-area-inset-top,0px)+4.7rem)] sm:px-6 sm:pt-[calc(env(safe-area-inset-top,0px)+5.2rem)]">
+        <div className="w-full max-w-[28rem] [@media(max-height:780px)]:scale-[0.95] [@media(max-height:700px)]:scale-[0.9] [@media(max-height:640px)]:scale-[0.84]">
+          <div className="space-y-3 pb-4 text-center">
+            <img
+              src={happyCashLogo}
+              alt="HappyCash"
+              className="mx-auto h-auto w-full max-w-[16rem] object-contain sm:max-w-[18.5rem]"
+              loading="eager"
+              decoding="async"
+            />
+            <p className="mx-auto max-w-[20rem] text-[13px] font-semibold leading-snug tracking-[-0.01em] text-[#f4f8ff] sm:max-w-[22rem] sm:text-[14px]">
+              {copy.tagline}
+            </p>
+          </div>
+
+          <div className="rounded-[28px] border border-[#d6e0f0] bg-white/96 px-4 py-4 shadow-[0_24px_60px_rgba(21,41,113,0.2)] backdrop-blur-xl sm:px-5 sm:py-4.5">
+            <div className="text-center">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[#111827]">
+                {copy.pill}
+              </p>
+              <h1 className="mt-1.5 text-[1.58rem] font-bold leading-none tracking-[-0.03em] text-[#173d7a] sm:text-[1.8rem]">
+                {copy.title}
+              </h1>
+              {copy.description ? (
+                <p className="mt-2 text-[13px] leading-5 text-[#425978] sm:text-[13.5px] sm:leading-6">
+                  {copy.description}
+                </p>
+              ) : null}
             </div>
-            <CardTitle className="text-xl text-yellow-300">Chave da licença</CardTitle>
-            <CardDescription>
-              Em cada maquina nova, informe a chave da empresa para reconhecer o cadastro. Depois disso, o primeiro acesso deve ser do admin com email e senha para cadastrar usuario/PIN offline e baixar os dados locais desta maquina.
-            </CardDescription>
-          </CardHeader>
 
-          <CardContent className="space-y-4">
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <form onSubmit={handleSubmit} className="mt-4 space-y-3" autoComplete="off">
               <div className="space-y-2">
-                <Label htmlFor="desktop-license-key">Chave da empresa</Label>
+                <Label htmlFor="desktop-license-key" className="text-[14px] font-semibold text-[#203550]">
+                  {copy.companyKeyLabel}
+                </Label>
                 <div className="relative">
                   <Input
                     id="desktop-license-key"
                     type={showLicenseKey ? 'text' : 'password'}
                     value={normalizedKey}
                     onChange={(event) => setLicenseKey(event.target.value)}
-                    placeholder="Informe a chave recebida"
+                    placeholder={copy.companyKeyPlaceholder}
                     autoCapitalize="characters"
                     autoCorrect="off"
                     spellCheck={false}
-                    className="h-11 pr-11 tracking-[0.18em] uppercase"
+                    className="h-10 rounded-2xl border-[#ced9ea] bg-white px-4 pr-12 text-[14px] uppercase tracking-[0.16em] text-[#111827] placeholder:text-[#111827] focus-visible:ring-[#1f56a5]/25 focus-visible:ring-offset-0"
                   />
                   <button
                     type="button"
-                    onClick={() => setShowLicenseKey(current => !current)}
-                    className="absolute inset-y-0 right-0 grid w-11 place-items-center text-muted-foreground transition hover:text-foreground"
-                    aria-label={showLicenseKey ? 'Ocultar chave' : 'Mostrar chave'}
+                    onClick={() => setShowLicenseKey((current) => !current)}
+                    className="absolute right-4 top-1/2 -translate-y-1/2 text-[#667a98] transition-colors hover:text-[#24324a]"
+                    aria-label={showLicenseKey ? copy.hideKey : copy.showKey}
                   >
                     {showLicenseKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </button>
@@ -142,76 +256,140 @@ export function DesktopActivationScreen({ onActivated }: DesktopActivationScreen
               </div>
 
               {requiresInAppLegalAcceptance && (
-                <div className="space-y-3 rounded-xl border border-yellow-400/15 bg-yellow-500/5 p-4">
-                  <div className="space-y-1">
-                    <p className="text-sm font-semibold text-yellow-200">Termos e politica de privacidade</p>
-                    <p className="text-xs leading-5 text-muted-foreground">
-                      No Linux, leia os documentos legais no site e registre o aceite desta maquina antes de continuar.
-                      Ultima atualizacao: {LEGAL_UPDATED_AT_LABEL}.
+                <div className="space-y-3.5 rounded-[22px] border border-[#d4deef] bg-[#eef4ff] p-4">
+                  <div className="space-y-1.5">
+                    <p className="text-sm font-semibold text-[#203550]">{copy.legalTitle}</p>
+                    <p className="text-xs leading-5 text-[#4f6480]">
+                      {copy.legalDescription}
                     </p>
                   </div>
-                  <div className="flex flex-wrap gap-2">
-                    <Button type="button" variant="outline" size="sm" onClick={() => openLegalDocument(LEGAL_PATHS.terms)}>
-                      Termos de Uso
+                  <div className="grid gap-2.5 sm:grid-cols-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="border-[#ced9ea] bg-white text-[#111827] hover:bg-[#edf3fb] hover:text-[#111827]"
+                      onClick={() => setLegalModal('terms')}
+                    >
+                      {copy.terms}
                     </Button>
-                    <Button type="button" variant="outline" size="sm" onClick={() => openLegalDocument(LEGAL_PATHS.privacy)}>
-                      Politica de Privacidade
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="border-[#ced9ea] bg-white text-[#111827] hover:bg-[#edf3fb] hover:text-[#111827]"
+                      onClick={() => setLegalModal('privacy')}
+                    >
+                      {copy.privacy}
                     </Button>
                   </div>
-                  <div className="grid gap-2 sm:grid-cols-2">
+                  <div className="grid gap-2.5 sm:grid-cols-2">
                     <Button
                       type="button"
-                      variant={legalDecision === 'accepted' ? 'default' : 'outline'}
-                      className={legalDecision === 'accepted' ? 'bg-yellow-400 text-black hover:bg-yellow-300' : ''}
+                      variant="ghost"
+                      className={legalDecision === 'accepted'
+                        ? 'h-10 rounded-2xl border border-[#1f56a5] bg-[#1f56a5] text-[#111827] hover:bg-[#194788] hover:text-[#111827]'
+                        : 'h-10 rounded-2xl border border-[#ced9ea] bg-white text-[#111827] hover:bg-[#edf3fb] hover:text-[#111827]'}
                       onClick={() => setLegalDecision('accepted')}
                     >
-                      Concordo
+                      {copy.accept}
                     </Button>
                     <Button
                       type="button"
-                      variant={legalDecision === 'declined' ? 'destructive' : 'outline'}
+                      variant="ghost"
+                      className={legalDecision === 'declined'
+                        ? 'h-10 rounded-2xl border border-[#b91c1c] bg-[#dc2626] text-white hover:bg-[#b91c1c] hover:text-white'
+                        : 'h-10 rounded-2xl border border-[#b91c1c] bg-[#dc2626] text-white hover:bg-[#b91c1c] hover:text-white'}
                       onClick={() => setLegalDecision('declined')}
                     >
-                      Nao concordo
+                      {copy.decline}
                     </Button>
                   </div>
                   {legalDecision === 'declined' && (
-                    <p className="text-xs text-red-300">
-                      Sem o aceite legal nao e possivel concluir a ativacao desta maquina.
+                    <p className="text-xs text-red-600">
+                      {copy.declinedMessage}
                     </p>
                   )}
                 </div>
               )}
 
-              <Button type="submit" className="h-11 w-full bg-yellow-400 font-semibold text-black hover:bg-yellow-300" disabled={submitting}>
+              <Button
+                type="submit"
+                className="h-10 w-full rounded-2xl bg-[#1f56a5] text-[14px] font-semibold text-[#111827] hover:bg-[#194788] hover:text-[#111827]"
+                disabled={submitting}
+              >
                 {submitting ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Validando chave...
+                    {copy.submitLoading}
                   </>
                 ) : (
-                  'Validar e continuar'
+                  copy.submit
                 )}
               </Button>
             </form>
 
             {recognizedCompany && (
-              <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 text-sm text-muted-foreground">
-                <div className="flex items-center gap-2 text-foreground">
-                  <Building2 className="h-4 w-4 text-primary" />
+              <div className="mt-3.5 rounded-[22px] border border-[#d4deef] bg-[#eef4ff] p-3.5 text-sm text-[#4f6480]">
+                <div className="flex items-center gap-2 text-[#203550]">
+                  <Building2 className="h-4 w-4 text-[#1f56a5]" />
                   <p className="font-medium">{recognizedCompany.companyName}</p>
                 </div>
                 {recognizedCompany.cnpj && (
                   <p className="mt-2">CNPJ: {maskDocument(recognizedCompany.cnpj)}</p>
                 )}
-                <p className="mt-1">
-                  Empresa reconhecida. Agora o admin entra com email e senha para configurar usuario/PIN e preparar o banco local desta maquina.
+                <p className="mt-1.5">
+                  {copy.companyRecognized} {copy.companyRecognizedMessage}
                 </p>
               </div>
             )}
-          </CardContent>
-        </Card>
-      </div>
+          </div>
+        </div>
+      </main>
+
+      <Dialog open={Boolean(activeLegalDocument)} onOpenChange={(open) => !open && setLegalModal(null)}>
+        <DialogContent
+          className="grid max-h-[calc(100dvh-1.5rem)] w-[calc(100vw-1.5rem)] max-w-[calc(100vw-1.5rem)] grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden border border-[#d6e0f0] bg-white p-0 text-[#203550] shadow-[0_24px_60px_rgba(21,41,113,0.24)] sm:max-h-[calc(100dvh-3rem)] sm:max-w-3xl"
+          onCloseAutoFocus={(event) => event.preventDefault()}
+        >
+          {activeLegalDocument ? (
+            <>
+              <DialogHeader className="border-b border-[#dbe5f2] px-5 pb-4 pt-5 text-left">
+                <DialogTitle className="text-[1.4rem] font-bold tracking-[-0.03em] text-[#173d7a]">
+                  {activeLegalDocument.title}
+                </DialogTitle>
+                <DialogDescription className="leading-6 text-[#4f6480]">
+                  {activeLegalDocument.description}
+                </DialogDescription>
+              </DialogHeader>
+
+              <ScrollArea className="min-h-0 px-5 py-4">
+                <div className="space-y-5 pr-3">
+                  {activeLegalDocument.sections.map((section) => (
+                    <section key={section.title} className="space-y-2">
+                      <h3 className="text-[15px] font-semibold text-[#203550]">{section.title}</h3>
+                      <p className="text-sm leading-6 text-[#4f6480]">{section.text}</p>
+                    </section>
+                  ))}
+                </div>
+              </ScrollArea>
+
+              <div className="flex flex-col gap-3 border-t border-[#dbe5f2] px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+                <span className="text-xs text-[#5d6f89]">
+                  {copy.lastUpdated}: {LEGAL_UPDATED_AT_LABEL}
+                </span>
+                <Button
+                  type="button"
+                  className="h-10 rounded-2xl bg-[#1f56a5] px-5 text-[14px] font-semibold text-[#111827] hover:bg-[#194788] hover:text-[#111827]"
+                  onClick={() => setLegalModal(null)}
+                >
+                  {copy.close}
+                </Button>
+              </div>
+            </>
+          ) : null}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

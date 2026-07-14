@@ -1,6 +1,6 @@
 import { useState, type MouseEvent } from "react";
 import { Link, useLocation } from "react-router-dom";
-import logo from "@/assets/logo-happycash.webp";
+import happyCashLogo from "../../../../src/assets/login/happycash.svg";
 import { Instagram, Mail } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -30,14 +30,20 @@ const Footer = () => {
 
   return (
     <>
-      <footer className="relative border-t border-border bg-card/30 backdrop-blur-sm">
+      <footer data-site-footer className="relative border-t border-border bg-card/30 backdrop-blur-sm">
         {/* Top gradient line */}
         <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-primary/40 to-transparent" />
         
         <div className="container py-16">
           <div className="grid gap-10 items-start md:grid-cols-5">
             <div className="md:col-span-2 space-y-4">
-              <img src={logo} alt="HappyCash" className="h-14 w-auto md:h-20 lg:h-24" width={768} height={512} loading="lazy" decoding="async" />
+              <img
+                src={happyCashLogo}
+                alt="HappyCash"
+                className="h-auto w-[12rem] object-contain md:w-[15rem] lg:w-[17rem]"
+                loading="lazy"
+                decoding="async"
+              />
               <p className="text-sm text-muted-foreground max-w-sm leading-relaxed">
                 Sistema para controlar fiado, PDV e estoque sem depender de caderno, planilha e improviso.
               </p>
@@ -113,35 +119,32 @@ const Footer = () => {
             </div>
           </div>
 
-          <div className="mt-14 space-y-4 border-t border-border/50 pt-8 text-xs text-muted-foreground">
-            <p className="max-w-4xl leading-6 text-center md:text-left">
-              O mais importante: não é só ter texto no site. Você precisa que o sistema realmente respeite isso: controlar acesso, separar dados por empresa, permitir exclusão/correção quando possível, guardar logs e deixar claro o que faz com os dados. A ANPD pode aplicar sanções em caso de descumprimento da LGPD, e o regulamento de dosimetria orienta como as penalidades são calculadas quando cabíveis.
-            </p>
+          <div className="mt-14 border-t border-border/50 pt-8 text-xs text-muted-foreground">
             <div className="flex flex-col items-center justify-between gap-4 md:flex-row">
-            <p>© HappyCash. Todos os direitos reservados.</p>
-            <nav className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2">
+              <p>© HappyCash. Todos os direitos reservados.</p>
+              <nav className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2">
                 <a
                   href={LEGAL_MODAL_DOCUMENTS.privacy.path}
                   className="hover:text-primary transition-colors"
                   onClick={(event) => openLegalModal(event, "privacy")}
                 >
-                Política de Privacidade
-              </a>
+                  Política de Privacidade
+                </a>
                 <a
                   href={LEGAL_MODAL_DOCUMENTS.terms.path}
                   className="hover:text-primary transition-colors"
                   onClick={(event) => openLegalModal(event, "terms")}
                 >
-                Termos de Uso
-              </a>
+                  Termos de Uso
+                </a>
                 <a
                   href={LEGAL_MODAL_DOCUMENTS.lgpd.path}
                   className="hover:text-primary transition-colors"
                   onClick={(event) => openLegalModal(event, "lgpd")}
                 >
-                LGPD
-              </a>
-            </nav>
+                  LGPD
+                </a>
+              </nav>
             </div>
           </div>
         </div>

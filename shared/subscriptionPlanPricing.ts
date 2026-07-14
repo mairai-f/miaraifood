@@ -8,18 +8,18 @@ export interface CommercialPlanPricing {
 
 export const commercialPaidPlanPricing: Record<CommercialPaidPlanId, CommercialPlanPricing> = {
   fiado: {
-    monthlyPrice: 79.9,
-    annualPrice: 799,
+    monthlyPrice: 20,
+    annualPrice: 200,
     durationDays: 30,
   },
   completo: {
-    monthlyPrice: 119.99,
-    annualPrice: 1199.9,
+    monthlyPrice: 70,
+    annualPrice: 700,
     durationDays: 30,
   },
   pro: {
-    monthlyPrice: 159.99,
-    annualPrice: 1599.9,
+    monthlyPrice: 130,
+    annualPrice: 1300,
     durationDays: 30,
   },
   agenda: {

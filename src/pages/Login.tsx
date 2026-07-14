@@ -2,7 +2,6 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { useAuth } from '@/contexts/AuthContext';
 import { motion } from 'framer-motion';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -12,7 +11,12 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Eye, EyeOff, Fingerprint, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
-import happyCashLogo from '@/assets/happycash-logo.webp';
+import { cn } from '@/lib/utils';
+import happyCashLogo from '@/assets/login/happycash.svg';
+import loginPdvRapido from '@/assets/login/pdvrapido.svg';
+import loginRelatorios from '@/assets/login/relatorios.svg';
+import loginErp from '@/assets/login/erp.svg';
+import loginEstoque from '@/assets/login/estoque.svg';
 import {
   applySystemSessionPreference,
   getSystemLoginPreferences,
@@ -22,6 +26,7 @@ import { clearDesktopActivation, readDesktopActivation } from '@/lib/desktopActi
 import { getPasskeySupportErrorMessage } from '@/lib/passkeys';
 import { readOfflineAdminAccess } from '@/lib/offlineAdminAccess';
 import { LanguageSwitcher } from '../../shared/locale/LanguageSwitcher';
+import { useLocale } from '../../shared/locale/useLocale';
 import type { Database } from '@/integrations/supabase/types';
 import { getOperatorCredentialError } from '../../shared/security/operatorCredential';
 import { requestTurnstileToken } from '../../shared/security/turnstile';
@@ -56,7 +61,15 @@ const operatorRecoveryClient = createClient<Database>(
   },
 );
 
+const loginFeatureCards = [
+  { label: 'PDV Rápido', image: loginPdvRapido, imageClassName: 'w-full scale-[1.6]' },
+  { label: 'Relatórios', image: loginRelatorios, imageClassName: 'w-full scale-[1.6]' },
+  { label: 'ERP', image: loginErp, imageClassName: 'relative left-4 w-full scale-[1.6]' },
+  { label: 'Estoque', image: loginEstoque, imageClassName: 'w-full scale-[1.6]' },
+];
+
 export default function Login() {
+  const { locale } = useLocale();
   const initialPreferences = getSystemLoginPreferences();
   const desktopActivation = readDesktopActivation();
   const offlineAdminAccess = desktopActivation?.ownerUserId
@@ -379,60 +392,95 @@ export default function Login() {
   };
 
   return (
-    <div className="relative h-[100svh] overflow-hidden bg-[#050505] px-3 py-2 sm:px-4 sm:py-3">
-      <LanguageSwitcher />
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(250,204,21,0.18),_transparent_35%),radial-gradient(circle_at_bottom_right,_rgba(245,158,11,0.12),_transparent_42%)]" />
-      <div className="relative mx-auto flex h-full w-full max-w-[23rem] items-center justify-center sm:max-w-sm">
+    <div className="h-[100dvh] overflow-hidden bg-[#eef3fb]">
+      <LanguageSwitcher className="left-1/2 top-[calc(env(safe-area-inset-top,0px)+0.45rem)] right-auto bottom-auto -translate-x-1/2 sm:hidden" />
+      <LanguageSwitcher className="hidden sm:flex top-[calc(env(safe-area-inset-top,0px)+1rem)] right-4 bottom-auto left-auto translate-x-0" />
+      <div className="grid h-full lg:grid-cols-[minmax(0,0.98fr)_minmax(0,1.02fr)]">
         <motion.div
           initial={{ opacity: 0, scale: 0.97, y: 20 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           transition={{ duration: 0.45, type: 'spring' }}
-          className="w-full"
+          className="relative hidden overflow-hidden bg-[linear-gradient(180deg,#5e79ff_0%,#5571f4_48%,#4d69e8_100%)] px-8 py-8 text-white lg:flex lg:items-start lg:justify-center xl:px-14"
         >
-          <div className="mb-2 text-center">
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(255,255,255,0.18),_transparent_34%),radial-gradient(circle_at_bottom_right,_rgba(23,37,84,0.16),_transparent_40%)]" />
+          <div className="relative flex w-full max-w-[32rem] flex-col items-center pt-6 text-center xl:pt-8">
             <motion.img
               src={happyCashLogo}
               alt="HappyCash"
-              className="mx-auto h-auto w-[clamp(4.75rem,18vh,7.75rem)] max-w-full object-contain"
-              width={768}
-              height={512}
+              className="h-auto w-full max-w-[22rem] object-contain xl:max-w-[25rem]"
               loading="eager"
-              fetchpriority="high"
               decoding="async"
               animate={{ y: [0, -8, 0] }}
               transition={{ duration: 4.2, repeat: Infinity, ease: 'easeInOut' }}
             />
-            <p className="mt-1 text-[8px] font-semibold uppercase tracking-[0.16em] text-yellow-200/80 sm:text-[9px]">
-              Sistema PDV • Vendas • Controle • Gestão
-            </p>
+            <div className="mt-10 grid w-full max-w-[29rem] grid-cols-2 gap-x-10 gap-y-8">
+              {loginFeatureCards.map((feature) => (
+                <div key={feature.label} className="flex flex-col items-center gap-1 text-center">
+                  <div className="flex h-[7.5rem] w-[10rem] items-center justify-center overflow-visible">
+                    <img
+                      src={feature.image}
+                      alt={feature.label}
+                      className={cn(
+                        'h-auto max-w-none object-contain drop-shadow-[0_18px_30px_rgba(21,41,113,0.22)]',
+                        feature.imageClassName,
+                      )}
+                      loading="eager"
+                      decoding="async"
+                    />
+                  </div>
+                  <span className="w-[10rem] -mt-1 text-center text-[1.34rem] font-medium leading-tight tracking-[-0.02em] text-white/96">
+                    {feature.label}
+                  </span>
+                </div>
+              ))}
+            </div>
           </div>
+        </motion.div>
 
-          <Card className="border-yellow-400/15 bg-black/45 shadow-[0_24px_60px_rgba(0,0,0,0.35)] backdrop-blur-md">
-            <CardHeader className="space-y-1 px-4 pb-2 pt-3 text-center sm:px-5">
-              <CardTitle className="text-base font-bold tracking-wide text-yellow-300 sm:text-lg">Entrar</CardTitle>
-              <p className="text-[10px] text-muted-foreground sm:text-[11px]">
-                Administrador entra com email. Operador e garcom entram com usuario e senha ou PIN.
-              </p>
+        <main className="relative flex h-full items-center justify-center overflow-hidden bg-[#f8fbff] px-4 py-4 sm:px-6 sm:py-6 lg:px-10 lg:py-8 xl:px-16">
+          <div className="absolute inset-y-0 left-0 hidden w-px bg-[linear-gradient(180deg,rgba(77,105,232,0.16),rgba(77,105,232,0.05),transparent)] lg:block" />
+          <motion.div
+            initial={{ opacity: 0, scale: 0.97, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            transition={{ duration: 0.45, type: 'spring' }}
+            className="w-full max-w-[28rem] max-[360px]:origin-center max-[360px]:scale-[0.93]"
+          >
+            <div className="rounded-[28px] border border-[#d7e0ef] bg-white/88 px-4 py-3 shadow-[0_26px_70px_rgba(29,78,216,0.12)] backdrop-blur-xl sm:p-6">
+              <div className="space-y-1.5 pb-0 text-center lg:hidden">
+                <img
+                  src={happyCashLogo}
+                  alt="HappyCash"
+                  className="mx-auto h-auto w-full max-w-[15.25rem] object-contain sm:max-w-[16rem]"
+                  loading="eager"
+                  decoding="async"
+                />
+                <p className="mx-auto max-w-[17rem] text-[14px] font-semibold leading-snug tracking-[-0.02em] text-[#1f56a5] sm:max-w-[17rem] sm:text-[15px]">
+                  {locale === 'pt-BR' ? 'Tecnologia simples para sua empresa.' : 'Simple technology for your business.'}
+                </p>
+              </div>
+
+              <div className="mt-2.5 sm:mt-3">
+                <h1 className="text-[1.68rem] font-bold leading-none tracking-[-0.04em] text-[#1f56a5] sm:text-[2.2rem]">
+                  Bem-vindo de volta
+                </h1>
+                <p className="mt-1 text-[14px] text-[#64748b] sm:mt-1.5 sm:text-base">
+                  Faça login para continuar
+                </p>
+              </div>
+
               {desktopActivation && (
-                <div className="mt-1.5 rounded-lg border border-primary/20 bg-primary/5 px-3 py-1.5 text-left text-[10px] leading-snug text-muted-foreground sm:text-[11px]">
-                  <p className="font-semibold text-foreground">{desktopActivation.companyName}</p>
+                <div className="mt-4 rounded-[20px] border border-[#d9e3f2] bg-[#f4f7fc] px-4 py-3 text-left text-[13px] leading-5 text-[#5f6f86] sm:text-sm sm:leading-6">
+                  <p className="font-semibold text-[#24324a]">{desktopActivation.companyName}</p>
                   {!isDesktop && (
-                    <p className="mt-1">
+                    <p className="mt-1.5">
                       {offlineAdminAvailable
                         ? 'Empresa reconhecida nesta maquina. Ao entrar online, o desktop baixa os dados da loja e atualiza a copia local para uso offline.'
                         : 'Empresa reconhecida nesta maquina. No primeiro acesso, entre como administrador com email e senha para cadastrar o usuario admin offline desta maquina.'}
                     </p>
                   )}
-                  {isDesktop && (
-                    <p className="mt-0.5">
-                    {offlineAdminAvailable
-                        ? 'Entre online para atualizar os dados locais ou offline se a internet caiu.'
-                        : 'Entre como administrador online para configurar usuario, PIN e dados offline.'}
-                    </p>
-                  )}
                   <button
                     type="button"
-                    className="mt-1 text-primary transition-colors hover:text-primary/80"
+                    className="mt-2 text-sm font-semibold text-[#1f56a5] transition-colors hover:text-[#194788]"
                     onClick={() => {
                       clearDesktopActivation();
                       window.location.reload();
@@ -442,73 +490,85 @@ export default function Login() {
                   </button>
                 </div>
               )}
-            </CardHeader>
-            <CardContent className="max-h-[calc(100svh-12.75rem)] overflow-y-auto px-4 pb-3 sm:px-5">
-              <Tabs value={loginMode} onValueChange={value => setLoginMode(value as LoginMode)} className="w-full">
-                <TabsList className="mb-2 grid h-8 w-full grid-cols-2 bg-zinc-900/70 p-1">
-                  <TabsTrigger value="admin">Administrador</TabsTrigger>
-                  <TabsTrigger value="operator" disabled={Boolean(desktopActivation && !offlineAdminAvailable)}>
+              {!isOnline && !offlineAdminAvailable && (
+                <div className="mt-4 rounded-[20px] border border-red-200 bg-red-50 px-4 py-3 text-[13px] leading-5 text-red-700 sm:text-sm sm:leading-6">
+                  Esta maquina ainda nao tem usuario admin offline configurado. Conecte a internet, entre com email e senha e finalize o cadastro local.
+                </div>
+              )}
+
+              <Tabs value={loginMode} onValueChange={value => setLoginMode(value as LoginMode)} className="mt-3.5 w-full sm:mt-5">
+                <TabsList className="grid h-10 w-full grid-cols-2 rounded-[18px] bg-[#eef2f8] p-1 text-[#7b879d] sm:h-11">
+                  <TabsTrigger
+                    value="admin"
+                    className="rounded-[14px] text-[13px] font-semibold data-[state=active]:bg-[#1f56a5] data-[state=active]:text-white data-[state=active]:shadow-none sm:text-sm"
+                  >
+                    Administrador
+                  </TabsTrigger>
+                  <TabsTrigger
+                    value="operator"
+                    disabled={Boolean(desktopActivation && !offlineAdminAvailable)}
+                    className="rounded-[14px] text-[13px] font-semibold data-[state=active]:bg-[#1f56a5] data-[state=active]:text-white data-[state=active]:shadow-none sm:text-sm"
+                  >
                     Operacional
                   </TabsTrigger>
                 </TabsList>
 
-                <TabsContent value="admin" className="mt-0">
-                  <form onSubmit={handleAdminSubmit} className="space-y-2.5 sm:space-y-3" autoComplete="off">
+                <TabsContent value="admin" className="mt-3.5 sm:mt-5">
+                  <form onSubmit={handleAdminSubmit} className="space-y-3 sm:space-y-4" autoComplete="off">
                     {offlineAdminAvailable && (
-                      <div className="rounded-lg border border-primary/20 bg-primary/5 p-1.5">
-                        <div className="grid grid-cols-2 gap-2">
+                      <div className="rounded-[20px] border border-[#d9e3f2] bg-[#f4f7fc] p-3">
+                        <div className="grid grid-cols-2 gap-3">
                           <Button
                             type="button"
-                            variant={adminAccessMode === 'online' ? 'default' : 'outline'}
-                            className="h-8 text-xs"
+                            variant="ghost"
+                            className={cn(
+                              'h-10 rounded-2xl border text-sm font-semibold shadow-none',
+                              adminAccessMode === 'online'
+                                ? 'border-[#1f56a5] bg-[#1f56a5] text-white hover:bg-[#194788] hover:text-white'
+                                : 'border-[#d6deec] bg-white text-[#5f6f86] hover:bg-[#edf3fb] hover:text-[#24324a]',
+                            )}
                             onClick={() => setAdminAccessMode('online')}
                           >
                             Email e senha
                           </Button>
                           <Button
                             type="button"
-                            variant={adminAccessMode === 'offline' ? 'default' : 'outline'}
-                            className="h-8 text-xs"
+                            variant="ghost"
+                            className={cn(
+                              'h-10 rounded-2xl border text-sm font-semibold shadow-none',
+                              adminAccessMode === 'offline'
+                                ? 'border-[#1f56a5] bg-[#1f56a5] text-white hover:bg-[#194788] hover:text-white'
+                                : 'border-[#d6deec] bg-white text-[#5f6f86] hover:bg-[#edf3fb] hover:text-[#24324a]',
+                            )}
                             onClick={() => setAdminAccessMode('offline')}
                           >
-                            Usuario e PIN
+                            Usuário e PIN
                           </Button>
                         </div>
-                        <p className="mt-1.5 px-1 text-[10px] leading-snug text-muted-foreground sm:text-[11px]">
-                          {adminAccessMode === 'offline'
-                            ? 'Use o usuario admin local e o PIN desta maquina. Se os dados ainda nao foram baixados, o sistema avisara para conectar a internet.'
-                            : 'Use o email e a senha da conta administradora. O desktop vai baixar e salvar os dados locais para o offline.'}
-                        </p>
-                      </div>
-                    )}
-
-                    {!isOnline && !offlineAdminAvailable && (
-                      <div className="rounded-xl border border-destructive/25 bg-destructive/5 px-3 py-2 text-xs text-destructive">
-                        Esta maquina ainda nao tem usuario admin offline configurado. Conecte a internet, entre com email e senha e finalize o cadastro local.
                       </div>
                     )}
 
                     {adminAccessMode === 'offline' ? (
                       <>
-                        <div className="space-y-1.5">
-                          <Label>Usuario admin</Label>
+                        <div className="space-y-2">
+                          <Label className="text-[15px] font-medium text-[#24324a]">Usuário admin</Label>
                           <Input
                             id="happycash-admin-offline-username"
                             name="happycash-admin-offline-username"
                             value={adminOfflineUsername}
                             onChange={e => setAdminOfflineUsername(e.target.value)}
                             required
-                            placeholder="Ex: admin.loja"
+                            placeholder="Digite seu usuario"
                             autoComplete="off"
                             autoCapitalize="none"
                             autoCorrect="off"
                             data-lpignore="true"
                             data-1p-ignore="true"
-                            className="h-9 sm:h-10"
+                            className="h-10 rounded-2xl border-[#d8e1ef] bg-white px-4 text-[15px] text-[#24324a] placeholder:text-[#9aa6b8] focus-visible:ring-[#1f56a5]/25 focus-visible:ring-offset-0 sm:h-11"
                           />
                         </div>
-                        <div className="space-y-1.5">
-                          <Label>PIN offline</Label>
+                        <div className="space-y-2">
+                          <Label className="text-[15px] font-medium text-[#24324a]">PIN offline</Label>
                           <div className="relative">
                             <Input
                               id="happycash-admin-offline-pin"
@@ -517,17 +577,17 @@ export default function Login() {
                               value={adminOfflinePin}
                               onChange={e => setAdminOfflinePin(e.target.value)}
                               required
-                              placeholder="••••"
+                              placeholder="Digite seu PIN"
                               autoComplete="off"
                               inputMode="numeric"
                               data-lpignore="true"
                               data-1p-ignore="true"
-                              className="h-9 pr-10 sm:h-10"
+                              className="h-10 rounded-2xl border-[#d8e1ef] bg-white px-4 pr-12 text-[15px] text-[#24324a] placeholder:text-[#9aa6b8] focus-visible:ring-[#1f56a5]/25 focus-visible:ring-offset-0 sm:h-11"
                             />
                             <button
                               type="button"
                               onClick={() => setShowAdminPassword(current => !current)}
-                              className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground"
+                              className="absolute right-4 top-1/2 -translate-y-1/2 text-[#7f8ea5] transition-colors hover:text-[#24324a]"
                               aria-label={showAdminPassword ? 'Ocultar PIN' : 'Mostrar PIN'}
                             >
                               {showAdminPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -537,8 +597,8 @@ export default function Login() {
                       </>
                     ) : (
                       <>
-                        <div className="space-y-1.5">
-                          <Label>Email</Label>
+                        <div className="space-y-2">
+                          <Label className="text-[15px] font-medium text-[#24324a]">E-mail</Label>
                           <Input
                             id="happycash-admin-email"
                             name="happycash-admin-email"
@@ -546,26 +606,26 @@ export default function Login() {
                             value={email}
                             onChange={e => setEmail(e.target.value)}
                             required
-                            placeholder="usuario@happycash.com"
+                            placeholder="Digite seu e-mail"
                             autoComplete="off"
                             autoCapitalize="none"
                             autoCorrect="off"
                             spellCheck={false}
                             data-lpignore="true"
                             data-1p-ignore="true"
-                            className="h-9 sm:h-10"
+                            className="h-10 rounded-2xl border-[#d8e1ef] bg-white px-4 text-[15px] text-[#24324a] placeholder:text-[#9aa6b8] focus-visible:ring-[#1f56a5]/25 focus-visible:ring-offset-0 sm:h-11"
                           />
                         </div>
-                        <div className="space-y-1.5">
+                        <div className="space-y-2">
                           <div className="flex items-center justify-between gap-3">
-                            <Label>Senha</Label>
+                            <Label className="text-[15px] font-medium text-[#24324a]">Senha</Label>
                             <button
                               type="button"
                               onClick={() => {
                                 setResetEmail(email.trim());
                                 setResetOpen(true);
                               }}
-                              className="shrink-0 text-xs text-muted-foreground transition-colors hover:text-yellow-300"
+                              className="shrink-0 text-sm font-medium text-[#64748b] transition-colors hover:text-[#1f56a5]"
                             >
                               Esqueci a senha
                             </button>
@@ -578,17 +638,17 @@ export default function Login() {
                               value={adminPassword}
                               onChange={e => setAdminPassword(e.target.value)}
                               required
-                              placeholder="••••••••"
+                              placeholder="Digite sua senha"
                               minLength={6}
                               autoComplete="new-password"
                               data-lpignore="true"
                               data-1p-ignore="true"
-                              className="h-9 pr-10 sm:h-10"
+                              className="h-10 rounded-2xl border-[#d8e1ef] bg-white px-4 pr-12 text-[15px] text-[#24324a] placeholder:text-[#9aa6b8] focus-visible:ring-[#1f56a5]/25 focus-visible:ring-offset-0 sm:h-11"
                             />
                             <button
                               type="button"
                               onClick={() => setShowAdminPassword(current => !current)}
-                              className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground"
+                              className="absolute right-4 top-1/2 -translate-y-1/2 text-[#7f8ea5] transition-colors hover:text-[#24324a]"
                               aria-label={showAdminPassword ? 'Ocultar senha' : 'Mostrar senha'}
                             >
                               {showAdminPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -597,33 +657,35 @@ export default function Login() {
                         </div>
                       </>
                     )}
-                    <div className="grid grid-cols-2 gap-2 pt-0.5">
-                      <div className="flex min-w-0 items-center gap-2">
+
+                    <div className="grid gap-2 pt-0.5 sm:gap-2.5 sm:grid-cols-2">
+                      <div className="flex min-w-0 items-center gap-2.5">
                         <Checkbox
                           id="remember-admin-account"
                           checked={rememberAccount}
                           onCheckedChange={checked => setRememberAccount(checked === true)}
-                          className="mt-0.5 border-yellow-400/60 data-[state=checked]:bg-yellow-400 data-[state=checked]:text-black"
+                          className="h-5 w-5 rounded-md border-[#a7b3c7] data-[state=checked]:border-[#1f56a5] data-[state=checked]:bg-[#1f56a5] data-[state=checked]:text-white"
                         />
-                        <Label htmlFor="remember-admin-account" className="cursor-pointer text-xs leading-none text-foreground sm:text-sm">
+                        <Label htmlFor="remember-admin-account" className="cursor-pointer text-[13px] leading-none text-[#334155] sm:text-sm">
                           Lembrar minha conta
                         </Label>
                       </div>
-                      <div className="flex min-w-0 items-center gap-2">
+                      <div className="flex min-w-0 items-center gap-2.5">
                         <Checkbox
                           id="keep-admin-connected"
                           checked={keepConnected}
                           onCheckedChange={checked => setKeepConnected(checked === true)}
-                          className="mt-0.5 border-yellow-400/60 data-[state=checked]:bg-yellow-400 data-[state=checked]:text-black"
+                          className="h-5 w-5 rounded-md border-[#a7b3c7] data-[state=checked]:border-[#1f56a5] data-[state=checked]:bg-[#1f56a5] data-[state=checked]:text-white"
                         />
-                        <Label htmlFor="keep-admin-connected" className="cursor-pointer text-xs leading-none text-foreground sm:text-sm">
+                        <Label htmlFor="keep-admin-connected" className="cursor-pointer text-[13px] leading-none text-[#334155] sm:text-sm">
                           Manter conectado
                         </Label>
                       </div>
                     </div>
+
                     <Button
                       type="submit"
-                      className="h-9 w-full px-4 text-center text-sm font-semibold text-black hover:bg-yellow-300 sm:h-10 bg-yellow-400"
+                      className="h-10 w-full rounded-2xl bg-[#1f56a5] px-4 text-base font-semibold text-white hover:bg-[#194788] sm:h-11"
                       disabled={submitting || oauthSubmitting || passkeySubmitting || (adminAccessMode === 'offline' && !offlineAdminAvailable)}
                     >
                       {submitting ? (
@@ -635,82 +697,88 @@ export default function Login() {
                         'Entrar'
                       )}
                     </Button>
-                    {canUsePasskeyLogin && (
-                      <>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          className="h-9 w-full border-yellow-400/30 bg-transparent text-sm font-semibold text-foreground hover:bg-yellow-400/10 sm:h-10"
-                          disabled={submitting || oauthSubmitting || passkeySubmitting}
-                          onClick={() => void handlePasskeyLogin()}
-                        >
-                          {passkeySubmitting ? (
-                            <>
-                              <Loader2 className="mr-2 animate-spin" />
-                              Validando biometria...
-                            </>
-                          ) : (
-                            <>
-                              <Fingerprint className="mr-2 h-4 w-4" />
-                              Entrar com biometria
-                            </>
-                          )}
-                        </Button>
-                        <p className="px-1 text-[10px] leading-snug text-muted-foreground sm:text-[11px]">
-                          Use depois de cadastrar a biometria em Configuracoes &gt; Empresa.
-                        </p>
-                      </>
-                    )}
-                    {canUseGoogleLogin && (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        className="h-9 w-full border-yellow-400/30 bg-transparent text-sm font-semibold text-foreground hover:bg-yellow-400/10 sm:h-10"
-                        disabled={submitting || oauthSubmitting || passkeySubmitting}
-                        onClick={() => void handleGoogleLogin()}
-                      >
-                        {oauthSubmitting ? (
-                          <>
-                            <Loader2 className="mr-2 animate-spin" />
-                            Redirecionando...
-                          </>
-                        ) : (
-                          'Continuar com Google'
+
+                    {(canUsePasskeyLogin || canUseGoogleLogin) && (
+                      <div className={cn('grid gap-3', canUsePasskeyLogin && canUseGoogleLogin ? 'sm:grid-cols-2' : 'grid-cols-1')}>
+                        {canUsePasskeyLogin && (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            className="h-10 rounded-2xl border-[#d6deec] bg-white text-sm font-semibold text-[#1f56a5] hover:bg-[#edf4ff]"
+                            disabled={submitting || oauthSubmitting || passkeySubmitting}
+                            onClick={() => void handlePasskeyLogin()}
+                          >
+                            {passkeySubmitting ? (
+                              <>
+                                <Loader2 className="mr-2 animate-spin" />
+                                Validando...
+                              </>
+                            ) : (
+                              <>
+                                <Fingerprint className="mr-2 h-4 w-4" />
+                                Biometria
+                              </>
+                            )}
+                          </Button>
                         )}
-                      </Button>
+                        {canUseGoogleLogin && (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            className="h-10 rounded-2xl border-[#d6deec] bg-white text-sm font-semibold text-[#1f56a5] hover:bg-[#edf4ff]"
+                            disabled={submitting || oauthSubmitting || passkeySubmitting}
+                            onClick={() => void handleGoogleLogin()}
+                          >
+                            {oauthSubmitting ? (
+                              <>
+                                <Loader2 className="mr-2 animate-spin" />
+                                Redirecionando...
+                              </>
+                            ) : (
+                              'Google'
+                            )}
+                          </Button>
+                        )}
+                      </div>
+                    )}
+
+                    {canUsePasskeyLogin && (
+                      <p className="px-1 text-[13px] leading-5 text-[#687991] sm:text-sm sm:leading-6">
+                        Use a biometria depois de cadastrar passkey em Configurações &gt; Empresa.
+                      </p>
                     )}
                   </form>
                 </TabsContent>
 
-                <TabsContent value="operator" className="mt-0">
-                  <form onSubmit={handleOperatorSubmit} className="space-y-2.5 sm:space-y-3" autoComplete="off">
-                    <div className="space-y-1.5">
-                      <Label>Usuário</Label>
+                <TabsContent value="operator" className="mt-3.5 sm:mt-5">
+                  <form onSubmit={handleOperatorSubmit} className="space-y-3 sm:space-y-4" autoComplete="off">
+                    <div className="space-y-2">
+                      <Label className="text-[15px] font-medium text-[#24324a]">Usuário</Label>
                       <Input
                         id="happycash-operator-username"
                         name="happycash-operator-username"
                         value={operatorUsername}
                         onChange={e => setOperatorUsername(e.target.value)}
                         required
-                        placeholder="Ex: operador.caixa"
+                        placeholder="Digite seu usuário"
                         autoComplete="off"
                         autoCapitalize="none"
                         autoCorrect="off"
                         spellCheck={false}
                         data-lpignore="true"
                         data-1p-ignore="true"
-                        className="h-9 sm:h-10"
+                        className="h-10 rounded-2xl border-[#d8e1ef] bg-white px-4 text-[15px] text-[#24324a] placeholder:text-[#9aa6b8] focus-visible:ring-[#1f56a5]/25 focus-visible:ring-offset-0 sm:h-11"
                       />
                     </div>
-                    <div className="space-y-1.5">
+                    <div className="space-y-2">
                       <div className="flex items-center justify-between gap-3">
-                        <Label>Senha ou PIN</Label>
+                        <Label className="text-[15px] font-medium text-[#24324a]">Senha ou PIN</Label>
                         <button
                           type="button"
                           onClick={() => setOperatorRecoveryOpen(true)}
-                          className="shrink-0 text-xs text-muted-foreground transition-colors hover:text-yellow-300"
+                          className="shrink-0 text-sm font-medium text-[#64748b] transition-colors hover:text-[#1f56a5]"
                         >
-                          Esqueci usuario ou PIN
+                          Esqueci usuário ou PIN
                         </button>
                       </div>
                       <div className="relative">
@@ -721,52 +789,49 @@ export default function Login() {
                           value={operatorPassword}
                           onChange={e => setOperatorPassword(e.target.value)}
                           required
-                          placeholder="••••••••"
+                          placeholder="Digite sua senha"
                           autoComplete="new-password"
                           data-lpignore="true"
                           data-1p-ignore="true"
-                          className="h-9 pr-10 sm:h-10"
+                          className="h-10 rounded-2xl border-[#d8e1ef] bg-white px-4 pr-12 text-[15px] text-[#24324a] placeholder:text-[#9aa6b8] focus-visible:ring-[#1f56a5]/25 focus-visible:ring-offset-0 sm:h-11"
                         />
                         <button
                           type="button"
                           onClick={() => setShowOperatorPassword(current => !current)}
-                          className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground"
+                          className="absolute right-4 top-1/2 -translate-y-1/2 text-[#7f8ea5] transition-colors hover:text-[#24324a]"
                           aria-label={showOperatorPassword ? 'Ocultar senha' : 'Mostrar senha'}
                         >
                           {showOperatorPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                         </button>
                       </div>
-                      <p className="text-[10px] leading-snug text-muted-foreground sm:text-[11px]">
-                        No primeiro login online, essa credencial fica vinculada ao administrador desta loja e a copia local dos dados e atualizada para operar offline.
-                      </p>
                     </div>
-                    <div className="grid grid-cols-2 gap-2 pt-0.5">
-                      <div className="flex min-w-0 items-center gap-2">
+                    <div className="grid gap-2 pt-0.5 sm:gap-2.5 sm:grid-cols-2">
+                      <div className="flex min-w-0 items-center gap-2.5">
                         <Checkbox
                           id="remember-operator-account"
                           checked={rememberAccount}
                           onCheckedChange={checked => setRememberAccount(checked === true)}
-                          className="mt-0.5 border-yellow-400/60 data-[state=checked]:bg-yellow-400 data-[state=checked]:text-black"
+                          className="h-5 w-5 rounded-md border-[#a7b3c7] data-[state=checked]:border-[#1f56a5] data-[state=checked]:bg-[#1f56a5] data-[state=checked]:text-white"
                         />
-                        <Label htmlFor="remember-operator-account" className="cursor-pointer text-xs leading-none text-foreground sm:text-sm">
+                        <Label htmlFor="remember-operator-account" className="cursor-pointer text-[13px] leading-none text-[#334155] sm:text-sm">
                           Lembrar minha conta
                         </Label>
                       </div>
-                      <div className="flex min-w-0 items-center gap-2">
+                      <div className="flex min-w-0 items-center gap-2.5">
                         <Checkbox
                           id="keep-operator-connected"
                           checked={keepConnected}
                           onCheckedChange={checked => setKeepConnected(checked === true)}
-                          className="mt-0.5 border-yellow-400/60 data-[state=checked]:bg-yellow-400 data-[state=checked]:text-black"
+                          className="h-5 w-5 rounded-md border-[#a7b3c7] data-[state=checked]:border-[#1f56a5] data-[state=checked]:bg-[#1f56a5] data-[state=checked]:text-white"
                         />
-                        <Label htmlFor="keep-operator-connected" className="cursor-pointer text-xs leading-none text-foreground sm:text-sm">
+                        <Label htmlFor="keep-operator-connected" className="cursor-pointer text-[13px] leading-none text-[#334155] sm:text-sm">
                           Manter conectado
                         </Label>
                       </div>
                     </div>
                     <Button
                       type="submit"
-                      className="h-9 w-full px-4 text-center text-sm font-semibold text-black hover:bg-yellow-300 sm:h-10 bg-yellow-400"
+                      className="h-10 w-full rounded-2xl bg-[#1f56a5] px-4 text-base font-semibold text-white hover:bg-[#194788] sm:h-11"
                       disabled={submitting}
                     >
                       {submitting ? (
@@ -781,9 +846,9 @@ export default function Login() {
                   </form>
                 </TabsContent>
               </Tabs>
-            </CardContent>
-          </Card>
-        </motion.div>
+            </div>
+          </motion.div>
+        </main>
       </div>
 
       <Dialog open={resetOpen} onOpenChange={setResetOpen}>

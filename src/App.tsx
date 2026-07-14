@@ -74,8 +74,8 @@ function AppRoutes() {
       return;
     }
 
-    const stepValues = [25, 50, 75];
-    const stepDelay = 420;
+    const stepValues = [22, 44, 66, 88];
+    const stepDelay = 620;
     const timerIds: number[] = [];
 
     stepValues.forEach((stepValue, index) => {
@@ -96,17 +96,17 @@ function AppRoutes() {
   }, []);
 
   useEffect(() => {
-    if (!shouldBlockSplash) {
+    if (!shouldBlockSplash && minimumSplashDone) {
       setProgress(100);
     }
-  }, [shouldBlockSplash]);
+  }, [minimumSplashDone, shouldBlockSplash]);
 
   useEffect(() => {
     if (!shouldBlockSplash && minimumSplashDone) {
       const hideTimer = window.setTimeout(() => {
         markAppSplashSeen();
         setShowSplash(false);
-      }, 260);
+      }, 820);
       return () => window.clearTimeout(hideTimer);
     }
   }, [minimumSplashDone, shouldBlockSplash]);

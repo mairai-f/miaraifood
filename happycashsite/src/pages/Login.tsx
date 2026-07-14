@@ -1,11 +1,11 @@
 import { useState, type FormEvent } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { Eye, EyeOff, Loader2 } from 'lucide-react';
+import { motion } from 'framer-motion';
 
 import { supabase } from '@/integrations/supabase/client';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -17,7 +17,11 @@ import {
   saveSiteLoginPreferences,
 } from '@/lib/authSessionPreferences';
 import { isPublicPlanId, publicPlanContent } from '@/lib/subscriptionPlans';
-import logo from '@/assets/logo-happycash.webp';
+import happyCashLogo from '../../../src/assets/login/happycash.svg';
+import loginPdvRapido from '../../../src/assets/login/pdvrapido.svg';
+import loginRelatorios from '../../../src/assets/login/relatorios.svg';
+import loginErp from '../../../src/assets/login/erp.svg';
+import loginEstoque from '../../../src/assets/login/estoque.svg';
 import { LanguageSwitcher } from '../../../shared/locale/LanguageSwitcher';
 import { getPublicAuthErrorMessage } from '../../../shared/security/redaction';
 import { requestTurnstileToken } from '../../../shared/security/turnstile';
@@ -34,6 +38,13 @@ const resolveSafeNextPath = (value: string | null) => {
   if (!value || !value.startsWith('/') || value.startsWith('//')) return null;
   return value;
 };
+
+const loginFeatureCards = [
+  { label: 'PDV Rápido', image: loginPdvRapido, imageClassName: 'w-full scale-[1.6]' },
+  { label: 'Relatórios', image: loginRelatorios, imageClassName: 'w-full scale-[1.6]' },
+  { label: 'ERP', image: loginErp, imageClassName: 'relative left-4 w-full scale-[1.6]' },
+  { label: 'Estoque', image: loginEstoque, imageClassName: 'w-full scale-[1.6]' },
+];
 
 const Login = () => {
   const [initialPreferences] = useState(getSiteLoginPreferences);
@@ -211,38 +222,80 @@ const Login = () => {
   };
 
   return (
-    <div className="relative h-[100svh] overflow-hidden bg-[#050505] px-3 py-2 sm:px-4 sm:py-3">
-      <LanguageSwitcher />
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(250,204,21,0.18),_transparent_35%),radial-gradient(circle_at_bottom_right,_rgba(245,158,11,0.12),_transparent_42%)]" />
-      <div className="relative mx-auto flex h-full w-full max-w-[23rem] items-center justify-center sm:max-w-sm">
-        <div className="w-full">
-          <div className="mb-2 text-center sm:mb-3">
-            <img
-              src={logo}
+    <div className="h-[100dvh] overflow-hidden bg-[#eef3fb]">
+      <LanguageSwitcher className="left-1/2 top-[calc(env(safe-area-inset-top,0px)+0.45rem)] right-auto bottom-auto -translate-x-1/2 sm:hidden" />
+      <LanguageSwitcher className="hidden sm:flex top-[calc(env(safe-area-inset-top,0px)+1rem)] right-4 bottom-auto left-auto translate-x-0" />
+      <div className="grid h-full lg:grid-cols-[minmax(0,0.98fr)_minmax(0,1.02fr)]">
+        <section className="relative hidden overflow-hidden bg-[linear-gradient(180deg,#5e79ff_0%,#5571f4_48%,#4d69e8_100%)] px-8 py-8 text-white lg:flex lg:items-start lg:justify-center xl:px-14">
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(255,255,255,0.18),_transparent_34%),radial-gradient(circle_at_bottom_right,_rgba(23,37,84,0.16),_transparent_40%)]" />
+          <div className="relative flex w-full max-w-[32rem] flex-col items-center pt-6 text-center xl:pt-8">
+            <motion.img
+              src={happyCashLogo}
               alt="HappyCash"
-              className="mx-auto h-auto w-[clamp(6.25rem,28vw,10rem)] max-w-full object-contain"
+              className="h-auto w-full max-w-[22rem] object-contain xl:max-w-[25rem]"
+              loading="eager"
+              decoding="async"
+              animate={{ y: [0, -8, 0] }}
+              transition={{ duration: 4.2, repeat: Infinity, ease: 'easeInOut' }}
             />
-            <p className="mt-1.5 text-[9px] font-semibold uppercase tracking-[0.18em] text-yellow-200/80 sm:mt-2 sm:text-[10px] sm:tracking-[0.24em]">
-              Sistema PDV • Vendas • Controle • Gestao
+            <p className="mt-3 max-w-[18rem] text-sm font-semibold tracking-[-0.02em] text-white/90 xl:text-[15px]">
+              Tecnologia simples para sua empresa.
             </p>
-            <p className="mx-auto mt-1 max-w-[18rem] text-[11px] text-muted-foreground sm:text-xs">
-              {selectedPlan
-                ? `Depois do login, voce pode ativar o ${selectedPlan.name}.`
-                : 'Use seu email e senha para entrar no site e seguir para o produto contratado.'}
-            </p>
+            <div className="mt-10 grid w-full max-w-[29rem] grid-cols-2 gap-x-10 gap-y-8">
+              {loginFeatureCards.map((feature) => (
+                <div key={feature.label} className="flex flex-col items-center gap-1 text-center">
+                  <div className="flex h-[7.5rem] w-[10rem] items-center justify-center overflow-visible">
+                    <img
+                      src={feature.image}
+                      alt={feature.label}
+                      className={`h-auto max-w-none object-contain drop-shadow-[0_18px_30px_rgba(21,41,113,0.22)] ${feature.imageClassName}`}
+                      loading="eager"
+                      decoding="async"
+                    />
+                  </div>
+                  <span className="w-[10rem] -mt-1 text-center text-[1.34rem] font-medium leading-tight tracking-[-0.02em] text-white/96">
+                    {feature.label}
+                  </span>
+                </div>
+              ))}
+            </div>
           </div>
+        </section>
 
-          <Card className="border-yellow-400/15 bg-black/45 shadow-[0_24px_60px_rgba(0,0,0,0.35)] backdrop-blur-md">
-            <CardHeader className="px-4 pb-1 pt-3 text-center sm:px-5 sm:pt-4">
-              <CardTitle className="text-lg font-bold tracking-wide text-yellow-300 sm:text-xl">Entrar</CardTitle>
-              <p className="text-[11px] text-muted-foreground sm:text-xs">
-                {selectedPlan
-                  ? 'Acesse com seu email e senha para seguir com o plano escolhido.'
-                  : 'Acesse com seu email e senha para entrar na sua conta.'}
-              </p>
-            </CardHeader>
-            <CardContent className="px-4 pb-3 sm:px-5 sm:pb-4">
-              <form onSubmit={handleLogin} className="space-y-2.5 sm:space-y-3">
+        <main className="relative flex h-full items-center justify-center overflow-hidden bg-[#f8fbff] px-4 py-4 sm:px-6 sm:py-6 lg:px-10 lg:py-8 xl:px-16">
+          <div className="absolute inset-y-0 left-0 hidden w-px bg-[linear-gradient(180deg,rgba(77,105,232,0.16),rgba(77,105,232,0.05),transparent)] lg:block" />
+          <div className="w-full max-w-[28rem] max-[360px]:origin-center max-[360px]:scale-[0.94]">
+            <div className="rounded-[28px] border border-[#d7e0ef] bg-white/88 px-4 py-3 shadow-[0_26px_70px_rgba(29,78,216,0.12)] backdrop-blur-xl sm:p-6">
+              <div className="space-y-1.5 text-center lg:hidden">
+                <motion.img
+                  src={happyCashLogo}
+                  alt="HappyCash"
+                  className="mx-auto h-auto w-full max-w-[15.25rem] object-contain sm:max-w-[16rem]"
+                  loading="eager"
+                  decoding="async"
+                  animate={{ y: [0, -5, 0] }}
+                  transition={{ duration: 4.2, repeat: Infinity, ease: 'easeInOut' }}
+                />
+                <p className="mx-auto max-w-[17rem] text-[14px] font-semibold leading-snug tracking-[-0.02em] text-[#1f56a5] sm:max-w-[17rem] sm:text-[15px]">
+                  Tecnologia simples para sua empresa.
+                </p>
+              </div>
+
+              <div className="mt-2.5 sm:mt-3">
+                <h1 className="text-[1.68rem] font-bold leading-none tracking-[-0.04em] text-[#1f56a5] sm:text-[2.2rem]">
+                  Bem-vindo de volta
+                </h1>
+                <p className="mt-1 text-[14px] text-[#64748b] sm:mt-1.5 sm:text-base">
+                  Faça login para continuar
+                </p>
+                <p className="mt-2 max-w-[24rem] text-[13px] leading-5 text-[#687991] sm:text-sm sm:leading-6">
+                  {selectedPlan
+                    ? `Depois do login, voce pode ativar o ${selectedPlan.name}.`
+                    : 'Sua conta vale no site e no sistema HappyCash.'}
+                </p>
+              </div>
+
+              <form onSubmit={handleLogin} className="mt-4 space-y-3 sm:space-y-4">
                 {loginError && (
                   <Alert variant="destructive">
                     <AlertTitle>Falha ao entrar</AlertTitle>
@@ -251,32 +304,32 @@ const Login = () => {
                 )}
 
                 <div className="space-y-2">
-                  <Label htmlFor="email">Email</Label>
+                  <Label htmlFor="email" className="text-[15px] font-medium text-[#24324a]">E-mail</Label>
                   <Input
                     id="email"
                     type="email"
                     autoComplete="email"
-                    placeholder="usuario@happycash.com"
+                    placeholder="Digite seu e-mail"
                     value={email}
                     onChange={e => {
                       setEmail(e.target.value);
                       if (loginError) setLoginError(null);
                     }}
                     required
-                    className="h-10 border-border/70 bg-zinc-950/70 sm:h-11"
+                    className="h-10 rounded-2xl border-[#d8e1ef] bg-white px-4 text-[15px] text-[#24324a] placeholder:text-[#9aa6b8] focus-visible:ring-[#1f56a5]/25 focus-visible:ring-offset-0 sm:h-11"
                   />
                 </div>
 
                 <div className="space-y-2">
                   <div className="flex items-center justify-between gap-3">
-                    <Label htmlFor="password">Senha</Label>
+                    <Label htmlFor="password" className="text-[15px] font-medium text-[#24324a]">Senha</Label>
                     <button
                       type="button"
                       onClick={() => {
                         setResetEmail(normalizeEmail(email));
                         setResetOpen(true);
                       }}
-                      className="shrink-0 text-xs text-muted-foreground transition-colors hover:text-yellow-300"
+                      className="shrink-0 text-sm font-medium text-[#64748b] transition-colors hover:text-[#1f56a5]"
                     >
                       Esqueci a senha
                     </button>
@@ -286,19 +339,19 @@ const Login = () => {
                       id="password"
                       type={showPassword ? 'text' : 'password'}
                       autoComplete="current-password"
-                      placeholder="••••••••"
+                      placeholder="Digite sua senha"
                       value={password}
                       onChange={e => {
                         setPassword(e.target.value);
                         if (loginError) setLoginError(null);
                       }}
                       required
-                      className="h-10 border-border/70 bg-zinc-950/70 pr-10 sm:h-11"
+                      className="h-10 rounded-2xl border-[#d8e1ef] bg-white px-4 pr-12 text-[15px] text-[#24324a] placeholder:text-[#9aa6b8] focus-visible:ring-[#1f56a5]/25 focus-visible:ring-offset-0 sm:h-11"
                     />
                     <button
                       type="button"
                       onClick={() => setShowPassword(current => !current)}
-                      className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground"
+                      className="absolute right-4 top-1/2 -translate-y-1/2 text-[#7f8ea5] transition-colors hover:text-[#24324a]"
                       aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'}
                     >
                       {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -306,31 +359,31 @@ const Login = () => {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-2 pt-0.5">
-                  <div className="flex min-w-0 items-center gap-2">
+                <div className="grid gap-2 pt-0.5 sm:gap-2.5 sm:grid-cols-2">
+                  <div className="flex min-w-0 items-center gap-2.5">
                     <Checkbox
                       id="site-remember-account"
                       checked={rememberAccount}
                       onCheckedChange={checked => setRememberAccount(checked === true)}
-                      className="mt-0.5 border-yellow-400/60 data-[state=checked]:bg-yellow-400 data-[state=checked]:text-black"
+                      className="h-5 w-5 rounded-md border-[#a7b3c7] data-[state=checked]:border-[#1f56a5] data-[state=checked]:bg-[#1f56a5] data-[state=checked]:text-white"
                     />
                     <Label
                       htmlFor="site-remember-account"
-                      className="cursor-pointer text-xs leading-none text-foreground sm:text-sm"
+                      className="cursor-pointer text-[13px] leading-none text-[#334155] sm:text-sm"
                     >
                       Lembrar minha conta
                     </Label>
                   </div>
-                  <div className="flex min-w-0 items-center gap-2">
+                  <div className="flex min-w-0 items-center gap-2.5">
                     <Checkbox
                       id="site-keep-connected"
                       checked={keepConnected}
                       onCheckedChange={checked => setKeepConnected(checked === true)}
-                      className="mt-0.5 border-yellow-400/60 data-[state=checked]:bg-yellow-400 data-[state=checked]:text-black"
+                      className="h-5 w-5 rounded-md border-[#a7b3c7] data-[state=checked]:border-[#1f56a5] data-[state=checked]:bg-[#1f56a5] data-[state=checked]:text-white"
                     />
                     <Label
                       htmlFor="site-keep-connected"
-                      className="cursor-pointer text-xs leading-none text-foreground sm:text-sm"
+                      className="cursor-pointer text-[13px] leading-none text-[#334155] sm:text-sm"
                     >
                       Manter conectado
                     </Label>
@@ -340,7 +393,7 @@ const Login = () => {
                 <Button
                   type="submit"
                   disabled={loading || oauthLoading}
-                  className="h-10 w-full bg-yellow-400 px-4 text-sm font-semibold text-black hover:bg-yellow-300 sm:h-11"
+                  className="h-10 w-full rounded-2xl bg-[#1f56a5] px-4 text-base font-semibold text-white hover:bg-[#194788] sm:h-11"
                 >
                   {loading ? (
                     <>
@@ -351,12 +404,13 @@ const Login = () => {
                     'Entrar'
                   )}
                 </Button>
+
                 <Button
                   type="button"
                   variant="outline"
                   disabled={loading || oauthLoading}
                   onClick={() => void handleGoogleLogin()}
-                  className="h-10 w-full border-yellow-400/30 bg-transparent px-4 text-sm font-semibold text-foreground hover:bg-yellow-400/10 sm:h-11"
+                  className="h-10 w-full rounded-2xl border-[#d6deec] bg-white text-sm font-semibold text-[#1f56a5] hover:bg-[#edf4ff] sm:h-11"
                 >
                   {oauthLoading ? (
                     <>
@@ -370,26 +424,26 @@ const Login = () => {
               </form>
 
               <div className="mt-3 space-y-1.5 text-center text-xs sm:mt-4 sm:text-sm">
-                <p className="text-muted-foreground">
+                <p className="text-[#64748b]">
                   Nao tem conta?{' '}
                   <Link
                     to={selectedPlanQuery ? `/cadastro?${selectedPlanQuery}` : '/cadastro'}
-                    className="font-medium text-yellow-300 hover:underline"
+                    className="font-medium text-[#1f56a5] hover:underline"
                   >
                     Criar conta
                   </Link>
                 </p>
-                <Link to="/paginainicial" className="text-muted-foreground transition-colors hover:text-yellow-300">
+                <Link to="/paginainicial" className="text-[#64748b] transition-colors hover:text-[#1f56a5]">
                   Voltar ao site
                 </Link>
               </div>
-            </CardContent>
-          </Card>
-        </div>
+            </div>
+          </div>
+        </main>
       </div>
 
       <Dialog open={resetOpen} onOpenChange={setResetOpen}>
-        <DialogContent className="max-w-[calc(100vw-2rem)] border-yellow-400/15 bg-zinc-950 text-foreground sm:max-w-md">
+        <DialogContent className="max-w-[calc(100vw-2rem)] border border-[#d7e0ef] bg-white text-foreground shadow-[0_26px_70px_rgba(29,78,216,0.12)] sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Redefinir Senha</DialogTitle>
           </DialogHeader>
@@ -405,8 +459,8 @@ const Login = () => {
                 autoComplete="email"
                 value={resetEmail}
                 onChange={e => setResetEmail(e.target.value)}
-                placeholder="usuario@happycash.com"
-                className="border-border/70 bg-zinc-950/70"
+                placeholder="Digite seu e-mail"
+                className="border-[#d8e1ef] bg-white"
               />
             </div>
           </div>
@@ -415,7 +469,7 @@ const Login = () => {
               type="button"
               onClick={handleReset}
               disabled={resettingPassword}
-              className="bg-yellow-400 text-black hover:bg-yellow-300"
+              className="bg-[#1f56a5] text-white hover:bg-[#194788]"
             >
               {resettingPassword ? (
                 <>

@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { Loader2, Menu, X } from "lucide-react";
+import { useState } from "react";
+import { ChevronDown, Loader2, Menu, X } from "lucide-react";
 import { Link, useLocation, useSearchParams } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -9,16 +9,45 @@ import { startSiteLogout } from "@/lib/authSessionPreferences";
 import { useCurrentSubscription } from "@/hooks/use-current-subscription";
 import { isCurrentSubscription } from "@/lib/subscriptionStatus";
 import { isPublicPlanId, publicPlanContent } from "@/lib/subscriptionPlans";
-import logo from "@/assets/logo-happycash.webp";
+import happyCashLogo from "../../../../src/assets/login/happycash.svg";
+
+const solutionLinks = [
+  {
+    label: "Gestão e relatórios",
+    description: "Painel para acompanhar receita, caixa e decisão.",
+    href: "/sistema-de-gestao-de-negocios",
+  },
+  {
+    label: "Controle de fiado",
+    description: "Clientes, saldo, cobrança e histórico no mesmo fluxo.",
+    href: "/controle-de-fiado",
+  },
+  {
+    label: "Sistema PDV",
+    description: "Frente de caixa mais organizada para vender rápido.",
+    href: "/sistema-pdv",
+  },
+  {
+    label: "Controle de estoque",
+    description: "Entradas, saídas e estoque mínimo com visão clara.",
+    href: "/controle-de-estoque",
+  },
+  {
+    label: "HappyCash Agenda",
+    description: "Agendamentos, profissionais e clientes em uma agenda online.",
+    href: "/happycash-agenda",
+  },
+];
 
 const Header = () => {
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [scrolled, setScrolled] = useState(false);
+  const [mobileSolutionsOpen, setMobileSolutionsOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
   const location = useLocation();
   const [searchParams] = useSearchParams();
   const { user, isAuthenticated } = useAuthSession();
   const { subscription, countdown, loading: loadingSubscription } = useCurrentSubscription(user?.id);
+
   const selectedPlanId = (() => {
     const value = searchParams.get("plan");
     return isPublicPlanId(value) ? value : null;
@@ -27,8 +56,8 @@ const Header = () => {
   const selectedPlanQuery = selectedPlanId
     ? `plan=${selectedPlanId}${selectedBillingPeriod === "annual" ? "&period=annual" : ""}`
     : selectedBillingPeriod === "annual"
-    ? "period=annual"
-    : "";
+      ? "period=annual"
+      : "";
   const loginHref = selectedPlanQuery ? `/login?${selectedPlanQuery}` : "/login";
   const dashboardHref = selectedPlanQuery ? `/dashboard?${selectedPlanQuery}` : "/dashboard";
   const homeHref = selectedPlanQuery ? `/?${selectedPlanQuery}` : "/";
@@ -40,6 +69,7 @@ const Header = () => {
   );
   const showTestButton = !isAuthenticated || (!loadingSubscription && !hasActivePaidPlan);
   const demoHref = isAuthenticated ? "/dashboard#planos" : "/cadastro?plan=demo";
+  const demoSignupHref = "/cadastro?plan=demo";
   const currentPlanName = subscription?.plan_id && isPublicPlanId(subscription.plan_id)
     ? publicPlanContent[subscription.plan_id].name
     : null;
@@ -48,12 +78,16 @@ const Header = () => {
     : currentPlanName;
   const isHomePage = location.pathname === "/" || location.pathname === "/index" || location.pathname === "/paginainicial";
   const buildHomeSectionHref = (id: string) => (isHomePage ? `#${id}` : `/#${id}`);
+  const headerOutlineButtonClassName = "h-11 rounded-full border-[#d6deec] bg-white px-5 text-[#1f56a5] shadow-none hover:bg-[#edf4ff] hover:text-[#1f56a5]";
+  const headerPrimaryButtonClassName = "h-11 rounded-full bg-[#1f56a5] px-5 font-semibold text-white hover:bg-[#194788]";
+  const headerGhostButtonClassName = "h-11 rounded-full px-4 font-semibold text-[#1f56a5] hover:bg-[#edf4ff] hover:text-[#1f56a5]";
 
-  useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 50);
-    window.addEventListener("scroll", onScroll);
-    return () => window.removeEventListener("scroll", onScroll);
-  }, []);
+  const mainLinks = [
+    { label: "Funcionalidades", href: buildHomeSectionHref("funcionalidades") },
+    { label: "Demonstração", to: demoSignupHref },
+    { label: "Planos", href: buildHomeSectionHref("planos") },
+    { label: "FAQ", href: buildHomeSectionHref("faq") },
+  ];
 
   const handleLogout = () => {
     if (loggingOut) return;
@@ -63,128 +97,96 @@ const Header = () => {
     startSiteLogout(supabase, loginHref);
   };
 
-  const links = [
-    { label: "Gestão", href: "/sistema-de-gestao-de-negocios" },
-    { label: "Fiado Digital", href: "/caderneta-de-fiado-digital" },
-    { label: "Sistema PDV", href: "/sistema-pdv" },
-    { label: "HappyCash Agenda", href: "/happycash-agenda" },
-    { label: "Estoque", href: "/controle-de-estoque" },
-    { label: "Planos", href: buildHomeSectionHref("planos") },
-  ];
+  const closeMobileMenu = () => {
+    setMobileOpen(false);
+    setMobileSolutionsOpen(false);
+  };
 
   return (
-    <header className={`fixed top-0 left-0 right-0 z-50 transition-all duration-500 ${
-      scrolled 
-        ? "bg-background/95 backdrop-blur-xl border-b border-border/50 shadow-lg shadow-background/50" 
-        : "bg-transparent"
-    }`}>
-      <div className="container flex h-20 items-center justify-between">
-        <Link to={homeHref} className="flex items-center gap-2 group">
-          <img
-            src={logo}
-            alt="HappyCash"
-            className="h-11 w-auto transition-transform duration-300 group-hover:scale-105 md:h-14 lg:h-16"
-            width={768}
-            height={512}
-            loading="eager"
-            decoding="async"
-          />
-        </Link>
+    <header className="fixed inset-x-0 top-4 z-50 px-3 md:px-5">
+      <div className="mx-auto max-w-7xl rounded-[28px] border border-white/70 bg-white/82 shadow-[0_18px_60px_rgba(15,23,42,0.12)] backdrop-blur-xl">
+        <div className="flex h-[76px] items-center justify-between px-4 sm:px-5 lg:px-6">
+          <Link to={homeHref} className="flex h-11 items-center" aria-label="HappyCash">
+            <img
+              src={happyCashLogo}
+              alt="HappyCash"
+              className="block h-auto w-[11.75rem] object-contain sm:w-[12.75rem] lg:w-[13.5rem]"
+              loading="eager"
+              decoding="async"
+            />
+          </Link>
 
-        <nav className="hidden md:flex items-center gap-6 lg:gap-8">
-          {links.map((l) => (
-            <a
-              key={l.href}
-              href={l.href}
-              className="relative text-sm font-medium text-muted-foreground transition-colors hover:text-primary after:content-[''] after:absolute after:bottom-[-4px] after:left-0 after:w-0 after:h-[2px] after:bg-primary after:transition-all after:duration-300 hover:after:w-full"
-            >
-              {l.label}
-            </a>
-          ))}
-        </nav>
-
-        <div className="hidden md:flex items-center gap-2 lg:gap-3">
-          {isAuthenticated ? (
-            <>
-              {!loadingSubscription && subscriptionMarker && (
-                <Badge variant={countdown.badgeVariant} className="max-w-[260px] truncate">
-                  {subscriptionMarker}
-                </Badge>
-              )}
-              <span className="hidden max-w-[180px] truncate text-xs font-medium text-muted-foreground xl:block">
-                {user?.email}
-              </span>
-              <Button asChild variant="outline" size="sm">
-                <Link to={dashboardHref}>Minha conta</Link>
-              </Button>
-              {showTestButton && (
-                <Button asChild className="bg-primary text-primary-foreground font-semibold hover:bg-primary/90 transition-all duration-300 hover:shadow-lg hover:shadow-primary/30 hover:scale-105">
-                  <Link to={demoHref}>Testar grátis</Link>
-                </Button>
-              )}
-              <Button
+          <nav className="hidden items-center gap-3 lg:flex">
+            <div className="group relative">
+              <button
                 type="button"
-                variant="ghost"
-                size="sm"
-                className="font-semibold"
-                onClick={() => void handleLogout()}
-                disabled={loggingOut}
+                className="inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold text-foreground transition-colors hover:bg-[rgba(15,23,42,0.04)] hover:text-[var(--hc-blue)]"
               >
-                {loggingOut ? <Loader2 className="animate-spin" /> : null}
-                {loggingOut ? "Saindo..." : "Sair"}
-              </Button>
-            </>
-          ) : (
-            <>
-              <Button asChild variant="outline" size="sm">
-                <Link to={loginHref}>Entrar</Link>
-              </Button>
-              {showTestButton && (
-                <Button asChild className="bg-primary text-primary-foreground font-semibold hover:bg-primary/90 transition-all duration-300 hover:shadow-lg hover:shadow-primary/30 hover:scale-105">
-                  <Link to={demoHref}>Testar grátis</Link>
-                </Button>
-              )}
-            </>
-          )}
-        </div>
+                Soluções
+                <ChevronDown className="h-4 w-4" />
+              </button>
 
-        <button className="md:hidden text-foreground" onClick={() => setMobileOpen(!mobileOpen)}>
-          {mobileOpen ? <X size={24} /> : <Menu size={24} />}
-        </button>
-      </div>
+              <div className="pointer-events-none absolute left-0 top-[calc(100%+10px)] w-[370px] translate-y-2 rounded-[24px] border border-[rgba(15,23,42,0.08)] bg-white p-3 opacity-0 shadow-[0_24px_60px_rgba(15,23,42,0.14)] transition-all duration-200 group-hover:pointer-events-auto group-hover:translate-y-0 group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:translate-y-0 group-focus-within:opacity-100">
+                <div className="grid gap-2">
+                  {solutionLinks.map((item) => (
+                    <Link
+                      key={item.href}
+                      to={item.href}
+                      className="rounded-[18px] border border-transparent bg-[rgba(15,23,42,0.02)] px-4 py-3 transition-all duration-200 hover:border-[rgba(0,102,255,0.10)] hover:bg-[rgba(0,102,255,0.04)]"
+                    >
+                      <span className="text-sm font-semibold text-[#0A1251]">{item.label}</span>
+                      <span className="mt-1 block text-sm leading-6 text-slate-500">{item.description}</span>
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            </div>
 
-      {mobileOpen && (
-        <div className="md:hidden border-t border-border bg-background/95 backdrop-blur-xl animate-fade-in">
-          <nav className="container flex flex-col gap-4 py-6">
-            {links.map((l) => (
-              <a
-                key={l.href}
-                href={l.href}
-                className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors"
-                onClick={() => setMobileOpen(false)}
-              >
-                {l.label}
-              </a>
+            {mainLinks.map((item) => (
+              item.to ? (
+                <Link
+                  key={item.label}
+                  to={item.to}
+                  className="rounded-full px-4 py-2 text-sm font-semibold text-foreground transition-colors hover:bg-[rgba(15,23,42,0.04)] hover:text-[var(--hc-blue)]"
+                >
+                  {item.label}
+                </Link>
+              ) : (
+                <a
+                  key={item.href}
+                  href={item.href}
+                  className="rounded-full px-4 py-2 text-sm font-semibold text-foreground transition-colors hover:bg-[rgba(15,23,42,0.04)] hover:text-[var(--hc-blue)]"
+                >
+                  {item.label}
+                </a>
+              )
             ))}
+          </nav>
+
+          <div className="hidden items-center gap-2 lg:flex">
             {isAuthenticated ? (
               <>
-                {!loadingSubscription && subscriptionMarker && (
-                  <Badge variant={countdown.badgeVariant} className="w-fit">
+                {!loadingSubscription && subscriptionMarker ? (
+                  <Badge variant={countdown.badgeVariant} className="max-w-[260px] truncate rounded-full">
                     {subscriptionMarker}
                   </Badge>
-                )}
-                <Button asChild variant="outline" className="w-full">
-                  <Link to={dashboardHref} onClick={() => setMobileOpen(false)}>Minha conta</Link>
+                ) : null}
+                <span className="hidden max-w-[180px] truncate text-xs font-medium text-muted-foreground xl:block">
+                  {user?.email}
+                </span>
+                <Button asChild variant="outline" size="sm" className={headerOutlineButtonClassName}>
+                  <Link to={dashboardHref}>Minha conta</Link>
                 </Button>
-                {showTestButton && (
-                  <Button asChild className="w-full bg-primary text-primary-foreground font-semibold">
-                    <Link to={demoHref} onClick={() => setMobileOpen(false)}>Testar grátis</Link>
+                {showTestButton ? (
+                  <Button asChild className={headerPrimaryButtonClassName}>
+                    <Link to={demoHref}>Testar grátis</Link>
                   </Button>
-                )}
+                ) : null}
                 <Button
                   type="button"
                   variant="ghost"
-                  className="w-full font-semibold"
+                  size="sm"
+                  className={headerGhostButtonClassName}
                   onClick={() => void handleLogout()}
                   disabled={loggingOut}
                 >
@@ -194,22 +196,125 @@ const Header = () => {
               </>
             ) : (
               <>
-                <Button asChild variant="outline" className="w-full">
-                  <Link to={loginHref} onClick={() => setMobileOpen(false)}>Entrar</Link>
+                <Button asChild variant="outline" size="sm" className={headerOutlineButtonClassName}>
+                  <Link to={loginHref}>Entrar</Link>
                 </Button>
-                <Button asChild variant="outline" className="w-full font-semibold">
-                  <Link to={signupHref} onClick={() => setMobileOpen(false)}>Criar conta</Link>
-                </Button>
-                {showTestButton && (
-                  <Button asChild className="w-full bg-primary text-primary-foreground font-semibold">
-                    <Link to={demoHref} onClick={() => setMobileOpen(false)}>Testar grátis</Link>
+                {showTestButton ? (
+                  <Button asChild className={headerPrimaryButtonClassName}>
+                    <Link to={demoHref}>Testar grátis</Link>
                   </Button>
-                )}
+                ) : null}
               </>
             )}
-          </nav>
+          </div>
+
+          <button
+            type="button"
+            className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-[rgba(15,23,42,0.08)] text-foreground lg:hidden"
+            onClick={() => setMobileOpen((current) => !current)}
+            aria-label={mobileOpen ? "Fechar menu" : "Abrir menu"}
+          >
+            {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+          </button>
         </div>
-      )}
+
+        {mobileOpen ? (
+          <div className="border-t border-[rgba(15,23,42,0.08)] px-4 pb-5 pt-4 lg:hidden">
+            <div className="grid gap-2">
+              <button
+                type="button"
+                className="flex items-center justify-between rounded-[20px] border border-[rgba(15,23,42,0.08)] bg-[rgba(15,23,42,0.02)] px-4 py-3 text-left text-sm font-semibold text-[#0A1251]"
+                onClick={() => setMobileSolutionsOpen((current) => !current)}
+              >
+                Soluções
+                <ChevronDown className={`h-4 w-4 transition-transform ${mobileSolutionsOpen ? "rotate-180" : ""}`} />
+              </button>
+
+              {mobileSolutionsOpen ? (
+                <div className="grid gap-2 rounded-[22px] border border-[rgba(15,23,42,0.08)] bg-white p-3 shadow-[0_18px_48px_rgba(15,23,42,0.10)]">
+                  {solutionLinks.map((item) => (
+                    <Link
+                      key={item.href}
+                      to={item.href}
+                      className="rounded-[18px] border border-[rgba(15,23,42,0.05)] bg-[rgba(15,23,42,0.02)] px-4 py-3"
+                      onClick={closeMobileMenu}
+                    >
+                      <span className="text-sm font-semibold text-[#0A1251]">{item.label}</span>
+                      <span className="mt-1 block text-sm leading-6 text-slate-500">{item.description}</span>
+                    </Link>
+                  ))}
+                </div>
+              ) : null}
+
+              {mainLinks.map((item) => (
+                item.to ? (
+                  <Link
+                    key={item.label}
+                    to={item.to}
+                    className="rounded-[20px] border border-[rgba(15,23,42,0.08)] bg-[rgba(15,23,42,0.02)] px-4 py-3 text-sm font-semibold text-[#0A1251]"
+                    onClick={closeMobileMenu}
+                  >
+                    {item.label}
+                  </Link>
+                ) : (
+                  <a
+                    key={item.href}
+                    href={item.href}
+                    className="rounded-[20px] border border-[rgba(15,23,42,0.08)] bg-[rgba(15,23,42,0.02)] px-4 py-3 text-sm font-semibold text-[#0A1251]"
+                    onClick={closeMobileMenu}
+                  >
+                    {item.label}
+                  </a>
+                )
+              ))}
+
+              <div className="mt-2 grid gap-2">
+                {isAuthenticated ? (
+                  <>
+                    {!loadingSubscription && subscriptionMarker ? (
+                      <Badge variant={countdown.badgeVariant} className="w-fit rounded-full">
+                        {subscriptionMarker}
+                      </Badge>
+                    ) : null}
+                    <Button asChild variant="outline" className="h-12 rounded-full border-[#d6deec] bg-white text-[#1f56a5] shadow-none hover:bg-[#edf4ff] hover:text-[#1f56a5]">
+                      <Link to={dashboardHref} onClick={closeMobileMenu}>Minha conta</Link>
+                    </Button>
+                    {showTestButton ? (
+                      <Button asChild className="h-12 rounded-full bg-[#1f56a5] font-semibold text-white hover:bg-[#194788]">
+                        <Link to={demoHref} onClick={closeMobileMenu}>Testar grátis</Link>
+                      </Button>
+                    ) : null}
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      className="h-12 rounded-full font-semibold text-[#1f56a5] hover:bg-[#edf4ff] hover:text-[#1f56a5]"
+                      onClick={() => void handleLogout()}
+                      disabled={loggingOut}
+                    >
+                      {loggingOut ? <Loader2 className="animate-spin" /> : null}
+                      {loggingOut ? "Saindo..." : "Sair"}
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <Button asChild variant="outline" className="h-12 rounded-full border-[#d6deec] bg-white text-[#1f56a5] shadow-none hover:bg-[#edf4ff] hover:text-[#1f56a5]">
+                      <Link to={loginHref} onClick={closeMobileMenu}>Entrar</Link>
+                    </Button>
+                    <Button asChild variant="outline" className="h-12 rounded-full border-[#d6deec] bg-white font-semibold text-[#1f56a5] shadow-none hover:bg-[#edf4ff] hover:text-[#1f56a5]">
+                      <Link to={signupHref} onClick={closeMobileMenu}>Criar conta</Link>
+                    </Button>
+                    {showTestButton ? (
+                      <Button asChild className="h-12 rounded-full bg-[#1f56a5] font-semibold text-white hover:bg-[#194788]">
+                        <Link to={demoHref} onClick={closeMobileMenu}>Testar grátis</Link>
+                      </Button>
+                    ) : null}
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+        ) : null}
+      </div>
     </header>
   );
 };
