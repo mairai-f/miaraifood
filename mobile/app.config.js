@@ -7,7 +7,7 @@ module.exports = {
   expo: {
     name: isFoodContext ? 'HappyCashFood Mobile' : 'HappyCash Mobile',
     slug: isFoodContext ? 'happycashfood-mobile' : 'happycash-mobile',
-    version: '0.1.55',
+    version: '0.1.56',
     orientation: 'portrait',
     scheme: isFoodContext ? 'happycashfood' : 'happycash',
     userInterfaceStyle: 'dark',
