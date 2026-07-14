@@ -47,7 +47,7 @@ const Stats = () => {
     <section ref={ref} className="relative py-20 overflow-hidden">
       {/* Parallax gradient bg */}
       <div className="stats-bg absolute inset-0 bg-gradient-to-r from-primary/10 via-card to-secondary/10" />
-      <div className="absolute inset-0 bg-[linear-gradient(rgba(255,184,0,0.05)_1px,transparent_1px),linear-gradient(90deg,rgba(255,184,0,0.05)_1px,transparent_1px)] bg-[size:40px_40px]" />
+      <div className="absolute inset-0 bg-[linear-gradient(rgba(31,86,165,0.06)_1px,transparent_1px),linear-gradient(90deg,rgba(20,184,212,0.05)_1px,transparent_1px)] bg-[size:40px_40px]" />
       
       <div className="container relative z-10">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-8">

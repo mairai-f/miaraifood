@@ -4,6 +4,7 @@ import { toast } from 'sonner';
 
 import happyCashLogo from '@/assets/login/happycash.svg';
 import { Button } from '@/components/ui/button';
+import { ThemeModeToggle } from '@/components/ThemeModeToggle';
 import {
   Dialog,
   DialogContent,
@@ -31,7 +32,7 @@ interface DesktopActivationScreenProps {
   onActivated: (activation: DesktopActivationRecord) => void | Promise<void>;
 }
 
-type ActivationLegalDocumentKey = 'terms' | 'privacy';
+type ActivationLegalDocumentKey = 'terms' | 'privacy' | 'lgpd';
 
 export function DesktopActivationScreen({ onActivated }: DesktopActivationScreenProps) {
   const { locale } = useLocale();
@@ -63,6 +64,7 @@ export function DesktopActivationScreen({ onActivated }: DesktopActivationScreen
         legalDescription: 'Leia os documentos antes de continuar.',
         terms: 'Termos de Uso',
         privacy: 'Política de Privacidade',
+        lgpd: 'LGPD',
         accept: 'Concordo',
         decline: 'Não concordo',
         declinedMessage: 'Sem o aceite legal não é possível concluir a ativação desta máquina.',
@@ -90,6 +92,7 @@ export function DesktopActivationScreen({ onActivated }: DesktopActivationScreen
         legalDescription: 'Read the documents before continuing.',
         terms: 'Terms of Use',
         privacy: 'Privacy Policy',
+        lgpd: 'LGPD',
         accept: 'I agree',
         decline: 'I do not agree',
         declinedMessage: 'Without legal acceptance, this machine cannot be activated.',
@@ -106,9 +109,10 @@ export function DesktopActivationScreen({ onActivated }: DesktopActivationScreen
       };
 
   const legalDocuments = locale === 'pt-BR'
-    ? {
+      ? {
         terms: LEGAL_MODAL_DOCUMENTS.terms,
         privacy: LEGAL_MODAL_DOCUMENTS.privacy,
+        lgpd: LEGAL_MODAL_DOCUMENTS.lgpd,
       }
     : {
         terms: {
@@ -144,6 +148,24 @@ export function DesktopActivationScreen({ onActivated }: DesktopActivationScreen
             {
               title: 'Rights and contact',
               text: 'Data subjects may request access, correction, deletion, processing confirmation, and other information under LGPD by emailing happycashsupport@gmail.com.',
+            },
+          ],
+        },
+        lgpd: {
+          title: 'LGPD',
+          description: 'HappyCash commitments for data processing, data subject rights, company separation, and accountability under Brazilian data protection rules.',
+          sections: [
+            {
+              title: 'Operational commitment',
+              text: 'HappyCash controls access, separates data by company, supports correction or deletion when possible, keeps security records, and makes clear how operational data is handled.',
+            },
+            {
+              title: 'Data and rights',
+              text: 'When the system processes names, CPF, CNPJ, phone numbers, addresses, sales, tabs, stock, payments, or other operational data, data subjects may request confirmation, access, correction, deletion, portability, and other rights provided by LGPD.',
+            },
+            {
+              title: 'Responsibility',
+              text: 'Stores remain responsible for the third-party data they enter in the system, while HappyCash provides product controls and support channels for legal requests.',
             },
           ],
         },
@@ -193,6 +215,7 @@ export function DesktopActivationScreen({ onActivated }: DesktopActivationScreen
     <div className="relative h-[100dvh] overflow-hidden bg-[linear-gradient(180deg,#5e79ff_0%,#5571f4_48%,#4d69e8_100%)]">
       <LanguageSwitcher className="left-1/2 top-[calc(env(safe-area-inset-top,0px)+0.55rem)] right-auto bottom-auto z-30 -translate-x-1/2 sm:hidden" />
       <LanguageSwitcher className="hidden sm:flex top-[calc(env(safe-area-inset-top,0px)+1rem)] right-4 bottom-auto left-auto z-30 translate-x-0" />
+      <ThemeModeToggle compact className="absolute left-4 top-[calc(env(safe-area-inset-top,0px)+1rem)] z-30 bg-white/92 backdrop-blur" />
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(255,255,255,0.2),_transparent_32%),radial-gradient(circle_at_bottom_right,_rgba(21,41,113,0.2),_transparent_42%)]" />
       <div className="absolute left-[12%] top-[14%] h-72 w-72 rounded-full bg-white/14 blur-3xl" />
       <div className="absolute bottom-[10%] right-[8%] h-80 w-80 rounded-full bg-[#183b8c]/22 blur-3xl" />
@@ -263,7 +286,7 @@ export function DesktopActivationScreen({ onActivated }: DesktopActivationScreen
                       {copy.legalDescription}
                     </p>
                   </div>
-                  <div className="grid gap-2.5 sm:grid-cols-2">
+                  <div className="grid gap-2.5 sm:grid-cols-3">
                     <Button
                       type="button"
                       variant="outline"
@@ -282,13 +305,22 @@ export function DesktopActivationScreen({ onActivated }: DesktopActivationScreen
                     >
                       {copy.privacy}
                     </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="border-[#ced9ea] bg-white text-[#111827] hover:bg-[#edf3fb] hover:text-[#111827]"
+                      onClick={() => setLegalModal('lgpd')}
+                    >
+                      {copy.lgpd}
+                    </Button>
                   </div>
                   <div className="grid gap-2.5 sm:grid-cols-2">
                     <Button
                       type="button"
                       variant="ghost"
                       className={legalDecision === 'accepted'
-                        ? 'h-10 rounded-2xl border border-[#1f56a5] bg-[#1f56a5] text-[#111827] hover:bg-[#194788] hover:text-[#111827]'
+                        ? 'h-10 rounded-2xl border border-[#1f56a5] bg-[#1f56a5] text-white hover:bg-[#194788] hover:text-white'
                         : 'h-10 rounded-2xl border border-[#ced9ea] bg-white text-[#111827] hover:bg-[#edf3fb] hover:text-[#111827]'}
                       onClick={() => setLegalDecision('accepted')}
                     >
@@ -315,7 +347,7 @@ export function DesktopActivationScreen({ onActivated }: DesktopActivationScreen
 
               <Button
                 type="submit"
-                className="h-10 w-full rounded-2xl bg-[#1f56a5] text-[14px] font-semibold text-[#111827] hover:bg-[#194788] hover:text-[#111827]"
+                className="h-10 w-full rounded-2xl bg-[#1f56a5] text-[14px] font-semibold text-white hover:bg-[#194788] hover:text-white"
                 disabled={submitting}
               >
                 {submitting ? (
@@ -380,7 +412,7 @@ export function DesktopActivationScreen({ onActivated }: DesktopActivationScreen
                 </span>
                 <Button
                   type="button"
-                  className="h-10 rounded-2xl bg-[#1f56a5] px-5 text-[14px] font-semibold text-[#111827] hover:bg-[#194788] hover:text-[#111827]"
+                  className="h-10 rounded-2xl bg-[#1f56a5] px-5 text-[14px] font-semibold text-white hover:bg-[#194788] hover:text-white"
                   onClick={() => setLegalModal(null)}
                 >
                   {copy.close}

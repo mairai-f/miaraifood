@@ -49,7 +49,7 @@ import { Label } from "@/components/ui/label";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useToast } from "@/hooks/use-toast";
 import { FiscalResponsibilityNotice } from "@/components/FiscalResponsibilityNotice";
-import logo from "@/assets/logo-happycash.webp";
+import logo from "../../../src/assets/login/happycash.svg";
 
 type AuthUser = {
   id: string;

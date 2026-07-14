@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { ThemeModeToggle } from '@/components/ThemeModeToggle';
 import { Eye, EyeOff, Fingerprint, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -62,10 +63,10 @@ const operatorRecoveryClient = createClient<Database>(
 );
 
 const loginFeatureCards = [
-  { label: 'PDV Rápido', image: loginPdvRapido, imageClassName: 'w-full scale-[1.6]' },
-  { label: 'Relatórios', image: loginRelatorios, imageClassName: 'w-full scale-[1.6]' },
-  { label: 'ERP', image: loginErp, imageClassName: 'relative left-4 w-full scale-[1.6]' },
-  { label: 'Estoque', image: loginEstoque, imageClassName: 'w-full scale-[1.6]' },
+  { label: 'PDV Rápido', image: loginPdvRapido, imageClassName: 'w-full scale-[1.28]' },
+  { label: 'Relatórios', image: loginRelatorios, imageClassName: 'w-full scale-[1.28]' },
+  { label: 'ERP', image: loginErp, imageClassName: 'w-full scale-[1.28]' },
+  { label: 'Estoque', image: loginEstoque, imageClassName: 'w-full scale-[1.28]' },
 ];
 
 export default function Login() {
@@ -101,7 +102,7 @@ export default function Login() {
   const { login, signInWithGoogle, signInWithPasskey, loginOfflineAdmin, loginOperator, resetPassword } = useAuth();
   const isDesktop = typeof window !== 'undefined' && Boolean(window.electronAPI);
   const passkeySupportError = getPasskeySupportErrorMessage();
-  const canUseGoogleLogin = adminAccessMode === 'online' && typeof window !== 'undefined' && /^https?:$/.test(window.location.protocol);
+  const canUseGoogleLogin = adminAccessMode === 'online' && !isDesktop && typeof window !== 'undefined' && /^https?:$/.test(window.location.protocol);
   const canUsePasskeyLogin = adminAccessMode === 'online' && !passkeySupportError;
 
   const [resetOpen, setResetOpen] = useState(false);
@@ -395,6 +396,7 @@ export default function Login() {
     <div className="h-[100dvh] overflow-hidden bg-[#eef3fb]">
       <LanguageSwitcher className="left-1/2 top-[calc(env(safe-area-inset-top,0px)+0.45rem)] right-auto bottom-auto -translate-x-1/2 sm:hidden" />
       <LanguageSwitcher className="hidden sm:flex top-[calc(env(safe-area-inset-top,0px)+1rem)] right-4 bottom-auto left-auto translate-x-0" />
+      <ThemeModeToggle compact className="fixed left-4 top-[calc(env(safe-area-inset-top,0px)+1rem)] z-50 bg-white/92 backdrop-blur" />
       <div className="grid h-full lg:grid-cols-[minmax(0,0.98fr)_minmax(0,1.02fr)]">
         <motion.div
           initial={{ opacity: 0, scale: 0.97, y: 20 }}
@@ -413,10 +415,10 @@ export default function Login() {
               animate={{ y: [0, -8, 0] }}
               transition={{ duration: 4.2, repeat: Infinity, ease: 'easeInOut' }}
             />
-            <div className="mt-10 grid w-full max-w-[29rem] grid-cols-2 gap-x-10 gap-y-8">
+            <div className="mt-8 grid w-full max-w-[27rem] grid-cols-2 gap-x-8 gap-y-6 xl:mt-10 xl:gap-y-7">
               {loginFeatureCards.map((feature) => (
                 <div key={feature.label} className="flex flex-col items-center gap-1 text-center">
-                  <div className="flex h-[7.5rem] w-[10rem] items-center justify-center overflow-visible">
+                  <div className="flex h-[6.25rem] w-[8.75rem] items-center justify-center overflow-visible xl:h-[6.75rem] xl:w-[9.25rem]">
                     <img
                       src={feature.image}
                       alt={feature.label}
@@ -428,7 +430,7 @@ export default function Login() {
                       decoding="async"
                     />
                   </div>
-                  <span className="w-[10rem] -mt-1 text-center text-[1.34rem] font-medium leading-tight tracking-[-0.02em] text-white/96">
+                  <span className="w-[9rem] text-center text-[1.18rem] font-medium leading-tight tracking-[-0.02em] text-white/96 xl:text-[1.28rem]">
                     {feature.label}
                   </span>
                 </div>

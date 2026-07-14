@@ -30,9 +30,6 @@ const CTA = () => {
           scrollTrigger: { trigger: ref.current, start: "top 80%" }
         }
       );
-      // Floating orbs
-      gsap.to(".cta-orb-1", { y: -20, x: 15, duration: 3, repeat: -1, yoyo: true, ease: "sine.inOut" });
-      gsap.to(".cta-orb-2", { y: 15, x: -20, duration: 4, repeat: -1, yoyo: true, ease: "sine.inOut" });
     }, ref);
 
     return () => ctx.revert();
@@ -40,10 +37,6 @@ const CTA = () => {
 
   return (
     <section ref={ref} className="py-24 md:py-32 relative overflow-hidden">
-      {/* Orbs */}
-      <div className="cta-orb-1 absolute top-10 left-[15%] w-[300px] h-[300px] bg-primary/10 rounded-full blur-[80px]" />
-      <div className="cta-orb-2 absolute bottom-10 right-[15%] w-[250px] h-[250px] bg-secondary/10 rounded-full blur-[80px]" />
-      
       <div className="container relative z-10">
         <div className="cta-content max-w-3xl mx-auto text-center">
           <div className="relative inline-block">

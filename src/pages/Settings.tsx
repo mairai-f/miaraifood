@@ -1,5 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState, type ChangeEvent } from 'react';
-import { BarChart3, Building2, Calculator, ChevronRight, ClipboardList, Clock3, DatabaseBackup, Download, FileText, Gift, Laptop, Loader2, MapPinned, PackageSearch, Settings as SettingsIcon, Shield, ShieldAlert, Trash2, UserRoundCog, WalletCards } from 'lucide-react';
+import { BarChart3, Building2, Calculator, ChevronRight, ClipboardList, Clock3, DatabaseBackup, Download, FileText, Gift, Laptop, Loader2, MapPinned, PackageSearch, Palette, Settings as SettingsIcon, Shield, ShieldAlert, Trash2, UserRoundCog, WalletCards } from 'lucide-react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { DataRouteLoader } from '@/components/DataRouteLoader';
 import { useAuth } from '@/contexts/AuthContext';
@@ -45,6 +45,7 @@ import { requestTurnstileToken } from '../../shared/security/turnstile';
 import { isRuntimeScopeAllowed, type ErpPermissionKey, type RuntimeScope } from '@/lib/permissions';
 import { canUseDesktopFiscalModule } from '@/lib/fiscalAccess';
 import { readDesktopActivation } from '@/lib/desktopActivation';
+import { ThemeModeToggle } from '@/components/ThemeModeToggle';
 
 const CompanyProfileCard = lazy(() =>
   import('@/components/CompanyProfileCard').then((module) => ({
@@ -781,6 +782,21 @@ export default function Settings() {
               )}
             </>
           )}
+        </CardContent>
+      </Card>}
+
+      {!activeSettingsSection && <Card>
+        <CardHeader className="space-y-3">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Palette className="h-4 w-4 text-primary" />
+            Tema da interface
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <ThemeModeToggle />
+          <p className="text-sm leading-relaxed text-muted-foreground">
+            O tema fica salvo neste navegador ou nesta maquina da release.
+          </p>
         </CardContent>
       </Card>}
 

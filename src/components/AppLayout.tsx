@@ -18,6 +18,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { DesktopOfflineAdminSetupDialog } from '@/components/DesktopOfflineAdminSetupDialog';
+import { ThemeModeToggle } from '@/components/ThemeModeToggle';
 import { getPublicErrorMessage, getRedactedLogValue } from '../../shared/security/redaction';
 import { readScopedCashSession } from '@/lib/cashSessionStorage';
 import {
@@ -632,6 +633,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
           )}
         </div>
         <div className="shrink-0 border-t border-border p-2.5">
+          <ThemeModeToggle className="mb-2" />
           <button onClick={logout} className="flex h-9 w-full items-center gap-3 rounded-lg px-3 text-sm text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive">
             <LogOut className="h-4 w-4" /><span>Sair</span>
           </button>
@@ -701,6 +703,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
           )}
 
           <div className="ml-auto flex shrink-0 items-center gap-1 sm:gap-2">
+            <ThemeModeToggle compact className="hidden md:inline-flex" />
             <Button
               type="button"
               variant="outline"

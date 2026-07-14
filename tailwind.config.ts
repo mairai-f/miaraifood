@@ -10,6 +10,7 @@ export default {
     "./components/**/*.{ts,tsx}",
     "./app/**/*.{ts,tsx}",
     "./src/**/*.{ts,tsx}",
+    "./shared/**/*.{ts,tsx}",
     "./happycashsite/index.html",
     "./happycashsite/pages/**/*.{ts,tsx}",
     "./happycashsite/components/**/*.{ts,tsx}",

@@ -69,7 +69,7 @@ const Hero = () => {
 
   return (
     <section ref={sectionRef} className="relative flex min-h-[calc(100svh-2rem)] items-center overflow-hidden border-b border-border/60 bg-background pt-24">
-      <div className="absolute inset-0 bg-[linear-gradient(rgba(255,184,0,0.025)_1px,transparent_1px),linear-gradient(90deg,rgba(255,184,0,0.025)_1px,transparent_1px)] bg-[size:64px_64px]" />
+      <div className="absolute inset-0 bg-[linear-gradient(rgba(31,86,165,0.055)_1px,transparent_1px),linear-gradient(90deg,rgba(20,184,212,0.045)_1px,transparent_1px)] bg-[size:64px_64px]" />
       <div className="absolute inset-x-0 bottom-0 h-40 bg-gradient-to-t from-card/60 to-transparent" />
 
       <div className="container relative z-10">

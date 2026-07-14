@@ -8,7 +8,6 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -606,7 +605,7 @@ const Cadastro = () => {
       </div>
 
       <Dialog open={legalModalOpen} onOpenChange={setLegalModalOpen}>
-        <DialogContent className="grid max-h-[calc(100dvh-1rem)] w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden border-yellow-400/15 bg-zinc-950 p-0 text-foreground sm:max-h-[calc(100dvh-2rem)] sm:max-w-3xl">
+        <DialogContent className="grid max-h-[calc(100dvh-1rem)] w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden border-border bg-card p-0 text-card-foreground shadow-[0_28px_80px_rgba(15,23,42,0.22)] sm:max-h-[calc(100dvh-2rem)] sm:max-w-3xl">
           <DialogHeader className="border-b border-border px-4 pb-3 pt-5 text-left sm:px-6 sm:pb-4 sm:pt-6">
             <DialogTitle className="font-heading text-2xl">Etapa 2: Termos, Privacidade e LGPD</DialogTitle>
             <DialogDescription className="leading-6">
@@ -617,7 +616,7 @@ const Cadastro = () => {
           <ScrollArea className="min-h-0 px-4 py-4 sm:px-6 sm:py-5">
             <div className="space-y-6 pr-0 sm:pr-3">
               {registrationLegalDocuments.map((document) => (
-                <section key={document.title} className="space-y-4 rounded-xl border border-border/70 bg-background/5 p-4">
+                <section key={document.title} className="space-y-4 rounded-xl border border-border/70 bg-background/70 p-4">
                   <div className="space-y-1">
                     <div className="flex flex-wrap items-center justify-between gap-3">
                       <h3 className="font-heading text-lg font-semibold text-foreground">{document.title}</h3>
@@ -641,33 +640,31 @@ const Cadastro = () => {
             </div>
           </ScrollArea>
 
-          <DialogFooter className="shrink-0 flex-col gap-3 border-t border-border px-4 py-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:flex-row sm:justify-between sm:space-x-0 sm:px-6">
-            <span className="text-xs text-muted-foreground">Última atualização: {LEGAL_UPDATED_AT_LABEL}</span>
-            <div className="flex flex-col gap-2 sm:flex-row sm:justify-end sm:space-x-0">
-              <Button
-                type="button"
-                variant="destructive"
-                className="w-full sm:w-auto"
-                onClick={() => {
-                  setLegalDecision("declined");
-                  setLegalModalOpen(false);
-                }}
-              >
-                Não concordo
-              </Button>
-              <Button
-                type="button"
-                className="w-full sm:w-auto"
-                onClick={() => {
-                  setLegalDecision("accepted");
-                  setLegalModalOpen(false);
-                  setStep(3);
-                }}
-              >
-                Aceitar e continuar
-              </Button>
-            </div>
-          </DialogFooter>
+          <div className="grid shrink-0 gap-3 border-t border-border bg-card px-4 py-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:grid-cols-[1fr_auto_auto] sm:items-center sm:px-6">
+            <span className="order-3 text-xs text-muted-foreground sm:order-1">Última atualização: {LEGAL_UPDATED_AT_LABEL}</span>
+            <Button
+              type="button"
+              variant="destructive"
+              className="order-2 w-full sm:w-auto"
+              onClick={() => {
+                setLegalDecision("declined");
+                setLegalModalOpen(false);
+              }}
+            >
+              Não concordo
+            </Button>
+            <Button
+              type="button"
+              className="order-1 w-full sm:order-3 sm:w-auto"
+              onClick={() => {
+                setLegalDecision("accepted");
+                setLegalModalOpen(false);
+                setStep(3);
+              }}
+            >
+              Aceitar e continuar
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

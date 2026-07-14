@@ -2,6 +2,7 @@ import { Suspense, lazy, useEffect, useState } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, HashRouter, Route, Routes, Navigate } from "react-router-dom";
 import { Loader2 } from "lucide-react";
+import { ThemeProvider } from "next-themes";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -236,23 +237,25 @@ const App = () => {
   }
 
   return (
-    <LocaleProvider>
-      <QueryClientProvider client={queryClient}>
-        <TooltipProvider>
-          <Toaster />
-          <Sonner />
-          <AuthProvider>
-            <DesktopRuntimeProvider>
-              <PlanProvider>
-                <Router>
-                  <AppRoutes />
-                </Router>
-              </PlanProvider>
-            </DesktopRuntimeProvider>
-          </AuthProvider>
-        </TooltipProvider>
-      </QueryClientProvider>
-    </LocaleProvider>
+    <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false} storageKey="happycash:ui-theme">
+      <LocaleProvider>
+        <QueryClientProvider client={queryClient}>
+          <TooltipProvider>
+            <Toaster />
+            <Sonner />
+            <AuthProvider>
+              <DesktopRuntimeProvider>
+                <PlanProvider>
+                  <Router>
+                    <AppRoutes />
+                  </Router>
+                </PlanProvider>
+              </DesktopRuntimeProvider>
+            </AuthProvider>
+          </TooltipProvider>
+        </QueryClientProvider>
+      </LocaleProvider>
+    </ThemeProvider>
   );
 };
 

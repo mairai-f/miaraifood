@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import logo from '@/assets/logo-happycash.webp';
+import logo from '../../../src/assets/login/happycash.svg';
 import { getPasswordPolicyError, passwordPolicyHint } from '../../../shared/security/passwordPolicy';
 
 const ResetPassword = () => {
@@ -119,27 +119,27 @@ const ResetPassword = () => {
   };
 
   return (
-    <div className="relative h-[100svh] overflow-hidden bg-[#050505] px-3 py-2 sm:px-4 sm:py-3">
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(250,204,21,0.18),_transparent_35%),radial-gradient(circle_at_bottom_right,_rgba(245,158,11,0.12),_transparent_42%)]" />
+    <div className="relative h-[100svh] overflow-hidden bg-[#eef3fb] px-3 py-2 sm:px-4 sm:py-3">
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(94,121,255,0.18),_transparent_34%),radial-gradient(circle_at_bottom_right,_rgba(12,184,225,0.14),_transparent_42%)]" />
       <div className="relative mx-auto flex h-full w-full max-w-[23rem] items-center justify-center sm:max-w-sm">
         <div className="w-full">
           <div className="mb-2 text-center sm:mb-3">
             <img
               src={logo}
               alt="HappyCash"
-              className="mx-auto h-auto w-[clamp(6.25rem,28vw,10rem)] max-w-full object-contain"
+              className="mx-auto h-auto w-full max-w-[15rem] object-contain"
             />
-            <p className="mt-1.5 text-[9px] font-semibold uppercase tracking-[0.18em] text-yellow-200/80 sm:mt-2 sm:text-[10px] sm:tracking-[0.24em]">
+            <p className="mt-2 text-[9px] font-semibold uppercase tracking-[0.18em] text-[#1f56a5] sm:text-[10px] sm:tracking-[0.24em]">
               Sistema PDV • Vendas • Controle • Gestao
             </p>
           </div>
 
-          <Card className="border-yellow-400/15 bg-black/45 shadow-[0_24px_60px_rgba(0,0,0,0.35)] backdrop-blur-md">
+          <Card className="rounded-[28px] border-[#d7e0ef] bg-white/88 shadow-[0_28px_80px_rgba(29,78,216,0.13)] backdrop-blur-xl">
             <CardHeader className="px-4 pb-1 pt-3 text-center sm:px-5 sm:pt-4">
-              <CardTitle className="text-lg font-bold tracking-wide text-yellow-300 sm:text-xl">
+              <CardTitle className="text-lg font-bold tracking-wide text-[#1f56a5] sm:text-xl">
                 Redefinir Senha
               </CardTitle>
-              <p className="text-[11px] text-muted-foreground sm:text-xs">
+              <p className="text-[11px] text-[#64748b] sm:text-xs">
                 Escolha uma nova senha para continuar usando sua conta.
               </p>
             </CardHeader>
@@ -161,7 +161,7 @@ const ResetPassword = () => {
                         value={password}
                         onChange={e => setPassword(e.target.value)}
                         placeholder="Use uma senha forte"
-                        className="h-10 border-border/70 bg-zinc-950/70 pr-10 sm:h-11"
+                        className="h-10 rounded-2xl border-[#d8e1ef] bg-white pr-10 text-[#24324a] focus-visible:ring-[#1f56a5]/25 sm:h-11"
                       />
                       <button
                         type="button"
@@ -185,7 +185,7 @@ const ResetPassword = () => {
                         value={confirmPassword}
                         onChange={e => setConfirmPassword(e.target.value)}
                         placeholder="Repita sua nova senha"
-                        className="h-10 border-border/70 bg-zinc-950/70 pr-10 sm:h-11"
+                        className="h-10 rounded-2xl border-[#d8e1ef] bg-white pr-10 text-[#24324a] focus-visible:ring-[#1f56a5]/25 sm:h-11"
                       />
                       <button
                         type="button"
@@ -201,7 +201,7 @@ const ResetPassword = () => {
                   <Button
                     type="submit"
                     disabled={updatingPassword}
-                    className="h-10 w-full bg-yellow-400 px-4 text-sm font-semibold text-black hover:bg-yellow-300 sm:h-11"
+                    className="h-10 w-full rounded-2xl bg-[#1f56a5] px-4 text-sm font-semibold text-white hover:bg-[#194788] sm:h-11"
                   >
                     {updatingPassword ? (
                       <>
@@ -218,7 +218,7 @@ const ResetPassword = () => {
                   <p className="text-sm text-muted-foreground">
                     Esse link nao e mais valido ou ja expirou. Volte ao login para pedir um novo email.
                   </p>
-                  <Button asChild className="h-10 w-full bg-yellow-400 text-sm font-semibold text-black hover:bg-yellow-300 sm:h-11">
+                  <Button asChild className="h-10 w-full rounded-2xl bg-[#1f56a5] text-sm font-semibold text-white hover:bg-[#194788] sm:h-11">
                     <Link to="/login">Voltar para o login</Link>
                   </Button>
                 </div>

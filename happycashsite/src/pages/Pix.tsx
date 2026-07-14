@@ -1,7 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, CreditCard, ShieldCheck } from "lucide-react";
 import { Link } from "react-router-dom";
-import logo from "@/assets/logo-happycash.webp";
+import logo from "../../../src/assets/login/happycash.svg";
 import { publicPlanContent, type PaidPlanId } from "@/lib/subscriptionPlans";
 
 const plans: PaidPlanId[] = ["fiado", "completo", "pro"];
@@ -14,7 +14,7 @@ const Pix = () => {
           <ArrowLeft size={16} /> Voltar
         </Link>
         <div className="space-y-6 rounded-2xl border border-border bg-card p-5 sm:space-y-8 sm:p-8">
-          <img src={logo} alt="HappyCash" className="mx-auto h-12 sm:h-16" />
+          <img src={logo} alt="HappyCash" className="mx-auto h-auto w-full max-w-[13rem]" />
           <div className="text-center space-y-3">
             <h1 className="font-heading text-2xl font-bold sm:text-3xl">Assinatura via Pix e cartao</h1>
             <p className="mx-auto max-w-xl text-sm text-muted-foreground">

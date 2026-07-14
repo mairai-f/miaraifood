@@ -63,7 +63,7 @@ const Features = () => {
             <span className="text-primary relative">
               parar de improvisar
               <svg className="absolute -bottom-2 left-0 w-full" viewBox="0 0 200 8" fill="none">
-                <path d="M2 6C50 2 150 2 198 6" stroke="hsl(45 100% 55%)" strokeWidth="3" strokeLinecap="round" />
+                <path d="M2 6C50 2 150 2 198 6" stroke="hsl(190 78% 45%)" strokeWidth="3" strokeLinecap="round" />
               </svg>
             </span>
           </h2>

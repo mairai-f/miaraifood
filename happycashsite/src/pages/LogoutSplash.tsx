@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 
-import logo from "@/assets/logo-happycash.webp";
+import logo from "../../../src/assets/login/happycash.svg";
 import { supabase } from "@/integrations/supabase/client";
 import { clearSiteLocalSession } from "@/lib/authSessionPreferences";
 import { Progress } from "@/components/ui/progress";
@@ -38,7 +38,7 @@ const LogoutSplash = () => {
   return (
     <main className="flex min-h-screen items-center justify-center bg-background px-6">
       <div className="w-full max-w-sm text-center">
-        <img src={logo} alt="HappyCash" className="mx-auto h-14 w-auto" />
+        <img src={logo} alt="HappyCash" className="mx-auto h-auto w-full max-w-[13rem]" />
         <p className="mt-6 text-sm font-medium text-foreground">Encerrando sua sessão...</p>
         <p className="mt-2 text-sm text-muted-foreground">Você será levado para o login em instantes.</p>
         <Progress value={72} className="mt-6 h-2" />

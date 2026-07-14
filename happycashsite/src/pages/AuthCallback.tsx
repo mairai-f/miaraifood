@@ -4,7 +4,7 @@ import { ArrowLeft, ExternalLink, Loader2 } from "lucide-react";
 
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import logo from "@/assets/logo-happycash.webp";
+import logo from "../../../src/assets/login/happycash.svg";
 
 const resolveSafeNextPath = (value: string | null) => {
   if (!value || !value.startsWith("/") || value.startsWith("//")) return null;
@@ -55,7 +55,7 @@ const AuthCallback = () => {
   return (
     <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4">
       <div className="w-full max-w-lg space-y-6 text-center">
-        <img src={logo} alt="HappyCash" className="h-20 mx-auto" />
+        <img src={logo} alt="HappyCash" className="mx-auto h-auto w-full max-w-[14rem]" />
 
         <div className="rounded-2xl border border-border bg-card/80 backdrop-blur-sm p-8 space-y-5">
           {status === "loading" ? (

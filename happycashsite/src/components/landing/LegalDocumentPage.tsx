@@ -35,7 +35,7 @@ const LegalDocumentPage = ({
 
     <main>
       <section className="relative overflow-hidden border-b border-border/60 pt-28 md:pt-36">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,184,0,0.14),transparent_34%)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(31,86,165,0.14),transparent_34%)]" />
         <div className="container relative z-10 max-w-4xl pb-14">
           <span className="inline-flex rounded-full border border-primary/25 bg-primary/10 px-4 py-2 text-sm font-semibold uppercase tracking-[0.18em] text-primary">
             {eyebrow}

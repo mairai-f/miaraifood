@@ -66,7 +66,7 @@ const SeoContentPage = ({
 
       <main>
         <section className="relative overflow-hidden pt-28 md:pt-36">
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,184,0,0.16),transparent_36%),radial-gradient(circle_at_bottom_right,rgba(247,147,26,0.12),transparent_30%)]" />
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(31,86,165,0.16),transparent_36%),radial-gradient(circle_at_bottom_right,rgba(20,184,212,0.12),transparent_30%)]" />
           <div className="container relative z-10 grid gap-12 pb-16 lg:grid-cols-[1.02fr_0.98fr] lg:items-center">
             <div className="max-w-3xl">
               <span className="inline-flex items-center rounded-full border border-primary/25 bg-primary/10 px-4 py-2 text-sm font-semibold uppercase tracking-[0.18em] text-primary">

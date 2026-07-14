@@ -69,8 +69,8 @@ const SolutionPage = ({
 
       <main>
         <section className="relative overflow-hidden pt-28 md:pt-36">
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,184,0,0.18),transparent_38%),radial-gradient(circle_at_bottom_right,rgba(247,147,26,0.14),transparent_32%)]" />
-          <div className="absolute inset-0 bg-[linear-gradient(rgba(255,184,0,0.04)_1px,transparent_1px),linear-gradient(90deg,rgba(255,184,0,0.04)_1px,transparent_1px)] bg-[size:56px_56px]" />
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(31,86,165,0.18),transparent_38%),radial-gradient(circle_at_bottom_right,rgba(20,184,212,0.14),transparent_32%)]" />
+          <div className="absolute inset-0 bg-[linear-gradient(rgba(31,86,165,0.05)_1px,transparent_1px),linear-gradient(90deg,rgba(20,184,212,0.04)_1px,transparent_1px)] bg-[size:56px_56px]" />
 
           <div className="container relative z-10 grid gap-12 pb-20 lg:grid-cols-[1.05fr_0.95fr] lg:items-center">
             <div className="max-w-2xl">

@@ -14,6 +14,7 @@ export default {
     path.join(__dirname, "components/**/*.{ts,tsx}"),
     path.join(__dirname, "app/**/*.{ts,tsx}"),
     path.join(__dirname, "src/**/*.{ts,tsx}"),
+    path.join(__dirname, "../shared/**/*.{ts,tsx}"),
   ],
   prefix: "",
   theme: {
