@@ -1160,7 +1160,7 @@ export function OperatorManagementPanel({
                 onClick={requestAdminAuthorization}
                 disabled={creating || loadingPermissionOptions}
               >
-                {creating ? 'Salvando...' : editingOperator ? 'Salvar alteracoes' : 'Criar acesso'}
+                {creating ? 'Salvando...' : editingOperator ? 'Salvar alteracoes' : 'Salvar cadastro'}
               </Button>
             </div>
             <div className="flex w-full justify-between gap-2 md:hidden">
@@ -1171,7 +1171,7 @@ export function OperatorManagementPanel({
               {createStep === 'permissions' && <Button type="button" onClick={() => setCreateStep('review')} disabled={selectedPermissionKeys.size === 0}>Revisar</Button>}
               {createStep === 'review' && (
                 <Button type="button" onClick={requestAdminAuthorization} disabled={creating}>
-                  {creating ? 'Salvando...' : editingOperator ? 'Salvar' : 'Criar acesso'}
+                  {creating ? 'Salvando...' : editingOperator ? 'Salvar' : 'Salvar cadastro'}
                 </Button>
               )}
             </div>
