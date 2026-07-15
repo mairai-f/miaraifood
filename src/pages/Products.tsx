@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { useData } from '@/contexts/DataContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -7,6 +7,7 @@ import { useOperationalScope } from '@/contexts/useOperationalScope';
 import { useDesktopRuntime } from '@/contexts/DesktopRuntimeContext';
 import { DataRouteLoader } from '@/components/DataRouteLoader';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -16,16 +17,19 @@ import { Label } from '@/components/ui/label';
 import { PasswordInput } from '@/components/ui/password-input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
-import { Plus, Search, Edit, Trash2, TrendingUp } from 'lucide-react';
+import { AlertTriangle, CalendarClock, Edit, Plus, Search, Trash2, TrendingUp } from 'lucide-react';
 import { toast } from 'sonner';
 import type { Product, ProductPackaging } from '@/types';
 import { getMarginPercent, getMarkupPercent, getPriceFromMarkup, getUnitProfit } from '@/lib/pricing';
 import { verifyPricingManagerApproval } from '@/lib/pricingManagerApproval';
 import { parseDecimalInput } from '@/lib/numberInput';
 import { filterProductsBySearch, toProductUppercase } from '@/lib/productSearch';
+import { buildNextBatchByProductId, compareProductsByOperationalPriority, getProductPriorityState } from '@/lib/productOperationalPriority';
 import { formatProductCode } from '@/lib/productCode';
+import { getLocalIsoDate } from '@/lib/clientDebtDueDate';
 import { readDesktopActivation } from '@/lib/desktopActivation';
 import { canUseDesktopFiscalModule } from '@/lib/fiscalAccess';
+import { useProductBatches } from '@/hooks/useProductBatches';
 import { supabase } from '@/integrations/supabase/client';
 import { getPublicErrorMessage, getRedactedLogValue } from '../../shared/security/redaction';
 import type { SupplierRecord } from '@/types/operations';
@@ -69,6 +73,7 @@ export default function Products() {
     updateStoreOperationalSettings,
   } = useData();
   const { session, user, ownerUserId } = useAuth();
+  const { batches } = useProductBatches();
   const { hasPermission } = usePermissions();
   const { scope: operationalScope } = useOperationalScope();
   const isHeadquartersScope = operationalScope?.location.isHeadquarters ?? true;
@@ -211,8 +216,13 @@ export default function Products() {
     void loadCatalogDependencies();
   }, [canManagePricing, editId, effectiveOwnerId, open, readOnly]);
 
-  const activeProducts = products.filter(p => !p.deleted);
-  const filtered = filterProductsBySearch(activeProducts, search);
+  const activeProducts = useMemo(() => products.filter(p => !p.deleted), [products]);
+  const todayKey = getLocalIsoDate();
+  const nextBatchByProductId = useMemo(() => buildNextBatchByProductId(batches), [batches]);
+  const filtered = useMemo(() => (
+    [...filterProductsBySearch(activeProducts, search)]
+      .sort((left, right) => compareProductsByOperationalPriority(left, right, nextBatchByProductId, todayKey))
+  ), [activeProducts, nextBatchByProductId, search, todayKey]);
 
   const numericPrice = parseDecimalInput(price);
   const numericCostPrice = parseDecimalInput(costPrice);
@@ -885,9 +895,20 @@ export default function Products() {
           const markup = getMarkupPercent(p.price, p.cost_price);
           const margin = getMarginPercent(p.price, p.cost_price);
           const unitProfit = getUnitProfit(p.price, p.cost_price);
+          const priority = getProductPriorityState(p, nextBatchByProductId.get(p.id), todayKey);
+          const batch = priority.batch;
+          const borderClass = priority.expired
+            ? 'border-destructive/70'
+            : priority.expiring
+              ? 'border-amber-500/70'
+              : priority.lowStock
+                ? 'border-destructive/40'
+                : priority.hasBatch
+                  ? 'border-sky-500/40'
+                  : '';
           return (
             <motion.div key={p.id} whileHover={{ scale: 1.02 }}>
-              <Card className={`border-border/50 ${p.stock <= p.min_stock && p.min_stock > 0 ? 'border-destructive/30' : ''}`}>
+              <Card className={`border-border/50 ${borderClass}`}>
                 <CardContent className="p-4">
                   <div className="flex items-start justify-between mb-2 min-w-0">
                     <div className="min-w-0 mr-2">
@@ -895,6 +916,12 @@ export default function Products() {
                     <span className="text-xs text-muted-foreground">{formatProductCode(p.code) || 'Sem código'}{p.category ? ` - ${p.category}` : ''}</span>
                     {p.supplier_name && <p className="text-[11px] text-muted-foreground truncate">Fornecedor: {p.supplier_name}</p>}
                     {p.fiscal_ncm && <p className="text-[11px] text-muted-foreground truncate">Fiscal: NCM {p.fiscal_ncm}{p.fiscal_cfop ? ` | CFOP ${p.fiscal_cfop}` : ''}</p>}
+                    <div className="mt-1 flex flex-wrap gap-1">
+                      {priority.expired && <Badge variant="destructive" className="gap-1 text-[10px]"><AlertTriangle className="h-3 w-3" />Vencido</Badge>}
+                      {!priority.expired && priority.expiring && <Badge variant="secondary" className="gap-1 text-[10px]"><CalendarClock className="h-3 w-3" />Validade próxima</Badge>}
+                      {priority.lowStock && <Badge variant="destructive" className="text-[10px]">Estoque mínimo</Badge>}
+                      {!priority.expired && !priority.expiring && priority.hasBatch && <Badge variant="outline" className="text-[10px]">Lote monitorado</Badge>}
+                    </div>
                   </div>
                     <span className="text-primary font-bold text-sm whitespace-nowrap">R$ {p.price.toFixed(2)}</span>
                   </div>
@@ -907,6 +934,12 @@ export default function Products() {
                     {p.min_stock > 0 && <span>Mín: {p.min_stock}</span>}
                     <span className={p.stock <= p.min_stock && p.min_stock > 0 ? 'text-destructive font-bold' : ''}>Est: {p.stock}</span>
                   </div>
+                  {batch && (
+                    <p className={`mb-2 flex items-center gap-1 text-[11px] ${priority.expired ? 'text-destructive' : 'text-amber-600'}`}>
+                      <CalendarClock className="h-3 w-3" />
+                      Validade: {new Date(`${batch.expiration_date}T12:00:00`).toLocaleDateString('pt-BR')} · lote {batch.batch_code || 'não informado'}
+                    </p>
+                  )}
                   {!readOnly && (
                     <div className="flex gap-2">
                       <Button variant="outline" size="sm" className="flex-1 text-xs" onClick={() => openEdit(p)}><Edit className="h-3 w-3 mr-1" />Editar</Button>

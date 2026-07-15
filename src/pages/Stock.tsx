@@ -17,6 +17,7 @@ import { useProductBatches } from '@/hooks/useProductBatches';
 import { getLocalIsoDate } from '@/lib/clientDebtDueDate';
 import { formatProductCode } from '@/lib/productCode';
 import { filterProductsBySearch, toProductUppercase } from '@/lib/productSearch';
+import { buildNextBatchByProductId, compareProductsByOperationalPriority, getProductPriorityState } from '@/lib/productOperationalPriority';
 import { calculateStockMovement, STOCK_MOVEMENT_REASONS, type StockMovementType } from '@/lib/stockMovement';
 import { getRedactedLogValue } from '../../shared/security/redaction';
 
@@ -37,41 +38,19 @@ export default function Stock() {
   const [clearConfirmation, setClearConfirmation] = useState('');
 
   const activeProducts = useMemo(() => products.filter((product) => !product.deleted), [products]);
-  const nextBatchByProductId = useMemo(() => {
-    const result = new Map<string, (typeof batches)[number]>();
-    batches.forEach((batch) => {
-      if (batch.product_id && !result.has(batch.product_id)) result.set(batch.product_id, batch);
-    });
-    return result;
-  }, [batches]);
+  const nextBatchByProductId = useMemo(() => buildNextBatchByProductId(batches), [batches]);
   const visibleProducts = products.filter((product) => !product.deleted || nextBatchByProductId.has(product.id));
   const todayKey = getLocalIsoDate();
-  const expiringProductIds = new Set(batches
-    .filter((batch) => {
-      const expiration = new Date(`${batch.expiration_date}T00:00:00`).getTime();
-      const current = new Date(`${todayKey}T00:00:00`).getTime();
-      const remainingDays = Math.ceil((expiration - current) / 86400000);
-      return remainingDays <= Number(batch.alert_days ?? 30);
-    })
-    .map((batch) => batch.product_id)
-    .filter(Boolean));
-  const expiringProducts = visibleProducts.filter((product) => expiringProductIds.has(product.id));
-  const lowStock = activeProducts.filter((product) => product.control_stock !== false && product.stock <= product.min_stock && product.min_stock > 0);
-  const filteredProducts = [...filterProductsBySearch(visibleProducts, search)].sort((left, right) => {
-    const leftExpiring = expiringProductIds.has(left.id);
-    const rightExpiring = expiringProductIds.has(right.id);
-    if (leftExpiring !== rightExpiring) return leftExpiring ? -1 : 1;
-
-    const leftLow = left.min_stock > 0 && left.stock <= left.min_stock;
-    const rightLow = right.min_stock > 0 && right.stock <= right.min_stock;
-    if (leftLow !== rightLow) return leftLow ? -1 : 1;
-
-    if (leftExpiring && rightExpiring) {
-      return String(nextBatchByProductId.get(left.id)?.expiration_date).localeCompare(String(nextBatchByProductId.get(right.id)?.expiration_date));
-    }
-
-    return left.name.localeCompare(right.name, 'pt-BR');
+  const priorityByProductId = useMemo(() => new Map(
+    visibleProducts.map((product) => [product.id, getProductPriorityState(product, nextBatchByProductId.get(product.id), todayKey)]),
+  ), [nextBatchByProductId, todayKey, visibleProducts]);
+  const expiringProducts = visibleProducts.filter((product) => {
+    const priority = priorityByProductId.get(product.id);
+    return priority?.expired || priority?.expiring;
   });
+  const lowStock = activeProducts.filter((product) => priorityByProductId.get(product.id)?.lowStock);
+  const filteredProducts = [...filterProductsBySearch(visibleProducts, search)]
+    .sort((left, right) => compareProductsByOperationalPriority(left, right, nextBatchByProductId, todayKey));
   const hasStockToClear = activeProducts.some((product) => product.stock > 0);
   const selectedProductRecord = activeProducts.find((product) => product.id === selectedProduct) ?? null;
   const movementProductResults = filterProductsBySearch(activeProducts, movementProductSearch).slice(0, 8);
@@ -300,12 +279,14 @@ export default function Stock() {
           <CardContent className="px-4 pb-3">
             <div className="space-y-1">
               {expiringProducts.map((product) => {
-                const batch = nextBatchByProductId.get(product.id);
+                const priority = priorityByProductId.get(product.id);
+                const batch = priority?.batch;
                 return (
                   <p key={product.id} className="text-xs">
                     <span className="font-medium">{formatProductCode(product.code) || product.barcode || 'Sem código'} · {product.name}</span>
                     {' · '}
                     {batch ? new Date(`${batch.expiration_date}T12:00:00`).toLocaleDateString('pt-BR') : '-'}
+                    {priority?.expired ? ' · vencido' : ''}
                   </p>
                 );
               })}
@@ -341,12 +322,22 @@ export default function Stock() {
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {filteredProducts.map((product) => {
-          const nextBatch = nextBatchByProductId.get(product.id);
+          const priority = priorityByProductId.get(product.id) ?? getProductPriorityState(product, nextBatchByProductId.get(product.id), todayKey);
+          const nextBatch = priority.batch;
+          const borderClass = priority.expired
+            ? 'border-destructive/70'
+            : priority.expiring
+              ? 'border-amber-500/70'
+              : priority.lowStock
+                ? 'border-destructive/50'
+                : priority.hasBatch
+                  ? 'border-sky-500/50'
+                  : '';
 
           return (
             <Card
               key={product.id}
-              className={`relative overflow-hidden border-border/50 transition-colors hover:border-primary/60 focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/40 ${expiringProductIds.has(product.id) ? 'border-amber-500/60' : product.stock <= product.min_stock && product.min_stock > 0 ? 'border-destructive/50' : ''}`}
+              className={`relative overflow-hidden border-border/50 transition-colors hover:border-primary/60 focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/40 ${borderClass}`}
             >
               <button
                 type="button"
@@ -363,6 +354,9 @@ export default function Stock() {
                     <p className="truncate text-sm font-semibold text-foreground">{product.name}</p>
                     <p className="text-xs text-muted-foreground">{formatProductCode(product.code) || product.barcode || 'Sem código'}</p>
                     {product.deleted && <Badge variant="destructive" className="mt-1">Arquivado com lote monitorado</Badge>}
+                    {priority.expired && <Badge variant="destructive" className="mt-1">Vencido</Badge>}
+                    {!priority.expired && priority.expiring && <Badge variant="secondary" className="mt-1">Validade próxima</Badge>}
+                    {!priority.expired && !priority.expiring && priority.hasBatch && <Badge variant="outline" className="mt-1">Lote monitorado</Badge>}
                     {product.category && <span className="text-xs text-muted-foreground">{product.category}</span>}
                   </div>
                   <div className="text-right">
@@ -379,7 +373,7 @@ export default function Stock() {
                   {product.max_stock != null && <span className="text-muted-foreground">Máx: {product.max_stock}</span>}
                 </div>
                 {nextBatch && (
-                  <p className="mt-2 flex items-center gap-1 text-xs text-amber-600">
+                  <p className={`mt-2 flex items-center gap-1 text-xs ${priority.expired ? 'text-destructive' : 'text-amber-600'}`}>
                     <CalendarClock className="h-3.5 w-3.5" />
                     Validade: {new Date(`${nextBatch.expiration_date}T12:00:00`).toLocaleDateString('pt-BR')} · lote {nextBatch.batch_code || 'não informado'}
                   </p>

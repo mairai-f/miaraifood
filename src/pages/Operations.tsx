@@ -28,7 +28,9 @@ import { normalizePhone } from '@/lib/phone';
 import { openExternalUrl } from '@/lib/openExternalUrl';
 import { formatProductCode } from '@/lib/productCode';
 import { buildSupplierOrderWhatsAppUrl } from '@/lib/whatsapp';
+import { buildSalesBasedPurchaseSuggestion } from '@/lib/managementInsights';
 import type { FinancialAccount, OpenDebtClient, OperationsDetail, ProductBatch, ProductPromotion, PurchaseOrder, PurchaseOrderItem, SupplierRecord, SupplierSummary } from '@/types/operations';
+import type { Product } from '@/types';
 import { getRedactedLogValue } from '../../shared/security/redaction';
 
 const OperationsDetailsDialog = lazy(() =>
@@ -108,6 +110,30 @@ const createEmptyReceiveBatchDraft = (): ReceiveBatchDraft => ({
   alert_days: '30',
   notes: '',
 });
+type OperationsPurchaseSuggestion = {
+  product: Product;
+  productId: string;
+  productName: string;
+  supplierName: string;
+  currentStock: number;
+  minStock: number;
+  suggestedQuantity: number;
+  severity: 'critical' | 'attention';
+  averageDailySales?: number;
+  estimatedDaysRemaining?: number | null;
+  targetStock?: number;
+  unitCost: number;
+  subtotal: number;
+};
+type PurchaseSuggestionGroup = {
+  key: string;
+  supplier: SupplierRecord | null;
+  supplierName: string;
+  suggestions: OperationsPurchaseSuggestion[];
+  criticalCount: number;
+  totalUnits: number;
+  totalCost: number;
+};
 
 export default function Operations() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -142,7 +168,7 @@ export default function Operations() {
   const [detail, setDetail] = useState<OperationsDetail | null>(null);
   const [supplierOrderOpen, setSupplierOrderOpen] = useState(false);
   const [supplierOrderInitialId, setSupplierOrderInitialId] = useState('');
-  const [activeTab, setActiveTab] = useState('compras');
+  const [activeTab, setActiveTab] = useState('sugestoes');
   const [syncing, setSyncing] = useState(false);
   const [purchaseDraftItems, setPurchaseDraftItems] = useState<SupplierOrderItem[]>([]);
   const [receivingPurchase, setReceivingPurchase] = useState<PurchaseOrder | null>(null);
@@ -154,6 +180,8 @@ export default function Operations() {
   const [supplierSearch, setSupplierSearch] = useState('');
   const [purchaseSearch, setPurchaseSearch] = useState('');
   const [purchaseStatus, setPurchaseStatus] = useState('all');
+  const [suggestionSearch, setSuggestionSearch] = useState('');
+  const [creatingSuggestedOrder, setCreatingSuggestedOrder] = useState('');
 
   const handleManualSync = useCallback(async () => {
     if (syncing) return;
@@ -315,6 +343,82 @@ export default function Operations() {
   const selectedPurchaseProduct = activeProducts.find((product) => product.id === purchaseForm.product_id);
   const selectedLabelProduct = activeProducts.find((product) => product.id === labelForm.product_id);
   const purchaseDraftSubtotal = purchaseDraftItems.reduce((sum, item) => sum + item.quantity * item.unitCost, 0);
+  const purchaseSuggestions = useMemo<OperationsPurchaseSuggestion[]>(() => {
+    const now = Date.now();
+    const salesLast30Days = new Set(
+      sales
+        .filter((sale) => !['canceled', 'cancelled'].includes(String(sale.status ?? '')) && now - new Date(sale.date).getTime() <= 30 * 86400000)
+        .map((sale) => sale.id),
+    );
+    const soldByProduct = saleItems.reduce((map, item) => {
+      if (item.product_id && salesLast30Days.has(item.sale_id)) {
+        map.set(item.product_id, (map.get(item.product_id) ?? 0) + Number(item.quantity ?? 0));
+      }
+      return map;
+    }, new Map<string, number>());
+
+    return activeProducts
+      .map((product) => {
+        const suggestion = buildSalesBasedPurchaseSuggestion(product, soldByProduct.get(product.id) ?? 0);
+        if (!suggestion) return null;
+        const unitCost = Number(product.purchase_cost ?? product.cost_price ?? 0);
+        return {
+          ...suggestion,
+          product,
+          unitCost,
+          subtotal: unitCost * suggestion.suggestedQuantity,
+        };
+      })
+      .filter((suggestion): suggestion is OperationsPurchaseSuggestion => Boolean(suggestion))
+      .sort((left, right) => {
+        if (left.severity !== right.severity) return left.severity === 'critical' ? -1 : 1;
+        return right.suggestedQuantity - left.suggestedQuantity;
+      });
+  }, [activeProducts, saleItems, sales]);
+  const purchaseSuggestionGroups = useMemo<PurchaseSuggestionGroup[]>(() => {
+    const groups = new Map<string, PurchaseSuggestionGroup>();
+    purchaseSuggestions.forEach((suggestion) => {
+      const supplier = suggestion.product.supplier_id
+        ? suppliers.find((record) => record.id === suggestion.product.supplier_id) ?? null
+        : suppliers.find((record) => record.name.toLocaleUpperCase('pt-BR') === suggestion.supplierName.toLocaleUpperCase('pt-BR')) ?? null;
+      const supplierName = supplier?.name || suggestion.supplierName || 'Fornecedor nao informado';
+      const key = supplier?.id || supplierName.toLocaleUpperCase('pt-BR');
+      const group = groups.get(key) ?? {
+        key,
+        supplier,
+        supplierName,
+        suggestions: [],
+        criticalCount: 0,
+        totalUnits: 0,
+        totalCost: 0,
+      };
+
+      group.suggestions.push(suggestion);
+      group.criticalCount += suggestion.severity === 'critical' ? 1 : 0;
+      group.totalUnits += suggestion.suggestedQuantity;
+      group.totalCost += suggestion.subtotal;
+      groups.set(key, group);
+    });
+
+    const query = suggestionSearch.trim().toLocaleUpperCase('pt-BR');
+    return Array.from(groups.values())
+      .filter((group) => !query || [
+        group.supplierName,
+        ...group.suggestions.map((suggestion) => suggestion.productName),
+      ].some((value) => value.toLocaleUpperCase('pt-BR').includes(query)))
+      .sort((left, right) => (
+        right.criticalCount - left.criticalCount
+        || right.totalUnits - left.totalUnits
+        || left.supplierName.localeCompare(right.supplierName, 'pt-BR')
+      ));
+  }, [purchaseSuggestions, suggestionSearch, suppliers]);
+  const suggestionSummary = useMemo(() => purchaseSuggestions.reduce((summary, suggestion) => {
+    if (suggestion.severity === 'critical') summary.critical += 1;
+    if (suggestion.severity === 'attention') summary.attention += 1;
+    summary.units += suggestion.suggestedQuantity;
+    summary.cost += suggestion.subtotal;
+    return summary;
+  }, { critical: 0, attention: 0, units: 0, cost: 0 }), [purchaseSuggestions]);
   const supplierSummaries = useMemo(() => {
     const summaries = new Map<string, SupplierSummary>();
 
@@ -475,6 +579,13 @@ export default function Operations() {
   useEffect(() => {
     void loadOperations();
   }, [loadOperations]);
+
+  useEffect(() => {
+    const requestedTab = searchParams.get('tab');
+    if (requestedTab && ['sugestoes', 'compras', 'fornecedores', 'contas', 'etiquetas', 'promocoes', 'validade', 'backup', 'auditoria'].includes(requestedTab)) {
+      setActiveTab(requestedTab);
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     const requestedProductId = searchParams.get('product');
@@ -812,13 +923,12 @@ export default function Operations() {
     setSupplierOrderOpen(true);
   };
 
-  const sendSupplierOrder = async (supplier: SupplierRecord, items: SupplierOrderItem[]) => {
-    if (!effectiveOwnerId) return false;
-    if (!supplier.whatsapp) {
-      toast.error('Cadastre o WhatsApp do fornecedor antes de enviar o pedido.');
-      return false;
-    }
-
+  const createOpenPurchaseOrder = async (
+    supplier: SupplierRecord,
+    items: SupplierOrderItem[],
+    notes: string,
+  ) => {
+    if (!effectiveOwnerId || items.length === 0) return null;
     const subtotal = items.reduce((sum, item) => sum + item.quantity * item.unitCost, 0);
     const { data: order, error: orderError } = await fromTable('purchase_orders')
       .insert({
@@ -828,21 +938,18 @@ export default function Operations() {
         supplier_name: supplier.name,
         invoice_number: '',
         purchase_date: today(),
+        due_date: dateAfterDays(Number(supplier.payment_terms_days ?? 0)),
         status: 'open',
         subtotal,
         freight_amount: 0,
         tax_amount: 0,
         total_amount: subtotal,
-        notes: 'Pedido de compra preparado para envio pelo WhatsApp.',
+        notes,
       })
       .select('*')
       .single();
 
-    if (orderError || !order) {
-      console.error('Erro ao criar pedido ao fornecedor:', getRedactedLogValue(orderError));
-      toast.error('Não foi possível registrar o pedido.');
-      return false;
-    }
+    if (orderError || !order) throw orderError ?? new Error('Pedido nao foi criado.');
 
     const { error: itemError } = await fromTable('purchase_order_items').insert(items.map((item) => ({
       owner_user_id: effectiveOwnerId,
@@ -855,8 +962,61 @@ export default function Operations() {
     })));
 
     if (itemError) {
-      console.error('Erro ao salvar itens do pedido:', getRedactedLogValue(itemError));
-      toast.error('O pedido foi criado, mas os produtos não foram registrados.');
+      await fromTable('purchase_orders').delete().eq('id', order.id);
+      throw itemError;
+    }
+
+    return order as PurchaseOrder;
+  };
+
+  const buildSupplierItemsFromSuggestions = (group: PurchaseSuggestionGroup): SupplierOrderItem[] => group.suggestions.map((suggestion) => ({
+    productId: suggestion.productId,
+    productName: suggestion.productName,
+    quantity: suggestion.suggestedQuantity,
+    unitCost: suggestion.unitCost,
+  }));
+
+  const createSuggestedPurchaseOrder = async (group: PurchaseSuggestionGroup) => {
+    if (!group.supplier || creatingSuggestedOrder) return;
+    const items = buildSupplierItemsFromSuggestions(group);
+    setCreatingSuggestedOrder(group.key);
+    try {
+      await createOpenPurchaseOrder(group.supplier, items, 'Pedido gerado pelas sugestões automáticas de reposição.');
+      toast.success('Pedido de compra gerado.');
+      setActiveTab('compras');
+      await syncNow();
+      await loadOperations();
+    } catch (error) {
+      console.error('Erro ao gerar pedido sugerido:', getRedactedLogValue(error));
+      toast.error('Não foi possível gerar o pedido sugerido.');
+    } finally {
+      setCreatingSuggestedOrder('');
+    }
+  };
+
+  const sendSuggestedPurchaseOrder = async (group: PurchaseSuggestionGroup) => {
+    if (!group.supplier || creatingSuggestedOrder) return;
+    setCreatingSuggestedOrder(group.key);
+    try {
+      const sent = await sendSupplierOrder(group.supplier, buildSupplierItemsFromSuggestions(group));
+      if (sent) setActiveTab('compras');
+    } finally {
+      setCreatingSuggestedOrder('');
+    }
+  };
+
+  const sendSupplierOrder = async (supplier: SupplierRecord, items: SupplierOrderItem[]) => {
+    if (!effectiveOwnerId) return false;
+    if (!supplier.whatsapp) {
+      toast.error('Cadastre o WhatsApp do fornecedor antes de enviar o pedido.');
+      return false;
+    }
+
+    try {
+      await createOpenPurchaseOrder(supplier, items, 'Pedido de compra preparado para envio pelo WhatsApp.');
+    } catch (error) {
+      console.error('Erro ao criar pedido ao fornecedor:', getRedactedLogValue(error));
+      toast.error('Não foi possível registrar o pedido.');
       return false;
     }
 
@@ -1098,6 +1258,7 @@ export default function Operations() {
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
         <TabsList className="h-auto flex-wrap justify-start">
+          <TabsTrigger value="sugestoes">Sugestões</TabsTrigger>
           <TabsTrigger value="compras">Compras</TabsTrigger>
           <TabsTrigger value="fornecedores">Fornecedores</TabsTrigger>
           <TabsTrigger value="contas">Contas</TabsTrigger>
@@ -1107,6 +1268,79 @@ export default function Operations() {
           <TabsTrigger value="backup">Backup</TabsTrigger>
           <TabsTrigger value="auditoria">Auditoria</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="sugestoes" className="space-y-4">
+          <div className="grid gap-3 md:grid-cols-4">
+            <OperationsMetricCard label="Itens críticos" value={suggestionSummary.critical} />
+            <OperationsMetricCard label="Itens em atenção" value={suggestionSummary.attention} />
+            <OperationsMetricCard label="Unidades sugeridas" value={suggestionSummary.units} />
+            <OperationsMetricCard label="Custo previsto" value={money(suggestionSummary.cost)} />
+          </div>
+
+          <Card>
+            <CardHeader><CardTitle className="flex items-center gap-2"><PackagePlus className="h-5 w-5" /> Sugestões de compra por fornecedor</CardTitle></CardHeader>
+            <CardContent className="space-y-4">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input className="pl-9" value={suggestionSearch} onChange={event => setSuggestionSearch(event.target.value)} placeholder="Buscar fornecedor ou produto sugerido" />
+              </div>
+
+              {purchaseSuggestionGroups.map((group) => (
+                <div key={group.key} className="rounded-lg border bg-muted/10 p-4">
+                  <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="font-semibold">{group.supplierName}</p>
+                        {!group.supplier && <Badge variant="destructive">Fornecedor não cadastrado</Badge>}
+                        {group.criticalCount > 0 && <Badge variant="destructive">{group.criticalCount} crítico(s)</Badge>}
+                      </div>
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        {group.suggestions.length} produto(s) · {group.totalUnits} un. sugeridas · {money(group.totalCost)}
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <Button type="button" size="sm" variant="outline" disabled={!group.supplier || creatingSuggestedOrder === group.key} onClick={() => void createSuggestedPurchaseOrder(group)}>
+                        {creatingSuggestedOrder === group.key ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <PackagePlus className="mr-1 h-3.5 w-3.5" />}
+                        Gerar pedido
+                      </Button>
+                      <Button type="button" size="sm" disabled={!group.supplier?.whatsapp || creatingSuggestedOrder === group.key} onClick={() => void sendSuggestedPurchaseOrder(group)}>
+                        <MessageCircle className="mr-1 h-3.5 w-3.5" />
+                        Pedido + WhatsApp
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 grid gap-2 lg:grid-cols-2">
+                    {group.suggestions.map((suggestion) => (
+                      <div key={suggestion.productId} className="rounded-md border bg-background/70 p-3 text-sm">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="truncate font-medium">{suggestion.productName}</p>
+                            <p className="text-xs text-muted-foreground">
+                              Estoque {suggestion.currentStock} · mínimo {suggestion.minStock} · alvo {suggestion.targetStock ?? suggestion.minStock}
+                            </p>
+                          </div>
+                          <Badge variant={suggestion.severity === 'critical' ? 'destructive' : 'secondary'}>
+                            {suggestion.severity === 'critical' ? 'Crítico' : 'Atenção'}
+                          </Badge>
+                        </div>
+                        <div className="mt-2 grid gap-2 text-xs text-muted-foreground sm:grid-cols-3">
+                          <span>Comprar {suggestion.suggestedQuantity} un.</span>
+                          <span>Média {(suggestion.averageDailySales ?? 0).toFixed(1)}/dia</span>
+                          <span>Custo {money(suggestion.subtotal)}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+
+              {purchaseSuggestionGroups.length === 0 && (
+                <p className="py-8 text-center text-sm text-muted-foreground">Nenhuma sugestão de compra encontrada agora.</p>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
 
         <TabsContent value="fornecedores" className="grid min-w-0 gap-4 overflow-x-hidden xl:grid-cols-[minmax(250px,0.65fr)_minmax(0,1.35fr)]">
           <Card className="min-w-0 overflow-hidden">
