@@ -32,7 +32,6 @@ import { roleLabel } from '@/lib/access';
 import { useCompanyDisplayName } from '@/hooks/use-company-display-name';
 import { useStoreReceiptProfile } from '@/hooks/use-store-receipt-profile';
 import { DEFAULT_COMPANY_NAME, resolveCompanyDisplayName } from '@/lib/company';
-import { getMarginPercent } from '@/lib/pricing';
 import { getAvailableClientCredit, getClientCreditLimit, getCreditLimitExceededMessage } from '@/lib/creditLimit';
 import { enqueueOfflineOperation, isOfflineConcentratorAvailable } from '@/lib/offlineConcentrator';
 import { verifyOfflineAdminAccess } from '@/lib/offlineAdminAccess';
@@ -1041,7 +1040,6 @@ export default function PDV() {
   }, [searchSelectedIndex, filtered, scrollProductSelectionIntoView]);
 
   const subtotal = cart.reduce((s, i) => s + getCartItemTotal(i), 0);
-  const cartRealCost = cart.reduce((sum, item) => sum + getCartItemPricing(item).totalCost, 0);
   const cartUnits = cart.reduce((sum, item) => sum + item.quantity, 0);
   const manualDiscountValue = parseDecimalInput(discountInput);
   const cashReceivedAmount = parseDecimalInput(cashReceived);
@@ -1084,9 +1082,6 @@ export default function PDV() {
     && fiscalRuntime.consumerDocumentPromptEnabled,
   );
   const fiscalCustomerDocumentDigits = digitsOnly(fiscalCustomerDocument);
-  const estimatedProfit = total - cartRealCost;
-  const estimatedMargin = getMarginPercent(total, cartRealCost);
-  const discountKillsProfit = discount > 0 && estimatedProfit <= 0;
   const change = paymentMethod === 'dinheiro' ? Math.max(0, cashReceivedAmount - total) : 0;
   const canFinalizeCheckout = Boolean(paymentMethod)
     && (paymentMethod !== 'dinheiro' || cashReceivedAmount >= total)
@@ -4629,22 +4624,7 @@ export default function PDV() {
                   </div>
                 )}
                 <div className="flex justify-between text-lg font-bold"><span>Total</span><span className="text-primary">R$ {total.toFixed(2)}</span></div>
-                {isAdmin && (
-                  <>
-                    <div className="flex justify-between text-xs text-muted-foreground"><span>Custo real estimado</span><span>R$ {cartRealCost.toFixed(2)}</span></div>
-                    <div className="flex justify-between text-xs text-muted-foreground"><span>Lucro estimado</span><span>R$ {estimatedProfit.toFixed(2)} • {estimatedMargin.toFixed(1)}%</span></div>
-                  </>
-                )}
               </div>
-
-              {isAdmin && discountKillsProfit && (
-                <Alert variant="destructive">
-                  <AlertTitle>Desconto sem lucro</AlertTitle>
-                  <AlertDescription>
-                    Com esse desconto, a venda fica com lucro estimado de R$ {estimatedProfit.toFixed(2)}.
-                  </AlertDescription>
-                </Alert>
-              )}
             </div>
 
             <div className="space-y-3 rounded-lg border border-border bg-background p-3 lg:rounded-none lg:border-0 lg:bg-transparent lg:p-0">

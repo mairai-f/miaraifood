@@ -76,7 +76,7 @@ export function OperationsDetailsDialog({
     suppliers: 'Fornecedores ativos',
     promotions: 'Promoções ativas',
     sales: 'Vendas de hoje',
-    profit: 'Lucro estimado de hoje',
+    profit: 'Lucro bruto de hoje',
     expenses: 'Despesas do mês',
     debts: 'Fiado em aberto',
   };
@@ -194,7 +194,7 @@ export function OperationsDetailsDialog({
 
           {detail === 'profit' && (
             <Table>
-              <TableHeader><TableRow><TableHead>Produto</TableHead><TableHead>Cliente / venda</TableHead><TableHead>Qtd.</TableHead><TableHead className="text-right">Receita</TableHead><TableHead className="text-right">Custo</TableHead><TableHead className="text-right">Lucro estimado</TableHead></TableRow></TableHeader>
+              <TableHeader><TableRow><TableHead>Produto</TableHead><TableHead>Cliente / venda</TableHead><TableHead>Qtd.</TableHead><TableHead className="text-right">Receita</TableHead><TableHead className="text-right">Custo</TableHead><TableHead className="text-right">Lucro bruto</TableHead></TableRow></TableHeader>
               <TableBody>
                 {todaySaleItems.map((item) => {
                   const sale = saleById.get(item.sale_id);

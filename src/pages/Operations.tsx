@@ -96,6 +96,18 @@ const purchaseStatusLabel = (status: string) => ({
   received: 'Recebido',
   canceled: 'Cancelado',
 }[status] ?? status);
+type ReceiveBatchDraft = {
+  batch_code: string;
+  expiration_date: string;
+  alert_days: string;
+  notes: string;
+};
+const createEmptyReceiveBatchDraft = (): ReceiveBatchDraft => ({
+  batch_code: '',
+  expiration_date: '',
+  alert_days: '30',
+  notes: '',
+});
 
 export default function Operations() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -135,6 +147,7 @@ export default function Operations() {
   const [purchaseDraftItems, setPurchaseDraftItems] = useState<SupplierOrderItem[]>([]);
   const [receivingPurchase, setReceivingPurchase] = useState<PurchaseOrder | null>(null);
   const [receiveQuantities, setReceiveQuantities] = useState<Record<string, string>>({});
+  const [receiveBatchDrafts, setReceiveBatchDrafts] = useState<Record<string, ReceiveBatchDraft>>({});
   const [receiveCreatePayable, setReceiveCreatePayable] = useState(false);
   const [receiveDueDate, setReceiveDueDate] = useState(today());
   const [receiving, setReceiving] = useState(false);
@@ -642,8 +655,19 @@ export default function Operations() {
     const items = purchaseItems.filter((item) => item.purchase_order_id === purchase.id && item.received_quantity < item.quantity);
     setReceivingPurchase(purchase);
     setReceiveQuantities(Object.fromEntries(items.map((item) => [item.id, String(item.quantity - item.received_quantity)])));
+    setReceiveBatchDrafts(Object.fromEntries(items.map((item) => [item.id, createEmptyReceiveBatchDraft()])));
     setReceiveCreatePayable(!accounts.some((account) => account.source === 'purchase' && account.reference_id === purchase.id));
     setReceiveDueDate(purchase.due_date || today());
+  };
+
+  const updateReceiveBatchDraft = (itemId: string, patch: Partial<ReceiveBatchDraft>) => {
+    setReceiveBatchDrafts((current) => ({
+      ...current,
+      [itemId]: {
+        ...(current[itemId] ?? createEmptyReceiveBatchDraft()),
+        ...patch,
+      },
+    }));
   };
 
   const submitPurchaseReceipt = async () => {
@@ -657,16 +681,52 @@ export default function Operations() {
       return;
     }
 
+    const receiptQuantityByItemId = new Map(receipts.map((item) => [item.item_id, item.quantity]));
+    const batchRows: Array<Record<string, unknown>> = [];
+    for (const item of purchaseItems.filter((candidate) => candidate.purchase_order_id === receivingPurchase.id)) {
+      const quantity = receiptQuantityByItemId.get(item.id) ?? 0;
+      const draft = receiveBatchDrafts[item.id] ?? createEmptyReceiveBatchDraft();
+      const hasBatchDraft = Boolean(draft.batch_code.trim() || draft.expiration_date || draft.notes.trim());
+      if (quantity <= 0 || !hasBatchDraft) continue;
+
+      if (!draft.expiration_date) {
+        toast.error(`Informe a validade do lote de ${item.product_name}.`);
+        return;
+      }
+      if (!item.product_id) {
+        toast.error(`O produto ${item.product_name} nao esta mais cadastrado para vincular lote.`);
+        return;
+      }
+
+      batchRows.push({
+        owner_user_id: effectiveOwnerId,
+        product_id: item.product_id,
+        product_name: item.product_name,
+        batch_code: draft.batch_code.trim(),
+        quantity,
+        expiration_date: draft.expiration_date,
+        alert_days: Math.max(0, Number.parseInt(draft.alert_days, 10) || 30),
+        notes: draft.notes.trim(),
+      });
+    }
+
     setReceiving(true);
     try {
       await receiveOrderItems(receivingPurchase, receipts, receiveCreatePayable, receiveDueDate);
+      if (batchRows.length > 0) {
+        const { error: batchError } = await fromTable('product_batches').insert(batchRows);
+        if (batchError) throw batchError;
+      }
       setReceivingPurchase(null);
-      toast.success('Recebimento registrado e estoque atualizado.');
+      setReceiveBatchDrafts({});
+      toast.success(batchRows.length > 0
+        ? 'Recebimento registrado, estoque atualizado e validade vinculada.'
+        : 'Recebimento registrado e estoque atualizado.');
       await syncNow();
       await loadOperations();
     } catch (error) {
       console.error('Erro ao receber pedido:', getRedactedLogValue(error));
-      toast.error('Não foi possível receber o pedido. Verifique as quantidades.');
+      toast.error(error instanceof Error ? error.message : 'Não foi possível receber o pedido. Verifique as quantidades.');
     } finally {
       setReceiving(false);
     }
@@ -1031,7 +1091,7 @@ export default function Operations() {
 
       <div className="grid gap-3 md:grid-cols-4">
         <OperationsMetricCard label="Vendas hoje" value={money(todayGrossTotal)} onClick={() => setDetail('sales')} />
-        <OperationsMetricCard label="Lucro estimado hoje" value={money(todayProfitTotal)} onClick={() => setDetail('profit')} />
+        <OperationsMetricCard label="Lucro bruto hoje" value={money(todayProfitTotal)} onClick={() => setDetail('profit')} />
         <OperationsMetricCard label="Despesas do mês" value={money(monthExpensesTotal)} onClick={() => setDetail('expenses')} />
         <OperationsMetricCard label="Fiado em aberto" value={money(openFiadoTotal)} onClick={() => setDetail('debts')} />
       </div>
@@ -1504,21 +1564,64 @@ export default function Operations() {
         </TabsContent>
       </Tabs>
 
-      <Dialog open={Boolean(receivingPurchase)} onOpenChange={(nextOpen) => { if (!nextOpen && !receiving) setReceivingPurchase(null); }}>
-        <DialogContent className="max-w-2xl">
+      <Dialog open={Boolean(receivingPurchase)} onOpenChange={(nextOpen) => {
+        if (!nextOpen && !receiving) {
+          setReceivingPurchase(null);
+          setReceiveBatchDrafts({});
+        }
+      }}>
+        <DialogContent className="max-h-[90vh] max-w-3xl overflow-hidden">
           <DialogHeader><DialogTitle>Receber pedido de compra</DialogTitle></DialogHeader>
           <div className="space-y-4">
             <div className="rounded-md border bg-muted/30 p-3 text-sm">
               <p className="font-medium">{receivingPurchase?.supplier_name}</p>
               <p className="text-muted-foreground">Pedido de {formatDate(receivingPurchase?.purchase_date)} · {money(receivingPurchase?.total_amount)}</p>
             </div>
-            <div className="max-h-72 space-y-2 overflow-y-auto">
+            <div className="max-h-[52vh] space-y-2 overflow-y-auto pr-1">
               {purchaseItems.filter((item) => item.purchase_order_id === receivingPurchase?.id && item.received_quantity < item.quantity).map((item) => {
                 const remaining = item.quantity - item.received_quantity;
+                const batchDraft = receiveBatchDrafts[item.id] ?? createEmptyReceiveBatchDraft();
                 return (
-                  <div key={item.id} className="grid gap-2 rounded-md border p-3 sm:grid-cols-[1fr_130px] sm:items-center">
-                    <div><p className="font-medium">{item.product_name}</p><p className="text-xs text-muted-foreground">Pedido: {item.quantity} · já recebido: {item.received_quantity} · pendente: {remaining}</p></div>
-                    <div className="space-y-1"><Label>Receber agora</Label><Input type="number" min="0" max={remaining} step="0.001" value={receiveQuantities[item.id] ?? ''} onChange={event => setReceiveQuantities((current) => ({ ...current, [item.id]: event.target.value }))} /></div>
+                  <div key={item.id} className="grid gap-3 rounded-md border p-3">
+                    <div className="grid gap-2 sm:grid-cols-[1fr_130px] sm:items-center">
+                      <div><p className="font-medium">{item.product_name}</p><p className="text-xs text-muted-foreground">Pedido: {item.quantity} · já recebido: {item.received_quantity} · pendente: {remaining}</p></div>
+                      <div className="space-y-1"><Label>Receber agora</Label><Input type="number" min="0" max={remaining} step="0.001" value={receiveQuantities[item.id] ?? ''} onChange={event => setReceiveQuantities((current) => ({ ...current, [item.id]: event.target.value }))} /></div>
+                    </div>
+                    <div className="grid gap-2 rounded-md bg-muted/30 p-3 sm:grid-cols-[1fr_150px_100px]">
+                      <div className="space-y-1">
+                        <Label>Lote</Label>
+                        <Input
+                          value={batchDraft.batch_code}
+                          onChange={event => updateReceiveBatchDraft(item.id, { batch_code: event.target.value })}
+                          placeholder="Opcional"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label>Validade</Label>
+                        <Input
+                          type="date"
+                          value={batchDraft.expiration_date}
+                          onChange={event => updateReceiveBatchDraft(item.id, { expiration_date: event.target.value })}
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label>Alerta</Label>
+                        <Input
+                          type="number"
+                          min="0"
+                          value={batchDraft.alert_days}
+                          onChange={event => updateReceiveBatchDraft(item.id, { alert_days: event.target.value })}
+                        />
+                      </div>
+                      <div className="space-y-1 sm:col-span-3">
+                        <Label>Observação do lote</Label>
+                        <Input
+                          value={batchDraft.notes}
+                          onChange={event => updateReceiveBatchDraft(item.id, { notes: event.target.value })}
+                          placeholder="Ex: caixa avariada, fornecedor trocou lote"
+                        />
+                      </div>
+                    </div>
                   </div>
                 );
               })}
