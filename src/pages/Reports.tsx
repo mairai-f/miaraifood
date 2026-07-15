@@ -1,5 +1,7 @@
-import { Suspense, lazy, useMemo, useState } from 'react';
+import { Suspense, lazy, useEffect, useMemo, useState } from 'react';
 import { useData } from '@/contexts/DataContext';
+import { useAuth } from '@/contexts/AuthContext';
+import { useOperationalScope } from '@/contexts/useOperationalScope';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -11,6 +13,14 @@ import { formatDateOnly, translateCurrentText } from '../../shared/locale/format
 import type { ReportDetail } from '@/components/reports/ReportDetailsDialog';
 import { ReportMetricCard } from '@/components/reports/ReportMetricCard';
 import { formatProductCode } from '@/lib/productCode';
+import { buildDreStatement, getPreviousPeriodRange, getVariationPct } from '@/lib/dre';
+import { supabase } from '@/integrations/supabase/client';
+import type { FinancialAccount } from '@/types/operations';
+import { getRedactedLogValue } from '../../shared/security/redaction';
+
+const fromTable = (table: string) => supabase.from(table as never);
+const money = (value: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
+const variationLabel = (value: number) => `${value >= 0 ? '+' : ''}${value.toFixed(1)}%`;
 
 const ReportsChartsSection = lazy(() =>
   import('@/components/reports/ReportsChartsSection').then((module) => ({
@@ -25,7 +35,10 @@ const ReportDetailsDialog = lazy(() =>
 );
 
 export default function Reports() {
-  const { sales, saleItems, clients, products, debtEntries, payments, loading } = useData();
+  const { sales, saleItems, clients, products, debtEntries, payments, expenses, loading } = useData();
+  const { ownerUserId } = useAuth();
+  const { scope: operationalScope } = useOperationalScope();
+  const operationalLocationId = operationalScope?.location.id ?? null;
   const today = new Date();
   const [startDate, setStartDate] = useState(() => {
     const d = new Date(today); d.setMonth(d.getMonth() - 1);
@@ -33,6 +46,39 @@ export default function Reports() {
   });
   const [endDate, setEndDate] = useState(today.toISOString().split('T')[0]);
   const [detail, setDetail] = useState<ReportDetail | null>(null);
+  const [financialAccounts, setFinancialAccounts] = useState<FinancialAccount[]>([]);
+  const [loadingDreAccounts, setLoadingDreAccounts] = useState(false);
+  const previousDreRange = useMemo(() => getPreviousPeriodRange(startDate, endDate), [endDate, startDate]);
+
+  useEffect(() => {
+    if (!ownerUserId) {
+      setFinancialAccounts([]);
+      setLoadingDreAccounts(false);
+      return;
+    }
+    let active = true;
+
+    const loadAccounts = async () => {
+      setLoadingDreAccounts(true);
+      const query = operationalLocationId
+        ? fromTable('financial_accounts').select('*').eq('owner_user_id', ownerUserId).eq('location_id', operationalLocationId)
+        : fromTable('financial_accounts').select('*').eq('owner_user_id', ownerUserId);
+      const { data, error } = await query.order('due_date', { ascending: false }).limit(1200);
+      if (!active) return;
+      if (error) {
+        console.error('Erro ao carregar contas para DRE:', getRedactedLogValue(error));
+        setFinancialAccounts([]);
+      } else {
+        setFinancialAccounts((data as unknown as FinancialAccount[]) ?? []);
+      }
+      setLoadingDreAccounts(false);
+    };
+
+    void loadAccounts();
+    return () => {
+      active = false;
+    };
+  }, [operationalLocationId, ownerUserId]);
 
   const filteredSales = useMemo(() => {
     const start = new Date(startDate + 'T00:00:00');
@@ -346,6 +392,37 @@ export default function Reports() {
     return Array.from(map.entries()).map(([name, value]) => ({ name, value }));
   }, [activeFilteredSales]);
 
+  const dre = useMemo(() => buildDreStatement({
+    sales,
+    saleItems,
+    expenses,
+    financialAccounts,
+    startDate,
+    endDate,
+  }), [endDate, expenses, financialAccounts, saleItems, sales, startDate]);
+
+  const previousDre = useMemo(() => buildDreStatement({
+    sales,
+    saleItems,
+    expenses,
+    financialAccounts,
+    startDate: previousDreRange.startDate,
+    endDate: previousDreRange.endDate,
+  }), [expenses, financialAccounts, previousDreRange.endDate, previousDreRange.startDate, saleItems, sales]);
+
+  const dreRows = [
+    { label: 'Receita bruta', value: dre.grossRevenue },
+    { label: '(-) Descontos', value: -dre.salesDiscounts },
+    { label: 'Receita líquida', value: dre.netRevenue, strong: true },
+    { label: '(-) CMV', value: -dre.cogs },
+    { label: 'Lucro bruto', value: dre.grossProfit, strong: true },
+    { label: '(-) Despesas operacionais', value: -dre.operatingExpenses },
+    { label: '(+) Outras receitas', value: dre.otherRevenue },
+    { label: 'Resultado líquido', value: dre.netIncome, result: true },
+  ];
+  const netIncomeVariation = getVariationPct(dre.netIncome, previousDre.netIncome);
+  const revenueVariation = getVariationPct(dre.netRevenue, previousDre.netRevenue);
+
   const exportCsv = () => {
     const rows = [
       ['tipo', 'data', 'descricao', 'cliente', 'quantidade', 'total', 'lucro'],
@@ -368,6 +445,15 @@ export default function Reports() {
         clients.find(client => client.id === entry.client_id)?.name || '',
         String(entry.quantity),
         entry.total.toFixed(2),
+        '',
+      ]),
+      ...dreRows.map(row => [
+        'dre',
+        `${startDate} a ${endDate}`,
+        row.label,
+        '',
+        '',
+        row.value.toFixed(2),
         '',
       ]),
     ];
@@ -415,6 +501,91 @@ export default function Reports() {
           <ReportMetricCard key={metric.detail} label={metric.label} value={metric.value} icon={metric.icon} onClick={() => setDetail(metric.detail)} />
         ))}
       </div>
+
+      <Card className="border-border/50" data-tour-id="reports-dre">
+        <CardHeader className="flex flex-row items-start justify-between gap-3">
+          <div>
+            <CardTitle className="text-sm">DRE - Resultado real</CardTitle>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {formatDateOnly(`${startDate}T12:00:00`)} a {formatDateOnly(`${endDate}T12:00:00`)}
+            </p>
+          </div>
+          {loadingDreAccounts && <Badge variant="secondary">Atualizando contas</Badge>}
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.3fr)_minmax(280px,0.7fr)]">
+            <div className="space-y-2">
+              {dreRows.map((row) => (
+                <div
+                  key={row.label}
+                  className={`flex items-center justify-between gap-3 rounded-md border border-border/50 px-3 py-2 text-sm ${row.result ? 'bg-primary/5' : 'bg-secondary/20'}`}
+                >
+                  <span className={row.strong || row.result ? 'font-medium' : 'text-muted-foreground'}>{row.label}</span>
+                  <span className={`shrink-0 font-semibold ${row.result && dre.netIncome < 0 ? 'text-destructive' : row.result ? 'text-primary' : ''}`}>
+                    {money(row.value)}
+                  </span>
+                </div>
+              ))}
+            </div>
+
+            <div className="grid grid-cols-2 gap-2 text-xs">
+              <div className="rounded-md border border-border/50 bg-secondary/20 p-3">
+                <p className="text-muted-foreground">Margem bruta</p>
+                <p className="mt-1 text-lg font-bold">{dre.grossMarginPct.toFixed(1)}%</p>
+              </div>
+              <div className="rounded-md border border-border/50 bg-secondary/20 p-3">
+                <p className="text-muted-foreground">Margem líquida</p>
+                <p className={`mt-1 text-lg font-bold ${dre.netMarginPct < 0 ? 'text-destructive' : 'text-primary'}`}>
+                  {dre.netMarginPct.toFixed(1)}%
+                </p>
+              </div>
+              <div className="rounded-md border border-border/50 bg-secondary/20 p-3">
+                <p className="text-muted-foreground">Despesas / receita</p>
+                <p className="mt-1 text-lg font-bold">{dre.expenseRatioPct.toFixed(1)}%</p>
+              </div>
+              <div className="rounded-md border border-border/50 bg-secondary/20 p-3">
+                <p className="text-muted-foreground">Vendas válidas</p>
+                <p className="mt-1 text-lg font-bold">{dre.validSalesCount}</p>
+              </div>
+              <div className="col-span-2 rounded-md border border-border/50 bg-secondary/20 p-3">
+                <p className="text-muted-foreground">Comparação com período anterior</p>
+                <div className="mt-2 grid grid-cols-2 gap-2">
+                  <div>
+                    <p>Resultado</p>
+                    <p className={`font-semibold ${netIncomeVariation < 0 ? 'text-destructive' : 'text-primary'}`}>
+                      {variationLabel(netIncomeVariation)}
+                    </p>
+                  </div>
+                  <div>
+                    <p>Receita líquida</p>
+                    <p className={`font-semibold ${revenueVariation < 0 ? 'text-destructive' : 'text-primary'}`}>
+                      {variationLabel(revenueVariation)}
+                    </p>
+                  </div>
+                </div>
+                <p className="mt-2 text-[11px] text-muted-foreground">
+                  Base: {formatDateOnly(`${previousDreRange.startDate}T12:00:00`)} a {formatDateOnly(`${previousDreRange.endDate}T12:00:00`)}
+                </p>
+              </div>
+              <div className="col-span-2 rounded-md border border-border/50 bg-secondary/20 p-3">
+                <p className="text-muted-foreground">Maiores despesas</p>
+                {dre.expenseBreakdown.length === 0 ? (
+                  <p className="mt-2 text-muted-foreground">Sem despesas no período.</p>
+                ) : (
+                  <div className="mt-2 space-y-1.5">
+                    {dre.expenseBreakdown.slice(0, 6).map((expense) => (
+                      <div key={expense.name} className="flex items-center justify-between gap-3">
+                        <span className="truncate">{expense.name}</span>
+                        <span className="shrink-0 font-medium">{money(expense.amount)}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4" data-tour-id="reports-alerts">
         <Card className="border-border/50">

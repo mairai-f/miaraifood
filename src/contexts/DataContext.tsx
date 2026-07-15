@@ -278,7 +278,7 @@ const getRouteSpecificModules = (pathname: string): DataModule[] => {
   }
 
   if (pathname.startsWith('/relatorios')) {
-    return ['saleItems'];
+    return ['saleItems', 'expenses'];
   }
 
   if (pathname.startsWith('/estoque')) {
