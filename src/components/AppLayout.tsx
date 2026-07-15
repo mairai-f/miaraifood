@@ -45,7 +45,7 @@ interface NavigationItem {
 // runtimeScope evita oferecer e pre-carregar administracao Web no Electron.
 const navItems: NavigationItem[] = [
   { path: '/', label: 'Painel', icon: Home, shortcut: '1', featureKey: 'dashboard.view', permissionKey: 'dashboard.view', runtimeScope: 'both', tourId: 'nav-dashboard' },
-  { path: '/pdv', label: 'PDV 🧾', icon: Receipt, shortcut: '2', featureKey: 'pdv.use', permissionKey: 'pdv.use', runtimeScope: 'both', tourId: 'nav-pdv' },
+  { path: '/pdv', label: 'PDV', icon: Receipt, shortcut: '2', featureKey: 'pdv.use', permissionKey: 'pdv.use', runtimeScope: 'both', tourId: 'nav-pdv' },
   { path: '/comandas', label: 'Comandas', icon: ClipboardList, shortcut: '3', featureKey: 'service_tickets.use', permissionKey: 'service_tickets.use', runtimeScope: 'both', tourId: 'nav-service-tickets' },
   { path: '/clientes', label: 'Clientes', icon: Users, shortcut: '4', featureKey: 'clients.manage', permissionKey: 'clients.view', runtimeScope: 'both', tourId: 'nav-clients' },
   { path: '/produtos', label: 'Produtos', icon: Package, shortcut: '5', featureKey: 'products.manage', permissionKey: 'products.view', runtimeScope: 'both', tourId: 'nav-products' },
@@ -702,7 +702,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
           )}
 
           <div className="ml-auto flex shrink-0 items-center gap-1 sm:gap-2">
-            <ThemeModeToggle compact className="hidden md:inline-flex" />
+            <ThemeModeToggle compact className="shrink-0" />
             <Button
               type="button"
               variant="outline"

@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Eye, EyeOff, Fingerprint, Loader2 } from 'lucide-react';
+import { Eye, EyeOff, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import happyCashLogo from '@/assets/login/happycash.svg';
@@ -23,10 +23,7 @@ import {
   saveSystemLoginPreferences,
 } from '@/lib/authSessionPreferences';
 import { clearDesktopActivation, readDesktopActivation } from '@/lib/desktopActivation';
-import { getPasskeySupportErrorMessage } from '@/lib/passkeys';
 import { readOfflineAdminAccess } from '@/lib/offlineAdminAccess';
-import { LanguageSwitcher } from '../../shared/locale/LanguageSwitcher';
-import { useLocale } from '../../shared/locale/useLocale';
 import type { Database } from '@/integrations/supabase/types';
 import { getOperatorCredentialError } from '../../shared/security/operatorCredential';
 import { requestTurnstileToken } from '../../shared/security/turnstile';
@@ -69,7 +66,6 @@ const loginFeatureCards = [
 ];
 
 export default function Login() {
-  const { locale } = useLocale();
   const initialPreferences = getSystemLoginPreferences();
   const desktopActivation = readDesktopActivation();
   const offlineAdminAccess = desktopActivation?.ownerUserId
@@ -96,13 +92,10 @@ export default function Login() {
   const [keepConnected, setKeepConnected] = useState(initialPreferences.keepConnected);
   const [submitting, setSubmitting] = useState(false);
   const [oauthSubmitting, setOauthSubmitting] = useState(false);
-  const [passkeySubmitting, setPasskeySubmitting] = useState(false);
   const [resettingPassword, setResettingPassword] = useState(false);
-  const { login, signInWithGoogle, signInWithPasskey, loginOfflineAdmin, loginOperator, resetPassword } = useAuth();
+  const { login, signInWithGoogle, loginOfflineAdmin, loginOperator, resetPassword } = useAuth();
   const isDesktop = typeof window !== 'undefined' && Boolean(window.electronAPI);
-  const passkeySupportError = getPasskeySupportErrorMessage();
   const canUseGoogleLogin = adminAccessMode === 'online' && !isDesktop && typeof window !== 'undefined' && /^https?:$/.test(window.location.protocol);
-  const canUsePasskeyLogin = adminAccessMode === 'online' && !passkeySupportError;
 
   const [resetOpen, setResetOpen] = useState(false);
   const [resetEmail, setResetEmail] = useState('');
@@ -243,32 +236,6 @@ export default function Login() {
     }
   };
 
-  const handlePasskeyLogin = async () => {
-    if (passkeySubmitting || !canUsePasskeyLogin) return;
-
-    saveSystemLoginPreferences({
-      loginMode: 'admin',
-      rememberAccount,
-      keepConnected,
-      adminEmail: email,
-      operatorUsername,
-    });
-
-    setPasskeySubmitting(true);
-
-    try {
-      const result = await signInWithPasskey();
-      if (result !== true) {
-        toast.error(result || 'Nao foi possivel iniciar o login com biometria.');
-        return;
-      }
-
-      applySystemSessionPreference(keepConnected);
-    } finally {
-      setPasskeySubmitting(false);
-    }
-  };
-
   const resetOperatorRecovery = () => {
     setOperatorRecoveryStep('email');
     setOperatorRecoveryEmail('');
@@ -393,8 +360,6 @@ export default function Login() {
 
   return (
     <div className="h-[100dvh] overflow-hidden bg-[#eef3fb]">
-      <LanguageSwitcher className="left-1/2 top-[calc(env(safe-area-inset-top,0px)+0.45rem)] right-auto bottom-auto -translate-x-1/2 sm:hidden" />
-      <LanguageSwitcher className="hidden sm:flex top-[calc(env(safe-area-inset-top,0px)+1rem)] right-4 bottom-auto left-auto translate-x-0" />
       <div className="grid h-full lg:grid-cols-[minmax(0,0.98fr)_minmax(0,1.02fr)]">
         <motion.div
           initial={{ opacity: 0, scale: 0.97, y: 20 }}
@@ -455,7 +420,7 @@ export default function Login() {
                   decoding="async"
                 />
                 <p className="mx-auto max-w-[17rem] text-[14px] font-semibold leading-snug tracking-[-0.02em] text-[#1f56a5] sm:max-w-[17rem] sm:text-[15px]">
-                  {locale === 'pt-BR' ? 'Tecnologia simples para sua empresa.' : 'Simple technology for your business.'}
+                  Tecnologia simples para sua empresa.
                 </p>
               </div>
 
@@ -686,7 +651,7 @@ export default function Login() {
                     <Button
                       type="submit"
                       className="h-10 w-full rounded-2xl bg-[#1f56a5] px-4 text-base font-semibold text-white hover:bg-[#194788] sm:h-11"
-                      disabled={submitting || oauthSubmitting || passkeySubmitting || (adminAccessMode === 'offline' && !offlineAdminAvailable)}
+                      disabled={submitting || oauthSubmitting || (adminAccessMode === 'offline' && !offlineAdminAvailable)}
                     >
                       {submitting ? (
                         <>
@@ -698,54 +663,23 @@ export default function Login() {
                       )}
                     </Button>
 
-                    {(canUsePasskeyLogin || canUseGoogleLogin) && (
-                      <div className={cn('grid gap-3', canUsePasskeyLogin && canUseGoogleLogin ? 'sm:grid-cols-2' : 'grid-cols-1')}>
-                        {canUsePasskeyLogin && (
-                          <Button
-                            type="button"
-                            variant="outline"
-                            className="h-10 rounded-2xl border-[#d6deec] bg-white text-sm font-semibold text-[#1f56a5] hover:bg-[#edf4ff]"
-                            disabled={submitting || oauthSubmitting || passkeySubmitting}
-                            onClick={() => void handlePasskeyLogin()}
-                          >
-                            {passkeySubmitting ? (
-                              <>
-                                <Loader2 className="mr-2 animate-spin" />
-                                Validando...
-                              </>
-                            ) : (
-                              <>
-                                <Fingerprint className="mr-2 h-4 w-4" />
-                                Biometria
-                              </>
-                            )}
-                          </Button>
+                    {canUseGoogleLogin && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="h-10 w-full rounded-2xl border-[#d6deec] bg-white text-sm font-semibold text-[#1f56a5] hover:bg-[#edf4ff]"
+                        disabled={submitting || oauthSubmitting}
+                        onClick={() => void handleGoogleLogin()}
+                      >
+                        {oauthSubmitting ? (
+                          <>
+                            <Loader2 className="mr-2 animate-spin" />
+                            Redirecionando...
+                          </>
+                        ) : (
+                          'Google'
                         )}
-                        {canUseGoogleLogin && (
-                          <Button
-                            type="button"
-                            variant="outline"
-                            className="h-10 rounded-2xl border-[#d6deec] bg-white text-sm font-semibold text-[#1f56a5] hover:bg-[#edf4ff]"
-                            disabled={submitting || oauthSubmitting || passkeySubmitting}
-                            onClick={() => void handleGoogleLogin()}
-                          >
-                            {oauthSubmitting ? (
-                              <>
-                                <Loader2 className="mr-2 animate-spin" />
-                                Redirecionando...
-                              </>
-                            ) : (
-                              'Google'
-                            )}
-                          </Button>
-                        )}
-                      </div>
-                    )}
-
-                    {canUsePasskeyLogin && (
-                      <p className="px-1 text-[13px] leading-5 text-[#687991] sm:text-sm sm:leading-6">
-                        Use a biometria depois de cadastrar passkey em Configurações &gt; Empresa.
-                      </p>
+                      </Button>
                     )}
                   </form>
                 </TabsContent>

@@ -119,9 +119,9 @@ export function PasskeySettingsCard() {
           <div className="flex items-start gap-3">
             <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
             <div className="space-y-1">
-              <p className="font-medium text-foreground">Use passkey para entrar com biometria ou reconhecimento facial.</p>
+              <p className="font-medium text-foreground">Cadastre a biometria ou reconhecimento facial deste navegador.</p>
               <p>
-                Depois de cadastrar aqui, o administrador pode usar o botao de biometria na tela de login web sem depender da senha em todo acesso.
+                A passkey fica vinculada ao administrador para manter este dispositivo preparado com uma validacao segura.
               </p>
             </div>
           </div>

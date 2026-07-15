@@ -22,7 +22,6 @@ import loginPdvRapido from '../../../src/assets/login/pdvrapido.svg';
 import loginRelatorios from '../../../src/assets/login/relatorios.svg';
 import loginErp from '../../../src/assets/login/erp.svg';
 import loginEstoque from '../../../src/assets/login/estoque.svg';
-import { LanguageSwitcher } from '../../../shared/locale/LanguageSwitcher';
 import { getPublicAuthErrorMessage } from '../../../shared/security/redaction';
 import { requestTurnstileToken } from '../../../shared/security/turnstile';
 
@@ -223,8 +222,6 @@ const Login = () => {
 
   return (
     <div className="h-[100dvh] overflow-hidden bg-[#eef3fb]">
-      <LanguageSwitcher className="left-1/2 top-[calc(env(safe-area-inset-top,0px)+0.45rem)] right-auto bottom-auto -translate-x-1/2 sm:hidden" />
-      <LanguageSwitcher className="hidden sm:flex top-[calc(env(safe-area-inset-top,0px)+1rem)] right-4 bottom-auto left-auto translate-x-0" />
       <div className="grid h-full lg:grid-cols-[minmax(0,0.98fr)_minmax(0,1.02fr)]">
         <section className="relative hidden overflow-hidden bg-[linear-gradient(180deg,#5e79ff_0%,#5571f4_48%,#4d69e8_100%)] px-8 py-8 text-white lg:flex lg:items-start lg:justify-center xl:px-14">
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(255,255,255,0.18),_transparent_34%),radial-gradient(circle_at_bottom_right,_rgba(23,37,84,0.16),_transparent_40%)]" />
