@@ -67,9 +67,72 @@ type StaffRole = 'operator' | 'waiter' | 'hr';
 const staffRoles: StaffRole[] = ['operator', 'waiter', 'hr'];
 const normalizeJobTitle = (value: string | undefined | null) => value?.trim().replace(/\s+/g, ' ') ?? '';
 const isValidJobTitle = (value: string) => value.length >= 2 && value.length <= 60;
-const normalizeStaffRole = (value: string | undefined | null): StaffRole =>
-  value === 'hr' ? 'hr' : value === 'waiter' ? 'waiter' : 'operator';
 const isHrPermissionKey = (permissionKey: string) => permissionKey.startsWith('hr.');
+const resolveStaffRoleFromPermissions = (permissionKeys: string[]): StaffRole =>
+  permissionKeys.length > 0 && permissionKeys.every(isHrPermissionKey) ? 'hr' : 'operator';
+const isInternalOperatorEmail = (value: string | null | undefined) =>
+  Boolean(value?.endsWith('@operators.happycash.local') || value?.endsWith('@happycash.local'));
+
+const syncHrEmployeeForStaffProfile = async (details: {
+  serviceClient: SupabaseClient;
+  ownerUserId: string;
+  profileUserId: string;
+  username: string;
+  email?: string | null;
+  role: StaffRole;
+  jobTitle: string;
+  actorUserId?: string | null;
+}) => {
+  const fullName = normalizeJobTitle(details.username) || details.jobTitle || `Colaborador ${details.profileUserId.slice(0, 8)}`;
+  const normalizedEmail = normalizeEmail(details.email ?? '');
+  const payload = {
+    owner_user_id: details.ownerUserId,
+    profile_user_id: details.profileUserId,
+    full_name: fullName,
+    preferred_name: normalizeJobTitle(details.username) || null,
+    email: !normalizedEmail || isInternalOperatorEmail(normalizedEmail) ? null : normalizedEmail,
+    status: 'active',
+    employment_type: 'other',
+    department: details.role === 'hr' ? 'RH' : null,
+    position: details.jobTitle,
+    updated_by: details.actorUserId ?? null,
+  };
+
+  const { data: existingEmployee, error: lookupError } = await details.serviceClient
+    .from('hr_employees')
+    .select('id, full_name, preferred_name, email, employment_type, department')
+    .eq('owner_user_id', details.ownerUserId)
+    .eq('profile_user_id', details.profileUserId)
+    .maybeSingle();
+
+  if (lookupError) {
+    return lookupError.message;
+  }
+
+  if (existingEmployee?.id) {
+    const { error } = await details.serviceClient
+      .from('hr_employees')
+      .update({
+        ...payload,
+        full_name: normalizeJobTitle(existingEmployee.full_name) || payload.full_name,
+        preferred_name: normalizeJobTitle(existingEmployee.preferred_name) || payload.preferred_name,
+        email: normalizeEmail(existingEmployee.email ?? '') || payload.email,
+        employment_type: existingEmployee.employment_type ?? payload.employment_type,
+        department: details.role === 'hr' ? 'RH' : existingEmployee.department,
+      })
+      .eq('id', existingEmployee.id);
+    return error?.message ?? null;
+  }
+
+  const { error } = await details.serviceClient
+    .from('hr_employees')
+    .insert({
+      ...payload,
+      created_by: details.actorUserId ?? null,
+    });
+
+  return error?.message ?? null;
+};
 
 const jsonResponse = (request: Request, body: Record<string, unknown>, status = 200) =>
   new Response(JSON.stringify(body), {
@@ -99,14 +162,14 @@ const extractAccessToken = (authorization: string | null) => {
 const normalizeEmail = (value: string) => value.trim().toLowerCase();
 
 const verifyAdminCredentials = async (
-	details: {
-	  supabaseUrl: string;
-	  supabaseAnonKey: string;
-		  serviceClient: SupabaseClient;
-	  ownerUserId: string;
-	  adminEmail?: string;
-	  adminPassword?: string;
-	},
+  details: {
+    supabaseUrl: string;
+    supabaseAnonKey: string;
+    serviceClient: SupabaseClient;
+    ownerUserId: string;
+    adminEmail?: string;
+    adminPassword?: string;
+  },
 ) => {
   const adminEmail = normalizeEmail(details.adminEmail ?? '');
   const adminPassword = details.adminPassword?.trim() ?? '';
@@ -270,7 +333,6 @@ Deno.serve(async (request): Promise<Response> => {
   if (body.action === 'create') {
     const normalizedUsername = normalizeOperatorUsername(body.username ?? '');
     const password = body.password?.trim();
-    const operatorRole: StaffRole = normalizeStaffRole(body.staffRole);
     const jobTitle = normalizeJobTitle(body.jobTitle);
     const credentialError = getOperatorCredentialError(password || '');
     const authPassword = resolveOperatorAuthPassword(normalizedUsername, password || '');
@@ -279,6 +341,7 @@ Deno.serve(async (request): Promise<Response> => {
         (permissionKey): permissionKey is string => typeof permissionKey === 'string' && permissionKey.trim() !== '',
       ),
     )];
+    const operatorRole = resolveStaffRoleFromPermissions(requestedPermissionKeys);
 
     if (!isValidOperatorUsername(normalizedUsername)) {
       return jsonResponse(request, { error: operatorUsernameHelpText }, 400);
@@ -317,12 +380,6 @@ Deno.serve(async (request): Promise<Response> => {
     const catalogKeys = new Set((permissionCatalog ?? []).map((permission) => permission.permission_key));
     if (requestedPermissionKeys.some((permissionKey) => !catalogKeys.has(permissionKey))) {
       return jsonResponse(request, { error: 'Um ou mais acessos selecionados sao invalidos.' }, 400);
-    }
-    if (operatorRole === 'hr' && requestedPermissionKeys.some((permissionKey) => !isHrPermissionKey(permissionKey))) {
-      return jsonResponse(request, { error: 'Colaboradores de RH podem receber somente permissoes do modulo RH.' }, 400);
-    }
-    if (operatorRole !== 'hr' && requestedPermissionKeys.some(isHrPermissionKey)) {
-      return jsonResponse(request, { error: 'Permissoes de RH exigem o tipo de acesso RH.' }, 400);
     }
 
     const { data: existingOperators, error: existingOperatorsError } = await serviceClient
@@ -382,6 +439,21 @@ Deno.serve(async (request): Promise<Response> => {
       return jsonResponse(request, { error: 'Operador criado, mas o perfil não foi atualizado corretamente.' }, 500);
     }
 
+    const hrSyncError = await syncHrEmployeeForStaffProfile({
+      serviceClient,
+      ownerUserId,
+      profileUserId: createdUser.user.id,
+      username: normalizedUsername,
+      email: generatedEmail,
+      role: operatorRole,
+      jobTitle,
+      actorUserId: user.id,
+    });
+    if (hrSyncError) {
+      await serviceClient.auth.admin.deleteUser(createdUser.user.id);
+      return jsonResponse(request, { error: 'Colaborador criado, mas nao foi possivel registrar no RH.' }, 500);
+    }
+
     // Sem perfil-base: todas as permissoes recebem uma regra individual
     // explicita. Assim a funcao escolhida nao libera acessos implicitamente.
     const selectedPermissionKeys = new Set(requestedPermissionKeys);
@@ -414,12 +486,12 @@ Deno.serve(async (request): Promise<Response> => {
   if (body.action === 'update_access') {
     const operatorUserId = body.operatorUserId?.trim();
     const jobTitle = normalizeJobTitle(body.jobTitle);
-    const nextStaffRole = normalizeStaffRole(body.staffRole);
     const requestedPermissionKeys = [...new Set(
       (Array.isArray(body.permissionKeys) ? body.permissionKeys : []).filter(
         (permissionKey): permissionKey is string => typeof permissionKey === 'string' && permissionKey.trim() !== '',
       ),
     )];
+    const nextStaffRole = resolveStaffRoleFromPermissions(requestedPermissionKeys);
 
     if (!operatorUserId) {
       return jsonResponse(request, { error: 'Colaborador invalido.' }, 400);
@@ -470,12 +542,6 @@ Deno.serve(async (request): Promise<Response> => {
     if (requestedPermissionKeys.some((permissionKey) => !catalogKeys.has(permissionKey))) {
       return jsonResponse(request, { error: 'Um ou mais acessos selecionados sao invalidos.' }, 400);
     }
-    if (nextStaffRole === 'hr' && requestedPermissionKeys.some((permissionKey) => !isHrPermissionKey(permissionKey))) {
-      return jsonResponse(request, { error: 'Colaboradores de RH podem receber somente permissoes do modulo RH.' }, 400);
-    }
-    if (nextStaffRole !== 'hr' && requestedPermissionKeys.some(isHrPermissionKey)) {
-      return jsonResponse(request, { error: 'Permissoes de RH exigem o tipo de acesso RH.' }, 400);
-    }
 
     const { error: updateProfileError } = await serviceClient
       .from('profiles')
@@ -483,6 +549,24 @@ Deno.serve(async (request): Promise<Response> => {
       .eq('user_id', operatorUserId);
     if (updateProfileError) {
       return jsonResponse(request, { error: 'Nao foi possivel atualizar a funcao do colaborador.' }, 500);
+    }
+
+    const hrSyncError = await syncHrEmployeeForStaffProfile({
+      serviceClient,
+      ownerUserId,
+      profileUserId: operatorUserId,
+      username: targetProfile.username,
+      email: null,
+      role: nextStaffRole,
+      jobTitle,
+      actorUserId: user.id,
+    });
+    if (hrSyncError) {
+      await serviceClient
+        .from('profiles')
+        .update({ job_title: targetProfile.job_title, role: targetProfile.role })
+        .eq('user_id', operatorUserId);
+      return jsonResponse(request, { error: 'Nao foi possivel sincronizar o colaborador com o RH.' }, 500);
     }
 
     const selectedPermissionKeys = new Set(requestedPermissionKeys);
@@ -668,6 +752,16 @@ Deno.serve(async (request): Promise<Response> => {
     if (openSession?.id) {
       return jsonResponse(request, { error: 'Feche o caixa desse operador antes de excluí-lo.' }, 400);
     }
+
+    await serviceClient
+      .from('hr_employees')
+      .update({
+        status: 'inactive',
+        profile_user_id: null,
+        updated_by: user.id,
+      })
+      .eq('owner_user_id', ownerUserId)
+      .eq('profile_user_id', operatorUserId);
 
     const { error: deleteProfileError } = await serviceClient
       .from('profiles')

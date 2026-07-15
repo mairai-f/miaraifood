@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useData } from '@/contexts/DataContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -9,7 +9,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { PasswordInput } from '@/components/ui/password-input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -21,7 +20,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import { BriefcaseBusiness, Eye, KeyRound, Pencil, Plus, Trash2, Users, Wallet } from 'lucide-react';
 import type { Expense, Sale } from '@/types';
@@ -105,11 +104,15 @@ const fallbackJobTitle: Record<StaffRole, string> = {
   hr: 'Analista de RH',
 };
 const staffRoleLabels: Record<StaffRole, string> = {
-  operator: 'Operacional',
-  waiter: 'Atendimento',
-  hr: 'RH',
+  operator: 'Colaborador',
+  waiter: 'Colaborador',
+  hr: 'RH isolado',
 };
 const isHrPermissionKey = (permissionKey: ErpPermissionKey) => permissionKey.startsWith('hr.');
+const resolveStaffRoleFromPermissions = (permissionKeys: Iterable<ErpPermissionKey>): StaffRole => {
+  const keys = [...permissionKeys];
+  return keys.length > 0 && keys.every(isHrPermissionKey) ? 'hr' : 'operator';
+};
 
 const normalizeLabel = (value: string | null | undefined) => value?.trim().toLowerCase() ?? '';
 const formatMoney = (value: number) => `R$ ${value.toFixed(2)}`;
@@ -132,9 +135,11 @@ export function OperatorManagementPanel({
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [jobTitle, setJobTitle] = useState('');
-  const [staffRole, setStaffRole] = useState<StaffRole>('operator');
-  const [accessAdminEmail, setAccessAdminEmail] = useState('');
-  const [accessAdminPassword, setAccessAdminPassword] = useState('');
+  const [adminAuthorizationOpen, setAdminAuthorizationOpen] = useState(false);
+  const [pendingAccessAction, setPendingAccessAction] = useState<'create' | 'update' | null>(null);
+  const [adminAuthorizationEmail, setAdminAuthorizationEmail] = useState('');
+  const [adminAuthorizationPassword, setAdminAuthorizationPassword] = useState('');
+  const [adminAuthorizationError, setAdminAuthorizationError] = useState('');
   const [permissionOptions, setPermissionOptions] = useState<OperatorPermissionOption[]>([]);
   const [selectedPermissionKeys, setSelectedPermissionKeys] = useState<Set<ErpPermissionKey>>(new Set());
   const [permissionKeysByOperatorId, setPermissionKeysByOperatorId] = useState<Record<string, Set<ErpPermissionKey>>>({});
@@ -165,40 +170,49 @@ export function OperatorManagementPanel({
   const setCreateDialogOpen = onCreateDialogOpenChange ?? setInternalCreateDialogOpen;
 
   const resetCreateForm = useCallback(() => {
-    const nextInitialRole = initialStaffRole ?? 'operator';
+    const startsAsHr = initialStaffRole === 'hr';
     setUsername('');
     setPassword('');
-    setJobTitle(nextInitialRole === 'hr' ? fallbackJobTitle.hr : '');
-    setStaffRole(nextInitialRole);
-    setAccessAdminEmail('');
-    setAccessAdminPassword('');
-    setSelectedPermissionKeys(new Set());
+    setJobTitle(startsAsHr ? fallbackJobTitle.hr : '');
+    setSelectedPermissionKeys(startsAsHr ? new Set<ErpPermissionKey>(['hr.view']) : new Set());
     setCreateStep('data');
   }, [initialStaffRole]);
+
+  const resetAdminAuthorization = useCallback(() => {
+    setAdminAuthorizationOpen(false);
+    setPendingAccessAction(null);
+    setAdminAuthorizationEmail('');
+    setAdminAuthorizationPassword('');
+    setAdminAuthorizationError('');
+  }, []);
 
   const handleCreateDialogOpenChange = useCallback((open: boolean) => {
     setCreateDialogOpen(open);
 
     if (!open) {
       setEditingOperator(null);
+      resetAdminAuthorization();
       resetCreateForm();
     }
-  }, [resetCreateForm, setCreateDialogOpen]);
+  }, [resetAdminAuthorization, resetCreateForm, setCreateDialogOpen]);
 
   const accessDialogOpen = createDialogOpen || Boolean(editingOperator);
 
   useEffect(() => {
     if (!createDialogOpen || editingOperator || !initialStaffRole) return;
-    setStaffRole(initialStaffRole);
     setJobTitle((current) => current.trim() ? current : fallbackJobTitle[initialStaffRole]);
+    if (initialStaffRole === 'hr') {
+      setSelectedPermissionKeys((current) => current.size > 0 ? current : new Set<ErpPermissionKey>(['hr.view']));
+    }
   }, [createDialogOpen, editingOperator, initialStaffRole]);
 
   const handleAccessDialogOpenChange = useCallback((open: boolean) => {
     if (open) return;
     setEditingOperator(null);
     if (createDialogOpen) setCreateDialogOpen(false);
+    resetAdminAuthorization();
     resetCreateForm();
-  }, [createDialogOpen, resetCreateForm, setCreateDialogOpen]);
+  }, [createDialogOpen, resetAdminAuthorization, resetCreateForm, setCreateDialogOpen]);
 
   useEffect(() => {
     if (!accessDialogOpen || permissionOptions.length > 0) return;
@@ -218,34 +232,7 @@ export function OperatorManagementPanel({
       .finally(() => setLoadingPermissionOptions(false));
   }, [accessDialogOpen, permissionOptions.length]);
 
-  const visiblePermissionOptions = useMemo(
-    () => permissionOptions.filter((permission) =>
-      staffRole === 'hr' ? permission.module_key === 'hr' : permission.module_key !== 'hr',
-    ),
-    [permissionOptions, staffRole],
-  );
-
-  const handleStaffRoleChange = useCallback((value: string) => {
-    const nextRole: StaffRole = value === 'hr' ? 'hr' : value === 'waiter' ? 'waiter' : 'operator';
-    setStaffRole(nextRole);
-    setJobTitle((current) => current.trim() ? current : fallbackJobTitle[nextRole]);
-  }, []);
-
-  useEffect(() => {
-    setSelectedPermissionKeys((current) => {
-      const visibleKeys = new Set(visiblePermissionOptions.map((permission) => permission.permission_key));
-      const next = new Set([...current].filter((permissionKey) => visibleKeys.has(permissionKey)));
-      if (next.size === current.size) return current;
-      return next;
-    });
-  }, [visiblePermissionOptions]);
-
-  useEffect(() => {
-    if (staffRole !== 'hr' || selectedPermissionKeys.size > 0) return;
-    const viewPermission = permissionOptions.find((permission) => permission.permission_key === 'hr.view');
-    if (!viewPermission) return;
-    setSelectedPermissionKeys(new Set<ErpPermissionKey>(['hr.view']));
-  }, [permissionOptions, selectedPermissionKeys.size, staffRole]);
+  const visiblePermissionOptions = permissionOptions;
 
   const resolveFunctionErrorMessage = useCallback(async (
     error: unknown,
@@ -445,6 +432,7 @@ export function OperatorManagementPanel({
   const selectedPermissionNames = visiblePermissionOptions
     .filter((permission) => selectedPermissionKeys.has(permission.permission_key))
     .map((permission) => permission.name);
+  const inferredStaffRole = resolveStaffRoleFromPermissions(selectedPermissionKeys);
 
   const operatorCanOperateCash = (operator: OperatorProfile) =>
     operator.role !== 'hr' && (permissionKeysByOperatorId[operator.user_id]?.has('pdv.open_cash') ?? false);
@@ -453,9 +441,7 @@ export function OperatorManagementPanel({
     setEditingOperator(operator);
     setUsername(operator.username);
     setPassword('');
-    setStaffRole(operator.role);
-    setAccessAdminEmail('');
-    setAccessAdminPassword('');
+    resetAdminAuthorization();
     setJobTitle(operator.job_title?.trim() || fallbackJobTitle[operator.role]);
     setSelectedPermissionKeys(new Set(permissionKeysByOperatorId[operator.user_id] ?? []));
     setCreateStep('data');
@@ -463,35 +449,65 @@ export function OperatorManagementPanel({
 
   if (!isAdmin) return null;
 
-  const handleCreateOperator = async () => {
+  const validateAccessFormBeforeAuthorization = () => {
     if (!session?.access_token) {
       toast.error('Sua sessão expirou. Entre novamente para cadastrar colaboradores.');
-      return;
+      return false;
     }
 
     if (!username.trim() || !password.trim() || !jobTitle.trim()) {
       toast.error('Preencha funcao, usuario e senha ou PIN');
-      return;
+      return false;
     }
 
     if (selectedPermissionKeys.size === 0) {
       toast.error('Selecione ao menos um acesso para o colaborador.');
       setCreateStep('permissions');
-      return;
-    }
-
-    if (!accessAdminEmail.trim() || !accessAdminPassword.trim()) {
-      toast.error('Confirme com login e senha do administrador.');
-      setCreateStep('data');
-      return;
+      return false;
     }
 
     const credentialError = getOperatorCredentialError(password.trim());
     if (credentialError) {
       toast.error(credentialError);
-      return;
+      return false;
     }
 
+    return true;
+  };
+
+  const validateUpdateAccessBeforeAuthorization = () => {
+    if (!session?.access_token || !editingOperator) {
+      toast.error('Sua sessao expirou. Entre novamente para editar colaboradores.');
+      return false;
+    }
+
+    if (jobTitle.trim().length < 2 || jobTitle.trim().length > 60) {
+      toast.error('Informe uma funcao entre 2 e 60 caracteres.');
+      return false;
+    }
+
+    if (selectedPermissionKeys.size === 0) {
+      toast.error('Selecione ao menos um acesso para o colaborador.');
+      setCreateStep('permissions');
+      return false;
+    }
+
+    return true;
+  };
+
+  const requestAdminAuthorization = () => {
+    const isUpdate = Boolean(editingOperator);
+    const valid = isUpdate ? validateUpdateAccessBeforeAuthorization() : validateAccessFormBeforeAuthorization();
+    if (!valid) return;
+
+    setPendingAccessAction(isUpdate ? 'update' : 'create');
+    setAdminAuthorizationEmail('');
+    setAdminAuthorizationPassword('');
+    setAdminAuthorizationError('');
+    setAdminAuthorizationOpen(true);
+  };
+
+  const handleCreateOperator = async (adminEmail: string, adminPassword: string) => {
     setCreating(true);
 
     const { data, error } = await supabase.functions.invoke<OperatorFunctionResponse>('manage-operators', {
@@ -503,17 +519,20 @@ export function OperatorManagementPanel({
         username: username.trim(),
         password: password.trim(),
         jobTitle: jobTitle.trim(),
-        staffRole,
+        staffRole: inferredStaffRole,
         permissionKeys: [...selectedPermissionKeys],
-        adminEmail: accessAdminEmail.trim(),
-        adminPassword: accessAdminPassword.trim(),
+        adminEmail,
+        adminPassword,
       },
     });
 
     if (error || !data?.success || !data.operator) {
-      toast.error(await resolveFunctionErrorMessage(error, 'Não foi possível criar o colaborador', data));
+      const message = await resolveFunctionErrorMessage(error, 'Não foi possível criar o colaborador', data);
+      toast.error(message);
+      setAdminAuthorizationError(message);
+      setAdminAuthorizationPassword('');
       setCreating(false);
-      return;
+      return false;
     }
 
     setLatestCredential({
@@ -526,31 +545,12 @@ export function OperatorManagementPanel({
     toast.success('Colaborador criado com sucesso');
     await loadData();
     setCreating(false);
+    resetAdminAuthorization();
+    return true;
   };
 
-  const handleUpdateOperatorAccess = async () => {
-    if (!session?.access_token || !editingOperator) {
-      toast.error('Sua sessao expirou. Entre novamente para editar colaboradores.');
-      return;
-    }
-
-    if (jobTitle.trim().length < 2 || jobTitle.trim().length > 60) {
-      toast.error('Informe uma funcao entre 2 e 60 caracteres.');
-      return;
-    }
-
-    if (selectedPermissionKeys.size === 0) {
-      toast.error('Selecione ao menos um acesso para o colaborador.');
-      setCreateStep('permissions');
-      return;
-    }
-
-    if (!accessAdminEmail.trim() || !accessAdminPassword.trim()) {
-      toast.error('Confirme com login e senha do administrador.');
-      setCreateStep('data');
-      return;
-    }
-
+  const handleUpdateOperatorAccess = async (adminEmail: string, adminPassword: string) => {
+    if (!editingOperator) return false;
     setCreating(true);
     const { data, error } = await supabase.functions.invoke<OperatorFunctionResponse>('manage-operators', {
       headers: { Authorization: `Bearer ${session.access_token}` },
@@ -558,23 +558,49 @@ export function OperatorManagementPanel({
         action: 'update_access',
         operatorUserId: editingOperator.user_id,
         jobTitle: jobTitle.trim(),
-        staffRole,
+        staffRole: inferredStaffRole,
         permissionKeys: [...selectedPermissionKeys],
-        adminEmail: accessAdminEmail.trim(),
-        adminPassword: accessAdminPassword.trim(),
+        adminEmail,
+        adminPassword,
       },
     });
 
     if (error || !data?.success) {
-      toast.error(await resolveFunctionErrorMessage(error, 'Nao foi possivel atualizar o colaborador', data));
+      const message = await resolveFunctionErrorMessage(error, 'Nao foi possivel atualizar o colaborador', data);
+      toast.error(message);
+      setAdminAuthorizationError(message);
+      setAdminAuthorizationPassword('');
       setCreating(false);
-      return;
+      return false;
     }
 
     handleAccessDialogOpenChange(false);
     toast.success('Funcao e acessos atualizados');
     await loadData();
     setCreating(false);
+    resetAdminAuthorization();
+    return true;
+  };
+
+  const handleConfirmAdminAuthorization = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    const adminEmail = adminAuthorizationEmail.trim();
+    const adminPassword = adminAuthorizationPassword.trim();
+
+    if (!adminEmail || !adminPassword) {
+      setAdminAuthorizationError('Digite login e senha do administrador.');
+      return;
+    }
+
+    setAdminAuthorizationError('');
+    if (pendingAccessAction === 'create') {
+      await handleCreateOperator(adminEmail, adminPassword);
+      return;
+    }
+    if (pendingAccessAction === 'update') {
+      await handleUpdateOperatorAccess(adminEmail, adminPassword);
+    }
   };
 
   const handleResetPassword = async () => {
@@ -796,7 +822,7 @@ export function OperatorManagementPanel({
             <div className="space-y-2">
               <CardTitle className="text-lg">Colaboradores, acessos e caixa</CardTitle>
               <p className="text-sm text-muted-foreground">
-                A lista fica compacta; use Editar para abrir a funcao, RH e os acessos individuais.
+                A lista fica compacta; use Editar para ajustar funcao e acessos individuais.
               </p>
             </div>
 
@@ -969,7 +995,9 @@ export function OperatorManagementPanel({
           <DialogHeader>
             <div className="border-b px-4 py-4 sm:px-6">
               <DialogTitle>{editingOperator ? 'Editar colaborador e acessos' : 'Cadastrar colaborador'}</DialogTitle>
-              <p className="mt-1 text-sm text-muted-foreground">A função identifica o colaborador; os acessos são escolhidos individualmente.</p>
+              <DialogDescription className="mt-1 text-sm">
+                A funcao identifica o colaborador; o administrador define o acesso marcando os checkboxes.
+              </DialogDescription>
               <div className="mt-3 grid grid-cols-3 gap-2 md:hidden">
                 {(['data', 'permissions', 'review'] as const).map((step, index) => (
                   <Button key={step} type="button" size="sm" variant={createStep === step ? 'default' : 'outline'} onClick={() => setCreateStep(step)}>
@@ -981,24 +1009,14 @@ export function OperatorManagementPanel({
           </DialogHeader>
 
           <div className="grid min-h-0 flex-1 md:grid-cols-[320px_minmax(0,1fr)]">
-            <div className={`${createStep === 'data' ? 'block' : 'hidden'} overflow-y-auto border-r p-4 md:block sm:p-6`}>
+            <form
+              className={`${createStep === 'data' ? 'block' : 'hidden'} overflow-y-auto border-r p-4 md:block sm:p-6`}
+              onSubmit={(event) => {
+                event.preventDefault();
+                requestAdminAuthorization();
+              }}
+            >
               <div className="space-y-4">
-                <div className="space-y-1">
-                  <Label>Tipo de acesso</Label>
-                  <Select value={staffRole} onValueChange={handleStaffRoleChange}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecione o tipo" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="operator">Operacional</SelectItem>
-                      <SelectItem value="waiter">Atendimento / Comandas</SelectItem>
-                      <SelectItem value="hr">RH</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <p className="text-xs text-muted-foreground">
-                    Acesso RH abre somente o modulo RH no menu lateral.
-                  </p>
-                </div>
                 <div className="space-y-1">
                   <Label>Função</Label>
                   <Input
@@ -1029,38 +1047,17 @@ export function OperatorManagementPanel({
                   {editingOperator ? 'O usuário não muda nesta tela para preservar o login.' : 'Use de 3 a 24 caracteres com letras, números, ponto, hífen ou underscore.'}
                 </p>
                 <div className="rounded-lg border border-primary/20 bg-primary/5 p-3">
-                  <p className="text-sm font-medium">Confirmacao do administrador</p>
+                  <p className="text-sm font-medium">Tipo calculado pelo acesso</p>
                   <p className="mt-1 text-xs text-muted-foreground">
-                    Criar acesso ou alterar permissões exige login e senha do admin da loja.
+                    {staffRoleLabels[inferredStaffRole]}: quando marcar somente acessos de RH, o menu fica isolado no RH. Com outros acessos, o colaborador segue os checkboxes selecionados.
                   </p>
-                  <div className="mt-3 space-y-3">
-                    <div className="space-y-1">
-                      <Label>Login do administrador (email)</Label>
-                      <Input
-                        type="email"
-                        value={accessAdminEmail}
-                        onChange={event => setAccessAdminEmail(event.target.value)}
-                        placeholder="admin@empresa.com"
-                        autoComplete="username"
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <Label>Senha do administrador</Label>
-                      <PasswordInput
-                        value={accessAdminPassword}
-                        onChange={event => setAccessAdminPassword(event.target.value)}
-                        placeholder="Digite a senha"
-                        autoComplete="current-password"
-                      />
-                    </div>
-                  </div>
                 </div>
                 <div className="hidden rounded-lg border bg-muted/30 p-3 text-sm md:block">
                   <p className="font-medium">Resumo</p>
-                  <p className="text-muted-foreground">{staffRoleLabels[staffRole]} · {jobTitle || 'Funcao nao informada'} · {selectedPermissionKeys.size} acessos</p>
+                  <p className="text-muted-foreground">{staffRoleLabels[inferredStaffRole]} · {jobTitle || 'Funcao nao informada'} · {selectedPermissionKeys.size} acessos</p>
                 </div>
               </div>
-            </div>
+            </form>
 
             <div className={`${createStep === 'permissions' ? 'block' : 'hidden'} overflow-y-auto p-4 md:block sm:p-6`}>
               <OperatorPermissionSelector
@@ -1074,7 +1071,7 @@ export function OperatorManagementPanel({
 
             <div className={`${createStep === 'review' ? 'block' : 'hidden'} overflow-y-auto p-4 md:hidden`}>
               <div className="space-y-4 rounded-lg border p-4">
-                <div><p className="text-xs text-muted-foreground">Tipo</p><p className="font-semibold">{staffRoleLabels[staffRole]}</p></div>
+                <div><p className="text-xs text-muted-foreground">Tipo calculado</p><p className="font-semibold">{staffRoleLabels[inferredStaffRole]}</p></div>
                 <div><p className="text-xs text-muted-foreground">Função</p><p className="font-semibold">{jobTitle || 'Não informada'}</p></div>
                 <div><p className="text-xs text-muted-foreground">Usuário</p><p className="font-semibold">{username || 'Não informado'}</p></div>
                 <div><p className="text-xs text-muted-foreground">Acessos ({selectedPermissionNames.length})</p><p className="mt-1 text-sm">{selectedPermissionNames.join(', ') || 'Nenhum acesso selecionado'}</p></div>
@@ -1084,27 +1081,78 @@ export function OperatorManagementPanel({
 
           <DialogFooter className="border-t p-4 sm:px-6">
             <div className="hidden w-full justify-end gap-2 md:flex">
-              <Button variant="outline" onClick={() => handleAccessDialogOpenChange(false)}>Cancelar</Button>
+              <Button type="button" variant="outline" onClick={() => handleAccessDialogOpenChange(false)}>Cancelar</Button>
               <Button
-                onClick={() => void (editingOperator ? handleUpdateOperatorAccess() : handleCreateOperator())}
+                type="button"
+                onClick={requestAdminAuthorization}
                 disabled={creating || loadingPermissionOptions}
               >
                 {creating ? 'Salvando...' : editingOperator ? 'Salvar alteracoes' : 'Criar acesso'}
               </Button>
             </div>
             <div className="flex w-full justify-between gap-2 md:hidden">
-              <Button variant="outline" onClick={() => createStep === 'data' ? handleAccessDialogOpenChange(false) : setCreateStep(createStep === 'review' ? 'permissions' : 'data')}>
+              <Button type="button" variant="outline" onClick={() => createStep === 'data' ? handleAccessDialogOpenChange(false) : setCreateStep(createStep === 'review' ? 'permissions' : 'data')}>
                 {createStep === 'data' ? 'Cancelar' : 'Voltar'}
               </Button>
-              {createStep === 'data' && <Button onClick={() => setCreateStep('permissions')}>Continuar</Button>}
-              {createStep === 'permissions' && <Button onClick={() => setCreateStep('review')} disabled={selectedPermissionKeys.size === 0}>Revisar</Button>}
+              {createStep === 'data' && <Button type="button" onClick={() => setCreateStep('permissions')}>Continuar</Button>}
+              {createStep === 'permissions' && <Button type="button" onClick={() => setCreateStep('review')} disabled={selectedPermissionKeys.size === 0}>Revisar</Button>}
               {createStep === 'review' && (
-                <Button onClick={() => void (editingOperator ? handleUpdateOperatorAccess() : handleCreateOperator())} disabled={creating}>
+                <Button type="button" onClick={requestAdminAuthorization} disabled={creating}>
                   {creating ? 'Salvando...' : editingOperator ? 'Salvar' : 'Criar acesso'}
                 </Button>
               )}
             </div>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={adminAuthorizationOpen}
+        onOpenChange={(open) => {
+          if (!open && !creating) resetAdminAuthorization();
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Confirmar como administrador</DialogTitle>
+            <DialogDescription>
+              Para criar ou alterar acessos, confirme com o email e a senha do administrador da loja. Esses dados nao ficam salvos.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form className="space-y-4" onSubmit={handleConfirmAdminAuthorization}>
+            <div className="space-y-1">
+              <Label>Login do administrador (email)</Label>
+              <Input
+                type="email"
+                value={adminAuthorizationEmail}
+                onChange={event => setAdminAuthorizationEmail(event.target.value)}
+                placeholder="admin@empresa.com"
+                autoComplete="username"
+                autoFocus
+              />
+            </div>
+            <div className="space-y-1">
+              <Label>Senha do administrador</Label>
+              <PasswordInput
+                value={adminAuthorizationPassword}
+                onChange={event => setAdminAuthorizationPassword(event.target.value)}
+                placeholder="Digite a senha"
+                autoComplete="current-password"
+              />
+            </div>
+            {adminAuthorizationError ? (
+              <p className="text-sm font-medium text-destructive">{adminAuthorizationError}</p>
+            ) : null}
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={resetAdminAuthorization} disabled={creating}>
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={creating}>
+                {creating ? 'Validando...' : 'Confirmar e salvar'}
+              </Button>
+            </DialogFooter>
+          </form>
         </DialogContent>
       </Dialog>
 
@@ -1119,9 +1167,18 @@ export function OperatorManagementPanel({
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Fechar caixa do colaborador</DialogTitle>
+            <DialogDescription>
+              Confirme com o administrador para registrar o fechamento do caixa.
+            </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-3">
+          <form
+            className="space-y-3"
+            onSubmit={(event) => {
+              event.preventDefault();
+              void handleCloseCashWithAdmin();
+            }}
+          >
             <div className="rounded-md border border-border bg-secondary/30 p-3 text-sm">
               <p className="text-muted-foreground">Colaborador</p>
               <p className="font-semibold">{cashSessionToClose?.operator.username || '-'}</p>
@@ -1155,16 +1212,16 @@ export function OperatorManagementPanel({
             {closeCashError && (
               <p className="text-sm font-medium text-destructive">{closeCashError}</p>
             )}
-          </div>
 
-          <DialogFooter>
-            <Button variant="outline" onClick={resetCloseCashState} disabled={closingCash}>
-              Cancelar
-            </Button>
-            <Button onClick={() => void handleCloseCashWithAdmin()} disabled={closingCash}>
-              {closingCash ? 'Validando...' : 'Confirmar fechamento'}
-            </Button>
-          </DialogFooter>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={resetCloseCashState} disabled={closingCash}>
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={closingCash}>
+                {closingCash ? 'Validando...' : 'Confirmar fechamento'}
+              </Button>
+            </DialogFooter>
+          </form>
         </DialogContent>
       </Dialog>
 
@@ -1181,9 +1238,18 @@ export function OperatorManagementPanel({
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Abrir caixa para colaborador</DialogTitle>
+            <DialogDescription>
+              Informe o valor inicial para abrir o caixa do colaborador selecionado.
+            </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-3">
+          <form
+            className="space-y-3"
+            onSubmit={(event) => {
+              event.preventDefault();
+              void handleOpenCashForOperator();
+            }}
+          >
             <div className="space-y-1">
               <Label>Colaborador</Label>
               <Input value={operatorToOpenCash?.username || ''} readOnly />
@@ -1202,16 +1268,16 @@ export function OperatorManagementPanel({
             <p className="text-xs text-muted-foreground">
               O colaborador selecionado tera o caixa aberto com este valor inicial.
             </p>
-          </div>
 
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setOpenCashDialogOpen(false)}>
-              Cancelar
-            </Button>
-            <Button onClick={() => void handleOpenCashForOperator()} disabled={openingCash}>
-              {openingCash ? 'Abrindo...' : 'Abrir caixa'}
-            </Button>
-          </DialogFooter>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setOpenCashDialogOpen(false)}>
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={openingCash}>
+                {openingCash ? 'Abrindo...' : 'Abrir caixa'}
+              </Button>
+            </DialogFooter>
+          </form>
         </DialogContent>
       </Dialog>
 
@@ -1228,8 +1294,17 @@ export function OperatorManagementPanel({
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Redefinir senha do colaborador</DialogTitle>
+            <DialogDescription>
+              Defina uma nova senha ou PIN para o colaborador usar no login.
+            </DialogDescription>
           </DialogHeader>
-          <div className="space-y-3">
+          <form
+            className="space-y-3"
+            onSubmit={(event) => {
+              event.preventDefault();
+              void handleResetPassword();
+            }}
+          >
             <div className="space-y-1">
               <Label>Colaborador</Label>
               <Input value={selectedOperator?.username || ''} readOnly />
@@ -1243,15 +1318,15 @@ export function OperatorManagementPanel({
               />
               <p className="text-xs text-muted-foreground">{operatorCredentialHint}</p>
             </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setResetDialogOpen(false)}>
-              Cancelar
-            </Button>
-            <Button onClick={() => void handleResetPassword()} disabled={resetting}>
-              {resetting ? 'Salvando...' : 'Salvar nova senha'}
-            </Button>
-          </DialogFooter>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setResetDialogOpen(false)}>
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={resetting}>
+                {resetting ? 'Salvando...' : 'Salvar nova senha'}
+              </Button>
+            </DialogFooter>
+          </form>
         </DialogContent>
       </Dialog>
     </>
