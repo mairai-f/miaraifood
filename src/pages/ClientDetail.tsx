@@ -588,8 +588,8 @@ export default function ClientDetail() {
     const storeName = companyDisplayName !== DEFAULT_COMPANY_NAME || !ownerUserId
       ? companyDisplayName
       : await fetchCompanyDisplayName(ownerUserId);
-    const allEntries = data.debtEntries.filter(d => d.client_id === id && !d.deleted);
-    const url = buildWhatsAppUrl(client.phone, client.name, allEntries, clientPayments, balance, storeName);
+    const openEntries = entries.filter(e => e.status === 'pending');
+    const url = buildWhatsAppUrl(client.phone, client.name, openEntries, clientPayments, balance, storeName);
     if (!openExternalUrl(url)) {
       toast.error('Não foi possível abrir o WhatsApp.');
     }

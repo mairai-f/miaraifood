@@ -27,6 +27,20 @@ const samplePayment: Payment = {
   details: null,
 };
 
+const paidEntry: DebtEntry = {
+  ...sampleEntry,
+  id: 'entry-paid',
+  product_id: 'product-paid',
+  product_name: 'Arroz',
+  quantity: 3,
+  unit_price: 10,
+  total: 30,
+  date_added: '2026-04-20T02:51:00.000Z',
+  date_paid: '2026-04-21T02:51:00.000Z',
+  status: 'paid',
+  deleted: true,
+};
+
 const readMessage = (url: string) => new URL(url).searchParams.get('text') ?? '';
 
 describe('whatsapp messages', () => {
@@ -40,7 +54,45 @@ describe('whatsapp messages', () => {
       'Mercadinho Azul',
     ));
 
-    expect(message).toContain('Mercadinho Azul - Resumo');
+    expect(message).toContain('Mercadinho Azul - Conta em aberto');
+  });
+
+  it('cobra somente a conta aberta e ignora historico ja quitado', () => {
+    const message = readMessage(buildWhatsAppUrl(
+      '11999999999',
+      'Maria',
+      [paidEntry, sampleEntry],
+      [
+        { ...samplePayment, id: 'old-partial', amount: 5, date: '2026-04-20T03:00:00.000Z' },
+        { ...samplePayment, id: 'old-total', amount: 25, type: 'total', date: '2026-04-21T03:00:00.000Z' },
+        samplePayment,
+      ],
+      6,
+      'Mercadinho Azul',
+    ));
+
+    expect(message).toContain('Cerveja');
+    expect(message).not.toContain('Arroz');
+    expect(message).toContain('Total em aberto: R$ 10.00');
+    expect(message).toContain('Pago nesta conta: R$ 4.00');
+    expect(message).toContain('Ficou para pagar: R$ 6.00');
+  });
+
+  it('pagamento parcial mostra quanto ainda ficou em aberto', () => {
+    const message = readMessage(buildPaymentWhatsAppUrl(
+      '11999999999',
+      'Maria',
+      4,
+      [paidEntry, sampleEntry],
+      6,
+      'Mercadinho Azul',
+    ));
+
+    expect(message).toContain('Pagamento parcial registrado');
+    expect(message).toContain('Conta ainda em aberto');
+    expect(message).toContain('Ficou para pagar: R$ 6.00');
+    expect(message).toContain('Cerveja');
+    expect(message).not.toContain('Arroz');
   });
 
   it('mantem fallback seguro quando o nome da empresa nao vier', () => {
