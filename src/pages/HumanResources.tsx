@@ -346,6 +346,11 @@ const emptyToNull = (value: string) => {
 };
 
 const normalizeName = (value: string) => value.trim().replace(/\s+/g, ' ');
+const normalizeNameKey = (value: string) =>
+  normalizeName(value)
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
 
 const toLocalDateTimeInputValue = (date = new Date()) => {
   const pad = (value: number) => String(value).padStart(2, '0');
@@ -676,6 +681,14 @@ export default function HumanResources() {
     const fullName = normalizeName(employeeForm.fullName);
     if (fullName.length < 3) {
       toast.error('Informe o nome completo do colaborador.');
+      return;
+    }
+
+    const duplicateEmployee = employees.find((employee) =>
+      employee.id !== editingEmployeeId && normalizeNameKey(employee.full_name) === normalizeNameKey(fullName),
+    );
+    if (duplicateEmployee) {
+      toast.error('Ja existe colaborador com esse nome completo. Use um segundo nome, sobrenome ou identificador diferente.');
       return;
     }
 
@@ -1328,6 +1341,7 @@ export default function HumanResources() {
                   </Field>
                   <Field label="Nome completo" className="xl:col-span-2">
                     <Input value={employeeForm.fullName} onChange={(event) => setEmployeeForm((current) => ({ ...current, fullName: event.target.value }))} placeholder="Nome do colaborador" />
+                    <p className="text-xs text-muted-foreground">O nome completo não pode ser igual ao de outro colaborador.</p>
                   </Field>
                   <Field label="Nome social">
                     <Input value={employeeForm.preferredName} onChange={(event) => setEmployeeForm((current) => ({ ...current, preferredName: event.target.value }))} placeholder="Opcional" />

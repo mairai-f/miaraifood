@@ -16,6 +16,7 @@ type ManageOperatorRequest =
     }
   | {
       action: 'create';
+      fullName?: string;
       username?: string;
       password?: string;
       jobTitle?: string;
@@ -27,6 +28,7 @@ type ManageOperatorRequest =
   | {
       action: 'update_access';
       operatorUserId?: string;
+      fullName?: string;
       jobTitle?: string;
       staffRole?: string;
       permissionKeys?: string[];
@@ -63,27 +65,69 @@ interface OperatorLookupRow {
   username: string;
 }
 
+interface HrEmployeeLookupRow {
+  id: string;
+  full_name: string;
+}
+
 type StaffRole = 'operator' | 'waiter' | 'hr';
 const staffRoles: StaffRole[] = ['operator', 'waiter', 'hr'];
 const normalizeJobTitle = (value: string | undefined | null) => value?.trim().replace(/\s+/g, ' ') ?? '';
 const isValidJobTitle = (value: string) => value.length >= 2 && value.length <= 60;
+const normalizePersonName = (value: string | undefined | null) => value?.trim().replace(/\s+/g, ' ') ?? '';
+const normalizePersonNameKey = (value: string | undefined | null) =>
+  normalizePersonName(value)
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+const isValidPersonName = (value: string) => value.length >= 3 && value.length <= 100;
 const isHrPermissionKey = (permissionKey: string) => permissionKey.startsWith('hr.');
 const resolveStaffRoleFromPermissions = (permissionKeys: string[]): StaffRole =>
   permissionKeys.length > 0 && permissionKeys.every(isHrPermissionKey) ? 'hr' : 'operator';
 const isInternalOperatorEmail = (value: string | null | undefined) =>
   Boolean(value?.endsWith('@operators.happycash.local') || value?.endsWith('@happycash.local'));
 
+const ensureUniqueHrEmployeeName = async (details: {
+  serviceClient: SupabaseClient;
+  ownerUserId: string;
+  fullName: string;
+  excludeEmployeeId?: string | null;
+}) => {
+  const normalizedTarget = normalizePersonNameKey(details.fullName);
+  if (!normalizedTarget) return null;
+
+  const { data, error } = await details.serviceClient
+    .from('hr_employees')
+    .select('id, full_name')
+    .eq('owner_user_id', details.ownerUserId);
+
+  if (error) {
+    return 'Nao foi possivel validar se ja existe colaborador com esse nome.';
+  }
+
+  const duplicate = ((data ?? []) as HrEmployeeLookupRow[]).find((employee) =>
+    employee.id !== details.excludeEmployeeId
+    && normalizePersonNameKey(employee.full_name) === normalizedTarget,
+  );
+
+  return duplicate
+    ? 'Ja existe colaborador com esse nome completo. Use o segundo nome, sobrenome ou outro identificador diferente.'
+    : null;
+};
+
 const syncHrEmployeeForStaffProfile = async (details: {
   serviceClient: SupabaseClient;
   ownerUserId: string;
   profileUserId: string;
+  fullName?: string | null;
   username: string;
   email?: string | null;
   role: StaffRole;
   jobTitle: string;
   actorUserId?: string | null;
 }) => {
-  const fullName = normalizeJobTitle(details.username) || details.jobTitle || `Colaborador ${details.profileUserId.slice(0, 8)}`;
+  const requestedFullName = normalizePersonName(details.fullName);
+  const fullName = requestedFullName || normalizeJobTitle(details.username) || details.jobTitle || `Colaborador ${details.profileUserId.slice(0, 8)}`;
   const normalizedEmail = normalizeEmail(details.email ?? '');
   const payload = {
     owner_user_id: details.ownerUserId,
@@ -110,11 +154,20 @@ const syncHrEmployeeForStaffProfile = async (details: {
   }
 
   if (existingEmployee?.id) {
+    const nextFullName = requestedFullName || normalizePersonName(existingEmployee.full_name) || payload.full_name;
+    const duplicateNameError = await ensureUniqueHrEmployeeName({
+      serviceClient: details.serviceClient,
+      ownerUserId: details.ownerUserId,
+      fullName: nextFullName,
+      excludeEmployeeId: existingEmployee.id,
+    });
+    if (duplicateNameError) return duplicateNameError;
+
     const { error } = await details.serviceClient
       .from('hr_employees')
       .update({
         ...payload,
-        full_name: normalizeJobTitle(existingEmployee.full_name) || payload.full_name,
+        full_name: nextFullName,
         preferred_name: normalizeJobTitle(existingEmployee.preferred_name) || payload.preferred_name,
         email: normalizeEmail(existingEmployee.email ?? '') || payload.email,
         employment_type: existingEmployee.employment_type ?? payload.employment_type,
@@ -123,6 +176,13 @@ const syncHrEmployeeForStaffProfile = async (details: {
       .eq('id', existingEmployee.id);
     return error?.message ?? null;
   }
+
+  const duplicateNameError = await ensureUniqueHrEmployeeName({
+    serviceClient: details.serviceClient,
+    ownerUserId: details.ownerUserId,
+    fullName: payload.full_name,
+  });
+  if (duplicateNameError) return duplicateNameError;
 
   const { error } = await details.serviceClient
     .from('hr_employees')
@@ -331,6 +391,7 @@ Deno.serve(async (request): Promise<Response> => {
   }
 
   if (body.action === 'create') {
+    const fullName = normalizePersonName(body.fullName ?? body.username ?? '');
     const normalizedUsername = normalizeOperatorUsername(body.username ?? '');
     const password = body.password?.trim();
     const jobTitle = normalizeJobTitle(body.jobTitle);
@@ -345,6 +406,10 @@ Deno.serve(async (request): Promise<Response> => {
 
     if (!isValidOperatorUsername(normalizedUsername)) {
       return jsonResponse(request, { error: operatorUsernameHelpText }, 400);
+    }
+
+    if (!isValidPersonName(fullName)) {
+      return jsonResponse(request, { error: 'Informe o nome completo do colaborador entre 3 e 100 caracteres.' }, 400);
     }
 
     if (!password || credentialError) {
@@ -385,7 +450,7 @@ Deno.serve(async (request): Promise<Response> => {
     const { data: existingOperators, error: existingOperatorsError } = await serviceClient
       .from('profiles')
       .select('user_id, username')
-      .in('role', staffRoles);
+      .eq('owner_user_id', ownerUserId);
 
     if (existingOperatorsError) {
       return jsonResponse(request, { error: 'Não foi possível validar o usuário do operador.' }, 500);
@@ -443,6 +508,7 @@ Deno.serve(async (request): Promise<Response> => {
       serviceClient,
       ownerUserId,
       profileUserId: createdUser.user.id,
+      fullName,
       username: normalizedUsername,
       email: generatedEmail,
       role: operatorRole,
@@ -451,7 +517,12 @@ Deno.serve(async (request): Promise<Response> => {
     });
     if (hrSyncError) {
       await serviceClient.auth.admin.deleteUser(createdUser.user.id);
-      return jsonResponse(request, { error: 'Colaborador criado, mas nao foi possivel registrar no RH.' }, 500);
+      const isDuplicateName = hrSyncError.startsWith('Ja existe colaborador');
+      return jsonResponse(
+        request,
+        { error: isDuplicateName ? hrSyncError : 'Colaborador criado, mas nao foi possivel registrar no RH.' },
+        isDuplicateName ? 409 : 500,
+      );
     }
 
     // Sem perfil-base: todas as permissoes recebem uma regra individual
@@ -485,6 +556,7 @@ Deno.serve(async (request): Promise<Response> => {
 
   if (body.action === 'update_access') {
     const operatorUserId = body.operatorUserId?.trim();
+    const fullName = normalizePersonName(body.fullName);
     const jobTitle = normalizeJobTitle(body.jobTitle);
     const requestedPermissionKeys = [...new Set(
       (Array.isArray(body.permissionKeys) ? body.permissionKeys : []).filter(
@@ -499,6 +571,10 @@ Deno.serve(async (request): Promise<Response> => {
 
     if (!isValidJobTitle(jobTitle)) {
       return jsonResponse(request, { error: 'Informe uma funcao entre 2 e 60 caracteres.' }, 400);
+    }
+
+    if (body.fullName !== undefined && !isValidPersonName(fullName)) {
+      return jsonResponse(request, { error: 'Informe o nome completo do colaborador entre 3 e 100 caracteres.' }, 400);
     }
 
     if (requestedPermissionKeys.length === 0) {
@@ -555,6 +631,7 @@ Deno.serve(async (request): Promise<Response> => {
       serviceClient,
       ownerUserId,
       profileUserId: operatorUserId,
+      fullName,
       username: targetProfile.username,
       email: null,
       role: nextStaffRole,
@@ -566,7 +643,12 @@ Deno.serve(async (request): Promise<Response> => {
         .from('profiles')
         .update({ job_title: targetProfile.job_title, role: targetProfile.role })
         .eq('user_id', operatorUserId);
-      return jsonResponse(request, { error: 'Nao foi possivel sincronizar o colaborador com o RH.' }, 500);
+      const isDuplicateName = hrSyncError.startsWith('Ja existe colaborador');
+      return jsonResponse(
+        request,
+        { error: isDuplicateName ? hrSyncError : 'Nao foi possivel sincronizar o colaborador com o RH.' },
+        isDuplicateName ? 409 : 500,
+      );
     }
 
     const selectedPermissionKeys = new Set(requestedPermissionKeys);

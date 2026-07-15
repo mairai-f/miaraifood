@@ -92,6 +92,11 @@ interface OperatorFunctionResponse {
   error?: string;
 }
 
+interface HrEmployeeNameRow {
+  profile_user_id: string | null;
+  full_name: string;
+}
+
 interface OperatorManagementPanelProps {
   createDialogOpen?: boolean;
   onCreateDialogOpenChange?: (open: boolean) => void;
@@ -115,6 +120,12 @@ const resolveStaffRoleFromPermissions = (permissionKeys: Iterable<ErpPermissionK
 };
 
 const normalizeLabel = (value: string | null | undefined) => value?.trim().toLowerCase() ?? '';
+const normalizePersonName = (value: string | null | undefined) => value?.trim().replace(/\s+/g, ' ') ?? '';
+const normalizePersonNameKey = (value: string | null | undefined) =>
+  normalizePersonName(value)
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
 const formatMoney = (value: number) => `R$ ${value.toFixed(2)}`;
 
 export function OperatorManagementPanel({
@@ -160,6 +171,8 @@ export function OperatorManagementPanel({
   const [closeCashAdminEmail, setCloseCashAdminEmail] = useState('');
   const [closeCashAdminPassword, setCloseCashAdminPassword] = useState('');
   const [closeCashError, setCloseCashError] = useState('');
+  const [fullName, setFullName] = useState('');
+  const [operatorFullNamesById, setOperatorFullNamesById] = useState<Record<string, string>>({});
   const [latestCredential, setLatestCredential] = useState<{
     username: string;
     jobTitle: string;
@@ -171,6 +184,7 @@ export function OperatorManagementPanel({
 
   const resetCreateForm = useCallback(() => {
     const startsAsHr = initialStaffRole === 'hr';
+    setFullName('');
     setUsername('');
     setPassword('');
     setJobTitle(startsAsHr ? fallbackJobTitle.hr : '');
@@ -239,20 +253,20 @@ export function OperatorManagementPanel({
     fallbackMessage: string,
     data?: OperatorFunctionResponse
   ) => {
-    let functionErrorMessage = data?.error || fallbackMessage;
+    let functionErrorMessage = data?.error || '';
 
     if (error && typeof error === 'object' && 'context' in error && error.context instanceof Response) {
       try {
         const errorPayload = await error.context.clone().json() as { error?: string; message?: string };
         functionErrorMessage = errorPayload.error || errorPayload.message || functionErrorMessage;
       } catch {
-        functionErrorMessage = error.context.status === 401
+        functionErrorMessage = error.context.status === 401 && !functionErrorMessage
           ? 'Sua sessão expirou. Entre novamente para continuar.'
           : functionErrorMessage;
       }
     }
 
-    return getPublicErrorMessage(functionErrorMessage, fallbackMessage);
+    return functionErrorMessage || getPublicErrorMessage(error, fallbackMessage);
   }, []);
 
   const saveOperatorOfflineAccessIfPossible = useCallback(async (
@@ -301,6 +315,7 @@ export function OperatorManagementPanel({
       { data: operatorRows, error: operatorError },
       { data: openRows, error: openError },
       { data: permissionRows, error: permissionError },
+      { data: employeeRows, error: employeeError },
     ] = await Promise.all([
       db
         .from('profiles')
@@ -319,6 +334,11 @@ export function OperatorManagementPanel({
         .select('user_id, permission_key, allowed')
         .eq('owner_user_id', ownerUserId)
         .eq('allowed', true),
+      db
+        .from('hr_employees')
+        .select('profile_user_id, full_name')
+        .eq('owner_user_id', ownerUserId)
+        .not('profile_user_id', 'is', null),
     ]);
 
     if (operatorError) {
@@ -336,11 +356,21 @@ export function OperatorManagementPanel({
       toast.error('Nao foi possivel carregar os acessos dos colaboradores');
     }
 
+    if (employeeError) {
+      console.error('Erro ao carregar nomes do RH:', getRedactedLogValue(employeeError));
+    }
+
     setOperators(((operatorRows as OperatorProfile[]) ?? []).map(operator => ({
       ...operator,
       role: operator.role === 'waiter' ? 'waiter' : operator.role === 'hr' ? 'hr' : 'operator',
     })));
     setOpenCashSessions((openRows as OpenCashSession[]) ?? []);
+    const nextOperatorFullNamesById: Record<string, string> = {};
+    for (const row of ((employeeRows ?? []) as HrEmployeeNameRow[])) {
+      if (!row.profile_user_id) continue;
+      nextOperatorFullNamesById[row.profile_user_id] = row.full_name;
+    }
+    setOperatorFullNamesById(nextOperatorFullNamesById);
     const nextPermissionKeysByOperatorId: Record<string, Set<ErpPermissionKey>> = {};
     for (const row of (permissionRows ?? []) as Array<{ user_id: string; permission_key: string }>) {
       if (!isErpPermissionKey(row.permission_key)) continue;
@@ -433,12 +463,20 @@ export function OperatorManagementPanel({
     .filter((permission) => selectedPermissionKeys.has(permission.permission_key))
     .map((permission) => permission.name);
   const inferredStaffRole = resolveStaffRoleFromPermissions(selectedPermissionKeys);
+  const normalizedFullName = normalizePersonName(fullName);
+  const duplicateFullName = normalizedFullName
+    ? operators.find((operator) =>
+      operator.user_id !== editingOperator?.user_id
+      && normalizePersonNameKey(operatorFullNamesById[operator.user_id] ?? operator.username) === normalizePersonNameKey(normalizedFullName),
+    )
+    : undefined;
 
   const operatorCanOperateCash = (operator: OperatorProfile) =>
     operator.role !== 'hr' && (permissionKeysByOperatorId[operator.user_id]?.has('pdv.open_cash') ?? false);
 
   const handleEditOperator = (operator: OperatorProfile) => {
     setEditingOperator(operator);
+    setFullName(operatorFullNamesById[operator.user_id] ?? operator.username);
     setUsername(operator.username);
     setPassword('');
     resetAdminAuthorization();
@@ -455,8 +493,18 @@ export function OperatorManagementPanel({
       return false;
     }
 
+    if (!normalizedFullName || normalizedFullName.length < 3) {
+      toast.error('Informe o nome completo do colaborador.');
+      return false;
+    }
+
+    if (duplicateFullName) {
+      toast.error('Ja existe colaborador com esse nome completo. Use um segundo nome, sobrenome ou identificador diferente.');
+      return false;
+    }
+
     if (!username.trim() || !password.trim() || !jobTitle.trim()) {
-      toast.error('Preencha funcao, usuario e senha ou PIN');
+      toast.error('Preencha nome, funcao, usuario e senha ou PIN');
       return false;
     }
 
@@ -483,6 +531,16 @@ export function OperatorManagementPanel({
 
     if (jobTitle.trim().length < 2 || jobTitle.trim().length > 60) {
       toast.error('Informe uma funcao entre 2 e 60 caracteres.');
+      return false;
+    }
+
+    if (!normalizedFullName || normalizedFullName.length < 3) {
+      toast.error('Informe o nome completo do colaborador.');
+      return false;
+    }
+
+    if (duplicateFullName) {
+      toast.error('Ja existe colaborador com esse nome completo. Use um segundo nome, sobrenome ou identificador diferente.');
       return false;
     }
 
@@ -516,6 +574,7 @@ export function OperatorManagementPanel({
       },
       body: {
         action: 'create',
+        fullName: normalizedFullName,
         username: username.trim(),
         password: password.trim(),
         jobTitle: jobTitle.trim(),
@@ -557,6 +616,7 @@ export function OperatorManagementPanel({
       body: {
         action: 'update_access',
         operatorUserId: editingOperator.user_id,
+        fullName: normalizedFullName,
         jobTitle: jobTitle.trim(),
         staffRole: inferredStaffRole,
         permissionKeys: [...selectedPermissionKeys],
@@ -1018,6 +1078,18 @@ export function OperatorManagementPanel({
             >
               <div className="space-y-4">
                 <div className="space-y-1">
+                  <Label>Nome completo</Label>
+                  <Input
+                    value={fullName}
+                    onChange={event => setFullName(event.target.value)}
+                    placeholder="Ex: Joao Silva"
+                    maxLength={100}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Nomes completos iguais não são permitidos; o primeiro nome pode repetir se o sobrenome for diferente.
+                  </p>
+                </div>
+                <div className="space-y-1">
                   <Label>Função</Label>
                   <Input
                     value={jobTitle}
@@ -1054,7 +1126,7 @@ export function OperatorManagementPanel({
                 </div>
                 <div className="hidden rounded-lg border bg-muted/30 p-3 text-sm md:block">
                   <p className="font-medium">Resumo</p>
-                  <p className="text-muted-foreground">{staffRoleLabels[inferredStaffRole]} · {jobTitle || 'Funcao nao informada'} · {selectedPermissionKeys.size} acessos</p>
+                  <p className="text-muted-foreground">{staffRoleLabels[inferredStaffRole]} · {normalizedFullName || 'Nome nao informado'} · {jobTitle || 'Funcao nao informada'} · {selectedPermissionKeys.size} acessos</p>
                 </div>
               </div>
             </form>
@@ -1072,6 +1144,7 @@ export function OperatorManagementPanel({
             <div className={`${createStep === 'review' ? 'block' : 'hidden'} overflow-y-auto p-4 md:hidden`}>
               <div className="space-y-4 rounded-lg border p-4">
                 <div><p className="text-xs text-muted-foreground">Tipo calculado</p><p className="font-semibold">{staffRoleLabels[inferredStaffRole]}</p></div>
+                <div><p className="text-xs text-muted-foreground">Nome completo</p><p className="font-semibold">{normalizedFullName || 'Não informado'}</p></div>
                 <div><p className="text-xs text-muted-foreground">Função</p><p className="font-semibold">{jobTitle || 'Não informada'}</p></div>
                 <div><p className="text-xs text-muted-foreground">Usuário</p><p className="font-semibold">{username || 'Não informado'}</p></div>
                 <div><p className="text-xs text-muted-foreground">Acessos ({selectedPermissionNames.length})</p><p className="mt-1 text-sm">{selectedPermissionNames.join(', ') || 'Nenhum acesso selecionado'}</p></div>
