@@ -7,6 +7,7 @@ import {
   resolveOperatorAuthPassword,
 } from '../_shared/operatorCredentials.ts';
 import { buildCorsHeaders, handleCorsPreflight } from '../_shared/cors.ts';
+import { checkRedisRateLimit, readRateLimitEnv } from '../_shared/rateLimit.ts';
 import { getOperatorCredentialError } from '../../../shared/security/operatorCredential.ts';
 
 type ManageOperatorRequest =
@@ -110,6 +111,23 @@ Deno.serve(async (request): Promise<Response> => {
 
   if (!accessToken) {
     return jsonResponse(request, { error: 'Sessão inválida. Faça login novamente.' }, 401);
+  }
+
+  const endpointRateLimit = await checkRedisRateLimit(request, {
+    namespace: 'manage-operators',
+    limit: readRateLimitEnv('MANAGE_OPERATORS_RATE_LIMIT_PER_MINUTE', 120),
+    windowSeconds: 60,
+  });
+
+  if (!endpointRateLimit.allowed) {
+    return jsonResponse(
+      request,
+      {
+        error: 'Muitas operacoes administrativas em pouco tempo. Aguarde alguns instantes e tente novamente.',
+        retryAfterSeconds: endpointRateLimit.retryAfterSeconds,
+      },
+      429,
+    );
   }
 
   const authClient = createClient(supabaseUrl, supabaseAnonKey, {

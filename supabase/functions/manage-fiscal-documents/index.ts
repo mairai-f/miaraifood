@@ -1,6 +1,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { buildCorsHeaders, handleCorsPreflight } from '../_shared/cors.ts';
 import { validateDesktopLicense } from '../_shared/desktopAccess.ts';
+import { checkRedisRateLimit, readRateLimitEnv } from '../_shared/rateLimit.ts';
 
 type DesktopFiscalRequestContext = {
   desktopInstallationId?: string | null;
@@ -863,6 +864,23 @@ Deno.serve(async (request) => {
 
   if (!accessToken) {
     return jsonResponse(request, { error: 'Sessao invalida. Faca login novamente.' }, 401);
+  }
+
+  const endpointRateLimit = await checkRedisRateLimit(request, {
+    namespace: 'manage-fiscal-documents',
+    limit: readRateLimitEnv('MANAGE_FISCAL_DOCUMENTS_RATE_LIMIT_PER_MINUTE', 120),
+    windowSeconds: 60,
+  });
+
+  if (!endpointRateLimit.allowed) {
+    return jsonResponse(
+      request,
+      {
+        error: 'Muitas requisicoes fiscais em pouco tempo. Aguarde alguns instantes e tente novamente.',
+        retryAfterSeconds: endpointRateLimit.retryAfterSeconds,
+      },
+      429,
+    );
   }
 
   const authClient = createClient(supabaseUrl, supabaseAnonKey, {

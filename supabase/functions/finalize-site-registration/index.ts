@@ -11,6 +11,7 @@ import {
   normalizeProductContext,
   type ProductContext,
 } from "../_shared/productContext.ts";
+import { checkRedisRateLimit, readRateLimitEnv } from "../_shared/rateLimit.ts";
 
 interface PendingRegistrationRow {
   id: string;
@@ -258,6 +259,23 @@ Deno.serve(async (request) => {
 
   if (request.method !== "POST") {
     return jsonResponse(request, { error: "Metodo nao suportado." }, 405);
+  }
+
+  const endpointRateLimit = await checkRedisRateLimit(request, {
+    namespace: "finalize-site-registration",
+    limit: readRateLimitEnv("FINALIZE_SITE_REGISTRATION_RATE_LIMIT_PER_MINUTE", 20),
+    windowSeconds: 60,
+  });
+
+  if (!endpointRateLimit.allowed) {
+    return jsonResponse(
+      request,
+      {
+        error: "Muitas tentativas de finalizar cadastro em pouco tempo. Aguarde alguns instantes e tente novamente.",
+        retryAfterSeconds: endpointRateLimit.retryAfterSeconds,
+      },
+      429,
+    );
   }
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL");

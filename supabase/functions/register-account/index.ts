@@ -6,6 +6,7 @@ import {
 } from "../_shared/legalAcceptance.ts";
 import { getPasswordPolicyError } from "../_shared/passwordPolicy.ts";
 import { normalizeProductContext, resolveProductContextFromPlanId } from "../_shared/productContext.ts";
+import { checkRedisRateLimit, readRateLimitEnv } from "../_shared/rateLimit.ts";
 
 interface RegisterAccountRequest {
   email?: string;
@@ -41,6 +42,7 @@ interface RegisterAccountResponse {
   requiresEmailConfirmation?: boolean;
   email?: string;
   error?: string;
+  retryAfterSeconds?: number | null;
 }
 
 interface PendingRegistrationRow {
@@ -269,6 +271,24 @@ Deno.serve(async (request) => {
   const corsState = buildCorsHeaders(request, registrationCorsOptions);
   if (!corsState.allowed) {
     return jsonResponse(request, { success: false, error: "Origem nao permitida." }, 403);
+  }
+
+  const endpointRateLimit = await checkRedisRateLimit(request, {
+    namespace: "register-account",
+    limit: readRateLimitEnv("REGISTER_ACCOUNT_RATE_LIMIT_PER_MINUTE", 12),
+    windowSeconds: 60,
+  });
+
+  if (!endpointRateLimit.allowed) {
+    return jsonResponse(
+      request,
+      {
+        success: false,
+        error: "Muitas tentativas de cadastro em pouco tempo. Aguarde alguns instantes e tente novamente.",
+        retryAfterSeconds: endpointRateLimit.retryAfterSeconds,
+      },
+      429,
+    );
   }
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL");

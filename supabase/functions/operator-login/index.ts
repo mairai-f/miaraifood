@@ -6,6 +6,7 @@ import {
   normalizeOperatorUsername,
 } from '../_shared/operatorCredentials.ts';
 import { buildCorsHeaders, handleCorsPreflight } from '../_shared/cors.ts';
+import { checkRedisRateLimit, readRateLimitEnv } from '../_shared/rateLimit.ts';
 
 type OperatorLoginRequest = {
   username?: string;
@@ -159,6 +160,23 @@ Deno.serve(async (request) => {
 
   if (request.method !== 'POST') {
     return jsonResponse(request, { error: 'Método não suportado.' }, 405);
+  }
+
+  const endpointRateLimit = await checkRedisRateLimit(request, {
+    namespace: 'operator-login',
+    limit: readRateLimitEnv('OPERATOR_LOGIN_RATE_LIMIT_PER_MINUTE', 30),
+    windowSeconds: 60,
+  });
+
+  if (!endpointRateLimit.allowed) {
+    return jsonResponse(
+      request,
+      {
+        error: 'Muitas tentativas de login em pouco tempo. Aguarde alguns instantes e tente novamente.',
+        retryAfterSeconds: endpointRateLimit.retryAfterSeconds,
+      },
+      429,
+    );
   }
 
   const body = await getBody(request);

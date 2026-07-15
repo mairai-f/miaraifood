@@ -1,5 +1,6 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { buildCorsHeaders, handleCorsPreflight } from '../_shared/cors.ts';
+import { checkRedisRateLimit, readRateLimitEnv } from '../_shared/rateLimit.ts';
 
 type ReminderRequest = {
   limit?: number;
@@ -143,9 +144,29 @@ Deno.serve(async (request) => {
   const cronSecret = Deno.env.get('AGENDA_REMINDER_CRON_SECRET');
   const accessToken = extractAccessToken(request.headers.get('Authorization'));
   const requestCronSecret = request.headers.get('x-cron-secret');
+  const isAuthorizedCron = Boolean(cronSecret && requestCronSecret && requestCronSecret === cronSecret);
 
   if (!supabaseUrl || !supabaseAnonKey || !supabaseServiceRoleKey) {
     return jsonResponse(request, { error: 'Configuracao do Supabase invalida.' }, 500);
+  }
+
+  if (!isAuthorizedCron) {
+    const endpointRateLimit = await checkRedisRateLimit(request, {
+      namespace: 'send-agenda-reminders',
+      limit: readRateLimitEnv('SEND_AGENDA_REMINDERS_RATE_LIMIT_PER_MINUTE', 20),
+      windowSeconds: 60,
+    });
+
+    if (!endpointRateLimit.allowed) {
+      return jsonResponse(
+        request,
+        {
+          error: 'Muitas tentativas de envio de lembretes em pouco tempo. Aguarde alguns instantes e tente novamente.',
+          retryAfterSeconds: endpointRateLimit.retryAfterSeconds,
+        },
+        429,
+      );
+    }
   }
 
   const serviceClient = createClient(supabaseUrl, supabaseServiceRoleKey, {
@@ -158,7 +179,7 @@ Deno.serve(async (request) => {
   let storeAccountId: string | null = null;
   let allowGlobalProcessing = false;
 
-  if (cronSecret && requestCronSecret && requestCronSecret === cronSecret) {
+  if (isAuthorizedCron) {
     allowGlobalProcessing = true;
   } else {
     if (!accessToken) {

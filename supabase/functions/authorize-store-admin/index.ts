@@ -1,5 +1,6 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { buildCorsHeaders, handleCorsPreflight } from '../_shared/cors.ts';
+import { checkRedisRateLimit, readRateLimitEnv } from '../_shared/rateLimit.ts';
 
 interface ApprovalRequest {
   adminEmail?: string;
@@ -79,6 +80,23 @@ Deno.serve(async (request) => {
 
     if (!accessToken) {
       return jsonResponse(request, { error: 'Sessao invalida. Faca login novamente.' }, 401);
+    }
+
+    const endpointRateLimit = await checkRedisRateLimit(request, {
+      namespace: 'authorize-store-admin',
+      limit: readRateLimitEnv('AUTHORIZE_STORE_ADMIN_RATE_LIMIT_PER_MINUTE', 30),
+      windowSeconds: 60,
+    });
+
+    if (!endpointRateLimit.allowed) {
+      return jsonResponse(
+        request,
+        {
+          error: 'Muitas validacoes administrativas em pouco tempo. Aguarde alguns instantes e tente novamente.',
+          retryAfterSeconds: endpointRateLimit.retryAfterSeconds,
+        },
+        429,
+      );
     }
 
     const serviceClient = createClient(supabaseUrl, supabaseServiceRoleKey, {

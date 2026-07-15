@@ -1,5 +1,6 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { buildCorsHeaders, handleCorsPreflight } from "../_shared/cors.ts";
+import { checkRedisRateLimit, readRateLimitEnv } from "../_shared/rateLimit.ts";
 
 type AccessEventType = "heartbeat" | "logout";
 type AccessSource = "system" | "site";
@@ -122,6 +123,23 @@ Deno.serve(async (request) => {
 
   if (!accessToken) {
     return jsonResponse(request, { error: "Sessão inválida. Faça login novamente." }, 401);
+  }
+
+  const endpointRateLimit = await checkRedisRateLimit(request, {
+    namespace: "track-access",
+    limit: readRateLimitEnv("TRACK_ACCESS_RATE_LIMIT_PER_MINUTE", 300),
+    windowSeconds: 60,
+  });
+
+  if (!endpointRateLimit.allowed) {
+    return jsonResponse(
+      request,
+      {
+        error: "Muitos eventos de acesso em pouco tempo. Aguarde alguns instantes e tente novamente.",
+        retryAfterSeconds: endpointRateLimit.retryAfterSeconds,
+      },
+      429,
+    );
   }
 
   const authClient = createClient(supabaseUrl, supabaseAnonKey, {

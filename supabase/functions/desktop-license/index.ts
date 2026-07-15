@@ -2,6 +2,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 
 import { validateDesktopLicense } from "../_shared/desktopAccess.ts";
 import { buildCorsHeaders, handleCorsPreflight } from "../_shared/cors.ts";
+import { checkRedisRateLimit, readRateLimitEnv } from "../_shared/rateLimit.ts";
 
 const jsonResponse = (request: Request, body: Record<string, unknown>, status = 200) =>
   new Response(JSON.stringify(body), {
@@ -42,6 +43,23 @@ Deno.serve(async (request) => {
 
   if (!accessToken) {
     return jsonResponse(request, { error: "Sessao invalida. Faca login novamente." }, 401);
+  }
+
+  const endpointRateLimit = await checkRedisRateLimit(request, {
+    namespace: "desktop-license",
+    limit: readRateLimitEnv("DESKTOP_LICENSE_RATE_LIMIT_PER_MINUTE", 120),
+    windowSeconds: 60,
+  });
+
+  if (!endpointRateLimit.allowed) {
+    return jsonResponse(
+      request,
+      {
+        error: "Muitas validacoes de licenca em pouco tempo. Aguarde alguns instantes e tente novamente.",
+        retryAfterSeconds: endpointRateLimit.retryAfterSeconds,
+      },
+      429,
+    );
   }
 
   const authClient = createClient(supabaseUrl, supabaseAnonKey, {

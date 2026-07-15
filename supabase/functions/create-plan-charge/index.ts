@@ -21,6 +21,7 @@ import {
   resolveProductContextFromPlanId,
   type ProductContext,
 } from "../_shared/productContext.ts";
+import { checkRedisRateLimit, readRateLimitEnv } from "../_shared/rateLimit.ts";
 import { getCommercialPaidPlanPricing } from "../../../shared/subscriptionPlanPricing.ts";
 
 type SupportedPaidPlan = "fiado" | "completo" | "pro" | "food" | "food_offline" | "agenda";
@@ -478,6 +479,23 @@ Deno.serve(async (request) => {
 
   if (!isAsaasConfigured()) {
     return jsonResponse(request, { error: "ASAAS_API_KEY não configurada." }, 503);
+  }
+
+  const endpointRateLimit = await checkRedisRateLimit(request, {
+    namespace: "create-plan-charge",
+    limit: readRateLimitEnv("CREATE_PLAN_CHARGE_RATE_LIMIT_PER_MINUTE", 10),
+    windowSeconds: 60,
+  });
+
+  if (!endpointRateLimit.allowed) {
+    return jsonResponse(
+      request,
+      {
+        error: "Muitas tentativas de gerar cobranca em pouco tempo. Aguarde alguns instantes e tente novamente.",
+        retryAfterSeconds: endpointRateLimit.retryAfterSeconds,
+      },
+      429,
+    );
   }
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL");

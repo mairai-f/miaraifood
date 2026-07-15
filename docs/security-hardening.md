@@ -2,8 +2,8 @@
 
 ## Public endpoint rate limits
 
-`public-menu` and `create-public-menu-order` support optional Redis-backed rate limiting through Upstash REST.
-`desktop-activate` uses the same helper to reduce license-key brute-force attempts.
+Public and sensitive Edge Functions support optional Redis-backed rate limiting through Upstash REST.
+This protects public menu traffic, account registration, billing checkout, operator login, desktop/mobile downloads, license validation, administrative approvals, fiscal actions, access tracking, and message/email sending endpoints.
 Without the Redis secrets, the functions keep working and skip the Redis check.
 
 Configure these as Supabase secrets:
@@ -15,6 +15,21 @@ supabase secrets set PUBLIC_MENU_RATE_LIMIT_PER_MINUTE="120"
 supabase secrets set PUBLIC_MENU_ORDER_RATE_LIMIT_PER_MINUTE="30"
 supabase secrets set PUBLIC_MENU_TABLE_ACTION_RATE_LIMIT_PER_MINUTE="12"
 supabase secrets set DESKTOP_ACTIVATE_RATE_LIMIT_PER_MINUTE="8"
+supabase secrets set REGISTER_ACCOUNT_RATE_LIMIT_PER_MINUTE="12"
+supabase secrets set FINALIZE_SITE_REGISTRATION_RATE_LIMIT_PER_MINUTE="20"
+supabase secrets set CREATE_PLAN_CHARGE_RATE_LIMIT_PER_MINUTE="10"
+supabase secrets set OPERATOR_LOGIN_RATE_LIMIT_PER_MINUTE="30"
+supabase secrets set TRACK_ACCESS_RATE_LIMIT_PER_MINUTE="300"
+supabase secrets set DESKTOP_LICENSE_RATE_LIMIT_PER_MINUTE="120"
+supabase secrets set DESKTOP_LICENSE_KEY_RATE_LIMIT_PER_MINUTE="30"
+supabase secrets set DESKTOP_DOWNLOAD_RATE_LIMIT_PER_MINUTE="20"
+supabase secrets set MOBILE_DOWNLOAD_RATE_LIMIT_PER_MINUTE="20"
+supabase secrets set AUTHORIZE_STORE_ADMIN_RATE_LIMIT_PER_MINUTE="30"
+supabase secrets set AUTHORIZE_PRICING_MANAGER_RATE_LIMIT_PER_MINUTE="30"
+supabase secrets set MANAGE_OPERATORS_RATE_LIMIT_PER_MINUTE="120"
+supabase secrets set MANAGE_FISCAL_DOCUMENTS_RATE_LIMIT_PER_MINUTE="120"
+supabase secrets set SEND_CASH_CLOSE_REPORT_RATE_LIMIT_PER_MINUTE="8"
+supabase secrets set SEND_AGENDA_REMINDERS_RATE_LIMIT_PER_MINUTE="20"
 ```
 
 Then redeploy:
@@ -23,7 +38,24 @@ Then redeploy:
 supabase functions deploy public-menu
 supabase functions deploy create-public-menu-order
 supabase functions deploy desktop-activate
+supabase functions deploy register-account
+supabase functions deploy finalize-site-registration
+supabase functions deploy create-plan-charge
+supabase functions deploy operator-login
+supabase functions deploy track-access
+supabase functions deploy desktop-license
+supabase functions deploy desktop-license-key
+supabase functions deploy desktop-download
+supabase functions deploy mobile-download
+supabase functions deploy authorize-store-admin
+supabase functions deploy authorize-pricing-manager
+supabase functions deploy manage-operators
+supabase functions deploy manage-fiscal-documents
+supabase functions deploy send-cash-close-report
+supabase functions deploy send-agenda-reminders
 ```
+
+Do not rate-limit the Asaas webhook with a small public-IP rule; it already requires `ASAAS_WEBHOOK_AUTH_TOKEN` and provider retries should not be blocked by normal app traffic rules.
 
 ## Local audit
 

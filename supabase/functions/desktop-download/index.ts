@@ -2,6 +2,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { buildCorsHeaders, handleCorsPreflight } from "../_shared/cors.ts";
 import { validateDesktopLicense, type SupportedDesktopPlatform } from "../_shared/desktopAccess.ts";
 import { fetchLatestDesktopReleaseAsset, type DesktopReleaseContext } from "../_shared/githubRelease.ts";
+import { checkRedisRateLimit, readRateLimitEnv } from "../_shared/rateLimit.ts";
 
 interface DesktopDownloadRequest {
   platform?: SupportedDesktopPlatform;
@@ -78,6 +79,23 @@ Deno.serve(async (request) => {
 
   if (!accessToken) {
     return jsonResponse(request, { error: "Sessão inválida. Faça login novamente." }, 401);
+  }
+
+  const endpointRateLimit = await checkRedisRateLimit(request, {
+    namespace: "desktop-download",
+    limit: readRateLimitEnv("DESKTOP_DOWNLOAD_RATE_LIMIT_PER_MINUTE", 20),
+    windowSeconds: 60,
+  });
+
+  if (!endpointRateLimit.allowed) {
+    return jsonResponse(
+      request,
+      {
+        error: "Muitas tentativas de download em pouco tempo. Aguarde alguns instantes e tente novamente.",
+        retryAfterSeconds: endpointRateLimit.retryAfterSeconds,
+      },
+      429,
+    );
   }
 
   const authClient = createClient(supabaseUrl, supabaseAnonKey, {

@@ -1,5 +1,6 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { buildCorsHeaders, handleCorsPreflight } from '../_shared/cors.ts';
+import { checkRedisRateLimit, readRateLimitEnv } from '../_shared/rateLimit.ts';
 
 interface CashSale {
   date: string;
@@ -302,6 +303,23 @@ Deno.serve(async (request) => {
 
   if (request.method !== 'POST') {
     return jsonResponse(request, { error: 'Metodo nao permitido.' }, 405);
+  }
+
+  const endpointRateLimit = await checkRedisRateLimit(request, {
+    namespace: 'send-cash-close-report',
+    limit: readRateLimitEnv('SEND_CASH_CLOSE_REPORT_RATE_LIMIT_PER_MINUTE', 8),
+    windowSeconds: 60,
+  });
+
+  if (!endpointRateLimit.allowed) {
+    return jsonResponse(
+      request,
+      {
+        error: 'Muitas tentativas de envio de relatorio em pouco tempo. Aguarde alguns instantes e tente novamente.',
+        retryAfterSeconds: endpointRateLimit.retryAfterSeconds,
+      },
+      429,
+    );
   }
 
   const resendApiKey = Deno.env.get('RESEND_API_KEY');
