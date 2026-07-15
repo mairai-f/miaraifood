@@ -9,6 +9,7 @@ import { startSiteLogout } from "@/lib/authSessionPreferences";
 import { useCurrentSubscription } from "@/hooks/use-current-subscription";
 import { isCurrentSubscription } from "@/lib/subscriptionStatus";
 import { isPublicPlanId, publicPlanContent } from "@/lib/subscriptionPlans";
+import { SiteThemeToggle } from "@/components/SiteThemeToggle";
 import happyCashLogo from "../../../../src/assets/login/happycash.svg";
 
 const solutionLinks = [
@@ -78,9 +79,9 @@ const Header = () => {
     : currentPlanName;
   const isHomePage = location.pathname === "/" || location.pathname === "/index" || location.pathname === "/paginainicial";
   const buildHomeSectionHref = (id: string) => (isHomePage ? `#${id}` : `/#${id}`);
-  const headerOutlineButtonClassName = "h-11 rounded-full border-[#d6deec] bg-white px-5 text-[#1f56a5] shadow-none hover:bg-[#edf4ff] hover:text-[#1f56a5]";
+  const headerOutlineButtonClassName = "h-11 rounded-full border-border bg-card px-5 text-primary shadow-none hover:bg-accent hover:text-accent-foreground";
   const headerPrimaryButtonClassName = "h-11 rounded-full bg-[#1f56a5] px-5 font-semibold text-white hover:bg-[#194788]";
-  const headerGhostButtonClassName = "h-11 rounded-full px-4 font-semibold text-[#1f56a5] hover:bg-[#edf4ff] hover:text-[#1f56a5]";
+  const headerGhostButtonClassName = "h-11 rounded-full px-4 font-semibold text-primary hover:bg-accent hover:text-accent-foreground";
 
   const mainLinks = [
     { label: "Funcionalidades", href: buildHomeSectionHref("funcionalidades") },
@@ -104,7 +105,7 @@ const Header = () => {
 
   return (
     <header className="fixed inset-x-0 top-4 z-50 px-3 md:px-5">
-      <div className="mx-auto max-w-7xl rounded-[28px] border border-white/70 bg-white/82 shadow-[0_18px_60px_rgba(15,23,42,0.12)] backdrop-blur-xl">
+      <div className="mx-auto max-w-7xl rounded-[28px] border border-border bg-card/82 shadow-[0_18px_60px_rgba(15,23,42,0.12)] backdrop-blur-xl">
         <div className="flex h-[76px] items-center justify-between px-4 sm:px-5 lg:px-6">
           <Link to={homeHref} className="flex h-11 items-center" aria-label="HappyCash">
             <img
@@ -120,22 +121,22 @@ const Header = () => {
             <div className="group relative">
               <button
                 type="button"
-                className="inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold text-foreground transition-colors hover:bg-[rgba(15,23,42,0.04)] hover:text-[var(--hc-blue)]"
+                className="inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold text-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
               >
                 Soluções
                 <ChevronDown className="h-4 w-4" />
               </button>
 
-              <div className="pointer-events-none absolute left-0 top-[calc(100%+10px)] w-[370px] translate-y-2 rounded-[24px] border border-[rgba(15,23,42,0.08)] bg-white p-3 opacity-0 shadow-[0_24px_60px_rgba(15,23,42,0.14)] transition-all duration-200 group-hover:pointer-events-auto group-hover:translate-y-0 group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:translate-y-0 group-focus-within:opacity-100">
+              <div className="pointer-events-none absolute left-0 top-[calc(100%+10px)] w-[370px] translate-y-2 rounded-[24px] border border-border bg-card p-3 opacity-0 shadow-[0_24px_60px_rgba(15,23,42,0.14)] transition-all duration-200 group-hover:pointer-events-auto group-hover:translate-y-0 group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:translate-y-0 group-focus-within:opacity-100">
                 <div className="grid gap-2">
                   {solutionLinks.map((item) => (
                     <Link
                       key={item.href}
                       to={item.href}
-                      className="rounded-[18px] border border-transparent bg-[rgba(15,23,42,0.02)] px-4 py-3 transition-all duration-200 hover:border-[rgba(0,102,255,0.10)] hover:bg-[rgba(0,102,255,0.04)]"
+                      className="rounded-[18px] border border-transparent bg-background/70 px-4 py-3 transition-all duration-200 hover:border-primary/20 hover:bg-accent"
                     >
-                      <span className="text-sm font-semibold text-[#0A1251]">{item.label}</span>
-                      <span className="mt-1 block text-sm leading-6 text-slate-500">{item.description}</span>
+                      <span className="text-sm font-semibold text-foreground">{item.label}</span>
+                      <span className="mt-1 block text-sm leading-6 text-muted-foreground">{item.description}</span>
                     </Link>
                   ))}
                 </div>
@@ -147,7 +148,7 @@ const Header = () => {
                 <Link
                   key={item.label}
                   to={item.to}
-                  className="rounded-full px-4 py-2 text-sm font-semibold text-foreground transition-colors hover:bg-[rgba(15,23,42,0.04)] hover:text-[var(--hc-blue)]"
+                  className="rounded-full px-4 py-2 text-sm font-semibold text-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
                 >
                   {item.label}
                 </Link>
@@ -155,7 +156,7 @@ const Header = () => {
                 <a
                   key={item.href}
                   href={item.href}
-                  className="rounded-full px-4 py-2 text-sm font-semibold text-foreground transition-colors hover:bg-[rgba(15,23,42,0.04)] hover:text-[var(--hc-blue)]"
+                  className="rounded-full px-4 py-2 text-sm font-semibold text-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
                 >
                   {item.label}
                 </a>
@@ -164,6 +165,7 @@ const Header = () => {
           </nav>
 
           <div className="hidden items-center gap-2 lg:flex">
+            <SiteThemeToggle />
             {isAuthenticated ? (
               <>
                 {!loadingSubscription && subscriptionMarker ? (
@@ -208,22 +210,25 @@ const Header = () => {
             )}
           </div>
 
-          <button
-            type="button"
-            className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-[rgba(15,23,42,0.08)] text-foreground lg:hidden"
-            onClick={() => setMobileOpen((current) => !current)}
-            aria-label={mobileOpen ? "Fechar menu" : "Abrir menu"}
-          >
-            {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-          </button>
+          <div className="flex items-center gap-2 lg:hidden">
+            <SiteThemeToggle />
+            <button
+              type="button"
+              className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-border text-foreground"
+              onClick={() => setMobileOpen((current) => !current)}
+              aria-label={mobileOpen ? "Fechar menu" : "Abrir menu"}
+            >
+              {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+            </button>
+          </div>
         </div>
 
         {mobileOpen ? (
-          <div className="border-t border-[rgba(15,23,42,0.08)] px-4 pb-5 pt-4 lg:hidden">
+          <div className="border-t border-border px-4 pb-5 pt-4 lg:hidden">
             <div className="grid gap-2">
               <button
                 type="button"
-                className="flex items-center justify-between rounded-[20px] border border-[rgba(15,23,42,0.08)] bg-[rgba(15,23,42,0.02)] px-4 py-3 text-left text-sm font-semibold text-[#0A1251]"
+                className="flex items-center justify-between rounded-[20px] border border-border bg-background/70 px-4 py-3 text-left text-sm font-semibold text-foreground"
                 onClick={() => setMobileSolutionsOpen((current) => !current)}
               >
                 Soluções
@@ -231,16 +236,16 @@ const Header = () => {
               </button>
 
               {mobileSolutionsOpen ? (
-                <div className="grid gap-2 rounded-[22px] border border-[rgba(15,23,42,0.08)] bg-white p-3 shadow-[0_18px_48px_rgba(15,23,42,0.10)]">
+                <div className="grid gap-2 rounded-[22px] border border-border bg-card p-3 shadow-[0_18px_48px_rgba(15,23,42,0.10)]">
                   {solutionLinks.map((item) => (
                     <Link
                       key={item.href}
                       to={item.href}
-                      className="rounded-[18px] border border-[rgba(15,23,42,0.05)] bg-[rgba(15,23,42,0.02)] px-4 py-3"
+                      className="rounded-[18px] border border-border bg-background/70 px-4 py-3"
                       onClick={closeMobileMenu}
                     >
-                      <span className="text-sm font-semibold text-[#0A1251]">{item.label}</span>
-                      <span className="mt-1 block text-sm leading-6 text-slate-500">{item.description}</span>
+                      <span className="text-sm font-semibold text-foreground">{item.label}</span>
+                      <span className="mt-1 block text-sm leading-6 text-muted-foreground">{item.description}</span>
                     </Link>
                   ))}
                 </div>
@@ -251,7 +256,7 @@ const Header = () => {
                   <Link
                     key={item.label}
                     to={item.to}
-                    className="rounded-[20px] border border-[rgba(15,23,42,0.08)] bg-[rgba(15,23,42,0.02)] px-4 py-3 text-sm font-semibold text-[#0A1251]"
+                    className="rounded-[20px] border border-border bg-background/70 px-4 py-3 text-sm font-semibold text-foreground"
                     onClick={closeMobileMenu}
                   >
                     {item.label}
@@ -260,7 +265,7 @@ const Header = () => {
                   <a
                     key={item.href}
                     href={item.href}
-                    className="rounded-[20px] border border-[rgba(15,23,42,0.08)] bg-[rgba(15,23,42,0.02)] px-4 py-3 text-sm font-semibold text-[#0A1251]"
+                    className="rounded-[20px] border border-border bg-background/70 px-4 py-3 text-sm font-semibold text-foreground"
                     onClick={closeMobileMenu}
                   >
                     {item.label}
@@ -276,7 +281,7 @@ const Header = () => {
                         {subscriptionMarker}
                       </Badge>
                     ) : null}
-                    <Button asChild variant="outline" className="h-12 rounded-full border-[#d6deec] bg-white text-[#1f56a5] shadow-none hover:bg-[#edf4ff] hover:text-[#1f56a5]">
+                    <Button asChild variant="outline" className="h-12 rounded-full border-border bg-card text-primary shadow-none hover:bg-accent hover:text-accent-foreground">
                       <Link to={dashboardHref} onClick={closeMobileMenu}>Minha conta</Link>
                     </Button>
                     {showTestButton ? (
@@ -287,7 +292,7 @@ const Header = () => {
                     <Button
                       type="button"
                       variant="ghost"
-                      className="h-12 rounded-full font-semibold text-[#1f56a5] hover:bg-[#edf4ff] hover:text-[#1f56a5]"
+                      className="h-12 rounded-full font-semibold text-primary hover:bg-accent hover:text-accent-foreground"
                       onClick={() => void handleLogout()}
                       disabled={loggingOut}
                     >
@@ -297,10 +302,10 @@ const Header = () => {
                   </>
                 ) : (
                   <>
-                    <Button asChild variant="outline" className="h-12 rounded-full border-[#d6deec] bg-white text-[#1f56a5] shadow-none hover:bg-[#edf4ff] hover:text-[#1f56a5]">
+                    <Button asChild variant="outline" className="h-12 rounded-full border-border bg-card text-primary shadow-none hover:bg-accent hover:text-accent-foreground">
                       <Link to={loginHref} onClick={closeMobileMenu}>Entrar</Link>
                     </Button>
-                    <Button asChild variant="outline" className="h-12 rounded-full border-[#d6deec] bg-white font-semibold text-[#1f56a5] shadow-none hover:bg-[#edf4ff] hover:text-[#1f56a5]">
+                    <Button asChild variant="outline" className="h-12 rounded-full border-border bg-card font-semibold text-primary shadow-none hover:bg-accent hover:text-accent-foreground">
                       <Link to={signupHref} onClick={closeMobileMenu}>Criar conta</Link>
                     </Button>
                     {showTestButton ? (

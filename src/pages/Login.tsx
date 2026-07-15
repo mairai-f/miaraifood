@@ -9,7 +9,6 @@ import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ThemeModeToggle } from '@/components/ThemeModeToggle';
 import { Eye, EyeOff, Fingerprint, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -396,7 +395,6 @@ export default function Login() {
     <div className="h-[100dvh] overflow-hidden bg-[#eef3fb]">
       <LanguageSwitcher className="left-1/2 top-[calc(env(safe-area-inset-top,0px)+0.45rem)] right-auto bottom-auto -translate-x-1/2 sm:hidden" />
       <LanguageSwitcher className="hidden sm:flex top-[calc(env(safe-area-inset-top,0px)+1rem)] right-4 bottom-auto left-auto translate-x-0" />
-      <ThemeModeToggle compact className="fixed left-4 top-[calc(env(safe-area-inset-top,0px)+1rem)] z-50 bg-white/92 backdrop-blur" />
       <div className="grid h-full lg:grid-cols-[minmax(0,0.98fr)_minmax(0,1.02fr)]">
         <motion.div
           initial={{ opacity: 0, scale: 0.97, y: 20 }}

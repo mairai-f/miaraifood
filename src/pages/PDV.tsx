@@ -27,7 +27,7 @@ import { normalizePhone } from '@/lib/phone';
 import { openRetailCouponPrintWindow } from '@/lib/retailCoupon';
 import { supabase } from '@/integrations/supabase/client';
 import type { Database } from '@/integrations/supabase/types';
-import happyCashLogo from '@/assets/happycash-logo.webp';
+import happyCashLogo from '@/assets/login/happycash.svg';
 import { roleLabel } from '@/lib/access';
 import { useCompanyDisplayName } from '@/hooks/use-company-display-name';
 import { useStoreReceiptProfile } from '@/hooks/use-store-receipt-profile';

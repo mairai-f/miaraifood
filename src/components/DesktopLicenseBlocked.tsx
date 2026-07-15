@@ -4,7 +4,6 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAuth } from '@/contexts/AuthContext';
 import { useDesktopRuntime } from '@/contexts/DesktopRuntimeContext';
-import { ThemeModeToggle } from '@/components/ThemeModeToggle';
 
 const SALES_PAGE_URL = 'https://www.happycashsite.com.br/#planos';
 
@@ -16,7 +15,6 @@ export function DesktopLicenseBlocked() {
   return (
     <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[#eef3fb] p-6 dark:bg-background">
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(94,121,255,0.18),_transparent_34%),radial-gradient(circle_at_bottom_right,_rgba(12,184,225,0.14),_transparent_42%)] dark:bg-[radial-gradient(circle_at_top_left,_rgba(37,99,235,0.18),_transparent_36%),radial-gradient(circle_at_bottom_right,_rgba(20,184,212,0.11),_transparent_42%)]" />
-      <ThemeModeToggle compact className="absolute right-4 top-4 z-20 bg-card/80 backdrop-blur" />
       <Card className="relative w-full max-w-2xl rounded-[28px] border-border bg-card/88 shadow-[0_28px_80px_rgba(29,78,216,0.13)] backdrop-blur-xl dark:bg-card/95">
         <CardHeader className="space-y-4">
           <div className="flex items-center gap-3 text-primary">

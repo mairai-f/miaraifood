@@ -2,6 +2,7 @@ import { Suspense, lazy, useEffect } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Route, Routes, useLocation } from "react-router-dom";
 import { Loader2 } from "lucide-react";
+import { ThemeProvider } from "next-themes";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -75,17 +76,28 @@ function RouteLoader() {
   );
 }
 
+function WhatsAppForRoute() {
+  const { pathname } = useLocation();
+
+  if (pathname === "/cadastro" || pathname.startsWith("/cadastro/")) {
+    return null;
+  }
+
+  return <WhatsAppFloatingButton />;
+}
+
 const App = () => (
-  <LocaleProvider>
-    <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <BrowserRouter>
-          <ScrollToRouteTop />
-          <WhatsAppFloatingButton />
-          <Suspense fallback={<RouteLoader />}>
-            <Routes>
+  <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false} storageKey="happycash-site:ui-theme">
+    <LocaleProvider>
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+          <Toaster />
+          <Sonner />
+          <BrowserRouter>
+            <ScrollToRouteTop />
+            <WhatsAppForRoute />
+            <Suspense fallback={<RouteLoader />}>
+              <Routes>
               <Route path="/" element={<Index />} />
               <Route path="/index" element={<Index />} />
               <Route path="/paginainicial" element={<Index />} />
@@ -114,12 +126,13 @@ const App = () => (
               <Route path="/termos-de-servico" element={<TermosDeServico />} />
               <Route path="/downloads/:platform" element={<DownloadRedirect />} />
               <Route path="*" element={<NotFound />} />
-            </Routes>
-          </Suspense>
-        </BrowserRouter>
-      </TooltipProvider>
-    </QueryClientProvider>
-  </LocaleProvider>
+              </Routes>
+            </Suspense>
+          </BrowserRouter>
+        </TooltipProvider>
+      </QueryClientProvider>
+    </LocaleProvider>
+  </ThemeProvider>
 );
 
 export default App;

@@ -288,11 +288,11 @@ const Login = () => {
                 <p className="mt-1 text-[14px] text-[#64748b] sm:mt-1.5 sm:text-base">
                   Faça login para continuar
                 </p>
-                <p className="mt-2 max-w-[24rem] text-[13px] leading-5 text-[#687991] sm:text-sm sm:leading-6">
-                  {selectedPlan
-                    ? `Depois do login, voce pode ativar o ${selectedPlan.name}.`
-                    : 'Sua conta vale no site e no sistema HappyCash.'}
-                </p>
+                {selectedPlan ? (
+                  <p className="mt-2 max-w-[24rem] text-[13px] leading-5 text-[#687991] sm:text-sm sm:leading-6">
+                    Depois do login, voce pode ativar o {selectedPlan.name}.
+                  </p>
+                ) : null}
               </div>
 
               <form onSubmit={handleLogin} className="mt-4 space-y-3 sm:space-y-4">

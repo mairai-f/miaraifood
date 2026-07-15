@@ -50,10 +50,11 @@ function AppRoutes() {
   const { isAuthenticated, loading, logout } = useAuth();
   const { checking: checkingDesktopLicense, isDesktop } = useDesktopRuntime();
   const { loading: planLoading } = usePlanAccess();
+  const hasCompletedSplash = !isDesktop && hasSeenAppSplash();
   const [desktopActivation, setDesktopActivation] = useState<DesktopActivationRecord | null>(() => readDesktopActivation());
   const [progress, setProgress] = useState(0);
-  const [minimumSplashDone, setMinimumSplashDone] = useState(hasSeenAppSplash());
-  const [showSplash, setShowSplash] = useState(!hasSeenAppSplash());
+  const [minimumSplashDone, setMinimumSplashDone] = useState(hasCompletedSplash);
+  const [showSplash, setShowSplash] = useState(!hasCompletedSplash);
   const [desktopUpdateStatus, setDesktopUpdateStatus] = useState<DesktopUpdateStatus | null>(null);
   const [desktopUpdatePreflightStarted, setDesktopUpdatePreflightStarted] = useState(false);
   const [desktopUpdatePreflightDone, setDesktopUpdatePreflightDone] = useState(false);
@@ -70,13 +71,13 @@ function AppRoutes() {
   const desktopUpdateSplashSummary = getDesktopUpdateSplashSummary(desktopUpdateStatus);
 
   useEffect(() => {
-    if (hasSeenAppSplash()) {
+    if (!isDesktop && hasSeenAppSplash()) {
       setProgress(100);
       return;
     }
 
-    const stepValues = [22, 44, 66, 88];
-    const stepDelay = 620;
+    const stepValues = isDesktop ? [15, 32, 52, 72, 88] : [22, 44, 66, 88];
+    const stepDelay = isDesktop ? 980 : 620;
     const timerIds: number[] = [];
 
     stepValues.forEach((stepValue, index) => {
@@ -94,7 +95,7 @@ function AppRoutes() {
     return () => {
       timerIds.forEach((timerId) => window.clearTimeout(timerId));
     };
-  }, []);
+  }, [isDesktop]);
 
   useEffect(() => {
     if (!shouldBlockSplash && minimumSplashDone) {
@@ -105,12 +106,14 @@ function AppRoutes() {
   useEffect(() => {
     if (!shouldBlockSplash && minimumSplashDone) {
       const hideTimer = window.setTimeout(() => {
-        markAppSplashSeen();
+        if (!isDesktop) {
+          markAppSplashSeen();
+        }
         setShowSplash(false);
-      }, 820);
+      }, isDesktop ? 1400 : 820);
       return () => window.clearTimeout(hideTimer);
     }
-  }, [minimumSplashDone, shouldBlockSplash]);
+  }, [isDesktop, minimumSplashDone, shouldBlockSplash]);
 
   useEffect(() => {
     setDesktopActivation(readDesktopActivation());

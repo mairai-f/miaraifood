@@ -4,7 +4,6 @@ import { toast } from 'sonner';
 
 import happyCashLogo from '@/assets/login/happycash.svg';
 import { Button } from '@/components/ui/button';
-import { ThemeModeToggle } from '@/components/ThemeModeToggle';
 import {
   Dialog,
   DialogContent,
@@ -215,7 +214,6 @@ export function DesktopActivationScreen({ onActivated }: DesktopActivationScreen
     <div className="relative h-[100dvh] overflow-hidden bg-[linear-gradient(180deg,#5e79ff_0%,#5571f4_48%,#4d69e8_100%)]">
       <LanguageSwitcher className="left-1/2 top-[calc(env(safe-area-inset-top,0px)+0.55rem)] right-auto bottom-auto z-30 -translate-x-1/2 sm:hidden" />
       <LanguageSwitcher className="hidden sm:flex top-[calc(env(safe-area-inset-top,0px)+1rem)] right-4 bottom-auto left-auto z-30 translate-x-0" />
-      <ThemeModeToggle compact className="absolute left-4 top-[calc(env(safe-area-inset-top,0px)+1rem)] z-30 bg-white/92 backdrop-blur" />
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(255,255,255,0.2),_transparent_32%),radial-gradient(circle_at_bottom_right,_rgba(21,41,113,0.2),_transparent_42%)]" />
       <div className="absolute left-[12%] top-[14%] h-72 w-72 rounded-full bg-white/14 blur-3xl" />
       <div className="absolute bottom-[10%] right-[8%] h-80 w-80 rounded-full bg-[#183b8c]/22 blur-3xl" />

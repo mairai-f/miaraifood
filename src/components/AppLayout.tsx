@@ -8,7 +8,7 @@ import { useDesktopRuntime } from '@/contexts/DesktopRuntimeContext';
 import { usePermissions } from '@/contexts/usePermissions';
 import { useOperationalScope } from '@/contexts/useOperationalScope';
 import { usePlanAccess } from '@/contexts/PlanContext';
-import happyCashLogo from '@/assets/happycash-logo.webp';
+import happyCashLogo from '@/assets/login/happycash.svg';
 import { roleLabel } from '@/lib/access';
 import { readDesktopActivation } from '@/lib/desktopActivation';
 import { isGuidedTourEligiblePlan, requestGuidedTourStart } from '@/lib/guidedTour';
@@ -633,7 +633,6 @@ export function AppLayout({ children }: { children: ReactNode }) {
           )}
         </div>
         <div className="shrink-0 border-t border-border p-2.5">
-          <ThemeModeToggle className="mb-2" />
           <button onClick={logout} className="flex h-9 w-full items-center gap-3 rounded-lg px-3 text-sm text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive">
             <LogOut className="h-4 w-4" /><span>Sair</span>
           </button>

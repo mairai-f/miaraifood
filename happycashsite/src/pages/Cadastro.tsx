@@ -18,7 +18,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import { createSiteUrl } from "@/lib/siteSeo";
 import { isPublicPlanId, publicPlanContent } from "@/lib/subscriptionPlans";
-import logo from "@/assets/logo-happycash.webp";
+import logo from "../../../src/assets/login/happycash.svg";
 import { Eye, EyeOff, Loader2, PlayCircle, UserPlus } from "lucide-react";
 import { getPasswordPolicyError, passwordPolicyHint } from "../../../shared/security/passwordPolicy";
 import { requestTurnstileToken } from "../../../shared/security/turnstile";
@@ -290,7 +290,7 @@ const Cadastro = () => {
       <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4">
         <div className="w-full max-w-lg space-y-6">
           <div className="text-center space-y-3">
-            <img src={logo} alt="HappyCash" className="h-20 mx-auto" />
+            <img src={logo} alt="HappyCash" className="mx-auto h-auto w-full max-w-[15rem] object-contain" />
             <h1 className="font-heading text-2xl font-bold">Confirme seu email</h1>
             <p className="text-sm text-muted-foreground">
               Enviamos o link de confirmacao para <span className="font-medium text-foreground">{confirmationEmail}</span>.
@@ -337,12 +337,12 @@ const Cadastro = () => {
     <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4">
       <div className="w-full max-w-lg space-y-6">
         <div className="text-center space-y-3">
-          <img src={logo} alt="HappyCash" className="h-20 mx-auto" />
+          <img src={logo} alt="HappyCash" className="mx-auto h-auto w-full max-w-[15rem] object-contain" />
           <h1 className="font-heading text-2xl font-bold">Crie sua conta</h1>
           <p className="text-sm text-muted-foreground">
             {selectedPlan
               ? `${selectedPlan.name} selecionado. Depois do cadastro, voce pode voltar ao site ou ativar esse plano no painel.`
-              : "Sua conta vale no site e no sistema HappyCash."}
+              : "Preencha seus dados para iniciar seu acesso ao HappyCash."}
           </p>
         </div>
 
