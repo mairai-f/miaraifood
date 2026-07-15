@@ -65,6 +65,7 @@ interface AuthContextType {
   ownerUserId: string | null;
   isAdmin: boolean;
   isOperator: boolean;
+  isHr: boolean;
   login: (email: string, password: string) => Promise<string | true>;
   signInWithGoogle: () => Promise<string | true>;
   signInWithPasskey: () => Promise<string | true>;
@@ -811,6 +812,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       isDesktopRuntime()
       && activation?.ownerUserId
       && data.operator?.userId
+      && data.operator.role !== 'hr'
       && (data.operator.ownerUserId ?? activation.ownerUserId) === activation.ownerUserId
     ) {
       try {
@@ -952,6 +954,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         resetPassword,
         logout,
         isAuthenticated: !!user,
+        isHr: role === 'hr',
         isLocalOfflineSession: Boolean(localOfflineSession),
         refreshProfile,
         loading,

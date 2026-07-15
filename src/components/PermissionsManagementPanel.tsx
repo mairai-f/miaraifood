@@ -13,7 +13,7 @@ import { getRedactedLogValue } from '../../shared/security/redaction';
 interface StaffProfile {
   user_id: string;
   username: string;
-  role: 'operator' | 'waiter';
+  role: 'operator' | 'waiter' | 'hr';
 }
 interface StaffPermissionRow {
   permission_key: string;
@@ -42,10 +42,16 @@ const moduleLabels: Record<string, string> = {
   settings: 'Configuracoes',
   staff: 'Colaboradores e permissoes',
   security: 'Seguranca e auditoria',
+  hr: 'Recursos Humanos',
 };
 
 const manageableModules = new Set(Object.keys(moduleLabels));
 const runtimeLabels = { web: 'Web', desktop: 'Desktop', both: 'Web + Desktop' } as const;
+const staffRoleLabels: Record<StaffProfile['role'], string> = {
+  operator: 'Operador',
+  waiter: 'Garcom',
+  hr: 'RH',
+};
 
 /**
  * Matriz Web de permissoes individuais. O componente e carregado com React.lazy
@@ -74,7 +80,7 @@ export function PermissionsManagementPanel() {
       .from('profiles')
       .select('user_id, username, role')
       .eq('owner_user_id', ownerUserId)
-      .in('role', ['operator', 'waiter'])
+      .in('role', ['operator', 'waiter', 'hr'])
       .order('username');
 
     if (error) {
@@ -183,7 +189,7 @@ export function PermissionsManagementPanel() {
             <SelectContent>
               {staff.map((profile) => (
                 <SelectItem key={profile.user_id} value={profile.user_id}>
-                  {profile.username} · {profile.role === 'waiter' ? 'Garcom' : 'Operador'}
+                  {profile.username} · {staffRoleLabels[profile.role]}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -192,7 +198,7 @@ export function PermissionsManagementPanel() {
 
         {!loadingStaff && staff.length === 0 && (
           <p className="rounded-md border border-border/70 bg-muted/30 p-4 text-sm text-muted-foreground">
-            Cadastre um operador ou garcom para configurar permissoes.
+            Cadastre um operador, garcom ou RH para configurar permissoes.
           </p>
         )}
 

@@ -23,8 +23,8 @@ const moduleLabels: Record<string, string> = {
   dashboard: 'Painel', pdv: 'PDV e caixa', service_tickets: 'Comandas', clients: 'Clientes',
   products: 'Produtos', stock: 'Estoque', purchases: 'Compras e fornecedores', reports: 'Relatórios',
   financial: 'Financeiro', pricing: 'Precificação', fiscal: 'Fiscal', rewards: 'Recompensas',
-  deleted: 'Registros excluídos', settings: 'Configurações', staff: 'Colaboradores',
-  security: 'Segurança e auditoria', delivery: 'Delivery', conciliation: 'Conciliação',
+	  deleted: 'Registros excluídos', settings: 'Configurações', staff: 'Colaboradores',
+	  security: 'Segurança e auditoria', hr: 'Recursos Humanos', delivery: 'Delivery', conciliation: 'Conciliação',
   multi_store: 'Filiais', time_clock: 'Relógio de ponto', self_service: 'Autoatendimento',
 };
 

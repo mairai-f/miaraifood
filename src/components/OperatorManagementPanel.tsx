@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { PasswordInput } from '@/components/ui/password-input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -22,7 +23,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { toast } from 'sonner';
-import { Eye, KeyRound, Pencil, Plus, Trash2, Users, Wallet } from 'lucide-react';
+import { BriefcaseBusiness, Eye, KeyRound, Pencil, Plus, Trash2, Users, Wallet } from 'lucide-react';
 import type { Expense, Sale } from '@/types';
 import { getOperatorCredentialError, operatorCredentialHint } from '../../shared/security/operatorCredential';
 import { getPublicErrorMessage, getRedactedLogValue } from '../../shared/security/redaction';
@@ -56,7 +57,7 @@ interface OperatorProfile {
   created_at: string;
 }
 
-type StaffRole = 'operator' | 'waiter';
+type StaffRole = 'operator' | 'waiter' | 'hr';
 
 interface OpenCashSession {
   id: string;
@@ -95,12 +96,20 @@ interface OperatorFunctionResponse {
 interface OperatorManagementPanelProps {
   createDialogOpen?: boolean;
   onCreateDialogOpenChange?: (open: boolean) => void;
+  initialStaffRole?: StaffRole;
 }
 
 const fallbackJobTitle: Record<StaffRole, string> = {
   operator: 'Colaborador',
   waiter: 'Colaborador',
+  hr: 'Analista de RH',
 };
+const staffRoleLabels: Record<StaffRole, string> = {
+  operator: 'Operacional',
+  waiter: 'Atendimento',
+  hr: 'RH',
+};
+const isHrPermissionKey = (permissionKey: ErpPermissionKey) => permissionKey.startsWith('hr.');
 
 const normalizeLabel = (value: string | null | undefined) => value?.trim().toLowerCase() ?? '';
 const formatMoney = (value: number) => `R$ ${value.toFixed(2)}`;
@@ -108,6 +117,7 @@ const formatMoney = (value: number) => `R$ ${value.toFixed(2)}`;
 export function OperatorManagementPanel({
   createDialogOpen: controlledCreateDialogOpen,
   onCreateDialogOpenChange,
+  initialStaffRole,
 }: OperatorManagementPanelProps) {
   const { isAdmin, ownerUserId, session } = useAuth();
   const { sales, expenses, loading: dataLoading } = useData();
@@ -122,6 +132,9 @@ export function OperatorManagementPanel({
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [jobTitle, setJobTitle] = useState('');
+  const [staffRole, setStaffRole] = useState<StaffRole>('operator');
+  const [accessAdminEmail, setAccessAdminEmail] = useState('');
+  const [accessAdminPassword, setAccessAdminPassword] = useState('');
   const [permissionOptions, setPermissionOptions] = useState<OperatorPermissionOption[]>([]);
   const [selectedPermissionKeys, setSelectedPermissionKeys] = useState<Set<ErpPermissionKey>>(new Set());
   const [permissionKeysByOperatorId, setPermissionKeysByOperatorId] = useState<Record<string, Set<ErpPermissionKey>>>({});
@@ -152,12 +165,16 @@ export function OperatorManagementPanel({
   const setCreateDialogOpen = onCreateDialogOpenChange ?? setInternalCreateDialogOpen;
 
   const resetCreateForm = useCallback(() => {
+    const nextInitialRole = initialStaffRole ?? 'operator';
     setUsername('');
     setPassword('');
-    setJobTitle('');
+    setJobTitle(nextInitialRole === 'hr' ? fallbackJobTitle.hr : '');
+    setStaffRole(nextInitialRole);
+    setAccessAdminEmail('');
+    setAccessAdminPassword('');
     setSelectedPermissionKeys(new Set());
     setCreateStep('data');
-  }, []);
+  }, [initialStaffRole]);
 
   const handleCreateDialogOpenChange = useCallback((open: boolean) => {
     setCreateDialogOpen(open);
@@ -169,6 +186,12 @@ export function OperatorManagementPanel({
   }, [resetCreateForm, setCreateDialogOpen]);
 
   const accessDialogOpen = createDialogOpen || Boolean(editingOperator);
+
+  useEffect(() => {
+    if (!createDialogOpen || editingOperator || !initialStaffRole) return;
+    setStaffRole(initialStaffRole);
+    setJobTitle((current) => current.trim() ? current : fallbackJobTitle[initialStaffRole]);
+  }, [createDialogOpen, editingOperator, initialStaffRole]);
 
   const handleAccessDialogOpenChange = useCallback((open: boolean) => {
     if (open) return;
@@ -194,6 +217,35 @@ export function OperatorManagementPanel({
       })
       .finally(() => setLoadingPermissionOptions(false));
   }, [accessDialogOpen, permissionOptions.length]);
+
+  const visiblePermissionOptions = useMemo(
+    () => permissionOptions.filter((permission) =>
+      staffRole === 'hr' ? permission.module_key === 'hr' : permission.module_key !== 'hr',
+    ),
+    [permissionOptions, staffRole],
+  );
+
+  const handleStaffRoleChange = useCallback((value: string) => {
+    const nextRole: StaffRole = value === 'hr' ? 'hr' : value === 'waiter' ? 'waiter' : 'operator';
+    setStaffRole(nextRole);
+    setJobTitle((current) => current.trim() ? current : fallbackJobTitle[nextRole]);
+  }, []);
+
+  useEffect(() => {
+    setSelectedPermissionKeys((current) => {
+      const visibleKeys = new Set(visiblePermissionOptions.map((permission) => permission.permission_key));
+      const next = new Set([...current].filter((permissionKey) => visibleKeys.has(permissionKey)));
+      if (next.size === current.size) return current;
+      return next;
+    });
+  }, [visiblePermissionOptions]);
+
+  useEffect(() => {
+    if (staffRole !== 'hr' || selectedPermissionKeys.size > 0) return;
+    const viewPermission = permissionOptions.find((permission) => permission.permission_key === 'hr.view');
+    if (!viewPermission) return;
+    setSelectedPermissionKeys(new Set<ErpPermissionKey>(['hr.view']));
+  }, [permissionOptions, selectedPermissionKeys.size, staffRole]);
 
   const resolveFunctionErrorMessage = useCallback(async (
     error: unknown,
@@ -230,6 +282,10 @@ export function OperatorManagementPanel({
     }
 
     try {
+      if (operator.role === 'hr') {
+        return;
+      }
+
       await saveOfflineOperatorAccess({
         userId: operator.user_id,
         ownerUserId,
@@ -240,7 +296,7 @@ export function OperatorManagementPanel({
       });
     } catch (error) {
       console.error('Nao foi possivel salvar o acesso offline do operador:', getRedactedLogValue(error));
-          toast.warning('Colaborador salvo online, mas nao foi possivel preparar o login offline nesta maquina.');
+      toast.warning('Colaborador salvo online, mas nao foi possivel preparar o login offline nesta maquina.');
     }
   }, [ownerUserId]);
 
@@ -263,7 +319,7 @@ export function OperatorManagementPanel({
         .from('profiles')
         .select('user_id, username, role, job_title, created_at')
         .eq('owner_user_id', ownerUserId)
-        .in('role', ['operator', 'waiter'])
+        .in('role', ['operator', 'waiter', 'hr'])
         .order('created_at', { ascending: false }),
       db
         .from('cash_sessions')
@@ -295,7 +351,7 @@ export function OperatorManagementPanel({
 
     setOperators(((operatorRows as OperatorProfile[]) ?? []).map(operator => ({
       ...operator,
-      role: operator.role === 'waiter' ? 'waiter' : 'operator',
+      role: operator.role === 'waiter' ? 'waiter' : operator.role === 'hr' ? 'hr' : 'operator',
     })));
     setOpenCashSessions((openRows as OpenCashSession[]) ?? []);
     const nextPermissionKeysByOperatorId: Record<string, Set<ErpPermissionKey>> = {};
@@ -386,17 +442,20 @@ export function OperatorManagementPanel({
     ));
   };
 
-  const selectedPermissionNames = permissionOptions
+  const selectedPermissionNames = visiblePermissionOptions
     .filter((permission) => selectedPermissionKeys.has(permission.permission_key))
     .map((permission) => permission.name);
 
   const operatorCanOperateCash = (operator: OperatorProfile) =>
-    permissionKeysByOperatorId[operator.user_id]?.has('pdv.open_cash') ?? false;
+    operator.role !== 'hr' && (permissionKeysByOperatorId[operator.user_id]?.has('pdv.open_cash') ?? false);
 
   const handleEditOperator = (operator: OperatorProfile) => {
     setEditingOperator(operator);
     setUsername(operator.username);
     setPassword('');
+    setStaffRole(operator.role);
+    setAccessAdminEmail('');
+    setAccessAdminPassword('');
     setJobTitle(operator.job_title?.trim() || fallbackJobTitle[operator.role]);
     setSelectedPermissionKeys(new Set(permissionKeysByOperatorId[operator.user_id] ?? []));
     setCreateStep('data');
@@ -421,6 +480,12 @@ export function OperatorManagementPanel({
       return;
     }
 
+    if (!accessAdminEmail.trim() || !accessAdminPassword.trim()) {
+      toast.error('Confirme com login e senha do administrador.');
+      setCreateStep('data');
+      return;
+    }
+
     const credentialError = getOperatorCredentialError(password.trim());
     if (credentialError) {
       toast.error(credentialError);
@@ -438,7 +503,10 @@ export function OperatorManagementPanel({
         username: username.trim(),
         password: password.trim(),
         jobTitle: jobTitle.trim(),
+        staffRole,
         permissionKeys: [...selectedPermissionKeys],
+        adminEmail: accessAdminEmail.trim(),
+        adminPassword: accessAdminPassword.trim(),
       },
     });
 
@@ -477,6 +545,12 @@ export function OperatorManagementPanel({
       return;
     }
 
+    if (!accessAdminEmail.trim() || !accessAdminPassword.trim()) {
+      toast.error('Confirme com login e senha do administrador.');
+      setCreateStep('data');
+      return;
+    }
+
     setCreating(true);
     const { data, error } = await supabase.functions.invoke<OperatorFunctionResponse>('manage-operators', {
       headers: { Authorization: `Bearer ${session.access_token}` },
@@ -484,7 +558,10 @@ export function OperatorManagementPanel({
         action: 'update_access',
         operatorUserId: editingOperator.user_id,
         jobTitle: jobTitle.trim(),
+        staffRole,
         permissionKeys: [...selectedPermissionKeys],
+        adminEmail: accessAdminEmail.trim(),
+        adminPassword: accessAdminPassword.trim(),
       },
     });
 
@@ -717,9 +794,9 @@ export function OperatorManagementPanel({
         <CardHeader className="gap-4">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
             <div className="space-y-2">
-              <CardTitle className="text-lg">Colaboradores e caixa</CardTitle>
+              <CardTitle className="text-lg">Colaboradores, acessos e caixa</CardTitle>
               <p className="text-sm text-muted-foreground">
-                A lista fica compacta; use Editar para abrir a funcao e os acessos individuais.
+                A lista fica compacta; use Editar para abrir a funcao, RH e os acessos individuais.
               </p>
             </div>
 
@@ -782,6 +859,10 @@ export function OperatorManagementPanel({
                         <div className="min-w-0">
                           <div className="flex flex-wrap items-center gap-2">
                             <p className="truncate font-semibold">{operator.username}</p>
+                            <span className="inline-flex items-center gap-1 rounded-full bg-secondary px-2 py-0.5 text-[11px] font-semibold text-muted-foreground">
+                              <BriefcaseBusiness className="h-3 w-3" />
+                              {staffRoleLabels[operator.role]}
+                            </span>
                             <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${openSession ? 'bg-primary/15 text-primary' : 'bg-secondary text-muted-foreground'}`}>
                               {openSession ? 'Caixa aberto' : canOperateCash ? 'Caixa fechado' : 'Sem caixa'}
                             </span>
@@ -903,6 +984,22 @@ export function OperatorManagementPanel({
             <div className={`${createStep === 'data' ? 'block' : 'hidden'} overflow-y-auto border-r p-4 md:block sm:p-6`}>
               <div className="space-y-4">
                 <div className="space-y-1">
+                  <Label>Tipo de acesso</Label>
+                  <Select value={staffRole} onValueChange={handleStaffRoleChange}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione o tipo" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="operator">Operacional</SelectItem>
+                      <SelectItem value="waiter">Atendimento / Comandas</SelectItem>
+                      <SelectItem value="hr">RH</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    Acesso RH abre somente o modulo RH no menu lateral.
+                  </p>
+                </div>
+                <div className="space-y-1">
                   <Label>Função</Label>
                   <Input
                     value={jobTitle}
@@ -931,16 +1028,43 @@ export function OperatorManagementPanel({
                 <p className="text-xs text-muted-foreground">
                   {editingOperator ? 'O usuário não muda nesta tela para preservar o login.' : 'Use de 3 a 24 caracteres com letras, números, ponto, hífen ou underscore.'}
                 </p>
+                <div className="rounded-lg border border-primary/20 bg-primary/5 p-3">
+                  <p className="text-sm font-medium">Confirmacao do administrador</p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Criar acesso ou alterar permissões exige login e senha do admin da loja.
+                  </p>
+                  <div className="mt-3 space-y-3">
+                    <div className="space-y-1">
+                      <Label>Login do administrador (email)</Label>
+                      <Input
+                        type="email"
+                        value={accessAdminEmail}
+                        onChange={event => setAccessAdminEmail(event.target.value)}
+                        placeholder="admin@empresa.com"
+                        autoComplete="username"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label>Senha do administrador</Label>
+                      <PasswordInput
+                        value={accessAdminPassword}
+                        onChange={event => setAccessAdminPassword(event.target.value)}
+                        placeholder="Digite a senha"
+                        autoComplete="current-password"
+                      />
+                    </div>
+                  </div>
+                </div>
                 <div className="hidden rounded-lg border bg-muted/30 p-3 text-sm md:block">
                   <p className="font-medium">Resumo</p>
-                  <p className="text-muted-foreground">{jobTitle || 'Funcao nao informada'} · {selectedPermissionKeys.size} acessos</p>
+                  <p className="text-muted-foreground">{staffRoleLabels[staffRole]} · {jobTitle || 'Funcao nao informada'} · {selectedPermissionKeys.size} acessos</p>
                 </div>
               </div>
             </div>
 
             <div className={`${createStep === 'permissions' ? 'block' : 'hidden'} overflow-y-auto p-4 md:block sm:p-6`}>
               <OperatorPermissionSelector
-                permissions={permissionOptions}
+                permissions={visiblePermissionOptions}
                 selected={selectedPermissionKeys}
                 loading={loadingPermissionOptions}
                 onToggle={togglePermission}
@@ -950,6 +1074,7 @@ export function OperatorManagementPanel({
 
             <div className={`${createStep === 'review' ? 'block' : 'hidden'} overflow-y-auto p-4 md:hidden`}>
               <div className="space-y-4 rounded-lg border p-4">
+                <div><p className="text-xs text-muted-foreground">Tipo</p><p className="font-semibold">{staffRoleLabels[staffRole]}</p></div>
                 <div><p className="text-xs text-muted-foreground">Função</p><p className="font-semibold">{jobTitle || 'Não informada'}</p></div>
                 <div><p className="text-xs text-muted-foreground">Usuário</p><p className="font-semibold">{username || 'Não informado'}</p></div>
                 <div><p className="text-xs text-muted-foreground">Acessos ({selectedPermissionNames.length})</p><p className="mt-1 text-sm">{selectedPermissionNames.join(', ') || 'Nenhum acesso selecionado'}</p></div>

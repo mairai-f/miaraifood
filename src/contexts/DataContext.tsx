@@ -401,7 +401,7 @@ interface DataContextType {
 const DataContext = createContext<DataContextType | null>(null);
 
 export function DataProvider({ children }: { children: ReactNode }) {
-  const { user, username, profileEmail, ownerUserId, loading: authLoading, isAdmin, isLocalOfflineSession } = useAuth();
+  const { user, username, profileEmail, ownerUserId, loading: authLoading, isAdmin, isLocalOfflineSession, role } = useAuth();
   const { isDesktop, offlineEnabled } = useDesktopRuntime();
   const { hasFeature, loading: planLoading, planId } = usePlanAccess();
   const { scope: operationalScope } = useOperationalScope();
@@ -430,6 +430,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [offlinePreparationMessage, setOfflinePreparationMessage] = useState<string | null>(null);
   const [offlineSnapshotUpdatedAt, setOfflineSnapshotUpdatedAt] = useState<string | null>(null);
   const isDemoMode = planId === 'demo';
+  const isHrOnlySession = role === 'hr';
   const canUseOfflineConcentrator = isDesktop && offlineEnabled && isOfflineConcentratorAvailable();
   const actorDisplayName = username?.trim()
     || profileEmail?.trim()
@@ -440,8 +441,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const lastPassiveRefreshAtRef = useRef(0);
   const fullSnapshotPrimedRef = useRef(false);
   const routeRequiredModules = useMemo(
-    () => uniqueModules([...BASE_DATA_MODULES, ...getRouteSpecificModules(location.pathname)]),
-    [location.pathname],
+    () => isHrOnlySession ? [] : uniqueModules([...BASE_DATA_MODULES, ...getRouteSpecificModules(location.pathname)]),
+    [isHrOnlySession, location.pathname],
   );
 
   const clearStoreData = useCallback(() => {
@@ -571,6 +572,15 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
     if (authLoading || planLoading) {
       if (!silent && hasMissingRequestedModules) setLoading(true);
+      return;
+    }
+
+    if (isHrOnlySession) {
+      clearStoreData();
+      setOfflinePreparationStatus('unavailable');
+      setOfflinePreparationMessage(null);
+      setOfflineSnapshotUpdatedAt(null);
+      if (!silent) setLoading(false);
       return;
     }
 
@@ -820,6 +830,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     debtEntries,
     expenses,
     hasFeature,
+    isHrOnlySession,
     isDemoMode,
     isLocalOfflineSession,
     loadOfflineSnapshotFallback,
@@ -843,6 +854,15 @@ export function DataProvider({ children }: { children: ReactNode }) {
   ]);
 
   useEffect(() => {
+    if (isHrOnlySession) {
+      clearStoreData();
+      setOfflinePreparationStatus('unavailable');
+      setOfflinePreparationMessage(null);
+      setOfflineSnapshotUpdatedAt(null);
+      setLoading(false);
+      return;
+    }
+
     if (authLoading || planLoading || !user || isDemoMode) return;
 
     const missingModules = routeRequiredModules.filter((module) => !loadedModules[module]);
@@ -852,7 +872,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     }
 
     void fetchAll({ modules: missingModules });
-  }, [authLoading, fetchAll, isDemoMode, loadedModules, planLoading, routeRequiredModules, user]);
+  }, [authLoading, clearStoreData, fetchAll, isDemoMode, isHrOnlySession, loadedModules, planLoading, routeRequiredModules, user]);
 
   useEffect(() => {
     if (
@@ -861,6 +881,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       || !user
       || !ownerUserId
       || isDemoMode
+      || isHrOnlySession
       || !canUseOfflineConcentrator
       || fullSnapshotPrimedRef.current
       || loading
@@ -870,10 +891,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
     }
 
     void fetchAll({ silent: true, fullStore: true });
-  }, [authLoading, canUseOfflineConcentrator, fetchAll, isDemoMode, loading, ownerUserId, planLoading, user]);
+  }, [authLoading, canUseOfflineConcentrator, fetchAll, isDemoMode, isHrOnlySession, loading, ownerUserId, planLoading, user]);
 
   useEffect(() => {
-    if (authLoading || planLoading || !user || isDemoMode) {
+    if (authLoading || planLoading || !user || isDemoMode || isHrOnlySession) {
       return;
     }
 
@@ -909,7 +930,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       window.removeEventListener('online', handleFocus);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [authLoading, fetchAll, isDemoMode, loading, planLoading, user]);
+  }, [authLoading, fetchAll, isDemoMode, isHrOnlySession, loading, planLoading, user]);
 
   useEffect(() => {
     if (!canUseOfflineConcentrator || !ownerUserId || loading || !user || isDemoMode || !fullSnapshotPrimedRef.current) {

@@ -38,7 +38,7 @@ export interface DesktopLicenseValidationResult {
 }
 
 const activeSubscriptionStatuses = new Set(["trialing", "active", "past_due"]);
-const staffRoles = new Set(["operator", "waiter"]);
+const staffRoles = new Set(["operator", "waiter", "hr"]);
 const requiredFeatureKeys = ["desktop.app", "offline.access"] as const;
 const getSubscriptionEndAt = (subscription: StoreSubscriptionRow | null | undefined) => {
   if (!subscription) return null;

@@ -43,6 +43,16 @@ export const ERP_PERMISSION_KEYS = [
   'rbac.manage',
   'access_monitor.view',
   'audit.view',
+  'hr.view',
+  'hr.employees.manage',
+  'hr.documents.manage',
+  'hr.time_clock.manage',
+  'hr.schedules.manage',
+  'hr.leave.manage',
+  'hr.payroll.manage',
+  'hr.exports.manage',
+  'hr.audit.view',
+  'hr.settings.manage',
   'delivery.use',
   'conciliation.manage',
   'multi_store.manage',
@@ -68,10 +78,12 @@ const operatorDefaults = new Set<ErpPermissionKey>([
 ]);
 
 const waiterDefaults = new Set<ErpPermissionKey>(['service_tickets.use']);
+const hrDefaults = new Set<ErpPermissionKey>(['hr.view']);
 
 /** Mantem o comportamento anterior quando o Desktop estiver realmente offline. */
 export const getDefaultPermissionsForRole = (role: UserRole): Set<ErpPermissionKey> => {
   if (role === 'admin') return new Set(ERP_PERMISSION_KEYS);
+  if (role === 'hr') return new Set(hrDefaults);
   return new Set(role === 'waiter' ? waiterDefaults : operatorDefaults);
 };
 

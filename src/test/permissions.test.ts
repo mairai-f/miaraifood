@@ -30,6 +30,14 @@ describe('ERP permissions', () => {
     expect([...permissions]).toEqual(['service_tickets.use']);
   });
 
+  it('keeps the HR fallback isolated from commercial modules', () => {
+    const permissions = getDefaultPermissionsForRole('hr');
+
+    expect([...permissions]).toEqual(['hr.view']);
+    expect(permissions.has('pdv.use')).toBe(false);
+    expect(permissions.has('clients.view')).toBe(false);
+  });
+
   it('gives administrators every catalogued permission', () => {
     const permissions = getDefaultPermissionsForRole('admin');
 

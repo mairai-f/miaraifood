@@ -283,7 +283,7 @@ Deno.serve(async (request) => {
   const { data: profiles, error: profileError } = await serviceClient
     .from('profiles')
     .select('user_id, email, username, owner_user_id, role')
-    .in('role', ['operator', 'waiter']);
+    .in('role', ['operator', 'waiter', 'hr']);
 
   if (profileError || !profiles || profiles.length === 0) {
     await logAttempt(serviceAttemptClient, {

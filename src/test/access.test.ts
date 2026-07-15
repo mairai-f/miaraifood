@@ -21,6 +21,13 @@ describe('canAccessPath', () => {
     expect(canAccessPath('operator', '/cliente/joao')).toBe(true);
   });
 
+  it('isola o perfil RH no modulo de recursos humanos', () => {
+    expect(canAccessPath('hr', '/rh')).toBe(true);
+    expect(canAccessPath('hr', '/')).toBe(false);
+    expect(canAccessPath('hr', '/pdv')).toBe(false);
+    expect(canAccessPath('hr', '/clientes')).toBe(false);
+  });
+
   it('bloqueia gestao de produtos para operador', () => {
     expect(canManageProducts('operator')).toBe(false);
     expect(canManageProducts('admin')).toBe(true);

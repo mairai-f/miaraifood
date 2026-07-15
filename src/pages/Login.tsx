@@ -35,7 +35,7 @@ type OperatorRecoveryStep = 'email' | 'code' | 'reset';
 interface RecoveryOperator {
   user_id: string;
   username: string;
-  role: 'operator' | 'waiter';
+  role: 'operator' | 'waiter' | 'hr';
 }
 
 interface OperatorRecoveryResponse {

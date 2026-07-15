@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, type ReactNode } from 'react';
-import { Navigate, Route, Routes } from 'react-router-dom';
+import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 
 import { AppLayout } from '@/components/AppLayout';
@@ -39,6 +39,7 @@ const pageLoaders = [
   () => import('@/pages/Operations'),
   () => import('@/pages/Notes'),
   () => import('@/pages/Settings'),
+  () => import('@/pages/HumanResources'),
   () => import('@/pages/AccessMonitor'),
   () => import('@/pages/AuditLog'),
 ];
@@ -62,6 +63,7 @@ const [
   loadOperations,
   loadNotes,
   loadSettings,
+  loadHumanResources,
   loadAccessMonitor,
   loadAuditLog,
 ] = pageLoaders;
@@ -84,6 +86,7 @@ const PricingManager = lazy(loadPricingManager);
 const Operations = lazy(loadOperations);
 const Notes = lazy(loadNotes);
 const Settings = lazy(loadSettings);
+const HumanResources = lazy(loadHumanResources);
 const AccessMonitor = lazy(loadAccessMonitor);
 const AuditLog = lazy(loadAuditLog);
 
@@ -102,6 +105,12 @@ function LazyPage({ children }: { children: ReactNode }) {
   return <Suspense fallback={null}>{children}</Suspense>;
 }
 
+const getDefaultAuthenticatedPath = (role: string) => {
+  if (role === 'waiter') return '/comandas';
+  if (role === 'hr') return '/rh';
+  return '/';
+};
+
 function ProtectedRoute({
   children,
   requiredFeature,
@@ -119,6 +128,7 @@ function ProtectedRoute({
   const { loading: permissionsLoading, hasPermission } = usePermissions();
   const { isDesktop, checking: checkingDesktopLicense, licensed } = useDesktopRuntime();
   const { loading: planLoading, hasFeature, planId } = usePlanAccess();
+  const location = useLocation();
   const shouldBlockDesktopLicense = checkingDesktopLicense && (!isAuthenticated || (isDesktop && !licensed));
   const shouldBlockAccess = loading || planLoading || permissionsLoading || shouldBlockDesktopLicense;
   const shouldShowSplash = !hasSeenAppSplash() && !isAuthenticated;
@@ -145,10 +155,14 @@ function ProtectedRoute({
 
   if (!isAuthenticated) return <Navigate to="/login" replace />;
   if (isDesktop && !licensed) return <DesktopLicenseBlocked />;
-  if (!isRuntimeScopeAllowed(runtimeScope, isDesktop)) return <Navigate to="/" replace />;
-  if (!hasPermission(requiredPermission)) return <Navigate to={role === 'waiter' ? '/comandas' : '/'} replace />;
+  const fallbackPath = getDefaultAuthenticatedPath(role);
+  if (!isRuntimeScopeAllowed(runtimeScope, isDesktop)) return <Navigate to={fallbackPath} replace />;
+  if (!hasPermission(requiredPermission)) {
+    if (location.pathname === fallbackPath) return <AppLayout><FeatureLocked /></AppLayout>;
+    return <Navigate to={fallbackPath} replace />;
+  }
   if (requiredFeature && !hasFeature(requiredFeature)) return <AppLayout><FeatureLocked /></AppLayout>;
-  if (!canUseFiscalNotesModule) return <Navigate to="/" replace />;
+  if (!canUseFiscalNotesModule) return <Navigate to={fallbackPath} replace />;
   return <AppLayout>{children}</AppLayout>;
 }
 
@@ -198,14 +212,22 @@ const warmPageChunks = (isDesktop: boolean) => {
 
 const AuthenticatedArea = () => {
   const { isDesktop } = useDesktopRuntime();
-  useEffect(() => warmPageChunks(isDesktop), [isDesktop]);
+  const { role } = useAuth();
+  useEffect(() => {
+    if (role === 'hr') {
+      void loadHumanResources();
+      return undefined;
+    }
+
+    return warmPageChunks(isDesktop);
+  }, [isDesktop, role]);
 
   return (
     <PermissionsProvider>
       <OperationalScopeProvider>
         <DataProvider>
-          <LowStockNotifier />
-          <GuidedTour />
+          {role !== 'hr' && <LowStockNotifier />}
+          {role !== 'hr' && <GuidedTour />}
           <Routes>
           <Route path="/" element={<ProtectedRoute requiredPermission="dashboard.view" requiredFeature="dashboard.view"><LazyPage><Dashboard /></LazyPage></ProtectedRoute>} />
           <Route path="/pdv" element={<ProtectedRoute requiredPermission="pdv.use" requiredFeature="pdv.use"><LazyPage><PDV /></LazyPage></ProtectedRoute>} />
@@ -221,6 +243,7 @@ const AuthenticatedArea = () => {
           <Route path="/operacoes" element={<ProtectedRoute requiredPermission="purchases.view" requiredFeature="financial.manage"><LazyPage><Operations /></LazyPage></ProtectedRoute>} />
           <Route path="/precificacao" element={<ProtectedRoute requiredPermission="pricing.view" requiredFeature="pricing.manage"><LazyPage><PricingManager /></LazyPage></ProtectedRoute>} />
           <Route path="/notas" element={<ProtectedRoute requiredPermission="fiscal.view" requiredFeature="notes.manage" requiredDesktopFiscalAccess><LazyPage><Notes /></LazyPage></ProtectedRoute>} />
+          <Route path="/rh" element={<ProtectedRoute requiredPermission="hr.view" requiredFeature="hr.manage"><LazyPage><HumanResources /></LazyPage></ProtectedRoute>} />
           <Route path="/configuracoes" element={<ProtectedRoute requiredPermission="settings.manage" requiredFeature="settings.manage"><LazyPage><Settings /></LazyPage></ProtectedRoute>} />
           <Route path="/configuracoes/:section" element={<ProtectedRoute requiredPermission="settings.manage" requiredFeature="settings.manage"><LazyPage><Settings /></LazyPage></ProtectedRoute>} />
           <Route path="/acessos" element={<ProtectedRoute requiredPermission="access_monitor.view" requiredFeature="settings.manage" runtimeScope="web"><LazyPage><AccessMonitor /></LazyPage></ProtectedRoute>} />
@@ -228,7 +251,7 @@ const AuthenticatedArea = () => {
           <Route path="/recompensas" element={<ProtectedRoute requiredPermission="rewards.manage" requiredFeature="rewards.manage"><LazyPage><Rewards /></LazyPage></ProtectedRoute>} />
           <Route path="/cliente/:clientRef" element={<ProtectedRoute requiredPermission="clients.view" requiredFeature="clients.manage"><LazyPage><ClientDetail /></LazyPage></ProtectedRoute>} />
           <Route path="/excluidos" element={<ProtectedRoute requiredPermission="deleted.view" requiredFeature="deleted.view"><LazyPage><DeletedClients /></LazyPage></ProtectedRoute>} />
-          <Route path="*" element={<Navigate to="/" replace />} />
+          <Route path="*" element={<Navigate to={getDefaultAuthenticatedPath(role)} replace />} />
           </Routes>
         </DataProvider>
       </OperationalScopeProvider>

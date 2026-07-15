@@ -5,9 +5,9 @@ import { checkRedisRateLimit, readRateLimitEnv } from "../_shared/rateLimit.ts";
 type AccessEventType = "heartbeat" | "logout";
 type AccessSource = "system" | "site";
 type DeviceType = "desktop" | "mobile" | "tablet" | "unknown";
-type UserRole = "admin" | "operator" | "waiter";
+type UserRole = "admin" | "operator" | "waiter" | "hr";
 const normalizeUserRole = (value: string | null | undefined): UserRole => {
-  if (value === "operator" || value === "waiter") return value;
+  if (value === "operator" || value === "waiter" || value === "hr") return value;
   return "admin";
 };
 

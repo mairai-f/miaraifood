@@ -1,5 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState, type ChangeEvent } from 'react';
-import { BarChart3, Building2, Calculator, ChevronRight, ClipboardList, Clock3, DatabaseBackup, Download, FileText, Gift, Laptop, Loader2, MapPinned, PackageSearch, Settings as SettingsIcon, Shield, ShieldAlert, Trash2, UserRoundCog, WalletCards } from 'lucide-react';
+import { BarChart3, BriefcaseBusiness, Building2, Calculator, ChevronRight, ClipboardList, Clock3, DatabaseBackup, Download, FileText, Gift, Laptop, Loader2, MapPinned, PackageSearch, Settings as SettingsIcon, Shield, ShieldAlert, Trash2, UserRoundCog, WalletCards } from 'lucide-react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { DataRouteLoader } from '@/components/DataRouteLoader';
 import { useAuth } from '@/contexts/AuthContext';
@@ -70,6 +70,12 @@ const OperatorManagementPanel = lazy(() =>
   })),
 );
 
+const HumanResourcesSettingsPanel = lazy(() =>
+  import('@/components/hr/HumanResourcesSettingsPanel').then((module) => ({
+    default: module.HumanResourcesSettingsPanel,
+  })),
+);
+
 const LocationsTerminalsPanel = lazy(() =>
   import('@/components/LocationsTerminalsPanel').then((module) => ({
     default: module.LocationsTerminalsPanel,
@@ -86,7 +92,7 @@ const CREATE_OPERATOR_MODAL = 'cadastrar-operador';
 const RESET_CONFIRM_TEXT = 'ZERAR';
 const RESTORE_CONFIRM_TEXT = 'RESTAURAR';
 type ResetTarget = 'financial' | 'reports';
-type SettingsSection = 'empresa' | 'backup' | 'colaboradores' | 'filiais' | 'catalogo' | 'desktop' | 'risco';
+type SettingsSection = 'empresa' | 'backup' | 'colaboradores' | 'rh' | 'filiais' | 'catalogo' | 'desktop' | 'risco';
 
 interface SettingsNavigationItem {
   path: string;
@@ -104,6 +110,7 @@ const settingsNavigationItems: SettingsNavigationItem[] = [
   { path: '/configuracoes/empresa', section: 'empresa', title: 'Empresa', description: 'Dados, identidade e configuracao de impressao.', icon: Building2, featureKey: 'settings.manage', permissionKey: 'settings.manage', runtimeScope: 'both' },
   { path: '/configuracoes/backup', section: 'backup', title: 'Backup', description: 'Exportacao e restauracao dos dados.', icon: DatabaseBackup, featureKey: 'settings.manage', permissionKey: 'settings.manage', runtimeScope: 'both' },
   { path: '/configuracoes/colaboradores', section: 'colaboradores', title: 'Colaboradores', description: 'Equipe, funcoes, acessos e caixas.', icon: UserRoundCog, featureKey: 'settings.manage', permissionKey: 'staff.manage', runtimeScope: 'both' },
+  { path: '/configuracoes/rh', section: 'rh', title: 'RH', description: 'Modulo de pessoas, ponto, folha e documentos.', icon: BriefcaseBusiness, featureKey: 'hr.manage', permissionKey: 'settings.manage', runtimeScope: 'both' },
   { path: '/configuracoes/filiais', section: 'filiais', title: 'Filiais e terminais', description: 'Lojas, terminais e escopo operacional.', icon: MapPinned, featureKey: 'settings.manage', permissionKey: 'multi_store.manage', runtimeScope: 'web' },
   { path: '/configuracoes/catalogo', section: 'catalogo', title: 'Catalogo avancado', description: 'Marcas, grupos, unidades e tabelas.', icon: PackageSearch, featureKey: 'settings.manage', permissionKey: 'products.manage', runtimeScope: 'web' },
   { path: '/configuracoes/desktop', section: 'desktop', title: 'Desktop e offline', description: 'Atualizacoes, sincronizacao e conflitos.', icon: Laptop, featureKey: 'settings.manage', permissionKey: 'settings.manage', runtimeScope: 'desktop' },
@@ -183,6 +190,7 @@ export default function Settings() {
   const { section: routeSection } = useParams<{ section?: string }>();
   const [searchParams, setSearchParams] = useSearchParams();
   const isCreateOperatorModalOpen = searchParams.get('modal') === CREATE_OPERATOR_MODAL;
+  const createOperatorInitialRole = searchParams.get('tipo') === 'rh' ? 'hr' : undefined;
   const matchedSettingsSection = settingsNavigationItems.find((item) => item.section === routeSection)?.section ?? null;
   const activeSettingsSection: SettingsSection | null = isCreateOperatorModalOpen
     ? 'colaboradores'
@@ -286,6 +294,7 @@ export default function Settings() {
       nextSearchParams.set('modal', CREATE_OPERATOR_MODAL);
     } else {
       nextSearchParams.delete('modal');
+      nextSearchParams.delete('tipo');
     }
 
     setSearchParams(nextSearchParams, { replace: true });
@@ -1146,8 +1155,15 @@ export default function Settings() {
             <OperatorManagementPanel
               createDialogOpen={isCreateOperatorModalOpen}
               onCreateDialogOpenChange={handleCreateDialogOpenChange}
+              initialStaffRole={createOperatorInitialRole}
             />
           </div>
+        </Suspense>
+      )}
+
+      {activeSettingsSection === 'rh' && (
+        <Suspense fallback={<SettingsSectionLoader label="Carregando configuracoes do RH..." />}>
+          <HumanResourcesSettingsPanel />
         </Suspense>
       )}
 

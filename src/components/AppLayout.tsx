@@ -1,6 +1,6 @@
 import { ReactNode, useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Clock3, Home, Users, Package, LogOut, Menu, X, UserCircle, Receipt, Boxes, ChevronDown, ChevronUp, Settings, Database, Loader2, WifiOff, ClipboardList, HelpCircle, MapPin, RefreshCw } from 'lucide-react';
+import { ArrowLeft, BriefcaseBusiness, Clock3, Home, Users, Package, LogOut, Menu, X, UserCircle, Receipt, Boxes, ChevronDown, ChevronUp, Settings, Database, Loader2, WifiOff, ClipboardList, HelpCircle, MapPin, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import { useData } from '@/contexts/DataContext';
@@ -51,6 +51,7 @@ const navItems: NavigationItem[] = [
   { path: '/produtos', label: 'Produtos', icon: Package, shortcut: '5', featureKey: 'products.manage', permissionKey: 'products.view', runtimeScope: 'both', tourId: 'nav-products' },
   { path: '/estoque', label: 'Estoque', icon: Boxes, shortcut: '6', featureKey: 'stock.manage', permissionKey: 'stock.view', runtimeScope: 'both', tourId: 'nav-stock' },
   { path: '/configuracoes', label: 'Configurações', icon: Settings, shortcut: '7', featureKey: 'settings.manage', permissionKey: 'settings.manage', runtimeScope: 'both', tourId: 'nav-settings' },
+  { path: '/rh', label: 'RH', icon: BriefcaseBusiness, featureKey: 'hr.manage', permissionKey: 'hr.view', runtimeScope: 'both', tourId: 'nav-hr' },
 ];
 
 const centralAdministrativePaths = new Set([
@@ -145,16 +146,20 @@ export function AppLayout({ children }: { children: ReactNode }) {
   const navRef = useRef<HTMLElement | null>(null);
   const [scrollHints, setScrollHints] = useState({ top: false, bottom: false });
   const isPdvMode = location.pathname === '/pdv';
-  const showCentralBackButton = location.pathname.startsWith('/configuracoes/')
-    || centralAdministrativePaths.has(location.pathname);
+  const showCentralBackButton = role !== 'hr' && (
+    location.pathname.startsWith('/configuracoes/')
+    || centralAdministrativePaths.has(location.pathname)
+  );
   const desktopActivation = readDesktopActivation();
   const visibleNavItems = navItems.filter(item => {
+    if (role === 'hr' && item.path !== '/rh') return false;
+    if (role !== 'hr' && item.path === '/rh') return false;
     if (!hasPermission(item.permissionKey) || !hasFeature(item.featureKey)) return false;
     if (!isRuntimeScopeAllowed(item.runtimeScope, isDesktop)) return false;
     return true;
   });
-  const canOpenSettings = hasPermission('settings.manage') && hasFeature('settings.manage');
-  const canUseGuidedTour = isGuidedTourEligiblePlan(planId);
+  const canOpenSettings = role !== 'hr' && hasPermission('settings.manage') && hasFeature('settings.manage');
+  const canUseGuidedTour = role !== 'hr' && isGuidedTourEligiblePlan(planId);
   const hasOpenLocalCashSession = Boolean(
     ownerUserId && user?.id && readScopedCashSession(ownerUserId, user.id),
   );
@@ -280,7 +285,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
     };
 
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (isPdvMode) return;
+      if (isPdvMode || role === 'hr') return;
       if (isEditableTarget(event.target)) return;
       if (
         event.altKey
@@ -308,7 +313,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [handleGlobalSync, isPdvMode, navigate, visibleNavItems]);
+  }, [handleGlobalSync, isPdvMode, navigate, role, visibleNavItems]);
 
   useEffect(() => {
     const nav = navRef.current;
@@ -576,7 +581,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
                 decoding="async"
               />
               <p className="mt-1 text-[9px] font-semibold tracking-[0.08em] text-muted-foreground">
-                SISTEMA DE GESTAO 2.0
+                {role === 'hr' ? 'HAPPYCASH RH' : 'SISTEMA DE GESTAO 2.0'}
               </p>
             </div>
             <button className="lg:hidden text-muted-foreground" onClick={() => setOpen(false)}><X className="h-5 w-5" /></button>
@@ -654,7 +659,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
             </Button>
           )}
 
-          {operationalScope && (
+          {role !== 'hr' && operationalScope && (
             <div className="flex min-w-0 items-center gap-2">
               <MapPin className="h-4 w-4 shrink-0 text-primary" />
               <div className="min-w-0">
@@ -703,19 +708,21 @@ export function AppLayout({ children }: { children: ReactNode }) {
 
           <div className="ml-auto flex shrink-0 items-center gap-1 sm:gap-2">
             <ThemeModeToggle compact className="shrink-0" />
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="h-9 gap-1.5 px-2 sm:px-3"
-              title="Sincronizar agora (Alt+Shift+S)"
-              onClick={() => void handleGlobalSync()}
-              disabled={syncingNow}
-            >
-              {syncingNow ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-              <span className="hidden sm:inline">{syncingNow ? 'Sincronizando...' : 'Sincronizar'}</span>
-              {!syncingNow && <span className="hidden xl:inline text-[10px] text-muted-foreground">Alt+Shift+S</span>}
-            </Button>
+            {role !== 'hr' && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-9 gap-1.5 px-2 sm:px-3"
+                title="Sincronizar agora (Alt+Shift+S)"
+                onClick={() => void handleGlobalSync()}
+                disabled={syncingNow}
+              >
+                {syncingNow ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                <span className="hidden sm:inline">{syncingNow ? 'Sincronizando...' : 'Sincronizar'}</span>
+                {!syncingNow && <span className="hidden xl:inline text-[10px] text-muted-foreground">Alt+Shift+S</span>}
+              </Button>
+            )}
             {user && (
               <button
                 type="button"

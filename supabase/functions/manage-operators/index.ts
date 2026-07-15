@@ -19,13 +19,19 @@ type ManageOperatorRequest =
       username?: string;
       password?: string;
       jobTitle?: string;
+      staffRole?: string;
       permissionKeys?: string[];
+      adminEmail?: string;
+      adminPassword?: string;
     }
   | {
       action: 'update_access';
       operatorUserId?: string;
       jobTitle?: string;
+      staffRole?: string;
       permissionKeys?: string[];
+      adminEmail?: string;
+      adminPassword?: string;
     }
   | {
       action: 'reset_password';
@@ -57,10 +63,13 @@ interface OperatorLookupRow {
   username: string;
 }
 
-type StaffRole = 'operator' | 'waiter';
-const staffRoles: StaffRole[] = ['operator', 'waiter'];
+type StaffRole = 'operator' | 'waiter' | 'hr';
+const staffRoles: StaffRole[] = ['operator', 'waiter', 'hr'];
 const normalizeJobTitle = (value: string | undefined | null) => value?.trim().replace(/\s+/g, ' ') ?? '';
 const isValidJobTitle = (value: string) => value.length >= 2 && value.length <= 60;
+const normalizeStaffRole = (value: string | undefined | null): StaffRole =>
+  value === 'hr' ? 'hr' : value === 'waiter' ? 'waiter' : 'operator';
+const isHrPermissionKey = (permissionKey: string) => permissionKey.startsWith('hr.');
 
 const jsonResponse = (request: Request, body: Record<string, unknown>, status = 200) =>
   new Response(JSON.stringify(body), {
@@ -88,6 +97,59 @@ const extractAccessToken = (authorization: string | null) => {
 };
 
 const normalizeEmail = (value: string) => value.trim().toLowerCase();
+
+const verifyAdminCredentials = async (
+	details: {
+	  supabaseUrl: string;
+	  supabaseAnonKey: string;
+	  // Generated Supabase function types are not available inside Edge Functions.
+	  // deno-lint-ignore no-explicit-any
+	  serviceClient: any;
+	  ownerUserId: string;
+	  adminEmail?: string;
+	  adminPassword?: string;
+	},
+) => {
+  const adminEmail = normalizeEmail(details.adminEmail ?? '');
+  const adminPassword = details.adminPassword?.trim() ?? '';
+
+  if (!adminEmail || !adminPassword) {
+    return 'Confirme esta acao com login e senha do administrador.';
+  }
+
+  const verificationClient = createClient(details.supabaseUrl, details.supabaseAnonKey, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+    },
+  });
+
+  const { data: verificationSession, error: verificationError } = await verificationClient.auth.signInWithPassword({
+    email: adminEmail,
+    password: adminPassword,
+  });
+
+  if (verificationError || !verificationSession.user) {
+    return 'Login ou senha do administrador invalidos.';
+  }
+
+  const { data: verificationProfile, error: verificationProfileError } = await details.serviceClient
+    .from('profiles')
+    .select('user_id, role, owner_user_id')
+    .eq('user_id', verificationSession.user.id)
+    .single();
+
+  if (verificationProfileError || !verificationProfile || verificationProfile.role !== 'admin') {
+    return 'A conta informada nao possui acesso de administrador.';
+  }
+
+  const verifiedOwnerUserId = verificationProfile.owner_user_id ?? verificationProfile.user_id;
+  if (verifiedOwnerUserId !== details.ownerUserId) {
+    return 'Este administrador nao pertence a mesma loja.';
+  }
+
+  return null;
+};
 
 Deno.serve(async (request): Promise<Response> => {
   if (request.method === 'OPTIONS') {
@@ -210,7 +272,7 @@ Deno.serve(async (request): Promise<Response> => {
   if (body.action === 'create') {
     const normalizedUsername = normalizeOperatorUsername(body.username ?? '');
     const password = body.password?.trim();
-    const operatorRole: StaffRole = 'operator';
+    const operatorRole: StaffRole = normalizeStaffRole(body.staffRole);
     const jobTitle = normalizeJobTitle(body.jobTitle);
     const credentialError = getOperatorCredentialError(password || '');
     const authPassword = resolveOperatorAuthPassword(normalizedUsername, password || '');
@@ -236,6 +298,18 @@ Deno.serve(async (request): Promise<Response> => {
       return jsonResponse(request, { error: 'Selecione ao menos um acesso para o colaborador.' }, 400);
     }
 
+    const adminVerificationError = await verifyAdminCredentials({
+      supabaseUrl,
+      supabaseAnonKey,
+      serviceClient,
+      ownerUserId,
+      adminEmail: body.adminEmail,
+      adminPassword: body.adminPassword,
+    });
+    if (adminVerificationError) {
+      return jsonResponse(request, { error: adminVerificationError }, 401);
+    }
+
     const { data: permissionCatalog, error: permissionCatalogError } = await serviceClient
       .from('erp_permission_catalog')
       .select('permission_key');
@@ -245,6 +319,12 @@ Deno.serve(async (request): Promise<Response> => {
     const catalogKeys = new Set((permissionCatalog ?? []).map((permission) => permission.permission_key));
     if (requestedPermissionKeys.some((permissionKey) => !catalogKeys.has(permissionKey))) {
       return jsonResponse(request, { error: 'Um ou mais acessos selecionados sao invalidos.' }, 400);
+    }
+    if (operatorRole === 'hr' && requestedPermissionKeys.some((permissionKey) => !isHrPermissionKey(permissionKey))) {
+      return jsonResponse(request, { error: 'Colaboradores de RH podem receber somente permissoes do modulo RH.' }, 400);
+    }
+    if (operatorRole !== 'hr' && requestedPermissionKeys.some(isHrPermissionKey)) {
+      return jsonResponse(request, { error: 'Permissoes de RH exigem o tipo de acesso RH.' }, 400);
     }
 
     const { data: existingOperators, error: existingOperatorsError } = await serviceClient
@@ -336,6 +416,7 @@ Deno.serve(async (request): Promise<Response> => {
   if (body.action === 'update_access') {
     const operatorUserId = body.operatorUserId?.trim();
     const jobTitle = normalizeJobTitle(body.jobTitle);
+    const nextStaffRole = normalizeStaffRole(body.staffRole);
     const requestedPermissionKeys = [...new Set(
       (Array.isArray(body.permissionKeys) ? body.permissionKeys : []).filter(
         (permissionKey): permissionKey is string => typeof permissionKey === 'string' && permissionKey.trim() !== '',
@@ -352,6 +433,18 @@ Deno.serve(async (request): Promise<Response> => {
 
     if (requestedPermissionKeys.length === 0) {
       return jsonResponse(request, { error: 'Selecione ao menos um acesso para o colaborador.' }, 400);
+    }
+
+    const adminVerificationError = await verifyAdminCredentials({
+      supabaseUrl,
+      supabaseAnonKey,
+      serviceClient,
+      ownerUserId,
+      adminEmail: body.adminEmail,
+      adminPassword: body.adminPassword,
+    });
+    if (adminVerificationError) {
+      return jsonResponse(request, { error: adminVerificationError }, 401);
     }
 
     const [{ data: targetProfile, error: targetProfileError }, { data: permissionCatalog, error: permissionCatalogError }] = await Promise.all([
@@ -379,10 +472,16 @@ Deno.serve(async (request): Promise<Response> => {
     if (requestedPermissionKeys.some((permissionKey) => !catalogKeys.has(permissionKey))) {
       return jsonResponse(request, { error: 'Um ou mais acessos selecionados sao invalidos.' }, 400);
     }
+    if (nextStaffRole === 'hr' && requestedPermissionKeys.some((permissionKey) => !isHrPermissionKey(permissionKey))) {
+      return jsonResponse(request, { error: 'Colaboradores de RH podem receber somente permissoes do modulo RH.' }, 400);
+    }
+    if (nextStaffRole !== 'hr' && requestedPermissionKeys.some(isHrPermissionKey)) {
+      return jsonResponse(request, { error: 'Permissoes de RH exigem o tipo de acesso RH.' }, 400);
+    }
 
     const { error: updateProfileError } = await serviceClient
       .from('profiles')
-      .update({ job_title: jobTitle, role: 'operator' })
+      .update({ job_title: jobTitle, role: nextStaffRole })
       .eq('user_id', operatorUserId);
     if (updateProfileError) {
       return jsonResponse(request, { error: 'Nao foi possivel atualizar a funcao do colaborador.' }, 500);
@@ -412,7 +511,7 @@ Deno.serve(async (request): Promise<Response> => {
       operator: {
         user_id: targetProfile.user_id,
         username: targetProfile.username,
-        role: 'operator',
+        role: nextStaffRole,
         job_title: jobTitle,
         permission_keys: requestedPermissionKeys,
       },
