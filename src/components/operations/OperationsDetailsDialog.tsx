@@ -117,18 +117,23 @@ export function OperationsDetailsDialog({
 
           {detail === 'accounts' && (
             <Table>
-              <TableHeader><TableRow><TableHead>Vencimento</TableHead><TableHead>Tipo</TableHead><TableHead>Descrição</TableHead><TableHead>Referente a</TableHead><TableHead className="text-right">Valor</TableHead></TableRow></TableHeader>
+              <TableHeader><TableRow><TableHead>Vencimento</TableHead><TableHead>Tipo</TableHead><TableHead>Descrição</TableHead><TableHead>Referente a</TableHead><TableHead className="text-right">Valor</TableHead><TableHead className="text-right">Saldo</TableHead></TableRow></TableHeader>
               <TableBody>
-                {pendingAccounts.map((account) => (
-                  <TableRow key={account.id}>
-                    <TableCell>{formatDate(account.due_date)}</TableCell>
-                    <TableCell><Badge variant={account.account_type === 'payable' ? 'destructive' : 'secondary'}>{account.account_type === 'payable' ? 'A pagar' : 'A receber'}</Badge></TableCell>
-                    <TableCell>{account.description}</TableCell>
-                    <TableCell>{account.party_name || 'Não informado'}</TableCell>
-                    <TableCell className="text-right font-semibold">{money(account.amount)}</TableCell>
-                  </TableRow>
-                ))}
-                {pendingAccounts.length === 0 && emptyRow(5, 'Nenhuma pendência financeira.')}
+                {pendingAccounts.map((account) => {
+                  const paidAmount = Math.min(Number(account.amount ?? 0), Math.max(0, Number(account.paid_amount ?? 0)));
+                  const remainingAmount = Math.max(0, Number(account.amount ?? 0) - paidAmount);
+                  return (
+                    <TableRow key={account.id}>
+                      <TableCell>{formatDate(account.due_date)}</TableCell>
+                      <TableCell><Badge variant={account.account_type === 'payable' ? 'destructive' : 'secondary'}>{account.account_type === 'payable' ? 'A pagar' : 'A receber'}</Badge></TableCell>
+                      <TableCell>{account.description}</TableCell>
+                      <TableCell>{account.party_name || 'Não informado'}</TableCell>
+                      <TableCell className="text-right">{money(account.amount)}</TableCell>
+                      <TableCell className="text-right font-semibold">{money(remainingAmount)}</TableCell>
+                    </TableRow>
+                  );
+                })}
+                {pendingAccounts.length === 0 && emptyRow(6, 'Nenhuma pendência financeira.')}
               </TableBody>
             </Table>
           )}

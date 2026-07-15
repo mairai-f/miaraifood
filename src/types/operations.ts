@@ -46,9 +46,20 @@ export type FinancialAccount = {
   description: string;
   party_name: string;
   amount: number;
+  paid_amount?: number;
+  payment_history?: Array<{
+    id: string;
+    paid_at: string;
+    amount: number;
+    notes?: string;
+    actor_user_id?: string | null;
+    actor_label?: string | null;
+  }>;
   due_date: string;
   paid_at: string | null;
   status: 'pending' | 'paid' | 'canceled';
+  canceled_at?: string | null;
+  canceled_reason?: string;
   source?: string;
   reference_id?: string | null;
   notes?: string;

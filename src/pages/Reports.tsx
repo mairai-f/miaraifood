@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { Download, TrendingUp, Package, Users, DollarSign } from 'lucide-react';
 import { DataRouteLoader } from '@/components/DataRouteLoader';
 import { formatDateOnly, translateCurrentText } from '../../shared/locale/format';
@@ -120,25 +121,100 @@ export default function Reports() {
     return [buckets.d7, buckets.d15, buckets.d30];
   }, [debtEntries]);
 
-  // Top products
-  const productRanking = useMemo(() => {
-    const map = new Map<string, { productId: string; code: number | null; name: string; qty: number; revenue: number; profit: number }>();
+  const productById = useMemo(() => new Map(products.map((product) => [product.id, product])), [products]);
+
+  const productPerformance = useMemo(() => {
+    const map = new Map<string, {
+      productId: string;
+      code: number | null;
+      name: string;
+      category: string;
+      supplier: string;
+      qty: number;
+      revenue: number;
+      cost: number;
+      profit: number;
+      margin: number;
+    }>();
     for (const i of filteredItems) {
       if (!i.product_id) continue;
       const key = i.product_id;
       const existing = map.get(key);
       const revenue = i.total;
-      const profit = revenue - i.cost_price * i.quantity;
+      const cost = i.cost_price * i.quantity;
+      const profit = Number(i.total_profit ?? revenue - cost);
       if (existing) {
         existing.qty += i.quantity;
         existing.revenue += revenue;
+        existing.cost += cost;
         existing.profit += profit;
       } else {
-        map.set(key, { productId: key, code: i.product_code ?? null, name: i.product_name, qty: i.quantity, revenue, profit });
+        const product = productById.get(key);
+        map.set(key, {
+          productId: key,
+          code: i.product_code ?? product?.code ?? null,
+          name: i.product_name,
+          category: product?.category || 'Sem categoria',
+          supplier: product?.supplier_name || 'Sem fornecedor',
+          qty: i.quantity,
+          revenue,
+          cost,
+          profit,
+          margin: 0,
+        });
       }
     }
-    return Array.from(map.values()).sort((a, b) => b.qty - a.qty).slice(0, 10);
-  }, [filteredItems]);
+    return Array.from(map.values())
+      .map((item) => ({ ...item, margin: item.revenue > 0 ? item.profit / item.revenue * 100 : 0 }));
+  }, [filteredItems, productById]);
+
+  // Top products
+  const productRanking = useMemo(() => (
+    [...productPerformance].sort((a, b) => b.qty - a.qty).slice(0, 10)
+  ), [productPerformance]);
+
+  const productProfitRanking = useMemo(() => (
+    [...productPerformance].sort((a, b) => b.profit - a.profit).slice(0, 10)
+  ), [productPerformance]);
+
+  const lowMarginProducts = useMemo(() => (
+    productPerformance
+      .filter((product) => product.revenue > 0 && product.margin < 15)
+      .sort((a, b) => b.revenue - a.revenue)
+      .slice(0, 10)
+  ), [productPerformance]);
+
+  const supplierProfitRanking = useMemo(() => {
+    const map = new Map<string, { name: string; revenue: number; cost: number; profit: number; margin: number; products: number }>();
+    for (const product of productPerformance) {
+      const current = map.get(product.supplier) ?? { name: product.supplier, revenue: 0, cost: 0, profit: 0, margin: 0, products: 0 };
+      current.revenue += product.revenue;
+      current.cost += product.cost;
+      current.profit += product.profit;
+      current.products += 1;
+      map.set(product.supplier, current);
+    }
+    return Array.from(map.values())
+      .map((item) => ({ ...item, margin: item.revenue > 0 ? item.profit / item.revenue * 100 : 0 }))
+      .sort((a, b) => b.profit - a.profit)
+      .slice(0, 10);
+  }, [productPerformance]);
+
+  const categoryProfitRanking = useMemo(() => {
+    const map = new Map<string, { name: string; revenue: number; cost: number; profit: number; margin: number; products: number }>();
+    for (const product of productPerformance) {
+      const current = map.get(product.category) ?? { name: product.category, revenue: 0, cost: 0, profit: 0, margin: 0, products: 0 };
+      current.revenue += product.revenue;
+      current.cost += product.cost;
+      current.profit += product.profit;
+      current.products += 1;
+      map.set(product.category, current);
+    }
+    return Array.from(map.values())
+      .map((item) => ({ ...item, margin: item.revenue > 0 ? item.profit / item.revenue * 100 : 0 }))
+      .sort((a, b) => b.profit - a.profit)
+      .slice(0, 10);
+  }, [productPerformance]);
 
   // Top clients
   const clientRanking = useMemo(() => {
@@ -392,6 +468,84 @@ export default function Reports() {
           paymentBreakdown={paymentBreakdown}
         />
       </Suspense>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4" data-tour-id="reports-margin-profit">
+        <Card className="border-border/50">
+          <CardHeader><CardTitle className="text-sm">Lucro Bruto por Produto</CardTitle></CardHeader>
+          <CardContent>
+            {productProfitRanking.length === 0 ? <p className="text-xs text-muted-foreground">Sem dados</p> : (
+              <div className="space-y-2">
+                {productProfitRanking.map((product, index) => (
+                  <div key={product.productId} className="flex items-start justify-between gap-3 text-xs">
+                    <span className="truncate">{index + 1}. {formatProductCode(product.code) || 'Sem código'} · {product.name}</span>
+                    <div className="shrink-0 text-right">
+                      <p className="font-medium">R$ {product.profit.toFixed(2)}</p>
+                      <p className="text-muted-foreground">{product.margin.toFixed(1)}% · R$ {product.revenue.toFixed(2)}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="border-border/50">
+          <CardHeader><CardTitle className="text-sm">Venda Alta com Margem Baixa</CardTitle></CardHeader>
+          <CardContent>
+            {lowMarginProducts.length === 0 ? <p className="text-xs text-muted-foreground">Nenhum produto abaixo de 15% no período.</p> : (
+              <div className="space-y-2">
+                {lowMarginProducts.map((product) => (
+                  <div key={product.productId} className="flex items-start justify-between gap-3 text-xs">
+                    <span className="truncate">{product.name}</span>
+                    <div className="shrink-0 text-right">
+                      <Badge variant={product.profit < 0 ? 'destructive' : 'secondary'}>{product.margin.toFixed(1)}%</Badge>
+                      <p className="mt-1 text-muted-foreground">Receita R$ {product.revenue.toFixed(2)}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="border-border/50">
+          <CardHeader><CardTitle className="text-sm">Lucro por Fornecedor</CardTitle></CardHeader>
+          <CardContent>
+            {supplierProfitRanking.length === 0 ? <p className="text-xs text-muted-foreground">Sem dados por fornecedor.</p> : (
+              <div className="space-y-2">
+                {supplierProfitRanking.map((supplier, index) => (
+                  <div key={supplier.name} className="flex items-start justify-between gap-3 text-xs">
+                    <span className="truncate">{index + 1}. {supplier.name}</span>
+                    <div className="shrink-0 text-right">
+                      <p className="font-medium">R$ {supplier.profit.toFixed(2)}</p>
+                      <p className="text-muted-foreground">{supplier.margin.toFixed(1)}% · {supplier.products} produto(s)</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="border-border/50">
+          <CardHeader><CardTitle className="text-sm">Lucro por Categoria</CardTitle></CardHeader>
+          <CardContent>
+            {categoryProfitRanking.length === 0 ? <p className="text-xs text-muted-foreground">Sem dados por categoria.</p> : (
+              <div className="space-y-2">
+                {categoryProfitRanking.map((category, index) => (
+                  <div key={category.name} className="flex items-start justify-between gap-3 text-xs">
+                    <span className="truncate">{index + 1}. {category.name}</span>
+                    <div className="shrink-0 text-right">
+                      <p className="font-medium">R$ {category.profit.toFixed(2)}</p>
+                      <p className="text-muted-foreground">{category.margin.toFixed(1)}% · R$ {category.revenue.toFixed(2)}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4" data-tour-id="reports-rankings">
         {/* Top products */}

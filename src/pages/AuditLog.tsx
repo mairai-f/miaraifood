@@ -25,6 +25,15 @@ const actionLabel: Record<string, string> = {
   'debt_entry.delete_restore_stock': 'Fiado estornado com estoque',
   'sale.cancel': 'Venda cancelada',
   'stock.clear_all': 'Estoque zerado',
+  'stock.transfer': 'Transferência de estoque',
+  'purchase_order.create': 'Pedido de compra criado',
+  'purchase_order.receive': 'Pedido de compra recebido',
+  'product_batch.create': 'Lote/validade criado',
+  'product_batch.discard': 'Lote/validade baixado',
+  'financial_account.create': 'Conta financeira criada',
+  'financial_account.update': 'Conta financeira alterada',
+  'financial_account.payment': 'Pagamento/recebimento registrado',
+  'financial_account.cancel': 'Conta financeira cancelada',
   'cash_session.close': 'Caixa fechado e conferido',
 };
 

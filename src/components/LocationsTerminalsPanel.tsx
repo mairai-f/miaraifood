@@ -1,9 +1,12 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
-import { Building2, Loader2, MapPin, MonitorSmartphone, Plus } from 'lucide-react';
+import { ArrowRightLeft, Building2, Loader2, MapPin, MonitorSmartphone, Plus, Search } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
+import { useData } from '@/contexts/DataContext';
 import { usePermissions } from '@/contexts/usePermissions';
 import { supabase } from '@/integrations/supabase/client';
+import { filterProductsBySearch } from '@/lib/productSearch';
+import { parseDecimalInput } from '@/lib/numberInput';
 import {
   isValidStoreScopeCode,
   normalizeStoreScopeCode,
@@ -15,7 +18,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -48,7 +51,8 @@ interface PosTerminalRow {
 
 /** Painel Web; filiais e terminais nao entram no bundle operacional do Electron. */
 export function LocationsTerminalsPanel() {
-  const { isAdmin, ownerUserId } = useAuth();
+  const { ownerUserId } = useAuth();
+  const { products, syncNow } = useData();
   const { hasPermission } = usePermissions();
   const [storeAccountId, setStoreAccountId] = useState('');
   const [locations, setLocations] = useState<StoreLocationRow[]>([]);
@@ -64,8 +68,16 @@ export function LocationsTerminalsPanel() {
   const [terminalCode, setTerminalCode] = useState('');
   const [terminalType, setTerminalType] = useState<PosTerminalType>('desktop');
   const [terminalLocationId, setTerminalLocationId] = useState('');
+  const [transferDialogOpen, setTransferDialogOpen] = useState(false);
+  const [transferSourceLocationId, setTransferSourceLocationId] = useState('');
+  const [transferTargetLocationId, setTransferTargetLocationId] = useState('');
+  const [transferProductId, setTransferProductId] = useState('');
+  const [transferProductSearch, setTransferProductSearch] = useState('');
+  const [transferQuantity, setTransferQuantity] = useState('');
+  const [transferReason, setTransferReason] = useState('Transferencia entre filiais');
+  const [transferring, setTransferring] = useState(false);
 
-  const canManageMultiStore = isAdmin && hasPermission('multi_store.manage');
+  const canManageMultiStore = hasPermission('multi_store.manage');
 
   const loadData = useCallback(async () => {
     if (!ownerUserId || !canManageMultiStore) {
@@ -116,6 +128,30 @@ export function LocationsTerminalsPanel() {
     () => new Map(locations.map((location) => [location.id, location.name])),
     [locations],
   );
+  const activeLocations = useMemo(
+    () => locations.filter((location) => location.active),
+    [locations],
+  );
+  const activeProducts = useMemo(
+    () => products.filter((product) => !product.deleted),
+    [products],
+  );
+  const selectedTransferProduct = useMemo(
+    () => activeProducts.find((product) => product.id === transferProductId) ?? null,
+    [activeProducts, transferProductId],
+  );
+  const transferProductResults = useMemo(
+    () => transferProductSearch.trim() && !selectedTransferProduct
+      ? filterProductsBySearch(activeProducts, transferProductSearch).slice(0, 8)
+      : [],
+    [activeProducts, selectedTransferProduct, transferProductSearch],
+  );
+
+  useEffect(() => {
+    if (activeLocations.length === 0) return;
+    setTransferSourceLocationId((current) => current || activeLocations[0]?.id || '');
+    setTransferTargetLocationId((current) => current || activeLocations.find((location) => location.id !== activeLocations[0]?.id)?.id || '');
+  }, [activeLocations]);
 
   const resetLocationForm = () => {
     setLocationName('');
@@ -128,6 +164,15 @@ export function LocationsTerminalsPanel() {
     setTerminalCode('');
     setTerminalType('desktop');
     setTerminalLocationId(locations.find((location) => location.active)?.id || '');
+  };
+
+  const resetTransferForm = () => {
+    setTransferSourceLocationId(activeLocations[0]?.id || '');
+    setTransferTargetLocationId(activeLocations.find((location) => location.id !== activeLocations[0]?.id)?.id || '');
+    setTransferProductId('');
+    setTransferProductSearch('');
+    setTransferQuantity('');
+    setTransferReason('Transferencia entre filiais');
   };
 
   const handleCreateLocation = async (event: FormEvent<HTMLFormElement>) => {
@@ -194,6 +239,41 @@ export function LocationsTerminalsPanel() {
     }
   };
 
+  const handleTransferStock = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const quantity = Math.max(0, parseDecimalInput(transferQuantity));
+    if (!transferSourceLocationId || !transferTargetLocationId || transferSourceLocationId === transferTargetLocationId) {
+      toast.error('Escolha origem e destino diferentes.');
+      return;
+    }
+    if (!transferProductId || quantity <= 0) {
+      toast.error('Escolha um produto e informe quantidade.');
+      return;
+    }
+
+    setTransferring(true);
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error } = await (supabase as any).rpc('transfer_location_stock', {
+        p_source_location_id: transferSourceLocationId,
+        p_target_location_id: transferTargetLocationId,
+        p_product_id: transferProductId,
+        p_quantity: quantity,
+        p_reason: transferReason.trim() || 'Transferencia entre filiais',
+      });
+      if (error) throw error;
+      resetTransferForm();
+      setTransferDialogOpen(false);
+      await syncNow();
+      toast.success('Transferencia de estoque registrada.');
+    } catch (error) {
+      console.error('Erro ao transferir estoque:', getRedactedLogValue(error));
+      toast.error(error instanceof Error ? error.message : 'Nao foi possivel transferir o estoque.');
+    } finally {
+      setTransferring(false);
+    }
+  };
+
   const updateActiveState = async (table: 'store_locations' | 'pos_terminals', id: string, active: boolean) => {
     try {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -221,7 +301,94 @@ export function LocationsTerminalsPanel() {
               A empresa e a assinatura continuam unicas; cada operacao passa a informar onde e em qual terminal aconteceu.
             </p>
           </div>
-          <Badge variant="outline">Somente Web</Badge>
+          <div className="flex flex-wrap items-center gap-2">
+            <Dialog open={transferDialogOpen} onOpenChange={(open) => {
+              setTransferDialogOpen(open);
+              if (!open) resetTransferForm();
+            }}>
+              <DialogTrigger asChild>
+                <Button type="button" size="sm" variant="outline" disabled={activeLocations.length < 2}>
+                  <ArrowRightLeft className="mr-1 h-4 w-4" />Transferir estoque
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-2xl">
+                <form onSubmit={handleTransferStock}>
+                  <DialogHeader>
+                    <DialogTitle>Transferir estoque entre filiais</DialogTitle>
+                    <DialogDescription>Movimenta o saldo da origem para o destino e registra auditoria.</DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-4 py-4">
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <div className="space-y-1">
+                        <Label>Origem</Label>
+                        <Select value={transferSourceLocationId} onValueChange={setTransferSourceLocationId}>
+                          <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                          <SelectContent>{activeLocations.map((location) => <SelectItem key={location.id} value={location.id}>{location.name}</SelectItem>)}</SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-1">
+                        <Label>Destino</Label>
+                        <Select value={transferTargetLocationId} onValueChange={setTransferTargetLocationId}>
+                          <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                          <SelectContent>{activeLocations.map((location) => <SelectItem key={location.id} value={location.id}>{location.name}</SelectItem>)}</SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                    <div className="space-y-1">
+                      <Label>Produto</Label>
+                      {selectedTransferProduct ? (
+                        <div className="flex items-center justify-between gap-2 rounded-md border bg-muted/30 px-3 py-2 text-sm">
+                          <span className="truncate">{selectedTransferProduct.name}</span>
+                          <Button type="button" size="sm" variant="ghost" onClick={() => { setTransferProductId(''); setTransferProductSearch(''); }}>Trocar</Button>
+                        </div>
+                      ) : (
+                        <div className="relative">
+                          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                          <Input className="pl-9" value={transferProductSearch} onChange={(event) => setTransferProductSearch(event.target.value)} placeholder="Buscar produto" />
+                          {transferProductResults.length > 0 && (
+                            <div className="absolute z-20 mt-1 max-h-56 w-full overflow-auto rounded-md border bg-popover p-1 shadow-lg">
+                              {transferProductResults.map((product) => (
+                                <button
+                                  key={product.id}
+                                  type="button"
+                                  className="flex w-full items-center justify-between gap-3 rounded px-3 py-2 text-left text-sm hover:bg-muted"
+                                  onClick={() => {
+                                    setTransferProductId(product.id);
+                                    setTransferProductSearch(product.name);
+                                  }}
+                                >
+                                  <span className="truncate">{product.name}</span>
+                                  <span className="shrink-0 text-xs text-muted-foreground">Est. {product.stock}</span>
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                    <div className="grid gap-3 sm:grid-cols-[160px_1fr]">
+                      <div className="space-y-1">
+                        <Label>Quantidade</Label>
+                        <Input inputMode="decimal" value={transferQuantity} onChange={(event) => setTransferQuantity(event.target.value)} placeholder="0" />
+                      </div>
+                      <div className="space-y-1">
+                        <Label>Motivo</Label>
+                        <Input value={transferReason} onChange={(event) => setTransferReason(event.target.value)} />
+                      </div>
+                    </div>
+                  </div>
+                  <DialogFooter>
+                    <Button type="button" variant="outline" disabled={transferring} onClick={() => setTransferDialogOpen(false)}>Cancelar</Button>
+                    <Button type="submit" disabled={transferring}>
+                      {transferring ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ArrowRightLeft className="mr-2 h-4 w-4" />}
+                      {transferring ? 'Transferindo...' : 'Transferir'}
+                    </Button>
+                  </DialogFooter>
+                </form>
+              </DialogContent>
+            </Dialog>
+            <Badge variant="outline">Somente Web</Badge>
+          </div>
         </div>
       </CardHeader>
       <CardContent className="space-y-6">

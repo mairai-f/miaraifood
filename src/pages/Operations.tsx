@@ -1,6 +1,6 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Barcode, Boxes, CalendarClock, Check, CheckCircle2, Edit, FileDown, Loader2, MessageCircle, PackageCheck, PackagePlus, Percent, Plus, RefreshCw, Search, ShieldCheck, Trash2, Truck, WalletCards } from 'lucide-react';
+import { Ban, Barcode, Boxes, CalendarClock, Check, CheckCircle2, Edit, FileDown, Loader2, MessageCircle, PackageCheck, PackagePlus, Percent, Plus, RefreshCw, Search, ShieldCheck, Trash2, Truck, WalletCards } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { OperationsMetricCard } from '@/components/operations/OperationsMetricCard';
@@ -92,6 +92,34 @@ const supplierFormFromRecord = (record: SupplierRecord | undefined, fallbackName
   minimum_order: record?.minimum_order ? String(record.minimum_order) : '',
   notes: record?.notes ?? '',
 });
+const createEmptyAccountForm = () => ({
+  account_type: 'payable' as 'payable' | 'receivable',
+  description: '',
+  party_name: '',
+  amount: '',
+  due_date: today(),
+  notes: '',
+});
+const getAccountPaidAmount = (account: FinancialAccount) =>
+  Math.min(Number(account.amount ?? 0), Math.max(0, Number(account.paid_amount ?? (account.status === 'paid' ? account.amount : 0))));
+const getAccountRemainingAmount = (account: FinancialAccount) =>
+  account.status === 'canceled' ? 0 : Math.max(0, Number(account.amount ?? 0) - getAccountPaidAmount(account));
+const getAccountOperationalStatus = (account: FinancialAccount) => {
+  if (account.status === 'paid') return 'paid';
+  if (account.status === 'canceled') return 'canceled';
+  if (getAccountPaidAmount(account) > 0) return 'partial';
+  if (account.due_date < today()) return 'overdue';
+  return 'pending';
+};
+const accountStatusLabel = (account: FinancialAccount) => ({
+  paid: 'Quitada',
+  canceled: 'Cancelada',
+  partial: 'Parcial',
+  overdue: 'Vencida',
+  pending: 'Aberta',
+}[getAccountOperationalStatus(account)]);
+const accountTypeLabel = (account: FinancialAccount) =>
+  account.account_type === 'payable' ? 'A pagar' : 'A receber';
 const purchaseStatusLabel = (status: string) => ({
   open: 'Aberto',
   partially_received: 'Recebido parcialmente',
@@ -215,14 +243,16 @@ export default function Operations() {
   });
   const [purchaseProductSearch, setPurchaseProductSearch] = useState('');
 
-  const [accountForm, setAccountForm] = useState({
-    account_type: 'payable' as 'payable' | 'receivable',
-    description: '',
-    party_name: '',
-    amount: '',
-    due_date: today(),
-    notes: '',
-  });
+  const [accountForm, setAccountForm] = useState(createEmptyAccountForm);
+  const [editingAccountId, setEditingAccountId] = useState('');
+  const [accountSearch, setAccountSearch] = useState('');
+  const [accountTypeFilter, setAccountTypeFilter] = useState('all');
+  const [accountStatusFilter, setAccountStatusFilter] = useState('open');
+  const [savingAccount, setSavingAccount] = useState(false);
+  const [accountPaymentTarget, setAccountPaymentTarget] = useState<FinancialAccount | null>(null);
+  const [accountPaymentForm, setAccountPaymentForm] = useState({ amount: '', notes: '' });
+  const [accountCancelTarget, setAccountCancelTarget] = useState<FinancialAccount | null>(null);
+  const [accountCancelReason, setAccountCancelReason] = useState('');
 
   const [labelForm, setLabelForm] = useState({ product_id: '', quantity: '12' });
   const [labelProductSearch, setLabelProductSearch] = useState('');
@@ -327,9 +357,22 @@ export default function Operations() {
     [accounts],
   );
   const pendingAccountsTotal = useMemo(
-    () => pendingAccounts.reduce((sum, account) => sum + Number(account.amount ?? 0), 0),
+    () => pendingAccounts.reduce((sum, account) => sum + getAccountRemainingAmount(account), 0),
     [pendingAccounts],
   );
+  const accountSummary = useMemo(() => accounts.reduce((summary, account) => {
+    if (account.status === 'paid') {
+      summary.paid += Number(account.amount ?? 0);
+      return summary;
+    }
+    if (account.status === 'canceled') return summary;
+
+    const remaining = getAccountRemainingAmount(account);
+    if (account.account_type === 'payable') summary.payable += remaining;
+    if (account.account_type === 'receivable') summary.receivable += remaining;
+    if (account.due_date < today()) summary.overdue += remaining;
+    return summary;
+  }, { payable: 0, receivable: 0, overdue: 0, paid: 0 }), [accounts]);
 
   const activePromotions = useMemo(() => {
     const currentDate = today();
@@ -503,6 +546,26 @@ export default function Operations() {
         return right.purchase_date.localeCompare(left.purchase_date);
       });
   }, [purchaseSearch, purchaseStatus, purchases]);
+  const visibleAccounts = useMemo(() => {
+    const query = accountSearch.trim().toLocaleUpperCase('pt-BR');
+    const statusWeight: Record<string, number> = { overdue: 0, partial: 1, pending: 2, paid: 3, canceled: 4 };
+
+    return accounts
+      .filter((account) => accountTypeFilter === 'all' || account.account_type === accountTypeFilter)
+      .filter((account) => {
+        const status = getAccountOperationalStatus(account);
+        if (accountStatusFilter === 'all') return true;
+        if (accountStatusFilter === 'open') return ['pending', 'partial', 'overdue'].includes(status);
+        return status === accountStatusFilter;
+      })
+      .filter((account) => !query || [account.description, account.party_name, account.notes ?? '']
+        .some((value) => value.toLocaleUpperCase('pt-BR').includes(query)))
+      .sort((left, right) => (
+        statusWeight[getAccountOperationalStatus(left)] - statusWeight[getAccountOperationalStatus(right)]
+        || left.due_date.localeCompare(right.due_date)
+        || left.description.localeCompare(right.description, 'pt-BR')
+      ));
+  }, [accountSearch, accountStatusFilter, accountTypeFilter, accounts]);
 
   const auditEvents = useMemo(() => {
     const canceledSales = sales
@@ -610,6 +673,28 @@ export default function Operations() {
       : [...current, { productId: product.id, productName: product.name, quantity, unitCost }]);
     setSearchParams({}, { replace: true });
   }, [activeProducts, searchParams, setSearchParams, suppliers]);
+
+  const recordOperationsAudit = async (
+    action: string,
+    entityType: string,
+    entityId: string | null,
+    details: Record<string, unknown> = {},
+  ) => {
+    if (!effectiveOwnerId || !user?.id) return;
+
+    const { error } = await fromTable('audit_logs').insert({
+      owner_user_id: effectiveOwnerId,
+      actor_user_id: user.id,
+      actor_label: user.email ?? null,
+      action,
+      entity_type: entityType,
+      entity_id: entityId,
+      details,
+    });
+    if (error) {
+      console.error('Erro ao registrar auditoria operacional:', getRedactedLogValue(error));
+    }
+  };
 
   const resetPurchaseForm = () => {
     setPurchaseForm({
@@ -726,6 +811,16 @@ export default function Operations() {
       return;
     }
 
+    await recordOperationsAudit('purchase_order.create', 'purchase_order', order.id, {
+      supplier_id: supplier.id,
+      supplier_name: supplier.name,
+      total_amount: total,
+      item_count: purchaseDraftItems.length,
+      receive_stock: purchaseForm.receive_stock,
+      create_payable: purchaseForm.create_payable,
+      location_id: operationalLocationId,
+    });
+
     if (purchaseForm.receive_stock) {
       try {
         await receiveOrderItems(
@@ -734,6 +829,13 @@ export default function Operations() {
           purchaseForm.create_payable,
           purchaseForm.due_date,
         );
+        await recordOperationsAudit('purchase_order.receive', 'purchase_order', order.id, {
+          supplier_id: supplier.id,
+          supplier_name: supplier.name,
+          total_amount: total,
+          create_payable: purchaseForm.create_payable,
+          location_id: operationalLocationId,
+        });
       } catch (error) {
         console.error('Erro ao receber compra:', getRedactedLogValue(error));
         toast.error('Pedido salvo, mas o estoque não foi recebido. Use a ação Receber.');
@@ -753,6 +855,15 @@ export default function Operations() {
         source: 'purchase',
         reference_id: order.id,
         notes: purchaseForm.invoice_number ? `NF ${purchaseForm.invoice_number}` : purchaseForm.notes.trim(),
+      });
+      await recordOperationsAudit('financial_account.create', 'financial_account', null, {
+        source: 'purchase',
+        reference_id: order.id,
+        account_type: 'payable',
+        party_name: supplier.name,
+        amount: total,
+        due_date: purchaseForm.due_date,
+        location_id: operationalLocationId,
       });
     }
 
@@ -827,6 +938,27 @@ export default function Operations() {
       if (batchRows.length > 0) {
         const { error: batchError } = await fromTable('product_batches').insert(batchRows);
         if (batchError) throw batchError;
+      }
+      await recordOperationsAudit('purchase_order.receive', 'purchase_order', receivingPurchase.id, {
+        supplier_name: receivingPurchase.supplier_name,
+        receipt_count: receipts.length,
+        total_received_quantity: receipts.reduce((sum, item) => sum + item.quantity, 0),
+        create_payable: receiveCreatePayable,
+        due_date: receiveDueDate,
+        batch_count: batchRows.length,
+        location_id: operationalLocationId,
+      });
+      if (batchRows.length > 0) {
+        await recordOperationsAudit('product_batch.create', 'product_batch', receivingPurchase.id, {
+          purchase_order_id: receivingPurchase.id,
+          batch_count: batchRows.length,
+          products: batchRows.map((row) => ({
+            product_id: row.product_id,
+            product_name: row.product_name,
+            quantity: row.quantity,
+            expiration_date: row.expiration_date,
+          })),
+        });
       }
       setReceivingPurchase(null);
       setReceiveBatchDrafts({});
@@ -966,6 +1098,15 @@ export default function Operations() {
       throw itemError;
     }
 
+    await recordOperationsAudit('purchase_order.create', 'purchase_order', order.id, {
+      supplier_id: supplier.id,
+      supplier_name: supplier.name,
+      total_amount: subtotal,
+      item_count: items.length,
+      source: 'supplier_order',
+      location_id: operationalLocationId,
+    });
+
     return order as PurchaseOrder;
   };
 
@@ -1032,47 +1173,196 @@ export default function Operations() {
     return true;
   };
 
+  const resetAccountForm = () => {
+    setAccountForm(createEmptyAccountForm());
+    setEditingAccountId('');
+  };
+
+  const startAccountEdit = (account: FinancialAccount) => {
+    if (account.status !== 'pending') {
+      toast.error('Somente contas abertas ou parciais podem ser editadas.');
+      return;
+    }
+    setEditingAccountId(account.id);
+    setAccountForm({
+      account_type: account.account_type,
+      description: account.description,
+      party_name: account.party_name,
+      amount: String(account.amount ?? ''),
+      due_date: account.due_date,
+      notes: account.notes ?? '',
+    });
+  };
+
   const saveAccount = async () => {
-    if (!effectiveOwnerId) return;
+    if (!effectiveOwnerId || savingAccount) return;
     const amount = parseMoney(accountForm.amount);
+    const existingAccount = editingAccountId ? accounts.find((account) => account.id === editingAccountId) : null;
+    const paidAmount = existingAccount ? getAccountPaidAmount(existingAccount) : 0;
+
     if (!accountForm.description.trim() || !accountForm.party_name.trim() || amount <= 0) {
       toast.error('Informe descrição, fornecedor ou cliente e valor.');
       return;
     }
+    if (existingAccount && amount < paidAmount) {
+      toast.error(`O valor da conta nao pode ser menor que o que ja foi pago (${money(paidAmount)}).`);
+      return;
+    }
 
-    const { error } = await fromTable('financial_accounts').insert({
-      owner_user_id: effectiveOwnerId,
-      location_id: operationalLocationId,
+    const payload = {
       account_type: accountForm.account_type,
       description: accountForm.description.trim(),
       party_name: accountForm.party_name.trim(),
       amount,
       due_date: accountForm.due_date,
       notes: accountForm.notes.trim(),
-    });
+      updated_by: user?.id ?? null,
+    };
 
-    if (error) {
+    setSavingAccount(true);
+    try {
+      const query = existingAccount
+        ? fromTable('financial_accounts').update(payload).eq('id', existingAccount.id)
+        : fromTable('financial_accounts').insert({
+          owner_user_id: effectiveOwnerId,
+          location_id: operationalLocationId,
+          ...payload,
+        });
+
+      const { data: savedAccount, error } = await query.select('*').single();
+      if (error) throw error;
+
+      await recordOperationsAudit(
+        existingAccount ? 'financial_account.update' : 'financial_account.create',
+        'financial_account',
+        (savedAccount as FinancialAccount).id,
+        existingAccount
+          ? { before: existingAccount, after: savedAccount, location_id: operationalLocationId }
+          : { after: savedAccount, location_id: operationalLocationId },
+      );
+
+      toast.success(existingAccount ? 'Conta atualizada.' : 'Conta registrada.');
+      resetAccountForm();
+      await loadOperations();
+    } catch (error) {
       console.error('Erro ao salvar conta:', getRedactedLogValue(error));
       toast.error('Não foi possível salvar a conta.');
+    } finally {
+      setSavingAccount(false);
+    }
+  };
+
+  const openAccountPaymentDialog = (account: FinancialAccount) => {
+    const remaining = getAccountRemainingAmount(account);
+    if (account.status !== 'pending' || remaining <= 0) {
+      toast.error('Esta conta nao tem saldo em aberto.');
+      return;
+    }
+    setAccountPaymentTarget(account);
+    setAccountPaymentForm({ amount: remaining.toFixed(2).replace('.', ','), notes: '' });
+  };
+
+  const registerAccountPayment = async () => {
+    if (!accountPaymentTarget) return;
+    const paymentAmount = parseMoney(accountPaymentForm.amount);
+    const remaining = getAccountRemainingAmount(accountPaymentTarget);
+    if (paymentAmount <= 0 || paymentAmount > remaining) {
+      toast.error(`Informe um valor entre R$ 0,01 e ${money(remaining)}.`);
       return;
     }
 
-    toast.success('Conta registrada.');
-    setAccountForm({ account_type: 'payable', description: '', party_name: '', amount: '', due_date: today(), notes: '' });
+    const paidAt = new Date().toISOString();
+    const nextPaidAmount = Math.min(Number(accountPaymentTarget.amount ?? 0), getAccountPaidAmount(accountPaymentTarget) + paymentAmount);
+    const nextRemaining = Math.max(0, Number(accountPaymentTarget.amount ?? 0) - nextPaidAmount);
+    const history = Array.isArray(accountPaymentTarget.payment_history) ? accountPaymentTarget.payment_history : [];
+    const paymentEntry = {
+      id: typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `${Date.now()}`,
+      paid_at: paidAt,
+      amount: paymentAmount,
+      notes: accountPaymentForm.notes.trim(),
+      actor_user_id: user?.id ?? null,
+      actor_label: user?.email ?? null,
+    };
+
+    const update = {
+      paid_amount: nextPaidAmount,
+      payment_history: [...history, paymentEntry],
+      status: nextRemaining <= 0 ? 'paid' : 'pending',
+      paid_at: nextRemaining <= 0 ? paidAt : null,
+      updated_by: user?.id ?? null,
+    };
+
+    const { data: savedAccount, error } = await fromTable('financial_accounts')
+      .update(update)
+      .eq('id', accountPaymentTarget.id)
+      .select('*')
+      .single();
+
+    if (error) {
+      console.error('Erro ao registrar pagamento:', getRedactedLogValue(error));
+      toast.error('Não foi possível registrar o pagamento.');
+      return;
+    }
+
+    await recordOperationsAudit('financial_account.payment', 'financial_account', accountPaymentTarget.id, {
+      before: accountPaymentTarget,
+      after: savedAccount,
+      payment: paymentEntry,
+      remaining_amount: nextRemaining,
+      location_id: operationalLocationId,
+    });
+
+    toast.success(nextRemaining <= 0 ? 'Conta quitada.' : `Pagamento parcial registrado. Falta ${money(nextRemaining)}.`);
+    setAccountPaymentTarget(null);
+    setAccountPaymentForm({ amount: '', notes: '' });
     await loadOperations();
   };
 
-  const markAccountPaid = async (account: FinancialAccount) => {
-    const { error } = await fromTable('financial_accounts')
-      .update({ status: 'paid', paid_at: new Date().toISOString() })
-      .eq('id', account.id);
+  const openAccountCancelDialog = (account: FinancialAccount) => {
+    if (account.status !== 'pending') {
+      toast.error('Somente contas abertas podem ser canceladas.');
+      return;
+    }
+    setAccountCancelTarget(account);
+    setAccountCancelReason('');
+  };
 
-    if (error) {
-      toast.error('Não foi possível marcar como pago.');
+  const cancelAccount = async () => {
+    if (!accountCancelTarget) return;
+    const reason = accountCancelReason.trim();
+    if (reason.length < 3) {
+      toast.error('Informe o motivo do cancelamento.');
       return;
     }
 
-    toast.success('Conta marcada como paga.');
+    const canceledAt = new Date().toISOString();
+    const { data: savedAccount, error } = await fromTable('financial_accounts')
+      .update({
+        status: 'canceled',
+        canceled_at: canceledAt,
+        canceled_reason: reason,
+        updated_by: user?.id ?? null,
+      })
+      .eq('id', accountCancelTarget.id)
+      .select('*')
+      .single();
+
+    if (error) {
+      console.error('Erro ao cancelar conta:', getRedactedLogValue(error));
+      toast.error('Não foi possível cancelar a conta.');
+      return;
+    }
+
+    await recordOperationsAudit('financial_account.cancel', 'financial_account', accountCancelTarget.id, {
+      before: accountCancelTarget,
+      after: savedAccount,
+      reason,
+      location_id: operationalLocationId,
+    });
+
+    toast.success('Conta cancelada.');
+    setAccountCancelTarget(null);
+    setAccountCancelReason('');
     await loadOperations();
   };
 
@@ -1156,7 +1446,7 @@ export default function Operations() {
       return;
     }
 
-    const { error } = await fromTable('product_batches').insert({
+    const { data: savedBatch, error } = await fromTable('product_batches').insert({
       owner_user_id: effectiveOwnerId,
       product_id: product.id,
       product_name: product.name,
@@ -1165,13 +1455,17 @@ export default function Operations() {
       expiration_date: batchForm.expiration_date,
       alert_days: Math.max(0, Number.parseInt(batchForm.alert_days, 10) || 30),
       notes: batchForm.notes.trim(),
-    });
+    }).select('*').single();
 
     if (error) {
       toast.error('Não foi possível salvar validade/lote.');
       return;
     }
 
+    await recordOperationsAudit('product_batch.create', 'product_batch', (savedBatch as ProductBatch).id, {
+      after: savedBatch,
+      source: 'manual',
+    });
     toast.success('Validade cadastrada.');
     setBatchForm({ product_id: '', batch_code: '', quantity: '', expiration_date: today(), alert_days: '30', notes: '' });
     setBatchProductSearch('');
@@ -1204,6 +1498,11 @@ export default function Operations() {
       toast.success('Controle de validade removido sem alterar o estoque.');
     }
 
+    await recordOperationsAudit('product_batch.discard', 'product_batch', batchToRemove.id, {
+      before: batchToRemove,
+      adjust_stock: adjustStock,
+      adjusted_quantity: adjustedQuantity,
+    });
     setBatchToRemove(null);
     await Promise.all([loadOperations(), syncNow()]);
   };
@@ -1529,7 +1828,11 @@ export default function Operations() {
 
         <TabsContent value="contas" className="grid gap-4 xl:grid-cols-[0.85fr_1.15fr]">
           <Card>
-            <CardHeader><CardTitle className="flex items-center gap-2"><WalletCards className="h-5 w-5" /> Nova conta</CardTitle></CardHeader>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <WalletCards className="h-5 w-5" /> {editingAccountId ? 'Editar conta' : 'Nova conta'}
+              </CardTitle>
+            </CardHeader>
             <CardContent className="grid gap-3">
               <Select value={accountForm.account_type} onValueChange={(value: 'payable' | 'receivable') => setAccountForm({ ...accountForm, account_type: value })}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
@@ -1543,24 +1846,122 @@ export default function Operations() {
                 <Input type="date" value={accountForm.due_date} onChange={(e) => setAccountForm({ ...accountForm, due_date: e.target.value })} />
               </div>
               <Textarea placeholder="Observações" value={accountForm.notes} onChange={(e) => setAccountForm({ ...accountForm, notes: e.target.value })} />
-              <Button onClick={() => void saveAccount()}>Salvar conta</Button>
+              <div className="flex flex-wrap gap-2">
+                <Button onClick={() => void saveAccount()} disabled={savingAccount}>
+                  {savingAccount ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                  {editingAccountId ? 'Atualizar conta' : 'Salvar conta'}
+                </Button>
+                {editingAccountId && <Button type="button" variant="outline" onClick={resetAccountForm}>Cancelar edição</Button>}
+              </div>
             </CardContent>
           </Card>
           <Card>
             <CardHeader><CardTitle>Agenda financeira</CardTitle></CardHeader>
-            <CardContent>
-              <Table>
-                <TableHeader><TableRow><TableHead>Tipo</TableHead><TableHead>Descrição</TableHead><TableHead>Vence</TableHead><TableHead>Valor</TableHead><TableHead></TableHead></TableRow></TableHeader>
-                <TableBody>{accounts.map((account) => (
-                  <TableRow key={account.id} className={account.status === 'paid' ? 'bg-emerald-500/10 hover:bg-emerald-500/15' : undefined}>
-                    <TableCell>{account.status === 'paid' ? <Badge className="bg-emerald-600 text-white hover:bg-emerald-600">Pago</Badge> : <Badge variant={account.account_type === 'payable' ? 'destructive' : 'secondary'}>{account.account_type === 'payable' ? 'Pagar' : 'Receber'}</Badge>}</TableCell>
-                    <TableCell><p className="font-medium">{account.description}</p><p className="text-xs text-muted-foreground">{account.party_name}</p></TableCell>
-                    <TableCell>{formatDate(account.due_date)}</TableCell>
-                    <TableCell>{money(account.amount)}</TableCell>
-                    <TableCell>{account.status === 'pending' ? <Button size="sm" variant="outline" onClick={() => void markAccountPaid(account)}><CheckCircle2 className="mr-1 h-3.5 w-3.5" />Marcar como pago</Button> : <span className="font-medium text-emerald-600">Pagamento concluído</span>}</TableCell>
-                  </TableRow>
-                ))}</TableBody>
-              </Table>
+            <CardContent className="space-y-4">
+              <div className="grid gap-2 sm:grid-cols-4">
+                <div className="rounded-lg border border-border bg-secondary/20 p-3">
+                  <p className="text-xs text-muted-foreground">A pagar aberto</p>
+                  <p className="mt-1 text-sm font-bold">{money(accountSummary.payable)}</p>
+                </div>
+                <div className="rounded-lg border border-border bg-secondary/20 p-3">
+                  <p className="text-xs text-muted-foreground">A receber aberto</p>
+                  <p className="mt-1 text-sm font-bold">{money(accountSummary.receivable)}</p>
+                </div>
+                <div className="rounded-lg border border-border bg-secondary/20 p-3">
+                  <p className="text-xs text-muted-foreground">Vencido aberto</p>
+                  <p className="mt-1 text-sm font-bold text-destructive">{money(accountSummary.overdue)}</p>
+                </div>
+                <div className="rounded-lg border border-border bg-secondary/20 p-3">
+                  <p className="text-xs text-muted-foreground">Quitado no histórico</p>
+                  <p className="mt-1 text-sm font-bold text-emerald-600">{money(accountSummary.paid)}</p>
+                </div>
+              </div>
+              <div className="grid gap-2 md:grid-cols-[1fr_170px_190px]">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input className="pl-9" value={accountSearch} onChange={(event) => setAccountSearch(event.target.value)} placeholder="Buscar por descrição, cliente ou fornecedor" />
+                </div>
+                <Select value={accountTypeFilter} onValueChange={setAccountTypeFilter}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos os tipos</SelectItem>
+                    <SelectItem value="payable">A pagar</SelectItem>
+                    <SelectItem value="receivable">A receber</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select value={accountStatusFilter} onValueChange={setAccountStatusFilter}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="open">Abertas e parciais</SelectItem>
+                    <SelectItem value="overdue">Vencidas</SelectItem>
+                    <SelectItem value="partial">Parciais</SelectItem>
+                    <SelectItem value="pending">Abertas</SelectItem>
+                    <SelectItem value="paid">Quitadas</SelectItem>
+                    <SelectItem value="canceled">Canceladas</SelectItem>
+                    <SelectItem value="all">Todas</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="overflow-x-auto rounded-lg border">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Descrição</TableHead>
+                      <TableHead>Vence</TableHead>
+                      <TableHead className="text-right">Valor</TableHead>
+                      <TableHead className="text-right">Pago</TableHead>
+                      <TableHead className="text-right">Saldo</TableHead>
+                      <TableHead className="text-right">Ações</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {visibleAccounts.map((account) => {
+                      const status = getAccountOperationalStatus(account);
+                      const paid = getAccountPaidAmount(account);
+                      const remaining = getAccountRemainingAmount(account);
+                      return (
+                        <TableRow key={account.id} className={status === 'paid' ? 'bg-emerald-500/10 hover:bg-emerald-500/15' : status === 'overdue' ? 'bg-destructive/10 hover:bg-destructive/15' : status === 'partial' ? 'bg-amber-500/10 hover:bg-amber-500/15' : undefined}>
+                          <TableCell>
+                            <div className="flex flex-col gap-1">
+                              <Badge variant={account.account_type === 'payable' ? 'destructive' : 'secondary'}>{accountTypeLabel(account)}</Badge>
+                              <Badge variant="outline">{accountStatusLabel(account)}</Badge>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <p className="font-medium">{account.description}</p>
+                            <p className="text-xs text-muted-foreground">{account.party_name}</p>
+                            {account.canceled_reason && <p className="text-xs text-muted-foreground">Cancelada: {account.canceled_reason}</p>}
+                          </TableCell>
+                          <TableCell>{formatDate(account.due_date)}</TableCell>
+                          <TableCell className="text-right">{money(account.amount)}</TableCell>
+                          <TableCell className="text-right">{money(paid)}</TableCell>
+                          <TableCell className="text-right font-semibold">{money(remaining)}</TableCell>
+                          <TableCell>
+                            <div className="flex justify-end gap-1">
+                              {account.status === 'pending' && (
+                                <>
+                                  <Button size="sm" variant="outline" onClick={() => openAccountPaymentDialog(account)}>
+                                    <CheckCircle2 className="mr-1 h-3.5 w-3.5" />
+                                    {account.account_type === 'payable' ? 'Pagar' : 'Receber'}
+                                  </Button>
+                                  <Button size="icon" variant="ghost" aria-label="Editar conta" onClick={() => startAccountEdit(account)}><Edit className="h-4 w-4" /></Button>
+                                  <Button size="icon" variant="ghost" aria-label="Cancelar conta" onClick={() => openAccountCancelDialog(account)}><Ban className="h-4 w-4" /></Button>
+                                </>
+                              )}
+                              {account.status === 'paid' && <span className="self-center text-xs font-medium text-emerald-600">Concluída</span>}
+                              {account.status === 'canceled' && <span className="self-center text-xs font-medium text-muted-foreground">Cancelada</span>}
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                    {visibleAccounts.length === 0 && (
+                      <TableRow><TableCell colSpan={7} className="py-8 text-center text-sm text-muted-foreground">Nenhuma conta encontrada.</TableCell></TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
@@ -1797,6 +2198,75 @@ export default function Operations() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      <Dialog open={Boolean(accountPaymentTarget)} onOpenChange={(open) => {
+        if (!open) {
+          setAccountPaymentTarget(null);
+          setAccountPaymentForm({ amount: '', notes: '' });
+        }
+      }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{accountPaymentTarget?.account_type === 'payable' ? 'Registrar pagamento' : 'Registrar recebimento'}</DialogTitle>
+            <DialogDescription>Informe o valor realizado agora. Se for menor que o saldo, a conta fica parcial.</DialogDescription>
+          </DialogHeader>
+          {accountPaymentTarget && (
+            <div className="space-y-4 py-2">
+              <div className="rounded-md border bg-muted/30 p-3 text-sm">
+                <p className="font-medium">{accountPaymentTarget.description}</p>
+                <p className="text-muted-foreground">{accountPaymentTarget.party_name}</p>
+                <div className="mt-2 grid grid-cols-3 gap-2 text-xs">
+                  <div><span className="text-muted-foreground">Valor</span><p className="font-semibold">{money(accountPaymentTarget.amount)}</p></div>
+                  <div><span className="text-muted-foreground">Pago</span><p className="font-semibold">{money(getAccountPaidAmount(accountPaymentTarget))}</p></div>
+                  <div><span className="text-muted-foreground">Saldo</span><p className="font-semibold">{money(getAccountRemainingAmount(accountPaymentTarget))}</p></div>
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Valor</Label>
+                <Input inputMode="decimal" value={accountPaymentForm.amount} onChange={(event) => setAccountPaymentForm((current) => ({ ...current, amount: event.target.value }))} />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Observação</Label>
+                <Textarea value={accountPaymentForm.notes} onChange={(event) => setAccountPaymentForm((current) => ({ ...current, notes: event.target.value }))} placeholder="Ex: Pix, dinheiro, parcela 1/2" />
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setAccountPaymentTarget(null)}>Cancelar</Button>
+            <Button type="button" onClick={() => void registerAccountPayment()}><CheckCircle2 className="mr-2 h-4 w-4" />Confirmar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={Boolean(accountCancelTarget)} onOpenChange={(open) => {
+        if (!open) {
+          setAccountCancelTarget(null);
+          setAccountCancelReason('');
+        }
+      }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Cancelar conta</DialogTitle>
+            <DialogDescription>O cancelamento remove a conta dos totais em aberto e fica registrado na auditoria.</DialogDescription>
+          </DialogHeader>
+          {accountCancelTarget && (
+            <div className="space-y-4 py-2">
+              <div className="rounded-md border bg-muted/30 p-3 text-sm">
+                <p className="font-medium">{accountCancelTarget.description}</p>
+                <p className="text-muted-foreground">{accountCancelTarget.party_name} · saldo {money(getAccountRemainingAmount(accountCancelTarget))}</p>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Motivo</Label>
+                <Textarea value={accountCancelReason} onChange={(event) => setAccountCancelReason(event.target.value)} placeholder="Ex: lançamento duplicado, acordo cancelado" />
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setAccountCancelTarget(null)}>Voltar</Button>
+            <Button type="button" variant="destructive" onClick={() => void cancelAccount()}><Ban className="mr-2 h-4 w-4" />Cancelar conta</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={Boolean(receivingPurchase)} onOpenChange={(nextOpen) => {
         if (!nextOpen && !receiving) {
