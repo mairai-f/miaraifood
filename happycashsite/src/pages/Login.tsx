@@ -45,6 +45,15 @@ const loginFeatureCards = [
   { label: 'Estoque', image: loginEstoque, imageClassName: 'w-full scale-[1.6]' },
 ];
 
+interface AdminLoginResponse {
+  success?: boolean;
+  session?: {
+    access_token?: string;
+    refresh_token?: string;
+  };
+  error?: string;
+}
+
 const Login = () => {
   const [initialPreferences] = useState(getSiteLoginPreferences);
   const [email, setEmail] = useState(initialPreferences.email);
@@ -111,14 +120,40 @@ const Login = () => {
 
     try {
       const captchaToken = await requestTurnstileToken('site-login');
-      const { error } = await supabase.auth.signInWithPassword({
-        email: normalizedEmail,
-        password,
-        options: { captchaToken },
+      const { data, error } = await supabase.functions.invoke<AdminLoginResponse>('admin-login', {
+        body: {
+          email: normalizedEmail,
+          password,
+          captchaToken,
+        },
+      }).catch((error) => ({ data: null, error }));
+
+      if (error || !data?.success || !data.session?.access_token || !data.session?.refresh_token) {
+        let functionErrorMessage = data?.error || 'Email ou senha incorretos.';
+
+        if (error && typeof error === 'object' && 'context' in error && error.context instanceof Response) {
+          try {
+            const errorPayload = await error.context.clone().json() as { error?: string; message?: string };
+            functionErrorMessage = errorPayload.error || errorPayload.message || functionErrorMessage;
+          } catch {
+            functionErrorMessage = 'Email ou senha incorretos.';
+          }
+        }
+
+        const resolvedError = resolveLoginErrorMessage(functionErrorMessage);
+        clearPasswordState();
+        setLoginError(resolvedError);
+        toast({ title: 'Erro ao entrar', description: resolvedError, variant: 'destructive' });
+        return;
+      }
+
+      const { error: setSessionError } = await supabase.auth.setSession({
+        access_token: data.session.access_token,
+        refresh_token: data.session.refresh_token,
       });
 
-      if (error) {
-        const resolvedError = resolveLoginErrorMessage(error);
+      if (setSessionError) {
+        const resolvedError = resolveLoginErrorMessage(setSessionError);
         clearPasswordState();
         setLoginError(resolvedError);
         toast({ title: 'Erro ao entrar', description: resolvedError, variant: 'destructive' });

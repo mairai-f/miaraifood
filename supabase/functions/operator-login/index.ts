@@ -40,8 +40,8 @@ type OperatorLoginServiceClient = {
   };
 };
 
-const MAX_IP_ATTEMPTS_PER_15_MIN = Number(Deno.env.get('OPERATOR_LOGIN_MAX_IP_ATTEMPTS_PER_15_MIN') || '15');
-const MAX_USERNAME_ATTEMPTS_PER_15_MIN = Number(Deno.env.get('OPERATOR_LOGIN_MAX_USERNAME_ATTEMPTS_PER_15_MIN') || '8');
+const MAX_IP_ATTEMPTS_PER_15_MIN = Number(Deno.env.get('OPERATOR_LOGIN_MAX_IP_ATTEMPTS_PER_15_MIN') || '3');
+const MAX_USERNAME_ATTEMPTS_PER_15_MIN = Number(Deno.env.get('OPERATOR_LOGIN_MAX_USERNAME_ATTEMPTS_PER_15_MIN') || '3');
 
 const jsonResponse = (request: Request, body: Record<string, unknown>, status = 200) =>
   new Response(JSON.stringify(body), {
@@ -187,8 +187,9 @@ Deno.serve(async (request) => {
   const origin = request.headers.get('origin');
   const userAgent = request.headers.get('user-agent');
   const clientIp = extractClientIp(request);
+  const usernameScope = normalizedUsername ? `${ownerUserId || 'global'}:${normalizedUsername}` : '';
   const [usernameHash, ipHash] = await Promise.all([
-    normalizedUsername ? sha256(normalizedUsername) : Promise.resolve(null),
+    usernameScope ? sha256(usernameScope) : Promise.resolve(null),
     clientIp ? sha256(clientIp) : Promise.resolve(null),
   ]);
 

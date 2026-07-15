@@ -3,8 +3,9 @@
 ## Public endpoint rate limits
 
 Public and sensitive Edge Functions support optional Redis-backed rate limiting through Upstash REST.
-This protects public menu traffic, account registration, billing checkout, operator login, desktop/mobile downloads, license validation, administrative approvals, fiscal actions, access tracking, and message/email sending endpoints.
+This protects public menu traffic, account registration, billing checkout, admin/operator login, desktop/mobile downloads, license validation, administrative approvals, fiscal actions, access tracking, and message/email sending endpoints.
 Without the Redis secrets, the functions keep working and skip the Redis check.
+Admin login also uses Redis to block the email/IP pair after 3 failed attempts in 15 minutes. Operator login keeps the same 3-attempt rule through the login attempt table, scoped by company and username/IP.
 
 Configure these as Supabase secrets:
 
@@ -18,7 +19,11 @@ supabase secrets set DESKTOP_ACTIVATE_RATE_LIMIT_PER_MINUTE="8"
 supabase secrets set REGISTER_ACCOUNT_RATE_LIMIT_PER_MINUTE="12"
 supabase secrets set FINALIZE_SITE_REGISTRATION_RATE_LIMIT_PER_MINUTE="20"
 supabase secrets set CREATE_PLAN_CHARGE_RATE_LIMIT_PER_MINUTE="10"
+supabase secrets set ADMIN_LOGIN_RATE_LIMIT_PER_MINUTE="30"
+supabase secrets set ADMIN_LOGIN_MAX_FAILED_ATTEMPTS_PER_15_MIN="3"
 supabase secrets set OPERATOR_LOGIN_RATE_LIMIT_PER_MINUTE="30"
+supabase secrets set OPERATOR_LOGIN_MAX_IP_ATTEMPTS_PER_15_MIN="3"
+supabase secrets set OPERATOR_LOGIN_MAX_USERNAME_ATTEMPTS_PER_15_MIN="3"
 supabase secrets set TRACK_ACCESS_RATE_LIMIT_PER_MINUTE="300"
 supabase secrets set DESKTOP_LICENSE_RATE_LIMIT_PER_MINUTE="120"
 supabase secrets set DESKTOP_LICENSE_KEY_RATE_LIMIT_PER_MINUTE="30"
@@ -41,6 +46,7 @@ supabase functions deploy desktop-activate
 supabase functions deploy register-account
 supabase functions deploy finalize-site-registration
 supabase functions deploy create-plan-charge
+supabase functions deploy admin-login
 supabase functions deploy operator-login
 supabase functions deploy track-access
 supabase functions deploy desktop-license

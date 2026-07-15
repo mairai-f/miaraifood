@@ -61,6 +61,9 @@ secret = "env(SUPABASE_AUTH_EXTERNAL_GOOGLE_SECRET)"
 [functions.register-account]
 verify_jwt = false
 
+[functions.admin-login]
+verify_jwt = false
+
 # Estas funcoes validam o Bearer token manualmente com auth.getUser().
 # Mantemos verify_jwt desativado para evitar falha do gateway com JWTs
 # assinados de forma assimetrica, como ES256.

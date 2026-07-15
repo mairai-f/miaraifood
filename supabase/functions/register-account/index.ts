@@ -40,7 +40,10 @@ interface RegisterAccountRequest {
 interface RegisterAccountResponse {
   success: boolean;
   requiresEmailConfirmation?: boolean;
+  existingAccountEmailSent?: boolean;
+  existingAccountRecoverySent?: boolean;
   email?: string;
+  message?: string;
   error?: string;
   retryAfterSeconds?: number | null;
 }
@@ -54,7 +57,10 @@ interface StoreAccountRow {
 }
 
 type AttemptStatus = "blocked" | "config_error" | "created" | "failed" | "honeypot" | "invalid";
-type ServiceClient = ReturnType<typeof createClient>;
+type ServiceClient = {
+  from: (table: string) => any;
+  auth: any;
+};
 
 const registrationCorsOptions = {
   allowedMethods: ["POST", "OPTIONS"],
@@ -68,6 +74,8 @@ const DEFAULT_CONFIRM_REDIRECT_ORIGINS = [
   "https://www.happycashsite.com.br",
   "https://happycashsite.com.br",
 ];
+const EXISTING_ACCOUNT_EMAIL_MESSAGE =
+  "Se esse email ja estiver cadastrado, enviamos instrucoes para recuperar o acesso ou continuar o cadastro.";
 
 const jsonResponse = (request: Request, body: RegisterAccountResponse, status = 200) =>
   new Response(JSON.stringify(body), {
@@ -259,6 +267,56 @@ const getAttemptCounts = async (
   };
 };
 
+const sendExistingAccountRecoveryEmail = async (
+  anonClient: ServiceClient,
+  details: {
+    email: string;
+    redirectTo: string;
+    captchaToken?: string;
+  },
+) => {
+  const { error } = await anonClient.auth.resetPasswordForEmail(details.email, {
+    redirectTo: details.redirectTo,
+    captchaToken: details.captchaToken,
+  });
+
+  if (error) {
+    console.warn("Existing account recovery email failed", { message: error.message });
+  }
+};
+
+const resendPendingSignupEmail = async (
+  anonClient: ServiceClient,
+  details: {
+    email: string;
+    redirectTo: string;
+    captchaToken?: string;
+  },
+) => {
+  const { error } = await anonClient.auth.resend({
+    type: "signup",
+    email: details.email,
+    options: {
+      emailRedirectTo: details.redirectTo,
+      captchaToken: details.captchaToken,
+    },
+  });
+
+  if (error) {
+    console.warn("Pending signup confirmation resend failed", { message: error.message });
+  }
+};
+
+const existingAccountEmailResponse = (request: Request, email: string, recoverySent = false) =>
+  jsonResponse(request, {
+    success: true,
+    existingAccountEmailSent: true,
+    existingAccountRecoverySent: recoverySent,
+    requiresEmailConfirmation: !recoverySent,
+    email,
+    message: EXISTING_ACCOUNT_EMAIL_MESSAGE,
+  });
+
 Deno.serve(async (request) => {
   if (request.method === "OPTIONS") {
     return handleCorsPreflight(request, registrationCorsOptions);
@@ -300,6 +358,13 @@ Deno.serve(async (request) => {
   }
 
   const serviceClient = createClient(supabaseUrl, supabaseServiceRoleKey, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+    },
+  });
+
+  const anonClient = createClient(supabaseUrl, supabaseAnonKey, {
     auth: {
       autoRefreshToken: false,
       persistSession: false,
@@ -370,6 +435,11 @@ Deno.serve(async (request) => {
     }
 
     if (existingProfile?.user_id) {
+      await sendExistingAccountRecoveryEmail(anonClient, {
+        email: data.email,
+        redirectTo: data.redirectTo,
+        captchaToken: data.captchaToken,
+      });
       await logAttempt(serviceClient, {
         emailHash,
         ipHash,
@@ -378,7 +448,7 @@ Deno.serve(async (request) => {
         userAgent,
       });
 
-      return jsonResponse(request, { success: false, error: "Ja existe uma conta com esse email." }, 409);
+      return existingAccountEmailResponse(request, data.email, true);
     }
 
     const { data: existingStoreAccountByEmail, error: existingStoreAccountEmailError } = await serviceClient
@@ -393,6 +463,11 @@ Deno.serve(async (request) => {
     }
 
     if ((existingStoreAccountByEmail as StoreAccountRow | null)?.id) {
+      await sendExistingAccountRecoveryEmail(anonClient, {
+        email: data.email,
+        redirectTo: data.redirectTo,
+        captchaToken: data.captchaToken,
+      });
       await logAttempt(serviceClient, {
         emailHash,
         ipHash,
@@ -401,7 +476,7 @@ Deno.serve(async (request) => {
         userAgent,
       });
 
-      return jsonResponse(request, { success: false, error: "Ja existe uma conta com esse email." }, 409);
+      return existingAccountEmailResponse(request, data.email, true);
     }
 
     const { data: existingStoreAccountByDocument, error: existingStoreAccountDocumentError } = await serviceClient
@@ -441,6 +516,11 @@ Deno.serve(async (request) => {
     }
 
     if ((existingPending as PendingRegistrationRow | null)?.owner_user_id) {
+      await resendPendingSignupEmail(anonClient, {
+        email: data.email,
+        redirectTo: data.redirectTo,
+        captchaToken: data.captchaToken,
+      });
       await logAttempt(serviceClient, {
         emailHash,
         ipHash,
@@ -449,14 +529,7 @@ Deno.serve(async (request) => {
         userAgent,
       });
 
-      return jsonResponse(
-        request,
-        {
-          success: false,
-          error: "Ja existe um cadastro pendente para esse email. Confirme o email para continuar.",
-        },
-        409,
-      );
+      return existingAccountEmailResponse(request, data.email);
     }
 
     const { data: existingPendingDocument, error: existingPendingDocumentError } = await serviceClient
@@ -490,13 +563,6 @@ Deno.serve(async (request) => {
         409,
       );
     }
-
-    const anonClient = createClient(supabaseUrl, supabaseAnonKey, {
-      auth: {
-        autoRefreshToken: false,
-        persistSession: false,
-      },
-    });
 
     const { data: signUpData, error: signUpError } = await anonClient.auth.signUp({
       email: data.email,

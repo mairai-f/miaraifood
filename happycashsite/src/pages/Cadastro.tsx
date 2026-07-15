@@ -35,7 +35,10 @@ import { LEGAL_MODAL_DOCUMENTS } from "../../../shared/legal/legalModalDocuments
 interface RegisterAccountResponse {
   success?: boolean;
   requiresEmailConfirmation?: boolean;
+  existingAccountEmailSent?: boolean;
+  existingAccountRecoverySent?: boolean;
   email?: string;
+  message?: string;
   error?: string;
 }
 
@@ -114,6 +117,7 @@ const Cadastro = () => {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [website, setWebsite] = useState("");
   const [confirmationEmail, setConfirmationEmail] = useState<string | null>(null);
+  const [confirmationMode, setConfirmationMode] = useState<"new" | "existing">("new");
 
   // Step 2 - Terms
   const [legalModalOpen, setLegalModalOpen] = useState(false);
@@ -258,14 +262,16 @@ const Cadastro = () => {
         throw new Error(data?.error || await resolveFunctionErrorMessage(error, "Nao foi possivel criar sua conta."));
       }
 
+      const isExistingAccountFlow = Boolean(data.existingAccountEmailSent || data.existingAccountRecoverySent);
       toast({
-        title: "Confirme seu email",
-        description: "Enviamos um link de confirmacao. A conta sera liberada no primeiro acesso confirmado.",
+        title: "Verifique seu email",
+        description: data.message || "Enviamos um link para continuar com seguranca.",
       });
       setPassword("");
       setConfirmPassword("");
       setShowPassword(false);
       setShowConfirmPassword(false);
+      setConfirmationMode(isExistingAccountFlow ? "existing" : "new");
       setConfirmationEmail(data.email || email.trim());
     } catch (error) {
       toast({
@@ -291,15 +297,22 @@ const Cadastro = () => {
         <div className="w-full max-w-lg space-y-6">
           <div className="text-center space-y-3">
             <img src={logo} alt="HappyCash" className="mx-auto h-auto w-full max-w-[15rem] object-contain" />
-            <h1 className="font-heading text-2xl font-bold">Confirme seu email</h1>
+            <h1 className="font-heading text-2xl font-bold">
+              {confirmationMode === "existing" ? "Verifique seu email" : "Confirme seu email"}
+            </h1>
             <p className="text-sm text-muted-foreground">
-              Enviamos o link de confirmacao para <span className="font-medium text-foreground">{confirmationEmail}</span>.
+              {confirmationMode === "existing"
+                ? "Enviamos instrucoes para continuar com seguranca em "
+                : "Enviamos o link de confirmacao para "}
+              <span className="font-medium text-foreground">{confirmationEmail}</span>.
             </p>
           </div>
 
           <div className="rounded-2xl border border-border bg-card/80 backdrop-blur-sm p-8 space-y-4">
             <p className="text-sm text-muted-foreground">
-              Depois de confirmar, sua conta sera finalizada no produto escolhido e a demo sera liberada no primeiro acesso.
+              {confirmationMode === "existing"
+                ? "Se esse email ja tiver cadastro no HappyCash, o link recebido permite recuperar o acesso ou concluir a confirmacao pendente."
+                : "Depois de confirmar, sua conta sera finalizada no produto escolhido e a demo sera liberada no primeiro acesso."}
             </p>
             {selectedPlan && selectedPlanId !== "demo" && (
               <p className="text-sm text-muted-foreground">

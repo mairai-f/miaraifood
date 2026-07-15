@@ -19,9 +19,40 @@ const toHex = (bytes: Uint8Array) =>
     .map((byte) => byte.toString(16).padStart(2, "0"))
     .join("");
 
-const sha256 = async (value: string) => {
+export const sha256 = async (value: string) => {
   const digest = await crypto.subtle.digest("SHA-256", textEncoder.encode(value));
   return toHex(new Uint8Array(digest));
+};
+
+type RedisCommandResult = { result?: unknown; error?: string };
+
+const getRedisConfig = () => {
+  const redisUrl = Deno.env.get("UPSTASH_REDIS_REST_URL")?.replace(/\/+$/, "");
+  const redisToken = Deno.env.get("UPSTASH_REDIS_REST_TOKEN");
+
+  if (!redisUrl || !redisToken) return null;
+  return { redisUrl, redisToken };
+};
+
+const runRedisPipeline = async (
+  config: { redisUrl: string; redisToken: string },
+  commands: unknown[][],
+) => {
+  const response = await fetch(`${config.redisUrl}/pipeline`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${config.redisToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(commands),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Redis unavailable: ${response.status}`);
+  }
+
+  const body = await response.json();
+  return Array.isArray(body) ? body as RedisCommandResult[] : [body as RedisCommandResult];
 };
 
 export const extractClientIp = (request: Request) => {
@@ -51,10 +82,9 @@ export const checkRedisRateLimit = async (
   request: Request,
   options: RateLimitOptions,
 ): Promise<RateLimitResult> => {
-  const redisUrl = Deno.env.get("UPSTASH_REDIS_REST_URL")?.replace(/\/+$/, "");
-  const redisToken = Deno.env.get("UPSTASH_REDIS_REST_TOKEN");
+  const redisConfig = getRedisConfig();
 
-  if (!redisUrl || !redisToken) {
+  if (!redisConfig) {
     return { allowed: true, enabled: false, remaining: null, retryAfterSeconds: null };
   }
 
@@ -66,25 +96,11 @@ export const checkRedisRateLimit = async (
   const key = `happycash:rate:${options.namespace}:${windowId}:${scopeHash}`;
 
   try {
-    const response = await fetch(`${redisUrl}/pipeline`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${redisToken}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify([
-        ["INCR", key],
-        ["EXPIRE", key, windowSeconds * 2],
-      ]),
-    });
-
-    if (!response.ok) {
-      console.warn("Rate limit Redis unavailable", { namespace: options.namespace, status: response.status });
-      return { allowed: true, enabled: true, remaining: null, retryAfterSeconds: null };
-    }
-
-    const body = await response.json();
-    const current = Number(Array.isArray(body) ? body[0]?.result : body?.result);
+    const body = await runRedisPipeline(redisConfig, [
+      ["INCR", key],
+      ["EXPIRE", key, windowSeconds * 2],
+    ]);
+    const current = Number(body[0]?.result);
     if (!Number.isFinite(current)) {
       return { allowed: true, enabled: true, remaining: null, retryAfterSeconds: null };
     }
@@ -101,5 +117,115 @@ export const checkRedisRateLimit = async (
       error: error instanceof Error ? error.message : "unknown",
     });
     return { allowed: true, enabled: true, remaining: null, retryAfterSeconds: null };
+  }
+};
+
+const buildRedisLoginAttemptKey = async (
+  request: Request,
+  options: Pick<RateLimitOptions, "namespace" | "identifier">,
+) => {
+  const clientIp = extractClientIp(request) || "unknown";
+  const scopeHash = await sha256([clientIp, options.identifier || ""].join("|"));
+  return `happycash:login:${options.namespace}:${scopeHash}`;
+};
+
+export const checkRedisLoginAttemptLimit = async (
+  request: Request,
+  options: RateLimitOptions,
+): Promise<RateLimitResult> => {
+  const redisConfig = getRedisConfig();
+
+  if (!redisConfig) {
+    return { allowed: true, enabled: false, remaining: null, retryAfterSeconds: null };
+  }
+
+  const key = await buildRedisLoginAttemptKey(request, options);
+
+  try {
+    const body = await runRedisPipeline(redisConfig, [
+      ["GET", key],
+      ["TTL", key],
+    ]);
+    const current = Number(body[0]?.result || 0);
+    const rawTtl = Number(body[1]?.result);
+    const retryAfterSeconds = Number.isFinite(rawTtl) && rawTtl > 0 ? rawTtl : options.windowSeconds;
+    const allowed = current < options.limit;
+    const remaining = Math.max(0, options.limit - current);
+
+    return {
+      allowed,
+      enabled: true,
+      remaining,
+      retryAfterSeconds: allowed ? null : retryAfterSeconds,
+    };
+  } catch (error) {
+    console.warn("Login attempt limit check failed", {
+      namespace: options.namespace,
+      error: error instanceof Error ? error.message : "unknown",
+    });
+    return { allowed: true, enabled: true, remaining: null, retryAfterSeconds: null };
+  }
+};
+
+export const recordRedisLoginFailure = async (
+  request: Request,
+  options: RateLimitOptions,
+): Promise<RateLimitResult> => {
+  const redisConfig = getRedisConfig();
+
+  if (!redisConfig) {
+    return { allowed: true, enabled: false, remaining: null, retryAfterSeconds: null };
+  }
+
+  const key = await buildRedisLoginAttemptKey(request, options);
+  const windowSeconds = Math.max(1, Math.floor(options.windowSeconds));
+
+  try {
+    const body = await runRedisPipeline(redisConfig, [
+      ["INCR", key],
+      ["EXPIRE", key, windowSeconds],
+      ["TTL", key],
+    ]);
+    const current = Number(body[0]?.result);
+    const rawTtl = Number(body[2]?.result);
+    const retryAfterSeconds = Number.isFinite(rawTtl) && rawTtl > 0 ? rawTtl : windowSeconds;
+
+    if (!Number.isFinite(current)) {
+      return { allowed: true, enabled: true, remaining: null, retryAfterSeconds: null };
+    }
+
+    const allowed = current < options.limit;
+
+    return {
+      allowed,
+      enabled: true,
+      remaining: Math.max(0, options.limit - current),
+      retryAfterSeconds: allowed ? null : retryAfterSeconds,
+    };
+  } catch (error) {
+    console.warn("Login failure record failed", {
+      namespace: options.namespace,
+      error: error instanceof Error ? error.message : "unknown",
+    });
+    return { allowed: true, enabled: true, remaining: null, retryAfterSeconds: null };
+  }
+};
+
+export const clearRedisLoginFailures = async (
+  request: Request,
+  options: Pick<RateLimitOptions, "namespace" | "identifier">,
+) => {
+  const redisConfig = getRedisConfig();
+
+  if (!redisConfig) return;
+
+  try {
+    const key = await buildRedisLoginAttemptKey(request, options);
+    await runRedisPipeline(redisConfig, [["DEL", key]]);
+  } catch (error) {
+    console.warn("Login failure clear failed", {
+      namespace: options.namespace,
+      error: error instanceof Error ? error.message : "unknown",
+    });
   }
 };

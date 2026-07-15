@@ -13,6 +13,11 @@ import { verifyOfflineAdminAccess } from '@/lib/offlineAdminAccess';
 import { saveOfflineOperatorAccess, verifyOfflineOperatorAccess } from '@/lib/offlineOperatorAccess';
 import { isDesktopRuntime, isProbablyOfflineError } from '@/lib/offlineConcentrator';
 import { getPasskeyErrorMessage, getPasskeySupportErrorMessage, type PasskeyEntry } from '@/lib/passkeys';
+import {
+  clearLocalLoginFailures,
+  getLocalLoginBlockMessage,
+  recordLocalLoginFailure,
+} from '@/lib/localLoginAttemptLimiter';
 import { requestTurnstileToken } from '../../shared/security/turnstile';
 import { getPasswordPolicyError } from '../../shared/security/passwordPolicy';
 import { getPublicAuthErrorMessage, getPublicErrorMessage, getRedactedLogValue } from '../../shared/security/redaction';
@@ -88,6 +93,21 @@ interface OperatorLoginResponse {
     ownerUserId?: string | null;
     username?: string | null;
     email?: string | null;
+    role?: UserRole;
+  };
+  error?: string;
+}
+
+interface AdminLoginResponse {
+  success?: boolean;
+  session?: {
+    access_token?: string;
+    refresh_token?: string;
+  };
+  user?: {
+    id?: string;
+    email?: string | null;
+    ownerUserId?: string | null;
     role?: UserRole;
   };
   error?: string;
@@ -511,14 +531,47 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return getPublicAuthErrorMessage(error, 'Nao foi possivel concluir a verificacao de seguranca.');
     }
 
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-      options: { captchaToken },
-    });
-    if (error || !data.user) return getPublicAuthErrorMessage(error, 'Nao foi possivel iniciar a sessao.');
+    const activation = readDesktopActivation();
+    const { data, error } = await supabase.functions.invoke<AdminLoginResponse>('admin-login', {
+      body: {
+        email,
+        password,
+        desktopOwnerUserId: activation?.ownerUserId ?? null,
+        captchaToken,
+      },
+    }).catch((error) => ({ data: null, error }));
 
-    return validateSignedInAdminSession(data.user);
+    if (error || !data?.success || !data.session?.access_token || !data.session?.refresh_token) {
+      let functionErrorMessage = data?.error || 'Email ou senha incorretos.';
+
+      if (error && typeof error === 'object' && 'context' in error && error.context instanceof Response) {
+        try {
+          const errorPayload = await error.context.clone().json() as { error?: string; message?: string };
+          functionErrorMessage = errorPayload.error || errorPayload.message || functionErrorMessage;
+        } catch {
+          functionErrorMessage = 'Email ou senha incorretos.';
+        }
+      }
+
+      return getPublicAuthErrorMessage(functionErrorMessage, 'Email ou senha incorretos.');
+    }
+
+    const { error: setSessionError } = await supabase.auth.setSession({
+      access_token: data.session.access_token,
+      refresh_token: data.session.refresh_token,
+    });
+
+    if (setSessionError) {
+      return getPublicAuthErrorMessage(setSessionError, 'Nao foi possivel iniciar a sessao.');
+    }
+
+    const { data: authenticatedUserData, error: authenticatedUserError } = await supabase.auth.getUser(data.session.access_token);
+    if (authenticatedUserError || !authenticatedUserData.user) {
+      await supabase.auth.signOut({ scope: 'local' });
+      return 'Nao foi possivel validar esta sessao.';
+    }
+
+    return validateSignedInAdminSession(authenticatedUserData.user);
   };
 
   const signInWithPasskey = async (): Promise<string | true> => {
@@ -588,6 +641,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return SYSTEM_PRODUCT_CONTEXT_MISMATCH_MESSAGE;
     }
 
+    const blockMessage = getLocalLoginBlockMessage({
+      namespace: 'offline-admin',
+      ownerUserId: activation.ownerUserId,
+      identifier: adminUsername,
+    });
+    if (blockMessage) return blockMessage;
+
     const verification = await verifyOfflineAdminAccess({
       ownerUserId: activation.ownerUserId,
       username: adminUsername,
@@ -595,8 +655,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
 
     if (!verification.success) {
-      return verification.error;
+      return recordLocalLoginFailure({
+        namespace: 'offline-admin',
+        ownerUserId: activation.ownerUserId,
+        identifier: adminUsername,
+      }) || verification.error;
     }
+
+    clearLocalLoginFailures({
+      namespace: 'offline-admin',
+      ownerUserId: activation.ownerUserId,
+      identifier: adminUsername,
+    });
 
     clearSystemTemporarySessionPreference();
     await supabase.auth.signOut({ scope: 'local' });
@@ -625,6 +695,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return SYSTEM_PRODUCT_CONTEXT_MISMATCH_MESSAGE;
       }
 
+      const blockMessage = getLocalLoginBlockMessage({
+        namespace: 'offline-operator',
+        ownerUserId: activation.ownerUserId,
+        identifier: username,
+      });
+      if (blockMessage) return blockMessage;
+
       const verification = await verifyOfflineOperatorAccess({
         ownerUserId: activation.ownerUserId,
         username,
@@ -632,8 +709,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
 
       if (!verification.success) {
-        return verification.error;
+        return recordLocalLoginFailure({
+          namespace: 'offline-operator',
+          ownerUserId: activation.ownerUserId,
+          identifier: username,
+        }) || verification.error;
       }
+
+      clearLocalLoginFailures({
+        namespace: 'offline-operator',
+        ownerUserId: activation.ownerUserId,
+        identifier: username,
+      });
 
       clearSystemTemporarySessionPreference();
       await supabase.auth.signOut({ scope: 'local' });
