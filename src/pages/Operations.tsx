@@ -29,6 +29,7 @@ import { openExternalUrl } from '@/lib/openExternalUrl';
 import { formatProductCode } from '@/lib/productCode';
 import { buildSupplierOrderWhatsAppUrl } from '@/lib/whatsapp';
 import { buildSalesBasedPurchaseSuggestion } from '@/lib/managementInsights';
+import { buildRecurringFinancialAccountDrafts, getFinancialAccountPaidAmount, getFinancialAccountRemainingAmount, getReceiptDivergenceQuantity } from '@/lib/erpFinance';
 import type { FinancialAccount, OpenDebtClient, OperationsDetail, ProductBatch, ProductPromotion, PurchaseOrder, PurchaseOrderItem, SupplierRecord, SupplierSummary } from '@/types/operations';
 import type { Product } from '@/types';
 import { getRedactedLogValue } from '../../shared/security/redaction';
@@ -98,12 +99,17 @@ const createEmptyAccountForm = () => ({
   party_name: '',
   amount: '',
   due_date: today(),
+  payment_method: '',
+  cost_center: '',
+  attachment_url: '',
+  recurrence_type: 'none' as 'none' | 'monthly' | 'weekly' | 'yearly' | 'installment',
+  recurrence_count: '1',
   notes: '',
 });
 const getAccountPaidAmount = (account: FinancialAccount) =>
-  Math.min(Number(account.amount ?? 0), Math.max(0, Number(account.paid_amount ?? (account.status === 'paid' ? account.amount : 0))));
+  getFinancialAccountPaidAmount(account);
 const getAccountRemainingAmount = (account: FinancialAccount) =>
-  account.status === 'canceled' ? 0 : Math.max(0, Number(account.amount ?? 0) - getAccountPaidAmount(account));
+  getFinancialAccountRemainingAmount(account);
 const getAccountOperationalStatus = (account: FinancialAccount) => {
   if (account.status === 'paid') return 'paid';
   if (account.status === 'canceled') return 'canceled';
@@ -121,6 +127,8 @@ const accountStatusLabel = (account: FinancialAccount) => ({
 const accountTypeLabel = (account: FinancialAccount) =>
   account.account_type === 'payable' ? 'A pagar' : 'A receber';
 const purchaseStatusLabel = (status: string) => ({
+  awaiting_approval: 'Aguardando aprovação',
+  approved: 'Aprovado',
   open: 'Aberto',
   partially_received: 'Recebido parcialmente',
   received: 'Recebido',
@@ -204,6 +212,7 @@ export default function Operations() {
   const [receiveBatchDrafts, setReceiveBatchDrafts] = useState<Record<string, ReceiveBatchDraft>>({});
   const [receiveCreatePayable, setReceiveCreatePayable] = useState(false);
   const [receiveDueDate, setReceiveDueDate] = useState(today());
+  const [receiveDivergenceNote, setReceiveDivergenceNote] = useState('');
   const [receiving, setReceiving] = useState(false);
   const [supplierSearch, setSupplierSearch] = useState('');
   const [purchaseSearch, setPurchaseSearch] = useState('');
@@ -239,6 +248,7 @@ export default function Operations() {
     due_date: today(),
     create_payable: true,
     receive_stock: true,
+    approval_required: false,
     notes: '',
   });
   const [purchaseProductSearch, setPurchaseProductSearch] = useState('');
@@ -250,7 +260,7 @@ export default function Operations() {
   const [accountStatusFilter, setAccountStatusFilter] = useState('open');
   const [savingAccount, setSavingAccount] = useState(false);
   const [accountPaymentTarget, setAccountPaymentTarget] = useState<FinancialAccount | null>(null);
-  const [accountPaymentForm, setAccountPaymentForm] = useState({ amount: '', notes: '' });
+  const [accountPaymentForm, setAccountPaymentForm] = useState({ amount: '', payment_method: '', notes: '' });
   const [accountCancelTarget, setAccountCancelTarget] = useState<FinancialAccount | null>(null);
   const [accountCancelReason, setAccountCancelReason] = useState('');
 
@@ -493,6 +503,10 @@ export default function Operations() {
         purchaseCount: 0,
         purchaseTotal: 0,
         lastPurchaseDate: null,
+        averagePurchaseTicket: 0,
+        pendingPurchaseCount: 0,
+        receivedPurchaseCount: 0,
+        divergenceCount: 0,
       };
       summaries.set(key, next);
       return next;
@@ -520,12 +534,26 @@ export default function Operations() {
       if (!supplier) return;
       supplier.purchaseCount += 1;
       supplier.purchaseTotal += Number(purchase.total_amount ?? 0);
+      if (['awaiting_approval', 'approved', 'open', 'partially_received'].includes(purchase.status)) {
+        supplier.pendingPurchaseCount += 1;
+      }
+      if (purchase.status === 'received') {
+        supplier.receivedPurchaseCount += 1;
+      }
+      if (purchase.divergence_status === 'reported') {
+        supplier.divergenceCount += 1;
+      }
       if (!supplier.lastPurchaseDate || purchase.purchase_date > supplier.lastPurchaseDate) {
         supplier.lastPurchaseDate = purchase.purchase_date;
       }
     });
 
-    return Array.from(summaries.values()).sort((left, right) => right.purchaseTotal - left.purchaseTotal || left.name.localeCompare(right.name));
+    return Array.from(summaries.values())
+      .map((supplier) => ({
+        ...supplier,
+        averagePurchaseTicket: supplier.purchaseCount > 0 ? supplier.purchaseTotal / supplier.purchaseCount : 0,
+      }))
+      .sort((left, right) => right.purchaseTotal - left.purchaseTotal || left.name.localeCompare(right.name));
   }, [activeProducts, purchases, suppliers]);
   const visibleSupplierSummaries = useMemo(() => {
     const query = supplierSearch.trim().toLocaleUpperCase('pt-BR');
@@ -566,6 +594,13 @@ export default function Operations() {
         || left.description.localeCompare(right.description, 'pt-BR')
       ));
   }, [accountSearch, accountStatusFilter, accountTypeFilter, accounts]);
+  const currentReceiptDivergenceQuantity = useMemo(() => {
+    if (!receivingPurchase) return 0;
+    const items = purchaseItems.filter((item) => item.purchase_order_id === receivingPurchase.id);
+    const receipts = items.map((item) => ({ item_id: item.id, quantity: parseMoney(receiveQuantities[item.id] || '0') }))
+      .filter((item) => item.quantity > 0);
+    return getReceiptDivergenceQuantity(items, receipts);
+  }, [purchaseItems, receiveQuantities, receivingPurchase]);
 
   const auditEvents = useMemo(() => {
     const canceledSales = sales
@@ -700,7 +735,7 @@ export default function Operations() {
     setPurchaseForm({
       supplier_name: '', supplier_id: '', invoice_number: '', purchase_date: today(),
       product_id: '', quantity: '', unit_cost: '', freight_amount: '', tax_amount: '',
-      due_date: today(), create_payable: true, receive_stock: true, notes: '',
+      due_date: today(), create_payable: true, receive_stock: true, approval_required: false, notes: '',
     });
     setPurchaseProductSearch('');
     setPurchaseDraftItems([]);
@@ -741,12 +776,14 @@ export default function Operations() {
     receipts: Array<{ item_id: string; quantity: number }>,
     createPayable: boolean,
     dueDate: string,
+    divergenceNote = '',
   ) => {
     const { error } = await operationsRpc.rpc('receive_purchase_order', {
       p_order_id: order.id,
       p_receipts: receipts,
       p_create_payable: createPayable,
       p_due_date: dueDate,
+      p_divergence_note: divergenceNote,
     });
     if (error) throw error;
   };
@@ -767,6 +804,8 @@ export default function Operations() {
     const tax = parseMoney(purchaseForm.tax_amount);
     const subtotal = purchaseDraftSubtotal;
     const total = subtotal + freight + tax;
+    const approvalRequired = purchaseForm.approval_required;
+    const receiveStockNow = purchaseForm.receive_stock && !approvalRequired;
 
     const { data: order, error: orderError } = await fromTable('purchase_orders')
       .insert({
@@ -777,7 +816,7 @@ export default function Operations() {
         invoice_number: purchaseForm.invoice_number.trim(),
         purchase_date: purchaseForm.purchase_date,
         due_date: purchaseForm.due_date,
-        status: 'open',
+        status: approvalRequired ? 'awaiting_approval' : 'open',
         subtotal,
         freight_amount: freight,
         tax_amount: tax,
@@ -816,12 +855,13 @@ export default function Operations() {
       supplier_name: supplier.name,
       total_amount: total,
       item_count: purchaseDraftItems.length,
-      receive_stock: purchaseForm.receive_stock,
+      approval_required: approvalRequired,
+      receive_stock: receiveStockNow,
       create_payable: purchaseForm.create_payable,
       location_id: operationalLocationId,
     });
 
-    if (purchaseForm.receive_stock) {
+    if (receiveStockNow) {
       try {
         await receiveOrderItems(
           order as PurchaseOrder,
@@ -843,7 +883,7 @@ export default function Operations() {
         await loadOperations();
         return;
       }
-    } else if (purchaseForm.create_payable) {
+    } else if (purchaseForm.create_payable && !approvalRequired) {
       await fromTable('financial_accounts').insert({
         owner_user_id: effectiveOwnerId,
         location_id: operationalLocationId,
@@ -867,7 +907,7 @@ export default function Operations() {
       });
     }
 
-    toast.success(purchaseForm.receive_stock ? 'Compra registrada e estoque recebido.' : 'Pedido de compra registrado.');
+    toast.success(approvalRequired ? 'Pedido salvo aguardando aprovação.' : receiveStockNow ? 'Compra registrada e estoque recebido.' : 'Pedido de compra registrado.');
     resetPurchaseForm();
     await syncNow();
     await loadOperations();
@@ -880,6 +920,22 @@ export default function Operations() {
     setReceiveBatchDrafts(Object.fromEntries(items.map((item) => [item.id, createEmptyReceiveBatchDraft()])));
     setReceiveCreatePayable(!accounts.some((account) => account.source === 'purchase' && account.reference_id === purchase.id));
     setReceiveDueDate(purchase.due_date || today());
+    setReceiveDivergenceNote('');
+  };
+
+  const approvePurchase = async (purchase: PurchaseOrder) => {
+    const { error } = await operationsRpc.rpc('approve_purchase_order', {
+      p_order_id: purchase.id,
+      p_notes: 'Aprovado pela tela de compras.',
+    });
+    if (error) {
+      console.error('Erro ao aprovar compra:', getRedactedLogValue(error));
+      toast.error(error.message || 'Não foi possível aprovar o pedido.');
+      return;
+    }
+
+    toast.success('Pedido aprovado para recebimento.');
+    await loadOperations();
   };
 
   const updateReceiveBatchDraft = (itemId: string, patch: Partial<ReceiveBatchDraft>) => {
@@ -900,6 +956,12 @@ export default function Operations() {
       .filter((item) => item.quantity > 0);
     if (receipts.length === 0) {
       toast.error('Informe ao menos uma quantidade recebida.');
+      return;
+    }
+    const receiptItems = purchaseItems.filter((candidate) => candidate.purchase_order_id === receivingPurchase.id);
+    const divergenceQuantity = getReceiptDivergenceQuantity(receiptItems, receipts);
+    if (divergenceQuantity > 0 && receiveDivergenceNote.trim().length < 3) {
+      toast.error('Informe uma observação para a divergência de recebimento.');
       return;
     }
 
@@ -934,7 +996,7 @@ export default function Operations() {
 
     setReceiving(true);
     try {
-      await receiveOrderItems(receivingPurchase, receipts, receiveCreatePayable, receiveDueDate);
+      await receiveOrderItems(receivingPurchase, receipts, receiveCreatePayable, receiveDueDate, receiveDivergenceNote.trim());
       if (batchRows.length > 0) {
         const { error: batchError } = await fromTable('product_batches').insert(batchRows);
         if (batchError) throw batchError;
@@ -946,6 +1008,8 @@ export default function Operations() {
         create_payable: receiveCreatePayable,
         due_date: receiveDueDate,
         batch_count: batchRows.length,
+        divergence_quantity: divergenceQuantity,
+        divergence_note: receiveDivergenceNote.trim(),
         location_id: operationalLocationId,
       });
       if (batchRows.length > 0) {
@@ -962,6 +1026,7 @@ export default function Operations() {
       }
       setReceivingPurchase(null);
       setReceiveBatchDrafts({});
+      setReceiveDivergenceNote('');
       toast.success(batchRows.length > 0
         ? 'Recebimento registrado, estoque atualizado e validade vinculada.'
         : 'Recebimento registrado e estoque atualizado.');
@@ -1190,6 +1255,11 @@ export default function Operations() {
       party_name: account.party_name,
       amount: String(account.amount ?? ''),
       due_date: account.due_date,
+      payment_method: account.payment_method ?? '',
+      cost_center: account.cost_center ?? '',
+      attachment_url: account.attachment_url ?? '',
+      recurrence_type: account.recurrence_type ?? 'none',
+      recurrence_count: String(account.installment_total ?? 1),
       notes: account.notes ?? '',
     });
   };
@@ -1215,33 +1285,65 @@ export default function Operations() {
       party_name: accountForm.party_name.trim(),
       amount,
       due_date: accountForm.due_date,
+      payment_method: accountForm.payment_method.trim(),
+      cost_center: accountForm.cost_center.trim(),
+      attachment_url: accountForm.attachment_url.trim(),
+      recurrence_type: existingAccount ? (accountForm.recurrence_type === 'none' ? 'none' : accountForm.recurrence_type) : 'none',
+      installment_number: existingAccount ? Number(existingAccount.installment_number ?? 1) : 1,
+      installment_total: existingAccount ? Number(existingAccount.installment_total ?? 1) : 1,
       notes: accountForm.notes.trim(),
       updated_by: user?.id ?? null,
     };
 
     setSavingAccount(true);
     try {
-      const query = existingAccount
-        ? fromTable('financial_accounts').update(payload).eq('id', existingAccount.id)
-        : fromTable('financial_accounts').insert({
+      if (existingAccount) {
+        const { data: savedAccount, error } = await fromTable('financial_accounts')
+          .update(payload)
+          .eq('id', existingAccount.id)
+          .select('*')
+          .single();
+        if (error) throw error;
+        await recordOperationsAudit('financial_account.update', 'financial_account', (savedAccount as FinancialAccount).id, {
+          before: existingAccount,
+          after: savedAccount,
+          location_id: operationalLocationId,
+        });
+        toast.success('Conta atualizada.');
+      } else {
+        const recurrenceCount = accountForm.recurrence_type === 'none'
+          ? 1
+          : Math.max(1, Math.min(60, Number.parseInt(accountForm.recurrence_count, 10) || 1));
+        const createAccountId = () => (typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`);
+        const accountRows = buildRecurringFinancialAccountDrafts({
+          account_type: payload.account_type,
+          description: payload.description,
+          party_name: payload.party_name,
+          amount: payload.amount,
+          due_date: payload.due_date,
+          payment_method: payload.payment_method,
+          cost_center: payload.cost_center,
+          attachment_url: payload.attachment_url,
+          recurrence_type: accountForm.recurrence_type,
+          notes: payload.notes,
+        }, recurrenceCount, createAccountId).map((draft) => ({
           owner_user_id: effectiveOwnerId,
           location_id: operationalLocationId,
-          ...payload,
+          ...draft,
+          updated_by: user?.id ?? null,
+        }));
+
+        const { data: savedAccounts, error } = await fromTable('financial_accounts').insert(accountRows).select('*');
+        if (error) throw error;
+        await recordOperationsAudit('financial_account.create', 'financial_account', accountRows[0]?.id ?? null, {
+          count: accountRows.length,
+          after: savedAccounts,
+          recurrence_type: accountForm.recurrence_type,
+          location_id: operationalLocationId,
         });
+        toast.success(accountRows.length > 1 ? `${accountRows.length} contas geradas.` : 'Conta registrada.');
+      }
 
-      const { data: savedAccount, error } = await query.select('*').single();
-      if (error) throw error;
-
-      await recordOperationsAudit(
-        existingAccount ? 'financial_account.update' : 'financial_account.create',
-        'financial_account',
-        (savedAccount as FinancialAccount).id,
-        existingAccount
-          ? { before: existingAccount, after: savedAccount, location_id: operationalLocationId }
-          : { after: savedAccount, location_id: operationalLocationId },
-      );
-
-      toast.success(existingAccount ? 'Conta atualizada.' : 'Conta registrada.');
       resetAccountForm();
       await loadOperations();
     } catch (error) {
@@ -1259,7 +1361,7 @@ export default function Operations() {
       return;
     }
     setAccountPaymentTarget(account);
-    setAccountPaymentForm({ amount: remaining.toFixed(2).replace('.', ','), notes: '' });
+    setAccountPaymentForm({ amount: remaining.toFixed(2).replace('.', ','), payment_method: account.payment_method ?? '', notes: '' });
   };
 
   const registerAccountPayment = async () => {
@@ -1279,6 +1381,7 @@ export default function Operations() {
       id: typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `${Date.now()}`,
       paid_at: paidAt,
       amount: paymentAmount,
+      payment_method: accountPaymentForm.payment_method.trim(),
       notes: accountPaymentForm.notes.trim(),
       actor_user_id: user?.id ?? null,
       actor_label: user?.email ?? null,
@@ -1287,6 +1390,7 @@ export default function Operations() {
     const update = {
       paid_amount: nextPaidAmount,
       payment_history: [...history, paymentEntry],
+      payment_method: accountPaymentForm.payment_method.trim(),
       status: nextRemaining <= 0 ? 'paid' : 'pending',
       paid_at: nextRemaining <= 0 ? paidAt : null,
       updated_by: user?.id ?? null,
@@ -1314,7 +1418,7 @@ export default function Operations() {
 
     toast.success(nextRemaining <= 0 ? 'Conta quitada.' : `Pagamento parcial registrado. Falta ${money(nextRemaining)}.`);
     setAccountPaymentTarget(null);
-    setAccountPaymentForm({ amount: '', notes: '' });
+    setAccountPaymentForm({ amount: '', payment_method: '', notes: '' });
     await loadOperations();
   };
 
@@ -1698,6 +1802,10 @@ export default function Operations() {
                     <div><p className="text-xs text-muted-foreground">Compras</p><p className="font-semibold">{supplier.purchaseCount}</p></div>
                     <div><p className="text-xs text-muted-foreground">Total comprado</p><p className="font-semibold">{money(supplier.purchaseTotal)}</p></div>
                     <div><p className="text-xs text-muted-foreground">Última compra</p><p className="font-semibold">{formatDate(supplier.lastPurchaseDate)}</p></div>
+                    <div><p className="text-xs text-muted-foreground">Ticket médio</p><p className="font-semibold">{money(supplier.averagePurchaseTicket)}</p></div>
+                    <div><p className="text-xs text-muted-foreground">Pendentes</p><Badge variant={supplier.pendingPurchaseCount > 0 ? 'secondary' : 'outline'}>{supplier.pendingPurchaseCount}</Badge></div>
+                    <div><p className="text-xs text-muted-foreground">Recebidas</p><p className="font-semibold">{supplier.receivedPurchaseCount}</p></div>
+                    <div><p className="text-xs text-muted-foreground">Divergências</p><Badge variant={supplier.divergenceCount > 0 ? 'destructive' : 'outline'}>{supplier.divergenceCount}</Badge></div>
                   </div>
                 </div>
               ))}
@@ -1782,8 +1890,9 @@ export default function Operations() {
               )}
               <Textarea value={purchaseForm.notes} onChange={(e) => setPurchaseForm({ ...purchaseForm, notes: e.target.value })} placeholder="Observações da compra" />
               <div className="flex flex-wrap gap-2 text-sm">
-                <label className="flex items-center gap-2"><input type="checkbox" checked={purchaseForm.receive_stock} onChange={(e) => setPurchaseForm({ ...purchaseForm, receive_stock: e.target.checked })} /> Receber estoque agora</label>
-                <label className="flex items-center gap-2"><input type="checkbox" checked={purchaseForm.create_payable} onChange={(e) => setPurchaseForm({ ...purchaseForm, create_payable: e.target.checked })} /> Gerar conta a pagar</label>
+                <label className="flex items-center gap-2"><input type="checkbox" checked={purchaseForm.approval_required} onChange={(e) => setPurchaseForm({ ...purchaseForm, approval_required: e.target.checked, receive_stock: e.target.checked ? false : purchaseForm.receive_stock, create_payable: e.target.checked ? false : purchaseForm.create_payable })} /> Exigir aprovação</label>
+                <label className="flex items-center gap-2"><input type="checkbox" checked={purchaseForm.receive_stock} disabled={purchaseForm.approval_required} onChange={(e) => setPurchaseForm({ ...purchaseForm, receive_stock: e.target.checked })} /> Receber estoque agora</label>
+                <label className="flex items-center gap-2"><input type="checkbox" checked={purchaseForm.create_payable} disabled={purchaseForm.approval_required} onChange={(e) => setPurchaseForm({ ...purchaseForm, create_payable: e.target.checked })} /> Gerar conta a pagar</label>
               </div>
               <div className="flex flex-wrap gap-2">
                 <Button onClick={() => void savePurchase()} className="gap-2" disabled={purchaseDraftItems.length === 0}><Plus className="h-4 w-4" /> Salvar compra</Button>
@@ -1806,7 +1915,7 @@ export default function Operations() {
                 <div className="relative"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" /><Input className="pl-9" value={purchaseSearch} onChange={event => setPurchaseSearch(event.target.value)} placeholder="Fornecedor ou NF" /></div>
                 <Select value={purchaseStatus} onValueChange={setPurchaseStatus}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent><SelectItem value="all">Todos os status</SelectItem><SelectItem value="open">Abertos</SelectItem><SelectItem value="partially_received">Parciais</SelectItem><SelectItem value="received">Recebidos</SelectItem><SelectItem value="canceled">Cancelados</SelectItem></SelectContent>
+                  <SelectContent><SelectItem value="all">Todos os status</SelectItem><SelectItem value="awaiting_approval">Aguardando aprovação</SelectItem><SelectItem value="approved">Aprovados</SelectItem><SelectItem value="open">Abertos</SelectItem><SelectItem value="partially_received">Parciais</SelectItem><SelectItem value="received">Recebidos</SelectItem><SelectItem value="canceled">Cancelados</SelectItem></SelectContent>
                 </Select>
               </div>
               <Table>
@@ -1817,8 +1926,18 @@ export default function Operations() {
                     <TableCell>{purchase.supplier_name || '-'}</TableCell>
                     <TableCell>{purchaseItems.filter((item) => item.purchase_order_id === purchase.id).length}</TableCell>
                     <TableCell>{money(purchase.total_amount)}</TableCell>
-                    <TableCell><Badge variant="outline">{purchaseStatusLabel(purchase.status)}</Badge></TableCell>
-                    <TableCell>{['open', 'partially_received'].includes(purchase.status) && <Button type="button" size="sm" variant="outline" onClick={() => openPurchaseReceipt(purchase)}><PackageCheck className="mr-1 h-4 w-4" />Receber</Button>}</TableCell>
+                    <TableCell>
+                      <div className="flex flex-col gap-1">
+                        <Badge variant={purchase.status === 'awaiting_approval' ? 'secondary' : 'outline'}>{purchaseStatusLabel(purchase.status)}</Badge>
+                        {purchase.divergence_status === 'reported' && <Badge variant="destructive">Divergência</Badge>}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex flex-wrap justify-end gap-2">
+                        {purchase.status === 'awaiting_approval' && <Button type="button" size="sm" variant="outline" onClick={() => void approvePurchase(purchase)}><ShieldCheck className="mr-1 h-4 w-4" />Aprovar</Button>}
+                        {['open', 'approved', 'partially_received'].includes(purchase.status) && <Button type="button" size="sm" variant="outline" onClick={() => openPurchaseReceipt(purchase)}><PackageCheck className="mr-1 h-4 w-4" />Receber</Button>}
+                      </div>
+                    </TableCell>
                   </TableRow>
                 ))}</TableBody>
               </Table>
@@ -1845,6 +1964,26 @@ export default function Operations() {
                 <Input inputMode="decimal" placeholder="Valor" value={accountForm.amount} onChange={(e) => setAccountForm({ ...accountForm, amount: e.target.value })} />
                 <Input type="date" value={accountForm.due_date} onChange={(e) => setAccountForm({ ...accountForm, due_date: e.target.value })} />
               </div>
+              <div className="grid gap-3 sm:grid-cols-3">
+                <Input placeholder="Forma de pagamento" value={accountForm.payment_method} onChange={(e) => setAccountForm({ ...accountForm, payment_method: e.target.value })} />
+                <Input placeholder="Centro de custo" value={accountForm.cost_center} onChange={(e) => setAccountForm({ ...accountForm, cost_center: e.target.value })} />
+                <Input placeholder="Link do comprovante" value={accountForm.attachment_url} onChange={(e) => setAccountForm({ ...accountForm, attachment_url: e.target.value })} />
+              </div>
+              {!editingAccountId && (
+                <div className="grid gap-3 sm:grid-cols-[1fr_120px]">
+                  <Select value={accountForm.recurrence_type} onValueChange={(value: 'none' | 'monthly' | 'weekly' | 'yearly' | 'installment') => setAccountForm({ ...accountForm, recurrence_type: value, recurrence_count: value === 'none' ? '1' : accountForm.recurrence_count })}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Sem recorrência</SelectItem>
+                      <SelectItem value="monthly">Mensal</SelectItem>
+                      <SelectItem value="weekly">Semanal</SelectItem>
+                      <SelectItem value="yearly">Anual</SelectItem>
+                      <SelectItem value="installment">Parcelado mensal</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Input type="number" min="1" max="60" disabled={accountForm.recurrence_type === 'none'} value={accountForm.recurrence_count} onChange={(e) => setAccountForm({ ...accountForm, recurrence_count: e.target.value })} />
+                </div>
+              )}
               <Textarea placeholder="Observações" value={accountForm.notes} onChange={(e) => setAccountForm({ ...accountForm, notes: e.target.value })} />
               <div className="flex flex-wrap gap-2">
                 <Button onClick={() => void saveAccount()} disabled={savingAccount}>
@@ -1931,6 +2070,11 @@ export default function Operations() {
                           <TableCell>
                             <p className="font-medium">{account.description}</p>
                             <p className="text-xs text-muted-foreground">{account.party_name}</p>
+                            {(account.cost_center || account.payment_method || Number(account.installment_total ?? 1) > 1) && (
+                              <p className="text-xs text-muted-foreground">
+                                {[account.cost_center, account.payment_method, Number(account.installment_total ?? 1) > 1 ? `${account.installment_number}/${account.installment_total}` : ''].filter(Boolean).join(' · ')}
+                              </p>
+                            )}
                             {account.canceled_reason && <p className="text-xs text-muted-foreground">Cancelada: {account.canceled_reason}</p>}
                           </TableCell>
                           <TableCell>{formatDate(account.due_date)}</TableCell>
@@ -2202,7 +2346,7 @@ export default function Operations() {
       <Dialog open={Boolean(accountPaymentTarget)} onOpenChange={(open) => {
         if (!open) {
           setAccountPaymentTarget(null);
-          setAccountPaymentForm({ amount: '', notes: '' });
+          setAccountPaymentForm({ amount: '', payment_method: '', notes: '' });
         }
       }}>
         <DialogContent>
@@ -2224,6 +2368,10 @@ export default function Operations() {
               <div className="space-y-1.5">
                 <Label>Valor</Label>
                 <Input inputMode="decimal" value={accountPaymentForm.amount} onChange={(event) => setAccountPaymentForm((current) => ({ ...current, amount: event.target.value }))} />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Forma</Label>
+                <Input value={accountPaymentForm.payment_method} onChange={(event) => setAccountPaymentForm((current) => ({ ...current, payment_method: event.target.value }))} placeholder="Pix, dinheiro, boleto, cartão" />
               </div>
               <div className="space-y-1.5">
                 <Label>Observação</Label>
@@ -2272,6 +2420,7 @@ export default function Operations() {
         if (!nextOpen && !receiving) {
           setReceivingPurchase(null);
           setReceiveBatchDrafts({});
+          setReceiveDivergenceNote('');
         }
       }}>
         <DialogContent className="max-h-[90vh] max-w-3xl overflow-hidden">
@@ -2330,6 +2479,13 @@ export default function Operations() {
                 );
               })}
             </div>
+            {currentReceiptDivergenceQuantity > 0 && (
+              <div className="space-y-1.5 rounded-md border border-amber-500/40 bg-amber-500/10 p-3">
+                <Label>Divergência de recebimento</Label>
+                <p className="text-xs text-muted-foreground">Faltam {currentReceiptDivergenceQuantity} un. em relação ao saldo esperado. Registre o motivo.</p>
+                <Textarea value={receiveDivergenceNote} onChange={(event) => setReceiveDivergenceNote(event.target.value)} placeholder="Ex: fornecedor entregou parcial, produto avariado, NF divergente" />
+              </div>
+            )}
             <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={receiveCreatePayable} onChange={event => setReceiveCreatePayable(event.target.checked)} /> Gerar conta a pagar se ainda não existir</label>
             {receiveCreatePayable && <div className="space-y-1.5"><Label>Vencimento da conta</Label><Input type="date" value={receiveDueDate} onChange={event => setReceiveDueDate(event.target.value)} /></div>}
           </div>

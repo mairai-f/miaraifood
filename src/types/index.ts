@@ -41,6 +41,7 @@ export interface Product {
   max_stock?: number | null;
   control_stock?: boolean;
   block_sale_without_stock?: boolean;
+  average_cost?: number;
   purchase_cost?: number;
   freight_cost?: number;
   tax_cost?: number;
@@ -313,6 +314,9 @@ export interface Expense {
   party_name?: string | null;
   amount: number;
   category: string;
+  payment_method?: string;
+  cost_center?: string;
+  attachment_url?: string;
   date: string;
   sync_status?: 'synced' | 'queued' | 'conflict';
   sync_error?: string | null;

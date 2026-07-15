@@ -384,6 +384,9 @@ interface DataContextType {
       cashSessionId?: string | null;
       date?: string;
       partyName?: string | null;
+      paymentMethod?: string;
+      costCenter?: string;
+      attachmentUrl?: string;
     }
   ) => Promise<void>;
   deleteExpense: (id: string) => Promise<void>;
@@ -3847,6 +3850,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
         party_name: metadata?.partyName ?? null,
         amount,
         category,
+        payment_method: metadata?.paymentMethod ?? '',
+        cost_center: metadata?.costCenter ?? '',
+        attachment_url: metadata?.attachmentUrl ?? '',
         date: metadata?.date || nowIso(),
       };
       setExpenses(prev => [expense, ...prev]);
@@ -3864,6 +3870,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
         party_name: metadata?.partyName ?? null,
         amount,
         category,
+        payment_method: metadata?.paymentMethod ?? '',
+        cost_center: metadata?.costCenter ?? '',
+        attachment_url: metadata?.attachmentUrl ?? '',
         date: metadata?.date || nowIso(),
         sync_status: 'queued',
         sync_error: null,
@@ -3895,14 +3904,17 @@ export function DataProvider({ children }: { children: ReactNode }) {
         party_name: metadata?.partyName ?? null,
         amount,
         category,
+        payment_method: metadata?.paymentMethod ?? '',
+        cost_center: metadata?.costCenter ?? '',
+        attachment_url: metadata?.attachmentUrl ?? '',
         date: metadata?.date || new Date().toISOString(),
       };
       const { data, error } = await db.from('expenses').insert(expensePayload).select('*').single();
       let expenseData = data;
       let expenseError = error;
 
-      if (expenseError?.message && ['operator_user_id', 'cash_session_id', 'party_name', 'location_id'].some(column => expenseError.message.includes(column))) {
-        const { operator_user_id, cash_session_id, party_name, location_id, ...baseExpensePayload } = expensePayload;
+      if (expenseError?.message && ['operator_user_id', 'cash_session_id', 'party_name', 'location_id', 'payment_method', 'cost_center', 'attachment_url'].some(column => expenseError.message.includes(column))) {
+        const { operator_user_id, cash_session_id, party_name, location_id, payment_method, cost_center, attachment_url, ...baseExpensePayload } = expensePayload;
         const retry = await db.from('expenses').insert(baseExpensePayload).select('*').single();
         expenseData = retry.data;
         expenseError = retry.error;

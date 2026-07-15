@@ -27,6 +27,7 @@ const actionLabel: Record<string, string> = {
   'stock.clear_all': 'Estoque zerado',
   'stock.transfer': 'Transferência de estoque',
   'purchase_order.create': 'Pedido de compra criado',
+  'purchase_order.approve': 'Pedido de compra aprovado',
   'purchase_order.receive': 'Pedido de compra recebido',
   'product_batch.create': 'Lote/validade criado',
   'product_batch.discard': 'Lote/validade baixado',

@@ -10,6 +10,11 @@ export type PurchaseOrder = {
   status: string;
   due_date?: string | null;
   received_at?: string | null;
+  approved_at?: string | null;
+  approved_by?: string | null;
+  approval_notes?: string;
+  last_divergence_note?: string;
+  divergence_status?: 'none' | 'reported' | 'resolved';
   total_amount: number;
   notes: string;
 };
@@ -37,6 +42,10 @@ export type PurchaseOrderItem = {
   unit_cost: number;
   total_cost: number;
   received_quantity: number;
+  last_received_quantity?: number;
+  last_divergence_quantity?: number;
+  received_unit_cost?: number | null;
+  average_cost_after?: number | null;
 };
 
 export type FinancialAccount = {
@@ -60,6 +69,13 @@ export type FinancialAccount = {
   status: 'pending' | 'paid' | 'canceled';
   canceled_at?: string | null;
   canceled_reason?: string;
+  payment_method?: string;
+  cost_center?: string;
+  attachment_url?: string;
+  recurrence_type?: 'none' | 'monthly' | 'weekly' | 'yearly' | 'installment';
+  recurrence_parent_id?: string | null;
+  installment_number?: number;
+  installment_total?: number;
   source?: string;
   reference_id?: string | null;
   notes?: string;
@@ -100,6 +116,10 @@ export type SupplierSummary = {
   purchaseCount: number;
   purchaseTotal: number;
   lastPurchaseDate: string | null;
+  averagePurchaseTicket: number;
+  pendingPurchaseCount: number;
+  receivedPurchaseCount: number;
+  divergenceCount: number;
 };
 
 export type OpenDebtClient = {
