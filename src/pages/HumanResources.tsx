@@ -1337,23 +1337,23 @@ export default function HumanResources() {
               <CardContent>
                 <form className="grid gap-3 md:grid-cols-2 xl:grid-cols-4" onSubmit={handleSaveEmployee}>
                   <Field label="Codigo">
-                    <Input value={employeeForm.employeeCode} onChange={(event) => setEmployeeForm((current) => ({ ...current, employeeCode: event.target.value }))} placeholder="Ex: 0001" />
+                    <Input value={employeeForm.employeeCode} onChange={(event) => setEmployeeForm((current) => ({ ...current, employeeCode: event.target.value }))} placeholder="Ex: 0001" autoComplete="off" />
                   </Field>
                   <Field label="Nome completo" className="xl:col-span-2">
-                    <Input value={employeeForm.fullName} onChange={(event) => setEmployeeForm((current) => ({ ...current, fullName: event.target.value }))} placeholder="Nome do colaborador" />
+                    <Input value={employeeForm.fullName} onChange={(event) => setEmployeeForm((current) => ({ ...current, fullName: event.target.value }))} placeholder="Nome do colaborador" autoComplete="name" />
                     <p className="text-xs text-muted-foreground">O nome completo não pode ser igual ao de outro colaborador.</p>
                   </Field>
                   <Field label="Nome social">
-                    <Input value={employeeForm.preferredName} onChange={(event) => setEmployeeForm((current) => ({ ...current, preferredName: event.target.value }))} placeholder="Opcional" />
+                    <Input value={employeeForm.preferredName} onChange={(event) => setEmployeeForm((current) => ({ ...current, preferredName: event.target.value }))} placeholder="Opcional" autoComplete="nickname" />
                   </Field>
                   <Field label="CPF">
-                    <Input value={employeeForm.cpf} onChange={(event) => setEmployeeForm((current) => ({ ...current, cpf: event.target.value }))} placeholder="000.000.000-00" />
+                    <Input value={employeeForm.cpf} onChange={(event) => setEmployeeForm((current) => ({ ...current, cpf: event.target.value }))} placeholder="000.000.000-00" autoComplete="off" />
                   </Field>
                   <Field label="Email">
-                    <Input type="email" value={employeeForm.email} onChange={(event) => setEmployeeForm((current) => ({ ...current, email: event.target.value }))} placeholder="email@empresa.com" />
+                    <Input type="email" value={employeeForm.email} onChange={(event) => setEmployeeForm((current) => ({ ...current, email: event.target.value }))} placeholder="email@empresa.com" autoComplete="email" />
                   </Field>
                   <Field label="Telefone">
-                    <Input value={employeeForm.phone} onChange={(event) => setEmployeeForm((current) => ({ ...current, phone: event.target.value }))} placeholder="(00) 00000-0000" />
+                    <Input value={employeeForm.phone} onChange={(event) => setEmployeeForm((current) => ({ ...current, phone: event.target.value }))} placeholder="(00) 00000-0000" autoComplete="tel" />
                   </Field>
                   <Field label="Vinculo">
                     <Select value={employeeForm.employmentType} onValueChange={(value) => setEmployeeForm((current) => ({ ...current, employmentType: value as HrEmploymentType }))}>
@@ -1372,10 +1372,10 @@ export default function HumanResources() {
                     </Select>
                   </Field>
                   <Field label="Departamento">
-                    <Input value={employeeForm.department} onChange={(event) => setEmployeeForm((current) => ({ ...current, department: event.target.value }))} placeholder="Ex: Operacao" />
+                    <Input value={employeeForm.department} onChange={(event) => setEmployeeForm((current) => ({ ...current, department: event.target.value }))} placeholder="Ex: Operacao" autoComplete="organization" />
                   </Field>
                   <Field label="Cargo">
-                    <Input value={employeeForm.position} onChange={(event) => setEmployeeForm((current) => ({ ...current, position: event.target.value }))} placeholder="Ex: Caixa" />
+                    <Input value={employeeForm.position} onChange={(event) => setEmployeeForm((current) => ({ ...current, position: event.target.value }))} placeholder="Ex: Caixa" autoComplete="organization-title" />
                   </Field>
                   <Field label="Admissao">
                     <Input type="date" value={employeeForm.admissionDate} onChange={(event) => setEmployeeForm((current) => ({ ...current, admissionDate: event.target.value }))} />

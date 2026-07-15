@@ -92,6 +92,10 @@ interface OperatorFunctionResponse {
   error?: string;
 }
 
+interface AdminAccessAuthorization {
+  accessToken: string;
+}
+
 interface HrEmployeeNameRow {
   profile_user_id: string | null;
   full_name: string;
@@ -565,7 +569,57 @@ export function OperatorManagementPanel({
     setAdminAuthorizationOpen(true);
   };
 
-  const handleCreateOperator = async (adminEmail: string, adminPassword: string) => {
+  const verifyAdminAccessForOperatorSave = async (
+    adminEmail: string,
+    adminPassword: string,
+  ): Promise<AdminAccessAuthorization | null> => {
+    const normalizedAdminEmail = adminEmail.trim().toLowerCase();
+    const normalizedAdminPassword = adminPassword.trim();
+
+    let captchaToken: string | undefined;
+    try {
+      captchaToken = await requestTurnstileToken('app-admin-verification');
+    } catch (error) {
+      setAdminAuthorizationError(error instanceof Error ? error.message : 'Nao foi possivel concluir a verificacao de seguranca.');
+      return null;
+    }
+
+    const { data: authData, error: authError } = await adminVerificationClient.auth.signInWithPassword({
+      email: normalizedAdminEmail,
+      password: normalizedAdminPassword,
+      options: { captchaToken },
+    });
+
+    if (authError || !authData.user?.id || !authData.session?.access_token) {
+      setAdminAuthorizationError('Login ou senha do administrador invalidos.');
+      setAdminAuthorizationPassword('');
+      return null;
+    }
+
+    const adminDb = adminVerificationClient as unknown as typeof db;
+    const { data: adminProfile, error: adminProfileError } = await adminDb
+      .from('profiles')
+      .select('role, owner_user_id')
+      .eq('user_id', authData.user.id)
+      .maybeSingle();
+
+    if (adminProfileError || !adminProfile || adminProfile.role !== 'admin') {
+      setAdminAuthorizationError('A conta informada nao possui acesso de administrador.');
+      setAdminAuthorizationPassword('');
+      return null;
+    }
+
+    const adminOwnerUserId = adminProfile.owner_user_id ?? authData.user.id;
+    if (ownerUserId && adminOwnerUserId !== ownerUserId) {
+      setAdminAuthorizationError('Este administrador nao pertence a mesma loja.');
+      setAdminAuthorizationPassword('');
+      return null;
+    }
+
+    return { accessToken: authData.session.access_token };
+  };
+
+  const handleCreateOperator = async (adminEmail: string, adminAccessToken: string) => {
     setCreating(true);
 
     const { data, error } = await supabase.functions.invoke<OperatorFunctionResponse>('manage-operators', {
@@ -581,7 +635,7 @@ export function OperatorManagementPanel({
         staffRole: inferredStaffRole,
         permissionKeys: [...selectedPermissionKeys],
         adminEmail,
-        adminPassword,
+        adminAccessToken,
       },
     });
 
@@ -608,7 +662,7 @@ export function OperatorManagementPanel({
     return true;
   };
 
-  const handleUpdateOperatorAccess = async (adminEmail: string, adminPassword: string) => {
+  const handleUpdateOperatorAccess = async (adminEmail: string, adminAccessToken: string) => {
     if (!editingOperator) return false;
     setCreating(true);
     const { data, error } = await supabase.functions.invoke<OperatorFunctionResponse>('manage-operators', {
@@ -621,7 +675,7 @@ export function OperatorManagementPanel({
         staffRole: inferredStaffRole,
         permissionKeys: [...selectedPermissionKeys],
         adminEmail,
-        adminPassword,
+        adminAccessToken,
       },
     });
 
@@ -654,12 +708,24 @@ export function OperatorManagementPanel({
     }
 
     setAdminAuthorizationError('');
-    if (pendingAccessAction === 'create') {
-      await handleCreateOperator(adminEmail, adminPassword);
+    setCreating(true);
+    const authorization = await verifyAdminAccessForOperatorSave(adminEmail, adminPassword);
+    if (!authorization) {
+      setCreating(false);
+      await adminVerificationClient.auth.signOut();
       return;
     }
-    if (pendingAccessAction === 'update') {
-      await handleUpdateOperatorAccess(adminEmail, adminPassword);
+
+    try {
+      if (pendingAccessAction === 'create') {
+        await handleCreateOperator(adminEmail, authorization.accessToken);
+        return;
+      }
+      if (pendingAccessAction === 'update') {
+        await handleUpdateOperatorAccess(adminEmail, authorization.accessToken);
+      }
+    } finally {
+      await adminVerificationClient.auth.signOut();
     }
   };
 
@@ -1084,6 +1150,7 @@ export function OperatorManagementPanel({
                     onChange={event => setFullName(event.target.value)}
                     placeholder="Ex: Joao Silva"
                     maxLength={100}
+                    autoComplete="name"
                   />
                   <p className="text-xs text-muted-foreground">
                     Nomes completos iguais não são permitidos; o primeiro nome pode repetir se o sobrenome for diferente.
@@ -1096,6 +1163,7 @@ export function OperatorManagementPanel({
                     onChange={event => setJobTitle(event.target.value)}
                     placeholder="Ex: Caixa da manha, Gerente, Atendimento"
                     maxLength={60}
+                    autoComplete="organization-title"
                   />
                   <p className="text-xs text-muted-foreground">O administrador escreve o nome. A função não libera permissões automaticamente.</p>
                 </div>
@@ -1106,6 +1174,7 @@ export function OperatorManagementPanel({
                     onChange={event => setUsername(event.target.value)}
                     placeholder="Ex: colaborador.caixa"
                     readOnly={Boolean(editingOperator)}
+                    autoComplete="username"
                   />
                 </div>
                 {!editingOperator && (

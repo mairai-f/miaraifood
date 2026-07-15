@@ -24,6 +24,7 @@ type ManageOperatorRequest =
       permissionKeys?: string[];
       adminEmail?: string;
       adminPassword?: string;
+      adminAccessToken?: string;
     }
   | {
       action: 'update_access';
@@ -34,6 +35,7 @@ type ManageOperatorRequest =
       permissionKeys?: string[];
       adminEmail?: string;
       adminPassword?: string;
+      adminAccessToken?: string;
     }
   | {
       action: 'reset_password';
@@ -221,6 +223,31 @@ const extractAccessToken = (authorization: string | null) => {
 
 const normalizeEmail = (value: string) => value.trim().toLowerCase();
 
+const verifyAdminProfileForOwner = async (
+  details: {
+    serviceClient: SupabaseClient;
+    ownerUserId: string;
+    adminUserId: string;
+  },
+) => {
+  const { data: verificationProfile, error: verificationProfileError } = await details.serviceClient
+    .from('profiles')
+    .select('user_id, role, owner_user_id')
+    .eq('user_id', details.adminUserId)
+    .single();
+
+  if (verificationProfileError || !verificationProfile || verificationProfile.role !== 'admin') {
+    return 'A conta informada nao possui acesso de administrador.';
+  }
+
+  const verifiedOwnerUserId = verificationProfile.owner_user_id ?? verificationProfile.user_id;
+  if (verifiedOwnerUserId !== details.ownerUserId) {
+    return 'Este administrador nao pertence a mesma loja.';
+  }
+
+  return null;
+};
+
 const verifyAdminCredentials = async (
   details: {
     supabaseUrl: string;
@@ -229,8 +256,24 @@ const verifyAdminCredentials = async (
     ownerUserId: string;
     adminEmail?: string;
     adminPassword?: string;
+    adminAccessToken?: string;
   },
 ) => {
+  const adminAccessToken = details.adminAccessToken?.trim() ?? '';
+  if (adminAccessToken) {
+    const { data: verifiedUser, error: verifiedUserError } = await details.serviceClient.auth.getUser(adminAccessToken);
+
+    if (verifiedUserError || !verifiedUser.user?.id) {
+      return 'Nao foi possivel validar a autorizacao do administrador.';
+    }
+
+    return verifyAdminProfileForOwner({
+      serviceClient: details.serviceClient,
+      ownerUserId: details.ownerUserId,
+      adminUserId: verifiedUser.user.id,
+    });
+  }
+
   const adminEmail = normalizeEmail(details.adminEmail ?? '');
   const adminPassword = details.adminPassword?.trim() ?? '';
 
@@ -254,22 +297,11 @@ const verifyAdminCredentials = async (
     return 'Login ou senha do administrador invalidos.';
   }
 
-  const { data: verificationProfile, error: verificationProfileError } = await details.serviceClient
-    .from('profiles')
-    .select('user_id, role, owner_user_id')
-    .eq('user_id', verificationSession.user.id)
-    .single();
-
-  if (verificationProfileError || !verificationProfile || verificationProfile.role !== 'admin') {
-    return 'A conta informada nao possui acesso de administrador.';
-  }
-
-  const verifiedOwnerUserId = verificationProfile.owner_user_id ?? verificationProfile.user_id;
-  if (verifiedOwnerUserId !== details.ownerUserId) {
-    return 'Este administrador nao pertence a mesma loja.';
-  }
-
-  return null;
+  return verifyAdminProfileForOwner({
+    serviceClient: details.serviceClient,
+    ownerUserId: details.ownerUserId,
+    adminUserId: verificationSession.user.id,
+  });
 };
 
 Deno.serve(async (request): Promise<Response> => {
@@ -431,6 +463,7 @@ Deno.serve(async (request): Promise<Response> => {
       ownerUserId,
       adminEmail: body.adminEmail,
       adminPassword: body.adminPassword,
+      adminAccessToken: body.adminAccessToken,
     });
     if (adminVerificationError) {
       return jsonResponse(request, { error: adminVerificationError }, 401);
@@ -588,6 +621,7 @@ Deno.serve(async (request): Promise<Response> => {
       ownerUserId,
       adminEmail: body.adminEmail,
       adminPassword: body.adminPassword,
+      adminAccessToken: body.adminAccessToken,
     });
     if (adminVerificationError) {
       return jsonResponse(request, { error: adminVerificationError }, 401);
