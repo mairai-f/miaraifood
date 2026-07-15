@@ -1,4 +1,4 @@
-import { createClient } from 'npm:@supabase/supabase-js@2';
+import { createClient, type SupabaseClient } from 'npm:@supabase/supabase-js@2';
 import {
   buildOperatorEmail,
   isValidOperatorUsername,
@@ -102,9 +102,7 @@ const verifyAdminCredentials = async (
 	details: {
 	  supabaseUrl: string;
 	  supabaseAnonKey: string;
-	  // Generated Supabase function types are not available inside Edge Functions.
-	  // deno-lint-ignore no-explicit-any
-	  serviceClient: any;
+		  serviceClient: SupabaseClient;
 	  ownerUserId: string;
 	  adminEmail?: string;
 	  adminPassword?: string;

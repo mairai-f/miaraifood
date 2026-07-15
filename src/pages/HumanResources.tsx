@@ -194,7 +194,32 @@ type ScheduleFormState = {
   weekdays: number[];
 };
 
-const db = supabase as any;
+type DbRow = {
+  id?: string;
+  [key: string]: unknown;
+};
+
+type DbResponse<T = DbRow[]> = {
+  data: T | null;
+  error: { message: string } | null;
+};
+
+type DbQuery<T = DbRow[]> = PromiseLike<DbResponse<T>> & {
+  select: (columns?: string) => DbQuery<T>;
+  eq: (column: string, value: unknown) => DbQuery<T>;
+  order: (column: string, options?: { ascending?: boolean }) => DbQuery<T>;
+  limit: (count: number) => DbQuery<T>;
+  insert: (values: unknown) => DbQuery<T>;
+  update: (values: unknown) => DbQuery<T>;
+  delete: () => DbQuery<T>;
+  single: () => Promise<DbResponse<DbRow>>;
+};
+
+type LooseSupabaseClient = {
+  from: (table: string) => DbQuery;
+};
+
+const db = supabase as unknown as LooseSupabaseClient;
 
 const employeeInitialForm: EmployeeFormState = {
   employeeCode: '',

@@ -1,4 +1,4 @@
-import { createClient } from "npm:@supabase/supabase-js@2";
+import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2";
 import { buildCorsHeaders, handleCorsPreflight } from "../_shared/cors.ts";
 import {
   LEGAL_ACCEPTANCE_SOURCES,
@@ -57,10 +57,7 @@ interface StoreAccountRow {
 }
 
 type AttemptStatus = "blocked" | "config_error" | "created" | "failed" | "honeypot" | "invalid";
-type ServiceClient = {
-  from: (table: string) => any;
-  auth: any;
-};
+type ServiceClient = SupabaseClient;
 
 const registrationCorsOptions = {
   allowedMethods: ["POST", "OPTIONS"],
