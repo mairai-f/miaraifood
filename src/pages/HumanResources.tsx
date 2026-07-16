@@ -1,18 +1,21 @@
-import { useCallback, useEffect, useMemo, useState, type ChangeEvent, type FormEvent, type ReactNode } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useState, type ChangeEvent, type FormEvent, type ReactNode } from 'react';
 import {
   AlertTriangle,
   BriefcaseBusiness,
   CalendarDays,
+  Check,
   CheckCircle2,
+  ChevronsUpDown,
   Clock3,
   Download,
   ExternalLink,
-  FileCheck2,
+  FolderOpen,
   FileText,
   Loader2,
   Pencil,
   Plus,
   RefreshCw,
+  Search,
   ShieldCheck,
   Trash2,
   Upload,
@@ -27,13 +30,16 @@ import { supabase } from '@/integrations/supabase/client';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { cn } from '@/lib/utils';
 import { getPublicErrorMessage, getRedactedLogValue } from '../../shared/security/redaction';
 
 type HrEmployeeStatus = 'active' | 'inactive' | 'terminated' | 'on_leave';
@@ -59,6 +65,23 @@ interface HrEmployee {
   termination_date: string | null;
   department: string | null;
   position: string | null;
+  photo_url: string | null;
+  address_zip_code: string | null;
+  address_street: string | null;
+  address_number: string | null;
+  address_complement: string | null;
+  address_neighborhood: string | null;
+  address_city: string | null;
+  address_state: string | null;
+  unit_name: string | null;
+  contract_type: string | null;
+  work_journey: string | null;
+  salary_amount: number | null;
+  bank_name: string | null;
+  bank_agency: string | null;
+  bank_account: string | null;
+  emergency_contact_name: string | null;
+  emergency_contact_phone: string | null;
   notes: string | null;
   created_at: string;
   updated_at: string;
@@ -85,6 +108,11 @@ interface HrWorkSchedule {
     start_time?: string;
     end_time?: string;
     break_minutes?: number;
+    daily_rules?: Record<string, {
+      start_time?: string;
+      end_time?: string;
+      break_minutes?: number;
+    }>;
   } | null;
   tolerance_minutes: number;
   active: boolean;
@@ -156,18 +184,6 @@ interface HrAuditEvent {
   created_at: string;
 }
 
-interface HrComplianceRule {
-  id: string;
-  code: string;
-  category: string;
-  title: string;
-  requirement_summary: string;
-  source_name: string;
-  source_url: string;
-  severity: 'low' | 'medium' | 'high' | 'critical';
-  active: boolean;
-}
-
 type EmployeeFormState = {
   employeeCode: string;
   fullName: string;
@@ -179,6 +195,23 @@ type EmployeeFormState = {
   employmentType: HrEmploymentType;
   department: string;
   position: string;
+  photoUrl: string;
+  addressZipCode: string;
+  addressStreet: string;
+  addressNumber: string;
+  addressComplement: string;
+  addressNeighborhood: string;
+  addressCity: string;
+  addressState: string;
+  unitName: string;
+  contractType: string;
+  workJourney: string;
+  salaryAmount: string;
+  bankName: string;
+  bankAgency: string;
+  bankAccount: string;
+  emergencyContactName: string;
+  emergencyContactPhone: string;
   admissionDate: string;
   terminationDate: string;
   notes: string;
@@ -187,11 +220,13 @@ type EmployeeFormState = {
 type ScheduleFormState = {
   name: string;
   description: string;
-  startTime: string;
-  endTime: string;
-  breakMinutes: string;
   toleranceMinutes: string;
-  weekdays: number[];
+  dayRules: Record<number, {
+    enabled: boolean;
+    startTime: string;
+    endTime: string;
+    breakMinutes: string;
+  }>;
 };
 
 type DbRow = {
@@ -221,6 +256,12 @@ type LooseSupabaseClient = {
 
 const db = supabase as unknown as LooseSupabaseClient;
 
+const OperatorManagementPanel = lazy(() =>
+  import('@/components/OperatorManagementPanel').then((module) => ({
+    default: module.OperatorManagementPanel,
+  })),
+);
+
 const employeeInitialForm: EmployeeFormState = {
   employeeCode: '',
   fullName: '',
@@ -232,6 +273,23 @@ const employeeInitialForm: EmployeeFormState = {
   employmentType: 'clt',
   department: '',
   position: '',
+  photoUrl: '',
+  addressZipCode: '',
+  addressStreet: '',
+  addressNumber: '',
+  addressComplement: '',
+  addressNeighborhood: '',
+  addressCity: '',
+  addressState: '',
+  unitName: '',
+  contractType: '',
+  workJourney: '',
+  salaryAmount: '',
+  bankName: '',
+  bankAgency: '',
+  bankAccount: '',
+  emergencyContactName: '',
+  emergencyContactPhone: '',
   admissionDate: '',
   terminationDate: '',
   notes: '',
@@ -240,11 +298,16 @@ const employeeInitialForm: EmployeeFormState = {
 const scheduleInitialForm: ScheduleFormState = {
   name: '',
   description: '',
-  startTime: '08:00',
-  endTime: '17:00',
-  breakMinutes: '60',
   toleranceMinutes: '10',
-  weekdays: [1, 2, 3, 4, 5],
+  dayRules: {
+    0: { enabled: false, startTime: '08:00', endTime: '17:00', breakMinutes: '60' },
+    1: { enabled: true, startTime: '08:00', endTime: '17:00', breakMinutes: '60' },
+    2: { enabled: true, startTime: '08:00', endTime: '17:00', breakMinutes: '60' },
+    3: { enabled: true, startTime: '08:00', endTime: '17:00', breakMinutes: '60' },
+    4: { enabled: true, startTime: '08:00', endTime: '17:00', breakMinutes: '60' },
+    5: { enabled: true, startTime: '08:00', endTime: '17:00', breakMinutes: '60' },
+    6: { enabled: false, startTime: '08:00', endTime: '17:00', breakMinutes: '60' },
+  },
 };
 
 const statusLabels: Record<HrEmployeeStatus, string> = {
@@ -319,13 +382,6 @@ const weekdayOptions = [
   { value: 6, label: 'Sab' },
 ];
 
-const complianceSeverityLabels: Record<HrComplianceRule['severity'], string> = {
-  low: 'Baixo',
-  medium: 'Medio',
-  high: 'Alto',
-  critical: 'Critico',
-};
-
 const formatDate = (value: string | null | undefined) => {
   if (!value) return '-';
   const [year, month, day] = value.slice(0, 10).split('-');
@@ -367,10 +423,70 @@ const asNumber = (value: string, fallback = 0) => {
   return Number.isFinite(parsed) ? parsed : fallback;
 };
 
+const nullableMoney = (value: string) => {
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  return asNumber(trimmed);
+};
+
+const onlyDigits = (value: string) => value.replace(/\D/g, '');
+
+const formatCep = (value: string) => {
+  const digits = onlyDigits(value).slice(0, 8);
+  if (digits.length <= 5) return digits;
+  return `${digits.slice(0, 5)}-${digits.slice(5)}`;
+};
+
+const getEmployeeInitials = (name: string) => {
+  const parts = normalizeName(name).split(' ').filter(Boolean);
+  return `${parts[0]?.[0] ?? 'H'}${parts[1]?.[0] ?? parts[0]?.[1] ?? 'C'}`.toUpperCase();
+};
+
+const isRecentEmployee = (createdAt: string) => {
+  const created = new Date(createdAt).getTime();
+  if (!Number.isFinite(created)) return false;
+  return Date.now() - created <= 1000 * 60 * 60 * 24 * 15;
+};
+
+const buildEmployeeSearchText = (employee: HrEmployee) =>
+  normalizeNameKey([
+    employee.full_name,
+    employee.preferred_name,
+    employee.employee_code,
+    employee.cpf,
+    employee.email,
+    employee.phone,
+    employee.department,
+    employee.position,
+    employee.unit_name,
+  ].filter(Boolean).join(' '));
+
 const csvEscape = (value: unknown) => {
   const text = String(value ?? '');
   if (!/[",\n;]/.test(text)) return text;
   return `"${text.replace(/"/g, '""')}"`;
+};
+
+const htmlEscape = (value: unknown) =>
+  String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+
+const employeeBaseColumns = 'id, employee_code, full_name, preferred_name, cpf, email, phone, status, employment_type, admission_date, termination_date, department, position, notes, created_at, updated_at';
+const employeeProfileColumns = 'id, employee_code, full_name, preferred_name, cpf, email, phone, status, employment_type, admission_date, termination_date, department, position, photo_url, address_zip_code, address_street, address_number, address_complement, address_neighborhood, address_city, address_state, unit_name, contract_type, work_journey, salary_amount, bank_name, bank_agency, bank_account, emergency_contact_name, emergency_contact_phone, notes, created_at, updated_at';
+
+const isMissingEmployeeProfileColumnError = (message: string | undefined) => {
+  if (!message) return false;
+  return [
+    'photo_url',
+    'address_zip_code',
+    'contract_type',
+    'salary_amount',
+    'emergency_contact_name',
+  ].some((column) => message.includes(column));
 };
 
 const downloadCsv = (filename: string, headers: string[], rows: unknown[][]) => {
@@ -387,7 +503,7 @@ const downloadCsv = (filename: string, headers: string[], rows: unknown[][]) => 
 };
 
 export default function HumanResources() {
-  const { ownerUserId, user, role } = useAuth();
+  const { ownerUserId, user, role, isAdmin } = useAuth();
   const { hasPermission } = usePermissions();
 
   const [employees, setEmployees] = useState<HrEmployee[]>([]);
@@ -399,8 +515,8 @@ export default function HumanResources() {
   const [payrollRuns, setPayrollRuns] = useState<HrPayrollRun[]>([]);
   const [payrollItems, setPayrollItems] = useState<HrPayrollItem[]>([]);
   const [auditEvents, setAuditEvents] = useState<HrAuditEvent[]>([]);
-  const [complianceRules, setComplianceRules] = useState<HrComplianceRule[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [savingKey, setSavingKey] = useState<string | null>(null);
   const [editingEmployeeId, setEditingEmployeeId] = useState<string | null>(null);
   const [employeeForm, setEmployeeForm] = useState<EmployeeFormState>(employeeInitialForm);
@@ -412,12 +528,6 @@ export default function HumanResources() {
     notes: '',
   });
   const [scheduleForm, setScheduleForm] = useState<ScheduleFormState>(scheduleInitialForm);
-  const [assignmentForm, setAssignmentForm] = useState({
-    employeeId: '',
-    scheduleId: '',
-    startsOn: new Date().toISOString().slice(0, 10),
-    endsOn: '',
-  });
   const [documentForm, setDocumentForm] = useState({
     employeeId: '',
     documentType: 'contrato',
@@ -447,6 +557,15 @@ export default function HumanResources() {
     quantity: '',
   });
   const [documentToDelete, setDocumentToDelete] = useState<HrEmployeeDocument | null>(null);
+  const [employeeSearch, setEmployeeSearch] = useState('');
+  const [employeeProfileOpen, setEmployeeProfileOpen] = useState(false);
+  const [employeeEditMode, setEmployeeEditMode] = useState(false);
+  const [cepLoading, setCepLoading] = useState(false);
+  const [profileAssignmentForm, setProfileAssignmentForm] = useState({
+    scheduleId: '',
+    startsOn: new Date().toISOString().slice(0, 10),
+    endsOn: '',
+  });
 
   const canManageEmployees = hasPermission('hr.employees.manage');
   const canManageTimeClock = hasPermission('hr.time_clock.manage');
@@ -456,9 +575,42 @@ export default function HumanResources() {
   const canManagePayroll = hasPermission('hr.payroll.manage');
   const canExportHr = hasPermission('hr.exports.manage');
   const canViewAudit = hasPermission('hr.audit.view');
+  const canManageAccesses = isAdmin || hasPermission('hr.access.manage');
+  const canEditEmployeeForm = canManageEmployees && (!editingEmployeeId || employeeEditMode);
 
   const employeeById = useMemo(() => new Map(employees.map((employee) => [employee.id, employee])), [employees]);
   const scheduleById = useMemo(() => new Map(workSchedules.map((schedule) => [schedule.id, schedule])), [workSchedules]);
+  const selectedEmployee = editingEmployeeId ? employeeById.get(editingEmployeeId) ?? null : null;
+  const filteredEmployees = useMemo(() => {
+    const search = normalizeNameKey(employeeSearch);
+    if (!search) return employees;
+    return employees.filter((employee) => buildEmployeeSearchText(employee).includes(search));
+  }, [employeeSearch, employees]);
+
+  const selectedEmployeeDocuments = useMemo(
+    () => selectedEmployee ? documents.filter((document) => document.employee_id === selectedEmployee.id) : [],
+    [documents, selectedEmployee],
+  );
+  const selectedEmployeeTimeEntries = useMemo(
+    () => selectedEmployee ? timeEntries.filter((entry) => entry.employee_id === selectedEmployee.id).slice(0, 12) : [],
+    [selectedEmployee, timeEntries],
+  );
+  const selectedEmployeeLeaves = useMemo(
+    () => selectedEmployee ? leaveRequests.filter((leave) => leave.employee_id === selectedEmployee.id) : [],
+    [leaveRequests, selectedEmployee],
+  );
+  const selectedEmployeeAssignments = useMemo(
+    () => selectedEmployee ? scheduleAssignments.filter((assignment) => assignment.employee_id === selectedEmployee.id) : [],
+    [scheduleAssignments, selectedEmployee],
+  );
+  const selectedEmployeePayrollItems = useMemo(
+    () => selectedEmployee ? payrollItems.filter((item) => item.employee_id === selectedEmployee.id).slice(0, 20) : [],
+    [payrollItems, selectedEmployee],
+  );
+  const selectedEmployeeAuditEvents = useMemo(
+    () => selectedEmployee ? auditEvents.filter((event) => event.employee_id === selectedEmployee.id).slice(0, 20) : [],
+    [auditEvents, selectedEmployee],
+  );
 
   const activeEmployees = employees.filter((employee) => employee.status === 'active').length;
   const pendingTimeEntries = timeEntries.filter((entry) => entry.status === 'pending_approval').length;
@@ -522,12 +674,12 @@ export default function HumanResources() {
       setPayrollRuns([]);
       setPayrollItems([]);
       setAuditEvents([]);
-      setComplianceRules([]);
       setLoading(false);
       return;
     }
 
     setLoading(true);
+    setLoadError(null);
 
     try {
       const [
@@ -540,10 +692,9 @@ export default function HumanResources() {
         payrollRunsResponse,
         payrollItemsResponse,
         auditResponse,
-        complianceResponse,
       ] = await Promise.all([
         db.from('hr_employees')
-          .select('id, employee_code, full_name, preferred_name, cpf, email, phone, status, employment_type, admission_date, termination_date, department, position, notes, created_at, updated_at')
+          .select(employeeProfileColumns)
           .eq('owner_user_id', ownerUserId)
           .order('full_name', { ascending: true }),
         db.from('hr_employee_documents')
@@ -581,13 +732,18 @@ export default function HumanResources() {
           .eq('owner_user_id', ownerUserId)
           .order('created_at', { ascending: false })
           .limit(100),
-        db.from('hr_compliance_rules')
-          .select('id, code, category, title, requirement_summary, source_name, source_url, severity, active')
-          .eq('active', true)
-          .order('severity', { ascending: true }),
       ]);
 
-      const error = employeesResponse.error
+      let resolvedEmployeesResponse = employeesResponse;
+      if (employeesResponse.error && isMissingEmployeeProfileColumnError(employeesResponse.error.message)) {
+        resolvedEmployeesResponse = await db.from('hr_employees')
+          .select(employeeBaseColumns)
+          .eq('owner_user_id', ownerUserId)
+          .order('full_name', { ascending: true });
+        setLoadError('Os campos novos do perfil RH ainda dependem da migration no banco. Carreguei o RH com os dados atuais.');
+      }
+
+      const error = resolvedEmployeesResponse.error
         || documentsResponse.error
         || schedulesResponse.error
         || assignmentsResponse.error
@@ -595,12 +751,11 @@ export default function HumanResources() {
         || leavesResponse.error
         || payrollRunsResponse.error
         || payrollItemsResponse.error
-        || auditResponse.error
-        || complianceResponse.error;
+        || auditResponse.error;
 
       if (error) throw new Error(error.message);
 
-      setEmployees((employeesResponse.data ?? []) as HrEmployee[]);
+      setEmployees((resolvedEmployeesResponse.data ?? []) as HrEmployee[]);
       setDocuments((documentsResponse.data ?? []) as HrEmployeeDocument[]);
       setWorkSchedules((schedulesResponse.data ?? []) as HrWorkSchedule[]);
       setScheduleAssignments((assignmentsResponse.data ?? []) as HrScheduleAssignment[]);
@@ -609,10 +764,11 @@ export default function HumanResources() {
       setPayrollRuns((payrollRunsResponse.data ?? []) as HrPayrollRun[]);
       setPayrollItems((payrollItemsResponse.data ?? []) as HrPayrollItem[]);
       setAuditEvents((auditResponse.data ?? []) as HrAuditEvent[]);
-      setComplianceRules((complianceResponse.data ?? []) as HrComplianceRule[]);
     } catch (error) {
       console.error('Nao foi possivel carregar o RH:', getRedactedLogValue(error));
-      toast.error(getPublicErrorMessage(error, 'Nao foi possivel carregar o RH.'));
+      const message = getPublicErrorMessage(error, 'Nao foi possivel carregar o RH.');
+      setLoadError(message);
+      toast.error(message);
     } finally {
       setLoading(false);
     }
@@ -626,9 +782,6 @@ export default function HumanResources() {
     if (!timeClockForm.employeeId && employees[0]) {
       setTimeClockForm((current) => ({ ...current, employeeId: employees[0].id }));
     }
-    if (!assignmentForm.employeeId && employees[0]) {
-      setAssignmentForm((current) => ({ ...current, employeeId: employees[0].id }));
-    }
     if (!documentForm.employeeId && employees[0]) {
       setDocumentForm((current) => ({ ...current, employeeId: employees[0].id }));
     }
@@ -638,24 +791,42 @@ export default function HumanResources() {
     if (!payrollItemForm.employeeId && employees[0]) {
       setPayrollItemForm((current) => ({ ...current, employeeId: employees[0].id }));
     }
-  }, [assignmentForm.employeeId, documentForm.employeeId, employees, leaveForm.employeeId, payrollItemForm.employeeId, timeClockForm.employeeId]);
+  }, [documentForm.employeeId, employees, leaveForm.employeeId, payrollItemForm.employeeId, timeClockForm.employeeId]);
 
   useEffect(() => {
-    if (!assignmentForm.scheduleId && workSchedules[0]) {
-      setAssignmentForm((current) => ({ ...current, scheduleId: workSchedules[0].id }));
+    if (!profileAssignmentForm.scheduleId && workSchedules[0]) {
+      setProfileAssignmentForm((current) => ({ ...current, scheduleId: workSchedules[0].id }));
     }
     if (!payrollItemForm.payrollRunId && payrollRuns[0]) {
       setPayrollItemForm((current) => ({ ...current, payrollRunId: payrollRuns[0].id }));
     }
-  }, [assignmentForm.scheduleId, payrollItemForm.payrollRunId, payrollRuns, workSchedules]);
+  }, [payrollItemForm.payrollRunId, payrollRuns, profileAssignmentForm.scheduleId, workSchedules]);
 
   const resetEmployeeForm = () => {
     setEditingEmployeeId(null);
+    setEmployeeEditMode(false);
     setEmployeeForm(employeeInitialForm);
   };
 
-  const handleEditEmployee = (employee: HrEmployee) => {
+  const openNewEmployeeProfile = () => {
+    resetEmployeeForm();
+    setEmployeeEditMode(true);
+    setTimeClockForm((current) => ({ ...current, employeeId: '', notes: '' }));
+    setDocumentForm((current) => ({ ...current, employeeId: '', title: '', expiresAt: '' }));
+    setDocumentFile(null);
+    setLeaveForm((current) => ({ ...current, employeeId: '', startDate: '', endDate: '', reason: '' }));
+    setPayrollItemForm((current) => ({ ...current, employeeId: '', eventCode: '', description: '', amount: '', quantity: '' }));
+    setProfileAssignmentForm({
+      scheduleId: workSchedules.find((schedule) => schedule.active)?.id ?? workSchedules[0]?.id ?? '',
+      startsOn: new Date().toISOString().slice(0, 10),
+      endsOn: '',
+    });
+    setEmployeeProfileOpen(true);
+  };
+
+  const handleEditEmployee = (employee: HrEmployee, startEditing = false) => {
     setEditingEmployeeId(employee.id);
+    setEmployeeEditMode(startEditing);
     setEmployeeForm({
       employeeCode: employee.employee_code ?? '',
       fullName: employee.full_name,
@@ -667,20 +838,47 @@ export default function HumanResources() {
       employmentType: employee.employment_type,
       department: employee.department ?? '',
       position: employee.position ?? '',
+      photoUrl: employee.photo_url ?? '',
+      addressZipCode: employee.address_zip_code ?? '',
+      addressStreet: employee.address_street ?? '',
+      addressNumber: employee.address_number ?? '',
+      addressComplement: employee.address_complement ?? '',
+      addressNeighborhood: employee.address_neighborhood ?? '',
+      addressCity: employee.address_city ?? '',
+      addressState: employee.address_state ?? '',
+      unitName: employee.unit_name ?? '',
+      contractType: employee.contract_type ?? '',
+      workJourney: employee.work_journey ?? '',
+      salaryAmount: employee.salary_amount !== null && employee.salary_amount !== undefined ? String(employee.salary_amount).replace('.', ',') : '',
+      bankName: employee.bank_name ?? '',
+      bankAgency: employee.bank_agency ?? '',
+      bankAccount: employee.bank_account ?? '',
+      emergencyContactName: employee.emergency_contact_name ?? '',
+      emergencyContactPhone: employee.emergency_contact_phone ?? '',
       admissionDate: employee.admission_date ?? '',
       terminationDate: employee.termination_date ?? '',
       notes: employee.notes ?? '',
     });
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    setTimeClockForm((current) => ({ ...current, employeeId: employee.id, notes: '' }));
+    setDocumentForm((current) => ({ ...current, employeeId: employee.id, title: '', expiresAt: '' }));
+    setDocumentFile(null);
+    setLeaveForm((current) => ({ ...current, employeeId: employee.id, startDate: '', endDate: '', reason: '' }));
+    setPayrollItemForm((current) => ({ ...current, employeeId: employee.id, eventCode: '', description: '', amount: '', quantity: '' }));
+    setProfileAssignmentForm({
+      scheduleId: workSchedules.find((schedule) => schedule.active)?.id ?? workSchedules[0]?.id ?? '',
+      startsOn: new Date().toISOString().slice(0, 10),
+      endsOn: '',
+    });
+    setEmployeeProfileOpen(true);
   };
 
-  const handleSaveEmployee = async (event: FormEvent) => {
-    event.preventDefault();
+  const handleSaveEmployee = async (event?: FormEvent) => {
+    event?.preventDefault();
     if (!ownerUserId || !user?.id) return;
 
     const fullName = normalizeName(employeeForm.fullName);
     if (fullName.length < 3) {
-      toast.error('Informe o nome completo do colaborador.');
+      toast.error('Informe o nome completo do funcionário.');
       return;
     }
 
@@ -688,7 +886,23 @@ export default function HumanResources() {
       employee.id !== editingEmployeeId && normalizeNameKey(employee.full_name) === normalizeNameKey(fullName),
     );
     if (duplicateEmployee) {
-      toast.error('Ja existe colaborador com esse nome completo. Use um segundo nome, sobrenome ou identificador diferente.');
+      toast.error('Ja existe funcionário com esse nome completo. Use um segundo nome, sobrenome ou identificador diferente.');
+      return;
+    }
+
+    const zipDigits = onlyDigits(employeeForm.addressZipCode);
+    const hasAddressData = Boolean(
+      zipDigits
+      || employeeForm.addressStreet.trim()
+      || employeeForm.addressCity.trim()
+      || employeeForm.addressState.trim(),
+    );
+    if (zipDigits && zipDigits.length !== 8) {
+      toast.error('Informe um CEP com 8 digitos.');
+      return;
+    }
+    if (hasAddressData && !employeeForm.addressNumber.trim()) {
+      toast.error('Informe o numero do endereco do funcionário.');
       return;
     }
 
@@ -707,6 +921,23 @@ export default function HumanResources() {
         employment_type: employeeForm.employmentType,
         department: emptyToNull(employeeForm.department),
         position: emptyToNull(employeeForm.position),
+        photo_url: emptyToNull(employeeForm.photoUrl),
+        address_zip_code: zipDigits ? formatCep(zipDigits) : null,
+        address_street: emptyToNull(employeeForm.addressStreet),
+        address_number: emptyToNull(employeeForm.addressNumber),
+        address_complement: emptyToNull(employeeForm.addressComplement),
+        address_neighborhood: emptyToNull(employeeForm.addressNeighborhood),
+        address_city: emptyToNull(employeeForm.addressCity),
+        address_state: emptyToNull(employeeForm.addressState.toUpperCase()),
+        unit_name: emptyToNull(employeeForm.unitName),
+        contract_type: emptyToNull(employeeForm.contractType),
+        work_journey: emptyToNull(employeeForm.workJourney),
+        salary_amount: nullableMoney(employeeForm.salaryAmount),
+        bank_name: emptyToNull(employeeForm.bankName),
+        bank_agency: emptyToNull(employeeForm.bankAgency),
+        bank_account: emptyToNull(employeeForm.bankAccount),
+        emergency_contact_name: emptyToNull(employeeForm.emergencyContactName),
+        emergency_contact_phone: emptyToNull(employeeForm.emergencyContactPhone),
         admission_date: employeeForm.admissionDate || null,
         termination_date: employeeForm.status === 'terminated' ? employeeForm.terminationDate || new Date().toISOString().slice(0, 10) : employeeForm.terminationDate || null,
         notes: emptyToNull(employeeForm.notes),
@@ -720,23 +951,97 @@ export default function HumanResources() {
           .select('id')
           .single();
         if (error) throw new Error(error.message);
-        await writeAuditEvent('employee.updated', `Colaborador atualizado: ${fullName}`, editingEmployeeId, { status: employeeForm.status });
-        toast.success('Colaborador atualizado.');
+        await writeAuditEvent('employee.updated', `Funcionário atualizado: ${fullName}`, editingEmployeeId, { status: employeeForm.status });
+        toast.success('Funcionário atualizado.');
       } else {
         const { data, error } = await db.from('hr_employees').insert([{
           ...payload,
           created_by: user.id,
         }]).select('id').single();
         if (error) throw new Error(error.message);
-        await writeAuditEvent('employee.created', `Colaborador cadastrado: ${fullName}`, data?.id, { employment_type: employeeForm.employmentType });
-        toast.success('Colaborador cadastrado no RH.');
+        await writeAuditEvent('employee.created', `Funcionário cadastrado: ${fullName}`, data?.id, { employment_type: employeeForm.employmentType });
+        toast.success('Funcionário cadastrado no RH.');
       }
 
       resetEmployeeForm();
+      setEmployeeProfileOpen(false);
       await loadHrData();
     } catch (error) {
-      console.error('Nao foi possivel salvar colaborador no RH:', getRedactedLogValue(error));
-      toast.error(getPublicErrorMessage(error, 'Nao foi possivel salvar o colaborador.'));
+      console.error('Nao foi possivel salvar funcionário no RH:', getRedactedLogValue(error));
+      toast.error(getPublicErrorMessage(error, 'Nao foi possivel salvar o funcionário.'));
+    } finally {
+      setSavingKey(null);
+    }
+  };
+
+  const handleLookupCep = async () => {
+    const zipDigits = onlyDigits(employeeForm.addressZipCode);
+    if (zipDigits.length !== 8) {
+      toast.error('Informe um CEP com 8 digitos.');
+      return;
+    }
+
+    setCepLoading(true);
+    try {
+      const response = await fetch(`https://viacep.com.br/ws/${zipDigits}/json/`);
+      if (!response.ok) throw new Error('CEP indisponivel');
+      const data = await response.json() as {
+        erro?: boolean;
+        logradouro?: string;
+        bairro?: string;
+        localidade?: string;
+        uf?: string;
+      };
+      if (data.erro) throw new Error('CEP nao encontrado');
+
+      setEmployeeForm((current) => ({
+        ...current,
+        addressZipCode: formatCep(zipDigits),
+        addressStreet: data.logradouro || current.addressStreet,
+        addressNeighborhood: data.bairro || current.addressNeighborhood,
+        addressCity: data.localidade || current.addressCity,
+        addressState: data.uf || current.addressState,
+      }));
+      toast.success('Endereco preenchido pelo CEP.');
+    } catch (error) {
+      console.error('Nao foi possivel consultar CEP:', getRedactedLogValue(error));
+      toast.error(getPublicErrorMessage(error, 'Nao foi possivel buscar o CEP.'));
+    } finally {
+      setCepLoading(false);
+    }
+  };
+
+  const handleAssignProfileSchedule = async (event?: FormEvent) => {
+    event?.preventDefault();
+    if (!ownerUserId || !user?.id || !selectedEmployee) return;
+    if (!profileAssignmentForm.scheduleId || !profileAssignmentForm.startsOn) {
+      toast.error('Selecione escala e data inicial.');
+      return;
+    }
+
+    setSavingKey('profile-assignment');
+
+    try {
+      const { data, error } = await db.from('hr_employee_schedule_assignments').insert([{
+        owner_user_id: ownerUserId,
+        employee_id: selectedEmployee.id,
+        schedule_id: profileAssignmentForm.scheduleId,
+        starts_on: profileAssignmentForm.startsOn,
+        ends_on: profileAssignmentForm.endsOn || null,
+        created_by: user.id,
+      }]).select('id').single();
+
+      if (error) throw new Error(error.message);
+      await writeAuditEvent('schedule.assigned', 'Escala atribuida no perfil do funcionário', selectedEmployee.id, {
+        schedule_id: profileAssignmentForm.scheduleId,
+        assignment_id: data?.id,
+      });
+      setProfileAssignmentForm((current) => ({ ...current, endsOn: '' }));
+      toast.success('Escala atribuida ao funcionário.');
+      await loadHrData();
+    } catch (error) {
+      console.error('Nao foi possivel atribuir escala no perfil:', getRedactedLogValue(error));
+      toast.error(getPublicErrorMessage(error, 'Nao foi possivel atribuir a escala.'));
     } finally {
       setSavingKey(null);
     }
@@ -746,7 +1051,7 @@ export default function HumanResources() {
     event.preventDefault();
     if (!ownerUserId || !user?.id) return;
     if (!timeClockForm.employeeId) {
-      toast.error('Selecione o colaborador do ponto.');
+      toast.error('Selecione o funcionário do ponto.');
       return;
     }
 
@@ -815,6 +1120,24 @@ export default function HumanResources() {
       return;
     }
 
+    const enabledDayRules = weekdayOptions
+      .map((day) => ({ day: day.value, rule: scheduleForm.dayRules[day.value] }))
+      .filter(({ rule }) => rule?.enabled && rule.startTime && rule.endTime);
+    if (enabledDayRules.length === 0) {
+      toast.error('Informe pelo menos um dia com entrada e saida.');
+      return;
+    }
+
+    const dailyRules = Object.fromEntries(enabledDayRules.map(({ day, rule }) => [
+      String(day),
+      {
+        start_time: rule.startTime,
+        end_time: rule.endTime,
+        break_minutes: asNumber(rule.breakMinutes),
+      },
+    ]));
+    const firstRule = enabledDayRules[0].rule;
+
     setSavingKey('schedule');
 
     try {
@@ -824,10 +1147,11 @@ export default function HumanResources() {
         description: emptyToNull(scheduleForm.description),
         timezone: 'America/Sao_Paulo',
         weekly_rules: {
-          days: scheduleForm.weekdays,
-          start_time: scheduleForm.startTime,
-          end_time: scheduleForm.endTime,
-          break_minutes: asNumber(scheduleForm.breakMinutes),
+          days: enabledDayRules.map(({ day }) => day),
+          daily_rules: dailyRules,
+          start_time: firstRule.startTime,
+          end_time: firstRule.endTime,
+          break_minutes: asNumber(firstRule.breakMinutes),
         },
         tolerance_minutes: asNumber(scheduleForm.toleranceMinutes, 0),
         active: true,
@@ -847,68 +1171,20 @@ export default function HumanResources() {
     }
   };
 
-  const handleToggleScheduleWeekday = (weekday: number) => {
+  const updateScheduleDayRule = (
+    weekday: number,
+    patch: Partial<ScheduleFormState['dayRules'][number]>,
+  ) => {
     setScheduleForm((current) => {
-      const exists = current.weekdays.includes(weekday);
-      const weekdays = exists ? current.weekdays.filter((item) => item !== weekday) : [...current.weekdays, weekday].sort();
-      return { ...current, weekdays };
+      const currentRule = current.dayRules[weekday] ?? { enabled: false, startTime: '08:00', endTime: '17:00', breakMinutes: '60' };
+      return {
+        ...current,
+        dayRules: {
+          ...current.dayRules,
+          [weekday]: { ...currentRule, ...patch },
+        },
+      };
     });
-  };
-
-  const handleUpdateScheduleStatus = async (schedule: HrWorkSchedule, active: boolean) => {
-    setSavingKey(`schedule-${schedule.id}`);
-
-    try {
-      const { error } = await db.from('hr_work_schedules')
-        .update({ active })
-        .eq('id', schedule.id)
-        .select('id')
-        .single();
-      if (error) throw new Error(error.message);
-      await writeAuditEvent('schedule.status_changed', `Escala ${active ? 'reativada' : 'inativada'}: ${schedule.name}`, null, { schedule_id: schedule.id });
-      toast.success('Escala atualizada.');
-      await loadHrData();
-    } catch (error) {
-      console.error('Nao foi possivel atualizar escala:', getRedactedLogValue(error));
-      toast.error(getPublicErrorMessage(error, 'Nao foi possivel atualizar a escala.'));
-    } finally {
-      setSavingKey(null);
-    }
-  };
-
-  const handleAssignSchedule = async (event: FormEvent) => {
-    event.preventDefault();
-    if (!ownerUserId || !user?.id) return;
-    if (!assignmentForm.employeeId || !assignmentForm.scheduleId || !assignmentForm.startsOn) {
-      toast.error('Selecione colaborador, escala e data inicial.');
-      return;
-    }
-
-    setSavingKey('assignment');
-
-    try {
-      const { data, error } = await db.from('hr_employee_schedule_assignments').insert([{
-        owner_user_id: ownerUserId,
-        employee_id: assignmentForm.employeeId,
-        schedule_id: assignmentForm.scheduleId,
-        starts_on: assignmentForm.startsOn,
-        ends_on: assignmentForm.endsOn || null,
-        created_by: user.id,
-      }]).select('id').single();
-
-      if (error) throw new Error(error.message);
-      await writeAuditEvent('schedule.assigned', 'Escala atribuida a colaborador', assignmentForm.employeeId, {
-        schedule_id: assignmentForm.scheduleId,
-        assignment_id: data?.id,
-      });
-      toast.success('Escala atribuida.');
-      await loadHrData();
-    } catch (error) {
-      console.error('Nao foi possivel atribuir escala:', getRedactedLogValue(error));
-      toast.error(getPublicErrorMessage(error, 'Nao foi possivel atribuir a escala.'));
-    } finally {
-      setSavingKey(null);
-    }
   };
 
   const handleDeleteAssignment = async (assignment: HrScheduleAssignment) => {
@@ -936,7 +1212,7 @@ export default function HumanResources() {
     event.preventDefault();
     if (!ownerUserId || !user?.id) return;
     if (!documentForm.employeeId || !documentForm.title.trim()) {
-      toast.error('Selecione colaborador e titulo do documento.');
+      toast.error('Selecione funcionário e titulo do documento.');
       return;
     }
 
@@ -1033,7 +1309,7 @@ export default function HumanResources() {
     event.preventDefault();
     if (!ownerUserId || !user?.id) return;
     if (!leaveForm.employeeId || !leaveForm.startDate || !leaveForm.endDate) {
-      toast.error('Informe colaborador, inicio e fim.');
+      toast.error('Informe funcionário, inicio e fim.');
       return;
     }
 
@@ -1145,7 +1421,7 @@ export default function HumanResources() {
     event.preventDefault();
     if (!ownerUserId) return;
     if (!payrollItemForm.payrollRunId || !payrollItemForm.employeeId || !payrollItemForm.description.trim()) {
-      toast.error('Selecione folha, colaborador e descricao.');
+      toast.error('Selecione folha, funcionário e descricao.');
       return;
     }
 
@@ -1210,7 +1486,7 @@ export default function HumanResources() {
   };
 
   const exportEmployees = () => {
-    downloadCsv('happycash-rh-colaboradores.csv', [
+    downloadCsv('happycash-rh-funcionarios.csv', [
       'codigo',
       'nome',
       'status',
@@ -1237,7 +1513,7 @@ export default function HumanResources() {
 
   const exportTimeEntries = () => {
     downloadCsv('happycash-rh-ponto.csv', [
-      'colaborador',
+      'funcionario',
       'tipo',
       'data_hora',
       'origem',
@@ -1245,7 +1521,7 @@ export default function HumanResources() {
       'escala',
       'observacao',
     ], timeEntries.map((entry) => [
-      employeeById.get(entry.employee_id)?.full_name ?? 'Colaborador',
+      employeeById.get(entry.employee_id)?.full_name ?? 'Funcionário',
       timeClockEntryLabels[entry.entry_type],
       formatDateTime(entry.occurred_at),
       entry.source,
@@ -1269,6 +1545,101 @@ export default function HumanResources() {
       run.net_total,
       (payrollItemsByRun.get(run.id) ?? []).length,
     ]));
+  };
+
+  const handleExportEmployeePhoto = () => {
+    const photoUrl = employeeForm.photoUrl.trim();
+    if (!photoUrl) {
+      toast.info('Este funcionário nao possui foto cadastrada.');
+      return;
+    }
+    window.open(photoUrl, '_blank', 'noopener,noreferrer');
+  };
+
+  const handleOpenEmployeePdf = () => {
+    const employee = selectedEmployee;
+    const fullName = normalizeName(employeeForm.fullName || employee?.full_name || 'Funcionário');
+    const photoUrl = employeeForm.photoUrl.trim();
+    const scheduleSummary = selectedEmployeeAssignments
+      .map((assignment) => {
+        const schedule = scheduleById.get(assignment.schedule_id);
+        return `${htmlEscape(schedule?.name || 'Escala')}: ${htmlEscape(formatDate(assignment.starts_on))} a ${htmlEscape(formatDate(assignment.ends_on))} - ${htmlEscape(formatScheduleRules(schedule))}`;
+      })
+      .join('<br>');
+    const documentsSummary = selectedEmployeeDocuments
+      .map((document) => `${htmlEscape(document.title)} (${htmlEscape(document.document_type)}) - vencimento ${htmlEscape(formatDate(document.expires_at))}`)
+      .join('<br>');
+    const leavesSummary = selectedEmployeeLeaves
+      .map((leave) => `${htmlEscape(leaveTypeLabels[leave.leave_type])}: ${htmlEscape(formatDate(leave.start_date))} a ${htmlEscape(formatDate(leave.end_date))} - ${htmlEscape(leaveStatusLabels[leave.status])}`)
+      .join('<br>');
+    const payrollSummary = selectedEmployeePayrollItems
+      .map((item) => `${htmlEscape(item.event_code)} - ${htmlEscape(item.description)}: ${htmlEscape(formatMoney(item.amount))}`)
+      .join('<br>');
+    const timeSummary = selectedEmployeeTimeEntries
+      .map((entry) => `${htmlEscape(timeClockEntryLabels[entry.entry_type])}: ${htmlEscape(formatDateTime(entry.occurred_at))} - ${htmlEscape(timeClockStatusLabels[entry.status])}`)
+      .join('<br>');
+
+    const popup = window.open('', '_blank');
+    if (!popup) {
+      toast.error('Nao foi possivel abrir o PDF. Verifique o bloqueador de pop-up.');
+      return;
+    }
+
+    popup.document.write(`<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <title>Pasta RH - ${htmlEscape(fullName)}</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 32px; color: #172033; }
+    header { display: flex; gap: 18px; align-items: center; border-bottom: 2px solid #2647b8; padding-bottom: 18px; margin-bottom: 22px; }
+    img { width: 96px; height: 96px; border-radius: 12px; object-fit: cover; border: 1px solid #d8deef; }
+    h1 { margin: 0; font-size: 24px; color: #2647b8; }
+    h2 { font-size: 15px; color: #2647b8; border-bottom: 1px solid #d8deef; padding-bottom: 6px; margin-top: 22px; }
+    .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 18px; }
+    .field { border: 1px solid #d8deef; border-radius: 8px; padding: 10px; min-height: 44px; }
+    .label { display: block; font-size: 11px; color: #64708f; text-transform: uppercase; margin-bottom: 4px; }
+    [contenteditable="true"] { outline: 2px dashed transparent; }
+    [contenteditable="true"]:focus { outline-color: #2647b8; }
+    @media print { body { margin: 18mm; } button { display: none; } }
+  </style>
+</head>
+<body>
+  <button onclick="window.print()" style="margin-bottom:16px;padding:10px 14px;border:0;border-radius:8px;background:#2647b8;color:white;font-weight:700">Imprimir / salvar PDF</button>
+  <header>
+    ${photoUrl ? `<img src="${htmlEscape(photoUrl)}" alt="Foto de ${htmlEscape(fullName)}" />` : ''}
+    <div>
+      <h1 contenteditable="true">${htmlEscape(fullName)}</h1>
+      <p contenteditable="true">${htmlEscape([employeeForm.employeeCode, employeeForm.department, employeeForm.position, employeeForm.unitName].filter(Boolean).join(' · ') || 'Pasta funcional')}</p>
+    </div>
+  </header>
+  <h2>Cadastro</h2>
+  <section class="grid" contenteditable="true">
+    <div class="field"><span class="label">CPF</span>${htmlEscape(employeeForm.cpf || '-')}</div>
+    <div class="field"><span class="label">Email</span>${htmlEscape(employeeForm.email || '-')}</div>
+    <div class="field"><span class="label">Telefone</span>${htmlEscape(employeeForm.phone || '-')}</div>
+    <div class="field"><span class="label">Emergencia</span>${htmlEscape([employeeForm.emergencyContactName, employeeForm.emergencyContactPhone].filter(Boolean).join(' - ') || '-')}</div>
+  </section>
+  <h2>Endereco</h2>
+  <section class="field" contenteditable="true">${htmlEscape([employeeForm.addressStreet, employeeForm.addressNumber, employeeForm.addressComplement, employeeForm.addressNeighborhood, employeeForm.addressCity, employeeForm.addressState, employeeForm.addressZipCode].filter(Boolean).join(', ') || '-')}</section>
+  <h2>Contrato</h2>
+  <section class="grid" contenteditable="true">
+    <div class="field"><span class="label">Vinculo</span>${htmlEscape(employmentTypeLabels[employeeForm.employmentType])}</div>
+    <div class="field"><span class="label">Status</span>${htmlEscape(statusLabels[employeeForm.status])}</div>
+    <div class="field"><span class="label">Admissao</span>${htmlEscape(formatDate(employeeForm.admissionDate))}</div>
+    <div class="field"><span class="label">Desligamento</span>${htmlEscape(formatDate(employeeForm.terminationDate))}</div>
+    <div class="field"><span class="label">Salario</span>${htmlEscape(employeeForm.salaryAmount || '-')}</div>
+    <div class="field"><span class="label">Jornada</span>${htmlEscape(employeeForm.workJourney || '-')}</div>
+  </section>
+  <h2>Escalas</h2><section class="field" contenteditable="true">${scheduleSummary || '-'}</section>
+  <h2>Ponto</h2><section class="field" contenteditable="true">${timeSummary || '-'}</section>
+  <h2>Ferias e afastamentos</h2><section class="field" contenteditable="true">${leavesSummary || '-'}</section>
+  <h2>Documentos</h2><section class="field" contenteditable="true">${documentsSummary || '-'}</section>
+  <h2>Folha</h2><section class="field" contenteditable="true">${payrollSummary || '-'}</section>
+  <h2>Observacoes</h2><section class="field" contenteditable="true">${htmlEscape(employeeForm.notes || '-')}</section>
+</body>
+</html>`);
+    popup.document.close();
   };
 
   if (loading) {
@@ -1302,763 +1673,111 @@ export default function HumanResources() {
         </div>
       </div>
 
+      {loadError ? (
+        <div className="rounded-lg border border-amber-300/70 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-400/30 dark:bg-amber-950/30 dark:text-amber-100">
+          {loadError}
+        </div>
+      ) : null}
+
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-        <MetricCard title="Colaboradores ativos" value={activeEmployees} icon={<UsersRound className="h-5 w-5 text-primary" />} />
+        <MetricCard title="Funcionarios ativos" value={activeEmployees} icon={<UsersRound className="h-5 w-5 text-primary" />} />
         <MetricCard title="Ponto pendente" value={pendingTimeEntries} icon={<Clock3 className="h-5 w-5 text-primary" />} />
         <MetricCard title="Solicitacoes" value={pendingLeaves} icon={<CalendarDays className="h-5 w-5 text-primary" />} />
         <MetricCard title="Folhas abertas" value={openPayroll} icon={<WalletCards className="h-5 w-5 text-primary" />} />
         <MetricCard title="Docs vencendo" value={expiringDocuments} icon={<AlertTriangle className="h-5 w-5 text-primary" />} />
       </div>
 
-      <Tabs defaultValue="colaboradores" className="space-y-4">
+      <Tabs defaultValue="funcionarios" className="space-y-4">
         <TabsList className="h-auto flex-wrap justify-start">
-          <TabsTrigger value="colaboradores">Colaboradores</TabsTrigger>
-          <TabsTrigger value="ponto">Ponto</TabsTrigger>
-          <TabsTrigger value="escalas">Escalas</TabsTrigger>
-          <TabsTrigger value="documentos">Documentos</TabsTrigger>
-          <TabsTrigger value="afastamentos">Afastamentos</TabsTrigger>
-          <TabsTrigger value="folha">Folha</TabsTrigger>
+          <TabsTrigger value="funcionarios">Funcionarios</TabsTrigger>
+          {canManageAccesses ? <TabsTrigger value="acessos">Acessos</TabsTrigger> : null}
           <TabsTrigger value="relatorios">Relatorios</TabsTrigger>
-          <TabsTrigger value="conformidade">Conformidade</TabsTrigger>
           <TabsTrigger value="auditoria">Auditoria</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="colaboradores" className="space-y-4">
-          {canManageEmployees && (
-            <Card>
-              <CardHeader className="flex-row items-center justify-between gap-3 space-y-0">
-                <CardTitle className="text-base">{editingEmployeeId ? 'Editar colaborador' : 'Cadastrar colaborador'}</CardTitle>
-                {editingEmployeeId ? (
-                  <Button type="button" variant="outline" size="sm" onClick={resetEmployeeForm}>
-                    Novo cadastro
+        <TabsContent value="funcionarios" className="space-y-4">
+          <Card>
+            <CardHeader className="gap-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <UsersRound className="h-4 w-4 text-primary" />
+                  Funcionarios
+                </CardTitle>
+                {canManageEmployees ? (
+                  <Button type="button" onClick={openNewEmployeeProfile}>
+                    <Plus className="h-4 w-4" />
+                    Novo funcionario
                   </Button>
                 ) : null}
-              </CardHeader>
-              <CardContent>
-                <form className="grid gap-3 md:grid-cols-2 xl:grid-cols-4" onSubmit={handleSaveEmployee}>
-                  <Field label="Codigo">
-                    <Input value={employeeForm.employeeCode} onChange={(event) => setEmployeeForm((current) => ({ ...current, employeeCode: event.target.value }))} placeholder="Ex: 0001" autoComplete="off" />
-                  </Field>
-                  <Field label="Nome completo" className="xl:col-span-2">
-                    <Input value={employeeForm.fullName} onChange={(event) => setEmployeeForm((current) => ({ ...current, fullName: event.target.value }))} placeholder="Nome do colaborador" autoComplete="name" />
-                    <p className="text-xs text-muted-foreground">O nome completo não pode ser igual ao de outro colaborador.</p>
-                  </Field>
-                  <Field label="Nome social">
-                    <Input value={employeeForm.preferredName} onChange={(event) => setEmployeeForm((current) => ({ ...current, preferredName: event.target.value }))} placeholder="Opcional" autoComplete="nickname" />
-                  </Field>
-                  <Field label="CPF">
-                    <Input value={employeeForm.cpf} onChange={(event) => setEmployeeForm((current) => ({ ...current, cpf: event.target.value }))} placeholder="000.000.000-00" autoComplete="off" />
-                  </Field>
-                  <Field label="Email">
-                    <Input type="email" value={employeeForm.email} onChange={(event) => setEmployeeForm((current) => ({ ...current, email: event.target.value }))} placeholder="email@empresa.com" autoComplete="email" />
-                  </Field>
-                  <Field label="Telefone">
-                    <Input value={employeeForm.phone} onChange={(event) => setEmployeeForm((current) => ({ ...current, phone: event.target.value }))} placeholder="(00) 00000-0000" autoComplete="tel" />
-                  </Field>
-                  <Field label="Vinculo">
-                    <Select value={employeeForm.employmentType} onValueChange={(value) => setEmployeeForm((current) => ({ ...current, employmentType: value as HrEmploymentType }))}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        {Object.entries(employmentTypeLabels).map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                  </Field>
-                  <Field label="Status">
-                    <Select value={employeeForm.status} onValueChange={(value) => setEmployeeForm((current) => ({ ...current, status: value as HrEmployeeStatus }))}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        {Object.entries(statusLabels).map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                  </Field>
-                  <Field label="Departamento">
-                    <Input value={employeeForm.department} onChange={(event) => setEmployeeForm((current) => ({ ...current, department: event.target.value }))} placeholder="Ex: Operacao" autoComplete="organization" />
-                  </Field>
-                  <Field label="Cargo">
-                    <Input value={employeeForm.position} onChange={(event) => setEmployeeForm((current) => ({ ...current, position: event.target.value }))} placeholder="Ex: Caixa" autoComplete="organization-title" />
-                  </Field>
-                  <Field label="Admissao">
-                    <Input type="date" value={employeeForm.admissionDate} onChange={(event) => setEmployeeForm((current) => ({ ...current, admissionDate: event.target.value }))} />
-                  </Field>
-                  <Field label="Desligamento">
-                    <Input type="date" value={employeeForm.terminationDate} onChange={(event) => setEmployeeForm((current) => ({ ...current, terminationDate: event.target.value }))} />
-                  </Field>
-                  <Field label="Observacoes" className="md:col-span-2 xl:col-span-4">
-                    <Textarea value={employeeForm.notes} onChange={(event) => setEmployeeForm((current) => ({ ...current, notes: event.target.value }))} placeholder="Contrato, jornada, exames, beneficios ou observacoes internas." />
-                  </Field>
-                  <div className="flex flex-wrap gap-2 md:col-span-2 xl:col-span-4">
-                    <Button type="submit" disabled={savingKey === 'employee'}>
-                      {savingKey === 'employee' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-                      {editingEmployeeId ? 'Salvar alteracoes' : 'Cadastrar no RH'}
-                    </Button>
-                    {editingEmployeeId ? (
-                      <Button type="button" variant="outline" onClick={resetEmployeeForm}>
-                        Cancelar edicao
-                      </Button>
-                    ) : null}
-                  </div>
-                </form>
-              </CardContent>
-            </Card>
-          )}
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Equipe RH</CardTitle>
+              </div>
+              <div className="relative max-w-xl">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  value={employeeSearch}
+                  onChange={(event) => setEmployeeSearch(event.target.value)}
+                  placeholder="Buscar por nome, letras, CPF, email, cargo ou setor"
+                  className="pl-9"
+                  autoComplete="off"
+                />
+              </div>
             </CardHeader>
             <CardContent>
-              {employees.length === 0 ? (
-                <EmptyState message="Nenhum colaborador cadastrado no RH." />
+              {filteredEmployees.length === 0 ? (
+                <EmptyState message="Nenhum funcionario cadastrado no RH." />
               ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Colaborador</TableHead>
-                      <TableHead>Departamento</TableHead>
-                      <TableHead>Admissao</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead className="text-right">Acoes</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {employees.map((employee) => (
-                      <TableRow key={employee.id}>
-                        <TableCell>
-                          <div className="min-w-[220px]">
-                            <p className="font-medium">{employee.full_name}</p>
-                            <p className="text-xs text-muted-foreground">{[employee.employee_code, employee.email, employee.phone].filter(Boolean).join(' · ') || employee.cpf || '-'}</p>
+                <div className="divide-y rounded-lg border border-border/70">
+                  {filteredEmployees.map((employee) => {
+                    const employeeAssignments = scheduleAssignments.filter((assignment) => assignment.employee_id === employee.id);
+                    const currentAssignment = employeeAssignments[0];
+                    const currentSchedule = currentAssignment ? scheduleById.get(currentAssignment.schedule_id) : null;
+
+                    return (
+                      <div
+                        key={employee.id}
+                        role="button"
+                        tabIndex={0}
+                        className="grid cursor-pointer gap-3 p-4 transition hover:bg-muted/30 md:grid-cols-[minmax(0,1fr)_auto] md:items-center"
+                        onClick={() => handleEditEmployee(employee, false)}
+                        onKeyDown={(event) => {
+                          if (event.key === 'Enter' || event.key === ' ') {
+                            event.preventDefault();
+                            handleEditEmployee(employee, false);
+                          }
+                        }}
+                      >
+                        <div className="flex min-w-0 gap-3">
+                          <Avatar className="h-11 w-11 border border-border">
+                            <AvatarImage src={employee.photo_url ?? undefined} alt={employee.full_name} />
+                            <AvatarFallback>{getEmployeeInitials(employee.full_name)}</AvatarFallback>
+                          </Avatar>
+                          <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <p className="truncate font-semibold">{employee.full_name}</p>
+                              <Badge variant={employee.status === 'active' ? 'default' : employee.status === 'terminated' ? 'destructive' : 'secondary'}>
+                                {statusLabels[employee.status]}
+                              </Badge>
+                              <Badge variant="outline">{isRecentEmployee(employee.created_at) ? 'Novo cadastro' : 'Funcionário antigo'}</Badge>
+                            </div>
+                            <p className="mt-1 text-sm text-muted-foreground">
+                              {[employee.employee_code, employee.department, employee.position, employee.unit_name].filter(Boolean).join(' · ') || 'Sem setor definido'}
+                            </p>
+                            <p className="mt-1 text-xs text-muted-foreground">
+                              {[employee.email, employee.phone, currentSchedule?.name].filter(Boolean).join(' · ') || 'Sem contato ou escala'}
+                            </p>
                           </div>
-                        </TableCell>
-                        <TableCell>
-                          <p>{employee.department || '-'}</p>
-                          <p className="text-xs text-muted-foreground">{employee.position || '-'}</p>
-                        </TableCell>
-                        <TableCell>{formatDate(employee.admission_date)}</TableCell>
-                        <TableCell>
-                          <Badge variant={employee.status === 'active' ? 'default' : employee.status === 'terminated' ? 'destructive' : 'secondary'}>
-                            {statusLabels[employee.status]}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-right">
+                        </div>
+                        <div className="flex flex-wrap gap-2 md:justify-end">
+                          <Button type="button" variant="outline" size="sm" onClick={(event) => { event.stopPropagation(); handleEditEmployee(employee, false); }}>
+                            <FolderOpen className="h-4 w-4" />
+                            Pasta
+                          </Button>
                           {canManageEmployees ? (
-                            <Button type="button" variant="outline" size="sm" onClick={() => handleEditEmployee(employee)}>
+                            <Button type="button" variant="outline" size="sm" onClick={(event) => { event.stopPropagation(); handleEditEmployee(employee, true); }}>
                               <Pencil className="h-4 w-4" />
                               Editar
                             </Button>
-                          ) : (
-                            <span className="text-xs text-muted-foreground">Leitura</span>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="ponto" className="space-y-4">
-          {canManageTimeClock && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-base">
-                  <Clock3 className="h-4 w-4 text-primary" />
-                  Registrar ponto ou ajuste
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <form className="grid gap-3 md:grid-cols-2 xl:grid-cols-5" onSubmit={handleRegisterTimeEntry}>
-                  <Field label="Colaborador" className="xl:col-span-2">
-                    <EmployeeSelect value={timeClockForm.employeeId} employees={employees} onChange={(value) => setTimeClockForm((current) => ({ ...current, employeeId: value }))} />
-                  </Field>
-                  <Field label="Marcacao">
-                    <Select value={timeClockForm.entryType} onValueChange={(value) => setTimeClockForm((current) => ({ ...current, entryType: value as HrTimeClockEntryType }))}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        {Object.entries(timeClockEntryLabels).map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                  </Field>
-                  <Field label="Data e hora">
-                    <Input type="datetime-local" value={timeClockForm.occurredAt} onChange={(event) => setTimeClockForm((current) => ({ ...current, occurredAt: event.target.value }))} />
-                  </Field>
-                  <Field label="Status">
-                    <Select value={timeClockForm.status} onValueChange={(value) => setTimeClockForm((current) => ({ ...current, status: value as HrTimeClockStatus }))}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="valid">Valido</SelectItem>
-                        <SelectItem value="pending_approval">Pendente</SelectItem>
-                        <SelectItem value="adjusted">Ajustado</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </Field>
-                  <Field label="Observacao" className="md:col-span-2 xl:col-span-5">
-                    <Textarea value={timeClockForm.notes} onChange={(event) => setTimeClockForm((current) => ({ ...current, notes: event.target.value }))} placeholder="Motivo do ajuste, local ou observacao do ponto." />
-                  </Field>
-                  <div className="md:col-span-2 xl:col-span-5">
-                    <Button type="submit" disabled={savingKey === 'time'}>
-                      {savingKey === 'time' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Clock3 className="h-4 w-4" />}
-                      Registrar
-                    </Button>
-                  </div>
-                </form>
-              </CardContent>
-            </Card>
-          )}
-
-          <Card>
-            <CardHeader className="flex-row items-center justify-between gap-3 space-y-0">
-              <CardTitle className="text-base">Marcacoes e ajustes</CardTitle>
-              <Badge variant="outline">{canManageTimeClock ? 'Gerencia ponto' : 'Somente leitura'}</Badge>
-            </CardHeader>
-            <CardContent>
-              {timeEntries.length === 0 ? (
-                <EmptyState message="Nenhuma marcacao registrada." />
-              ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Colaborador</TableHead>
-                      <TableHead>Marcacao</TableHead>
-                      <TableHead>Data</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead className="text-right">Acoes</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {timeEntries.map((entry) => (
-                      <TableRow key={entry.id}>
-                        <TableCell className="min-w-[180px]">{employeeById.get(entry.employee_id)?.full_name || 'Colaborador'}</TableCell>
-                        <TableCell>
-                          <p>{timeClockEntryLabels[entry.entry_type]}</p>
-                          <p className="text-xs text-muted-foreground">{entry.source} · {entry.schedule_id ? scheduleById.get(entry.schedule_id)?.name || 'Escala' : 'Sem escala'}</p>
-                        </TableCell>
-                        <TableCell>{formatDateTime(entry.occurred_at)}</TableCell>
-                        <TableCell>
-                          <Badge variant={entry.status === 'valid' ? 'secondary' : entry.status === 'canceled' ? 'destructive' : 'outline'}>
-                            {timeClockStatusLabels[entry.status]}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {canManageTimeClock ? (
-                            <div className="flex flex-wrap justify-end gap-2">
-                              {entry.status === 'pending_approval' ? (
-                                <Button type="button" variant="outline" size="sm" disabled={savingKey === `time-${entry.id}`} onClick={() => void handleUpdateTimeEntryStatus(entry, 'valid')}>
-                                  <CheckCircle2 className="h-4 w-4" />
-                                  Aprovar
-                                </Button>
-                              ) : null}
-                              {entry.status !== 'canceled' ? (
-                                <Button type="button" variant="outline" size="sm" disabled={savingKey === `time-${entry.id}`} onClick={() => void handleUpdateTimeEntryStatus(entry, 'canceled')}>
-                                  <XCircle className="h-4 w-4" />
-                                  Cancelar
-                                </Button>
-                              ) : null}
-                            </div>
-                          ) : (
-                            <span className="text-xs text-muted-foreground">Leitura</span>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="escalas" className="space-y-4">
-          {canManageSchedules && (
-            <div className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-base">
-                    <CalendarDays className="h-4 w-4 text-primary" />
-                    Criar escala
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <form className="grid gap-3 md:grid-cols-2" onSubmit={handleCreateSchedule}>
-                    <Field label="Nome">
-                      <Input value={scheduleForm.name} onChange={(event) => setScheduleForm((current) => ({ ...current, name: event.target.value }))} placeholder="Ex: Comercial segunda a sexta" />
-                    </Field>
-                    <Field label="Tolerancia em minutos">
-                      <Input inputMode="numeric" value={scheduleForm.toleranceMinutes} onChange={(event) => setScheduleForm((current) => ({ ...current, toleranceMinutes: event.target.value }))} />
-                    </Field>
-                    <Field label="Entrada">
-                      <Input type="time" value={scheduleForm.startTime} onChange={(event) => setScheduleForm((current) => ({ ...current, startTime: event.target.value }))} />
-                    </Field>
-                    <Field label="Saida">
-                      <Input type="time" value={scheduleForm.endTime} onChange={(event) => setScheduleForm((current) => ({ ...current, endTime: event.target.value }))} />
-                    </Field>
-                    <Field label="Intervalo em minutos">
-                      <Input inputMode="numeric" value={scheduleForm.breakMinutes} onChange={(event) => setScheduleForm((current) => ({ ...current, breakMinutes: event.target.value }))} />
-                    </Field>
-                    <div className="space-y-1.5">
-                      <Label>Dias</Label>
-                      <div className="flex flex-wrap gap-2">
-                        {weekdayOptions.map((day) => (
-                          <Button key={day.value} type="button" size="sm" variant={scheduleForm.weekdays.includes(day.value) ? 'default' : 'outline'} onClick={() => handleToggleScheduleWeekday(day.value)}>
-                            {day.label}
-                          </Button>
-                        ))}
-                      </div>
-                    </div>
-                    <Field label="Descricao" className="md:col-span-2">
-                      <Textarea value={scheduleForm.description} onChange={(event) => setScheduleForm((current) => ({ ...current, description: event.target.value }))} placeholder="Regras internas, folgas, observacoes de jornada." />
-                    </Field>
-                    <div className="md:col-span-2">
-                      <Button type="submit" disabled={savingKey === 'schedule'}>
-                        {savingKey === 'schedule' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-                        Criar escala
-                      </Button>
-                    </div>
-                  </form>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-base">Atribuir escala</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <form className="grid gap-3" onSubmit={handleAssignSchedule}>
-                    <Field label="Colaborador">
-                      <EmployeeSelect value={assignmentForm.employeeId} employees={employees} onChange={(value) => setAssignmentForm((current) => ({ ...current, employeeId: value }))} />
-                    </Field>
-                    <Field label="Escala">
-                      <ScheduleSelect value={assignmentForm.scheduleId} schedules={workSchedules.filter((schedule) => schedule.active)} onChange={(value) => setAssignmentForm((current) => ({ ...current, scheduleId: value }))} />
-                    </Field>
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      <Field label="Inicio">
-                        <Input type="date" value={assignmentForm.startsOn} onChange={(event) => setAssignmentForm((current) => ({ ...current, startsOn: event.target.value }))} />
-                      </Field>
-                      <Field label="Fim">
-                        <Input type="date" value={assignmentForm.endsOn} onChange={(event) => setAssignmentForm((current) => ({ ...current, endsOn: event.target.value }))} />
-                      </Field>
-                    </div>
-                    <Button type="submit" disabled={savingKey === 'assignment'}>
-                      {savingKey === 'assignment' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-                      Atribuir
-                    </Button>
-                  </form>
-                </CardContent>
-              </Card>
-            </div>
-          )}
-
-          <div className="grid gap-4 xl:grid-cols-2">
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Escalas cadastradas</CardTitle>
-              </CardHeader>
-              <CardContent>
-                {workSchedules.length === 0 ? (
-                  <EmptyState message="Nenhuma escala cadastrada." />
-                ) : (
-                  <div className="divide-y rounded-lg border border-border/70">
-                    {workSchedules.map((schedule) => (
-                      <div key={schedule.id} className="grid gap-3 p-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
-                        <div>
-                          <div className="flex flex-wrap items-center gap-2">
-                            <p className="font-semibold">{schedule.name}</p>
-                            <Badge variant={schedule.active ? 'secondary' : 'outline'}>{schedule.active ? 'Ativa' : 'Inativa'}</Badge>
-                          </div>
-                          <p className="mt-1 text-sm text-muted-foreground">
-                            {formatWeekdays(schedule.weekly_rules?.days)} · {schedule.weekly_rules?.start_time || '--:--'} a {schedule.weekly_rules?.end_time || '--:--'} · intervalo {schedule.weekly_rules?.break_minutes ?? 0} min · tolerancia {schedule.tolerance_minutes} min
-                          </p>
-                          {schedule.description ? <p className="mt-1 text-sm text-muted-foreground">{schedule.description}</p> : null}
-                        </div>
-                        {canManageSchedules ? (
-                          <Button type="button" variant="outline" size="sm" disabled={savingKey === `schedule-${schedule.id}`} onClick={() => void handleUpdateScheduleStatus(schedule, !schedule.active)}>
-                            {schedule.active ? 'Inativar' : 'Ativar'}
-                          </Button>
-                        ) : null}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Atribuicoes</CardTitle>
-              </CardHeader>
-              <CardContent>
-                {scheduleAssignments.length === 0 ? (
-                  <EmptyState message="Nenhuma escala atribuida." />
-                ) : (
-                  <div className="divide-y rounded-lg border border-border/70">
-                    {scheduleAssignments.map((assignment) => (
-                      <div key={assignment.id} className="grid gap-2 p-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
-                        <div>
-                          <p className="font-medium">{employeeById.get(assignment.employee_id)?.full_name || 'Colaborador'}</p>
-                          <p className="text-sm text-muted-foreground">{scheduleById.get(assignment.schedule_id)?.name || 'Escala'} · {formatDate(assignment.starts_on)} a {formatDate(assignment.ends_on)}</p>
-                        </div>
-                        {canManageSchedules ? (
-                          <Button type="button" variant="outline" size="sm" disabled={savingKey === `assignment-${assignment.id}`} onClick={() => void handleDeleteAssignment(assignment)}>
-                            <Trash2 className="h-4 w-4" />
-                            Remover
-                          </Button>
-                        ) : null}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </div>
-        </TabsContent>
-
-        <TabsContent value="documentos" className="space-y-4">
-          {canManageDocuments && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-base">
-                  <FileCheck2 className="h-4 w-4 text-primary" />
-                  Registrar documento
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <form className="grid gap-3 md:grid-cols-2 xl:grid-cols-5" onSubmit={handleCreateDocument}>
-                  <Field label="Colaborador" className="xl:col-span-2">
-                    <EmployeeSelect value={documentForm.employeeId} employees={employees} onChange={(value) => setDocumentForm((current) => ({ ...current, employeeId: value }))} />
-                  </Field>
-                  <Field label="Tipo">
-                    <Input value={documentForm.documentType} onChange={(event) => setDocumentForm((current) => ({ ...current, documentType: event.target.value }))} placeholder="contrato, aso, recibo" />
-                  </Field>
-                  <Field label="Titulo">
-                    <Input value={documentForm.title} onChange={(event) => setDocumentForm((current) => ({ ...current, title: event.target.value }))} placeholder="Contrato de admissao" />
-                  </Field>
-                  <Field label="Vencimento">
-                    <Input type="date" value={documentForm.expiresAt} onChange={(event) => setDocumentForm((current) => ({ ...current, expiresAt: event.target.value }))} />
-                  </Field>
-                  <Field label="Sensibilidade">
-                    <Select value={documentForm.sensitive} onValueChange={(value) => setDocumentForm((current) => ({ ...current, sensitive: value }))}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="true">Sensivel</SelectItem>
-                        <SelectItem value="false">Nao sensivel</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </Field>
-                  <Field label="Arquivo privado" className="md:col-span-2 xl:col-span-4">
-                    <Input type="file" accept=".pdf,.jpg,.jpeg,.png,.webp,.txt,.doc,.docx" onChange={handleDocumentFileChange} />
-                  </Field>
-                  <div className="flex items-end">
-                    <Button type="submit" className="w-full" disabled={savingKey === 'document'}>
-                      {savingKey === 'document' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
-                      Salvar
-                    </Button>
-                  </div>
-                </form>
-              </CardContent>
-            </Card>
-          )}
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Documentos trabalhistas</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {documents.length === 0 ? (
-                <EmptyState message="Nenhum documento registrado." />
-              ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Documento</TableHead>
-                      <TableHead>Colaborador</TableHead>
-                      <TableHead>Vencimento</TableHead>
-                      <TableHead>Protecao</TableHead>
-                      <TableHead className="text-right">Acoes</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {documents.map((document) => (
-                      <TableRow key={document.id}>
-                        <TableCell>
-                          <p className="font-medium">{document.title}</p>
-                          <p className="text-xs text-muted-foreground">{document.document_type}</p>
-                        </TableCell>
-                        <TableCell>{employeeById.get(document.employee_id)?.full_name || 'Colaborador'}</TableCell>
-                        <TableCell>{formatDate(document.expires_at)}</TableCell>
-                        <TableCell>
-                          <Badge variant={document.sensitive ? 'destructive' : 'secondary'}>{document.sensitive ? 'Sensivel' : 'Padrao'}</Badge>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {canManageDocuments ? (
-                            <div className="flex flex-wrap justify-end gap-2">
-                              <Button type="button" variant="outline" size="sm" disabled={!document.file_url || savingKey === `document-open-${document.id}`} onClick={() => void handleOpenDocument(document)}>
-                                <ExternalLink className="h-4 w-4" />
-                                Abrir
-                              </Button>
-                              <Button type="button" variant="outline" size="sm" onClick={() => setDocumentToDelete(document)}>
-                                <Trash2 className="h-4 w-4" />
-                                Remover
-                              </Button>
-                            </div>
-                          ) : (
-                            <span className="text-xs text-muted-foreground">Restrito</span>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="afastamentos" className="space-y-4">
-          {canManageLeave && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-base">
-                  <CalendarDays className="h-4 w-4 text-primary" />
-                  Ferias, ausencias e licencas
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <form className="grid gap-3 md:grid-cols-2 xl:grid-cols-5" onSubmit={handleCreateLeave}>
-                  <Field label="Colaborador" className="xl:col-span-2">
-                    <EmployeeSelect value={leaveForm.employeeId} employees={employees} onChange={(value) => setLeaveForm((current) => ({ ...current, employeeId: value }))} />
-                  </Field>
-                  <Field label="Tipo">
-                    <Select value={leaveForm.leaveType} onValueChange={(value) => setLeaveForm((current) => ({ ...current, leaveType: value as HrLeaveType }))}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        {Object.entries(leaveTypeLabels).map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                  </Field>
-                  <Field label="Inicio">
-                    <Input type="date" value={leaveForm.startDate} onChange={(event) => setLeaveForm((current) => ({ ...current, startDate: event.target.value }))} />
-                  </Field>
-                  <Field label="Fim">
-                    <Input type="date" value={leaveForm.endDate} onChange={(event) => setLeaveForm((current) => ({ ...current, endDate: event.target.value }))} />
-                  </Field>
-                  <Field label="Motivo" className="md:col-span-2 xl:col-span-5">
-                    <Textarea value={leaveForm.reason} onChange={(event) => setLeaveForm((current) => ({ ...current, reason: event.target.value }))} placeholder="Motivo, documento relacionado ou observacao interna." />
-                  </Field>
-                  <div className="md:col-span-2 xl:col-span-5">
-                    <Button type="submit" disabled={savingKey === 'leave'}>
-                      {savingKey === 'leave' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-                      Registrar solicitacao
-                    </Button>
-                  </div>
-                </form>
-              </CardContent>
-            </Card>
-          )}
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Solicitacoes</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {leaveRequests.length === 0 ? (
-                <EmptyState message="Nenhuma solicitacao registrada." />
-              ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Colaborador</TableHead>
-                      <TableHead>Tipo</TableHead>
-                      <TableHead>Periodo</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead className="text-right">Acoes</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {leaveRequests.map((leave) => (
-                      <TableRow key={leave.id}>
-                        <TableCell>{employeeById.get(leave.employee_id)?.full_name || 'Colaborador'}</TableCell>
-                        <TableCell>
-                          <p>{leaveTypeLabels[leave.leave_type]}</p>
-                          <p className="text-xs text-muted-foreground">{leave.reason || '-'}</p>
-                        </TableCell>
-                        <TableCell>{formatDate(leave.start_date)} a {formatDate(leave.end_date)}</TableCell>
-                        <TableCell>
-                          <Badge variant={leave.status === 'approved' ? 'secondary' : leave.status === 'rejected' || leave.status === 'canceled' ? 'destructive' : 'outline'}>
-                            {leaveStatusLabels[leave.status]}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {canManageLeave ? (
-                            <div className="flex flex-wrap justify-end gap-2">
-                              {leave.status === 'requested' ? (
-                                <>
-                                  <Button type="button" variant="outline" size="sm" disabled={savingKey === `leave-${leave.id}`} onClick={() => void handleUpdateLeaveStatus(leave, 'approved')}>
-                                    <CheckCircle2 className="h-4 w-4" />
-                                    Aprovar
-                                  </Button>
-                                  <Button type="button" variant="outline" size="sm" disabled={savingKey === `leave-${leave.id}`} onClick={() => void handleUpdateLeaveStatus(leave, 'rejected')}>
-                                    <XCircle className="h-4 w-4" />
-                                    Rejeitar
-                                  </Button>
-                                </>
-                              ) : null}
-                              {leave.status !== 'canceled' ? (
-                                <Button type="button" variant="outline" size="sm" disabled={savingKey === `leave-${leave.id}`} onClick={() => void handleUpdateLeaveStatus(leave, 'canceled')}>
-                                  Cancelar
-                                </Button>
-                              ) : null}
-                            </div>
-                          ) : (
-                            <span className="text-xs text-muted-foreground">Leitura</span>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="folha" className="space-y-4">
-          {canManagePayroll && (
-            <div className="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-base">
-                    <WalletCards className="h-4 w-4 text-primary" />
-                    Criar folha
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <form className="grid gap-3" onSubmit={handleCreatePayrollRun}>
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      <Field label="Inicio">
-                        <Input type="date" value={payrollRunForm.periodStart} onChange={(event) => setPayrollRunForm((current) => ({ ...current, periodStart: event.target.value }))} />
-                      </Field>
-                      <Field label="Fim">
-                        <Input type="date" value={payrollRunForm.periodEnd} onChange={(event) => setPayrollRunForm((current) => ({ ...current, periodEnd: event.target.value }))} />
-                      </Field>
-                    </div>
-                    <Button type="submit" disabled={savingKey === 'payroll-run'}>
-                      {savingKey === 'payroll-run' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-                      Criar folha
-                    </Button>
-                  </form>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-base">Lancar evento</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <form className="grid gap-3 md:grid-cols-2 xl:grid-cols-4" onSubmit={handleCreatePayrollItem}>
-                    <Field label="Folha" className="xl:col-span-2">
-                      <Select value={payrollItemForm.payrollRunId} onValueChange={(value) => setPayrollItemForm((current) => ({ ...current, payrollRunId: value }))}>
-                        <SelectTrigger><SelectValue placeholder="Selecione a folha" /></SelectTrigger>
-                        <SelectContent>
-                          {payrollRuns.filter((run) => run.status === 'draft').map((run) => (
-                            <SelectItem key={run.id} value={run.id}>{formatDate(run.period_start)} a {formatDate(run.period_end)}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </Field>
-                    <Field label="Colaborador" className="xl:col-span-2">
-                      <EmployeeSelect value={payrollItemForm.employeeId} employees={employees} onChange={(value) => setPayrollItemForm((current) => ({ ...current, employeeId: value }))} />
-                    </Field>
-                    <Field label="Codigo">
-                      <Input value={payrollItemForm.eventCode} onChange={(event) => setPayrollItemForm((current) => ({ ...current, eventCode: event.target.value }))} placeholder="SAL, VT, INSS" />
-                    </Field>
-                    <Field label="Tipo">
-                      <Select value={payrollItemForm.eventType} onValueChange={(value) => setPayrollItemForm((current) => ({ ...current, eventType: value as HrPayrollEventType }))}>
-                        <SelectTrigger><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          {Object.entries(payrollEventTypeLabels).map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}
-                        </SelectContent>
-                      </Select>
-                    </Field>
-                    <Field label="Valor">
-                      <Input inputMode="decimal" value={payrollItemForm.amount} onChange={(event) => setPayrollItemForm((current) => ({ ...current, amount: event.target.value }))} placeholder="0,00" />
-                    </Field>
-                    <Field label="Quantidade">
-                      <Input inputMode="decimal" value={payrollItemForm.quantity} onChange={(event) => setPayrollItemForm((current) => ({ ...current, quantity: event.target.value }))} placeholder="Opcional" />
-                    </Field>
-                    <Field label="Descricao" className="md:col-span-2 xl:col-span-4">
-                      <Input value={payrollItemForm.description} onChange={(event) => setPayrollItemForm((current) => ({ ...current, description: event.target.value }))} placeholder="Salario, desconto, adicional, base informativa." />
-                    </Field>
-                    <div className="md:col-span-2 xl:col-span-4">
-                      <Button type="submit" disabled={savingKey === 'payroll-item'}>
-                        {savingKey === 'payroll-item' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-                        Lancar evento
-                      </Button>
-                    </div>
-                  </form>
-                </CardContent>
-              </Card>
-            </div>
-          )}
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Fechamentos de folha</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {payrollRuns.length === 0 ? (
-                <EmptyState message="Nenhum fechamento de folha criado." />
-              ) : (
-                <div className="space-y-3">
-                  {payrollRuns.map((run) => {
-                    const items = payrollItemsByRun.get(run.id) ?? [];
-                    return (
-                      <div key={run.id} className="rounded-lg border border-border/70 p-4">
-                        <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
-                          <div>
-                            <div className="flex flex-wrap items-center gap-2">
-                              <p className="font-semibold">{formatDate(run.period_start)} a {formatDate(run.period_end)}</p>
-                              <Badge variant={run.status === 'draft' ? 'outline' : run.status === 'canceled' ? 'destructive' : 'secondary'}>{payrollStatusLabels[run.status]}</Badge>
-                            </div>
-                            <p className="mt-1 text-sm text-muted-foreground">Bruto {formatMoney(run.gross_total)} · Liquido {formatMoney(run.net_total)} · {items.length} eventos</p>
-                          </div>
-                          {canManagePayroll ? (
-                            <div className="flex flex-wrap gap-2 lg:justify-end">
-                              {run.status === 'draft' ? (
-                                <Button type="button" variant="outline" size="sm" disabled={savingKey === `payroll-${run.id}`} onClick={() => void handleUpdatePayrollStatus(run, 'closed')}>
-                                  <CheckCircle2 className="h-4 w-4" />
-                                  Fechar
-                                </Button>
-                              ) : null}
-                              {run.status === 'closed' ? (
-                                <Button type="button" variant="outline" size="sm" disabled={savingKey === `payroll-${run.id}`} onClick={() => void handleUpdatePayrollStatus(run, 'exported')}>
-                                  <Download className="h-4 w-4" />
-                                  Exportar
-                                </Button>
-                              ) : null}
-                              {run.status !== 'canceled' ? (
-                                <Button type="button" variant="outline" size="sm" disabled={savingKey === `payroll-${run.id}`} onClick={() => void handleUpdatePayrollStatus(run, 'canceled')}>
-                                  Cancelar
-                                </Button>
-                              ) : null}
-                            </div>
                           ) : null}
                         </div>
-                        {items.length > 0 ? (
-                          <div className="mt-3 divide-y rounded-md border border-border/60">
-                            {items.map((item) => (
-                              <div key={item.id} className="grid gap-2 p-3 text-sm md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
-                                <div>
-                                  <p className="font-medium">{item.event_code} · {item.description}</p>
-                                  <p className="text-xs text-muted-foreground">{employeeById.get(item.employee_id)?.full_name || 'Colaborador'} · {payrollEventTypeLabels[item.event_type]}</p>
-                                </div>
-                                <p className={item.event_type === 'discount' ? 'font-semibold text-destructive' : 'font-semibold'}>
-                                  {item.event_type === 'discount' ? '-' : ''}{formatMoney(item.amount)}
-                                </p>
-                              </div>
-                            ))}
-                          </div>
-                        ) : null}
                       </div>
                     );
                   })}
@@ -2067,6 +1786,14 @@ export default function HumanResources() {
             </CardContent>
           </Card>
         </TabsContent>
+
+        {canManageAccesses ? (
+          <TabsContent value="acessos" className="space-y-4">
+            <Suspense fallback={<SectionLoader label="Carregando acessos do RH..." />}>
+              <OperatorManagementPanel />
+            </Suspense>
+          </TabsContent>
+        ) : null}
 
         <TabsContent value="relatorios" className="space-y-4">
           <Card>
@@ -2077,7 +1804,7 @@ export default function HumanResources() {
               </CardTitle>
             </CardHeader>
             <CardContent className="grid gap-3 md:grid-cols-3">
-              <ReportCard title="Colaboradores" description={`${employees.length} registros com status, vinculo e departamento.`} disabled={!canExportHr} onClick={exportEmployees} />
+              <ReportCard title="Funcionarios" description={`${employees.length} registros com status, vinculo e departamento.`} disabled={!canExportHr} onClick={exportEmployees} />
               <ReportCard title="Ponto" description={`${timeEntries.length} marcacoes carregadas para auditoria.`} disabled={!canExportHr} onClick={exportTimeEntries} />
               <ReportCard title="Folha" description={`${payrollRuns.length} fechamentos com totais bruto e liquido.`} disabled={!canExportHr} onClick={exportPayroll} />
             </CardContent>
@@ -2089,48 +1816,6 @@ export default function HumanResources() {
             <MetricCard title="Afastamentos pendentes" value={pendingLeaves} icon={<CalendarDays className="h-5 w-5 text-primary" />} />
             <MetricCard title="Documentos a vencer" value={expiringDocuments} icon={<AlertTriangle className="h-5 w-5 text-primary" />} />
           </div>
-        </TabsContent>
-
-        <TabsContent value="conformidade" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-base">
-                <ShieldCheck className="h-4 w-4 text-primary" />
-                Regras brasileiras e LGPD
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {complianceRules.length === 0 ? (
-                <EmptyState message="Nenhuma referencia de conformidade carregada." />
-              ) : (
-                <div className="grid gap-3 md:grid-cols-2">
-                  {complianceRules.map((rule) => (
-                    <div key={rule.id} className="rounded-lg border border-border/70 p-4">
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <p className="font-semibold">{rule.title}</p>
-                        <Badge variant={rule.severity === 'critical' ? 'destructive' : rule.severity === 'high' ? 'default' : 'outline'}>{complianceSeverityLabels[rule.severity]}</Badge>
-                      </div>
-                      <p className="mt-2 text-sm text-muted-foreground">{rule.requirement_summary}</p>
-                      <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                        <Badge variant="outline">{rule.category}</Badge>
-                        {rule.source_url ? (
-                          <a className="inline-flex items-center gap-1 text-primary underline-offset-4 hover:underline" href={rule.source_url} target="_blank" rel="noreferrer">
-                            {rule.source_name || 'Fonte'}
-                            <ExternalLink className="h-3 w-3" />
-                          </a>
-                        ) : (
-                          <span>{rule.source_name || 'Regra interna'}</span>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-              <p className="rounded-lg border border-border/70 bg-muted/30 p-3 text-xs text-muted-foreground">
-                Estas referencias ajudam a organizar o controle interno. A validacao juridica e contabilidade continuam necessarias para cada empresa, sindicato, jornada e evento de folha.
-              </p>
-            </CardContent>
-          </Card>
         </TabsContent>
 
         <TabsContent value="auditoria" className="space-y-4">
@@ -2152,7 +1837,7 @@ export default function HumanResources() {
                     <div key={event.id} className="grid gap-2 p-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
                       <div>
                         <p className="font-medium">{event.description || event.event_type}</p>
-                        <p className="text-sm text-muted-foreground">{event.event_type} · {event.employee_id ? employeeById.get(event.employee_id)?.full_name || 'Colaborador' : 'Geral'}</p>
+                        <p className="text-sm text-muted-foreground">{event.event_type} · {event.employee_id ? employeeById.get(event.employee_id)?.full_name || 'Funcionário' : 'Geral'}</p>
                       </div>
                       <p className="text-sm text-muted-foreground sm:text-right">{formatDateTime(event.created_at)}</p>
                     </div>
@@ -2163,6 +1848,581 @@ export default function HumanResources() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      <Dialog
+        open={employeeProfileOpen}
+        onOpenChange={(open) => {
+          setEmployeeProfileOpen(open);
+          if (!open) resetEmployeeForm();
+        }}
+      >
+        <DialogContent className="max-h-[90vh] max-w-6xl overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FolderOpen className="h-5 w-5 text-primary" />
+              {editingEmployeeId ? 'Pasta do funcionário' : 'Novo funcionário'}
+            </DialogTitle>
+            <DialogDescription>
+              Cadastro funcional, endereco, contrato, documentos, ponto, escalas, ferias, folha e historico do funcionário.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="flex flex-col gap-3 rounded-lg border border-border/70 bg-muted/20 p-4 sm:flex-row sm:items-center">
+              <Avatar className="h-16 w-16 border border-border">
+                <AvatarImage src={employeeForm.photoUrl || undefined} alt={employeeForm.fullName || 'Funcionário'} />
+                <AvatarFallback>{getEmployeeInitials(employeeForm.fullName || 'HappyCash')}</AvatarFallback>
+              </Avatar>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-lg font-semibold">{employeeForm.fullName || 'Funcionário'}</p>
+                <p className="text-sm text-muted-foreground">
+                  {[employeeForm.employeeCode, employeeForm.department, employeeForm.position].filter(Boolean).join(' · ') || 'Cadastro em edicao'}
+                </p>
+              </div>
+              <Badge variant={employeeForm.status === 'active' ? 'default' : employeeForm.status === 'terminated' ? 'destructive' : 'secondary'}>
+                {statusLabels[employeeForm.status]}
+              </Badge>
+              <div className="flex flex-wrap gap-2 sm:ml-auto">
+                <Button type="button" variant="outline" size="sm" onClick={handleExportEmployeePhoto} disabled={!employeeForm.photoUrl.trim()}>
+                  <Download className="h-4 w-4" />
+                  Foto
+                </Button>
+                <Button type="button" variant="outline" size="sm" onClick={handleOpenEmployeePdf}>
+                  <FileText className="h-4 w-4" />
+                  PDF
+                </Button>
+                {canManageEmployees && editingEmployeeId && !employeeEditMode ? (
+                  <Button type="button" size="sm" onClick={() => setEmployeeEditMode(true)}>
+                    <Pencil className="h-4 w-4" />
+                    Editar dados
+                  </Button>
+                ) : null}
+              </div>
+            </div>
+
+            <Tabs defaultValue="cadastro" className="space-y-4">
+              <TabsList className="h-auto flex-wrap justify-start">
+                <TabsTrigger value="cadastro">Cadastro</TabsTrigger>
+                <TabsTrigger value="endereco">Endereco</TabsTrigger>
+                <TabsTrigger value="contrato">Contrato</TabsTrigger>
+                <TabsTrigger value="documentos">Documentos</TabsTrigger>
+                <TabsTrigger value="ponto">Ponto</TabsTrigger>
+                <TabsTrigger value="escala">Escala</TabsTrigger>
+                <TabsTrigger value="ferias">Ferias</TabsTrigger>
+                <TabsTrigger value="folha">Folha</TabsTrigger>
+                <TabsTrigger value="historico">Historico</TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="cadastro" className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                <Field label="Codigo">
+                  <Input value={employeeForm.employeeCode} onChange={(event) => setEmployeeForm((current) => ({ ...current, employeeCode: event.target.value }))} placeholder="Ex: 0001" autoComplete="off" disabled={!canEditEmployeeForm} />
+                </Field>
+                <Field label="Nome completo" className="xl:col-span-2">
+                  <Input value={employeeForm.fullName} onChange={(event) => setEmployeeForm((current) => ({ ...current, fullName: event.target.value }))} placeholder="Nome do funcionário" autoComplete="name" disabled={!canEditEmployeeForm} />
+                  <p className="text-xs text-muted-foreground">O nome completo nao pode ser igual ao de outro funcionário.</p>
+                </Field>
+                <Field label="Nome social">
+                  <Input value={employeeForm.preferredName} onChange={(event) => setEmployeeForm((current) => ({ ...current, preferredName: event.target.value }))} placeholder="Opcional" autoComplete="nickname" disabled={!canEditEmployeeForm} />
+                </Field>
+                <Field label="CPF">
+                  <Input value={employeeForm.cpf} onChange={(event) => setEmployeeForm((current) => ({ ...current, cpf: event.target.value }))} placeholder="000.000.000-00" autoComplete="off" disabled={!canEditEmployeeForm} />
+                </Field>
+                <Field label="Email">
+                  <Input type="email" value={employeeForm.email} onChange={(event) => setEmployeeForm((current) => ({ ...current, email: event.target.value }))} placeholder="email@empresa.com" autoComplete="email" disabled={!canEditEmployeeForm} />
+                </Field>
+                <Field label="Telefone">
+                  <Input value={employeeForm.phone} onChange={(event) => setEmployeeForm((current) => ({ ...current, phone: event.target.value }))} placeholder="(00) 00000-0000" autoComplete="tel" disabled={!canEditEmployeeForm} />
+                </Field>
+                <Field label="Foto">
+                  <Input value={employeeForm.photoUrl} onChange={(event) => setEmployeeForm((current) => ({ ...current, photoUrl: event.target.value }))} placeholder="URL da foto" autoComplete="url" disabled={!canEditEmployeeForm} />
+                </Field>
+                <Field label="Contato de emergencia" className="md:col-span-2">
+                  <Input value={employeeForm.emergencyContactName} onChange={(event) => setEmployeeForm((current) => ({ ...current, emergencyContactName: event.target.value }))} placeholder="Nome do contato" autoComplete="name" disabled={!canEditEmployeeForm} />
+                </Field>
+                <Field label="Telefone emergencia" className="md:col-span-2">
+                  <Input value={employeeForm.emergencyContactPhone} onChange={(event) => setEmployeeForm((current) => ({ ...current, emergencyContactPhone: event.target.value }))} placeholder="(00) 00000-0000" autoComplete="tel" disabled={!canEditEmployeeForm} />
+                </Field>
+                <Field label="Observacoes" className="md:col-span-2 xl:col-span-4">
+                  <Textarea value={employeeForm.notes} onChange={(event) => setEmployeeForm((current) => ({ ...current, notes: event.target.value }))} placeholder="Observacoes internas, exames, beneficios ou alertas do cadastro." disabled={!canEditEmployeeForm} />
+                </Field>
+              </TabsContent>
+
+              <TabsContent value="endereco" className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                <Field label="CEP">
+                  <div className="flex gap-2">
+                    <Input value={employeeForm.addressZipCode} onChange={(event) => setEmployeeForm((current) => ({ ...current, addressZipCode: formatCep(event.target.value) }))} placeholder="00000-000" autoComplete="postal-code" disabled={!canEditEmployeeForm} />
+                    <Button type="button" variant="outline" onClick={() => void handleLookupCep()} disabled={!canEditEmployeeForm || cepLoading}>
+                      {cepLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+                    </Button>
+                  </div>
+                </Field>
+                <Field label="Rua" className="xl:col-span-2">
+                  <Input value={employeeForm.addressStreet} onChange={(event) => setEmployeeForm((current) => ({ ...current, addressStreet: event.target.value }))} placeholder="Rua, avenida ou travessa" autoComplete="address-line1" disabled={!canEditEmployeeForm} />
+                </Field>
+                <Field label="Numero">
+                  <Input value={employeeForm.addressNumber} onChange={(event) => setEmployeeForm((current) => ({ ...current, addressNumber: event.target.value }))} placeholder="Numero" autoComplete="address-line2" disabled={!canEditEmployeeForm} />
+                </Field>
+                <Field label="Complemento">
+                  <Input value={employeeForm.addressComplement} onChange={(event) => setEmployeeForm((current) => ({ ...current, addressComplement: event.target.value }))} placeholder="Casa, apto, bloco" autoComplete="address-line3" disabled={!canEditEmployeeForm} />
+                </Field>
+                <Field label="Bairro">
+                  <Input value={employeeForm.addressNeighborhood} onChange={(event) => setEmployeeForm((current) => ({ ...current, addressNeighborhood: event.target.value }))} placeholder="Bairro" autoComplete="address-level3" disabled={!canEditEmployeeForm} />
+                </Field>
+                <Field label="Cidade">
+                  <Input value={employeeForm.addressCity} onChange={(event) => setEmployeeForm((current) => ({ ...current, addressCity: event.target.value }))} placeholder="Cidade" autoComplete="address-level2" disabled={!canEditEmployeeForm} />
+                </Field>
+                <Field label="UF">
+                  <Input value={employeeForm.addressState} onChange={(event) => setEmployeeForm((current) => ({ ...current, addressState: event.target.value.toUpperCase().slice(0, 2) }))} placeholder="SP" autoComplete="address-level1" disabled={!canEditEmployeeForm} />
+                </Field>
+              </TabsContent>
+
+              <TabsContent value="contrato" className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                <Field label="Vinculo">
+                  <Select value={employeeForm.employmentType} onValueChange={(value) => setEmployeeForm((current) => ({ ...current, employmentType: value as HrEmploymentType }))} disabled={!canEditEmployeeForm}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {Object.entries(employmentTypeLabels).map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </Field>
+                <Field label="Status">
+                  <Select value={employeeForm.status} onValueChange={(value) => setEmployeeForm((current) => ({ ...current, status: value as HrEmployeeStatus }))} disabled={!canEditEmployeeForm}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {Object.entries(statusLabels).map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </Field>
+                <Field label="Tipo de contrato">
+                  <Input value={employeeForm.contractType} onChange={(event) => setEmployeeForm((current) => ({ ...current, contractType: event.target.value }))} placeholder="CLT mensal, horista, PJ..." autoComplete="off" disabled={!canEditEmployeeForm} />
+                </Field>
+                <Field label="Salario">
+                  <Input inputMode="decimal" value={employeeForm.salaryAmount} onChange={(event) => setEmployeeForm((current) => ({ ...current, salaryAmount: event.target.value }))} placeholder="0,00" autoComplete="off" disabled={!canEditEmployeeForm} />
+                </Field>
+                <Field label="Setor">
+                  <Input value={employeeForm.department} onChange={(event) => setEmployeeForm((current) => ({ ...current, department: event.target.value }))} placeholder="Ex: Operacao" autoComplete="organization" disabled={!canEditEmployeeForm} />
+                </Field>
+                <Field label="Cargo">
+                  <Input value={employeeForm.position} onChange={(event) => setEmployeeForm((current) => ({ ...current, position: event.target.value }))} placeholder="Ex: Caixa" autoComplete="organization-title" disabled={!canEditEmployeeForm} />
+                </Field>
+                <Field label="Unidade">
+                  <Input value={employeeForm.unitName} onChange={(event) => setEmployeeForm((current) => ({ ...current, unitName: event.target.value }))} placeholder="Loja, filial ou setor" autoComplete="organization" disabled={!canEditEmployeeForm} />
+                </Field>
+                <Field label="Jornada">
+                  <Input value={employeeForm.workJourney} onChange={(event) => setEmployeeForm((current) => ({ ...current, workJourney: event.target.value }))} placeholder="44h semanais, 12x36..." autoComplete="off" disabled={!canEditEmployeeForm} />
+                </Field>
+                <Field label="Admissao">
+                  <Input type="date" value={employeeForm.admissionDate} onChange={(event) => setEmployeeForm((current) => ({ ...current, admissionDate: event.target.value }))} disabled={!canEditEmployeeForm} />
+                </Field>
+                <Field label="Desligamento">
+                  <Input type="date" value={employeeForm.terminationDate} onChange={(event) => setEmployeeForm((current) => ({ ...current, terminationDate: event.target.value }))} disabled={!canEditEmployeeForm} />
+                </Field>
+                <Field label="Banco">
+                  <Input value={employeeForm.bankName} onChange={(event) => setEmployeeForm((current) => ({ ...current, bankName: event.target.value }))} placeholder="Banco" autoComplete="off" disabled={!canEditEmployeeForm} />
+                </Field>
+                <Field label="Agencia e conta">
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    <Input value={employeeForm.bankAgency} onChange={(event) => setEmployeeForm((current) => ({ ...current, bankAgency: event.target.value }))} placeholder="Agencia" autoComplete="off" disabled={!canEditEmployeeForm} />
+                    <Input value={employeeForm.bankAccount} onChange={(event) => setEmployeeForm((current) => ({ ...current, bankAccount: event.target.value }))} placeholder="Conta" autoComplete="off" disabled={!canEditEmployeeForm} />
+                  </div>
+                </Field>
+              </TabsContent>
+
+              <TabsContent value="documentos" className="space-y-3">
+                {selectedEmployee && canManageDocuments ? (
+                  <form className="grid gap-3 rounded-lg border border-border/70 p-4 md:grid-cols-2 xl:grid-cols-5" onSubmit={handleCreateDocument}>
+                    <Field label="Tipo">
+                      <Input value={documentForm.documentType} onChange={(event) => setDocumentForm((current) => ({ ...current, documentType: event.target.value }))} placeholder="contrato, aso, recibo" />
+                    </Field>
+                    <Field label="Titulo" className="xl:col-span-2">
+                      <Input value={documentForm.title} onChange={(event) => setDocumentForm((current) => ({ ...current, title: event.target.value }))} placeholder="Contrato de admissao" />
+                    </Field>
+                    <Field label="Vencimento">
+                      <Input type="date" value={documentForm.expiresAt} onChange={(event) => setDocumentForm((current) => ({ ...current, expiresAt: event.target.value }))} />
+                    </Field>
+                    <Field label="Sensibilidade">
+                      <Select value={documentForm.sensitive} onValueChange={(value) => setDocumentForm((current) => ({ ...current, sensitive: value }))}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="true">Sensivel</SelectItem>
+                          <SelectItem value="false">Nao sensivel</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </Field>
+                    <Field label="Arquivo privado" className="md:col-span-2 xl:col-span-4">
+                      <Input type="file" accept=".pdf,.jpg,.jpeg,.png,.webp,.txt,.doc,.docx" onChange={handleDocumentFileChange} />
+                    </Field>
+                    <div className="flex items-end">
+                      <Button type="submit" className="w-full" disabled={savingKey === 'document'}>
+                        {savingKey === 'document' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+                        Adicionar documento
+                      </Button>
+                    </div>
+                  </form>
+                ) : null}
+
+                {selectedEmployeeDocuments.length === 0 ? (
+                  <EmptyState message="Nenhum documento registrado para este funcionário." />
+                ) : (
+                  <div className="divide-y rounded-lg border border-border/70">
+                    {selectedEmployeeDocuments.map((document) => (
+                      <div key={document.id} className="grid gap-3 p-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
+                        <div>
+                          <p className="font-medium">{document.title}</p>
+                          <p className="text-sm text-muted-foreground">{document.document_type} · vencimento {formatDate(document.expires_at)}</p>
+                        </div>
+                        <div className="flex flex-wrap gap-2 md:justify-end">
+                          <Button type="button" variant="outline" size="sm" disabled={!document.file_url || savingKey === `document-open-${document.id}`} onClick={() => void handleOpenDocument(document)}>
+                            <ExternalLink className="h-4 w-4" />
+                            Abrir
+                          </Button>
+                          {canManageDocuments ? (
+                            <Button type="button" variant="outline" size="sm" onClick={() => setDocumentToDelete(document)}>
+                              <Trash2 className="h-4 w-4" />
+                              Remover
+                            </Button>
+                          ) : null}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </TabsContent>
+
+              <TabsContent value="ponto" className="space-y-3">
+                {selectedEmployee && canManageTimeClock ? (
+                  <form className="grid gap-3 rounded-lg border border-border/70 p-4 md:grid-cols-2 xl:grid-cols-4" onSubmit={handleRegisterTimeEntry}>
+                    <Field label="Marcacao">
+                      <Select value={timeClockForm.entryType} onValueChange={(value) => setTimeClockForm((current) => ({ ...current, entryType: value as HrTimeClockEntryType }))}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          {Object.entries(timeClockEntryLabels).map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </Field>
+                    <Field label="Data e hora">
+                      <Input type="datetime-local" value={timeClockForm.occurredAt} onChange={(event) => setTimeClockForm((current) => ({ ...current, occurredAt: event.target.value }))} />
+                    </Field>
+                    <Field label="Status">
+                      <Select value={timeClockForm.status} onValueChange={(value) => setTimeClockForm((current) => ({ ...current, status: value as HrTimeClockStatus }))}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="valid">Valido</SelectItem>
+                          <SelectItem value="pending_approval">Pendente</SelectItem>
+                          <SelectItem value="adjusted">Ajustado</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </Field>
+                    <div className="flex items-end">
+                      <Button type="submit" className="w-full" disabled={savingKey === 'time'}>
+                        {savingKey === 'time' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Clock3 className="h-4 w-4" />}
+                        Registrar ponto
+                      </Button>
+                    </div>
+                    <Field label="Observacao" className="md:col-span-2 xl:col-span-4">
+                      <Textarea value={timeClockForm.notes} onChange={(event) => setTimeClockForm((current) => ({ ...current, notes: event.target.value }))} placeholder="Motivo do ajuste, local ou observacao do ponto." />
+                    </Field>
+                  </form>
+                ) : null}
+
+                {selectedEmployeeTimeEntries.length === 0 ? (
+                  <EmptyState message="Nenhuma marcacao de ponto para este funcionário." />
+                ) : (
+                  <div className="divide-y rounded-lg border border-border/70">
+                    {selectedEmployeeTimeEntries.map((entry) => (
+                      <div key={entry.id} className="grid gap-2 p-3 md:grid-cols-[minmax(0,1fr)_auto_auto] md:items-center">
+                        <div>
+                          <p className="font-medium">{timeClockEntryLabels[entry.entry_type]}</p>
+                          <p className="text-sm text-muted-foreground">{formatDateTime(entry.occurred_at)} · {entry.schedule_id ? scheduleById.get(entry.schedule_id)?.name || 'Escala' : 'Sem escala'}</p>
+                        </div>
+                        <Badge variant={entry.status === 'valid' ? 'secondary' : entry.status === 'canceled' ? 'destructive' : 'outline'}>{timeClockStatusLabels[entry.status]}</Badge>
+                        {canManageTimeClock ? (
+                          <div className="flex flex-wrap gap-2 md:justify-end">
+                            {entry.status === 'pending_approval' ? (
+                              <Button type="button" variant="outline" size="sm" disabled={savingKey === `time-${entry.id}`} onClick={() => void handleUpdateTimeEntryStatus(entry, 'valid')}>
+                                <CheckCircle2 className="h-4 w-4" />
+                                Aprovar
+                              </Button>
+                            ) : null}
+                            {entry.status !== 'canceled' ? (
+                              <Button type="button" variant="outline" size="sm" disabled={savingKey === `time-${entry.id}`} onClick={() => void handleUpdateTimeEntryStatus(entry, 'canceled')}>
+                                <XCircle className="h-4 w-4" />
+                                Cancelar
+                              </Button>
+                            ) : null}
+                          </div>
+                        ) : null}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </TabsContent>
+
+              <TabsContent value="escala" className="space-y-4">
+                {canManageSchedules ? (
+                  <form className="grid gap-3 rounded-lg border border-border/70 p-4 md:grid-cols-2 xl:grid-cols-5" onSubmit={handleCreateSchedule}>
+                    <Field label="Nova escala" className="md:col-span-2 xl:col-span-3">
+                      <Input value={scheduleForm.name} onChange={(event) => setScheduleForm((current) => ({ ...current, name: event.target.value }))} placeholder="Ex: Comercial segunda a sexta" />
+                    </Field>
+                    <Field label="Tolerancia min.">
+                      <Input inputMode="numeric" value={scheduleForm.toleranceMinutes} onChange={(event) => setScheduleForm((current) => ({ ...current, toleranceMinutes: event.target.value }))} />
+                    </Field>
+                    <div className="space-y-2 md:col-span-2 xl:col-span-5">
+                      <Label>Dias e horarios</Label>
+                      <div className="grid gap-2">
+                        {weekdayOptions.map((day) => {
+                          const rule = scheduleForm.dayRules[day.value];
+                          return (
+                            <div key={day.value} className="grid gap-2 rounded-md border border-border/60 p-2 sm:grid-cols-[92px_1fr_1fr_1fr] sm:items-center">
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant={rule.enabled ? 'default' : 'outline'}
+                                onClick={() => updateScheduleDayRule(day.value, { enabled: !rule.enabled })}
+                              >
+                                {day.label}
+                              </Button>
+                              <Input type="time" value={rule.startTime} disabled={!rule.enabled} onChange={(event) => updateScheduleDayRule(day.value, { startTime: event.target.value })} aria-label={`Entrada ${day.label}`} />
+                              <Input type="time" value={rule.endTime} disabled={!rule.enabled} onChange={(event) => updateScheduleDayRule(day.value, { endTime: event.target.value })} aria-label={`Saida ${day.label}`} />
+                              <Input inputMode="numeric" value={rule.breakMinutes} disabled={!rule.enabled} onChange={(event) => updateScheduleDayRule(day.value, { breakMinutes: event.target.value })} aria-label={`Intervalo ${day.label}`} placeholder="Intervalo min." />
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                    <Field label="Descricao" className="md:col-span-2 xl:col-span-4">
+                      <Textarea value={scheduleForm.description} onChange={(event) => setScheduleForm((current) => ({ ...current, description: event.target.value }))} placeholder="Regras internas, folgas, observacoes de jornada." />
+                    </Field>
+                    <div className="flex items-end">
+                      <Button type="submit" className="w-full" disabled={savingKey === 'schedule'}>
+                        {savingKey === 'schedule' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+                        Criar escala
+                      </Button>
+                    </div>
+                  </form>
+                ) : null}
+
+                {selectedEmployee && canManageSchedules ? (
+                  <div className="grid gap-3 rounded-lg border border-border/70 p-4 md:grid-cols-4">
+                    <Field label="Escala" className="md:col-span-2">
+                      <ScheduleSelect value={profileAssignmentForm.scheduleId} schedules={workSchedules.filter((schedule) => schedule.active)} onChange={(value) => setProfileAssignmentForm((current) => ({ ...current, scheduleId: value }))} />
+                    </Field>
+                    <Field label="Inicio">
+                      <Input type="date" value={profileAssignmentForm.startsOn} onChange={(event) => setProfileAssignmentForm((current) => ({ ...current, startsOn: event.target.value }))} />
+                    </Field>
+                    <Field label="Fim">
+                      <Input type="date" value={profileAssignmentForm.endsOn} onChange={(event) => setProfileAssignmentForm((current) => ({ ...current, endsOn: event.target.value }))} />
+                    </Field>
+                    <div className="md:col-span-4">
+                      <Button type="button" disabled={savingKey === 'profile-assignment'} onClick={() => void handleAssignProfileSchedule()}>
+                        {savingKey === 'profile-assignment' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+                        Atribuir escala
+                      </Button>
+                    </div>
+                  </div>
+                ) : null}
+
+                {selectedEmployeeAssignments.length === 0 ? (
+                  <EmptyState message="Nenhuma escala atribuida para este funcionário." />
+                ) : (
+                  <div className="divide-y rounded-lg border border-border/70">
+                    {selectedEmployeeAssignments.map((assignment) => (
+                      <div key={assignment.id} className="grid gap-2 p-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
+                        <div>
+                          <p className="font-medium">{scheduleById.get(assignment.schedule_id)?.name || 'Escala'}</p>
+                          <p className="text-sm text-muted-foreground">{formatDate(assignment.starts_on)} a {formatDate(assignment.ends_on)}</p>
+                          <p className="mt-1 text-xs text-muted-foreground">{formatScheduleRules(scheduleById.get(assignment.schedule_id))}</p>
+                        </div>
+                        {canManageSchedules ? (
+                          <Button type="button" variant="outline" size="sm" disabled={savingKey === `assignment-${assignment.id}`} onClick={() => void handleDeleteAssignment(assignment)}>
+                            <Trash2 className="h-4 w-4" />
+                            Remover
+                          </Button>
+                        ) : null}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </TabsContent>
+
+              <TabsContent value="ferias" className="space-y-3">
+                {selectedEmployee && canManageLeave ? (
+                  <form className="grid gap-3 rounded-lg border border-border/70 p-4 md:grid-cols-2 xl:grid-cols-5" onSubmit={handleCreateLeave}>
+                    <Field label="Tipo">
+                      <Select value={leaveForm.leaveType} onValueChange={(value) => setLeaveForm((current) => ({ ...current, leaveType: value as HrLeaveType }))}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          {Object.entries(leaveTypeLabels).map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </Field>
+                    <Field label="Inicio">
+                      <Input type="date" value={leaveForm.startDate} onChange={(event) => setLeaveForm((current) => ({ ...current, startDate: event.target.value }))} />
+                    </Field>
+                    <Field label="Fim">
+                      <Input type="date" value={leaveForm.endDate} onChange={(event) => setLeaveForm((current) => ({ ...current, endDate: event.target.value }))} />
+                    </Field>
+                    <Field label="Motivo" className="md:col-span-2">
+                      <Input value={leaveForm.reason} onChange={(event) => setLeaveForm((current) => ({ ...current, reason: event.target.value }))} placeholder="Motivo ou documento relacionado" />
+                    </Field>
+                    <div className="flex items-end">
+                      <Button type="submit" className="w-full" disabled={savingKey === 'leave'}>
+                        {savingKey === 'leave' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+                        Registrar
+                      </Button>
+                    </div>
+                  </form>
+                ) : null}
+
+                {selectedEmployeeLeaves.length === 0 ? (
+                  <EmptyState message="Nenhuma ferias, ausencia ou licenca registrada para este funcionário." />
+                ) : (
+                  <div className="divide-y rounded-lg border border-border/70">
+                    {selectedEmployeeLeaves.map((leave) => (
+                      <div key={leave.id} className="grid gap-2 p-3 md:grid-cols-[minmax(0,1fr)_auto_auto] md:items-center">
+                        <div>
+                          <p className="font-medium">{leaveTypeLabels[leave.leave_type]}</p>
+                          <p className="text-sm text-muted-foreground">{formatDate(leave.start_date)} a {formatDate(leave.end_date)} · {leave.reason || '-'}</p>
+                        </div>
+                        <Badge variant={leave.status === 'approved' ? 'secondary' : leave.status === 'rejected' || leave.status === 'canceled' ? 'destructive' : 'outline'}>{leaveStatusLabels[leave.status]}</Badge>
+                        {canManageLeave ? (
+                          <div className="flex flex-wrap gap-2 md:justify-end">
+                            {leave.status === 'requested' ? (
+                              <>
+                                <Button type="button" variant="outline" size="sm" disabled={savingKey === `leave-${leave.id}`} onClick={() => void handleUpdateLeaveStatus(leave, 'approved')}>
+                                  <CheckCircle2 className="h-4 w-4" />
+                                  Aprovar
+                                </Button>
+                                <Button type="button" variant="outline" size="sm" disabled={savingKey === `leave-${leave.id}`} onClick={() => void handleUpdateLeaveStatus(leave, 'rejected')}>
+                                  <XCircle className="h-4 w-4" />
+                                  Rejeitar
+                                </Button>
+                              </>
+                            ) : null}
+                            {leave.status !== 'canceled' ? (
+                              <Button type="button" variant="outline" size="sm" disabled={savingKey === `leave-${leave.id}`} onClick={() => void handleUpdateLeaveStatus(leave, 'canceled')}>
+                                Cancelar
+                              </Button>
+                            ) : null}
+                          </div>
+                        ) : null}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </TabsContent>
+
+              <TabsContent value="folha" className="space-y-3">
+                {selectedEmployee && canManagePayroll ? (
+                  <div className="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
+                    <form className="grid gap-3 rounded-lg border border-border/70 p-4" onSubmit={handleCreatePayrollRun}>
+                      <p className="font-semibold">Criar fechamento</p>
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <Field label="Inicio">
+                          <Input type="date" value={payrollRunForm.periodStart} onChange={(event) => setPayrollRunForm((current) => ({ ...current, periodStart: event.target.value }))} />
+                        </Field>
+                        <Field label="Fim">
+                          <Input type="date" value={payrollRunForm.periodEnd} onChange={(event) => setPayrollRunForm((current) => ({ ...current, periodEnd: event.target.value }))} />
+                        </Field>
+                      </div>
+                      <Button type="submit" disabled={savingKey === 'payroll-run'}>
+                        {savingKey === 'payroll-run' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+                        Criar folha
+                      </Button>
+                    </form>
+
+                    <form className="grid gap-3 rounded-lg border border-border/70 p-4 md:grid-cols-2" onSubmit={handleCreatePayrollItem}>
+                      <p className="font-semibold md:col-span-2">Lancar evento para {selectedEmployee.full_name}</p>
+                      <Field label="Folha" className="md:col-span-2">
+                        <Select value={payrollItemForm.payrollRunId} onValueChange={(value) => setPayrollItemForm((current) => ({ ...current, payrollRunId: value }))}>
+                          <SelectTrigger><SelectValue placeholder="Selecione a folha" /></SelectTrigger>
+                          <SelectContent>
+                            {payrollRuns.filter((run) => run.status === 'draft').map((run) => (
+                              <SelectItem key={run.id} value={run.id}>{formatDate(run.period_start)} a {formatDate(run.period_end)}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </Field>
+                      <Field label="Codigo">
+                        <Input value={payrollItemForm.eventCode} onChange={(event) => setPayrollItemForm((current) => ({ ...current, eventCode: event.target.value }))} placeholder="SAL, VT, INSS" />
+                      </Field>
+                      <Field label="Tipo">
+                        <Select value={payrollItemForm.eventType} onValueChange={(value) => setPayrollItemForm((current) => ({ ...current, eventType: value as HrPayrollEventType }))}>
+                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            {Object.entries(payrollEventTypeLabels).map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                      </Field>
+                      <Field label="Valor">
+                        <Input inputMode="decimal" value={payrollItemForm.amount} onChange={(event) => setPayrollItemForm((current) => ({ ...current, amount: event.target.value }))} placeholder="0,00" />
+                      </Field>
+                      <Field label="Quantidade">
+                        <Input inputMode="decimal" value={payrollItemForm.quantity} onChange={(event) => setPayrollItemForm((current) => ({ ...current, quantity: event.target.value }))} placeholder="Opcional" />
+                      </Field>
+                      <Field label="Descricao" className="md:col-span-2">
+                        <Input value={payrollItemForm.description} onChange={(event) => setPayrollItemForm((current) => ({ ...current, description: event.target.value }))} placeholder="Salario, desconto, adicional, base informativa." />
+                      </Field>
+                      <div className="md:col-span-2">
+                        <Button type="submit" disabled={savingKey === 'payroll-item'}>
+                          {savingKey === 'payroll-item' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+                          Lancar evento
+                        </Button>
+                      </div>
+                    </form>
+                  </div>
+                ) : null}
+
+                {selectedEmployeePayrollItems.length === 0 ? (
+                  <EmptyState message="Nenhum evento de folha registrado para este funcionário." />
+                ) : (
+                  <div className="divide-y rounded-lg border border-border/70">
+                    {selectedEmployeePayrollItems.map((item) => (
+                      <div key={item.id} className="grid gap-2 p-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
+                        <div>
+                          <p className="font-medium">{item.event_code} · {item.description}</p>
+                          <p className="text-sm text-muted-foreground">{payrollEventTypeLabels[item.event_type]} · {formatDateTime(item.created_at)}</p>
+                        </div>
+                        <p className={item.event_type === 'discount' ? 'font-semibold text-destructive' : 'font-semibold'}>
+                          {item.event_type === 'discount' ? '-' : ''}{formatMoney(item.amount)}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </TabsContent>
+
+              <TabsContent value="historico" className="space-y-3">
+                {selectedEmployeeAuditEvents.length === 0 ? (
+                  <EmptyState message="Nenhum historico registrado para este funcionário." />
+                ) : (
+                  <div className="divide-y rounded-lg border border-border/70">
+                    {selectedEmployeeAuditEvents.map((event) => (
+                      <div key={event.id} className="grid gap-2 p-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
+                        <div>
+                          <p className="font-medium">{event.description || event.event_type}</p>
+                          <p className="text-sm text-muted-foreground">{event.event_type}</p>
+                        </div>
+                        <p className="text-sm text-muted-foreground md:text-right">{formatDateTime(event.created_at)}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </TabsContent>
+            </Tabs>
+          </div>
+
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setEmployeeProfileOpen(false)}>Fechar</Button>
+            {canManageEmployees && (!editingEmployeeId || employeeEditMode) ? (
+              <Button type="button" disabled={savingKey === 'employee'} onClick={() => void handleSaveEmployee()}>
+                {savingKey === 'employee' ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+                {editingEmployeeId ? 'Salvar alteracoes' : 'Salvar cadastro'}
+              </Button>
+            ) : null}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={Boolean(documentToDelete)} onOpenChange={(open) => !open && setDocumentToDelete(null)}>
         <DialogContent>
@@ -2212,16 +2472,62 @@ function EmptyState({ message }: { message: string }) {
   return <p className="rounded-lg border border-border/70 bg-muted/30 p-4 text-sm text-muted-foreground">{message}</p>;
 }
 
-function EmployeeSelect({ value, employees, onChange }: { value: string; employees: HrEmployee[]; onChange: (value: string) => void }) {
+function SectionLoader({ label }: { label: string }) {
   return (
-    <Select value={value} onValueChange={onChange}>
-      <SelectTrigger><SelectValue placeholder="Selecione o colaborador" /></SelectTrigger>
-      <SelectContent>
-        {employees.map((employee) => (
-          <SelectItem key={employee.id} value={employee.id}>{employee.full_name}</SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
+    <Card>
+      <CardContent className="flex items-center gap-2 py-8 text-sm text-muted-foreground">
+        <Loader2 className="h-4 w-4 animate-spin" />
+        {label}
+      </CardContent>
+    </Card>
+  );
+}
+
+function EmployeeSelect({ value, employees, onChange }: { value: string; employees: HrEmployee[]; onChange: (value: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const selectedEmployee = employees.find((employee) => employee.id === value);
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          type="button"
+          variant="outline"
+          role="combobox"
+          aria-expanded={open}
+          className="w-full justify-between"
+        >
+          <span className="truncate">{selectedEmployee?.full_name ?? 'Selecione o funcionário'}</span>
+          <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-50" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-[min(420px,calc(100vw-2rem))] p-0" align="start">
+        <Command>
+          <CommandInput placeholder="Buscar funcionário..." />
+          <CommandList>
+            <CommandEmpty>Nenhum funcionário encontrado.</CommandEmpty>
+            <CommandGroup>
+              {employees.map((employee) => (
+                <CommandItem
+                  key={employee.id}
+                  value={buildEmployeeSearchText(employee)}
+                  onSelect={() => {
+                    onChange(employee.id);
+                    setOpen(false);
+                  }}
+                >
+                  <Check className={cn('mr-2 h-4 w-4', value === employee.id ? 'opacity-100' : 'opacity-0')} />
+                  <div className="min-w-0">
+                    <p className="truncate">{employee.full_name}</p>
+                    <p className="truncate text-xs text-muted-foreground">{[employee.department, employee.position, employee.email].filter(Boolean).join(' · ') || 'Sem dados complementares'}</p>
+                  </div>
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
   );
 }
 
@@ -2261,4 +2567,18 @@ function formatWeekdays(days: number[] | undefined) {
   if (!days || days.length === 0) return 'Sem dias';
   const labels = new Map(weekdayOptions.map((day) => [day.value, day.label]));
   return days.map((day) => labels.get(day) ?? String(day)).join(', ');
+}
+
+function formatScheduleRules(schedule: HrWorkSchedule | null | undefined) {
+  if (!schedule?.weekly_rules) return 'Sem regra de horario';
+  const labels = new Map(weekdayOptions.map((day) => [day.value, day.label]));
+  const dailyRules = schedule.weekly_rules.daily_rules;
+  if (dailyRules && Object.keys(dailyRules).length > 0) {
+    return Object.entries(dailyRules)
+      .sort(([left], [right]) => Number(left) - Number(right))
+      .map(([day, rule]) => `${labels.get(Number(day)) ?? day} ${rule.start_time ?? '--:--'}-${rule.end_time ?? '--:--'} (${rule.break_minutes ?? 0}min)`)
+      .join(' · ');
+  }
+
+  return `${formatWeekdays(schedule.weekly_rules.days)} · ${schedule.weekly_rules.start_time ?? '--:--'}-${schedule.weekly_rules.end_time ?? '--:--'} (${schedule.weekly_rules.break_minutes ?? 0}min)`;
 }

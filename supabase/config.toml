@@ -6,8 +6,6 @@ site_url = "https://www.happycashsite.com.br"
 additional_redirect_urls = [
   "https://www.happycashsite.com.br/**",
   "https://app.happycashsite.com.br/**",
-  "https://food.happycashsite.com.br/**",
-  "https://agenda.happycashsite.com.br/**",
   "http://localhost:8080/**",
   "http://localhost:8081/**",
   "http://localhost:8082/**",
@@ -45,8 +43,6 @@ rp_id = "happycashsite.com.br"
 rp_origins = [
   "https://www.happycashsite.com.br",
   "https://app.happycashsite.com.br",
-  "https://food.happycashsite.com.br",
-  "https://agenda.happycashsite.com.br",
 ]
 
 [auth.external.apple]
@@ -104,13 +100,4 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.authorize-store-admin]
-verify_jwt = false
-
-[functions.public-menu]
-verify_jwt = false
-
-[functions.create-public-menu-order]
-verify_jwt = false
-
-[functions.send-agenda-reminders]
 verify_jwt = false

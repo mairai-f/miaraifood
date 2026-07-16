@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useData } from '@/contexts/DataContext';
+import { usePermissions } from '@/contexts/usePermissions';
 import { supabase } from '@/integrations/supabase/client';
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from '@/integrations/supabase/types';
@@ -80,6 +81,10 @@ interface OpenCashSummary {
 }
 interface OperatorFunctionResponse {
   success?: boolean;
+  operators?: Array<OperatorProfile & {
+    full_name?: string | null;
+    permission_keys?: string[];
+  }>;
   cashSession?: {
     id: string;
   };
@@ -93,7 +98,9 @@ interface OperatorFunctionResponse {
 }
 
 interface AdminAccessAuthorization {
-  accessToken: string;
+  accessToken?: string;
+  login: string;
+  password: string;
 }
 
 interface HrEmployeeNameRow {
@@ -108,19 +115,27 @@ interface OperatorManagementPanelProps {
 }
 
 const fallbackJobTitle: Record<StaffRole, string> = {
-  operator: 'Colaborador',
-  waiter: 'Colaborador',
+  operator: 'Funcionário',
+  waiter: 'Funcionário',
   hr: 'Analista de RH',
 };
 const staffRoleLabels: Record<StaffRole, string> = {
-  operator: 'Colaborador',
-  waiter: 'Colaborador',
+  operator: 'Funcionário',
+  waiter: 'Funcionário',
   hr: 'RH isolado',
 };
 const isHrPermissionKey = (permissionKey: ErpPermissionKey) => permissionKey.startsWith('hr.');
+const isEmployeePortalPermissionKey = (permissionKey: ErpPermissionKey) => permissionKey.startsWith('employee_portal.');
+const lockedStaffPermissionKeys = new Set<ErpPermissionKey>(['employee_portal.view']);
+const ensureRequiredStaffPermissions = (permissionKeys: Iterable<ErpPermissionKey>) => new Set<ErpPermissionKey>([
+  ...permissionKeys,
+  ...lockedStaffPermissionKeys,
+]);
 const resolveStaffRoleFromPermissions = (permissionKeys: Iterable<ErpPermissionKey>): StaffRole => {
   const keys = [...permissionKeys];
-  return keys.length > 0 && keys.every(isHrPermissionKey) ? 'hr' : 'operator';
+  return keys.some(isHrPermissionKey) && keys.every((key) => isHrPermissionKey(key) || isEmployeePortalPermissionKey(key))
+    ? 'hr'
+    : 'operator';
 };
 
 const normalizeLabel = (value: string | null | undefined) => value?.trim().toLowerCase() ?? '';
@@ -137,7 +152,8 @@ export function OperatorManagementPanel({
   onCreateDialogOpenChange,
   initialStaffRole,
 }: OperatorManagementPanelProps) {
-  const { isAdmin, ownerUserId, session } = useAuth();
+  const { isAdmin, ownerUserId, session, username: currentUsername, profileEmail } = useAuth();
+  const { hasPermission } = usePermissions();
   const { sales, expenses, loading: dataLoading } = useData();
   const [operators, setOperators] = useState<OperatorProfile[]>([]);
   const [openCashSessions, setOpenCashSessions] = useState<OpenCashSession[]>([]);
@@ -151,7 +167,7 @@ export function OperatorManagementPanel({
   const [password, setPassword] = useState('');
   const [jobTitle, setJobTitle] = useState('');
   const [adminAuthorizationOpen, setAdminAuthorizationOpen] = useState(false);
-  const [pendingAccessAction, setPendingAccessAction] = useState<'create' | 'update' | null>(null);
+  const [pendingAccessAction, setPendingAccessAction] = useState<'create' | 'update' | 'reset_password' | null>(null);
   const [adminAuthorizationEmail, setAdminAuthorizationEmail] = useState('');
   const [adminAuthorizationPassword, setAdminAuthorizationPassword] = useState('');
   const [adminAuthorizationError, setAdminAuthorizationError] = useState('');
@@ -185,6 +201,10 @@ export function OperatorManagementPanel({
 
   const createDialogOpen = controlledCreateDialogOpen ?? internalCreateDialogOpen;
   const setCreateDialogOpen = onCreateDialogOpenChange ?? setInternalCreateDialogOpen;
+  const canManageStaffAccess = isAdmin || hasPermission('hr.access.manage');
+  const canManageCashActions = isAdmin;
+  const canDeleteStaffAccess = isAdmin;
+  const accessAuthorizationLabel = isAdmin ? 'administrador' : 'RH autorizado';
 
   const resetCreateForm = useCallback(() => {
     const startsAsHr = initialStaffRole === 'hr';
@@ -192,7 +212,7 @@ export function OperatorManagementPanel({
     setUsername('');
     setPassword('');
     setJobTitle(startsAsHr ? fallbackJobTitle.hr : '');
-    setSelectedPermissionKeys(startsAsHr ? new Set<ErpPermissionKey>(['hr.view']) : new Set());
+    setSelectedPermissionKeys(ensureRequiredStaffPermissions(startsAsHr ? ['hr.view'] : []));
     setCreateStep('data');
   }, [initialStaffRole]);
 
@@ -220,7 +240,7 @@ export function OperatorManagementPanel({
     if (!createDialogOpen || editingOperator || !initialStaffRole) return;
     setJobTitle((current) => current.trim() ? current : fallbackJobTitle[initialStaffRole]);
     if (initialStaffRole === 'hr') {
-      setSelectedPermissionKeys((current) => current.size > 0 ? current : new Set<ErpPermissionKey>(['hr.view']));
+      setSelectedPermissionKeys((current) => ensureRequiredStaffPermissions(current.size > 0 ? current : ['hr.view']));
     }
   }, [createDialogOpen, editingOperator, initialStaffRole]);
 
@@ -250,7 +270,9 @@ export function OperatorManagementPanel({
       .finally(() => setLoadingPermissionOptions(false));
   }, [accessDialogOpen, permissionOptions.length]);
 
-  const visiblePermissionOptions = permissionOptions;
+  const visiblePermissionOptions = permissionOptions.filter((permission) =>
+    permission.permission_key !== 'employee_portal.profile.update'
+  );
 
   const resolveFunctionErrorMessage = useCallback(async (
     error: unknown,
@@ -301,12 +323,12 @@ export function OperatorManagementPanel({
       });
     } catch (error) {
       console.error('Nao foi possivel salvar o acesso offline do operador:', getRedactedLogValue(error));
-      toast.warning('Colaborador salvo online, mas nao foi possivel preparar o login offline nesta maquina.');
+      toast.warning('Funcionário salvo online, mas nao foi possivel preparar o login offline nesta maquina.');
     }
   }, [ownerUserId]);
 
   const loadData = useCallback(async () => {
-    if (!isAdmin || !ownerUserId) {
+    if (!canManageStaffAccess || !ownerUserId) {
       setOperators([]);
       setOpenCashSessions([]);
       setLoading(false);
@@ -314,6 +336,49 @@ export function OperatorManagementPanel({
     }
 
     setLoading(true);
+
+    if (!isAdmin) {
+      if (!session?.access_token) {
+        setOperators([]);
+        setOpenCashSessions([]);
+        setLoading(false);
+        return;
+      }
+
+      const { data, error } = await supabase.functions.invoke<OperatorFunctionResponse>('manage-operators', {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+        body: { action: 'list' },
+      });
+
+      if (error || !data?.success) {
+        toast.error(await resolveFunctionErrorMessage(error, 'Nao foi possivel carregar os acessos dos funcionários.', data));
+        setOperators([]);
+        setOpenCashSessions([]);
+        setLoading(false);
+        return;
+      }
+
+      const nextOperators = (data.operators ?? []).map(operator => ({
+        ...operator,
+        role: operator.role === 'waiter' ? 'waiter' : operator.role === 'hr' ? 'hr' : 'operator',
+      }));
+      const nextOperatorFullNamesById: Record<string, string> = {};
+      const nextPermissionKeysByOperatorId: Record<string, Set<ErpPermissionKey>> = {};
+
+      for (const operator of data.operators ?? []) {
+        if (operator.full_name) nextOperatorFullNamesById[operator.user_id] = operator.full_name;
+        nextPermissionKeysByOperatorId[operator.user_id] = ensureRequiredStaffPermissions(
+          (operator.permission_keys ?? []).filter(isErpPermissionKey),
+        );
+      }
+
+      setOperators(nextOperators);
+      setOpenCashSessions([]);
+      setOperatorFullNamesById(nextOperatorFullNamesById);
+      setPermissionKeysByOperatorId(nextPermissionKeysByOperatorId);
+      setLoading(false);
+      return;
+    }
 
     const [
       { data: operatorRows, error: operatorError },
@@ -347,7 +412,7 @@ export function OperatorManagementPanel({
 
     if (operatorError) {
       console.error('Erro ao carregar operadores:', getRedactedLogValue(operatorError));
-      toast.error('Não foi possível carregar os colaboradores');
+      toast.error('Não foi possível carregar os funcionários');
     }
 
     if (openError) {
@@ -356,8 +421,8 @@ export function OperatorManagementPanel({
     }
 
     if (permissionError) {
-      console.error('Erro ao carregar acessos dos colaboradores:', getRedactedLogValue(permissionError));
-      toast.error('Nao foi possivel carregar os acessos dos colaboradores');
+      console.error('Erro ao carregar acessos dos funcionários:', getRedactedLogValue(permissionError));
+      toast.error('Nao foi possivel carregar os acessos dos funcionários');
     }
 
     if (employeeError) {
@@ -383,7 +448,7 @@ export function OperatorManagementPanel({
     }
     setPermissionKeysByOperatorId(nextPermissionKeysByOperatorId);
     setLoading(false);
-  }, [isAdmin, ownerUserId]);
+  }, [canManageStaffAccess, isAdmin, ownerUserId, resolveFunctionErrorMessage, session?.access_token]);
 
   useEffect(() => {
     void loadData();
@@ -453,14 +518,17 @@ export function OperatorManagementPanel({
   }, [expenses, hasSingleOpenSession, matchesSessionExpense, matchesSessionSale, openCashSessions, sales]);
 
   const togglePermission = (permissionKey: ErpPermissionKey, checked: boolean) => {
-    setSelectedPermissionKeys((current) => togglePermissionWithDependencies(current, permissionKey, checked));
+    if (lockedStaffPermissionKeys.has(permissionKey)) return;
+    setSelectedPermissionKeys((current) => ensureRequiredStaffPermissions(togglePermissionWithDependencies(current, permissionKey, checked)));
   };
 
   const togglePermissionModule = (permissionKeys: ErpPermissionKey[], checked: boolean) => {
-    setSelectedPermissionKeys((current) => permissionKeys.reduce(
-      (next, permissionKey) => togglePermissionWithDependencies(next, permissionKey, checked),
-      current,
-    ));
+    setSelectedPermissionKeys((current) => ensureRequiredStaffPermissions(permissionKeys.reduce(
+      (next, permissionKey) => lockedStaffPermissionKeys.has(permissionKey)
+        ? next
+        : togglePermissionWithDependencies(next, permissionKey, checked),
+      ensureRequiredStaffPermissions(current),
+    )));
   };
 
   const selectedPermissionNames = visiblePermissionOptions
@@ -485,25 +553,25 @@ export function OperatorManagementPanel({
     setPassword('');
     resetAdminAuthorization();
     setJobTitle(operator.job_title?.trim() || fallbackJobTitle[operator.role]);
-    setSelectedPermissionKeys(new Set(permissionKeysByOperatorId[operator.user_id] ?? []));
+    setSelectedPermissionKeys(ensureRequiredStaffPermissions(permissionKeysByOperatorId[operator.user_id] ?? []));
     setCreateStep('data');
   };
 
-  if (!isAdmin) return null;
+  if (!canManageStaffAccess) return null;
 
   const validateAccessFormBeforeAuthorization = () => {
     if (!session?.access_token) {
-      toast.error('Sua sessão expirou. Entre novamente para cadastrar colaboradores.');
+      toast.error('Sua sessão expirou. Entre novamente para cadastrar funcionários.');
       return false;
     }
 
     if (!normalizedFullName || normalizedFullName.length < 3) {
-      toast.error('Informe o nome completo do colaborador.');
+      toast.error('Informe o nome completo do funcionário.');
       return false;
     }
 
     if (duplicateFullName) {
-      toast.error('Ja existe colaborador com esse nome completo. Use um segundo nome, sobrenome ou identificador diferente.');
+      toast.error('Ja existe funcionário com esse nome completo. Use um segundo nome, sobrenome ou identificador diferente.');
       return false;
     }
 
@@ -513,7 +581,7 @@ export function OperatorManagementPanel({
     }
 
     if (selectedPermissionKeys.size === 0) {
-      toast.error('Selecione ao menos um acesso para o colaborador.');
+      toast.error('Selecione ao menos um acesso para o funcionário.');
       setCreateStep('permissions');
       return false;
     }
@@ -529,7 +597,7 @@ export function OperatorManagementPanel({
 
   const validateUpdateAccessBeforeAuthorization = () => {
     if (!session?.access_token || !editingOperator) {
-      toast.error('Sua sessao expirou. Entre novamente para editar colaboradores.');
+      toast.error('Sua sessao expirou. Entre novamente para editar funcionários.');
       return false;
     }
 
@@ -539,17 +607,17 @@ export function OperatorManagementPanel({
     }
 
     if (!normalizedFullName || normalizedFullName.length < 3) {
-      toast.error('Informe o nome completo do colaborador.');
+      toast.error('Informe o nome completo do funcionário.');
       return false;
     }
 
     if (duplicateFullName) {
-      toast.error('Ja existe colaborador com esse nome completo. Use um segundo nome, sobrenome ou identificador diferente.');
+      toast.error('Ja existe funcionário com esse nome completo. Use um segundo nome, sobrenome ou identificador diferente.');
       return false;
     }
 
     if (selectedPermissionKeys.size === 0) {
-      toast.error('Selecione ao menos um acesso para o colaborador.');
+      toast.error('Selecione ao menos um acesso para o funcionário.');
       setCreateStep('permissions');
       return false;
     }
@@ -563,18 +631,25 @@ export function OperatorManagementPanel({
     if (!valid) return;
 
     setPendingAccessAction(isUpdate ? 'update' : 'create');
-    setAdminAuthorizationEmail('');
+    setAdminAuthorizationEmail(isAdmin ? '' : currentUsername || profileEmail || '');
     setAdminAuthorizationPassword('');
     setAdminAuthorizationError('');
     setAdminAuthorizationOpen(true);
   };
 
-  const verifyAdminAccessForOperatorSave = async (
-    adminEmail: string,
-    adminPassword: string,
+  const verifyAccessForOperatorSave = async (
+    login: string,
+    password: string,
   ): Promise<AdminAccessAuthorization | null> => {
-    const normalizedAdminEmail = adminEmail.trim().toLowerCase();
-    const normalizedAdminPassword = adminPassword.trim();
+    const normalizedLogin = login.trim().toLowerCase();
+    const normalizedPassword = password.trim();
+
+    if (!isAdmin) {
+      return {
+        login: normalizedLogin,
+        password: normalizedPassword,
+      };
+    }
 
     let captchaToken: string | undefined;
     try {
@@ -585,8 +660,8 @@ export function OperatorManagementPanel({
     }
 
     const { data: authData, error: authError } = await adminVerificationClient.auth.signInWithPassword({
-      email: normalizedAdminEmail,
-      password: normalizedAdminPassword,
+      email: normalizedLogin,
+      password: normalizedPassword,
       options: { captchaToken },
     });
 
@@ -616,10 +691,10 @@ export function OperatorManagementPanel({
       return null;
     }
 
-    return { accessToken: authData.session.access_token };
+    return { accessToken: authData.session.access_token, login: normalizedLogin, password: normalizedPassword };
   };
 
-  const handleCreateOperator = async (adminEmail: string, adminAccessToken: string) => {
+  const handleCreateOperator = async (adminEmail: string, adminPassword: string, adminAccessToken?: string) => {
     setCreating(true);
 
     const { data, error } = await supabase.functions.invoke<OperatorFunctionResponse>('manage-operators', {
@@ -633,14 +708,15 @@ export function OperatorManagementPanel({
         password: password.trim(),
         jobTitle: jobTitle.trim(),
         staffRole: inferredStaffRole,
-        permissionKeys: [...selectedPermissionKeys],
+        permissionKeys: [...ensureRequiredStaffPermissions(selectedPermissionKeys)],
         adminEmail,
+        adminPassword,
         adminAccessToken,
       },
     });
 
     if (error || !data?.success || !data.operator) {
-      const message = await resolveFunctionErrorMessage(error, 'Não foi possível criar o colaborador', data);
+      const message = await resolveFunctionErrorMessage(error, 'Não foi possível criar o funcionário', data);
       toast.error(message);
       setAdminAuthorizationError(message);
       setAdminAuthorizationPassword('');
@@ -655,14 +731,14 @@ export function OperatorManagementPanel({
     await saveOperatorOfflineAccessIfPossible(data.operator, password.trim());
     resetCreateForm();
     handleCreateDialogOpenChange(false);
-    toast.success('Colaborador criado com sucesso');
+    toast.success('Funcionário criado com sucesso');
     await loadData();
     setCreating(false);
     resetAdminAuthorization();
     return true;
   };
 
-  const handleUpdateOperatorAccess = async (adminEmail: string, adminAccessToken: string) => {
+  const handleUpdateOperatorAccess = async (adminEmail: string, adminPassword: string, adminAccessToken?: string) => {
     if (!editingOperator) return false;
     setCreating(true);
     const { data, error } = await supabase.functions.invoke<OperatorFunctionResponse>('manage-operators', {
@@ -673,14 +749,15 @@ export function OperatorManagementPanel({
         fullName: normalizedFullName,
         jobTitle: jobTitle.trim(),
         staffRole: inferredStaffRole,
-        permissionKeys: [...selectedPermissionKeys],
+        permissionKeys: [...ensureRequiredStaffPermissions(selectedPermissionKeys)],
         adminEmail,
+        adminPassword,
         adminAccessToken,
       },
     });
 
     if (error || !data?.success) {
-      const message = await resolveFunctionErrorMessage(error, 'Nao foi possivel atualizar o colaborador', data);
+      const message = await resolveFunctionErrorMessage(error, 'Nao foi possivel atualizar o funcionário', data);
       toast.error(message);
       setAdminAuthorizationError(message);
       setAdminAuthorizationPassword('');
@@ -703,33 +780,38 @@ export function OperatorManagementPanel({
     const adminPassword = adminAuthorizationPassword.trim();
 
     if (!adminEmail || !adminPassword) {
-      setAdminAuthorizationError('Digite login e senha do administrador.');
+      setAdminAuthorizationError(`Digite login e senha do ${accessAuthorizationLabel}.`);
       return;
     }
 
     setAdminAuthorizationError('');
     setCreating(true);
-    const authorization = await verifyAdminAccessForOperatorSave(adminEmail, adminPassword);
+    const authorization = await verifyAccessForOperatorSave(adminEmail, adminPassword);
     if (!authorization) {
       setCreating(false);
-      await adminVerificationClient.auth.signOut();
+      if (isAdmin) await adminVerificationClient.auth.signOut();
       return;
     }
 
     try {
       if (pendingAccessAction === 'create') {
-        await handleCreateOperator(adminEmail, authorization.accessToken);
+        await handleCreateOperator(authorization.login, authorization.password, authorization.accessToken);
         return;
       }
       if (pendingAccessAction === 'update') {
-        await handleUpdateOperatorAccess(adminEmail, authorization.accessToken);
+        await handleUpdateOperatorAccess(authorization.login, authorization.password, authorization.accessToken);
+        return;
+      }
+      if (pendingAccessAction === 'reset_password') {
+        await handleResetOperatorPassword(authorization.login, authorization.password, authorization.accessToken);
       }
     } finally {
-      await adminVerificationClient.auth.signOut();
+      if (isAdmin) await adminVerificationClient.auth.signOut();
+      setCreating(false);
     }
   };
 
-  const handleResetPassword = async () => {
+  const requestResetPasswordAuthorization = () => {
     if (!session?.access_token) {
       toast.error('Sua sessão expirou. Entre novamente para redefinir senhas.');
       return;
@@ -746,6 +828,15 @@ export function OperatorManagementPanel({
       return;
     }
 
+    setPendingAccessAction('reset_password');
+    setAdminAuthorizationEmail(isAdmin ? '' : currentUsername || profileEmail || '');
+    setAdminAuthorizationPassword('');
+    setAdminAuthorizationError('');
+    setAdminAuthorizationOpen(true);
+  };
+
+  const handleResetOperatorPassword = async (adminEmail: string, adminPassword: string, adminAccessToken?: string) => {
+    if (!session?.access_token || !selectedOperator) return false;
     setResetting(true);
 
     const { data, error } = await supabase.functions.invoke<OperatorFunctionResponse>('manage-operators', {
@@ -756,13 +847,17 @@ export function OperatorManagementPanel({
         action: 'reset_password',
         operatorUserId: selectedOperator.user_id,
         password: resetPassword.trim(),
+        adminEmail,
+        adminPassword,
+        adminAccessToken,
       },
     });
 
     if (error || !data?.success || !data.operator) {
       toast.error(await resolveFunctionErrorMessage(error, 'Não foi possível redefinir a senha', data));
+      setAdminAuthorizationError(await resolveFunctionErrorMessage(error, 'Não foi possível redefinir a senha', data));
       setResetting(false);
-      return;
+      return false;
     }
 
     setLatestCredential({
@@ -776,6 +871,8 @@ export function OperatorManagementPanel({
     toast.success('Senha redefinida com sucesso');
     await loadData();
     setResetting(false);
+    resetAdminAuthorization();
+    return true;
   };
 
   const handleOpenCashForOperator = async () => {
@@ -807,7 +904,7 @@ export function OperatorManagementPanel({
 
     if (error || !data?.success || !data.cashSession) {
       console.error('Erro ao abrir caixa do operador:', getRedactedLogValue(error));
-      toast.error(await resolveFunctionErrorMessage(error, 'Não foi possível abrir o caixa para este colaborador', data));
+      toast.error(await resolveFunctionErrorMessage(error, 'Não foi possível abrir o caixa para este funcionário', data));
       setOpeningCash(false);
       return;
     }
@@ -912,7 +1009,7 @@ export function OperatorManagementPanel({
 
   const handleDeleteOperator = async (operator: OperatorProfile) => {
     if (!session?.access_token) {
-      toast.error('Sua sessão expirou. Entre novamente para excluir colaboradores.');
+      toast.error('Sua sessão expirou. Entre novamente para excluir funcionários.');
       return;
     }
 
@@ -930,12 +1027,12 @@ export function OperatorManagementPanel({
 
     if (error || !data?.success) {
       console.error('Erro ao excluir operador:', getRedactedLogValue(error));
-      toast.error(await resolveFunctionErrorMessage(error, 'Não foi possível excluir o colaborador', data));
+      toast.error(await resolveFunctionErrorMessage(error, 'Não foi possível excluir o funcionário', data));
       setDeletingOperatorId(null);
       return;
     }
 
-    toast.success(`Colaborador ${operator.username} excluido com sucesso`);
+    toast.success(`Funcionário ${operator.username} excluido com sucesso`);
     await loadData();
     setDeletingOperatorId(null);
   };
@@ -946,7 +1043,7 @@ export function OperatorManagementPanel({
         <CardHeader className="gap-4">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
             <div className="space-y-2">
-              <CardTitle className="text-lg">Colaboradores, acessos e caixa</CardTitle>
+              <CardTitle className="text-lg">{isAdmin ? 'Funcionários, acessos e caixa' : 'Funcionários e acessos'}</CardTitle>
               <p className="text-sm text-muted-foreground">
                 A lista fica compacta; use Editar para ajustar funcao e acessos individuais.
               </p>
@@ -955,10 +1052,10 @@ export function OperatorManagementPanel({
             <div className="flex flex-col gap-3 lg:items-end">
               <Button onClick={() => handleCreateDialogOpenChange(true)} className="w-full lg:w-auto">
                 <Plus className="mr-2 h-4 w-4" />
-                Cadastrar colaborador
+                Cadastrar funcionário
               </Button>
 
-              <div className="grid grid-cols-2 gap-2 sm:w-[280px]">
+              <div className={`grid gap-2 ${isAdmin ? 'grid-cols-2 sm:w-[280px]' : 'sm:w-[180px]'}`}>
                 <div className="rounded-lg border border-border bg-secondary/20 p-3">
                   <p className="text-xs text-muted-foreground">Equipe</p>
                   <p className="text-2xl font-bold">
@@ -966,13 +1063,15 @@ export function OperatorManagementPanel({
                     {operators.length}
                   </p>
                 </div>
-                <div className="rounded-lg border border-border bg-secondary/20 p-3">
-                  <p className="text-xs text-muted-foreground">Caixas abertos</p>
-                  <p className="text-2xl font-bold">
-                    <Wallet className="mr-2 inline h-4 w-4 text-primary" />
-                    {openCashSessions.length}
-                  </p>
-                </div>
+                {isAdmin ? (
+                  <div className="rounded-lg border border-border bg-secondary/20 p-3">
+                    <p className="text-xs text-muted-foreground">Caixas abertos</p>
+                    <p className="text-2xl font-bold">
+                      <Wallet className="mr-2 inline h-4 w-4 text-primary" />
+                      {openCashSessions.length}
+                    </p>
+                  </div>
+                ) : null}
               </div>
             </div>
           </div>
@@ -1043,7 +1142,7 @@ export function OperatorManagementPanel({
                             <KeyRound className="mr-2 h-4 w-4" />
                             Senha
                           </Button>
-                          {!openSession && canOperateCash && (
+                          {canManageCashActions && !openSession && canOperateCash && (
                             <Button
                               variant="outline"
                               size="sm"
@@ -1057,7 +1156,7 @@ export function OperatorManagementPanel({
                               Abrir caixa
                             </Button>
                           )}
-                          {openSession && canOperateCash && (
+                          {canManageCashActions && openSession && canOperateCash && (
                             <Button
                               variant="outline"
                               size="sm"
@@ -1077,6 +1176,7 @@ export function OperatorManagementPanel({
                             </Button>
                           )}
 
+                          {canDeleteStaffAccess ? (
                           <AlertDialog>
                             <AlertDialogTrigger asChild>
                               <Button
@@ -1090,9 +1190,9 @@ export function OperatorManagementPanel({
                             </AlertDialogTrigger>
                             <AlertDialogContent>
                               <AlertDialogHeader>
-                                <AlertDialogTitle>Excluir colaborador?</AlertDialogTitle>
+                                <AlertDialogTitle>Excluir funcionário?</AlertDialogTitle>
                                 <AlertDialogDescription>
-                                  O colaborador "{operator.username}" sera removido do sistema.
+                                  O funcionário "{operator.username}" sera removido do sistema.
                                 </AlertDialogDescription>
                               </AlertDialogHeader>
                               <AlertDialogFooter>
@@ -1101,11 +1201,12 @@ export function OperatorManagementPanel({
                                   className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                                   onClick={() => void handleDeleteOperator(operator)}
                                 >
-                                  Excluir colaborador
+                                  Excluir funcionário
                                 </AlertDialogAction>
                               </AlertDialogFooter>
                             </AlertDialogContent>
                           </AlertDialog>
+                          ) : null}
                       </div>
                     </div>
                   );
@@ -1120,9 +1221,9 @@ export function OperatorManagementPanel({
         <DialogContent className="flex h-[100dvh] w-screen max-w-none flex-col gap-0 overflow-hidden rounded-none p-0 sm:h-[90vh] sm:max-w-6xl sm:rounded-lg">
           <DialogHeader>
             <div className="border-b px-4 py-4 sm:px-6">
-              <DialogTitle>{editingOperator ? 'Editar colaborador e acessos' : 'Cadastrar colaborador'}</DialogTitle>
+              <DialogTitle>{editingOperator ? 'Editar funcionário e acessos' : 'Cadastrar funcionário'}</DialogTitle>
               <DialogDescription className="mt-1 text-sm">
-                A funcao identifica o colaborador; o administrador define o acesso marcando os checkboxes.
+                A funcao identifica o funcionário; quem tem autorizacao define o acesso marcando os checkboxes.
               </DialogDescription>
               <div className="mt-3 grid grid-cols-3 gap-2 md:hidden">
                 {(['data', 'permissions', 'review'] as const).map((step, index) => (
@@ -1172,7 +1273,7 @@ export function OperatorManagementPanel({
                   <Input
                     value={username}
                     onChange={event => setUsername(event.target.value)}
-                    placeholder="Ex: colaborador.caixa"
+                    placeholder="Ex: funcionario.caixa"
                     readOnly={Boolean(editingOperator)}
                     autoComplete="username"
                   />
@@ -1190,7 +1291,7 @@ export function OperatorManagementPanel({
                 <div className="rounded-lg border border-primary/20 bg-primary/5 p-3">
                   <p className="text-sm font-medium">Tipo calculado pelo acesso</p>
                   <p className="mt-1 text-xs text-muted-foreground">
-                    {staffRoleLabels[inferredStaffRole]}: quando marcar somente acessos de RH, o menu fica isolado no RH. Com outros acessos, o colaborador segue os checkboxes selecionados.
+                    {staffRoleLabels[inferredStaffRole]}: quando marcar somente acessos de RH, o menu fica isolado no RH. Com outros acessos, o funcionário segue os checkboxes selecionados.
                   </p>
                 </div>
                 <div className="hidden rounded-lg border bg-muted/30 p-3 text-sm md:block">
@@ -1204,6 +1305,7 @@ export function OperatorManagementPanel({
               <OperatorPermissionSelector
                 permissions={visiblePermissionOptions}
                 selected={selectedPermissionKeys}
+                locked={lockedStaffPermissionKeys}
                 loading={loadingPermissionOptions}
                 onToggle={togglePermission}
                 onToggleModule={togglePermissionModule}
@@ -1256,26 +1358,26 @@ export function OperatorManagementPanel({
       >
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Confirmar como administrador</DialogTitle>
+            <DialogTitle>Confirmar autorização</DialogTitle>
             <DialogDescription>
-              Para criar ou alterar acessos, confirme com o email e a senha do administrador da loja. Esses dados nao ficam salvos.
+              Para criar, alterar acessos ou redefinir senha, confirme com o login e a senha/PIN do {accessAuthorizationLabel}. Esses dados nao ficam salvos.
             </DialogDescription>
           </DialogHeader>
 
           <form className="space-y-4" onSubmit={handleConfirmAdminAuthorization}>
             <div className="space-y-1">
-              <Label>Login do administrador (email)</Label>
+              <Label>Login do {accessAuthorizationLabel}</Label>
               <Input
-                type="email"
+                type={isAdmin ? 'email' : 'text'}
                 value={adminAuthorizationEmail}
                 onChange={event => setAdminAuthorizationEmail(event.target.value)}
-                placeholder="admin@empresa.com"
+                placeholder={isAdmin ? 'admin@empresa.com' : 'usuario.rh'}
                 autoComplete="username"
                 autoFocus
               />
             </div>
             <div className="space-y-1">
-              <Label>Senha do administrador</Label>
+              <Label>Senha ou PIN do {accessAuthorizationLabel}</Label>
               <PasswordInput
                 value={adminAuthorizationPassword}
                 onChange={event => setAdminAuthorizationPassword(event.target.value)}
@@ -1291,7 +1393,7 @@ export function OperatorManagementPanel({
                 Cancelar
               </Button>
               <Button type="submit" disabled={creating}>
-                {creating ? 'Validando...' : 'Confirmar e salvar'}
+                {creating || resetting ? 'Validando...' : pendingAccessAction === 'reset_password' ? 'Confirmar e redefinir' : 'Confirmar e salvar'}
               </Button>
             </DialogFooter>
           </form>
@@ -1308,7 +1410,7 @@ export function OperatorManagementPanel({
       >
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Fechar caixa do colaborador</DialogTitle>
+            <DialogTitle>Fechar caixa do funcionário</DialogTitle>
             <DialogDescription>
               Confirme com o administrador para registrar o fechamento do caixa.
             </DialogDescription>
@@ -1322,7 +1424,7 @@ export function OperatorManagementPanel({
             }}
           >
             <div className="rounded-md border border-border bg-secondary/30 p-3 text-sm">
-              <p className="text-muted-foreground">Colaborador</p>
+              <p className="text-muted-foreground">Funcionário</p>
               <p className="font-semibold">{cashSessionToClose?.operator.username || '-'}</p>
               <p className="mt-2 text-muted-foreground">Total atual</p>
               <p className="font-semibold">
@@ -1379,9 +1481,9 @@ export function OperatorManagementPanel({
       >
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Abrir caixa para colaborador</DialogTitle>
+            <DialogTitle>Abrir caixa para funcionário</DialogTitle>
             <DialogDescription>
-              Informe o valor inicial para abrir o caixa do colaborador selecionado.
+              Informe o valor inicial para abrir o caixa do funcionário selecionado.
             </DialogDescription>
           </DialogHeader>
 
@@ -1393,7 +1495,7 @@ export function OperatorManagementPanel({
             }}
           >
             <div className="space-y-1">
-              <Label>Colaborador</Label>
+              <Label>Funcionário</Label>
               <Input value={operatorToOpenCash?.username || ''} readOnly />
             </div>
             <div className="space-y-1">
@@ -1408,7 +1510,7 @@ export function OperatorManagementPanel({
               />
             </div>
             <p className="text-xs text-muted-foreground">
-              O colaborador selecionado tera o caixa aberto com este valor inicial.
+              O funcionário selecionado tera o caixa aberto com este valor inicial.
             </p>
 
             <DialogFooter>
@@ -1435,20 +1537,20 @@ export function OperatorManagementPanel({
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Redefinir senha do colaborador</DialogTitle>
+            <DialogTitle>Redefinir senha do funcionário</DialogTitle>
             <DialogDescription>
-              Defina uma nova senha ou PIN para o colaborador usar no login.
+              Defina uma nova senha ou PIN para o funcionário usar no login.
             </DialogDescription>
           </DialogHeader>
           <form
             className="space-y-3"
             onSubmit={(event) => {
               event.preventDefault();
-              void handleResetPassword();
+              requestResetPasswordAuthorization();
             }}
           >
             <div className="space-y-1">
-              <Label>Colaborador</Label>
+              <Label>Funcionário</Label>
               <Input value={selectedOperator?.username || ''} readOnly />
             </div>
             <div className="space-y-1">
@@ -1457,6 +1559,7 @@ export function OperatorManagementPanel({
                 value={resetPassword}
                 onChange={event => setResetPassword(event.target.value)}
                 placeholder="Informe uma senha forte ou PIN"
+                autoComplete="new-password"
               />
               <p className="text-xs text-muted-foreground">{operatorCredentialHint}</p>
             </div>

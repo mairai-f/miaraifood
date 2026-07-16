@@ -53,6 +53,14 @@ export const ERP_PERMISSION_KEYS = [
   'hr.exports.manage',
   'hr.audit.view',
   'hr.settings.manage',
+  'hr.access.manage',
+  'employee_portal.view',
+  'employee_portal.profile.update',
+  'employee_portal.time_clock',
+  'employee_portal.leave',
+  'employee_portal.documents',
+  'employee_portal.payroll',
+  'employee_portal.announcements',
   'delivery.use',
   'conciliation.manage',
   'multi_store.manage',
@@ -101,6 +109,12 @@ const permissionDependencies: Partial<Record<ErpPermissionKey, ErpPermissionKey[
   'service_tickets.cancel': ['service_tickets.use'], 'clients.manage': ['clients.view'],
   'products.manage': ['products.view'], 'stock.manage': ['stock.view'], 'purchases.manage': ['purchases.view'],
   'financial.manage': ['financial.view'], 'pricing.manage': ['pricing.view'], 'fiscal.manage': ['fiscal.view'],
+  'hr.access.manage': ['hr.view'], 'hr.employees.manage': ['hr.view'], 'hr.documents.manage': ['hr.view'],
+  'hr.time_clock.manage': ['hr.view'], 'hr.schedules.manage': ['hr.view'], 'hr.leave.manage': ['hr.view'],
+  'hr.payroll.manage': ['hr.view'], 'hr.exports.manage': ['hr.view'], 'hr.audit.view': ['hr.view'], 'hr.settings.manage': ['hr.view'],
+  'employee_portal.profile.update': ['employee_portal.view'], 'employee_portal.time_clock': ['employee_portal.view'],
+  'employee_portal.leave': ['employee_portal.view'], 'employee_portal.documents': ['employee_portal.view'],
+  'employee_portal.payroll': ['employee_portal.view'], 'employee_portal.announcements': ['employee_portal.view'],
 };
 
 /** Aplica dependencias sem criar um perfil-base: cada escolha continua explicita. */

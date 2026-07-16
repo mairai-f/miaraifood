@@ -1,6 +1,6 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState, type ChangeEvent } from 'react';
-import { BarChart3, BriefcaseBusiness, Building2, Calculator, ChevronRight, ClipboardList, Clock3, DatabaseBackup, Download, FileText, Gift, Laptop, Loader2, MapPinned, PackageSearch, Settings as SettingsIcon, Shield, ShieldAlert, Trash2, UserRoundCog, WalletCards } from 'lucide-react';
-import { Link, useParams, useSearchParams } from 'react-router-dom';
+import { BarChart3, BriefcaseBusiness, Building2, Calculator, ChevronRight, ClipboardList, Clock3, DatabaseBackup, Download, FileText, Gift, Laptop, Loader2, MapPinned, PackageSearch, Settings as SettingsIcon, Shield, ShieldAlert, Trash2, WalletCards } from 'lucide-react';
+import { Link, useParams } from 'react-router-dom';
 import { DataRouteLoader } from '@/components/DataRouteLoader';
 import { useAuth } from '@/contexts/AuthContext';
 import { useDesktopRuntime } from '@/contexts/DesktopRuntimeContext';
@@ -64,12 +64,6 @@ const PrinterSettingsCard = lazy(() =>
   })),
 );
 
-const OperatorManagementPanel = lazy(() =>
-  import('@/components/OperatorManagementPanel').then((module) => ({
-    default: module.OperatorManagementPanel,
-  })),
-);
-
 const HumanResourcesSettingsPanel = lazy(() =>
   import('@/components/hr/HumanResourcesSettingsPanel').then((module) => ({
     default: module.HumanResourcesSettingsPanel,
@@ -88,11 +82,10 @@ const CatalogConfigurationPanel = lazy(() =>
   })),
 );
 
-const CREATE_OPERATOR_MODAL = 'cadastrar-operador';
 const RESET_CONFIRM_TEXT = 'ZERAR';
 const RESTORE_CONFIRM_TEXT = 'RESTAURAR';
 type ResetTarget = 'financial' | 'reports';
-type SettingsSection = 'empresa' | 'backup' | 'colaboradores' | 'rh' | 'filiais' | 'catalogo' | 'desktop' | 'risco';
+type SettingsSection = 'empresa' | 'backup' | 'rh' | 'filiais' | 'catalogo' | 'desktop' | 'risco';
 
 interface SettingsNavigationItem {
   path: string;
@@ -109,7 +102,6 @@ interface SettingsNavigationItem {
 const settingsNavigationItems: SettingsNavigationItem[] = [
   { path: '/configuracoes/empresa', section: 'empresa', title: 'Empresa', description: 'Dados, identidade e configuracao de impressao.', icon: Building2, featureKey: 'settings.manage', permissionKey: 'settings.manage', runtimeScope: 'both' },
   { path: '/configuracoes/backup', section: 'backup', title: 'Backup', description: 'Exportacao e restauracao dos dados.', icon: DatabaseBackup, featureKey: 'settings.manage', permissionKey: 'settings.manage', runtimeScope: 'both' },
-  { path: '/configuracoes/colaboradores', section: 'colaboradores', title: 'Colaboradores', description: 'Equipe, funcoes, acessos e caixas.', icon: UserRoundCog, featureKey: 'settings.manage', permissionKey: 'staff.manage', runtimeScope: 'both' },
   { path: '/configuracoes/rh', section: 'rh', title: 'RH', description: 'Modulo de pessoas, ponto, folha e documentos.', icon: BriefcaseBusiness, featureKey: 'hr.manage', permissionKey: 'settings.manage', runtimeScope: 'both' },
   { path: '/configuracoes/filiais', section: 'filiais', title: 'Filiais e terminais', description: 'Lojas, terminais e escopo operacional.', icon: MapPinned, featureKey: 'settings.manage', permissionKey: 'multi_store.manage', runtimeScope: 'web' },
   { path: '/configuracoes/catalogo', section: 'catalogo', title: 'Catalogo avancado', description: 'Marcas, grupos, unidades e tabelas.', icon: PackageSearch, featureKey: 'settings.manage', permissionKey: 'products.manage', runtimeScope: 'web' },
@@ -188,12 +180,9 @@ export default function Settings() {
   const { refetch, syncNow, loading: dataLoading } = data;
   const { subscription, countdown, statusLabel, loading: loadingSubscription } = useCurrentSubscription();
   const { section: routeSection } = useParams<{ section?: string }>();
-  const [searchParams, setSearchParams] = useSearchParams();
-  const isCreateOperatorModalOpen = searchParams.get('modal') === CREATE_OPERATOR_MODAL;
-  const createOperatorInitialRole = searchParams.get('tipo') === 'rh' ? 'hr' : undefined;
   const matchedSettingsSection = settingsNavigationItems.find((item) => item.section === routeSection)?.section ?? null;
-  const activeSettingsSection: SettingsSection | null = isCreateOperatorModalOpen
-    ? 'colaboradores'
+  const activeSettingsSection: SettingsSection | null = routeSection === 'colaboradores'
+    ? 'rh'
     : matchedSettingsSection;
   const [resetTarget, setResetTarget] = useState<ResetTarget | null>(null);
   const [resetDialogOpen, setResetDialogOpen] = useState(false);
@@ -286,19 +275,6 @@ export default function Settings() {
       setSyncingOfflineNow(false);
     }
   }, [isDesktop, loadOfflineRuntime, syncNow, syncingOfflineNow]);
-
-  const handleCreateDialogOpenChange = (open: boolean) => {
-    const nextSearchParams = new URLSearchParams(searchParams);
-
-    if (open) {
-      nextSearchParams.set('modal', CREATE_OPERATOR_MODAL);
-    } else {
-      nextSearchParams.delete('modal');
-      nextSearchParams.delete('tipo');
-    }
-
-    setSearchParams(nextSearchParams, { replace: true });
-  };
 
   const resolveFunctionErrorMessage = useCallback(async (
     error: unknown,
@@ -1149,18 +1125,6 @@ export default function Settings() {
         </CardContent>
       </Card>}
 
-      {activeSettingsSection === 'colaboradores' && (
-        <Suspense fallback={<SettingsSectionLoader label="Carregando equipe e acessos..." />}>
-          <div>
-            <OperatorManagementPanel
-              createDialogOpen={isCreateOperatorModalOpen}
-              onCreateDialogOpenChange={handleCreateDialogOpenChange}
-              initialStaffRole={createOperatorInitialRole}
-            />
-          </div>
-        </Suspense>
-      )}
-
       {activeSettingsSection === 'rh' && (
         <Suspense fallback={<SettingsSectionLoader label="Carregando configuracoes do RH..." />}>
           <HumanResourcesSettingsPanel />
@@ -1195,7 +1159,7 @@ export default function Settings() {
         </CardHeader>
         <CardContent className="space-y-3">
           <p className="text-sm text-muted-foreground">
-            Os clientes, produtos e colaboradores continuam cadastrados.
+            Os clientes, produtos e funcionarios continuam cadastrados.
           </p>
 
           <Dialog open={resetDialogOpen} onOpenChange={handleResetDialogOpenChange}>

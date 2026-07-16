@@ -1,6 +1,7 @@
 import { createClient, type SupabaseClient } from 'npm:@supabase/supabase-js@2';
 import {
   buildOperatorEmail,
+  buildOperatorAuthPasswordCandidates,
   isValidOperatorUsername,
   normalizeOperatorUsername,
   operatorUsernameHelpText,
@@ -41,6 +42,9 @@ type ManageOperatorRequest =
       action: 'reset_password';
       operatorUserId?: string;
       password?: string;
+      adminEmail?: string;
+      adminPassword?: string;
+      adminAccessToken?: string;
     }
   | {
       action: 'open_cash';
@@ -74,6 +78,15 @@ interface HrEmployeeLookupRow {
 
 type StaffRole = 'operator' | 'waiter' | 'hr';
 const staffRoles: StaffRole[] = ['operator', 'waiter', 'hr'];
+const staffAccessActions = new Set<ManageOperatorRequest['action']>(['list', 'create', 'update_access', 'reset_password']);
+const adminOnlyActions = new Set<ManageOperatorRequest['action']>([
+  'open_cash',
+  'delete',
+  'reset_financial',
+  'reset_reports',
+  'reset_financial_reports',
+  'delete_account',
+]);
 const normalizeJobTitle = (value: string | undefined | null) => value?.trim().replace(/\s+/g, ' ') ?? '';
 const isValidJobTitle = (value: string) => value.length >= 2 && value.length <= 60;
 const normalizePersonName = (value: string | undefined | null) => value?.trim().replace(/\s+/g, ' ') ?? '';
@@ -84,10 +97,27 @@ const normalizePersonNameKey = (value: string | undefined | null) =>
     .toLowerCase();
 const isValidPersonName = (value: string) => value.length >= 3 && value.length <= 100;
 const isHrPermissionKey = (permissionKey: string) => permissionKey.startsWith('hr.');
+const isEmployeePortalPermissionKey = (permissionKey: string) => permissionKey.startsWith('employee_portal.');
+const requiredStaffPermissionKeys = ['employee_portal.view'];
+const ensureRequiredStaffPermissions = (permissionKeys: string[]) => [...new Set([
+  ...permissionKeys,
+  ...requiredStaffPermissionKeys,
+])];
 const resolveStaffRoleFromPermissions = (permissionKeys: string[]): StaffRole =>
-  permissionKeys.length > 0 && permissionKeys.every(isHrPermissionKey) ? 'hr' : 'operator';
+  permissionKeys.some(isHrPermissionKey) && permissionKeys.every((permissionKey) =>
+    isHrPermissionKey(permissionKey) || isEmployeePortalPermissionKey(permissionKey)
+  )
+    ? 'hr'
+    : 'operator';
 const isInternalOperatorEmail = (value: string | null | undefined) =>
   Boolean(value?.endsWith('@operators.happycash.local') || value?.endsWith('@happycash.local'));
+
+interface CallerProfile {
+  role: string;
+  owner_user_id: string | null;
+  username: string | null;
+  email: string | null;
+}
 
 const ensureUniqueHrEmployeeName = async (details: {
   serviceClient: SupabaseClient;
@@ -304,6 +334,111 @@ const verifyAdminCredentials = async (
   });
 };
 
+const userHasPermission = async (
+  serviceClient: SupabaseClient,
+  userId: string,
+  permissionKey: string,
+) => {
+  const { data, error } = await serviceClient.rpc('erp_user_has_permission', {
+    target_user_id: userId,
+    target_permission_key: permissionKey,
+  });
+
+  return !error && data === true;
+};
+
+const verifyStaffAccessAuthorization = async (
+  details: {
+    supabaseUrl: string;
+    supabaseAnonKey: string;
+    serviceClient: SupabaseClient;
+    ownerUserId: string;
+    callerUserId: string;
+    callerAuthEmail?: string | null;
+    callerProfile: CallerProfile;
+    adminEmail?: string;
+    adminPassword?: string;
+    adminAccessToken?: string;
+  },
+) => {
+  if (details.callerProfile.role === 'admin') {
+    return verifyAdminCredentials({
+      supabaseUrl: details.supabaseUrl,
+      supabaseAnonKey: details.supabaseAnonKey,
+      serviceClient: details.serviceClient,
+      ownerUserId: details.ownerUserId,
+      adminEmail: details.adminEmail,
+      adminPassword: details.adminPassword,
+      adminAccessToken: details.adminAccessToken,
+    });
+  }
+
+  if (details.callerProfile.role !== 'hr') {
+    return 'Somente administrador ou RH autorizado pode gerenciar acessos.';
+  }
+
+  const canManageAccess = await userHasPermission(details.serviceClient, details.callerUserId, 'hr.access.manage');
+  if (!canManageAccess) {
+    return 'Seu acesso de RH nao libera gerenciamento de acessos.';
+  }
+
+  const accessToken = details.adminAccessToken?.trim() ?? '';
+  if (accessToken) {
+    const { data: verifiedUser, error: verifiedUserError } = await details.serviceClient.auth.getUser(accessToken);
+    if (verifiedUserError || verifiedUser.user?.id !== details.callerUserId) {
+      return 'Nao foi possivel validar a autorizacao do RH.';
+    }
+    return null;
+  }
+
+  const login = (details.adminEmail ?? '').trim();
+  const password = details.adminPassword?.trim() ?? '';
+  if (!login || !password) {
+    return 'Confirme esta acao com usuario e senha/PIN do RH autorizado.';
+  }
+
+  const normalizedLogin = login.toLowerCase();
+  const callerUsername = normalizeOperatorUsername(details.callerProfile.username ?? '');
+  const callerEmail = normalizeEmail(details.callerProfile.email || details.callerAuthEmail || '');
+  let authEmail = '';
+  let credentialUsername = callerUsername || normalizedLogin;
+
+  if (normalizedLogin.includes('@')) {
+    if (!callerEmail || normalizeEmail(normalizedLogin) !== callerEmail) {
+      return 'Use o proprio email do RH autorizado para confirmar.';
+    }
+    authEmail = callerEmail;
+  } else {
+    const normalizedUsername = normalizeOperatorUsername(normalizedLogin);
+    if (callerUsername && normalizedUsername !== callerUsername) {
+      return 'Use o proprio usuario do RH autorizado para confirmar.';
+    }
+    credentialUsername = normalizedUsername;
+    authEmail = buildOperatorEmail(normalizedUsername);
+  }
+
+  const verificationClient = createClient(details.supabaseUrl, details.supabaseAnonKey, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+    },
+  });
+
+  const candidates = buildOperatorAuthPasswordCandidates(credentialUsername, password);
+  for (const candidate of candidates) {
+    const { data: verificationSession, error: verificationError } = await verificationClient.auth.signInWithPassword({
+      email: authEmail,
+      password: candidate,
+    });
+
+    if (!verificationError && verificationSession.user?.id === details.callerUserId) {
+      return null;
+    }
+  }
+
+  return 'Usuario ou senha/PIN do RH invalidos.';
+};
+
 Deno.serve(async (request): Promise<Response> => {
   if (request.method === 'OPTIONS') {
     return handleCorsPreflight(request, {
@@ -383,10 +518,6 @@ Deno.serve(async (request): Promise<Response> => {
     return jsonResponse(request, { error: 'Perfil do usuário não encontrado.' }, 403);
   }
 
-  if (callerProfile.role !== 'admin') {
-    return jsonResponse(request, { error: 'Somente administradores podem gerenciar operadores.' }, 403);
-  }
-
   const ownerUserId = callerProfile.owner_user_id ?? user.id;
   const body = await getBody(request);
 
@@ -394,31 +525,89 @@ Deno.serve(async (request): Promise<Response> => {
     return jsonResponse(request, { error: 'Ação inválida.' }, 400);
   }
 
+  const isStaffAccessAction = staffAccessActions.has(body.action);
+  const isAdminOnlyAction = adminOnlyActions.has(body.action);
+  const callerIsAdmin = callerProfile.role === 'admin';
+  const callerIsHrAccessManager = callerProfile.role === 'hr'
+    && isStaffAccessAction
+    && await userHasPermission(serviceClient, user.id, 'hr.access.manage');
+
+  if (!callerIsAdmin && !callerIsHrAccessManager) {
+    return jsonResponse(request, { error: 'Somente administrador ou RH autorizado pode gerenciar acessos.' }, 403);
+  }
+
+  if (isAdminOnlyAction && !callerIsAdmin) {
+    return jsonResponse(request, { error: 'Esta acao continua restrita ao administrador.' }, 403);
+  }
+
   if (body.action !== 'delete_account') {
+    const requiredFeature = callerIsAdmin ? 'settings.manage' : 'hr.manage';
     const { data: hasSettingsAccess, error: accessError } = await authClient.rpc('current_store_has_feature', {
-      target_feature: 'settings.manage',
+      target_feature: requiredFeature,
     });
 
     if (accessError || !hasSettingsAccess) {
-      return jsonResponse(request, { error: 'Seu plano atual nao libera configuracoes da loja.' }, 403);
+      return jsonResponse(
+        request,
+        { error: callerIsAdmin ? 'Seu plano atual nao libera configuracoes da loja.' : 'Seu plano atual nao libera o RH.' },
+        403,
+      );
     }
   }
 
   if (body.action === 'list') {
-    const { data: operators, error: operatorsError } = await serviceClient
-      .from('profiles')
-      .select('user_id, username, role, job_title')
-      .eq('owner_user_id', ownerUserId)
-      .in('role', staffRoles)
-      .order('username', { ascending: true });
+    const [
+      { data: operators, error: operatorsError },
+      { data: permissionRows, error: permissionError },
+      { data: employeeRows, error: employeeError },
+    ] = await Promise.all([
+      serviceClient
+        .from('profiles')
+        .select('user_id, username, role, job_title, created_at')
+        .eq('owner_user_id', ownerUserId)
+        .in('role', staffRoles)
+        .order('username', { ascending: true }),
+      serviceClient
+        .from('erp_staff_permission_overrides')
+        .select('user_id, permission_key, allowed')
+        .eq('owner_user_id', ownerUserId)
+        .eq('allowed', true),
+      serviceClient
+        .from('hr_employees')
+        .select('profile_user_id, full_name')
+        .eq('owner_user_id', ownerUserId)
+        .not('profile_user_id', 'is', null),
+    ]);
 
     if (operatorsError) {
       return jsonResponse(request, { error: 'Nao foi possivel consultar os operadores.' }, 500);
     }
 
+    if (permissionError || employeeError) {
+      return jsonResponse(request, { error: 'Nao foi possivel consultar os acessos do RH.' }, 500);
+    }
+
+    const permissionsByUserId = new Map<string, string[]>();
+    for (const row of (permissionRows ?? []) as Array<{ user_id: string; permission_key: string; allowed: boolean }>) {
+      if (!row.allowed) continue;
+      const current = permissionsByUserId.get(row.user_id) ?? [];
+      current.push(row.permission_key);
+      permissionsByUserId.set(row.user_id, current);
+    }
+
+    const fullNamesByUserId = new Map<string, string>();
+    for (const row of (employeeRows ?? []) as Array<{ profile_user_id: string | null; full_name: string }>) {
+      if (!row.profile_user_id) continue;
+      fullNamesByUserId.set(row.profile_user_id, row.full_name);
+    }
+
     return jsonResponse(request, {
       success: true,
-      operators: operators ?? [],
+      operators: (operators ?? []).map((operator) => ({
+        ...operator,
+        full_name: fullNamesByUserId.get(operator.user_id) ?? null,
+        permission_keys: permissionsByUserId.get(operator.user_id) ?? [],
+      })),
     });
   }
 
@@ -429,11 +618,11 @@ Deno.serve(async (request): Promise<Response> => {
     const jobTitle = normalizeJobTitle(body.jobTitle);
     const credentialError = getOperatorCredentialError(password || '');
     const authPassword = resolveOperatorAuthPassword(normalizedUsername, password || '');
-    const requestedPermissionKeys = [...new Set(
+    const requestedPermissionKeys = ensureRequiredStaffPermissions([...new Set(
       (Array.isArray(body.permissionKeys) ? body.permissionKeys : []).filter(
         (permissionKey): permissionKey is string => typeof permissionKey === 'string' && permissionKey.trim() !== '',
       ),
-    )];
+    )]);
     const operatorRole = resolveStaffRoleFromPermissions(requestedPermissionKeys);
 
     if (!isValidOperatorUsername(normalizedUsername)) {
@@ -456,11 +645,14 @@ Deno.serve(async (request): Promise<Response> => {
       return jsonResponse(request, { error: 'Selecione ao menos um acesso para o colaborador.' }, 400);
     }
 
-    const adminVerificationError = await verifyAdminCredentials({
+    const adminVerificationError = await verifyStaffAccessAuthorization({
       supabaseUrl,
       supabaseAnonKey,
       serviceClient,
       ownerUserId,
+      callerUserId: user.id,
+      callerAuthEmail: user.email,
+      callerProfile: callerProfile as CallerProfile,
       adminEmail: body.adminEmail,
       adminPassword: body.adminPassword,
       adminAccessToken: body.adminAccessToken,
@@ -591,15 +783,19 @@ Deno.serve(async (request): Promise<Response> => {
     const operatorUserId = body.operatorUserId?.trim();
     const fullName = normalizePersonName(body.fullName);
     const jobTitle = normalizeJobTitle(body.jobTitle);
-    const requestedPermissionKeys = [...new Set(
+    const requestedPermissionKeys = ensureRequiredStaffPermissions([...new Set(
       (Array.isArray(body.permissionKeys) ? body.permissionKeys : []).filter(
         (permissionKey): permissionKey is string => typeof permissionKey === 'string' && permissionKey.trim() !== '',
       ),
-    )];
+    )]);
     const nextStaffRole = resolveStaffRoleFromPermissions(requestedPermissionKeys);
 
     if (!operatorUserId) {
       return jsonResponse(request, { error: 'Colaborador invalido.' }, 400);
+    }
+
+    if (callerProfile.role === 'hr' && operatorUserId === user.id) {
+      return jsonResponse(request, { error: 'O RH nao pode alterar o proprio acesso.' }, 403);
     }
 
     if (!isValidJobTitle(jobTitle)) {
@@ -614,11 +810,14 @@ Deno.serve(async (request): Promise<Response> => {
       return jsonResponse(request, { error: 'Selecione ao menos um acesso para o colaborador.' }, 400);
     }
 
-    const adminVerificationError = await verifyAdminCredentials({
+    const adminVerificationError = await verifyStaffAccessAuthorization({
       supabaseUrl,
       supabaseAnonKey,
       serviceClient,
       ownerUserId,
+      callerUserId: user.id,
+      callerAuthEmail: user.email,
+      callerProfile: callerProfile as CallerProfile,
       adminEmail: body.adminEmail,
       adminPassword: body.adminPassword,
       adminAccessToken: body.adminAccessToken,
@@ -725,8 +924,28 @@ Deno.serve(async (request): Promise<Response> => {
       return jsonResponse(request, { error: 'Operador inválido.' }, 400);
     }
 
+    if (callerProfile.role === 'hr' && operatorUserId === user.id) {
+      return jsonResponse(request, { error: 'O RH nao pode redefinir a propria senha.' }, 403);
+    }
+
     if (!password || credentialError) {
       return jsonResponse(request, { error: credentialError || 'Informe a nova senha ou PIN.' }, 400);
+    }
+
+    const accessVerificationError = await verifyStaffAccessAuthorization({
+      supabaseUrl,
+      supabaseAnonKey,
+      serviceClient,
+      ownerUserId,
+      callerUserId: user.id,
+      callerAuthEmail: user.email,
+      callerProfile: callerProfile as CallerProfile,
+      adminEmail: body.adminEmail,
+      adminPassword: body.adminPassword,
+      adminAccessToken: body.adminAccessToken,
+    });
+    if (accessVerificationError) {
+      return jsonResponse(request, { error: accessVerificationError }, 401);
     }
 
     const { data: targetProfile, error: targetProfileError } = await serviceClient

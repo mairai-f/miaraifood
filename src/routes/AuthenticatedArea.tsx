@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, type ReactNode } from 'react';
+import { Component, lazy, Suspense, useEffect, type ErrorInfo, type ReactNode } from 'react';
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 
@@ -40,6 +40,7 @@ const pageLoaders = [
   () => import('@/pages/Notes'),
   () => import('@/pages/Settings'),
   () => import('@/pages/HumanResources'),
+  () => import('@/pages/EmployeePortal'),
   () => import('@/pages/AccessMonitor'),
   () => import('@/pages/AuditLog'),
 ];
@@ -64,6 +65,7 @@ const [
   loadNotes,
   loadSettings,
   loadHumanResources,
+  loadEmployeePortal,
   loadAccessMonitor,
   loadAuditLog,
 ] = pageLoaders;
@@ -87,6 +89,7 @@ const Operations = lazy(loadOperations);
 const Notes = lazy(loadNotes);
 const Settings = lazy(loadSettings);
 const HumanResources = lazy(loadHumanResources);
+const EmployeePortal = lazy(loadEmployeePortal);
 const AccessMonitor = lazy(loadAccessMonitor);
 const AuditLog = lazy(loadAuditLog);
 
@@ -102,7 +105,41 @@ function FullScreenLoader() {
 }
 
 function LazyPage({ children }: { children: ReactNode }) {
-  return <Suspense fallback={null}>{children}</Suspense>;
+  return (
+    <PageErrorBoundary>
+      <Suspense fallback={<FullScreenLoader />}>{children}</Suspense>
+    </PageErrorBoundary>
+  );
+}
+
+class PageErrorBoundary extends Component<
+  { children: ReactNode },
+  { error: Error | null }
+> {
+  state = { error: null };
+
+  static getDerivedStateFromError(error: Error) {
+    return { error };
+  }
+
+  componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+    console.error('Nao foi possivel renderizar a pagina:', error, errorInfo);
+  }
+
+  render() {
+    if (!this.state.error) return this.props.children;
+
+    return (
+      <div className="flex min-h-[50vh] items-center justify-center px-4">
+        <div className="w-full max-w-xl rounded-lg border border-border bg-card p-5 shadow-sm">
+          <p className="text-base font-semibold text-foreground">Nao foi possivel abrir esta tela.</p>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Atualize a pagina. Se continuar, revise o console para ver o erro exato do modulo.
+          </p>
+        </div>
+      </div>
+    );
+  }
 }
 
 const getDefaultAuthenticatedPath = (role: string) => {
@@ -155,7 +192,12 @@ function ProtectedRoute({
 
   if (!isAuthenticated) return <Navigate to="/login" replace />;
   if (isDesktop && !licensed) return <DesktopLicenseBlocked />;
-  const fallbackPath = getDefaultAuthenticatedPath(role);
+  const baseFallbackPath = getDefaultAuthenticatedPath(role);
+  const fallbackPath = role !== 'hr' && hasPermission('hr.view') && !hasPermission('dashboard.view')
+    ? '/rh'
+    : role !== 'hr' && hasPermission('employee_portal.view') && !hasPermission('dashboard.view')
+    ? '/portal-funcionario'
+    : baseFallbackPath;
   if (!isRuntimeScopeAllowed(runtimeScope, isDesktop)) return <Navigate to={fallbackPath} replace />;
   if (!hasPermission(requiredPermission)) {
     if (location.pathname === fallbackPath) return <AppLayout><FeatureLocked /></AppLayout>;
@@ -244,6 +286,7 @@ const AuthenticatedArea = () => {
           <Route path="/precificacao" element={<ProtectedRoute requiredPermission="pricing.view" requiredFeature="pricing.manage"><LazyPage><PricingManager /></LazyPage></ProtectedRoute>} />
           <Route path="/notas" element={<ProtectedRoute requiredPermission="fiscal.view" requiredFeature="notes.manage" requiredDesktopFiscalAccess><LazyPage><Notes /></LazyPage></ProtectedRoute>} />
           <Route path="/rh" element={<ProtectedRoute requiredPermission="hr.view" requiredFeature="hr.manage"><LazyPage><HumanResources /></LazyPage></ProtectedRoute>} />
+          <Route path="/portal-funcionario" element={<ProtectedRoute requiredPermission="employee_portal.view" requiredFeature="hr.manage"><LazyPage><EmployeePortal /></LazyPage></ProtectedRoute>} />
           <Route path="/configuracoes" element={<ProtectedRoute requiredPermission="settings.manage" requiredFeature="settings.manage"><LazyPage><Settings /></LazyPage></ProtectedRoute>} />
           <Route path="/configuracoes/:section" element={<ProtectedRoute requiredPermission="settings.manage" requiredFeature="settings.manage"><LazyPage><Settings /></LazyPage></ProtectedRoute>} />
           <Route path="/acessos" element={<ProtectedRoute requiredPermission="access_monitor.view" requiredFeature="settings.manage" runtimeScope="web"><LazyPage><AccessMonitor /></LazyPage></ProtectedRoute>} />

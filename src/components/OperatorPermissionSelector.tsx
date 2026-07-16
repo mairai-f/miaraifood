@@ -14,6 +14,7 @@ export interface OperatorPermissionOption {
 interface OperatorPermissionSelectorProps {
   permissions: OperatorPermissionOption[];
   selected: ReadonlySet<ErpPermissionKey>;
+  locked?: ReadonlySet<ErpPermissionKey>;
   loading: boolean;
   onToggle: (permissionKey: ErpPermissionKey, checked: boolean) => void;
   onToggleModule: (permissionKeys: ErpPermissionKey[], checked: boolean) => void;
@@ -23,14 +24,15 @@ const moduleLabels: Record<string, string> = {
   dashboard: 'Painel', pdv: 'PDV e caixa', service_tickets: 'Comandas', clients: 'Clientes',
   products: 'Produtos', stock: 'Estoque', purchases: 'Compras e fornecedores', reports: 'Relatórios',
   financial: 'Financeiro', pricing: 'Precificação', fiscal: 'Fiscal', rewards: 'Recompensas',
-	  deleted: 'Registros excluídos', settings: 'Configurações', staff: 'Colaboradores',
-	  security: 'Segurança e auditoria', hr: 'Recursos Humanos', delivery: 'Delivery', conciliation: 'Conciliação',
+	  deleted: 'Registros excluídos', settings: 'Configurações', staff: 'Acessos',
+	  security: 'Segurança e auditoria', hr: 'Recursos Humanos', employee_portal: 'Portal do funcionário', delivery: 'Delivery', conciliation: 'Conciliação',
   multi_store: 'Filiais', time_clock: 'Relógio de ponto', self_service: 'Autoatendimento',
 };
 
 export function OperatorPermissionSelector({
   permissions,
   selected,
+  locked = new Set(),
   loading,
   onToggle,
   onToggleModule,
@@ -58,7 +60,7 @@ export function OperatorPermissionSelector({
       <div className="grid gap-3 lg:grid-cols-2">
         {grouped.map(([moduleKey, modulePermissions]) => {
           const keys = modulePermissions.map((permission) => permission.permission_key);
-          const selectedCount = keys.filter((key) => selected.has(key)).length;
+          const selectedCount = keys.filter((key) => selected.has(key) || locked.has(key)).length;
           const allSelected = selectedCount === keys.length;
           const sectionChecked = allSelected ? true : selectedCount > 0 ? 'indeterminate' : false;
           return (
@@ -75,7 +77,8 @@ export function OperatorPermissionSelector({
                   <label key={permission.permission_key} className="flex cursor-pointer items-start gap-3 p-3 hover:bg-muted/20">
                     <Checkbox
                       className="mt-0.5"
-                      checked={selected.has(permission.permission_key)}
+                      checked={selected.has(permission.permission_key) || locked.has(permission.permission_key)}
+                      disabled={locked.has(permission.permission_key)}
                       onCheckedChange={(checked) => onToggle(permission.permission_key, checked === true)}
                     />
                     <span className="min-w-0">

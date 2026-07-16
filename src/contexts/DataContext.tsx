@@ -440,6 +440,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const offlineSyncInFlightRef = useRef(false);
   const lastPassiveRefreshAtRef = useRef(0);
   const fullSnapshotPrimedRef = useRef(false);
+  const hrDataClearedRef = useRef(false);
   const routeRequiredModules = useMemo(
     () => isHrOnlySession ? [] : uniqueModules([...BASE_DATA_MODULES, ...getRouteSpecificModules(location.pathname)]),
     [isHrOnlySession, location.pathname],
@@ -855,13 +856,18 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (isHrOnlySession) {
-      clearStoreData();
+      if (!hrDataClearedRef.current) {
+        clearStoreData();
+        hrDataClearedRef.current = true;
+      }
       setOfflinePreparationStatus('unavailable');
       setOfflinePreparationMessage(null);
       setOfflineSnapshotUpdatedAt(null);
       setLoading(false);
       return;
     }
+
+    hrDataClearedRef.current = false;
 
     if (authLoading || planLoading || !user || isDemoMode) return;
 

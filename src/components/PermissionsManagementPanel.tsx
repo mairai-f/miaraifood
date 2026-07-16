@@ -40,7 +40,7 @@ const moduleLabels: Record<string, string> = {
   rewards: 'Recompensas',
   deleted: 'Registros excluidos',
   settings: 'Configuracoes',
-  staff: 'Colaboradores e permissoes',
+  staff: 'Funcionários e acessos',
   security: 'Seguranca e auditoria',
   hr: 'Recursos Humanos',
 };
@@ -84,8 +84,8 @@ export function PermissionsManagementPanel() {
       .order('username');
 
     if (error) {
-      console.error('Erro ao carregar colaboradores para o RBAC:', getRedactedLogValue(error));
-      toast.error('Nao foi possivel carregar os colaboradores.');
+      console.error('Erro ao carregar funcionários para o RBAC:', getRedactedLogValue(error));
+      toast.error('Nao foi possivel carregar os funcionários.');
       setStaff([]);
     } else {
       const nextStaff = (data ?? []) as StaffProfile[];
@@ -145,7 +145,7 @@ export function PermissionsManagementPanel() {
     setSavingPermissionKey(permissionKey);
 
     try {
-      // null remove a excecao e faz o colaborador voltar a herdar o grupo padrao.
+      // null remove a excecao e faz o funcionário voltar a herdar o grupo padrao.
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { error } = await (supabase as any).rpc('set_staff_erp_permission_override', {
         target_user_id: selectedUserId,
@@ -171,20 +171,20 @@ export function PermissionsManagementPanel() {
         <div className="flex flex-wrap items-center gap-2">
           <CardTitle className="flex items-center gap-2 text-base">
             <ShieldCheck className="h-4 w-4 text-primary" />
-            Permissoes por colaborador
+            Permissoes por funcionário
           </CardTitle>
           <Badge variant="outline">Somente Web</Badge>
         </div>
         <p className="text-sm text-muted-foreground">
-          Cada acesso e individual. A funcao do colaborador nao libera permissoes automaticamente.
+          Cada acesso e individual. A funcao do funcionário nao libera permissoes automaticamente.
         </p>
       </CardHeader>
       <CardContent className="space-y-5">
         <div className="max-w-md space-y-2">
-          <Label htmlFor="rbac-staff-select">Colaborador</Label>
+          <Label htmlFor="rbac-staff-select">Funcionário</Label>
           <Select value={selectedUserId} onValueChange={setSelectedUserId} disabled={loadingStaff || staff.length === 0}>
             <SelectTrigger id="rbac-staff-select">
-              <SelectValue placeholder={loadingStaff ? 'Carregando...' : 'Selecione um colaborador'} />
+              <SelectValue placeholder={loadingStaff ? 'Carregando...' : 'Selecione um funcionário'} />
             </SelectTrigger>
             <SelectContent>
               {staff.map((profile) => (

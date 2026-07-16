@@ -13,6 +13,7 @@ const operatorAllowedPaths = new Set([
   '/comandas',
   '/clientes',
   '/produtos',
+  '/portal-funcionario',
 ]);
 
 const waiterAllowedPaths = new Set([
@@ -21,6 +22,7 @@ const waiterAllowedPaths = new Set([
 
 const hrAllowedPaths = new Set([
   '/rh',
+  '/portal-funcionario',
 ]);
 
 export const normalizeUserRole = (value: string | null | undefined): UserRole => {
