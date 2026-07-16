@@ -3,7 +3,7 @@ import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Check, Star, Zap, Monitor, Smartphone, Download } from "lucide-react";
+import { Check, Crown, Zap, Monitor, Smartphone, Download } from "lucide-react";
 import { useAuthSession } from "@/hooks/use-auth-session";
 import { useLandingAccountActions } from "@/hooks/use-landing-account-actions";
 import { FiscalResponsibilityNotice } from "@/components/FiscalResponsibilityNotice";
@@ -17,7 +17,6 @@ const plans = [
     name: "Demo Grátis",
     price: 0,
     description: "Teste o sistema completo por 3 dias",
-    popular: false,
     highlight: "demo",
     features: [
       "Acesso completo por 3 dias",
@@ -32,7 +31,6 @@ const plans = [
     price: commercialPaidPlanPricing.fiado.monthlyPrice,
     annualPrice: commercialPaidPlanPricing.fiado.annualPrice,
     description: "Ideal para quem vive de fiado e precisa de controle simples por 30 dias",
-    popular: false,
     features: [
       "Plano com validade de 30 dias",
       "Painel inicial",
@@ -50,7 +48,6 @@ const plans = [
     price: commercialPaidPlanPricing.completo.monthlyPrice,
     annualPrice: commercialPaidPlanPricing.completo.annualPrice,
     description: "Gestão completa do seu negócio com ciclo de 30 dias",
-    popular: true,
     features: [
       "Plano com validade de 30 dias",
       "Tudo do Plano Fiado",
@@ -71,7 +68,6 @@ const plans = [
     price: commercialPaidPlanPricing.pro.monthlyPrice,
     annualPrice: commercialPaidPlanPricing.pro.annualPrice,
     description: "Desktop PRO com ativação por máquina, mobile e mais segurança para a operação",
-    popular: false,
     features: [
       "Plano com validade de 30 dias",
       "Tudo do Plano Completo",
@@ -172,9 +168,10 @@ const Pricing = () => {
           </div>
         </div>
 
-        <div className="pricing-cards grid md:grid-cols-2 xl:grid-cols-3 gap-6 max-w-7xl mx-auto">
+        <div className="pricing-cards grid items-stretch gap-5 md:grid-cols-2 xl:grid-cols-4 max-w-7xl mx-auto">
           {plans.map((plan) => {
             const isDemo = plan.highlight === "demo";
+            const isPro = plan.id === "pro";
             const annualPrice = plan.annualPrice ?? 0;
             const displayPrice = annualSelected && !isDemo ? annualPrice : plan.price;
             const periodLabel = annualSelected && !isDemo ? "/ano" : "/30 dias";
@@ -189,17 +186,17 @@ const Pricing = () => {
             return (
               <div
                 key={plan.name}
-                className={`pricing-card relative rounded-lg border p-8 transition-all duration-500 hover:-translate-y-2 ${
-                  plan.popular
-                    ? "border-primary/50 bg-gradient-to-b from-primary/15 via-primary/5 to-card shadow-2xl shadow-primary/15"
+                className={`pricing-card group relative flex h-full flex-col rounded-lg border p-6 transition-all duration-500 hover:-translate-y-2 hover:scale-[1.015] hover:shadow-2xl ${
+                  isPro
+                    ? "border-primary/70 bg-gradient-to-b from-primary/20 via-secondary/10 to-card shadow-2xl shadow-primary/20 ring-1 ring-primary/25 hover:border-primary hover:shadow-primary/25"
                     : isDemo
                     ? "border-secondary/50 bg-gradient-to-b from-secondary/10 to-card"
-                    : "border-border bg-card/50 backdrop-blur-sm hover:border-muted-foreground/30 hover:shadow-xl"
+                    : "border-border bg-card/50 backdrop-blur-sm hover:border-primary/45 hover:shadow-primary/10"
                 }`}
               >
-                {plan.popular && (
-                  <div className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-primary px-5 py-1.5 text-xs font-bold text-primary-foreground flex items-center gap-1 shadow-lg shadow-primary/30">
-                    <Star size={12} fill="currentColor" /> MAIS POPULAR
+                {isPro && (
+                  <div className="absolute -top-4 left-1/2 flex -translate-x-1/2 items-center gap-1.5 rounded-full border border-primary/30 bg-primary px-4 py-1.5 text-xs font-bold uppercase text-primary-foreground shadow-lg shadow-primary/30">
+                    <Crown size={14} fill="currentColor" className="drop-shadow-sm" /> Mais assinado
                   </div>
                 )}
                 {isDemo && (
@@ -208,7 +205,7 @@ const Pricing = () => {
                   </div>
                 )}
                 {annualSelected && !isDemo && (
-                  <div className="absolute -top-3 right-4 rounded-full border border-primary/40 bg-background px-3 py-1 text-xs font-bold text-primary shadow-lg">
+                  <div className={`absolute right-4 rounded-full border border-primary/40 bg-background px-3 py-1 text-xs font-bold text-primary shadow-lg ${isPro ? "top-5" : "-top-3"}`}>
                     Economize R$ {formatPrice(annualSavings)}
                   </div>
                 )}
@@ -225,7 +222,7 @@ const Pricing = () => {
                   ) : (
                     <>
                       <span className="text-sm text-muted-foreground align-top">R$</span>
-                      <span className="font-heading text-5xl font-bold text-primary mx-1">{formatPrice(displayPrice)}</span>
+                      <span className={`font-heading text-4xl font-bold mx-1 2xl:text-5xl ${isPro ? "text-primary" : "text-foreground"}`}>{formatPrice(displayPrice)}</span>
                       <span className="text-muted-foreground">{periodLabel}</span>
                       {annualSelected && (
                         <p className="mt-2 text-xs font-medium text-primary">Economia de R$ {formatPrice(annualSavings)} comparado ao mensal.</p>
@@ -234,11 +231,11 @@ const Pricing = () => {
                   )}
                 </div>
 
-                <ul className="space-y-3 mb-8">
+                <ul className="mb-8 flex-1 space-y-3">
                   {(annualSelected && !isDemo ? [`Plano anual com validade de 12 meses`, ...plan.features.slice(1)] : plan.features).map((f) => (
                     <li key={f} className="flex items-start gap-3 text-sm">
-                      <div className="shrink-0 mt-0.5 h-5 w-5 rounded-full bg-primary/20 flex items-center justify-center">
-                        <Check className="h-3 w-3 text-primary" />
+                      <div className={`shrink-0 mt-0.5 flex h-5 w-5 items-center justify-center rounded-full ${isPro ? "bg-primary" : "bg-primary/20"}`}>
+                        <Check className={`h-3 w-3 ${isPro ? "text-primary-foreground" : "text-primary"}`} />
                       </div>
                       <span>{f}</span>
                     </li>
@@ -255,7 +252,7 @@ const Pricing = () => {
                   ) : (
                     <>
                       <Button asChild className={`w-full font-semibold h-12 text-base transition-all duration-300 hover:scale-[1.02] hover:shadow-lg ${
-                        plan.popular ? "bg-primary text-primary-foreground hover:bg-primary/90 hover:shadow-primary/30" : "bg-muted text-foreground hover:bg-muted/80"
+                        isPro ? "bg-primary text-primary-foreground hover:bg-primary/90 hover:shadow-primary/30" : "bg-muted text-foreground hover:bg-muted/80"
                       }`} size="lg">
                         {isAuthenticated ? (
                           <Link to={planHref}>{annualSelected ? "Abrir checkout anual" : "Abrir no Painel"}</Link>
