@@ -21,7 +21,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     getRuntimeInfo: () => ipcRenderer.invoke('app:get-runtime-info'),
     getRuntimeInfoSync: () => ipcRenderer.sendSync('app:get-runtime-info-sync'),
     getUpdateStatus: () => ipcRenderer.invoke('app:get-update-status'),
-    checkForUpdates: () => ipcRenderer.invoke('app:check-for-updates'),
+    checkForUpdates: (options) => ipcRenderer.invoke('app:check-for-updates', options),
     installUpdate: () => ipcRenderer.invoke('app:install-update'),
     openUpdateDownload: () => ipcRenderer.invoke('app:open-update-download'),
     onUpdateStatus: (callback) => {

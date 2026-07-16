@@ -62,7 +62,7 @@ interface Window {
         installerToken: string | null;
       };
       getUpdateStatus: () => Promise<unknown>;
-      checkForUpdates: () => Promise<unknown>;
+      checkForUpdates: (options?: { autoInstallOnDownloaded?: boolean }) => Promise<unknown>;
       installUpdate: () => Promise<unknown>;
       openUpdateDownload: () => Promise<unknown>;
       onUpdateStatus: (callback: (status: unknown) => void) => () => void;

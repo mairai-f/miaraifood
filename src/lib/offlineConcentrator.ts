@@ -340,9 +340,9 @@ export const readDesktopUpdateStatus = async () => {
   return window.electronAPI.app.getUpdateStatus() as Promise<DesktopUpdateStatus>;
 };
 
-export const checkDesktopUpdates = async () => {
+export const checkDesktopUpdates = async (options?: { autoInstallOnDownloaded?: boolean }) => {
   if (!window.electronAPI?.app) return null;
-  return window.electronAPI.app.checkForUpdates() as Promise<DesktopUpdateStatus>;
+  return window.electronAPI.app.checkForUpdates(options) as Promise<DesktopUpdateStatus>;
 };
 
 export const installDesktopUpdate = async () => {

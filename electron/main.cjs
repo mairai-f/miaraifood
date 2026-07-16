@@ -8,6 +8,9 @@ const { requestDesktopTurnstileToken } = require('./desktop-turnstile.cjs');
 const UPDATE_CHECK_DELAY_MS = 15_000;
 const UPDATE_CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000;
 const UPDATE_METADATA_RETRY_DELAY_MS = 60_000;
+const UPDATE_AUTO_INSTALL_DELAY_MS = 900;
+const UPDATE_INSTALL_RETRY_DELAY_MS = 8_000;
+const UPDATE_INSTALL_STUCK_TIMEOUT_MS = 24_000;
 const isDevelopment = Boolean(process.env.VITE_DEV_SERVER_URL) || !app.isPackaged;
 const loadPackagedMetadata = () => {
   try {
@@ -76,6 +79,10 @@ let updateState = {
   error: null,
 };
 let pendingUpdateRetryTimer = null;
+let pendingUpdateInstallTimer = null;
+let pendingUpdateInstallWatchdogTimer = null;
+let autoInstallDownloadedUpdate = false;
+let updateInstallAttemptCount = 0;
 const appendPrintLog = (event, details = {}) => {
   const entry = JSON.stringify({
     timestamp: new Date().toISOString(),
@@ -360,6 +367,115 @@ const clearPendingUpdateRetry = () => {
     clearTimeout(pendingUpdateRetryTimer);
     pendingUpdateRetryTimer = null;
   }
+};
+
+const clearPendingUpdateInstall = () => {
+  if (pendingUpdateInstallTimer) {
+    clearTimeout(pendingUpdateInstallTimer);
+    pendingUpdateInstallTimer = null;
+  }
+};
+
+const clearPendingUpdateInstallWatchdog = () => {
+  if (pendingUpdateInstallWatchdogTimer) {
+    clearTimeout(pendingUpdateInstallWatchdogTimer);
+    pendingUpdateInstallWatchdogTimer = null;
+  }
+};
+
+const getUpdateInstallFailureMessage = () =>
+  'A atualização foi baixada, mas o instalador não conseguiu reiniciar o HappyCash automaticamente. Abra Configurações > Desktop e offline para tentar novamente ou baixe a atualização manualmente.';
+
+const markUpdateInstallFailed = (errorMessage = getUpdateInstallFailureMessage()) => {
+  const state = getUpdateState();
+  autoInstallDownloadedUpdate = false;
+  clearPendingUpdateInstall();
+  clearPendingUpdateInstallWatchdog();
+  updateInstallAttemptCount = 0;
+
+  return setUpdateState({
+    status: 'error',
+    installStartedAt: null,
+    manualDownloadUrl: getManualUpdateUrl(state.downloadedVersion || state.availableVersion),
+    checkedAt: nowIso(),
+    error: errorMessage,
+  });
+};
+
+const scheduleUpdateInstallWatchdog = () => {
+  clearPendingUpdateInstallWatchdog();
+
+  pendingUpdateInstallWatchdogTimer = setTimeout(() => {
+    pendingUpdateInstallWatchdogTimer = null;
+    const state = getUpdateState();
+    if (state.status !== 'installing') return;
+
+    if (updateInstallAttemptCount < 2) {
+      console.warn('Instalacao da atualizacao ainda nao reiniciou o app. Tentando novamente...');
+      invokeQuitAndInstall('watchdog-retry');
+      return;
+    }
+
+    console.error('Instalacao da atualizacao ficou presa apos o download.');
+    markUpdateInstallFailed();
+  }, updateInstallAttemptCount < 2 ? UPDATE_INSTALL_RETRY_DELAY_MS : UPDATE_INSTALL_STUCK_TIMEOUT_MS);
+};
+
+function invokeQuitAndInstall(trigger = 'manual') {
+  updateInstallAttemptCount += 1;
+  scheduleUpdateInstallWatchdog();
+
+  try {
+    console.log(`Iniciando instalacao da atualizacao (${trigger}), tentativa ${updateInstallAttemptCount}.`);
+    autoUpdater.quitAndInstall(false, true);
+    return { success: true };
+  } catch (error) {
+    console.error('Falha ao iniciar instalacao da atualizacao:', error);
+    markUpdateInstallFailed(
+      error instanceof Error ? error.message : 'Falha ao iniciar instalacao da atualizacao.',
+    );
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Falha ao iniciar instalacao da atualizacao.',
+    };
+  }
+}
+
+const startDownloadedUpdateInstall = (trigger = 'manual') => {
+  const state = getUpdateState();
+
+  if (state.status === 'installing') {
+    return { success: true };
+  }
+
+  if (state.status !== 'downloaded') {
+    return { success: false, error: 'Nenhuma atualizacao baixada para instalar.' };
+  }
+
+  autoInstallDownloadedUpdate = false;
+  clearPendingUpdateInstall();
+  clearPendingUpdateInstallWatchdog();
+  updateInstallAttemptCount = 0;
+
+  setUpdateState({
+    status: 'installing',
+    installStartedAt: nowIso(),
+    error: null,
+  });
+
+  setImmediate(() => {
+    invokeQuitAndInstall(trigger);
+  });
+
+  return { success: true };
+};
+
+const scheduleDownloadedUpdateInstall = (trigger = 'auto') => {
+  clearPendingUpdateInstall();
+  pendingUpdateInstallTimer = setTimeout(() => {
+    pendingUpdateInstallTimer = null;
+    startDownloadedUpdateInstall(trigger);
+  }, UPDATE_AUTO_INSTALL_DELAY_MS);
 };
 
 const isReleaseMetadataPublishingError = (errorMessage) =>
@@ -990,7 +1106,9 @@ if (process.platform === 'win32') {
   app.setAppUserModelId(APP_USER_MODEL_ID);
 }
 
-const checkForUpdates = async () => {
+const checkForUpdates = async (options = {}) => {
+  const shouldAutoInstallOnDownloaded = Boolean(options?.autoInstallOnDownloaded);
+
   if (isDevelopment) {
     return setUpdateState({
       status: 'disabled',
@@ -1004,6 +1122,11 @@ const checkForUpdates = async () => {
       error: null,
     });
   }
+
+  autoInstallDownloadedUpdate = shouldAutoInstallOnDownloaded;
+  clearPendingUpdateInstall();
+  clearPendingUpdateInstallWatchdog();
+  updateInstallAttemptCount = 0;
 
   setUpdateState({
     status: 'checking',
@@ -1023,6 +1146,9 @@ const checkForUpdates = async () => {
 
   try {
     await autoUpdater.checkForUpdates();
+    if (shouldAutoInstallOnDownloaded && getUpdateState().status === 'downloaded') {
+      scheduleDownloadedUpdateInstall('preflight-check');
+    }
     return getUpdateState();
   } catch (error) {
     console.error('Erro ao procurar atualizacoes automáticas:', error);
@@ -1077,6 +1203,9 @@ const setupAutoUpdates = (mainWindow) => {
   autoUpdater.on('checking-for-update', () => {
     console.log(`Verificando atualizacoes do ${APP_DISPLAY_NAME}...`);
     clearPendingUpdateRetry();
+    clearPendingUpdateInstall();
+    clearPendingUpdateInstallWatchdog();
+    updateInstallAttemptCount = 0;
     setUpdateState({
       status: 'checking',
       availableVersion: null,
@@ -1096,6 +1225,9 @@ const setupAutoUpdates = (mainWindow) => {
   autoUpdater.on('update-available', (info) => {
     console.log(`Atualizacao ${info?.version || ''} encontrada. Baixando em segundo plano...`);
     clearPendingUpdateRetry();
+    clearPendingUpdateInstall();
+    clearPendingUpdateInstallWatchdog();
+    updateInstallAttemptCount = 0;
     setUpdateState({
       status: 'downloading',
       availableVersion: info?.version || null,
@@ -1127,6 +1259,10 @@ const setupAutoUpdates = (mainWindow) => {
   autoUpdater.on('update-not-available', () => {
     console.log('Nenhuma atualizacao nova encontrada.');
     clearPendingUpdateRetry();
+    clearPendingUpdateInstall();
+    clearPendingUpdateInstallWatchdog();
+    autoInstallDownloadedUpdate = false;
+    updateInstallAttemptCount = 0;
     setUpdateState({
       status: 'idle',
       availableVersion: null,
@@ -1161,6 +1297,11 @@ const setupAutoUpdates = (mainWindow) => {
       return;
     }
 
+    clearPendingUpdateInstall();
+    clearPendingUpdateInstallWatchdog();
+    autoInstallDownloadedUpdate = false;
+    updateInstallAttemptCount = 0;
+
     setUpdateState({
       status: 'error',
       downloadedVersion: null,
@@ -1189,6 +1330,10 @@ const setupAutoUpdates = (mainWindow) => {
       checkedAt: nowIso(),
       error: null,
     });
+
+    if (autoInstallDownloadedUpdate) {
+      scheduleDownloadedUpdateInstall('update-downloaded');
+    }
   });
 
   const initialTimer = setTimeout(() => {
@@ -1203,6 +1348,8 @@ const setupAutoUpdates = (mainWindow) => {
     clearTimeout(initialTimer);
     clearInterval(recurringTimer);
     clearPendingUpdateRetry();
+    clearPendingUpdateInstall();
+    clearPendingUpdateInstallWatchdog();
   });
 };
 
@@ -1354,44 +1501,12 @@ ipcMain.handle('app:get-update-status', () => {
   return getUpdateState();
 });
 
-ipcMain.handle('app:check-for-updates', async () => {
-  return checkForUpdates();
+ipcMain.handle('app:check-for-updates', async (_event, options) => {
+  return checkForUpdates(options || {});
 });
 
 ipcMain.handle('app:install-update', () => {
-  const state = getUpdateState();
-  if (state.status !== 'downloaded') {
-    return { success: false, error: 'Nenhuma atualizacao baixada para instalar.' };
-  }
-
-  try {
-    setUpdateState({
-      status: 'installing',
-      installStartedAt: nowIso(),
-      error: null,
-    });
-
-    setImmediate(() => {
-      try {
-        autoUpdater.quitAndInstall(false, true);
-      } catch (error) {
-        console.error('Falha ao iniciar instalacao da atualizacao:', error);
-        setUpdateState({
-          status: 'error',
-          installStartedAt: null,
-          manualDownloadUrl: getManualUpdateUrl(state.downloadedVersion || state.availableVersion),
-          checkedAt: nowIso(),
-          error: error instanceof Error ? error.message : 'Falha ao iniciar instalacao da atualizacao.',
-        });
-      }
-    });
-    return { success: true };
-  } catch (error) {
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Falha ao iniciar instalacao da atualizacao.',
-    };
-  }
+  return startDownloadedUpdateInstall('ipc');
 });
 
 ipcMain.handle('app:open-update-download', async () => {

@@ -149,7 +149,7 @@ function AppRoutes() {
     setDesktopUpdatePreflightStarted(true);
     setDesktopUpdatePreflightDone(false);
 
-    void checkDesktopUpdates()
+    void checkDesktopUpdates({ autoInstallOnDownloaded: true })
       .then((status) => {
         setDesktopUpdateStatus(status);
       })

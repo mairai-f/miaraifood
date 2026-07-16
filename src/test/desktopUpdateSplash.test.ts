@@ -57,7 +57,7 @@ describe("desktopUpdateSplash", () => {
       ),
     ).toEqual({
       label: "Atualizando para a nova versão 0.1.48",
-      detail: "Após a atualização, o sistema será reiniciado automaticamente.",
+      detail: "Download concluído. Reiniciando o HappyCash para instalar a atualização.",
       progress: 100,
       tone: "default",
       primary: true,

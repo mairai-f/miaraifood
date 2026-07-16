@@ -65,7 +65,7 @@ export const getDesktopUpdateSplashSummary = (
     case "downloaded":
       return {
         label: `Atualizando para a nova versão${versionSuffix}`,
-        detail: "Após a atualização, o sistema será reiniciado automaticamente.",
+        detail: "Download concluído. Reiniciando o HappyCash para instalar a atualização.",
         progress: 100,
         tone: "default",
         primary: true,
@@ -74,7 +74,7 @@ export const getDesktopUpdateSplashSummary = (
     case "installing":
       return {
         label: `Atualizando para a nova versão${versionSuffix}`,
-        detail: "Após a atualização, o sistema será reiniciado automaticamente.",
+        detail: "Instalação iniciada. O HappyCash será fechado e aberto novamente.",
         progress: 100,
         tone: "default",
         primary: true,
