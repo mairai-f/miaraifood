@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { createClient, FunctionsFetchError, FunctionsHttpError, FunctionsRelayError } from '@supabase/supabase-js';
+import { FunctionsFetchError, FunctionsHttpError, FunctionsRelayError } from '@supabase/supabase-js';
 import { toast } from 'sonner';
 import { useData } from '@/contexts/DataContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -26,7 +26,6 @@ import { INTERNET_REQUIRED_MESSAGE, isInternetUnavailable, openExternalUrl } fro
 import { normalizePhone } from '@/lib/phone';
 import { openRetailCouponPrintWindow } from '@/lib/retailCoupon';
 import { supabase } from '@/integrations/supabase/client';
-import type { Database } from '@/integrations/supabase/types';
 import happyCashLogo from '@/assets/login/happycash.svg';
 import { roleLabel } from '@/lib/access';
 import { useCompanyDisplayName } from '@/hooks/use-company-display-name';
@@ -46,7 +45,6 @@ import { readDesktopActivation } from '@/lib/desktopActivation';
 import { buildDesktopFiscalAccessPayload, canUseDesktopFiscalModule } from '@/lib/fiscalAccess';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { getPublicErrorMessage, getRedactedLogValue } from '../../shared/security/redaction';
-import { requestTurnstileToken } from '../../shared/security/turnstile';
 import {
   type FiscalDocumentRecord,
   type FiscalRuntimeStatus,
@@ -138,18 +136,6 @@ type PaymentBreakdownItem = {
 const CLOSE_CASH_WHATSAPP_PHONE_KEY = 'happycash-close-cash-whatsapp-phone';
 const CLOSE_CASH_EMAIL_RECIPIENTS_KEY = 'happycash-close-cash-email-recipients';
 const PDV_CASHIER_MODE_KEY = 'happycash-pdv-cashier-mode';
-const adminVerificationClient = createClient<Database>(
-  import.meta.env.VITE_SUPABASE_URL,
-  import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-  {
-    auth: {
-      persistSession: false,
-      autoRefreshToken: false,
-      detectSessionInUrl: false,
-      storageKey: 'happycash-admin-close-cash-verification',
-    },
-  }
-);
 
 const readCloseCashWhatsAppPhone = () => {
   if (typeof window === 'undefined') return '';
@@ -685,6 +671,39 @@ export default function PDV() {
 
     if (missingItems.length > 0) {
       return `${getPublicErrorMessage(resolvedMessage, fallbackMessage)} Pendencias: ${missingItems.join(', ')}.`;
+    }
+
+    return getPublicErrorMessage(resolvedMessage, fallbackMessage);
+  }, []);
+
+  const getAdminVerificationErrorMessage = useCallback(async (
+    error: unknown,
+    fallbackMessage: string,
+    data?: { error?: string } | null,
+  ) => {
+    let resolvedMessage = data?.error || fallbackMessage;
+
+    if (error instanceof FunctionsHttpError) {
+      try {
+        const payload = await error.context.clone().json() as { error?: string; message?: string };
+        resolvedMessage = payload.error || payload.message || resolvedMessage;
+      } catch {
+        if (error.context.status === 400) {
+          resolvedMessage = 'Informe login e senha do administrador.';
+        } else if (error.context.status === 401) {
+          resolvedMessage = 'Login ou senha do administrador invalidos.';
+        } else if (error.context.status === 403) {
+          resolvedMessage = 'A conta informada nao possui permissao de administrador nesta loja.';
+        } else if (error.context.status === 429) {
+          resolvedMessage = 'Muitas tentativas de validacao. Aguarde alguns instantes e tente novamente.';
+        }
+      }
+    } else if (error instanceof FunctionsRelayError) {
+      resolvedMessage = 'Nao foi possivel encaminhar a validacao para o servidor.';
+    } else if (error instanceof FunctionsFetchError) {
+      resolvedMessage = 'Nao foi possivel conectar ao servidor para validar o administrador.';
+    } else if (error instanceof Error && error.message.trim()) {
+      resolvedMessage = error.message;
     }
 
     return getPublicErrorMessage(resolvedMessage, fallbackMessage);
@@ -2406,7 +2425,6 @@ export default function PDV() {
       console.error('Erro ao validar ajuste de item da comanda:', getRedactedLogValue(error));
       setServiceTicketAdminAuthError(getPublicErrorMessage(error, 'Nao foi possivel validar o ajuste do item da comanda.'));
     } finally {
-      await adminVerificationClient.auth.signOut();
       setIsVerifyingServiceTicketAdmin(false);
     }
   };
@@ -3150,7 +3168,6 @@ export default function PDV() {
       setOpenCashAuthError('Nao foi possivel validar o administrador.');
       return;
     } finally {
-      await adminVerificationClient.auth.signOut();
       setIsVerifyingOpenCashAdmin(false);
     }
 
@@ -3511,52 +3528,30 @@ export default function PDV() {
       return { ok: true as const, adminDb: db };
     }
 
-    let captchaToken: string | undefined;
-    try {
-      captchaToken = await requestTurnstileToken('app-admin-verification');
-    } catch (error) {
-      setError(error instanceof Error ? error.message : 'Nao foi possivel concluir a verificacao de seguranca.');
+    if (!session?.access_token) {
+      setError('Sua sessão expirou. Entre novamente para validar o administrador.');
       return { ok: false as const, adminDb: null };
     }
 
-    const { data: authData, error } = await adminVerificationClient.auth.signInWithPassword({
-      email: normalizedLogin,
-      password: normalizedSecret,
-      options: { captchaToken },
+    const { data: verificationData, error: verificationError } = await supabase.functions.invoke<{ success?: boolean; error?: string }>('manage-operators', {
+      headers: { Authorization: `Bearer ${session.access_token}` },
+      body: {
+        action: 'verify_admin',
+        adminEmail: normalizedLogin,
+        adminPassword: normalizedSecret,
+      },
     });
 
-    if (error) {
-      setError('Email ou senha de administrador incorretos.');
+    if (verificationError || !verificationData?.success) {
+      setError(await getAdminVerificationErrorMessage(
+        verificationError,
+        'Email ou senha de administrador incorretos.',
+        verificationData,
+      ));
       return { ok: false as const, adminDb: null };
     }
 
-    const adminUserId = authData.user?.id;
-    if (!adminUserId) {
-      setError('Nao foi possivel validar o administrador.');
-      return { ok: false as const, adminDb: null };
-    }
-
-    // Generated Supabase types are behind the current profiles schema.
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const adminDb = adminVerificationClient as any;
-    const { data: adminProfile, error: adminProfileError } = await adminDb
-      .from('profiles')
-      .select('role, owner_user_id')
-      .eq('user_id', adminUserId)
-      .maybeSingle();
-
-    if (adminProfileError || !adminProfile || adminProfile.role !== 'admin') {
-      setError('A conta informada nao e de administrador.');
-      return { ok: false as const, adminDb: null };
-    }
-
-    const adminOwnerUserId = adminProfile.owner_user_id ?? adminUserId;
-    if (adminOwnerUserId !== ownerUserId) {
-      setError('Administrador nao pertence a esta loja.');
-      return { ok: false as const, adminDb: null };
-    }
-
-    return { ok: true as const, adminDb };
+    return { ok: true as const, adminDb: db };
   };
 
   const confirmCloseCashWithAdminPassword = async () => {
@@ -3580,7 +3575,6 @@ export default function PDV() {
       console.error('Erro ao validar senha para fechamento do caixa:', getRedactedLogValue(error));
       setCloseCashAuthError('Não foi possível validar as credenciais do administrador.');
     } finally {
-      await adminVerificationClient.auth.signOut();
       setIsVerifyingAdminPassword(false);
     }
   };

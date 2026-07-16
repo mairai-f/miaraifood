@@ -39,8 +39,6 @@ const pageLoaders = [
   () => import('@/pages/Operations'),
   () => import('@/pages/Notes'),
   () => import('@/pages/Settings'),
-  () => import('@/pages/HumanResources'),
-  () => import('@/pages/EmployeePortal'),
   () => import('@/pages/AccessMonitor'),
   () => import('@/pages/AuditLog'),
 ];
@@ -64,8 +62,6 @@ const [
   loadOperations,
   loadNotes,
   loadSettings,
-  loadHumanResources,
-  loadEmployeePortal,
   loadAccessMonitor,
   loadAuditLog,
 ] = pageLoaders;
@@ -88,8 +84,6 @@ const PricingManager = lazy(loadPricingManager);
 const Operations = lazy(loadOperations);
 const Notes = lazy(loadNotes);
 const Settings = lazy(loadSettings);
-const HumanResources = lazy(loadHumanResources);
-const EmployeePortal = lazy(loadEmployeePortal);
 const AccessMonitor = lazy(loadAccessMonitor);
 const AuditLog = lazy(loadAuditLog);
 
@@ -144,7 +138,6 @@ class PageErrorBoundary extends Component<
 
 const getDefaultAuthenticatedPath = (role: string) => {
   if (role === 'waiter') return '/comandas';
-  if (role === 'hr') return '/rh';
   return '/';
 };
 
@@ -193,11 +186,7 @@ function ProtectedRoute({
   if (!isAuthenticated) return <Navigate to="/login" replace />;
   if (isDesktop && !licensed) return <DesktopLicenseBlocked />;
   const baseFallbackPath = getDefaultAuthenticatedPath(role);
-  const fallbackPath = role !== 'hr' && hasPermission('hr.view') && !hasPermission('dashboard.view')
-    ? '/rh'
-    : role !== 'hr' && hasPermission('employee_portal.view') && !hasPermission('dashboard.view')
-    ? '/portal-funcionario'
-    : baseFallbackPath;
+  const fallbackPath = baseFallbackPath;
   if (!isRuntimeScopeAllowed(runtimeScope, isDesktop)) return <Navigate to={fallbackPath} replace />;
   if (!hasPermission(requiredPermission)) {
     if (location.pathname === fallbackPath) return <AppLayout><FeatureLocked /></AppLayout>;
@@ -256,11 +245,6 @@ const AuthenticatedArea = () => {
   const { isDesktop } = useDesktopRuntime();
   const { role } = useAuth();
   useEffect(() => {
-    if (role === 'hr') {
-      void loadHumanResources();
-      return undefined;
-    }
-
     return warmPageChunks(isDesktop);
   }, [isDesktop, role]);
 
@@ -268,8 +252,8 @@ const AuthenticatedArea = () => {
     <PermissionsProvider>
       <OperationalScopeProvider>
         <DataProvider>
-          {role !== 'hr' && <LowStockNotifier />}
-          {role !== 'hr' && <GuidedTour />}
+          <LowStockNotifier />
+          <GuidedTour />
           <Routes>
           <Route path="/" element={<ProtectedRoute requiredPermission="dashboard.view" requiredFeature="dashboard.view"><LazyPage><Dashboard /></LazyPage></ProtectedRoute>} />
           <Route path="/pdv" element={<ProtectedRoute requiredPermission="pdv.use" requiredFeature="pdv.use"><LazyPage><PDV /></LazyPage></ProtectedRoute>} />
@@ -285,8 +269,6 @@ const AuthenticatedArea = () => {
           <Route path="/operacoes" element={<ProtectedRoute requiredPermission="purchases.view" requiredFeature="financial.manage"><LazyPage><Operations /></LazyPage></ProtectedRoute>} />
           <Route path="/precificacao" element={<ProtectedRoute requiredPermission="pricing.view" requiredFeature="pricing.manage"><LazyPage><PricingManager /></LazyPage></ProtectedRoute>} />
           <Route path="/notas" element={<ProtectedRoute requiredPermission="fiscal.view" requiredFeature="notes.manage" requiredDesktopFiscalAccess><LazyPage><Notes /></LazyPage></ProtectedRoute>} />
-          <Route path="/rh" element={<ProtectedRoute requiredPermission="hr.view" requiredFeature="hr.manage"><LazyPage><HumanResources /></LazyPage></ProtectedRoute>} />
-          <Route path="/portal-funcionario" element={<ProtectedRoute requiredPermission="employee_portal.view" requiredFeature="hr.manage"><LazyPage><EmployeePortal /></LazyPage></ProtectedRoute>} />
           <Route path="/configuracoes" element={<ProtectedRoute requiredPermission="settings.manage" requiredFeature="settings.manage"><LazyPage><Settings /></LazyPage></ProtectedRoute>} />
           <Route path="/configuracoes/:section" element={<ProtectedRoute requiredPermission="settings.manage" requiredFeature="settings.manage"><LazyPage><Settings /></LazyPage></ProtectedRoute>} />
           <Route path="/acessos" element={<ProtectedRoute requiredPermission="access_monitor.view" requiredFeature="settings.manage" runtimeScope="web"><LazyPage><AccessMonitor /></LazyPage></ProtectedRoute>} />

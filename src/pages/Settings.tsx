@@ -1,5 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState, type ChangeEvent } from 'react';
-import { BarChart3, BriefcaseBusiness, Building2, Calculator, ChevronRight, ClipboardList, Clock3, DatabaseBackup, Download, FileText, Gift, Laptop, Loader2, MapPinned, PackageSearch, Settings as SettingsIcon, Shield, ShieldAlert, Trash2, WalletCards } from 'lucide-react';
+import { BarChart3, Building2, Calculator, ChevronRight, ClipboardList, Clock3, DatabaseBackup, Download, FileText, Gift, Laptop, Loader2, MapPinned, PackageSearch, Settings as SettingsIcon, Shield, ShieldAlert, Trash2, UserCog, WalletCards } from 'lucide-react';
 import { Link, useParams } from 'react-router-dom';
 import { DataRouteLoader } from '@/components/DataRouteLoader';
 import { useAuth } from '@/contexts/AuthContext';
@@ -41,7 +41,6 @@ import {
 } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import { getPublicErrorMessage, getRedactedLogValue } from '../../shared/security/redaction';
-import { requestTurnstileToken } from '../../shared/security/turnstile';
 import { isRuntimeScopeAllowed, type ErpPermissionKey, type RuntimeScope } from '@/lib/permissions';
 import { canUseDesktopFiscalModule } from '@/lib/fiscalAccess';
 import { readDesktopActivation } from '@/lib/desktopActivation';
@@ -64,9 +63,9 @@ const PrinterSettingsCard = lazy(() =>
   })),
 );
 
-const HumanResourcesSettingsPanel = lazy(() =>
-  import('@/components/hr/HumanResourcesSettingsPanel').then((module) => ({
-    default: module.HumanResourcesSettingsPanel,
+const OperatorManagementPanel = lazy(() =>
+  import('@/components/OperatorManagementPanel').then((module) => ({
+    default: module.OperatorManagementPanel,
   })),
 );
 
@@ -85,7 +84,7 @@ const CatalogConfigurationPanel = lazy(() =>
 const RESET_CONFIRM_TEXT = 'ZERAR';
 const RESTORE_CONFIRM_TEXT = 'RESTAURAR';
 type ResetTarget = 'financial' | 'reports';
-type SettingsSection = 'empresa' | 'backup' | 'rh' | 'filiais' | 'catalogo' | 'desktop' | 'risco';
+type SettingsSection = 'empresa' | 'backup' | 'colaboradores' | 'filiais' | 'catalogo' | 'desktop' | 'risco';
 
 interface SettingsNavigationItem {
   path: string;
@@ -102,7 +101,7 @@ interface SettingsNavigationItem {
 const settingsNavigationItems: SettingsNavigationItem[] = [
   { path: '/configuracoes/empresa', section: 'empresa', title: 'Empresa', description: 'Dados, identidade e configuracao de impressao.', icon: Building2, featureKey: 'settings.manage', permissionKey: 'settings.manage', runtimeScope: 'both' },
   { path: '/configuracoes/backup', section: 'backup', title: 'Backup', description: 'Exportacao e restauracao dos dados.', icon: DatabaseBackup, featureKey: 'settings.manage', permissionKey: 'settings.manage', runtimeScope: 'both' },
-  { path: '/configuracoes/rh', section: 'rh', title: 'RH', description: 'Modulo de pessoas, ponto, folha e documentos.', icon: BriefcaseBusiness, featureKey: 'hr.manage', permissionKey: 'settings.manage', runtimeScope: 'both' },
+  { path: '/configuracoes/colaboradores', section: 'colaboradores', title: 'Funcionários', description: 'Cadastro, foto, endereco, acessos e escala basica.', icon: UserCog, featureKey: 'hr.manage', permissionKey: 'settings.manage', runtimeScope: 'both' },
   { path: '/configuracoes/filiais', section: 'filiais', title: 'Filiais e terminais', description: 'Lojas, terminais e escopo operacional.', icon: MapPinned, featureKey: 'settings.manage', permissionKey: 'multi_store.manage', runtimeScope: 'web' },
   { path: '/configuracoes/catalogo', section: 'catalogo', title: 'Catalogo avancado', description: 'Marcas, grupos, unidades e tabelas.', icon: PackageSearch, featureKey: 'settings.manage', permissionKey: 'products.manage', runtimeScope: 'web' },
   { path: '/configuracoes/desktop', section: 'desktop', title: 'Desktop e offline', description: 'Atualizacoes, sincronizacao e conflitos.', icon: Laptop, featureKey: 'settings.manage', permissionKey: 'settings.manage', runtimeScope: 'desktop' },
@@ -181,9 +180,7 @@ export default function Settings() {
   const { subscription, countdown, statusLabel, loading: loadingSubscription } = useCurrentSubscription();
   const { section: routeSection } = useParams<{ section?: string }>();
   const matchedSettingsSection = settingsNavigationItems.find((item) => item.section === routeSection)?.section ?? null;
-  const activeSettingsSection: SettingsSection | null = routeSection === 'colaboradores'
-    ? 'rh'
-    : matchedSettingsSection;
+  const activeSettingsSection: SettingsSection | null = matchedSettingsSection;
   const [resetTarget, setResetTarget] = useState<ResetTarget | null>(null);
   const [resetDialogOpen, setResetDialogOpen] = useState(false);
   const [adminEmail, setAdminEmail] = useState('');
@@ -590,15 +587,22 @@ export default function Settings() {
     setRestoreError('');
 
     try {
-      const captchaToken = await requestTurnstileToken('app-backup-restore');
-      const { error: authError } = await supabase.auth.signInWithPassword({
-        email: restoreAdminEmail.trim(),
-        password: restoreAdminPassword,
-        options: { captchaToken },
+      if (!session?.access_token) {
+        setRestoreError('Sua sessão expirou. Entre novamente para restaurar o backup.');
+        return;
+      }
+
+      const { data: verificationData, error: verificationError } = await supabase.functions.invoke<{ success?: boolean; error?: string }>('manage-operators', {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+        body: {
+          action: 'verify_admin',
+          adminEmail: restoreAdminEmail.trim(),
+          adminPassword: restoreAdminPassword,
+        },
       });
 
-      if (authError) {
-        setRestoreError('Email ou senha inválidos.');
+      if (verificationError || !verificationData?.success) {
+        setRestoreError(verificationData?.error || 'Email ou senha inválidos.');
         return;
       }
 
@@ -657,6 +661,7 @@ export default function Settings() {
     restoreAdminPassword,
     restoreBackup,
     restoreConfirmationText,
+    session?.access_token,
   ]);
 
   const resetTitle = resetTarget === 'financial'
@@ -1125,9 +1130,9 @@ export default function Settings() {
         </CardContent>
       </Card>}
 
-      {activeSettingsSection === 'rh' && (
-        <Suspense fallback={<SettingsSectionLoader label="Carregando configuracoes do RH..." />}>
-          <HumanResourcesSettingsPanel />
+      {activeSettingsSection === 'colaboradores' && (
+        <Suspense fallback={<SettingsSectionLoader label="Carregando funcionários..." />}>
+          <OperatorManagementPanel />
         </Suspense>
       )}
 

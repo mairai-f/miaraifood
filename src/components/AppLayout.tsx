@@ -1,6 +1,6 @@
 import { ReactNode, useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { ArrowLeft, BriefcaseBusiness, Clock3, Home, Users, Package, LogOut, Menu, X, UserCircle, Receipt, Boxes, ChevronDown, ChevronUp, Settings, Database, Loader2, WifiOff, ClipboardList, HelpCircle, MapPin, RefreshCw, IdCard } from 'lucide-react';
+import { ArrowLeft, Clock3, Home, Users, Package, LogOut, Menu, X, UserCircle, Receipt, Boxes, ChevronDown, ChevronUp, Settings, Database, Loader2, WifiOff, ClipboardList, HelpCircle, MapPin, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import { useData } from '@/contexts/DataContext';
@@ -51,8 +51,6 @@ const navItems: NavigationItem[] = [
   { path: '/produtos', label: 'Produtos', icon: Package, shortcut: '5', featureKey: 'products.manage', permissionKey: 'products.view', runtimeScope: 'both', tourId: 'nav-products' },
   { path: '/estoque', label: 'Estoque', icon: Boxes, shortcut: '6', featureKey: 'stock.manage', permissionKey: 'stock.view', runtimeScope: 'both', tourId: 'nav-stock' },
   { path: '/configuracoes', label: 'Configurações', icon: Settings, shortcut: '7', featureKey: 'settings.manage', permissionKey: 'settings.manage', runtimeScope: 'both', tourId: 'nav-settings' },
-  { path: '/rh', label: 'RH', icon: BriefcaseBusiness, featureKey: 'hr.manage', permissionKey: 'hr.view', runtimeScope: 'both', tourId: 'nav-hr' },
-  { path: '/portal-funcionario', label: 'Portal', icon: IdCard, featureKey: 'hr.manage', permissionKey: 'employee_portal.view', runtimeScope: 'both', tourId: 'nav-employee-portal' },
 ];
 
 const centralAdministrativePaths = new Set([
@@ -153,7 +151,6 @@ export function AppLayout({ children }: { children: ReactNode }) {
   );
   const desktopActivation = readDesktopActivation();
   const visibleNavItems = navItems.filter(item => {
-    if (role === 'hr' && item.path !== '/rh' && item.path !== '/portal-funcionario') return false;
     if (!hasPermission(item.permissionKey) || !hasFeature(item.featureKey)) return false;
     if (!isRuntimeScopeAllowed(item.runtimeScope, isDesktop)) return false;
     return true;
@@ -581,7 +578,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
                 decoding="async"
               />
               <p className="mt-1 text-[9px] font-semibold tracking-[0.08em] text-muted-foreground">
-                {role === 'hr' ? 'HAPPYCASH RH' : 'SISTEMA DE GESTAO 2.0'}
+                SISTEMA DE GESTAO 2.0
               </p>
             </div>
             <button className="lg:hidden text-muted-foreground" onClick={() => setOpen(false)}><X className="h-5 w-5" /></button>

@@ -78,8 +78,14 @@ function RouteLoader() {
 
 function WhatsAppForRoute() {
   const { pathname } = useLocation();
+  const legalPaths = new Set([
+    "/lgpd",
+    "/politica-de-privacidade",
+    "/termos-de-uso",
+    "/termos-de-servico",
+  ]);
 
-  if (pathname === "/cadastro" || pathname.startsWith("/cadastro/")) {
+  if (pathname === "/cadastro" || pathname.startsWith("/cadastro/") || legalPaths.has(pathname)) {
     return null;
   }
 

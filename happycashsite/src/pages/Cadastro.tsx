@@ -618,7 +618,7 @@ const Cadastro = () => {
       </div>
 
       <Dialog open={legalModalOpen} onOpenChange={setLegalModalOpen}>
-        <DialogContent className="grid max-h-[calc(100dvh-1rem)] w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden border-border bg-card p-0 text-card-foreground shadow-[0_28px_80px_rgba(15,23,42,0.22)] sm:max-h-[calc(100dvh-2rem)] sm:max-w-3xl">
+        <DialogContent className="grid max-h-[calc(100dvh-0.5rem)] w-[calc(100vw-0.75rem)] max-w-[calc(100vw-0.75rem)] grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden border-border bg-card p-0 text-card-foreground shadow-[0_28px_80px_rgba(15,23,42,0.22)] sm:max-h-[calc(100dvh-2rem)] sm:w-full sm:max-w-3xl">
           <DialogHeader className="border-b border-border px-4 pb-3 pt-5 text-left sm:px-6 sm:pb-4 sm:pt-6">
             <DialogTitle className="font-heading text-2xl">Etapa 2: Termos, Privacidade e LGPD</DialogTitle>
             <DialogDescription className="leading-6">
@@ -653,12 +653,12 @@ const Cadastro = () => {
             </div>
           </ScrollArea>
 
-          <div className="grid shrink-0 gap-3 border-t border-border bg-card px-4 py-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:grid-cols-[1fr_auto_auto] sm:items-center sm:px-6">
+          <div className="grid shrink-0 gap-3 border-t border-border bg-card px-4 py-3 pb-[max(0.875rem,env(safe-area-inset-bottom))] sm:grid-cols-[1fr_auto_auto] sm:items-center sm:px-6 sm:py-4">
             <span className="order-3 text-xs text-muted-foreground sm:order-1">Última atualização: {LEGAL_UPDATED_AT_LABEL}</span>
             <Button
               type="button"
               variant="destructive"
-              className="order-2 w-full sm:w-auto"
+              className="order-2 min-h-11 w-full sm:w-auto"
               onClick={() => {
                 setLegalDecision("declined");
                 setLegalModalOpen(false);
@@ -668,7 +668,7 @@ const Cadastro = () => {
             </Button>
             <Button
               type="button"
-              className="order-1 w-full sm:order-3 sm:w-auto"
+              className="order-1 min-h-11 w-full sm:order-3 sm:w-auto"
               onClick={() => {
                 setLegalDecision("accepted");
                 setLegalModalOpen(false);

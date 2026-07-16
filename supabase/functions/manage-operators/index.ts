@@ -1,7 +1,6 @@
 import { createClient, type SupabaseClient } from 'npm:@supabase/supabase-js@2';
 import {
   buildOperatorEmail,
-  buildOperatorAuthPasswordCandidates,
   isValidOperatorUsername,
   normalizeOperatorUsername,
   operatorUsernameHelpText,
@@ -23,6 +22,15 @@ type ManageOperatorRequest =
       jobTitle?: string;
       staffRole?: string;
       permissionKeys?: string[];
+      photoUrl?: string | null;
+      addressZipCode?: string | null;
+      addressStreet?: string | null;
+      addressNumber?: string | null;
+      addressComplement?: string | null;
+      addressNeighborhood?: string | null;
+      addressCity?: string | null;
+      addressState?: string | null;
+      workJourney?: string | null;
       adminEmail?: string;
       adminPassword?: string;
       adminAccessToken?: string;
@@ -34,6 +42,15 @@ type ManageOperatorRequest =
       jobTitle?: string;
       staffRole?: string;
       permissionKeys?: string[];
+      photoUrl?: string | null;
+      addressZipCode?: string | null;
+      addressStreet?: string | null;
+      addressNumber?: string | null;
+      addressComplement?: string | null;
+      addressNeighborhood?: string | null;
+      addressCity?: string | null;
+      addressState?: string | null;
+      workJourney?: string | null;
       adminEmail?: string;
       adminPassword?: string;
       adminAccessToken?: string;
@@ -45,6 +62,11 @@ type ManageOperatorRequest =
       adminEmail?: string;
       adminPassword?: string;
       adminAccessToken?: string;
+    }
+  | {
+      action: 'verify_admin';
+      adminEmail?: string;
+      adminPassword?: string;
     }
   | {
       action: 'open_cash';
@@ -76,17 +98,20 @@ interface HrEmployeeLookupRow {
   full_name: string;
 }
 
+interface StaffEmployeeDetails {
+  photoUrl?: string | null;
+  addressZipCode?: string | null;
+  addressStreet?: string | null;
+  addressNumber?: string | null;
+  addressComplement?: string | null;
+  addressNeighborhood?: string | null;
+  addressCity?: string | null;
+  addressState?: string | null;
+  workJourney?: string | null;
+}
+
 type StaffRole = 'operator' | 'waiter' | 'hr';
 const staffRoles: StaffRole[] = ['operator', 'waiter', 'hr'];
-const staffAccessActions = new Set<ManageOperatorRequest['action']>(['list', 'create', 'update_access', 'reset_password']);
-const adminOnlyActions = new Set<ManageOperatorRequest['action']>([
-  'open_cash',
-  'delete',
-  'reset_financial',
-  'reset_reports',
-  'reset_financial_reports',
-  'delete_account',
-]);
 const normalizeJobTitle = (value: string | undefined | null) => value?.trim().replace(/\s+/g, ' ') ?? '';
 const isValidJobTitle = (value: string) => value.length >= 2 && value.length <= 60;
 const normalizePersonName = (value: string | undefined | null) => value?.trim().replace(/\s+/g, ' ') ?? '';
@@ -98,19 +123,29 @@ const normalizePersonNameKey = (value: string | undefined | null) =>
 const isValidPersonName = (value: string) => value.length >= 3 && value.length <= 100;
 const isHrPermissionKey = (permissionKey: string) => permissionKey.startsWith('hr.');
 const isEmployeePortalPermissionKey = (permissionKey: string) => permissionKey.startsWith('employee_portal.');
-const requiredStaffPermissionKeys = ['employee_portal.view'];
+const isEnterpriseOnlyPermissionKey = (permissionKey: string) =>
+  isHrPermissionKey(permissionKey) || isEmployeePortalPermissionKey(permissionKey);
+const requiredStaffPermissionKeys: string[] = [];
 const ensureRequiredStaffPermissions = (permissionKeys: string[]) => [...new Set([
   ...permissionKeys,
   ...requiredStaffPermissionKeys,
 ])];
-const resolveStaffRoleFromPermissions = (permissionKeys: string[]): StaffRole =>
-  permissionKeys.some(isHrPermissionKey) && permissionKeys.every((permissionKey) =>
-    isHrPermissionKey(permissionKey) || isEmployeePortalPermissionKey(permissionKey)
-  )
-    ? 'hr'
-    : 'operator';
+const resolveStaffRoleFromPermissions = (_permissionKeys: string[]): StaffRole => 'operator';
 const isInternalOperatorEmail = (value: string | null | undefined) =>
   Boolean(value?.endsWith('@operators.happycash.local') || value?.endsWith('@happycash.local'));
+const normalizeOptionalText = (value: string | null | undefined) => value?.trim() ?? '';
+
+const readStaffEmployeeDetails = (body: Extract<ManageOperatorRequest, { action: 'create' | 'update_access' }>): StaffEmployeeDetails => ({
+  photoUrl: body.photoUrl,
+  addressZipCode: body.addressZipCode,
+  addressStreet: body.addressStreet,
+  addressNumber: body.addressNumber,
+  addressComplement: body.addressComplement,
+  addressNeighborhood: body.addressNeighborhood,
+  addressCity: body.addressCity,
+  addressState: body.addressState,
+  workJourney: body.workJourney,
+});
 
 interface CallerProfile {
   role: string;
@@ -156,11 +191,23 @@ const syncHrEmployeeForStaffProfile = async (details: {
   email?: string | null;
   role: StaffRole;
   jobTitle: string;
+  employeeDetails?: StaffEmployeeDetails;
   actorUserId?: string | null;
 }) => {
   const requestedFullName = normalizePersonName(details.fullName);
   const fullName = requestedFullName || normalizeJobTitle(details.username) || details.jobTitle || `Colaborador ${details.profileUserId.slice(0, 8)}`;
   const normalizedEmail = normalizeEmail(details.email ?? '');
+  const employeeDetailsPayload = details.employeeDetails ? {
+    photo_url: normalizeOptionalText(details.employeeDetails.photoUrl) || null,
+    address_zip_code: normalizeOptionalText(details.employeeDetails.addressZipCode) || null,
+    address_street: normalizeOptionalText(details.employeeDetails.addressStreet) || null,
+    address_number: normalizeOptionalText(details.employeeDetails.addressNumber) || null,
+    address_complement: normalizeOptionalText(details.employeeDetails.addressComplement) || null,
+    address_neighborhood: normalizeOptionalText(details.employeeDetails.addressNeighborhood) || null,
+    address_city: normalizeOptionalText(details.employeeDetails.addressCity) || null,
+    address_state: normalizeOptionalText(details.employeeDetails.addressState).toUpperCase() || null,
+    work_journey: normalizeOptionalText(details.employeeDetails.workJourney) || null,
+  } : {};
   const payload = {
     owner_user_id: details.ownerUserId,
     profile_user_id: details.profileUserId,
@@ -172,6 +219,7 @@ const syncHrEmployeeForStaffProfile = async (details: {
     department: details.role === 'hr' ? 'RH' : null,
     position: details.jobTitle,
     updated_by: details.actorUserId ?? null,
+    ...employeeDetailsPayload,
   };
 
   const { data: existingEmployee, error: lookupError } = await details.serviceClient
@@ -278,6 +326,32 @@ const verifyAdminProfileForOwner = async (
   return null;
 };
 
+const verifyAdminPasswordForOwner = async (
+  details: {
+    serviceClient: SupabaseClient;
+    ownerUserId: string;
+    adminEmail: string;
+    adminPassword: string;
+  },
+) => {
+  const { data: verifiedAdminUserId, error } = await details.serviceClient.rpc('verify_admin_password_for_owner', {
+    target_owner_user_id: details.ownerUserId,
+    target_email: details.adminEmail,
+    target_password: details.adminPassword,
+  });
+
+  if (error) {
+    console.error('Erro ao validar senha do administrador:', error.message);
+    return null;
+  }
+
+  if (!verifiedAdminUserId || typeof verifiedAdminUserId !== 'string') {
+    return null;
+  }
+
+  return verifiedAdminUserId;
+};
+
 const verifyAdminCredentials = async (
   details: {
     supabaseUrl: string;
@@ -311,40 +385,18 @@ const verifyAdminCredentials = async (
     return 'Confirme esta acao com login e senha do administrador.';
   }
 
-  const verificationClient = createClient(details.supabaseUrl, details.supabaseAnonKey, {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false,
-    },
+  const verifiedAdminUserId = await verifyAdminPasswordForOwner({
+    serviceClient: details.serviceClient,
+    ownerUserId: details.ownerUserId,
+    adminEmail,
+    adminPassword,
   });
 
-  const { data: verificationSession, error: verificationError } = await verificationClient.auth.signInWithPassword({
-    email: adminEmail,
-    password: adminPassword,
-  });
-
-  if (verificationError || !verificationSession.user) {
+  if (!verifiedAdminUserId) {
     return 'Login ou senha do administrador invalidos.';
   }
 
-  return verifyAdminProfileForOwner({
-    serviceClient: details.serviceClient,
-    ownerUserId: details.ownerUserId,
-    adminUserId: verificationSession.user.id,
-  });
-};
-
-const userHasPermission = async (
-  serviceClient: SupabaseClient,
-  userId: string,
-  permissionKey: string,
-) => {
-  const { data, error } = await serviceClient.rpc('erp_user_has_permission', {
-    target_user_id: userId,
-    target_permission_key: permissionKey,
-  });
-
-  return !error && data === true;
+  return null;
 };
 
 const verifyStaffAccessAuthorization = async (
@@ -353,8 +405,6 @@ const verifyStaffAccessAuthorization = async (
     supabaseAnonKey: string;
     serviceClient: SupabaseClient;
     ownerUserId: string;
-    callerUserId: string;
-    callerAuthEmail?: string | null;
     callerProfile: CallerProfile;
     adminEmail?: string;
     adminPassword?: string;
@@ -373,70 +423,7 @@ const verifyStaffAccessAuthorization = async (
     });
   }
 
-  if (details.callerProfile.role !== 'hr') {
-    return 'Somente administrador ou RH autorizado pode gerenciar acessos.';
-  }
-
-  const canManageAccess = await userHasPermission(details.serviceClient, details.callerUserId, 'hr.access.manage');
-  if (!canManageAccess) {
-    return 'Seu acesso de RH nao libera gerenciamento de acessos.';
-  }
-
-  const accessToken = details.adminAccessToken?.trim() ?? '';
-  if (accessToken) {
-    const { data: verifiedUser, error: verifiedUserError } = await details.serviceClient.auth.getUser(accessToken);
-    if (verifiedUserError || verifiedUser.user?.id !== details.callerUserId) {
-      return 'Nao foi possivel validar a autorizacao do RH.';
-    }
-    return null;
-  }
-
-  const login = (details.adminEmail ?? '').trim();
-  const password = details.adminPassword?.trim() ?? '';
-  if (!login || !password) {
-    return 'Confirme esta acao com usuario e senha/PIN do RH autorizado.';
-  }
-
-  const normalizedLogin = login.toLowerCase();
-  const callerUsername = normalizeOperatorUsername(details.callerProfile.username ?? '');
-  const callerEmail = normalizeEmail(details.callerProfile.email || details.callerAuthEmail || '');
-  let authEmail = '';
-  let credentialUsername = callerUsername || normalizedLogin;
-
-  if (normalizedLogin.includes('@')) {
-    if (!callerEmail || normalizeEmail(normalizedLogin) !== callerEmail) {
-      return 'Use o proprio email do RH autorizado para confirmar.';
-    }
-    authEmail = callerEmail;
-  } else {
-    const normalizedUsername = normalizeOperatorUsername(normalizedLogin);
-    if (callerUsername && normalizedUsername !== callerUsername) {
-      return 'Use o proprio usuario do RH autorizado para confirmar.';
-    }
-    credentialUsername = normalizedUsername;
-    authEmail = buildOperatorEmail(normalizedUsername);
-  }
-
-  const verificationClient = createClient(details.supabaseUrl, details.supabaseAnonKey, {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false,
-    },
-  });
-
-  const candidates = buildOperatorAuthPasswordCandidates(credentialUsername, password);
-  for (const candidate of candidates) {
-    const { data: verificationSession, error: verificationError } = await verificationClient.auth.signInWithPassword({
-      email: authEmail,
-      password: candidate,
-    });
-
-    if (!verificationError && verificationSession.user?.id === details.callerUserId) {
-      return null;
-    }
-  }
-
-  return 'Usuario ou senha/PIN do RH invalidos.';
+  return 'Somente administrador pode gerenciar funcionários e acessos.';
 };
 
 Deno.serve(async (request): Promise<Response> => {
@@ -525,34 +512,47 @@ Deno.serve(async (request): Promise<Response> => {
     return jsonResponse(request, { error: 'Ação inválida.' }, 400);
   }
 
-  const isStaffAccessAction = staffAccessActions.has(body.action);
-  const isAdminOnlyAction = adminOnlyActions.has(body.action);
   const callerIsAdmin = callerProfile.role === 'admin';
-  const callerIsHrAccessManager = callerProfile.role === 'hr'
-    && isStaffAccessAction
-    && await userHasPermission(serviceClient, user.id, 'hr.access.manage');
+  const isAdminVerificationAction = body.action === 'verify_admin';
 
-  if (!callerIsAdmin && !callerIsHrAccessManager) {
-    return jsonResponse(request, { error: 'Somente administrador ou RH autorizado pode gerenciar acessos.' }, 403);
+  if (!callerIsAdmin && !isAdminVerificationAction) {
+    return jsonResponse(request, { error: 'Somente administrador pode gerenciar funcionários e acessos.' }, 403);
   }
 
-  if (isAdminOnlyAction && !callerIsAdmin) {
-    return jsonResponse(request, { error: 'Esta acao continua restrita ao administrador.' }, 403);
-  }
-
-  if (body.action !== 'delete_account') {
-    const requiredFeature = callerIsAdmin ? 'settings.manage' : 'hr.manage';
+  if (body.action !== 'delete_account' && !isAdminVerificationAction) {
     const { data: hasSettingsAccess, error: accessError } = await authClient.rpc('current_store_has_feature', {
-      target_feature: requiredFeature,
+      target_feature: 'settings.manage',
     });
 
     if (accessError || !hasSettingsAccess) {
       return jsonResponse(
         request,
-        { error: callerIsAdmin ? 'Seu plano atual nao libera configuracoes da loja.' : 'Seu plano atual nao libera o RH.' },
+        { error: 'Seu plano atual nao libera configuracoes da loja.' },
         403,
       );
     }
+  }
+
+  if (body.action === 'verify_admin') {
+    const adminEmail = normalizeEmail(body.adminEmail ?? '');
+    const adminPassword = body.adminPassword?.trim() ?? '';
+
+    if (!adminEmail || !adminPassword) {
+      return jsonResponse(request, { error: 'Informe login e senha do administrador.' }, 400);
+    }
+
+    const verifiedAdminUserId = await verifyAdminPasswordForOwner({
+      serviceClient,
+      ownerUserId,
+      adminEmail,
+      adminPassword,
+    });
+
+    if (!verifiedAdminUserId) {
+      return jsonResponse(request, { error: 'Login ou senha do administrador invalidos.' }, 401);
+    }
+
+    return jsonResponse(request, { success: true });
   }
 
   if (body.action === 'list') {
@@ -574,7 +574,7 @@ Deno.serve(async (request): Promise<Response> => {
         .eq('allowed', true),
       serviceClient
         .from('hr_employees')
-        .select('profile_user_id, full_name')
+        .select('profile_user_id, full_name, photo_url, address_zip_code, address_street, address_number, address_complement, address_neighborhood, address_city, address_state, work_journey')
         .eq('owner_user_id', ownerUserId)
         .not('profile_user_id', 'is', null),
     ]);
@@ -595,17 +595,18 @@ Deno.serve(async (request): Promise<Response> => {
       permissionsByUserId.set(row.user_id, current);
     }
 
-    const fullNamesByUserId = new Map<string, string>();
-    for (const row of (employeeRows ?? []) as Array<{ profile_user_id: string | null; full_name: string }>) {
+    const employeeDetailsByUserId = new Map<string, Record<string, unknown>>();
+    for (const row of (employeeRows ?? []) as Array<Record<string, unknown> & { profile_user_id: string | null; full_name?: string | null }>) {
       if (!row.profile_user_id) continue;
-      fullNamesByUserId.set(row.profile_user_id, row.full_name);
+      employeeDetailsByUserId.set(row.profile_user_id, row);
     }
 
     return jsonResponse(request, {
       success: true,
       operators: (operators ?? []).map((operator) => ({
         ...operator,
-        full_name: fullNamesByUserId.get(operator.user_id) ?? null,
+        ...(employeeDetailsByUserId.get(operator.user_id) ?? {}),
+        full_name: (employeeDetailsByUserId.get(operator.user_id)?.full_name as string | null | undefined) ?? null,
         permission_keys: permissionsByUserId.get(operator.user_id) ?? [],
       })),
     });
@@ -616,6 +617,7 @@ Deno.serve(async (request): Promise<Response> => {
     const normalizedUsername = normalizeOperatorUsername(body.username ?? '');
     const password = body.password?.trim();
     const jobTitle = normalizeJobTitle(body.jobTitle);
+    const employeeDetails = readStaffEmployeeDetails(body);
     const credentialError = getOperatorCredentialError(password || '');
     const authPassword = resolveOperatorAuthPassword(normalizedUsername, password || '');
     const requestedPermissionKeys = ensureRequiredStaffPermissions([...new Set(
@@ -645,13 +647,15 @@ Deno.serve(async (request): Promise<Response> => {
       return jsonResponse(request, { error: 'Selecione ao menos um acesso para o colaborador.' }, 400);
     }
 
+    if (requestedPermissionKeys.some(isEnterpriseOnlyPermissionKey)) {
+      return jsonResponse(request, { error: 'Permissoes de RH Enterprise e Portal nao fazem parte do cadastro de funcionarios do HappyCash.' }, 400);
+    }
+
     const adminVerificationError = await verifyStaffAccessAuthorization({
       supabaseUrl,
       supabaseAnonKey,
       serviceClient,
       ownerUserId,
-      callerUserId: user.id,
-      callerAuthEmail: user.email,
       callerProfile: callerProfile as CallerProfile,
       adminEmail: body.adminEmail,
       adminPassword: body.adminPassword,
@@ -738,6 +742,7 @@ Deno.serve(async (request): Promise<Response> => {
       email: generatedEmail,
       role: operatorRole,
       jobTitle,
+      employeeDetails,
       actorUserId: user.id,
     });
     if (hrSyncError) {
@@ -783,6 +788,7 @@ Deno.serve(async (request): Promise<Response> => {
     const operatorUserId = body.operatorUserId?.trim();
     const fullName = normalizePersonName(body.fullName);
     const jobTitle = normalizeJobTitle(body.jobTitle);
+    const employeeDetails = readStaffEmployeeDetails(body);
     const requestedPermissionKeys = ensureRequiredStaffPermissions([...new Set(
       (Array.isArray(body.permissionKeys) ? body.permissionKeys : []).filter(
         (permissionKey): permissionKey is string => typeof permissionKey === 'string' && permissionKey.trim() !== '',
@@ -810,13 +816,15 @@ Deno.serve(async (request): Promise<Response> => {
       return jsonResponse(request, { error: 'Selecione ao menos um acesso para o colaborador.' }, 400);
     }
 
+    if (requestedPermissionKeys.some(isEnterpriseOnlyPermissionKey)) {
+      return jsonResponse(request, { error: 'Permissoes de RH Enterprise e Portal nao fazem parte do cadastro de funcionarios do HappyCash.' }, 400);
+    }
+
     const adminVerificationError = await verifyStaffAccessAuthorization({
       supabaseUrl,
       supabaseAnonKey,
       serviceClient,
       ownerUserId,
-      callerUserId: user.id,
-      callerAuthEmail: user.email,
       callerProfile: callerProfile as CallerProfile,
       adminEmail: body.adminEmail,
       adminPassword: body.adminPassword,
@@ -869,6 +877,7 @@ Deno.serve(async (request): Promise<Response> => {
       email: null,
       role: nextStaffRole,
       jobTitle,
+      employeeDetails,
       actorUserId: user.id,
     });
     if (hrSyncError) {
@@ -937,8 +946,6 @@ Deno.serve(async (request): Promise<Response> => {
       supabaseAnonKey,
       serviceClient,
       ownerUserId,
-      callerUserId: user.id,
-      callerAuthEmail: user.email,
       callerProfile: callerProfile as CallerProfile,
       adminEmail: body.adminEmail,
       adminPassword: body.adminPassword,
@@ -1138,30 +1145,25 @@ Deno.serve(async (request): Promise<Response> => {
       return jsonResponse(request, { error: 'Informe a senha da sua conta.' }, 400);
     }
 
-    const verificationClient = createClient(supabaseUrl, supabaseAnonKey, {
-      auth: {
-        autoRefreshToken: false,
-        persistSession: false,
-      },
+    const verifiedAdminUserId = await verifyAdminPasswordForOwner({
+      serviceClient,
+      ownerUserId,
+      adminEmail,
+      adminPassword,
     });
 
-    const { data: verificationSession, error: verificationError } = await verificationClient.auth.signInWithPassword({
-      email: adminEmail,
-      password: adminPassword,
-    });
-
-    if (verificationError || !verificationSession.user) {
+    if (!verifiedAdminUserId) {
       return jsonResponse(request, { error: 'Email ou senha inválidos.' }, 401);
     }
 
-    if (verificationSession.user.id !== user.id) {
+    if (verifiedAdminUserId !== user.id) {
       return jsonResponse(request, { error: 'Você só pode apagar a própria conta logada.' }, 403);
     }
 
     const { data: verificationProfile, error: verificationProfileError } = await serviceClient
       .from('profiles')
       .select('user_id, role, owner_user_id')
-      .eq('user_id', verificationSession.user.id)
+      .eq('user_id', verifiedAdminUserId)
       .single();
 
     if (verificationProfileError || !verificationProfile) {
@@ -1218,26 +1220,21 @@ Deno.serve(async (request): Promise<Response> => {
       return jsonResponse(request, { error: 'Informe a senha do administrador.' }, 400);
     }
 
-    const verificationClient = createClient(supabaseUrl, supabaseAnonKey, {
-      auth: {
-        autoRefreshToken: false,
-        persistSession: false,
-      },
+    const verifiedAdminUserId = await verifyAdminPasswordForOwner({
+      serviceClient,
+      ownerUserId,
+      adminEmail,
+      adminPassword,
     });
 
-    const { data: verificationSession, error: verificationError } = await verificationClient.auth.signInWithPassword({
-      email: adminEmail,
-      password: adminPassword,
-    });
-
-    if (verificationError || !verificationSession.user) {
+    if (!verifiedAdminUserId) {
       return jsonResponse(request, { error: 'Login ou senha de administrador inválidos.' }, 401);
     }
 
     const { data: verificationProfile, error: verificationProfileError } = await serviceClient
       .from('profiles')
       .select('user_id, role, owner_user_id')
-      .eq('user_id', verificationSession.user.id)
+      .eq('user_id', verifiedAdminUserId)
       .single();
 
     if (verificationProfileError || !verificationProfile || verificationProfile.role !== 'admin') {

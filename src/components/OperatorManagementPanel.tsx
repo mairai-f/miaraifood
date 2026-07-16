@@ -1,10 +1,7 @@
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useMemo, useState, type ChangeEvent, type FormEvent } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useData } from '@/contexts/DataContext';
-import { usePermissions } from '@/contexts/usePermissions';
 import { supabase } from '@/integrations/supabase/client';
-import { createClient } from '@supabase/supabase-js';
-import type { Database } from '@/integrations/supabase/types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -23,11 +20,10 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { toast } from 'sonner';
-import { BriefcaseBusiness, Eye, KeyRound, Pencil, Plus, Trash2, Users, Wallet } from 'lucide-react';
+import { BriefcaseBusiness, CalendarDays, Camera, Eye, KeyRound, MapPin, Pencil, Plus, Trash2, Upload, Users, Wallet, XCircle } from 'lucide-react';
 import type { Expense, Sale } from '@/types';
 import { getOperatorCredentialError, operatorCredentialHint } from '../../shared/security/operatorCredential';
 import { getPublicErrorMessage, getRedactedLogValue } from '../../shared/security/redaction';
-import { requestTurnstileToken } from '../../shared/security/turnstile';
 import { readDesktopActivation } from '@/lib/desktopActivation';
 import { saveOfflineOperatorAccess } from '@/lib/offlineOperatorAccess';
 import { OperatorPermissionSelector, type OperatorPermissionOption } from '@/components/OperatorPermissionSelector';
@@ -36,18 +32,6 @@ import { isErpPermissionKey, togglePermissionWithDependencies, type ErpPermissio
 // Generated Supabase types are behind the current schema for these admin tables.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
-const adminVerificationClient = createClient<Database>(
-  import.meta.env.VITE_SUPABASE_URL,
-  import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-  {
-    auth: {
-      persistSession: false,
-      autoRefreshToken: false,
-      detectSessionInUrl: false,
-      storageKey: 'happycash-admin-settings-cash-verification',
-    },
-  },
-);
 
 interface OperatorProfile {
   user_id: string;
@@ -83,6 +67,15 @@ interface OperatorFunctionResponse {
   success?: boolean;
   operators?: Array<OperatorProfile & {
     full_name?: string | null;
+    photo_url?: string | null;
+    address_zip_code?: string | null;
+    address_street?: string | null;
+    address_number?: string | null;
+    address_complement?: string | null;
+    address_neighborhood?: string | null;
+    address_city?: string | null;
+    address_state?: string | null;
+    work_journey?: string | null;
     permission_keys?: string[];
   }>;
   cashSession?: {
@@ -103,9 +96,18 @@ interface AdminAccessAuthorization {
   password: string;
 }
 
-interface HrEmployeeNameRow {
+interface EmployeeProfileDetails {
   profile_user_id: string | null;
-  full_name: string;
+  full_name?: string | null;
+  photo_url?: string | null;
+  address_zip_code?: string | null;
+  address_street?: string | null;
+  address_number?: string | null;
+  address_complement?: string | null;
+  address_neighborhood?: string | null;
+  address_city?: string | null;
+  address_state?: string | null;
+  work_journey?: string | null;
 }
 
 interface OperatorManagementPanelProps {
@@ -122,21 +124,18 @@ const fallbackJobTitle: Record<StaffRole, string> = {
 const staffRoleLabels: Record<StaffRole, string> = {
   operator: 'Funcionário',
   waiter: 'Funcionário',
-  hr: 'RH isolado',
+  hr: 'Funcionário',
 };
 const isHrPermissionKey = (permissionKey: ErpPermissionKey) => permissionKey.startsWith('hr.');
 const isEmployeePortalPermissionKey = (permissionKey: ErpPermissionKey) => permissionKey.startsWith('employee_portal.');
-const lockedStaffPermissionKeys = new Set<ErpPermissionKey>(['employee_portal.view']);
+const isEnterpriseOnlyPermissionKey = (permissionKey: ErpPermissionKey) =>
+  isHrPermissionKey(permissionKey) || isEmployeePortalPermissionKey(permissionKey);
+const lockedStaffPermissionKeys = new Set<ErpPermissionKey>();
 const ensureRequiredStaffPermissions = (permissionKeys: Iterable<ErpPermissionKey>) => new Set<ErpPermissionKey>([
   ...permissionKeys,
   ...lockedStaffPermissionKeys,
 ]);
-const resolveStaffRoleFromPermissions = (permissionKeys: Iterable<ErpPermissionKey>): StaffRole => {
-  const keys = [...permissionKeys];
-  return keys.some(isHrPermissionKey) && keys.every((key) => isHrPermissionKey(key) || isEmployeePortalPermissionKey(key))
-    ? 'hr'
-    : 'operator';
-};
+const resolveStaffRoleFromPermissions = (_permissionKeys: Iterable<ErpPermissionKey>): StaffRole => 'operator';
 
 const normalizeLabel = (value: string | null | undefined) => value?.trim().toLowerCase() ?? '';
 const normalizePersonName = (value: string | null | undefined) => value?.trim().replace(/\s+/g, ' ') ?? '';
@@ -145,15 +144,61 @@ const normalizePersonNameKey = (value: string | null | undefined) =>
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
     .toLowerCase();
+const normalizeOptionalText = (value: string | null | undefined) => value?.trim() ?? '';
 const formatMoney = (value: number) => `R$ ${value.toFixed(2)}`;
+
+const weekDayOptions = [
+  { key: 'seg', label: 'Seg' },
+  { key: 'ter', label: 'Ter' },
+  { key: 'qua', label: 'Qua' },
+  { key: 'qui', label: 'Qui' },
+  { key: 'sex', label: 'Sex' },
+  { key: 'sab', label: 'Sab' },
+  { key: 'dom', label: 'Dom' },
+] as const;
+type WeekDayKey = (typeof weekDayOptions)[number]['key'];
+
+const parseBasicWorkJourney = (value: string | null | undefined) => {
+  const [daysPart = '', timePart = ''] = (value ?? '').split('|').map((part) => part.trim());
+  const days = new Set<WeekDayKey>();
+  const normalizedDaysPart = daysPart
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+
+  weekDayOptions.forEach((day) => {
+    if (normalizedDaysPart.includes(day.key)) days.add(day.key);
+  });
+
+  const timeMatch = timePart.match(/(\d{2}:\d{2})\s*-\s*(\d{2}:\d{2})/);
+  return {
+    days,
+    startTime: timeMatch?.[1] ?? '',
+    endTime: timeMatch?.[2] ?? '',
+  };
+};
+
+const formatBasicWorkJourney = (
+  days: ReadonlySet<WeekDayKey>,
+  startTime: string,
+  endTime: string,
+) => {
+  const selectedDays = weekDayOptions
+    .filter((day) => days.has(day.key))
+    .map((day) => day.label)
+    .join(', ');
+  const timeRange = startTime && endTime ? `${startTime}-${endTime}` : '';
+
+  if (selectedDays && timeRange) return `${selectedDays} | ${timeRange}`;
+  return selectedDays || timeRange;
+};
 
 export function OperatorManagementPanel({
   createDialogOpen: controlledCreateDialogOpen,
   onCreateDialogOpenChange,
   initialStaffRole,
 }: OperatorManagementPanelProps) {
-  const { isAdmin, ownerUserId, session, username: currentUsername, profileEmail } = useAuth();
-  const { hasPermission } = usePermissions();
+  const { isAdmin, ownerUserId, session, user, username: currentUsername, profileEmail } = useAuth();
   const { sales, expenses, loading: dataLoading } = useData();
   const [operators, setOperators] = useState<OperatorProfile[]>([]);
   const [openCashSessions, setOpenCashSessions] = useState<OpenCashSession[]>([]);
@@ -193,6 +238,18 @@ export function OperatorManagementPanel({
   const [closeCashError, setCloseCashError] = useState('');
   const [fullName, setFullName] = useState('');
   const [operatorFullNamesById, setOperatorFullNamesById] = useState<Record<string, string>>({});
+  const [employeeDetailsByOperatorId, setEmployeeDetailsByOperatorId] = useState<Record<string, EmployeeProfileDetails>>({});
+  const [photoUrl, setPhotoUrl] = useState('');
+  const [addressZipCode, setAddressZipCode] = useState('');
+  const [addressStreet, setAddressStreet] = useState('');
+  const [addressNumber, setAddressNumber] = useState('');
+  const [addressComplement, setAddressComplement] = useState('');
+  const [addressNeighborhood, setAddressNeighborhood] = useState('');
+  const [addressCity, setAddressCity] = useState('');
+  const [addressState, setAddressState] = useState('');
+  const [workScheduleDays, setWorkScheduleDays] = useState<Set<WeekDayKey>>(new Set());
+  const [workScheduleStartTime, setWorkScheduleStartTime] = useState('');
+  const [workScheduleEndTime, setWorkScheduleEndTime] = useState('');
   const [latestCredential, setLatestCredential] = useState<{
     username: string;
     jobTitle: string;
@@ -201,20 +258,105 @@ export function OperatorManagementPanel({
 
   const createDialogOpen = controlledCreateDialogOpen ?? internalCreateDialogOpen;
   const setCreateDialogOpen = onCreateDialogOpenChange ?? setInternalCreateDialogOpen;
-  const canManageStaffAccess = isAdmin || hasPermission('hr.access.manage');
+  const canManageStaffAccess = isAdmin;
   const canManageCashActions = isAdmin;
   const canDeleteStaffAccess = isAdmin;
-  const accessAuthorizationLabel = isAdmin ? 'administrador' : 'RH autorizado';
+  const accessAuthorizationLabel = 'administrador';
+
+  const resetEmployeeBasicProfileForm = useCallback(() => {
+    setPhotoUrl('');
+    setAddressZipCode('');
+    setAddressStreet('');
+    setAddressNumber('');
+    setAddressComplement('');
+    setAddressNeighborhood('');
+    setAddressCity('');
+    setAddressState('');
+    setWorkScheduleDays(new Set());
+    setWorkScheduleStartTime('');
+    setWorkScheduleEndTime('');
+  }, []);
+
+  const setEmployeeBasicProfileForm = useCallback((details?: EmployeeProfileDetails | null) => {
+    const parsedJourney = parseBasicWorkJourney(details?.work_journey);
+    setPhotoUrl(normalizeOptionalText(details?.photo_url));
+    setAddressZipCode(normalizeOptionalText(details?.address_zip_code));
+    setAddressStreet(normalizeOptionalText(details?.address_street));
+    setAddressNumber(normalizeOptionalText(details?.address_number));
+    setAddressComplement(normalizeOptionalText(details?.address_complement));
+    setAddressNeighborhood(normalizeOptionalText(details?.address_neighborhood));
+    setAddressCity(normalizeOptionalText(details?.address_city));
+    setAddressState(normalizeOptionalText(details?.address_state));
+    setWorkScheduleDays(parsedJourney.days);
+    setWorkScheduleStartTime(parsedJourney.startTime);
+    setWorkScheduleEndTime(parsedJourney.endTime);
+  }, []);
+
+  const buildEmployeeDetailsPayload = useCallback(() => ({
+    photoUrl: normalizeOptionalText(photoUrl),
+    addressZipCode: normalizeOptionalText(addressZipCode),
+    addressStreet: normalizeOptionalText(addressStreet),
+    addressNumber: normalizeOptionalText(addressNumber),
+    addressComplement: normalizeOptionalText(addressComplement),
+    addressNeighborhood: normalizeOptionalText(addressNeighborhood),
+    addressCity: normalizeOptionalText(addressCity),
+    addressState: normalizeOptionalText(addressState).toUpperCase(),
+    workJourney: formatBasicWorkJourney(workScheduleDays, workScheduleStartTime, workScheduleEndTime),
+  }), [
+    addressCity,
+    addressComplement,
+    addressNeighborhood,
+    addressNumber,
+    addressState,
+    addressStreet,
+    addressZipCode,
+    photoUrl,
+    workScheduleDays,
+    workScheduleEndTime,
+    workScheduleStartTime,
+  ]);
+
+  const handlePhotoFileChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.currentTarget.value = '';
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      toast.error('Importe um arquivo de imagem.');
+      return;
+    }
+
+    if (file.size > 1_500_000) {
+      toast.error('Use uma foto com ate 1,5 MB.');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === 'string') setPhotoUrl(reader.result);
+    };
+    reader.onerror = () => toast.error('Nao foi possivel importar a foto.');
+    reader.readAsDataURL(file);
+  };
+
+  const toggleWorkScheduleDay = (day: WeekDayKey, checked: boolean) => {
+    setWorkScheduleDays((current) => {
+      const next = new Set(current);
+      if (checked) next.add(day);
+      else next.delete(day);
+      return next;
+    });
+  };
 
   const resetCreateForm = useCallback(() => {
-    const startsAsHr = initialStaffRole === 'hr';
     setFullName('');
     setUsername('');
     setPassword('');
-    setJobTitle(startsAsHr ? fallbackJobTitle.hr : '');
-    setSelectedPermissionKeys(ensureRequiredStaffPermissions(startsAsHr ? ['hr.view'] : []));
+    setJobTitle('');
+    setSelectedPermissionKeys(ensureRequiredStaffPermissions([]));
+    resetEmployeeBasicProfileForm();
     setCreateStep('data');
-  }, [initialStaffRole]);
+  }, [resetEmployeeBasicProfileForm]);
 
   const resetAdminAuthorization = useCallback(() => {
     setAdminAuthorizationOpen(false);
@@ -239,9 +381,6 @@ export function OperatorManagementPanel({
   useEffect(() => {
     if (!createDialogOpen || editingOperator || !initialStaffRole) return;
     setJobTitle((current) => current.trim() ? current : fallbackJobTitle[initialStaffRole]);
-    if (initialStaffRole === 'hr') {
-      setSelectedPermissionKeys((current) => ensureRequiredStaffPermissions(current.size > 0 ? current : ['hr.view']));
-    }
   }, [createDialogOpen, editingOperator, initialStaffRole]);
 
   const handleAccessDialogOpenChange = useCallback((open: boolean) => {
@@ -265,14 +404,15 @@ export function OperatorManagementPanel({
           toast.error('Nao foi possivel carregar os acessos disponiveis.');
           return;
         }
-        setPermissionOptions(((data ?? []) as OperatorPermissionOption[]).filter((permission) => isErpPermissionKey(permission.permission_key)));
+        setPermissionOptions(((data ?? []) as OperatorPermissionOption[]).filter((permission) =>
+          isErpPermissionKey(permission.permission_key)
+          && !isEnterpriseOnlyPermissionKey(permission.permission_key)
+        ));
       })
       .finally(() => setLoadingPermissionOptions(false));
   }, [accessDialogOpen, permissionOptions.length]);
 
-  const visiblePermissionOptions = permissionOptions.filter((permission) =>
-    permission.permission_key !== 'employee_portal.profile.update'
-  );
+  const visiblePermissionOptions = permissionOptions;
 
   const resolveFunctionErrorMessage = useCallback(async (
     error: unknown,
@@ -331,6 +471,9 @@ export function OperatorManagementPanel({
     if (!canManageStaffAccess || !ownerUserId) {
       setOperators([]);
       setOpenCashSessions([]);
+      setOperatorFullNamesById({});
+      setEmployeeDetailsByOperatorId({});
+      setPermissionKeysByOperatorId({});
       setLoading(false);
       return;
     }
@@ -341,6 +484,9 @@ export function OperatorManagementPanel({
       if (!session?.access_token) {
         setOperators([]);
         setOpenCashSessions([]);
+        setOperatorFullNamesById({});
+        setEmployeeDetailsByOperatorId({});
+        setPermissionKeysByOperatorId({});
         setLoading(false);
         return;
       }
@@ -354,6 +500,9 @@ export function OperatorManagementPanel({
         toast.error(await resolveFunctionErrorMessage(error, 'Nao foi possivel carregar os acessos dos funcionários.', data));
         setOperators([]);
         setOpenCashSessions([]);
+        setOperatorFullNamesById({});
+        setEmployeeDetailsByOperatorId({});
+        setPermissionKeysByOperatorId({});
         setLoading(false);
         return;
       }
@@ -363,18 +512,33 @@ export function OperatorManagementPanel({
         role: operator.role === 'waiter' ? 'waiter' : operator.role === 'hr' ? 'hr' : 'operator',
       }));
       const nextOperatorFullNamesById: Record<string, string> = {};
+      const nextEmployeeDetailsByOperatorId: Record<string, EmployeeProfileDetails> = {};
       const nextPermissionKeysByOperatorId: Record<string, Set<ErpPermissionKey>> = {};
 
       for (const operator of data.operators ?? []) {
         if (operator.full_name) nextOperatorFullNamesById[operator.user_id] = operator.full_name;
+        nextEmployeeDetailsByOperatorId[operator.user_id] = {
+          profile_user_id: operator.user_id,
+          full_name: operator.full_name ?? null,
+          photo_url: operator.photo_url ?? null,
+          address_zip_code: operator.address_zip_code ?? null,
+          address_street: operator.address_street ?? null,
+          address_number: operator.address_number ?? null,
+          address_complement: operator.address_complement ?? null,
+          address_neighborhood: operator.address_neighborhood ?? null,
+          address_city: operator.address_city ?? null,
+          address_state: operator.address_state ?? null,
+          work_journey: operator.work_journey ?? null,
+        };
         nextPermissionKeysByOperatorId[operator.user_id] = ensureRequiredStaffPermissions(
-          (operator.permission_keys ?? []).filter(isErpPermissionKey),
+          (operator.permission_keys ?? []).filter(isErpPermissionKey).filter((permissionKey) => !isEnterpriseOnlyPermissionKey(permissionKey)),
         );
       }
 
       setOperators(nextOperators);
       setOpenCashSessions([]);
       setOperatorFullNamesById(nextOperatorFullNamesById);
+      setEmployeeDetailsByOperatorId(nextEmployeeDetailsByOperatorId);
       setPermissionKeysByOperatorId(nextPermissionKeysByOperatorId);
       setLoading(false);
       return;
@@ -405,7 +569,7 @@ export function OperatorManagementPanel({
         .eq('allowed', true),
       db
         .from('hr_employees')
-        .select('profile_user_id, full_name')
+        .select('profile_user_id, full_name, photo_url, address_zip_code, address_street, address_number, address_complement, address_neighborhood, address_city, address_state, work_journey')
         .eq('owner_user_id', ownerUserId)
         .not('profile_user_id', 'is', null),
     ]);
@@ -435,14 +599,18 @@ export function OperatorManagementPanel({
     })));
     setOpenCashSessions((openRows as OpenCashSession[]) ?? []);
     const nextOperatorFullNamesById: Record<string, string> = {};
-    for (const row of ((employeeRows ?? []) as HrEmployeeNameRow[])) {
+    const nextEmployeeDetailsByOperatorId: Record<string, EmployeeProfileDetails> = {};
+    for (const row of ((employeeRows ?? []) as EmployeeProfileDetails[])) {
       if (!row.profile_user_id) continue;
-      nextOperatorFullNamesById[row.profile_user_id] = row.full_name;
+      if (row.full_name) nextOperatorFullNamesById[row.profile_user_id] = row.full_name;
+      nextEmployeeDetailsByOperatorId[row.profile_user_id] = row;
     }
     setOperatorFullNamesById(nextOperatorFullNamesById);
+    setEmployeeDetailsByOperatorId(nextEmployeeDetailsByOperatorId);
     const nextPermissionKeysByOperatorId: Record<string, Set<ErpPermissionKey>> = {};
     for (const row of (permissionRows ?? []) as Array<{ user_id: string; permission_key: string }>) {
       if (!isErpPermissionKey(row.permission_key)) continue;
+      if (isEnterpriseOnlyPermissionKey(row.permission_key)) continue;
       nextPermissionKeysByOperatorId[row.user_id] ??= new Set<ErpPermissionKey>();
       nextPermissionKeysByOperatorId[row.user_id].add(row.permission_key);
     }
@@ -554,6 +722,7 @@ export function OperatorManagementPanel({
     resetAdminAuthorization();
     setJobTitle(operator.job_title?.trim() || fallbackJobTitle[operator.role]);
     setSelectedPermissionKeys(ensureRequiredStaffPermissions(permissionKeysByOperatorId[operator.user_id] ?? []));
+    setEmployeeBasicProfileForm(employeeDetailsByOperatorId[operator.user_id]);
     setCreateStep('data');
   };
 
@@ -631,7 +800,7 @@ export function OperatorManagementPanel({
     if (!valid) return;
 
     setPendingAccessAction(isUpdate ? 'update' : 'create');
-    setAdminAuthorizationEmail(isAdmin ? '' : currentUsername || profileEmail || '');
+    setAdminAuthorizationEmail('');
     setAdminAuthorizationPassword('');
     setAdminAuthorizationError('');
     setAdminAuthorizationOpen(true);
@@ -645,53 +814,11 @@ export function OperatorManagementPanel({
     const normalizedPassword = password.trim();
 
     if (!isAdmin) {
-      return {
-        login: normalizedLogin,
-        password: normalizedPassword,
-      };
-    }
-
-    let captchaToken: string | undefined;
-    try {
-      captchaToken = await requestTurnstileToken('app-admin-verification');
-    } catch (error) {
-      setAdminAuthorizationError(error instanceof Error ? error.message : 'Nao foi possivel concluir a verificacao de seguranca.');
+      setAdminAuthorizationError('Somente o administrador pode confirmar alterações de funcionários.');
       return null;
     }
 
-    const { data: authData, error: authError } = await adminVerificationClient.auth.signInWithPassword({
-      email: normalizedLogin,
-      password: normalizedPassword,
-      options: { captchaToken },
-    });
-
-    if (authError || !authData.user?.id || !authData.session?.access_token) {
-      setAdminAuthorizationError('Login ou senha do administrador invalidos.');
-      setAdminAuthorizationPassword('');
-      return null;
-    }
-
-    const adminDb = adminVerificationClient as unknown as typeof db;
-    const { data: adminProfile, error: adminProfileError } = await adminDb
-      .from('profiles')
-      .select('role, owner_user_id')
-      .eq('user_id', authData.user.id)
-      .maybeSingle();
-
-    if (adminProfileError || !adminProfile || adminProfile.role !== 'admin') {
-      setAdminAuthorizationError('A conta informada nao possui acesso de administrador.');
-      setAdminAuthorizationPassword('');
-      return null;
-    }
-
-    const adminOwnerUserId = adminProfile.owner_user_id ?? authData.user.id;
-    if (ownerUserId && adminOwnerUserId !== ownerUserId) {
-      setAdminAuthorizationError('Este administrador nao pertence a mesma loja.');
-      setAdminAuthorizationPassword('');
-      return null;
-    }
-
-    return { accessToken: authData.session.access_token, login: normalizedLogin, password: normalizedPassword };
+    return { login: normalizedLogin, password: normalizedPassword };
   };
 
   const handleCreateOperator = async (adminEmail: string, adminPassword: string, adminAccessToken?: string) => {
@@ -709,6 +836,7 @@ export function OperatorManagementPanel({
         jobTitle: jobTitle.trim(),
         staffRole: inferredStaffRole,
         permissionKeys: [...ensureRequiredStaffPermissions(selectedPermissionKeys)],
+        ...buildEmployeeDetailsPayload(),
         adminEmail,
         adminPassword,
         adminAccessToken,
@@ -750,6 +878,7 @@ export function OperatorManagementPanel({
         jobTitle: jobTitle.trim(),
         staffRole: inferredStaffRole,
         permissionKeys: [...ensureRequiredStaffPermissions(selectedPermissionKeys)],
+        ...buildEmployeeDetailsPayload(),
         adminEmail,
         adminPassword,
         adminAccessToken,
@@ -789,7 +918,6 @@ export function OperatorManagementPanel({
     const authorization = await verifyAccessForOperatorSave(adminEmail, adminPassword);
     if (!authorization) {
       setCreating(false);
-      if (isAdmin) await adminVerificationClient.auth.signOut();
       return;
     }
 
@@ -806,7 +934,6 @@ export function OperatorManagementPanel({
         await handleResetOperatorPassword(authorization.login, authorization.password, authorization.accessToken);
       }
     } finally {
-      if (isAdmin) await adminVerificationClient.auth.signOut();
       setCreating(false);
     }
   };
@@ -829,7 +956,7 @@ export function OperatorManagementPanel({
     }
 
     setPendingAccessAction('reset_password');
-    setAdminAuthorizationEmail(isAdmin ? '' : currentUsername || profileEmail || '');
+    setAdminAuthorizationEmail('');
     setAdminAuthorizationPassword('');
     setAdminAuthorizationError('');
     setAdminAuthorizationOpen(true);
@@ -926,6 +1053,10 @@ export function OperatorManagementPanel({
 
   const handleCloseCashWithAdmin = async () => {
     if (!cashSessionToClose) return;
+    if (!session?.access_token) {
+      setCloseCashError('Sua sessão expirou. Entre novamente para fechar caixa.');
+      return;
+    }
 
     const normalizedAdminEmail = closeCashAdminEmail.trim().toLowerCase();
     const adminPassword = closeCashAdminPassword.trim();
@@ -944,33 +1075,17 @@ export function OperatorManagementPanel({
     setCloseCashError('');
 
     try {
-      const captchaToken = await requestTurnstileToken('app-admin-verification');
-      const { data: authData, error: authError } = await adminVerificationClient.auth.signInWithPassword({
-        email: normalizedAdminEmail,
-        password: adminPassword,
-        options: { captchaToken },
+      const { data: verificationData, error: verificationError } = await supabase.functions.invoke<OperatorFunctionResponse>('manage-operators', {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+        body: {
+          action: 'verify_admin',
+          adminEmail: normalizedAdminEmail,
+          adminPassword,
+        },
       });
 
-      if (authError || !authData.user?.id) {
-        setCloseCashError('Email ou senha de administrador incorretos.');
-        return;
-      }
-
-      const adminDb = adminVerificationClient as unknown as typeof db;
-      const { data: adminProfile, error: adminProfileError } = await adminDb
-        .from('profiles')
-        .select('role, owner_user_id, username')
-        .eq('user_id', authData.user.id)
-        .maybeSingle();
-
-      if (adminProfileError || !adminProfile || adminProfile.role !== 'admin') {
-        setCloseCashError('A conta informada não é de administrador.');
-        return;
-      }
-
-      const adminOwnerUserId = adminProfile.owner_user_id ?? authData.user.id;
-      if (ownerUserId && adminOwnerUserId !== ownerUserId) {
-        setCloseCashError('Administrador não pertence a esta loja.');
+      if (verificationError || !verificationData?.success) {
+        setCloseCashError(await resolveFunctionErrorMessage(verificationError, 'Email ou senha de administrador incorretos.', verificationData));
         return;
       }
 
@@ -978,13 +1093,13 @@ export function OperatorManagementPanel({
       const closingBalance = cashSessionToClose.summary?.currentBalance
         ?? Number(cashSessionToClose.session.opening_amount || 0);
 
-      const { error: closeError } = await adminDb
+      const { error: closeError } = await db
         .from('cash_sessions')
         .update({
           status: 'closed',
           closed_at: closedAt,
-          closed_by_user_id: authData.user.id,
-          closed_by_name: adminProfile.username || authData.user.email || normalizedAdminEmail,
+          closed_by_user_id: user?.id ?? null,
+          closed_by_name: currentUsername || profileEmail || session.user.email || normalizedAdminEmail,
           closing_balance: Number(closingBalance.toFixed(2)),
         })
         .eq('id', cashSessionToClose.session.id);
@@ -1002,7 +1117,6 @@ export function OperatorManagementPanel({
       console.error('Erro ao validar administrador para fechar caixa:', getRedactedLogValue(error));
       setCloseCashError('Não foi possível validar o administrador.');
     } finally {
-      await adminVerificationClient.auth.signOut();
       setClosingCash(false);
     }
   };
@@ -1043,9 +1157,9 @@ export function OperatorManagementPanel({
         <CardHeader className="gap-4">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
             <div className="space-y-2">
-              <CardTitle className="text-lg">{isAdmin ? 'Funcionários, acessos e caixa' : 'Funcionários e acessos'}</CardTitle>
+              <CardTitle className="text-lg">Funcionários, acessos e escala básica</CardTitle>
               <p className="text-sm text-muted-foreground">
-                A lista fica compacta; use Editar para ajustar funcao e acessos individuais.
+                Use Editar para ajustar cadastro, foto, endereço, escala e acessos individuais.
               </p>
             </div>
 
@@ -1100,16 +1214,26 @@ export function OperatorManagementPanel({
                   const openSession = openSessionByOperatorId.get(operator.user_id);
                   const openCashSummary = openSession ? openCashSummaryByOperatorId.get(operator.user_id) : null;
                   const canOperateCash = operatorCanOperateCash(operator);
+                  const employeeDetails = employeeDetailsByOperatorId[operator.user_id];
+                  const displayName = operatorFullNamesById[operator.user_id] || operator.username;
 
                   return (
                     <div key={operator.user_id} className="flex flex-col gap-3 p-3 sm:flex-row sm:items-center sm:justify-between">
                       <div className="flex min-w-0 items-center gap-3">
-                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-bold text-primary">
-                          {operator.username.slice(0, 1).toUpperCase()}
-                        </div>
+                        {employeeDetails?.photo_url ? (
+                          <img
+                            src={employeeDetails.photo_url}
+                            alt={`Foto de ${displayName}`}
+                            className="h-10 w-10 shrink-0 rounded-full border border-border object-cover"
+                          />
+                        ) : (
+                          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-bold text-primary">
+                            {displayName.slice(0, 1).toUpperCase()}
+                          </div>
+                        )}
                         <div className="min-w-0">
                           <div className="flex flex-wrap items-center gap-2">
-                            <p className="truncate font-semibold">{operator.username}</p>
+                            <p className="truncate font-semibold">{displayName}</p>
                             <span className="inline-flex items-center gap-1 rounded-full bg-secondary px-2 py-0.5 text-[11px] font-semibold text-muted-foreground">
                               <BriefcaseBusiness className="h-3 w-3" />
                               {staffRoleLabels[operator.role]}
@@ -1119,9 +1243,12 @@ export function OperatorManagementPanel({
                             </span>
                           </div>
                           <p className="truncate text-sm text-muted-foreground">
-                            {operator.job_title?.trim() || fallbackJobTitle[operator.role]}
+                            @{operator.username} · {operator.job_title?.trim() || fallbackJobTitle[operator.role]}
                             {openSession ? ` · ${formatMoney(openCashSummary?.currentBalance ?? Number(openSession.opening_amount || 0))}` : ''}
                           </p>
+                          {employeeDetails?.work_journey ? (
+                            <p className="truncate text-xs text-muted-foreground">{employeeDetails.work_journey}</p>
+                          ) : null}
                         </div>
                       </div>
 
@@ -1223,7 +1350,7 @@ export function OperatorManagementPanel({
             <div className="border-b px-4 py-4 sm:px-6">
               <DialogTitle>{editingOperator ? 'Editar funcionário e acessos' : 'Cadastrar funcionário'}</DialogTitle>
               <DialogDescription className="mt-1 text-sm">
-                A funcao identifica o funcionário; quem tem autorizacao define o acesso marcando os checkboxes.
+                O administrador define cadastro, foto, endereco, escala basica e acessos marcando os checkboxes.
               </DialogDescription>
               <div className="mt-3 grid grid-cols-3 gap-2 md:hidden">
                 {(['data', 'permissions', 'review'] as const).map((step, index) => (
@@ -1235,7 +1362,7 @@ export function OperatorManagementPanel({
             </div>
           </DialogHeader>
 
-          <div className="grid min-h-0 flex-1 md:grid-cols-[320px_minmax(0,1fr)]">
+          <div className="grid min-h-0 flex-1 md:grid-cols-[390px_minmax(0,1fr)]">
             <form
               className={`${createStep === 'data' ? 'block' : 'hidden'} overflow-y-auto border-r p-4 md:block sm:p-6`}
               onSubmit={(event) => {
@@ -1256,6 +1383,39 @@ export function OperatorManagementPanel({
                   <p className="text-xs text-muted-foreground">
                     Nomes completos iguais não são permitidos; o primeiro nome pode repetir se o sobrenome for diferente.
                   </p>
+                </div>
+                <div className="rounded-lg border border-border bg-muted/20 p-3">
+                  <div className="flex items-start gap-3">
+                    {photoUrl ? (
+                      <img
+                        src={photoUrl}
+                        alt="Foto do funcionário"
+                        className="h-20 w-20 shrink-0 rounded-lg border border-border object-cover"
+                      />
+                    ) : (
+                      <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-lg border border-dashed border-border bg-background text-muted-foreground">
+                        <Camera className="h-7 w-7" />
+                      </div>
+                    )}
+                    <div className="min-w-0 flex-1 space-y-2">
+                      <Label>Foto</Label>
+                      <div className="flex flex-wrap gap-2">
+                        <Button type="button" variant="outline" size="sm" asChild>
+                          <label className="cursor-pointer">
+                            <Upload className="mr-2 h-3.5 w-3.5" />
+                            Importar
+                            <input className="sr-only" type="file" accept="image/*" onChange={handlePhotoFileChange} />
+                          </label>
+                        </Button>
+                        {photoUrl ? (
+                          <Button type="button" variant="outline" size="sm" onClick={() => setPhotoUrl('')}>
+                            <XCircle className="mr-2 h-3.5 w-3.5" />
+                            Remover
+                          </Button>
+                        ) : null}
+                      </div>
+                    </div>
+                  </div>
                 </div>
                 <div className="space-y-1">
                   <Label>Função</Label>
@@ -1288,15 +1448,84 @@ export function OperatorManagementPanel({
                 <p className="text-xs text-muted-foreground">
                   {editingOperator ? 'O usuário não muda nesta tela para preservar o login.' : 'Use de 3 a 24 caracteres com letras, números, ponto, hífen ou underscore.'}
                 </p>
+                <div className="rounded-lg border border-border p-3">
+                  <div className="mb-3 flex items-center gap-2 text-sm font-medium">
+                    <MapPin className="h-4 w-4 text-primary" />
+                    Endereço
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="space-y-1">
+                      <Label>CEP</Label>
+                      <Input value={addressZipCode} onChange={event => setAddressZipCode(event.target.value)} placeholder="00000-000" autoComplete="postal-code" />
+                    </div>
+                    <div className="space-y-1">
+                      <Label>Estado</Label>
+                      <Input value={addressState} onChange={event => setAddressState(event.target.value.toUpperCase().slice(0, 2))} placeholder="SP" maxLength={2} autoComplete="address-level1" />
+                    </div>
+                    <div className="space-y-1 sm:col-span-2">
+                      <Label>Rua</Label>
+                      <Input value={addressStreet} onChange={event => setAddressStreet(event.target.value)} placeholder="Rua, avenida..." autoComplete="address-line1" />
+                    </div>
+                    <div className="space-y-1">
+                      <Label>Número</Label>
+                      <Input value={addressNumber} onChange={event => setAddressNumber(event.target.value)} placeholder="123" autoComplete="address-line2" />
+                    </div>
+                    <div className="space-y-1">
+                      <Label>Complemento</Label>
+                      <Input value={addressComplement} onChange={event => setAddressComplement(event.target.value)} placeholder="Apto, sala..." autoComplete="address-line3" />
+                    </div>
+                    <div className="space-y-1">
+                      <Label>Bairro</Label>
+                      <Input value={addressNeighborhood} onChange={event => setAddressNeighborhood(event.target.value)} placeholder="Bairro" autoComplete="address-level3" />
+                    </div>
+                    <div className="space-y-1">
+                      <Label>Cidade</Label>
+                      <Input value={addressCity} onChange={event => setAddressCity(event.target.value)} placeholder="Cidade" autoComplete="address-level2" />
+                    </div>
+                  </div>
+                </div>
+                <div className="rounded-lg border border-border p-3">
+                  <div className="mb-3 flex items-center gap-2 text-sm font-medium">
+                    <CalendarDays className="h-4 w-4 text-primary" />
+                    Escala básica
+                  </div>
+                  <div className="grid grid-cols-4 gap-2">
+                    {weekDayOptions.map((day) => (
+                      <label key={day.key} className="flex items-center gap-2 rounded-md border border-border px-2 py-2 text-xs">
+                        <input
+                          type="checkbox"
+                          className="h-4 w-4 accent-primary"
+                          checked={workScheduleDays.has(day.key)}
+                          onChange={event => toggleWorkScheduleDay(day.key, event.target.checked)}
+                        />
+                        {day.label}
+                      </label>
+                    ))}
+                  </div>
+                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                    <div className="space-y-1">
+                      <Label>Entrada</Label>
+                      <Input type="time" value={workScheduleStartTime} onChange={event => setWorkScheduleStartTime(event.target.value)} />
+                    </div>
+                    <div className="space-y-1">
+                      <Label>Saída</Label>
+                      <Input type="time" value={workScheduleEndTime} onChange={event => setWorkScheduleEndTime(event.target.value)} />
+                    </div>
+                  </div>
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    {formatBasicWorkJourney(workScheduleDays, workScheduleStartTime, workScheduleEndTime) || 'Nenhuma escala definida.'}
+                  </p>
+                </div>
                 <div className="rounded-lg border border-primary/20 bg-primary/5 p-3">
-                  <p className="text-sm font-medium">Tipo calculado pelo acesso</p>
+                  <p className="text-sm font-medium">Acessos do funcionário</p>
                   <p className="mt-1 text-xs text-muted-foreground">
-                    {staffRoleLabels[inferredStaffRole]}: quando marcar somente acessos de RH, o menu fica isolado no RH. Com outros acessos, o funcionário segue os checkboxes selecionados.
+                    Marque somente os módulos que este funcionário pode abrir no sistema.
                   </p>
                 </div>
                 <div className="hidden rounded-lg border bg-muted/30 p-3 text-sm md:block">
                   <p className="font-medium">Resumo</p>
                   <p className="text-muted-foreground">{staffRoleLabels[inferredStaffRole]} · {normalizedFullName || 'Nome nao informado'} · {jobTitle || 'Funcao nao informada'} · {selectedPermissionKeys.size} acessos</p>
+                  <p className="mt-1 text-xs text-muted-foreground">{formatBasicWorkJourney(workScheduleDays, workScheduleStartTime, workScheduleEndTime) || 'Escala nao informada'}</p>
                 </div>
               </div>
             </form>
@@ -1318,6 +1547,8 @@ export function OperatorManagementPanel({
                 <div><p className="text-xs text-muted-foreground">Nome completo</p><p className="font-semibold">{normalizedFullName || 'Não informado'}</p></div>
                 <div><p className="text-xs text-muted-foreground">Função</p><p className="font-semibold">{jobTitle || 'Não informada'}</p></div>
                 <div><p className="text-xs text-muted-foreground">Usuário</p><p className="font-semibold">{username || 'Não informado'}</p></div>
+                <div><p className="text-xs text-muted-foreground">Endereço</p><p className="font-semibold">{[addressStreet, addressNumber, addressCity, addressState].filter(Boolean).join(', ') || 'Não informado'}</p></div>
+                <div><p className="text-xs text-muted-foreground">Escala</p><p className="font-semibold">{formatBasicWorkJourney(workScheduleDays, workScheduleStartTime, workScheduleEndTime) || 'Não informada'}</p></div>
                 <div><p className="text-xs text-muted-foreground">Acessos ({selectedPermissionNames.length})</p><p className="mt-1 text-sm">{selectedPermissionNames.join(', ') || 'Nenhum acesso selecionado'}</p></div>
               </div>
             </div>

@@ -34,7 +34,7 @@ const Footer = () => {
         {/* Top gradient line */}
         <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-primary/40 to-transparent" />
         
-        <div className="container py-16">
+        <div className="container pb-28 pt-16 md:pb-16">
           <div className="grid gap-10 items-start md:grid-cols-5">
             <div className="md:col-span-2 space-y-4">
               <img
@@ -119,7 +119,7 @@ const Footer = () => {
             </div>
           </div>
 
-          <div className="mt-14 border-t border-border/50 pt-8 text-xs text-muted-foreground">
+          <div className="mt-14 border-t border-border/50 pt-8 text-xs text-muted-foreground md:pr-72">
             <div className="flex flex-col items-center justify-between gap-4 md:flex-row">
               <p>© HappyCash. Todos os direitos reservados.</p>
               <nav className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2">
@@ -152,7 +152,7 @@ const Footer = () => {
 
       <Dialog open={Boolean(activeLegalDocument)} onOpenChange={(open) => !open && setLegalModal(null)}>
         <DialogContent
-          className="max-w-[calc(100vw-2rem)] border-yellow-400/15 bg-zinc-950 p-0 text-foreground sm:max-w-2xl"
+          className="grid max-h-[calc(100dvh-1rem)] max-w-[calc(100vw-1rem)] grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden border-yellow-400/15 bg-zinc-950 p-0 text-foreground sm:max-h-[calc(100dvh-2rem)] sm:max-w-2xl"
           onCloseAutoFocus={(event) => event.preventDefault()}
         >
           {activeLegalDocument ? (
@@ -163,7 +163,7 @@ const Footer = () => {
                   {activeLegalDocument.description}
                 </DialogDescription>
               </DialogHeader>
-              <ScrollArea className="max-h-[58vh] px-6 py-5">
+              <ScrollArea className="min-h-0 px-6 py-5">
                 <div className="space-y-5 pr-3">
                   {activeLegalDocument.sections.map((section) => (
                     <section key={section.title} className="space-y-2">
@@ -173,11 +173,11 @@ const Footer = () => {
                   ))}
                 </div>
               </ScrollArea>
-              <div className="flex flex-col gap-3 border-t border-border px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="grid shrink-0 gap-3 border-t border-border bg-zinc-950 px-4 py-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:grid-cols-[1fr_auto] sm:items-center sm:px-6">
                 <span className="text-xs text-muted-foreground">Última atualização: {LEGAL_UPDATED_AT_LABEL}</span>
                 <Link
                   to={activeLegalDocument.path}
-                  className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
+                  className="inline-flex min-h-11 w-full items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90 sm:w-auto"
                   onClick={() => setLegalModal(null)}
                 >
                   Abrir página completa
