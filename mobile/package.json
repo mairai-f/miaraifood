@@ -1,7 +1,7 @@
 {
   "name": "happycash-mobile",
   "private": true,
-  "version": "0.1.59",
+  "version": "0.1.61",
   "main": "expo/AppEntry.js",
   "description": "App mobile Expo do HappyCash para Android e iOS.",
   "scripts": {
