@@ -55,7 +55,7 @@ const estados = [
 
 const registrationLegalHighlights = [
   "Coletamos dados do responsável e da empresa, como nome, email, telefone, CPF ou CNPJ e endereço do estabelecimento.",
-  "Também podemos tratar os dados inseridos no sistema pela loja, como nome, CPF, CNPJ, telefone, endereço, vendas, fiado, pagamentos, produtos, estoque, despesas, agendamentos e observações.",
+  "Também podemos tratar os dados inseridos no sistema pela loja, como nome, CPF, CNPJ, telefone, endereço, vendas, fiado, pagamentos, produtos, estoque, despesas e observações.",
   "O sistema mantém regras de acesso, separação de dados por empresa, registros de segurança e atendimento de correção ou exclusão quando possível.",
 ];
 

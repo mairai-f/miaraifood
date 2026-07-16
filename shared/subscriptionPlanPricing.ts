@@ -1,4 +1,4 @@
-export type CommercialPaidPlanId = "fiado" | "completo" | "pro" | "agenda";
+export type CommercialPaidPlanId = "fiado" | "completo" | "pro";
 
 export interface CommercialPlanPricing {
   monthlyPrice: number;
@@ -22,18 +22,12 @@ export const commercialPaidPlanPricing: Record<CommercialPaidPlanId, CommercialP
     annualPrice: 1300,
     durationDays: 30,
   },
-  agenda: {
-    monthlyPrice: 80,
-    annualPrice: 800,
-    durationDays: 30,
-  },
 };
 
 export const isCommercialPaidPlanId = (value: string | null | undefined): value is CommercialPaidPlanId =>
   value === "fiado" ||
   value === "completo" ||
-  value === "pro" ||
-  value === "agenda";
+  value === "pro";
 
 export const getCommercialPaidPlanPricing = (value: string | null | undefined): CommercialPlanPricing | null =>
   isCommercialPaidPlanId(value) ? commercialPaidPlanPricing[value] : null;

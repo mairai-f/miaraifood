@@ -35,6 +35,7 @@ interface SolutionPageProps {
   workflowTitle: string;
   workflowDescription: string;
   workflowSteps: SolutionCard[];
+  featureEyebrow?: string;
   featureTitle: string;
   featureDescription: string;
   featureCards: SolutionCard[];
@@ -55,6 +56,7 @@ const SolutionPage = ({
   workflowTitle,
   workflowDescription,
   workflowSteps,
+  featureEyebrow = "Recursos que vendem",
   featureTitle,
   featureDescription,
   featureCards,
@@ -187,7 +189,7 @@ const SolutionPage = ({
           <div className="container">
             <div className="mx-auto max-w-3xl text-center">
               <span className="text-sm font-semibold uppercase tracking-[0.24em] text-primary">
-                Recursos que vendem
+                {featureEyebrow}
               </span>
               <h2 className="mt-4 font-heading text-3xl font-bold md:text-4xl">{featureTitle}</h2>
               <p className="mt-4 text-lg leading-8 text-muted-foreground">{featureDescription}</p>

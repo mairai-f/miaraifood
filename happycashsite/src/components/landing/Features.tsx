@@ -4,7 +4,7 @@ import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import {
   Monitor, BookOpen, Package, Tags, Users,
-  MessageCircle, BarChart3, Gift, Wallet, Key,
+  MessageCircle, BarChart3, Gift, Wallet, Key, BriefcaseBusiness,
 } from "lucide-react";
 
 gsap.registerPlugin(ScrollTrigger);
@@ -13,6 +13,7 @@ const features = [
   { icon: Monitor, title: "Frente de Caixa (PDV)", desc: "Venda com mais rapidez, acompanhe o caixa e tenha um fechamento mais organizado.", href: "/sistema-pdv" },
   { icon: BookOpen, title: "Caderneta de Fiado Digital", desc: "Controle clientes, saldo devedor e cobranças em um painel mais confiável que o caderno.", href: "/caderneta-de-fiado-digital" },
   { icon: Package, title: "Controle de Estoque", desc: "Acompanhe entradas, saídas e estoque mínimo em tempo real para evitar falta de produto.", href: "/controle-de-estoque" },
+  { icon: BriefcaseBusiness, title: "Gestão de RH", desc: "Organize funcionários, permissões, ponto, escalas, documentos e portal do funcionário.", href: "/sistema-de-gestao-rh" },
   { icon: Tags, title: "Cadastro de Produtos", desc: "Cadastre produtos com preços, códigos e categorias sem depender de planilha paralela." },
   { icon: Users, title: "Cadastro de Clientes", desc: "Organize a base de clientes e recupere histórico de compras e pagamentos com facilidade." },
   { icon: MessageCircle, title: "Cobranças via WhatsApp", desc: "Abra a cobrança com mensagem pronta direto no WhatsApp e reduza o tempo para receber." },
@@ -68,7 +69,7 @@ const Features = () => {
             </span>
           </h2>
           <p className="text-muted-foreground max-w-2xl mx-auto text-lg">
-            Fiado, PDV, estoque, clientes e relatórios organizados em um sistema feito para a rotina real da loja.
+            Fiado, PDV, estoque, RH, clientes e relatórios organizados em um sistema ERP feito para a rotina real da loja.
           </p>
         </div>
 

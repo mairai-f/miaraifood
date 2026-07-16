@@ -35,7 +35,7 @@ const TermosDeServico = () => (
       {
         title: "2. O que o HappyCash oferece",
         paragraphs: [
-          "O HappyCash fornece ferramentas digitais para gestão comercial, incluindo controle de fiado, cadastro de clientes, PDV, estoque, relatórios, operadores, recursos desktop, HappyCash Agenda e modo offline em planos compatíveis.",
+          "O HappyCash fornece ferramentas digitais para gestão comercial, incluindo controle de fiado, cadastro de clientes, PDV, estoque, relatórios, operadores, recursos desktop e modo offline em planos compatíveis.",
           "As funcionalidades disponíveis variam conforme plano, produto, ambiente, configuração da conta e disponibilidade técnica.",
         ],
       },
@@ -106,7 +106,7 @@ const TermosDeServico = () => (
         title: "11. Conteúdo e dados cadastrados",
         paragraphs: [
           "Os dados que você cadastra no sistema continuam relacionados ao seu estabelecimento e à sua operação. Isso pode incluir dados do responsável e da empresa, como nome, email, telefone, CPF ou CNPJ e endereço do estabelecimento.",
-          "Também pode incluir dados operacionais inseridos pela loja, como nome, CPF, CNPJ, telefone, endereço, histórico de fiado, vendas, pagamentos, produtos, estoque, despesas, relatórios, agendamentos, observações e demais registros lançados no sistema. Ao usar o HappyCash, você nos autoriza a hospedar, processar e transmitir esses dados somente na medida necessária para prestar o serviço, proteger a plataforma e cumprir estes Termos.",
+          "Também pode incluir dados operacionais inseridos pela loja, como nome, CPF, CNPJ, telefone, endereço, histórico de fiado, vendas, pagamentos, produtos, estoque, despesas, relatórios, observações e demais registros lançados no sistema. Ao usar o HappyCash, você nos autoriza a hospedar, processar e transmitir esses dados somente na medida necessária para prestar o serviço, proteger a plataforma e cumprir estes Termos.",
         ],
       },
       {

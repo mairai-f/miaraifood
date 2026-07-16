@@ -7,11 +7,11 @@ export const LEGAL_MODAL_DOCUMENTS = {
   privacy: {
     title: "Política de Privacidade",
     path: LEGAL_PATHS.privacy,
-    description: "Como o HappyCash trata dados pessoais no site, cadastro, área do cliente, PDV, fiado, estoque, Agenda e recursos relacionados.",
+    description: "Como o HappyCash trata dados pessoais no site, cadastro, área do cliente, PDV, fiado, estoque, RH e recursos relacionados.",
     sections: [
       {
         title: "Dados tratados",
-        text: "Podemos tratar dados do responsável e da empresa, como nome completo, email, telefone, CPF ou CNPJ, nome do estabelecimento, tipo de atividade, CEP, rua, número, complemento, bairro, cidade e estado. Também tratamos dados inseridos no sistema pela loja, incluindo nome, CPF, CNPJ, telefone, endereço, fiado, vendas, pagamentos, produtos, estoque, despesas, agendamentos, observações e demais dados cadastrais ou financeiros lançados na operação.",
+        text: "Podemos tratar dados do responsável e da empresa, como nome completo, email, telefone, CPF ou CNPJ, nome do estabelecimento, tipo de atividade, CEP, rua, número, complemento, bairro, cidade e estado. Também tratamos dados inseridos no sistema pela loja, incluindo nome, CPF, CNPJ, telefone, endereço, fiado, vendas, pagamentos, produtos, estoque, despesas, colaboradores, documentos de RH, observações e demais dados cadastrais, operacionais ou financeiros lançados na operação.",
       },
       {
         title: "Finalidades",
@@ -34,7 +34,7 @@ export const LEGAL_MODAL_DOCUMENTS = {
       },
       {
         title: "Dados e operação",
-        text: "O uso do HappyCash pode envolver dados do responsável e da empresa, como nome, email, telefone, CPF ou CNPJ e endereço do estabelecimento, além de dados operacionais inseridos pela loja, como cadastro de clientes e terceiros, CPF ou CNPJ quando informados, vendas, fiado, pagamentos, produtos, estoque, despesas, relatórios, agendamentos e observações.",
+        text: "O uso do HappyCash pode envolver dados do responsável e da empresa, como nome, email, telefone, CPF ou CNPJ e endereço do estabelecimento, além de dados operacionais inseridos pela loja, como cadastro de clientes e terceiros, CPF ou CNPJ quando informados, vendas, fiado, pagamentos, produtos, estoque, despesas, relatórios e observações.",
       },
       {
         title: "Responsabilidades",

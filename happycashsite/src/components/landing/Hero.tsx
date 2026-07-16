@@ -9,9 +9,9 @@ import mascot from "@/assets/happycoin.webp";
 
 const rotatingWords = ["mercearia", "padaria", "adega", "bar", "loja"];
 const quickWins = [
-  "Gestão de negócios",
+  "ERP para comércio",
   "Fiado sem caderno",
-  "PDV e estoque",
+  "PDV, estoque e RH",
 ];
 
 const Hero = () => {
@@ -80,18 +80,18 @@ const Hero = () => {
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
               </span>
-              HappyCash sistema de gestão para comércio pequeno
+              HappyCash ERP para comércio pequeno, médio e grande
             </div>
 
             <h1 className="hero-title max-w-3xl font-heading text-4xl font-bold leading-[1.08] sm:text-5xl lg:text-6xl">
-              Sistema de gestão para controlar fiado, caixa e estoque da sua{" "}
+              Sistema de gestão ERP para controlar fiado, caixa, estoque e RH da sua{" "}
               <span ref={wordRef} className="text-primary inline-block capitalize">
                 {rotatingWords[wordIndex]}
               </span>
             </h1>
 
             <p className="hero-subtitle max-w-2xl text-base leading-relaxed text-muted-foreground sm:text-lg">
-              O HappyCash troca caderno e planilha por um painel simples de gestão de negócios para vender, cobrar pelo WhatsApp, acompanhar clientes devedores e fechar o caixa com mais confiança.
+              O HappyCash troca caderno e planilha por um painel simples de gestão de negócios para vender, cobrar pelo WhatsApp, acompanhar clientes devedores, organizar funcionários e fechar o caixa com mais confiança.
             </p>
 
             <div className="hero-buttons flex flex-col gap-3 sm:flex-row">

@@ -27,7 +27,7 @@ import { getFreshSiteSession } from "@/lib/siteSession";
 import { getSubscriptionCountdown, getSubscriptionEndAt, getSubscriptionStatusLabel, isCurrentSubscription } from "@/lib/subscriptionStatus";
 import { publicPlanContent, publicPlanList, isPaidPlanId, isPublicPlanId, type PaidPlanId, type PublicPlanId } from "@/lib/subscriptionPlans";
 import { getCommercialPaidPlanPricing } from "../../../shared/subscriptionPlanPricing";
-import { HAPPYCASH_AGENDA_SYSTEM_APP_URL, HAPPYCASH_SYSTEM_APP_URL } from "@/lib/systemUrls";
+import { HAPPYCASH_SYSTEM_APP_URL } from "@/lib/systemUrls";
 import {
   getPublicPlanIdsForProductContext,
   isCurrentSubscriptionPlanAllowedForProductContext,
@@ -232,12 +232,10 @@ const getPlanChargeActionKey = (planId: PaidPlanId, paymentMethod: CheckoutPayme
   `${planId}:${paymentMethod}:${billingPeriod}`;
 
 const getSystemUrlForProductContext = (productContext: ProductContext) => {
-  if (productContext === "happycashagenda") return HAPPYCASH_AGENDA_SYSTEM_APP_URL;
   return HAPPYCASH_SYSTEM_APP_URL;
 };
 
 const getSystemLabelForProductContext = (productContext: ProductContext) => {
-  if (productContext === "happycashagenda") return "Abrir HappyCash Agenda";
   return "Abrir sistema HappyCash";
 };
 
@@ -494,8 +492,8 @@ const Dashboard = () => {
   }, [loginHref, navigate, querySuffix]);
 
   const accountProductContext = normalizeProductContext(storeAccount?.product_context);
-  const siteProductContext: ProductContext = accountProductContext === "happycashagenda" ? "happycashagenda" : "happycash";
-  const productLabel = siteProductContext === "happycashagenda" ? "HappyCash Agenda" : "HappyCash";
+  const siteProductContext: ProductContext = "happycash";
+  const productLabel = "HappyCash";
   const compatibleSubscriptions = subscriptions.filter((subscription) =>
     isCurrentSubscriptionPlanAllowedForProductContext(siteProductContext, subscription.plan_id),
   );

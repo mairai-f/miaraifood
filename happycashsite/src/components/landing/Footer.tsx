@@ -45,7 +45,7 @@ const Footer = () => {
                 decoding="async"
               />
               <p className="text-sm text-muted-foreground max-w-sm leading-relaxed">
-                Sistema para controlar fiado, PDV e estoque sem depender de caderno, planilha e improviso.
+                Sistema ERP para controlar fiado, PDV, estoque, RH e gestão comercial sem depender de caderno, planilha e improviso.
               </p>
               <div className="flex items-center gap-3 pt-2">
                 <a href={`mailto:${SUPPORT_EMAIL}`}
@@ -74,6 +74,9 @@ const Footer = () => {
                 <Link to="/sistema-de-gestao-de-negocios" className="text-sm text-muted-foreground hover:text-primary transition-colors">
                   Sistema de gestão de negócios
                 </Link>
+                <Link to="/sistema-de-gestao-rh" className="text-sm text-muted-foreground hover:text-primary transition-colors">
+                  Sistema de gestão de RH
+                </Link>
                 <Link to="/controle-de-fiado" className="text-sm text-muted-foreground hover:text-primary transition-colors">
                   Controle de fiado
                 </Link>
@@ -88,9 +91,6 @@ const Footer = () => {
                 </Link>
                 <Link to="/sistema-pdv" className="text-sm text-muted-foreground hover:text-primary transition-colors">
                   Sistema PDV
-                </Link>
-                <Link to="/happycash-agenda" className="text-sm text-muted-foreground hover:text-primary transition-colors">
-                  HappyCash Agenda
                 </Link>
                 <Link to="/controle-de-estoque" className="text-sm text-muted-foreground hover:text-primary transition-colors">
                   Controle de estoque

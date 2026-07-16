@@ -1,6 +1,6 @@
 import { commercialPaidPlanPricing } from "../../../shared/subscriptionPlanPricing";
 
-export type PublicPlanId = "demo" | "fiado" | "completo" | "pro" | "agenda";
+export type PublicPlanId = "demo" | "fiado" | "completo" | "pro";
 export type PaidPlanId = Exclude<PublicPlanId, "demo">;
 
 export interface PublicPlanContent {
@@ -92,26 +92,6 @@ export const publicPlanContent: Record<PublicPlanId, PublicPlanContent> = {
       "Pagamento via Pix e debito / credito",
     ],
   },
-  agenda: {
-    id: "agenda",
-    name: "HappyCash Agenda",
-    price: commercialPaidPlanPricing.agenda.monthlyPrice,
-    annualPrice: commercialPaidPlanPricing.agenda.annualPrice,
-    priceLabel: "R$ 80",
-    durationLabel: `${commercialPaidPlanPricing.agenda.durationDays} dias`,
-    summary: "Agenda online para servicos com profissionais, WhatsApp, QR Code, pagamentos e relatorios.",
-    description: "Modulo de agendamentos para barbearias, saloes, clinicas, pet shops, oficinas, consultorias e servicos em geral.",
-    features: [
-      "Agenda diaria, semanal e mensal",
-      "Clientes, profissionais e servicos",
-      "QR Code da empresa, profissional ou servico",
-      "Personalizacao de nome, cores e identidade",
-      "WhatsApp para confirmacao e lembretes",
-      "Pagamentos Pix, cartao, dinheiro e link",
-      "Fluxo Agenda -> check-in -> caixa -> relatorio",
-      "Preparado para integracao com HappyCash PDV",
-    ],
-  },
 };
 
 export const publicPlanList: PublicPlanContent[] = [
@@ -119,20 +99,17 @@ export const publicPlanList: PublicPlanContent[] = [
   publicPlanContent.fiado,
   publicPlanContent.completo,
   publicPlanContent.pro,
-  publicPlanContent.agenda,
 ];
 
-export const paidPlanIds: PaidPlanId[] = ["fiado", "completo", "pro", "agenda"];
+export const paidPlanIds: PaidPlanId[] = ["fiado", "completo", "pro"];
 
 export const isPublicPlanId = (value: string | null | undefined): value is PublicPlanId =>
   value === "demo" ||
   value === "fiado" ||
   value === "completo" ||
-  value === "pro" ||
-  value === "agenda";
+  value === "pro";
 
 export const isPaidPlanId = (value: string | null | undefined): value is PaidPlanId =>
   value === "fiado" ||
   value === "completo" ||
-  value === "pro" ||
-  value === "agenda";
+  value === "pro";

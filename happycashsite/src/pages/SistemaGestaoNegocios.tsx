@@ -5,18 +5,25 @@ const SistemaGestaoNegocios = () => {
   return (
     <SolutionPage
       seo={{
-        title: "HappyCash sistema de gestão | Fiado, PDV, estoque e relatórios",
+        title: "HappyCash ERP | Sistema de gestão para comércio",
         description:
-          "HappyCash é um sistema de gestão de negócios para comércio pequeno. Controle fiado, vendas no PDV, estoque, clientes e cobranças em uma rotina simples.",
+          "HappyCash é um ERP e sistema de gestão para comércio pequeno, médio e grande porte. Controle fiado, PDV, estoque, clientes, RH, cobranças e relatórios.",
         path: "/sistema-de-gestao-de-negocios",
         image: screenshotGestao,
         keywords: [
           "happycash sistema",
+          "HappyCash ERP",
+          "erp sistema",
+          "sistema ERP",
           "happycash gestão de negócios",
           "sistema de gestão de negócios",
           "sistema de gestão para pequenos negócios",
+          "sistema de gestão para comércio pequeno médio e grande porte",
+          "sistema de gestão para comércio médio",
+          "sistema de gestão para comércio grande",
           "sistema de gestão para comércio",
           "sistema de gestão de vendas",
+          "sistema de gestão de RH",
           "sistema para mercearia",
           "sistema para adega",
           "controle de fiado",
@@ -26,27 +33,27 @@ const SistemaGestaoNegocios = () => {
           "@context": "https://schema.org",
           "@type": "SoftwareApplication",
           name: "HappyCash",
-          alternateName: ["HappyCash Sistema", "HappyCash Gestão de Negócios"],
+          alternateName: ["HappyCash Sistema", "HappyCash ERP", "HappyCash Gestão de Negócios"],
           applicationCategory: "BusinessApplication",
           operatingSystem: "Web, Windows, Linux",
           url: "https://www.happycashsite.com.br/sistema-de-gestao-de-negocios",
           description:
-            "Sistema de gestão para pequenos negócios com controle de fiado, PDV, estoque, clientes, cobranças e relatórios.",
+            "ERP e sistema de gestão para comércio pequeno, médio e grande porte com controle de fiado, PDV, estoque, clientes, RH, cobranças e relatórios.",
         },
       }}
-      eyebrow="Sistema de gestão"
-      title="HappyCash sistema de gestão para pequenos negócios"
-      description="Organize fiado, vendas, estoque, clientes e caixa em um só lugar. O HappyCash ajuda comércios pequenos a sair do caderno e da planilha sem transformar a rotina em burocracia."
+      eyebrow="ERP e sistema de gestão"
+      title="HappyCash ERP para comércio pequeno, médio e grande porte"
+      description="Organize fiado, vendas, estoque, clientes, caixa, RH e relatórios em um só lugar. O HappyCash ajuda comércios a sair do caderno e da planilha sem transformar a rotina em burocracia."
       highlightItems={[
         "Controle de fiado e clientes",
         "PDV para venda no balcão",
-        "Estoque e relatórios",
+        "Estoque, RH e relatórios",
         "Cobrança pelo WhatsApp",
       ]}
       imageSrc={screenshotGestao}
       imageAlt="Tela do HappyCash sistema de gestão para negócios"
-      promiseTitle="Gestão simples para vender, cobrar e acompanhar melhor"
-      promiseDescription="O foco do HappyCash é juntar as partes importantes da operação em uma experiência direta: quem comprou, o que vendeu, quem deve, quanto entrou no caixa e quais produtos precisam de atenção."
+      promiseTitle="Gestão ERP para vender, cobrar, acompanhar e crescer"
+      promiseDescription="O foco do HappyCash é juntar as partes importantes da operação em uma experiência direta: quem comprou, o que vendeu, quem deve, quanto entrou no caixa, quais produtos precisam de atenção e quais rotinas de equipe precisam de controle."
       promiseCards={[
         {
           title: "Menos controle espalhado",
@@ -54,11 +61,11 @@ const SistemaGestaoNegocios = () => {
         },
         {
           title: "Mais visão do negócio",
-          description: "Acompanhe fiado, recebimentos, caixa, produtos e relatórios para decidir com mais segurança no dia a dia.",
+          description: "Acompanhe fiado, recebimentos, caixa, produtos, RH e relatórios para decidir com mais segurança no dia a dia.",
         },
         {
           title: "Rotina fácil de adotar",
-          description: "O sistema foi pensado para comércio pequeno, com fluxo simples para balcão, cobrança e conferência.",
+          description: "O sistema foi pensado para comércio pequeno, médio e grande, com fluxo simples para balcão, cobrança, conferência e gestão interna.",
         },
       ]}
       workflowTitle="Como o sistema ajuda na gestão da loja"
@@ -74,11 +81,11 @@ const SistemaGestaoNegocios = () => {
         },
         {
           title: "Acompanhe resultados",
-          description: "Veja cobranças, estoque, caixa e relatórios sem precisar juntar informação manualmente.",
+          description: "Veja cobranças, estoque, caixa, RH e relatórios sem precisar juntar informação manualmente.",
         },
       ]}
       featureTitle="Recursos de gestão que o HappyCash concentra"
-      featureDescription="A proposta é dar controle para pequenos negócios sem exigir implantação complicada."
+      featureDescription="A proposta é dar controle para o comércio crescer sem exigir implantação complicada."
       featureCards={[
         {
           title: "Caderneta digital de fiado",
@@ -93,6 +100,10 @@ const SistemaGestaoNegocios = () => {
           description: "Organize produtos, preços, entradas, saídas e estoque mínimo para reduzir perda de informação.",
         },
         {
+          title: "Gestão de RH",
+          description: "Centralize funcionários, permissões, ponto, escalas, férias, documentos e portal do funcionário.",
+        },
+        {
           title: "Relatórios para gestão",
           description: "Tenha uma visão mais clara da operação para entender vendas, recebimentos e rotina financeira.",
         },
@@ -100,11 +111,11 @@ const SistemaGestaoNegocios = () => {
       faqs={[
         {
           question: "O HappyCash serve como sistema de gestão de negócios?",
-          answer: "Sim. O HappyCash reúne controle de fiado, PDV, estoque, clientes, cobranças e relatórios para pequenos negócios.",
+          answer: "Sim. O HappyCash reúne controle de fiado, PDV, estoque, clientes, RH, cobranças e relatórios para comércios de pequeno, médio e grande porte.",
         },
         {
           question: "Consigo usar sem experiência com sistema?",
-          answer: "A proposta é justamente ser simples para a rotina do comércio pequeno, reduzindo dependência de caderno e planilha.",
+          answer: "A proposta é justamente ser simples para a rotina do comércio, reduzindo dependência de caderno e planilha.",
         },
         {
           question: "Esse sistema ajuda mercearia, adega, bar e loja?",

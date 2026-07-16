@@ -13,8 +13,5 @@ describe("commercial paid plan pricing", () => {
 
     expect(publicPlanContent.pro.price).toBe(commercialPaidPlanPricing.pro.monthlyPrice);
     expect(publicPlanContent.pro.annualPrice).toBe(commercialPaidPlanPricing.pro.annualPrice);
-
-    expect(publicPlanContent.agenda.price).toBe(commercialPaidPlanPricing.agenda.monthlyPrice);
-    expect(publicPlanContent.agenda.annualPrice).toBe(commercialPaidPlanPricing.agenda.annualPrice);
   });
 });

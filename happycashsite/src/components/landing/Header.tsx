@@ -15,8 +15,13 @@ import happyCashLogo from "../../../../src/assets/login/happycash.svg";
 const solutionLinks = [
   {
     label: "Gestão e relatórios",
-    description: "Painel para acompanhar receita, caixa e decisão.",
+    description: "ERP para comércio pequeno, médio e grande porte.",
     href: "/sistema-de-gestao-de-negocios",
+  },
+  {
+    label: "Gestão de RH",
+    description: "Funcionários, ponto, escalas, documentos e permissões.",
+    href: "/sistema-de-gestao-rh",
   },
   {
     label: "Controle de fiado",
@@ -32,11 +37,6 @@ const solutionLinks = [
     label: "Controle de estoque",
     description: "Entradas, saídas e estoque mínimo com visão clara.",
     href: "/controle-de-estoque",
-  },
-  {
-    label: "HappyCash Agenda",
-    description: "Agendamentos, profissionais e clientes em uma agenda online.",
-    href: "/happycash-agenda",
   },
 ];
 
@@ -127,16 +127,16 @@ const Header = () => {
                 <ChevronDown className="h-4 w-4" />
               </button>
 
-              <div className="pointer-events-none absolute left-0 top-[calc(100%+10px)] w-[370px] translate-y-2 rounded-[24px] border border-border bg-card p-3 opacity-0 shadow-[0_24px_60px_rgba(15,23,42,0.14)] transition-all duration-200 group-hover:pointer-events-auto group-hover:translate-y-0 group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:translate-y-0 group-focus-within:opacity-100">
-                <div className="grid gap-2">
+              <div className="pointer-events-none absolute left-0 top-[calc(100%+10px)] w-[540px] translate-y-2 rounded-[24px] border border-border bg-card p-3 opacity-0 shadow-[0_24px_60px_rgba(15,23,42,0.14)] transition-all duration-200 group-hover:pointer-events-auto group-hover:translate-y-0 group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:translate-y-0 group-focus-within:opacity-100">
+                <div className="grid grid-cols-2 gap-2">
                   {solutionLinks.map((item) => (
                     <Link
                       key={item.href}
                       to={item.href}
-                      className="rounded-[18px] border border-transparent bg-background/70 px-4 py-3 transition-all duration-200 hover:border-primary/20 hover:bg-accent"
+                      className="rounded-[16px] border border-transparent bg-background/70 px-3 py-2.5 transition-all duration-200 hover:border-primary/20 hover:bg-accent"
                     >
                       <span className="text-sm font-semibold text-foreground">{item.label}</span>
-                      <span className="mt-1 block text-sm leading-6 text-muted-foreground">{item.description}</span>
+                      <span className="mt-1 block text-xs leading-5 text-muted-foreground">{item.description}</span>
                     </Link>
                   ))}
                 </div>
@@ -236,16 +236,16 @@ const Header = () => {
               </button>
 
               {mobileSolutionsOpen ? (
-                <div className="grid gap-2 rounded-[22px] border border-border bg-card p-3 shadow-[0_18px_48px_rgba(15,23,42,0.10)]">
+                <div className="grid gap-2 rounded-[22px] border border-border bg-card p-2.5 shadow-[0_18px_48px_rgba(15,23,42,0.10)] sm:grid-cols-2">
                   {solutionLinks.map((item) => (
                     <Link
                       key={item.href}
                       to={item.href}
-                      className="rounded-[18px] border border-border bg-background/70 px-4 py-3"
+                      className="rounded-[16px] border border-border bg-background/70 px-3 py-2.5"
                       onClick={closeMobileMenu}
                     >
                       <span className="text-sm font-semibold text-foreground">{item.label}</span>
-                      <span className="mt-1 block text-sm leading-6 text-muted-foreground">{item.description}</span>
+                      <span className="mt-1 hidden text-xs leading-5 text-muted-foreground sm:block">{item.description}</span>
                     </Link>
                   ))}
                 </div>

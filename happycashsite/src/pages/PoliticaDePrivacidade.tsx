@@ -22,21 +22,21 @@ const PoliticaDePrivacidade = () => (
     }}
     eyebrow="Privacidade"
     title="Política de Privacidade"
-    description="Esta política explica como tratamos dados pessoais no HappyCash, incluindo site, cadastro, área do cliente, sistema PDV, controle de fiado, estoque, HappyCash Agenda e recursos relacionados."
+    description="Esta política explica como tratamos dados pessoais no HappyCash, incluindo site, cadastro, área do cliente, sistema PDV, controle de fiado, estoque e recursos relacionados."
     updatedAt={updatedAt}
     sections={[
       {
         title: "1. Quem somos e como falar conosco",
         paragraphs: [
-          "O HappyCash é uma plataforma para gestão comercial, controle de fiado, PDV, estoque, agenda e produtos relacionados. Para assuntos de privacidade, suporte ou exercício de direitos de titular, entre em contato pelo email happycashsupport@gmail.com.",
-          "Quando uma loja usa o HappyCash para cadastrar seus próprios clientes, produtos, vendas, dívidas ou agendamentos, a loja é responsável pela decisão sobre esses dados. O HappyCash atua como fornecedor da tecnologia usada para armazenar e processar essas informações conforme a configuração feita pelo usuário da conta.",
+          "O HappyCash é uma plataforma para gestão comercial, controle de fiado, PDV, estoque e recursos relacionados. Para assuntos de privacidade, suporte ou exercício de direitos de titular, entre em contato pelo email happycashsupport@gmail.com.",
+          "Quando uma loja usa o HappyCash para cadastrar seus próprios clientes, produtos, vendas ou dívidas, a loja é responsável pela decisão sobre esses dados. O HappyCash atua como fornecedor da tecnologia usada para armazenar e processar essas informações conforme a configuração feita pelo usuário da conta.",
         ],
       },
       {
         title: "2. Dados que podemos coletar",
         bullets: [
           "Dados de cadastro da conta e do responsável: nome completo, email, telefone, senha protegida, CPF ou CNPJ do responsável, plano escolhido, nome do estabelecimento, tipo de estabelecimento, CEP, rua, número, complemento, bairro, cidade, estado e demais informações da loja.",
-          "Dados operacionais inseridos pelo usuário ou pela loja: nome, CPF, CNPJ, telefone, endereço, histórico de fiado, vendas, pagamentos, produtos, estoque, despesas, agendamentos, observações e demais dados cadastrais, comerciais ou financeiros lançados no sistema.",
+          "Dados operacionais inseridos pelo usuário ou pela loja: nome, CPF, CNPJ, telefone, endereço, histórico de fiado, vendas, pagamentos, produtos, estoque, despesas, observações e demais dados cadastrais, comerciais ou financeiros lançados no sistema.",
           "Dados de pagamento e assinatura: plano, status de cobrança, período contratado, meio de pagamento e referências de transação retornadas por provedores de pagamento.",
           "Dados técnicos: endereço IP, navegador, sistema operacional, dispositivo, registros de acesso, cookies, identificadores de sessão e eventos de segurança.",
           "Dados de atendimento: mensagens enviadas por email, informações necessárias para suporte e histórico de tratativas.",
@@ -47,7 +47,7 @@ const PoliticaDePrivacidade = () => (
         bullets: [
           "Criar e proteger contas de usuário.",
           "Liberar acesso aos produtos contratados, planos, testes gratuitos e área do cliente.",
-          "Executar funcionalidades do sistema, como PDV, fiado, estoque, agenda, relatórios e cobranças.",
+          "Executar funcionalidades do sistema, como PDV, fiado, estoque, relatórios e cobranças.",
           "Sincronizar dados entre web, desktop e recursos offline quando disponíveis.",
           "Processar pagamentos, assinaturas, renovações, cancelamentos e comprovantes.",
           "Prestar suporte, investigar erros, prevenir fraude, proteger a segurança da plataforma e cumprir obrigações legais.",

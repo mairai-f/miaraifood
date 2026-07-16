@@ -60,17 +60,25 @@ const Index = () => {
   return (
     <div className="min-h-screen bg-background overflow-x-hidden">
       <SiteSeo
-        title="HappyCash | Sistema de gestão, fiado, PDV e estoque"
-        description="HappyCash é um sistema de gestão para pequenos negócios: controle fiado, caderneta digital, PDV, estoque, cobranças pelo WhatsApp e relatórios em tempo real."
+        title="HappyCash | ERP e sistema de gestão para comércio"
+        description="HappyCash é um ERP e sistema de gestão para comércio pequeno, médio e grande porte: fiado, PDV, estoque, RH, cobranças pelo WhatsApp e relatórios."
         path="/"
         image={heroScreenshot}
         keywords={[
           "happycash sistema",
           "happycash gestão de negócios",
           "happycash caderneta",
+          "ERP HappyCash",
+          "erp sistema",
+          "sistema ERP para comércio",
           "sistema de gestão para pequenos negócios",
+          "sistema de gestão para comercio pequeno medio e grande porte",
+          "sistema de gestão para comércio médio",
+          "sistema de gestão para comércio grande",
           "sistema de gestão para comércio",
           "sistema de gestão de vendas",
+          "sistema de gestão de RH",
+          "gestão de recursos humanos",
           "controle de fiado",
           "caderneta de fiado digital",
           "sistema pdv",
@@ -84,6 +92,7 @@ const Index = () => {
           name: "HappyCash",
           alternateName: [
             "HappyCash Sistema",
+            "HappyCash ERP",
             "HappyCash Gestão de Negócios",
             "HappyCash Caderneta",
           ],
@@ -91,9 +100,9 @@ const Index = () => {
           operatingSystem: "Web, Windows, Linux",
           url: "https://www.happycashsite.com.br/",
           description:
-            "Sistema de gestão para pequenos negócios com controle fiado, caderneta digital, PDV, estoque, cobranças pelo WhatsApp e relatórios.",
+            "ERP e sistema de gestão para comércio pequeno, médio e grande porte com controle fiado, caderneta digital, PDV, estoque, RH, cobranças pelo WhatsApp e relatórios.",
           keywords:
-            "happycash sistema, happycash gestão de negócios, sistema de gestão para pequenos negócios, controle de fiado, caderneta digital, sistema PDV, controle de estoque",
+            "happycash sistema, happycash ERP, erp sistema, sistema de gestão para comércio, sistema de gestão para pequeno médio e grande porte, controle de fiado, caderneta digital, sistema PDV, controle de estoque, gestão de RH",
           offers: {
             "@type": "Offer",
             price: "0",
