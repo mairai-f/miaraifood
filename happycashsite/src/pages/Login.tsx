@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { Eye, EyeOff, Loader2 } from 'lucide-react';
 import { motion } from 'framer-motion';
@@ -23,6 +23,7 @@ import loginRelatorios from '../../../src/assets/login/relatorios.svg';
 import loginErp from '../../../src/assets/login/erp.svg';
 import loginEstoque from '../../../src/assets/login/estoque.svg';
 import { getPublicAuthErrorMessage } from '../../../shared/security/redaction';
+import { getPasswordPolicyError, passwordPolicyHint } from '../../../shared/security/passwordPolicy';
 import { requestTurnstileToken } from '../../../shared/security/turnstile';
 
 const resolveLoginErrorMessage = (error: unknown) => {
@@ -33,6 +34,7 @@ const resolveLoginErrorMessage = (error: unknown) => {
 };
 
 const normalizeEmail = (value: string) => value.trim().toLowerCase();
+const normalizeRecoveryCode = (value: string) => value.replace(/\D/g, '').slice(0, 8);
 const resolveSafeNextPath = (value: string | null) => {
   if (!value || !value.startsWith('/') || value.startsWith('//')) return null;
   return value;
@@ -66,6 +68,12 @@ const Login = () => {
   const [loginError, setLoginError] = useState<string | null>(null);
   const [resetOpen, setResetOpen] = useState(false);
   const [resetEmail, setResetEmail] = useState('');
+  const [resetStep, setResetStep] = useState<'email' | 'code'>('email');
+  const [resetCode, setResetCode] = useState('');
+  const [resetPassword, setResetPassword] = useState('');
+  const [resetConfirmPassword, setResetConfirmPassword] = useState('');
+  const [showResetPassword, setShowResetPassword] = useState(false);
+  const [showResetConfirmPassword, setShowResetConfirmPassword] = useState(false);
   const [resettingPassword, setResettingPassword] = useState(false);
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -174,7 +182,40 @@ const Login = () => {
     }
   };
 
-  const handleReset = async () => {
+  const openResetDialog = (emailValue: string) => {
+    setResetEmail(normalizeEmail(emailValue));
+    setResetStep('email');
+    setResetCode('');
+    setResetPassword('');
+    setResetConfirmPassword('');
+    setShowResetPassword(false);
+    setShowResetConfirmPassword(false);
+    setResetOpen(true);
+  };
+
+  useEffect(() => {
+    if (searchParams.get('recovery') === '1') {
+      openResetDialog(email);
+    }
+    // Abre apenas na primeira renderizacao quando a URL pede recuperacao.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const handleResetDialogOpenChange = (open: boolean) => {
+    if (resettingPassword) return;
+
+    setResetOpen(open);
+    if (!open) {
+      setResetStep('email');
+      setResetCode('');
+      setResetPassword('');
+      setResetConfirmPassword('');
+      setShowResetPassword(false);
+      setShowResetConfirmPassword(false);
+    }
+  };
+
+  const handleSendResetCode = async () => {
     if (resettingPassword) return;
 
     if (!resetEmail.trim()) {
@@ -213,14 +254,109 @@ const Login = () => {
       }
 
       toast({
-        title: 'Email enviado',
-        description: 'Enviamos o link para redefinir sua senha.',
+        title: 'Codigo enviado',
+        description: 'Digite o codigo recebido por e-mail para criar a nova senha.',
       });
-      setResetOpen(false);
       setResetEmail(normalizedResetEmail);
+      setResetCode('');
+      setResetPassword('');
+      setResetConfirmPassword('');
+      setResetStep('code');
     } catch (error) {
       const resolvedError = getPublicAuthErrorMessage(error, 'Nao foi possivel concluir a verificacao de seguranca.');
       toast({ title: 'Erro ao enviar email', description: resolvedError, variant: 'destructive' });
+    } finally {
+      setResettingPassword(false);
+    }
+  };
+
+  const handleConfirmResetCode = async () => {
+    if (resettingPassword) return;
+
+    const normalizedResetEmail = normalizeEmail(resetEmail);
+    const code = normalizeRecoveryCode(resetCode);
+
+    if (!normalizedResetEmail) {
+      toast({ title: 'Digite seu email', variant: 'destructive' });
+      setResetStep('email');
+      return;
+    }
+
+    if (code.length !== 8) {
+      toast({
+        title: 'Codigo invalido',
+        description: 'Digite os 8 numeros enviados por e-mail.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    const passwordError = getPasswordPolicyError(resetPassword);
+    if (passwordError) {
+      toast({
+        title: 'Senha invalida',
+        description: passwordError,
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (resetPassword !== resetConfirmPassword) {
+      toast({
+        title: 'As senhas nao conferem',
+        description: 'Revise os dois campos e tente novamente.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setResettingPassword(true);
+
+    try {
+      const { error: verifyError } = await supabase.auth.verifyOtp({
+        email: normalizedResetEmail,
+        token: code,
+        type: 'recovery',
+      });
+
+      if (verifyError) {
+        toast({
+          title: 'Codigo invalido ou expirado',
+          description: getPublicAuthErrorMessage(verifyError, 'Solicite um novo codigo e tente novamente.'),
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      const { error: updateError } = await supabase.auth.updateUser({ password: resetPassword });
+
+      if (updateError) {
+        toast({
+          title: 'Nao foi possivel alterar a senha',
+          description: getPublicAuthErrorMessage(updateError, 'Tente novamente em instantes.'),
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      await supabase.auth.signOut({ scope: 'local' });
+      setPassword('');
+      setResetOpen(false);
+      setResetStep('email');
+      setResetCode('');
+      setResetPassword('');
+      setResetConfirmPassword('');
+      setShowResetPassword(false);
+      setShowResetConfirmPassword(false);
+      setEmail(normalizedResetEmail);
+
+      toast({
+        title: 'Senha atualizada',
+        description: 'Agora voce ja pode entrar com a nova senha.',
+      });
+    } catch (error) {
+      const resolvedError = getPublicAuthErrorMessage(error, 'Nao foi possivel redefinir sua senha agora.');
+      toast({ title: 'Erro ao redefinir senha', description: resolvedError, variant: 'destructive' });
     } finally {
       setResettingPassword(false);
     }
@@ -367,10 +503,7 @@ const Login = () => {
                     <Label htmlFor="password" className="text-[15px] font-medium text-[#24324a]">Senha</Label>
                     <button
                       type="button"
-                      onClick={() => {
-                        setResetEmail(normalizeEmail(email));
-                        setResetOpen(true);
-                      }}
+                      onClick={() => openResetDialog(email)}
                       className="shrink-0 text-sm font-medium text-[#64748b] transition-colors hover:text-[#1f56a5]"
                     >
                       Esqueci a senha
@@ -484,32 +617,109 @@ const Login = () => {
         </main>
       </div>
 
-      <Dialog open={resetOpen} onOpenChange={setResetOpen}>
+      <Dialog open={resetOpen} onOpenChange={handleResetDialogOpenChange}>
         <DialogContent className="max-w-[calc(100vw-2rem)] border border-[#d7e0ef] bg-white text-foreground shadow-[0_26px_70px_rgba(29,78,216,0.12)] sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Redefinir Senha</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4">
-            <p className="text-sm text-muted-foreground">
-              Enviaremos um email com o link para redefinir sua senha.
-            </p>
-            <div className="space-y-2">
-              <Label htmlFor="reset-email">Email</Label>
-              <Input
-                id="reset-email"
-                type="email"
-                autoComplete="email"
-                value={resetEmail}
-                onChange={e => setResetEmail(e.target.value)}
-                placeholder="Digite seu e-mail"
-                className="border-[#d8e1ef] bg-white"
-              />
+
+          {resetStep === 'email' ? (
+            <div className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Enviaremos um codigo para seu e-mail. Depois voce digita o codigo aqui e cria uma nova senha.
+              </p>
+              <div className="space-y-2">
+                <Label htmlFor="reset-email">Email</Label>
+                <Input
+                  id="reset-email"
+                  type="email"
+                  autoComplete="email"
+                  value={resetEmail}
+                  onChange={e => setResetEmail(e.target.value)}
+                  placeholder="Digite seu e-mail"
+                  className="border-[#d8e1ef] bg-white"
+                />
+              </div>
             </div>
-          </div>
+          ) : (
+            <div className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Digite o codigo de 8 numeros enviado para <strong>{resetEmail}</strong> e escolha sua nova senha.
+              </p>
+              <div className="space-y-2">
+                <Label htmlFor="reset-code">Codigo recebido</Label>
+                <Input
+                  id="reset-code"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  value={resetCode}
+                  onChange={e => setResetCode(normalizeRecoveryCode(e.target.value))}
+                  placeholder="00000000"
+                  className="border-[#d8e1ef] bg-white text-center text-lg font-bold tracking-[0.35em]"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="reset-new-password">Nova senha</Label>
+                <div className="relative">
+                  <Input
+                    id="reset-new-password"
+                    type={showResetPassword ? 'text' : 'password'}
+                    autoComplete="new-password"
+                    value={resetPassword}
+                    onChange={e => setResetPassword(e.target.value)}
+                    placeholder="Use uma senha forte"
+                    className="border-[#d8e1ef] bg-white pr-10"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowResetPassword(current => !current)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground"
+                    aria-label={showResetPassword ? 'Ocultar senha' : 'Mostrar senha'}
+                  >
+                    {showResetPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
+                <p className="text-xs text-muted-foreground">{passwordPolicyHint}</p>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="reset-confirm-password">Confirmar senha</Label>
+                <div className="relative">
+                  <Input
+                    id="reset-confirm-password"
+                    type={showResetConfirmPassword ? 'text' : 'password'}
+                    autoComplete="new-password"
+                    value={resetConfirmPassword}
+                    onChange={e => setResetConfirmPassword(e.target.value)}
+                    placeholder="Repita a nova senha"
+                    className="border-[#d8e1ef] bg-white pr-10"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowResetConfirmPassword(current => !current)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground"
+                    aria-label={showResetConfirmPassword ? 'Ocultar senha' : 'Mostrar senha'}
+                  >
+                    {showResetConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
           <DialogFooter>
+            {resetStep === 'code' && (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setResetStep('email')}
+                disabled={resettingPassword}
+              >
+                Voltar
+              </Button>
+            )}
             <Button
               type="button"
-              onClick={handleReset}
+              onClick={resetStep === 'email' ? handleSendResetCode : handleConfirmResetCode}
               disabled={resettingPassword}
               className="bg-[#1f56a5] text-white hover:bg-[#194788]"
             >
@@ -518,9 +728,7 @@ const Login = () => {
                   <Loader2 className="mr-2 animate-spin" />
                   Enviando...
                 </>
-              ) : (
-                'Enviar'
-              )}
+              ) : resetStep === 'email' ? 'Enviar codigo' : 'Salvar nova senha'}
             </Button>
           </DialogFooter>
         </DialogContent>

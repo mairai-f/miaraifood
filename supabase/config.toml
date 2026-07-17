@@ -45,7 +45,7 @@ subject = "Confirme sua conta HappyCash"
 content_path = "./templates/confirmation.html"
 
 [auth.email.template.recovery]
-subject = "Recuperacao de senha HappyCash"
+subject = "Codigo de recuperacao HappyCash"
 content_path = "./templates/recovery.html"
 
 [auth.email.template.magic_link]

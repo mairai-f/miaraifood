@@ -75,7 +75,6 @@ interface AuthContextType {
   registerPasskey: () => Promise<PasskeyEntry>;
   listPasskeys: () => Promise<PasskeyEntry[]>;
   deletePasskey: (passkeyId: string) => Promise<void>;
-  resetPassword: (email: string) => Promise<boolean>;
   logout: () => Promise<void>;
   isAuthenticated: boolean;
   isLocalOfflineSession: boolean;
@@ -899,26 +898,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const resetPassword = async (email: string): Promise<boolean> => {
-    let captchaToken: string | undefined;
-    try {
-      captchaToken = await requestTurnstileToken('app-password-reset', { visible: true });
-    } catch {
-      return false;
-    }
-
-    if (!captchaToken) {
-      console.error('Turnstile nao retornou token para recuperacao de senha.');
-      return false;
-    }
-
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/reset-password`,
-      captchaToken,
-    });
-    return !error;
-  };
-
   const logout = async () => {
     if (session?.access_token) {
       await trackSystemAccessEvent(session.access_token, 'logout');
@@ -956,7 +935,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         registerPasskey,
         listPasskeys,
         deletePasskey,
-        resetPassword,
         logout,
         isAuthenticated: !!user,
         isHr: role === 'hr',

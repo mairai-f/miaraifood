@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Eye, EyeOff, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -65,6 +65,8 @@ const loginFeatureCards = [
   { label: 'Estoque', image: loginEstoque, imageClassName: 'w-full scale-[1.28]' },
 ];
 
+const HAPPY_CASH_SITE_RECOVERY_URL = 'https://www.happycashsite.com.br/login?recovery=1';
+
 export default function Login() {
   const initialPreferences = getSystemLoginPreferences();
   const desktopActivation = readDesktopActivation();
@@ -92,13 +94,10 @@ export default function Login() {
   const [keepConnected, setKeepConnected] = useState(initialPreferences.keepConnected);
   const [submitting, setSubmitting] = useState(false);
   const [oauthSubmitting, setOauthSubmitting] = useState(false);
-  const [resettingPassword, setResettingPassword] = useState(false);
-  const { login, signInWithGoogle, loginOfflineAdmin, loginOperator, resetPassword } = useAuth();
+  const { login, signInWithGoogle, loginOfflineAdmin, loginOperator } = useAuth();
   const isDesktop = typeof window !== 'undefined' && Boolean(window.electronAPI);
   const canUseGoogleLogin = adminAccessMode === 'online' && !isDesktop && typeof window !== 'undefined' && /^https?:$/.test(window.location.protocol);
 
-  const [resetOpen, setResetOpen] = useState(false);
-  const [resetEmail, setResetEmail] = useState('');
   const [operatorRecoveryOpen, setOperatorRecoveryOpen] = useState(false);
   const [operatorRecoveryStep, setOperatorRecoveryStep] = useState<OperatorRecoveryStep>('email');
   const [operatorRecoveryEmail, setOperatorRecoveryEmail] = useState('');
@@ -189,30 +188,6 @@ export default function Login() {
       applySystemSessionPreference(keepConnected);
     } finally {
       setSubmitting(false);
-    }
-  };
-
-  const handleReset = async () => {
-    if (resettingPassword) return;
-
-    if (!resetEmail) {
-      toast.error('Digite seu email');
-      return;
-    }
-
-    setResettingPassword(true);
-
-    try {
-      const ok = await resetPassword(resetEmail);
-      if (ok) {
-        toast.success('Email de redefinição enviado!');
-        setResetOpen(false);
-        setResetEmail('');
-      } else {
-        toast.error('Erro ao enviar email de redefinição.');
-      }
-    } finally {
-      setResettingPassword(false);
     }
   };
 
@@ -584,16 +559,14 @@ export default function Login() {
                         <div className="space-y-2">
                           <div className="flex items-center justify-between gap-3">
                             <Label className="text-[15px] font-medium text-[#24324a]">Senha</Label>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setResetEmail(email.trim());
-                                setResetOpen(true);
-                              }}
+                            <a
+                              href={HAPPY_CASH_SITE_RECOVERY_URL}
+                              target="_blank"
+                              rel="noreferrer"
                               className="shrink-0 text-sm font-medium text-[#64748b] transition-colors hover:text-[#1f56a5]"
                             >
-                              Esqueci a senha
-                            </button>
+                              Recuperar no site
+                            </a>
                           </div>
                           <div className="relative">
                             <Input
@@ -784,46 +757,6 @@ export default function Login() {
           </motion.div>
         </main>
       </div>
-
-      <Dialog open={resetOpen} onOpenChange={setResetOpen}>
-        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Redefinir Senha</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <p className="text-sm text-muted-foreground">
-              Enviaremos um email com link para redefinir sua senha.
-            </p>
-            <div className="space-y-2">
-              <Label>Email</Label>
-              <Input
-                id="happycash-reset-email"
-                name="happycash-reset-email"
-                type="email"
-                value={resetEmail}
-                onChange={e => setResetEmail(e.target.value)}
-                placeholder="usuario@happycash.com"
-                autoComplete="off"
-                autoCapitalize="none"
-                autoCorrect="off"
-                spellCheck={false}
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button onClick={handleReset} disabled={resettingPassword}>
-              {resettingPassword ? (
-                <>
-                  <Loader2 className="mr-2 animate-spin" />
-                  Enviando...
-                </>
-              ) : (
-                'Enviar'
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       <Dialog open={operatorRecoveryOpen} onOpenChange={handleOperatorRecoveryOpenChange}>
         <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-md">

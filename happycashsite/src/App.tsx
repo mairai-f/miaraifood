@@ -78,6 +78,10 @@ function RouteLoader() {
 
 function WhatsAppForRoute() {
   const { pathname } = useLocation();
+  const authPaths = new Set([
+    "/login",
+    "/cadastro",
+  ]);
   const legalPaths = new Set([
     "/lgpd",
     "/politica-de-privacidade",
@@ -85,7 +89,7 @@ function WhatsAppForRoute() {
     "/termos-de-servico",
   ]);
 
-  if (pathname === "/cadastro" || pathname.startsWith("/cadastro/") || legalPaths.has(pathname)) {
+  if (authPaths.has(pathname) || pathname.startsWith("/cadastro/") || legalPaths.has(pathname)) {
     return null;
   }
 
