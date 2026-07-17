@@ -1315,19 +1315,21 @@ export default function ClientDetail() {
                 <Label>Login do administrador</Label>
                 <Input
                   type="email"
+                  name="client-payment-admin-login"
                   value={paymentAdminEmail}
                   onChange={event => setPaymentAdminEmail(event.target.value)}
                   placeholder="admin@empresa.com"
-                  autoComplete="username"
+                  autoComplete="off"
                 />
               </div>
               <div className="space-y-2">
                 <Label>Senha do administrador</Label>
                 <PasswordInput
+                  name="client-payment-admin-password"
                   value={paymentAdminPassword}
                   onChange={event => setPaymentAdminPassword(event.target.value)}
                   placeholder="Digite a senha"
-                  autoComplete="current-password"
+                  autoComplete="new-password"
                 />
               </div>
               {paymentAuthError ? (
@@ -1405,17 +1407,21 @@ export default function ClientDetail() {
               <Label>Email do administrador</Label>
               <Input
                 type="email"
+                name="client-protected-action-admin-login"
                 value={deleteAuthEmail}
                 onChange={event => setDeleteAuthEmail(event.target.value)}
                 placeholder="admin@empresa.com"
+                autoComplete="off"
               />
             </div>
             <div className="space-y-2">
               <Label>Senha</Label>
               <PasswordInput
+                name="client-protected-action-admin-password"
                 value={deleteAuthPassword}
                 onChange={event => setDeleteAuthPassword(event.target.value)}
                 placeholder="••••••••"
+                autoComplete="new-password"
               />
             </div>
             {protectedAction?.kind === 'debt' && (

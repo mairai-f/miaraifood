@@ -1658,9 +1658,10 @@ const Dashboard = () => {
                 <Input
                   id="delete-account-email"
                   type="email"
+                  name="site-delete-account-login"
                   value={deleteAccountEmail}
                   onChange={event => setDeleteAccountEmail(event.target.value)}
-                  autoComplete="username"
+                  autoComplete="off"
                   placeholder="seu@email.com"
                 />
               </div>
@@ -1670,9 +1671,10 @@ const Dashboard = () => {
                 <Input
                   id="delete-account-password"
                   type="password"
+                  name="site-delete-account-password"
                   value={deleteAccountPassword}
                   onChange={event => setDeleteAccountPassword(event.target.value)}
-                  autoComplete="current-password"
+                  autoComplete="new-password"
                   placeholder="Digite sua senha"
                 />
               </div>

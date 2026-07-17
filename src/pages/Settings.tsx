@@ -1083,20 +1083,22 @@ export default function Settings() {
                     <Label>Login do administrador</Label>
                     <Input
                       type="email"
+                      name="settings-restore-admin-login"
                       value={restoreAdminEmail}
                       onChange={event => setRestoreAdminEmail(event.target.value)}
                       placeholder="admin@empresa.com"
-                      autoComplete="username"
+                      autoComplete="off"
                     />
                   </div>
 
                   <div className="space-y-1">
                     <Label>Senha do administrador</Label>
                     <PasswordInput
+                      name="settings-restore-admin-password"
                       value={restoreAdminPassword}
                       onChange={event => setRestoreAdminPassword(event.target.value)}
                       placeholder="Digite a senha"
-                      autoComplete="current-password"
+                      autoComplete="new-password"
                     />
                   </div>
 
@@ -1192,20 +1194,22 @@ export default function Settings() {
                   <Label>Login do administrador (email)</Label>
                   <Input
                     type="email"
+                    name="settings-reset-admin-login"
                     value={adminEmail}
                     onChange={event => setAdminEmail(event.target.value)}
                     placeholder="admin@empresa.com"
-                    autoComplete="username"
+                    autoComplete="off"
                   />
                 </div>
 
                 <div className="space-y-1">
                   <Label>Senha do administrador</Label>
                   <PasswordInput
+                    name="settings-reset-admin-password"
                     value={adminPassword}
                     onChange={event => setAdminPassword(event.target.value)}
                     placeholder="Digite a senha"
-                    autoComplete="current-password"
+                    autoComplete="new-password"
                   />
                 </div>
 

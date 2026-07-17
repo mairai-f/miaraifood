@@ -1600,20 +1600,22 @@ export function OperatorManagementPanel({
               <Label>Login do {accessAuthorizationLabel}</Label>
               <Input
                 type={isAdmin ? 'email' : 'text'}
+                name="operator-access-admin-login"
                 value={adminAuthorizationEmail}
                 onChange={event => setAdminAuthorizationEmail(event.target.value)}
                 placeholder={isAdmin ? 'admin@empresa.com' : 'usuario.rh'}
-                autoComplete="username"
+                autoComplete="off"
                 autoFocus
               />
             </div>
             <div className="space-y-1">
               <Label>Senha ou PIN do {accessAuthorizationLabel}</Label>
               <PasswordInput
+                name="operator-access-admin-password"
                 value={adminAuthorizationPassword}
                 onChange={event => setAdminAuthorizationPassword(event.target.value)}
                 placeholder="Digite a senha"
-                autoComplete="current-password"
+                autoComplete="new-password"
               />
             </div>
             {adminAuthorizationError ? (
@@ -1667,20 +1669,22 @@ export function OperatorManagementPanel({
               <Label>Login do administrador (email)</Label>
               <Input
                 type="email"
+                name="operator-close-cash-admin-login"
                 value={closeCashAdminEmail}
                 onChange={event => setCloseCashAdminEmail(event.target.value)}
                 placeholder="admin@empresa.com"
-                autoComplete="username"
+                autoComplete="off"
               />
             </div>
 
             <div className="space-y-1">
               <Label>Senha do administrador</Label>
               <PasswordInput
+                name="operator-close-cash-admin-password"
                 value={closeCashAdminPassword}
                 onChange={event => setCloseCashAdminPassword(event.target.value)}
                 placeholder="Digite a senha"
-                autoComplete="current-password"
+                autoComplete="new-password"
               />
             </div>
 

@@ -1,5 +1,9 @@
 export const HAPPYCASH_DEFAULT_FROM_EMAIL = "HappyCash <no-reply@auth.happycashsite.com.br>";
 export const HAPPYCASH_SUPPORT_EMAIL = "happycashsupport@gmail.com";
+export const HAPPYCASH_BRAND_LOGO_URL = Deno.env.get("HAPPYCASH_BRAND_LOGO_URL")?.trim()
+  || "https://www.happycashsite.com.br/happycash-logo.png";
+export const HAPPYCASH_BRAND_FAVICON_URL = Deno.env.get("HAPPYCASH_BRAND_FAVICON_URL")?.trim()
+  || "https://www.happycashsite.com.br/favicon.png";
 
 export const escapeHtml = (value: string | number | null | undefined) =>
   String(value ?? "")
@@ -133,11 +137,12 @@ export const renderHappyCashEmail = ({
                     <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
                       <tr>
                         <td>
-                          <p style="margin:0;color:#ffffff;font-size:24px;line-height:30px;font-weight:900;letter-spacing:0;">Happy<span style="color:#22c55e;">Cash</span></p>
+                          <img src="${HAPPYCASH_BRAND_LOGO_URL}" width="150" alt="HappyCash" style="display:block;width:150px;max-width:150px;height:auto;border:0;outline:none;text-decoration:none;">
+                          <p style="margin:8px 0 0;color:#ffffff;font-size:18px;line-height:24px;font-weight:900;letter-spacing:0;">Happy<span style="color:#22c55e;">Cash</span></p>
                           <p style="margin:8px 0 0;color:#b9c9df;font-size:13px;line-height:19px;font-weight:600;">Sistema de gestao, PDV e controle financeiro</p>
                         </td>
                         <td align="right" style="width:56px;">
-                          <div style="display:inline-block;width:44px;height:44px;border-radius:14px;background:#22c55e;color:#ffffff;text-align:center;line-height:44px;font-size:22px;font-weight:900;">H</div>
+                          <img src="${HAPPYCASH_BRAND_FAVICON_URL}" width="44" height="44" alt="" style="display:inline-block;width:44px;height:44px;border:0;border-radius:14px;background:#ffffff;outline:none;text-decoration:none;">
                         </td>
                       </tr>
                     </table>

@@ -1172,17 +1172,21 @@ export default function PricingManager() {
               <Label>Login do gerente</Label>
               <Input
                 type="email"
+                name="pricing-manager-approval-login"
                 value={managerEmail}
                 onChange={(event) => setManagerEmail(event.target.value)}
                 placeholder="admin@empresa.com"
+                autoComplete="off"
               />
             </div>
             <div className="space-y-1.5">
               <Label>Senha do gerente</Label>
               <PasswordInput
+                name="pricing-manager-approval-password"
                 value={managerPassword}
                 onChange={(event) => setManagerPassword(event.target.value)}
                 placeholder="Digite a senha"
+                autoComplete="new-password"
               />
             </div>
             {managerApprovalError && (

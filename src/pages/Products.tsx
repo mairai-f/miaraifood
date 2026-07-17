@@ -879,11 +879,24 @@ export default function Products() {
             </p>
             <div className="space-y-1">
               <Label>Login do gerente</Label>
-              <Input type="email" value={approvalEmail} onChange={e => setApprovalEmail(e.target.value)} placeholder="admin@empresa.com" />
+              <Input
+                type="email"
+                name="products-price-approval-login"
+                value={approvalEmail}
+                onChange={e => setApprovalEmail(e.target.value)}
+                placeholder="admin@empresa.com"
+                autoComplete="off"
+              />
             </div>
             <div className="space-y-1">
               <Label>Senha do gerente</Label>
-              <PasswordInput value={approvalPassword} onChange={e => setApprovalPassword(e.target.value)} placeholder="Digite a senha" />
+              <PasswordInput
+                name="products-price-approval-password"
+                value={approvalPassword}
+                onChange={e => setApprovalPassword(e.target.value)}
+                placeholder="Digite a senha"
+                autoComplete="new-password"
+              />
             </div>
             {approvalError && (
               <Alert variant="destructive">

@@ -4728,14 +4728,17 @@ export default function PDV() {
               <Label>Email ou usuario do administrador</Label>
               <Input
                 autoFocus
+                name="pdv-ticket-admin-login"
                 value={serviceTicketAdminLogin}
                 onChange={e => setServiceTicketAdminLogin(e.target.value)}
                 placeholder="admin@empresa.com ou usuario admin"
+                autoComplete="off"
               />
             </div>
             <div className="space-y-1">
               <Label>Senha ou PIN</Label>
               <PasswordInput
+                name="pdv-ticket-admin-secret"
                 value={serviceTicketAdminSecret}
                 onChange={e => setServiceTicketAdminSecret(e.target.value)}
                 onKeyDown={e => {
@@ -4745,6 +4748,7 @@ export default function PDV() {
                   }
                 }}
                 placeholder="Digite a senha ou PIN"
+                autoComplete="new-password"
               />
             </div>
             {serviceTicketAdminAuthError && (
@@ -5423,14 +5427,17 @@ export default function PDV() {
               <Label>Email ou usuario do administrador</Label>
               <Input
                 autoFocus
+                name="pdv-close-cash-admin-login"
                 value={adminEmail}
                 onChange={e => setAdminEmail(e.target.value)}
                 placeholder="admin@empresa.com ou usuario admin"
+                autoComplete="off"
               />
             </div>
             <div className="space-y-1">
               <Label>Senha ou PIN</Label>
               <PasswordInput
+                name="pdv-close-cash-admin-secret"
                 value={adminPassword}
                 onChange={e => setAdminPassword(e.target.value)}
                 onKeyDown={e => {
@@ -5440,6 +5447,7 @@ export default function PDV() {
                   }
                 }}
                 placeholder="Digite a senha ou PIN"
+                autoComplete="new-password"
               />
             </div>
             {closeCashAuthError && (
@@ -5514,14 +5522,17 @@ export default function PDV() {
             <div className="space-y-1">
               <Label>Email ou usuario do administrador</Label>
               <Input
+                name="pdv-open-cash-admin-login"
                 value={openCashAdminLogin}
                 onChange={e => setOpenCashAdminLogin(e.target.value)}
                 placeholder="admin@empresa.com ou usuario admin"
+                autoComplete="off"
               />
             </div>
             <div className="space-y-1">
               <Label>Senha ou PIN do administrador</Label>
               <PasswordInput
+                name="pdv-open-cash-admin-secret"
                 value={openCashAdminSecret}
                 onChange={e => setOpenCashAdminSecret(e.target.value)}
                 onKeyDown={e => {
@@ -5531,6 +5542,7 @@ export default function PDV() {
                   }
                 }}
                 placeholder="Senha ou PIN"
+                autoComplete="new-password"
               />
             </div>
             {openCashAuthError && (
