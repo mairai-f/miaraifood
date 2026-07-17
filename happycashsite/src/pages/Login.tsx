@@ -186,7 +186,17 @@ const Login = () => {
 
     try {
       const normalizedResetEmail = normalizeEmail(resetEmail);
-      const captchaToken = await requestTurnstileToken('site-password-reset');
+      const captchaToken = await requestTurnstileToken('site-password-reset', { visible: true });
+
+      if (!captchaToken) {
+        toast({
+          title: 'Verificacao de seguranca indisponivel',
+          description: 'Recarregue a pagina e tente novamente.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
       const { error } = await supabase.auth.resetPasswordForEmail(normalizedResetEmail, {
         redirectTo: `${window.location.origin}/reset-password`,
         captchaToken,

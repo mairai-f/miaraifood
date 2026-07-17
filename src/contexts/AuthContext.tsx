@@ -902,8 +902,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const resetPassword = async (email: string): Promise<boolean> => {
     let captchaToken: string | undefined;
     try {
-      captchaToken = await requestTurnstileToken('app-password-reset');
+      captchaToken = await requestTurnstileToken('app-password-reset', { visible: true });
     } catch {
+      return false;
+    }
+
+    if (!captchaToken) {
+      console.error('Turnstile nao retornou token para recuperacao de senha.');
       return false;
     }
 
