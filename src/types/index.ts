@@ -27,11 +27,14 @@ export interface ProductCustomCost {
   amount: number;
 }
 
+export type ProductKind = 'simple' | 'composite' | 'raw_material';
+
 export interface Product {
   id: string;
   user_id: string;
   code?: number | null;
   name: string;
+  product_kind?: ProductKind | null;
   price: number;
   cost_price: number;
   category: string;

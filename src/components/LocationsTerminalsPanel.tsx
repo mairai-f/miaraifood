@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
-import { ArrowRightLeft, Building2, Loader2, MapPin, MonitorSmartphone, Plus, Search } from 'lucide-react';
+import { ArrowRightLeft, Building2, Edit, Loader2, MapPin, MonitorSmartphone, Plus, Search } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import { useData } from '@/contexts/DataContext';
@@ -68,6 +68,7 @@ export function LocationsTerminalsPanel() {
   const [terminalCode, setTerminalCode] = useState('');
   const [terminalType, setTerminalType] = useState<PosTerminalType>('desktop');
   const [terminalLocationId, setTerminalLocationId] = useState('');
+  const [terminalEditingId, setTerminalEditingId] = useState('');
   const [transferDialogOpen, setTransferDialogOpen] = useState(false);
   const [transferSourceLocationId, setTransferSourceLocationId] = useState('');
   const [transferTargetLocationId, setTransferTargetLocationId] = useState('');
@@ -164,6 +165,16 @@ export function LocationsTerminalsPanel() {
     setTerminalCode('');
     setTerminalType('desktop');
     setTerminalLocationId(locations.find((location) => location.active)?.id || '');
+    setTerminalEditingId('');
+  };
+
+  const openTerminalEdit = (terminal: PosTerminalRow) => {
+    setTerminalEditingId(terminal.id);
+    setTerminalLocationId(terminal.location_id);
+    setTerminalName(terminal.name);
+    setTerminalCode(terminal.code);
+    setTerminalType(terminal.terminal_type);
+    setTerminalDialogOpen(true);
   };
 
   const resetTransferForm = () => {
@@ -207,9 +218,11 @@ export function LocationsTerminalsPanel() {
     }
   };
 
-  const handleCreateTerminal = async (event: FormEvent<HTMLFormElement>) => {
+  const handleSaveTerminal = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const normalizedCode = normalizeStoreScopeCode(terminalCode);
+    const currentTerminal = terminals.find((terminal) => terminal.id === terminalEditingId);
+    const isLegacyTerminal = currentTerminal?.code === 'LEGACY';
     if (!terminalName.trim() || !terminalLocationId || !isValidStoreScopeCode(normalizedCode)) {
       toast.error('Informe filial, nome e codigo valido para o terminal.');
       return;
@@ -217,23 +230,29 @@ export function LocationsTerminalsPanel() {
 
     setSaving(true);
     try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { error } = await (supabase as any).from('pos_terminals').insert({
+      const wasEditing = Boolean(terminalEditingId);
+      const payload = {
         store_account_id: storeAccountId,
         owner_user_id: ownerUserId,
-        location_id: terminalLocationId,
-        code: normalizedCode,
+        location_id: isLegacyTerminal ? currentTerminal.location_id : terminalLocationId,
+        code: isLegacyTerminal ? currentTerminal.code : normalizedCode,
         name: terminalName.trim(),
         terminal_type: terminalType,
-      });
+      };
+      // Tipos gerados serao atualizados depois da aplicacao da migracao.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const db = supabase as any;
+      const { error } = terminalEditingId
+        ? await db.from('pos_terminals').update(payload).eq('id', terminalEditingId)
+        : await db.from('pos_terminals').insert(payload);
       if (error) throw error;
       resetTerminalForm();
       setTerminalDialogOpen(false);
       await loadData();
-      toast.success('Terminal cadastrado.');
+      toast.success(wasEditing ? 'Terminal atualizado.' : 'Terminal cadastrado.');
     } catch (error) {
-      console.error('Erro ao criar terminal:', getRedactedLogValue(error));
-      toast.error('Nao foi possivel cadastrar o terminal. Verifique se o codigo ja existe.');
+      console.error('Erro ao salvar terminal:', getRedactedLogValue(error));
+      toast.error('Nao foi possivel salvar o terminal. Verifique se o codigo ja existe.');
     } finally {
       setSaving(false);
     }
@@ -466,18 +485,18 @@ export function LocationsTerminalsPanel() {
                 }}>
                   <DialogTrigger asChild><Button type="button" size="sm" variant="outline"><Plus className="mr-1 h-4 w-4" />Novo terminal</Button></DialogTrigger>
                   <DialogContent>
-                    <form onSubmit={handleCreateTerminal}>
-                      <DialogHeader><DialogTitle>Cadastrar terminal</DialogTitle></DialogHeader>
+                    <form onSubmit={handleSaveTerminal}>
+                      <DialogHeader><DialogTitle>{terminalEditingId ? 'Editar terminal' : 'Cadastrar terminal'}</DialogTitle></DialogHeader>
                       <div className="space-y-4 py-4">
                         <div className="space-y-1">
                           <Label>Filial</Label>
-                          <Select value={terminalLocationId} onValueChange={setTerminalLocationId}>
+                          <Select value={terminalLocationId} onValueChange={setTerminalLocationId} disabled={terminals.find((terminal) => terminal.id === terminalEditingId)?.code === 'LEGACY'}>
                             <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                             <SelectContent>{locations.filter((location) => location.active).map((location) => <SelectItem key={location.id} value={location.id}>{location.name}</SelectItem>)}</SelectContent>
                           </Select>
                         </div>
                         <div className="space-y-1"><Label htmlFor="terminal-name">Nome</Label><Input id="terminal-name" value={terminalName} onChange={(event) => setTerminalName(event.target.value)} placeholder="Caixa 01" /></div>
-                        <div className="space-y-1"><Label htmlFor="terminal-code">Codigo</Label><Input id="terminal-code" value={terminalCode} onChange={(event) => setTerminalCode(normalizeStoreScopeCode(event.target.value))} placeholder="CX-01" maxLength={32} /></div>
+                        <div className="space-y-1"><Label htmlFor="terminal-code">Codigo</Label><Input id="terminal-code" value={terminalCode} disabled={terminals.find((terminal) => terminal.id === terminalEditingId)?.code === 'LEGACY'} onChange={(event) => setTerminalCode(normalizeStoreScopeCode(event.target.value))} placeholder="CX-01" maxLength={32} /></div>
                         <div className="space-y-1">
                           <Label>Tipo</Label>
                           <Select value={terminalType} onValueChange={(value) => setTerminalType(value as PosTerminalType)}>
@@ -486,14 +505,14 @@ export function LocationsTerminalsPanel() {
                           </Select>
                         </div>
                       </div>
-                      <DialogFooter><Button type="submit" disabled={saving}>{saving ? 'Salvando...' : 'Cadastrar terminal'}</Button></DialogFooter>
+                      <DialogFooter><Button type="submit" disabled={saving}>{saving ? 'Salvando...' : terminalEditingId ? 'Salvar terminal' : 'Cadastrar terminal'}</Button></DialogFooter>
                     </form>
                   </DialogContent>
                 </Dialog>
               </div>
               <div className="overflow-x-auto rounded-lg border">
                 <Table>
-                  <TableHeader><TableRow><TableHead>Terminal</TableHead><TableHead>Filial</TableHead><TableHead>Tipo</TableHead><TableHead>Vinculo</TableHead><TableHead className="text-right">Ativo</TableHead></TableRow></TableHeader>
+                  <TableHeader><TableRow><TableHead>Terminal</TableHead><TableHead>Filial</TableHead><TableHead>Tipo</TableHead><TableHead>Vinculo</TableHead><TableHead className="text-right">Acoes</TableHead></TableRow></TableHeader>
                   <TableBody>
                     {terminals.map((terminal) => (
                       <TableRow key={terminal.id}>
@@ -501,7 +520,14 @@ export function LocationsTerminalsPanel() {
                         <TableCell>{locationNameById.get(terminal.location_id) ?? 'Filial removida'}</TableCell>
                         <TableCell>{posTerminalTypeLabels[terminal.terminal_type]}</TableCell>
                         <TableCell>{terminal.installation_id ? <Badge variant="secondary">Desktop vinculado</Badge> : <span className="text-xs text-muted-foreground">Manual</span>}</TableCell>
-                        <TableCell className="text-right"><Switch aria-label={`Ativar ${terminal.name}`} checked={terminal.active} disabled={terminal.code === 'LEGACY'} onCheckedChange={(active) => void updateActiveState('pos_terminals', terminal.id, active)} /></TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex items-center justify-end gap-2">
+                            <Button type="button" size="icon" variant="ghost" onClick={() => openTerminalEdit(terminal)} aria-label={`Editar ${terminal.name}`}>
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                            <Switch aria-label={`Ativar ${terminal.name}`} checked={terminal.active} disabled={terminal.code === 'LEGACY'} onCheckedChange={(active) => void updateActiveState('pos_terminals', terminal.id, active)} />
+                          </div>
+                        </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>

@@ -24,7 +24,7 @@ const SistemaPdv = lazy(() => import("./pages/SistemaPdv.tsx"));
 const SistemaGestaoNegocios = lazy(() => import("./pages/SistemaGestaoNegocios.tsx"));
 const ControleEstoque = lazy(() => import("./pages/ControleEstoque.tsx"));
 const ControleDeFiado = lazy(() => import("./pages/ControleDeFiado.tsx"));
-const SistemaGestaoRh = lazy(() => import("./pages/SistemaGestaoRh.tsx"));
+const HappyCashRhEnterprise = lazy(() => import("./pages/HappyCashRhEnterprise.tsx"));
 const AppParaFiado = lazy(() => import("./pages/AppParaFiado.tsx"));
 const GestaoClientesFiado = lazy(() => import("./pages/GestaoClientesFiado.tsx"));
 const ComoControlarFiadoMercadinho = lazy(() => import("./pages/ComoControlarFiadoMercadinho.tsx"));
@@ -118,9 +118,10 @@ const App = () => (
               <Route path="/sistema-pdv" element={<SistemaPdv />} />
               <Route path="/sistema-de-gestao" element={<SistemaGestaoNegocios />} />
               <Route path="/sistema-de-gestao-de-negocios" element={<SistemaGestaoNegocios />} />
-              <Route path="/sistema-de-gestao-rh" element={<SistemaGestaoRh />} />
-              <Route path="/sistema-de-gestao-de-rh" element={<SistemaGestaoRh />} />
-              <Route path="/gestao-de-rh" element={<SistemaGestaoRh />} />
+              <Route path="/happycash-rh-enterprise" element={<HappyCashRhEnterprise />} />
+              <Route path="/sistema-de-gestao-rh" element={<HappyCashRhEnterprise />} />
+              <Route path="/sistema-de-gestao-de-rh" element={<HappyCashRhEnterprise />} />
+              <Route path="/gestao-de-rh" element={<HappyCashRhEnterprise />} />
               <Route path="/controle-de-estoque" element={<ControleEstoque />} />
               <Route path="/controle-de-fiado" element={<ControleDeFiado />} />
               <Route path="/app-para-fiado" element={<AppParaFiado />} />

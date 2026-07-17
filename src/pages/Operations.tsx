@@ -395,6 +395,9 @@ export default function Operations() {
 
   const selectedPurchaseProduct = activeProducts.find((product) => product.id === purchaseForm.product_id);
   const selectedLabelProduct = activeProducts.find((product) => product.id === labelForm.product_id);
+  const getProductLabelCode = (product: Product) =>
+    product.barcode?.trim() || formatProductCode(product.code) || product.id.slice(0, 8).toUpperCase();
+  const selectedLabelCode = selectedLabelProduct ? getProductLabelCode(selectedLabelProduct) : '';
   const purchaseDraftSubtotal = purchaseDraftItems.reduce((sum, item) => sum + item.quantity * item.unitCost, 0);
   const purchaseSuggestions = useMemo<OperationsPurchaseSuggestion[]>(() => {
     const now = Date.now();
@@ -1498,7 +1501,7 @@ export default function Operations() {
               <div class="label">
                 <div class="name">${product.name}</div>
                 <div class="price">${money(product.price)}</div>
-                <div class="code">${product.barcode || formatProductCode(product.code) || product.id.slice(0, 8)}</div>
+                <div class="code">${getProductLabelCode(product)}</div>
               </div>
             `).join('')}
           </div>
@@ -2122,16 +2125,26 @@ export default function Operations() {
                   onChange={(event) => {
                     const value = event.target.value;
                     const query = value.trim().toLocaleUpperCase('pt-BR');
-                    const exactProduct = activeProducts.find((product) => product.name.toLocaleUpperCase('pt-BR') === query);
-                    const matchingProducts = activeProducts.filter((product) => product.name.toLocaleUpperCase('pt-BR').startsWith(query));
+                    const exactProduct = activeProducts.find((product) => (
+                      product.name.toLocaleUpperCase('pt-BR') === query
+                      || product.barcode.toLocaleUpperCase('pt-BR') === query
+                      || formatProductCode(product.code).toLocaleUpperCase('pt-BR') === query
+                    ));
+                    const matchingProducts = activeProducts.filter((product) => (
+                      product.name.toLocaleUpperCase('pt-BR').startsWith(query)
+                      || product.barcode.toLocaleUpperCase('pt-BR').startsWith(query)
+                      || formatProductCode(product.code).toLocaleUpperCase('pt-BR').startsWith(query)
+                    ));
                     const identifiedProduct = exactProduct ?? (matchingProducts.length === 1 ? matchingProducts[0] : null);
                     setLabelProductSearch(value);
                     setLabelForm((current) => ({ ...current, product_id: identifiedProduct?.id ?? '' }));
                   }}
-                  placeholder="Digite o nome do produto"
+                  placeholder="Nome, codigo ou codigo de barras"
                 />
-                <datalist id="label-products">{activeProducts.map((product) => <option key={product.id} value={product.name} />)}</datalist>
-                <p className="text-xs text-muted-foreground">{selectedLabelProduct ? `Produto identificado: ${selectedLabelProduct.name}` : 'Digite até identificar um produto cadastrado.'}</p>
+                <datalist id="label-products">{activeProducts.map((product) => <option key={product.id} value={product.name} label={getProductLabelCode(product)} />)}</datalist>
+                <p className="text-xs text-muted-foreground">
+                  {selectedLabelProduct ? `Produto identificado: ${selectedLabelProduct.name} - ${selectedLabelCode}` : 'Digite ate identificar um produto cadastrado.'}
+                </p>
               </div>
               <div className="space-y-1.5"><Label>Quantidade de etiquetas</Label><Input type="number" min="1" max="120" value={labelForm.quantity} onChange={(e) => setLabelForm({ ...labelForm, quantity: e.target.value })} /></div>
               <Button onClick={printLabels} className="gap-2"><FileDown className="h-4 w-4" /> Imprimir etiquetas</Button>
@@ -2143,7 +2156,14 @@ export default function Operations() {
               <div className="max-w-xs rounded-md border border-dashed p-4">
                 <p className="text-sm font-semibold">{selectedLabelProduct?.name || 'Produto'}</p>
                 <p className="mt-1 text-2xl font-black">{money(selectedLabelProduct?.price ?? 0)}</p>
-                <p className="mt-2 text-xs tracking-[0.2em] text-muted-foreground">{selectedLabelProduct?.barcode || 'CODIGO'}</p>
+                <p className="mt-2 text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
+                  {selectedLabelProduct ? selectedLabelCode : 'CODIGO'}
+                </p>
+                {selectedLabelProduct?.barcode && formatProductCode(selectedLabelProduct.code) && (
+                  <p className="mt-1 text-[10px] text-muted-foreground">
+                    Codigo interno: {formatProductCode(selectedLabelProduct.code)}
+                  </p>
+                )}
               </div>
             </CardContent>
           </Card>

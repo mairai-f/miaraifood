@@ -21,43 +21,20 @@ const loadPackagedMetadata = () => {
 };
 
 const packagedMetadata = loadPackagedMetadata();
-const inferProductContext = () => {
-  if (process.env.HAPPYCASH_PRODUCT_CONTEXT?.trim().toLowerCase() === 'happycashfood') {
-    return 'happycashfood';
-  }
-
-  if (packagedMetadata.productContext === 'happycashfood') {
-    return 'happycashfood';
-  }
-
-  const runtimeHints = [
-    app.getName(),
-    process.execPath,
-    process.resourcesPath,
-    __dirname,
-  ].filter(Boolean).join(' ').toLowerCase();
-
-  return runtimeHints.includes('happycashfood') ? 'happycashfood' : 'happycash';
-};
-
-const PRODUCT_CONTEXT = inferProductContext();
-const APP_DISPLAY_NAME = PRODUCT_CONTEXT === 'happycashfood' ? 'HappyCashFood' : 'HappyCash';
+const PRODUCT_CONTEXT = 'happycash';
+const APP_DISPLAY_NAME = 'HappyCash';
 let autoUpdatesConfigured = false;
-const APP_USER_MODEL_ID = PRODUCT_CONTEXT === 'happycashfood'
-  ? 'com.happycash.food.desktop'
-  : 'com.happycash.desktop';
+const APP_USER_MODEL_ID = 'com.happycash.desktop';
 const HAPPYCASH_SITE_ORIGIN = (process.env.HAPPYCASH_SITE_ORIGIN || 'https://www.happycashsite.com.br').replace(/\/+$/, '');
 const HAPPYCASH_APP_ORIGIN = (process.env.HAPPYCASH_APP_ORIGIN || 'https://app.happycashsite.com.br').replace(/\/+$/, '');
 const DESKTOP_TURNSTILE_TIMEOUT_MS = 130_000;
 const VALID_UPDATE_CHANNELS = new Set(['latest', 'beta', 'alpha']);
-const OFFLINE_DB_FILENAME = PRODUCT_CONTEXT === 'happycashfood'
-  ? 'happycashfood-concentrator.sqlite'
-  : 'happycash-concentrator.sqlite';
+const OFFLINE_DB_FILENAME = 'happycash-concentrator.sqlite';
 const configuredRendererDir = process.env.HAPPYCASH_RENDERER_DIR?.replace(/^\.?\//, '').trim();
 const packagedRendererDir = typeof packagedMetadata.rendererDir === 'string'
   ? packagedMetadata.rendererDir.replace(/^\.?\//, '').trim()
   : '';
-const RENDERER_DIR = configuredRendererDir || packagedRendererDir || (PRODUCT_CONTEXT === 'happycashfood' ? 'dist-food' : 'dist');
+const RENDERER_DIR = configuredRendererDir || packagedRendererDir || 'dist';
 const OFFLINE_DB_SCHEMA_VERSION = 2;
 const OFFLINE_SYNC_RETENTION_DAYS = Number.parseInt(process.env.HAPPYCASH_OFFLINE_SYNC_RETENTION_DAYS || '30', 10);
 const OFFLINE_CONFLICT_RETENTION_DAYS = Number.parseInt(process.env.HAPPYCASH_OFFLINE_CONFLICT_RETENTION_DAYS || '30', 10);
@@ -322,8 +299,7 @@ const resolveRendererEntry = () => {
 };
 
 const getWindowIconPath = () => {
-  const iconBasename = PRODUCT_CONTEXT === 'happycashfood' ? 'happycashfood-icon' : 'icon';
-  const iconFilename = process.platform === 'win32' ? `${iconBasename}.ico` : `${iconBasename}.png`;
+  const iconFilename = process.platform === 'win32' ? 'icon.ico' : 'icon.png';
   return path.join(__dirname, '..', 'build', iconFilename);
 };
 

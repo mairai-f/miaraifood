@@ -22,7 +22,6 @@ const jsonResponse = (request: Request, body: Record<string, unknown>, status = 
 const supportedPlatforms = new Set<SupportedDesktopPlatform>(["windows", "linux", "linux-deb", "linux-appimage"]);
 const contextBucketEnvKeys: Record<DesktopReleaseContext, string> = {
   happycash: "DESKTOP_DOWNLOAD_BUCKET",
-  happycashfood: "FOOD_DOWNLOAD_BUCKET",
 };
 const contextPlatformEnvKeys: Record<DesktopReleaseContext, Record<SupportedDesktopPlatform, string>> = {
   happycash: {
@@ -31,25 +30,14 @@ const contextPlatformEnvKeys: Record<DesktopReleaseContext, Record<SupportedDesk
     "linux-deb": "DESKTOP_LINUX_DEB_OBJECT_PATH",
     "linux-appimage": "DESKTOP_LINUX_APPIMAGE_OBJECT_PATH",
   },
-  happycashfood: {
-    windows: "FOOD_WINDOWS_OBJECT_PATH",
-    linux: "FOOD_LINUX_DEB_OBJECT_PATH",
-    "linux-deb": "FOOD_LINUX_DEB_OBJECT_PATH",
-    "linux-appimage": "FOOD_LINUX_APPIMAGE_OBJECT_PATH",
-  },
 };
 
-const releaseProvider = (context: DesktopReleaseContext) => (
-  context === "happycashfood"
-    ? (Deno.env.get("FOOD_DESKTOP_RELEASE_PROVIDER") || Deno.env.get("DESKTOP_RELEASE_PROVIDER") || "github").trim().toLowerCase()
-    : (Deno.env.get("DESKTOP_RELEASE_PROVIDER") || "github").trim().toLowerCase()
-);
+const releaseProvider = (_context: DesktopReleaseContext) =>
+  (Deno.env.get("DESKTOP_RELEASE_PROVIDER") || "github").trim().toLowerCase();
 
-const resolveDownloadContext = (planId?: string | null): DesktopReleaseContext =>
-  planId === "food_offline" ? "happycashfood" : "happycash";
+const resolveDownloadContext = (_planId?: string | null): DesktopReleaseContext => "happycash";
 
-const resolveDefaultBucketName = (context: DesktopReleaseContext) =>
-  context === "happycashfood" ? "happycashfood-downloads" : "desktop-downloads";
+const resolveDefaultBucketName = (_context: DesktopReleaseContext) => "desktop-downloads";
 
 const extractAccessToken = (authorization: string | null) => {
   if (!authorization) return null;

@@ -74,8 +74,8 @@ const Footer = () => {
                 <Link to="/sistema-de-gestao-de-negocios" className="text-sm text-muted-foreground hover:text-primary transition-colors">
                   Sistema de gestão de negócios
                 </Link>
-                <Link to="/sistema-de-gestao-rh" className="text-sm text-muted-foreground hover:text-primary transition-colors">
-                  Sistema de gestão de RH
+                <Link to="/happycash-rh-enterprise" className="text-sm text-muted-foreground hover:text-primary transition-colors">
+                  HappyCash RH Enterprise
                 </Link>
                 <Link to="/controle-de-fiado" className="text-sm text-muted-foreground hover:text-primary transition-colors">
                   Controle de fiado

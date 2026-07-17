@@ -4,6 +4,7 @@ import {
   checkRedisLoginAttemptLimit,
   checkRedisRateLimit,
   clearRedisLoginFailures,
+  extractClientIp,
   readRateLimitEnv,
   recordRedisLoginFailure,
 } from "../_shared/rateLimit.ts";
@@ -42,6 +43,8 @@ const jsonResponse = (request: Request, body: Record<string, unknown>, status = 
   });
 
 const normalizeEmail = (value: string) => value.trim().toLowerCase();
+const getIpFallbackIdentifier = (request: Request, email: string) =>
+  extractClientIp(request) ? null : email || "anonymous";
 
 const getBody = async (request: Request): Promise<AdminLoginRequest | null> => {
   try {
@@ -61,9 +64,10 @@ const checkEmailFailedAttemptLimit = (request: Request, email: string) =>
     windowSeconds: LOGIN_ATTEMPT_WINDOW_SECONDS,
   });
 
-const checkIpFailedAttemptLimit = (request: Request) =>
+const checkIpFailedAttemptLimit = (request: Request, email: string) =>
   checkRedisLoginAttemptLimit(request, {
     namespace: "admin-login-ip-failure",
+    identifier: getIpFallbackIdentifier(request, email),
     limit: readFailedAttemptLimit(),
     windowSeconds: LOGIN_ATTEMPT_WINDOW_SECONDS,
   });
@@ -71,7 +75,7 @@ const checkIpFailedAttemptLimit = (request: Request) =>
 const checkFailedAttemptLimits = async (request: Request, email: string) => {
   const [emailLimit, ipLimit] = await Promise.all([
     checkEmailFailedAttemptLimit(request, email),
-    checkIpFailedAttemptLimit(request),
+    checkIpFailedAttemptLimit(request, email),
   ]);
 
   return !emailLimit.allowed ? emailLimit : ipLimit;
@@ -85,9 +89,10 @@ const recordEmailFailedAttempt = (request: Request, email: string) =>
     windowSeconds: LOGIN_ATTEMPT_WINDOW_SECONDS,
   });
 
-const recordIpFailedAttempt = (request: Request) =>
+const recordIpFailedAttempt = (request: Request, email: string) =>
   recordRedisLoginFailure(request, {
     namespace: "admin-login-ip-failure",
+    identifier: getIpFallbackIdentifier(request, email),
     limit: readFailedAttemptLimit(),
     windowSeconds: LOGIN_ATTEMPT_WINDOW_SECONDS,
   });
@@ -95,7 +100,7 @@ const recordIpFailedAttempt = (request: Request) =>
 const recordFailedAttempts = async (request: Request, email: string) => {
   const [emailFailure, ipFailure] = await Promise.all([
     recordEmailFailedAttempt(request, email),
-    recordIpFailedAttempt(request),
+    recordIpFailedAttempt(request, email),
   ]);
 
   return !emailFailure.allowed ? emailFailure : ipFailure;
@@ -108,6 +113,7 @@ const clearFailedAttempts = async (request: Request, email: string) => {
   });
   await clearRedisLoginFailures(request, {
     namespace: "admin-login-ip-failure",
+    identifier: getIpFallbackIdentifier(request, email),
   });
 };
 
@@ -122,8 +128,15 @@ Deno.serve(async (request) => {
     return jsonResponse(request, { error: "Metodo nao suportado." }, 405);
   }
 
+  const body = await getBody(request);
+  const email = normalizeEmail(body?.email ?? "");
+  const password = body?.password?.trim() || "";
+  const captchaToken = body?.captchaToken?.trim() || undefined;
+  const desktopOwnerUserId = body?.desktopOwnerUserId?.trim() || null;
+
   const endpointRateLimit = await checkRedisRateLimit(request, {
     namespace: "admin-login",
+    identifier: getIpFallbackIdentifier(request, email),
     limit: readRateLimitEnv("ADMIN_LOGIN_RATE_LIMIT_PER_MINUTE", 30),
     windowSeconds: 60,
   });
@@ -139,17 +152,11 @@ Deno.serve(async (request) => {
     );
   }
 
-  const body = await getBody(request);
-  const email = normalizeEmail(body?.email ?? "");
-  const password = body?.password?.trim() || "";
-  const captchaToken = body?.captchaToken?.trim() || undefined;
-  const desktopOwnerUserId = body?.desktopOwnerUserId?.trim() || null;
-
   if (!email || !email.includes("@") || !password) {
     if (email) {
       await recordFailedAttempts(request, email);
     } else {
-      await recordIpFailedAttempt(request);
+      await recordIpFailedAttempt(request, email);
     }
     return jsonResponse(request, { error: INVALID_LOGIN_MESSAGE }, 401);
   }

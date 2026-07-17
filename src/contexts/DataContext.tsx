@@ -106,6 +106,7 @@ const normalizeProductRow = (row: Product) => {
   return {
     ...row,
     ...normalized,
+    product_kind: row.product_kind ?? 'simple',
     rounding_rule: normalizePricingRoundingRule(normalized.rounding_rule),
     block_sale_without_stock: row.block_sale_without_stock !== false,
   } as Product;
@@ -1877,6 +1878,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         operational_cost: productPayload.operational_cost ?? 0,
         other_extra_cost: productPayload.other_extra_cost ?? 0,
         supplier_name: productPayload.supplier_name ?? '',
+        product_kind: productPayload.product_kind ?? 'simple',
         supplier_id: productPayload.supplier_id ?? null,
         department_id: productPayload.department_id ?? null,
         brand_id: productPayload.brand_id ?? null,
@@ -1923,6 +1925,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         operational_cost: productPayload.operational_cost ?? 0,
         other_extra_cost: productPayload.other_extra_cost ?? 0,
         supplier_name: productPayload.supplier_name ?? '',
+        product_kind: productPayload.product_kind ?? 'simple',
         supplier_id: productPayload.supplier_id ?? null,
         department_id: productPayload.department_id ?? null,
         brand_id: productPayload.brand_id ?? null,

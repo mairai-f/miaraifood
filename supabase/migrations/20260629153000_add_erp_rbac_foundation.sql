@@ -65,7 +65,7 @@ VALUES
   ('conciliation.manage', 'conciliation', 'Gerenciar conciliacao', 'Conciliar recebiveis e provedores de pagamento.', 'web', false, false),
   ('multi_store.manage', 'multi_store', 'Gerenciar multi-loja', 'Administrar filiais, terminais e consolidacao.', 'web', false, false),
   ('time_clock.manage', 'time_clock', 'Gerenciar ponto', 'Administrar jornadas e marcacoes de ponto.', 'web', false, false),
-  ('self_service.manage', 'self_service', 'Gerenciar autoatendimento', 'Configurar totens e cardapios de autoatendimento.', 'web', false, false)
+  ('self_service.manage', 'self_service', 'Gerenciar autoatendimento', 'Configurar totens e fluxos de autoatendimento.', 'web', false, false)
 ON CONFLICT (permission_key) DO UPDATE SET
   module_key = EXCLUDED.module_key,
   name = EXCLUDED.name,

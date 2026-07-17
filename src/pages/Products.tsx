@@ -17,9 +17,10 @@ import { Label } from '@/components/ui/label';
 import { PasswordInput } from '@/components/ui/password-input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
+import { Checkbox } from '@/components/ui/checkbox';
 import { AlertTriangle, CalendarClock, Edit, Plus, Search, Trash2, TrendingUp } from 'lucide-react';
 import { toast } from 'sonner';
-import type { Product, ProductPackaging } from '@/types';
+import type { Product, ProductKind, ProductPackaging } from '@/types';
 import { getMarginPercent, getMarkupPercent, getPriceFromMarkup, getUnitProfit } from '@/lib/pricing';
 import { verifyPricingManagerApproval } from '@/lib/pricingManagerApproval';
 import { parseDecimalInput } from '@/lib/numberInput';
@@ -46,6 +47,11 @@ import {
 } from '@/lib/catalog';
 
 const LOW_MARGIN_WARNING_PCT = 15;
+const productKindLabels: Record<ProductKind, string> = {
+  simple: 'Produto simples',
+  composite: 'Produto composto',
+  raw_material: 'Matéria-prima',
+};
 
 interface DraftPriceRow extends ProductPriceTableItem {
   draftId: string;
@@ -89,6 +95,7 @@ export default function Products() {
   const [open, setOpen] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
   const [name, setName] = useState('');
+  const [productKind, setProductKind] = useState<ProductKind>('simple');
   const [price, setPrice] = useState('');
   const [costPrice, setCostPrice] = useState('');
   const [category, setCategory] = useState('');
@@ -394,6 +401,7 @@ export default function Products() {
     const selectedGroup = groups.find((group) => group.id === groupId);
     const data: Partial<Product> = {
       name: name.trim(),
+      product_kind: productKind,
       price: parseDecimalInput(price),
       cost_price: parseDecimalInput(costPrice),
       category: selectedGroup?.name ?? category.trim(),
@@ -502,6 +510,7 @@ export default function Products() {
 
   const resetForm = () => {
     setName('');
+    setProductKind('simple');
     setPrice('');
     setCostPrice('');
     setCategory('');
@@ -545,6 +554,7 @@ export default function Products() {
 
   const openEdit = (p: Product) => {
     setEditId(p.id); setName(toProductUppercase(p.name)); setPrice(p.price.toString());
+    setProductKind(p.product_kind ?? 'simple');
     setCostPrice((p.cost_price || 0).toString()); setCategory(toProductUppercase(p.category)); setSupplierId(p.supplier_id || ''); setSupplierName(toProductUppercase(p.supplier_name || ''));
     setBarcode(toProductUppercase(p.barcode || '')); setStock((p.stock || 0).toString()); setMinStock((p.min_stock || 0).toString());
     setMaxStock(p.max_stock == null ? '' : String(p.max_stock)); setControlStock(p.control_stock !== false);
@@ -634,6 +644,33 @@ export default function Products() {
               <DialogHeader><DialogTitle>{editId ? 'Editar Produto' : 'Cadastrar Produto'}</DialogTitle></DialogHeader>
               <div className="min-h-0 min-w-0 space-y-3 overflow-y-auto overflow-x-hidden pr-1 pb-1 sm:pr-2">
                 <div className="space-y-1"><Label>Nome / Marca</Label><Input value={name} onChange={e => setName(toProductUppercase(e.target.value))} placeholder="Ex: Skol 600ml" /></div>
+                <div className="space-y-3 rounded-md border p-3">
+                  <div className="flex items-start gap-3">
+                    <Checkbox
+                      id="product-kind-simple"
+                      checked={productKind === 'simple'}
+                      onCheckedChange={(checked) => setProductKind(checked ? 'simple' : 'composite')}
+                    />
+                    <div className="space-y-1">
+                      <Label htmlFor="product-kind-simple">Produto simples</Label>
+                      <p className="text-xs text-muted-foreground">
+                        Use simples para venda direta. Desmarque somente quando for composto ou materia-prima.
+                      </p>
+                    </div>
+                  </div>
+                  {productKind !== 'simple' && (
+                    <div className="space-y-1">
+                      <Label>Tipo do produto</Label>
+                      <Select value={productKind} onValueChange={(value) => setProductKind(value as ProductKind)}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="composite">Produto composto</SelectItem>
+                          <SelectItem value="raw_material">Materia-prima</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+                </div>
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div className="space-y-1"><Label>Preço Venda (R$)</Label><Input type="text" inputMode="decimal" value={price} onChange={e => setPrice(e.target.value)} placeholder="0,00" /></div>
                   <div className="space-y-1"><Label>Custo Real (R$)</Label><Input type="text" inputMode="decimal" value={costPrice} onChange={e => {
@@ -917,6 +954,7 @@ export default function Products() {
                     {p.supplier_name && <p className="text-[11px] text-muted-foreground truncate">Fornecedor: {p.supplier_name}</p>}
                     {p.fiscal_ncm && <p className="text-[11px] text-muted-foreground truncate">Fiscal: NCM {p.fiscal_ncm}{p.fiscal_cfop ? ` | CFOP ${p.fiscal_cfop}` : ''}</p>}
                     <div className="mt-1 flex flex-wrap gap-1">
+                      {(p.product_kind ?? 'simple') !== 'simple' && <Badge variant="secondary" className="text-[10px]">{productKindLabels[p.product_kind ?? 'simple']}</Badge>}
                       {priority.expired && <Badge variant="destructive" className="gap-1 text-[10px]"><AlertTriangle className="h-3 w-3" />Vencido</Badge>}
                       {!priority.expired && priority.expiring && <Badge variant="secondary" className="gap-1 text-[10px]"><CalendarClock className="h-3 w-3" />Validade próxima</Badge>}
                       {priority.lowStock && <Badge variant="destructive" className="text-[10px]">Estoque mínimo</Badge>}

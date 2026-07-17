@@ -24,7 +24,7 @@ import {
 import { checkRedisRateLimit, readRateLimitEnv } from "../_shared/rateLimit.ts";
 import { getCommercialPaidPlanPricing } from "../../../shared/subscriptionPlanPricing.ts";
 
-type SupportedPaidPlan = "fiado" | "completo" | "pro" | "food" | "food_offline" | "agenda";
+type SupportedPaidPlan = "fiado" | "completo" | "pro";
 type CheckoutPaymentMethod = "pix" | "card";
 type SupportedBillingType = "PIX" | "CREDIT_CARD";
 type BillingPeriod = "monthly" | "annual";
@@ -96,7 +96,7 @@ const extractAccessToken = (authorization: string | null) => {
   return matchedToken?.[1]?.trim() || null;
 };
 
-const supportedPlans = new Set<SupportedPaidPlan>(["fiado", "completo", "pro", "food", "food_offline", "agenda"]);
+const supportedPlans = new Set<SupportedPaidPlan>(["fiado", "completo", "pro"]);
 const supportedPaymentMethods = new Set<CheckoutPaymentMethod>(["pix", "card"]);
 const supportedBillingPeriods = new Set<BillingPeriod>(["monthly", "annual"]);
 const awaitingPaymentStatuses = new Set(["PENDING", "OVERDUE", "AWAITING_RISK_ANALYSIS"]);

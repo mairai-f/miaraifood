@@ -1,41 +1,16 @@
-export type ProductContext = "happycash" | "happycashfood" | "happycashagenda";
+export type ProductContext = "happycash";
 
-const FOOD_PLAN_IDS = new Set(["food", "food_offline"]);
-const AGENDA_PLAN_IDS = new Set(["agenda"]);
 const HAPPYCASH_PAID_PLAN_IDS = new Set(["fiado", "completo", "pro"]);
 const HAPPYCASH_DESKTOP_PLAN_IDS = new Set(["pro"]);
-const FOOD_DESKTOP_PLAN_IDS = new Set(["food_offline"]);
 
-export const normalizeProductContext = (value?: string | null): ProductContext => {
-  const normalizedValue = value?.trim().toLowerCase();
-  if (normalizedValue === "happycashfood") return "happycashfood";
-  if (normalizedValue === "happycashagenda") return "happycashagenda";
-  return "happycash";
-};
+export const normalizeProductContext = (): ProductContext => "happycash";
 
-export const resolveProductContextFromPlanId = (planId?: string | null): ProductContext => {
-  const normalizedPlanId = (planId || "").trim().toLowerCase();
-  if (FOOD_PLAN_IDS.has(normalizedPlanId)) return "happycashfood";
-  if (AGENDA_PLAN_IDS.has(normalizedPlanId)) return "happycashagenda";
-  return "happycash";
-};
+export const resolveProductContextFromPlanId = (): ProductContext => "happycash";
 
 export const isPaidPlanAllowedForProductContext = (
-  productContext: ProductContext,
+  _productContext: ProductContext,
   planId?: string | null,
-) => {
-  const normalizedPlanId = (planId || "").trim().toLowerCase();
-
-  if (productContext === "happycashfood") {
-    return FOOD_PLAN_IDS.has(normalizedPlanId);
-  }
-
-  if (productContext === "happycashagenda") {
-    return AGENDA_PLAN_IDS.has(normalizedPlanId);
-  }
-
-  return HAPPYCASH_PAID_PLAN_IDS.has(normalizedPlanId);
-};
+) => HAPPYCASH_PAID_PLAN_IDS.has((planId || "").trim().toLowerCase());
 
 export const isCurrentSubscriptionPlanAllowedForProductContext = (
   productContext: ProductContext,
@@ -48,25 +23,8 @@ export const isCurrentSubscriptionPlanAllowedForProductContext = (
 };
 
 export const isDesktopPlanAllowedForProductContext = (
-  productContext: ProductContext,
+  _productContext: ProductContext,
   planId?: string | null,
-) => {
-  const normalizedPlanId = (planId || "").trim().toLowerCase();
+) => HAPPYCASH_DESKTOP_PLAN_IDS.has((planId || "").trim().toLowerCase());
 
-  if (productContext === "happycashfood") {
-    return FOOD_DESKTOP_PLAN_IDS.has(normalizedPlanId);
-  }
-
-  if (productContext === "happycashagenda") {
-    return false;
-  }
-
-  return HAPPYCASH_DESKTOP_PLAN_IDS.has(normalizedPlanId);
-};
-
-export const getProductContextLabel = (productContext: ProductContext) =>
-  productContext === "happycashfood"
-    ? "HappyCashFood"
-    : productContext === "happycashagenda"
-      ? "HappyCash Agenda"
-      : "HappyCash";
+export const getProductContextLabel = () => "HappyCash";

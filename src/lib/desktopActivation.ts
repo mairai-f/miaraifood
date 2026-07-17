@@ -15,7 +15,7 @@ export interface DesktopActivationRecord {
   validUntil: string | null;
   activatedAt: string;
   installationId: string;
-  appContext: 'happycash' | 'happycashfood';
+  appContext: 'happycash';
   storeAccountId: string | null;
   installerToken: string | null;
 }
@@ -28,7 +28,7 @@ interface DesktopActivationResponse {
   cnpj?: string | null;
   planId?: string | null;
   validUntil?: string | null;
-  appContext?: 'happycash' | 'happycashfood';
+  appContext?: 'happycash';
   error?: string;
 }
 
@@ -166,7 +166,7 @@ export const activateDesktopWithLicenseKey = async (
     validUntil: data.validUntil ?? null,
     activatedAt: new Date().toISOString(),
     installationId,
-    appContext: data.appContext === 'happycashfood' ? 'happycashfood' : 'happycash',
+    appContext: 'happycash',
     storeAccountId: data.storeAccountId ?? null,
     installerToken,
   };

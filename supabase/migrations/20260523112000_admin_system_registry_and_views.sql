@@ -15,7 +15,7 @@ CREATE TABLE IF NOT EXISTS public.system_account_registry (
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
   CONSTRAINT system_account_registry_product_context_check
-    CHECK (product_context IN ('happycash', 'happycashfood', 'happycashagenda')),
+    CHECK (product_context = 'happycash'),
   CONSTRAINT system_account_registry_owner_context_unique
     UNIQUE (owner_user_id, product_context),
   CONSTRAINT system_account_registry_store_account_unique
@@ -128,11 +128,7 @@ SET
 CREATE OR REPLACE VIEW public.admin_system_emails AS
 SELECT
   registry.product_context,
-  CASE registry.product_context
-    WHEN 'happycashfood' THEN 'HappyCashFood'
-    WHEN 'happycashagenda' THEN 'HappyCash Agenda'
-    ELSE 'HappyCash PDV Fiado'
-  END AS system_name,
+  'HappyCash'::text AS system_name,
   registry.owner_email,
   auth_user.email AS auth_email,
   profile.email AS profile_email,
@@ -179,10 +175,7 @@ LEFT JOIN LATERAL (
 CREATE OR REPLACE VIEW public.admin_system_clients AS
 SELECT
   COALESCE(client.product_context, 'happycash') AS product_context,
-  CASE COALESCE(client.product_context, 'happycash')
-    WHEN 'happycashfood' THEN 'HappyCashFood'
-    ELSE 'HappyCash PDV Fiado'
-  END AS system_name,
+  'HappyCash'::text AS system_name,
   'clients'::text AS client_source,
   client.id AS client_id,
   client.name AS client_name,
@@ -197,49 +190,7 @@ SELECT
   client.updated_at
 FROM public.clients AS client
 LEFT JOIN public.store_accounts AS account
-  ON account.id = client.store_account_id
-
-UNION ALL
-
-SELECT
-  'happycashagenda'::text AS product_context,
-  'HappyCash Agenda'::text AS system_name,
-  'agenda_clients'::text AS client_source,
-  client.id AS client_id,
-  client.name AS client_name,
-  client.email AS client_email,
-  client.phone AS client_phone,
-  false AS deleted,
-  client.owner_user_id,
-  client.store_account_id,
-  account.email AS store_account_email,
-  account.nome_estabelecimento AS store_name,
-  client.created_at,
-  client.updated_at
-FROM public.agenda_clients AS client
-LEFT JOIN public.store_accounts AS account
-  ON account.id = client.store_account_id
-
-UNION ALL
-
-SELECT
-  'happycashfood'::text AS product_context,
-  'HappyCashFood'::text AS system_name,
-  'restaurant_menu_customers'::text AS client_source,
-  customer.id AS client_id,
-  customer.name AS client_name,
-  customer.email AS client_email,
-  customer.phone AS client_phone,
-  false AS deleted,
-  customer.owner_user_id,
-  customer.store_account_id,
-  account.email AS store_account_email,
-  account.nome_estabelecimento AS store_name,
-  customer.created_at,
-  customer.updated_at
-FROM public.restaurant_menu_customers AS customer
-LEFT JOIN public.store_accounts AS account
-  ON account.id = customer.store_account_id;
+  ON account.id = client.store_account_id;
 
 REVOKE ALL ON TABLE public.system_account_registry FROM anon, authenticated;
 REVOKE ALL ON TABLE public.admin_system_emails FROM anon, authenticated;

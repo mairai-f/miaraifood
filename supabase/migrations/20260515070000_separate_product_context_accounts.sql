@@ -20,10 +20,7 @@ WITH resolved_context AS (
     account.id,
     COALESCE(
       (
-        SELECT CASE
-          WHEN subscription.plan_id IN ('food', 'food_offline') THEN 'happycashfood'
-          ELSE 'happycash'
-        END
+        SELECT 'happycash'
         FROM public.store_subscriptions AS subscription
         WHERE subscription.store_account_id = account.id
         ORDER BY
@@ -44,7 +41,7 @@ FROM resolved_context
 WHERE account.id = resolved_context.id
   AND (
     account.product_context IS NULL
-    OR account.product_context NOT IN ('happycash', 'happycashfood')
+    OR account.product_context <> 'happycash'
   );
 
 ALTER TABLE public.store_accounts
@@ -52,7 +49,7 @@ ALTER TABLE public.store_accounts
 
 ALTER TABLE public.store_accounts
   ADD CONSTRAINT store_accounts_product_context_check
-  CHECK (product_context IN ('happycash', 'happycashfood'));
+  CHECK (product_context = 'happycash');
 
 ALTER TABLE public.store_accounts
   ALTER COLUMN product_context SET NOT NULL;
@@ -96,20 +93,20 @@ FROM public.store_accounts AS account
 WHERE registration.store_account_id = account.id
   AND (
     registration.product_context IS NULL
-    OR registration.product_context NOT IN ('happycash', 'happycashfood')
+    OR registration.product_context <> 'happycash'
   );
 
 UPDATE public.site_pending_registrations
 SET product_context = 'happycash'
 WHERE product_context IS NULL
-  OR product_context NOT IN ('happycash', 'happycashfood');
+  OR product_context <> 'happycash';
 
 ALTER TABLE public.site_pending_registrations
   DROP CONSTRAINT IF EXISTS site_pending_registrations_product_context_check;
 
 ALTER TABLE public.site_pending_registrations
   ADD CONSTRAINT site_pending_registrations_product_context_check
-  CHECK (product_context IN ('happycash', 'happycashfood'));
+  CHECK (product_context = 'happycash');
 
 ALTER TABLE public.site_pending_registrations
   ALTER COLUMN product_context SET NOT NULL;
@@ -137,32 +134,26 @@ ALTER TABLE public.store_subscriptions
 UPDATE public.store_subscriptions AS subscription
 SET product_context = COALESCE(
   account.product_context,
-  CASE
-    WHEN subscription.plan_id IN ('food', 'food_offline') THEN 'happycashfood'
-    ELSE 'happycash'
-  END
+  'happycash'
 )
 FROM public.store_accounts AS account
 WHERE subscription.store_account_id = account.id
   AND (
     subscription.product_context IS NULL
-    OR subscription.product_context NOT IN ('happycash', 'happycashfood')
+    OR subscription.product_context <> 'happycash'
   );
 
 UPDATE public.store_subscriptions
-SET product_context = CASE
-  WHEN plan_id IN ('food', 'food_offline') THEN 'happycashfood'
-  ELSE 'happycash'
-END
+SET product_context = 'happycash'
 WHERE product_context IS NULL
-  OR product_context NOT IN ('happycash', 'happycashfood');
+  OR product_context <> 'happycash';
 
 ALTER TABLE public.store_subscriptions
   DROP CONSTRAINT IF EXISTS store_subscriptions_product_context_check;
 
 ALTER TABLE public.store_subscriptions
   ADD CONSTRAINT store_subscriptions_product_context_check
-  CHECK (product_context IN ('happycash', 'happycashfood'));
+  CHECK (product_context = 'happycash');
 
 ALTER TABLE public.store_subscriptions
   ALTER COLUMN product_context SET NOT NULL;

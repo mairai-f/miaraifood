@@ -159,36 +159,6 @@ npm run electron:build:linux:deb
 ```
 
 __________________________________________________________________________________
-🍽️ HappyCashFood Offline e releases separadas :
-
-O `HappyCashFood` agora pode usar releases separadas do `HappyCash` principal.
-
-Comandos novos:
-
-```bash
-# build do renderer food para desktop
-npm run build:food:desktop:renderer
-
-# empacotar executaveis do HappyCashFood
-npm run electron:build:food:win
-npm run electron:build:food:win:portable
-npm run electron:build:food:linux
-npm run electron:build:food:linux:deb
-npm run electron:build:food:linux:appimage
-
-# publicar releases do HappyCashFood
-npm run electron:publish:food:win
-npm run electron:publish:food:linux
-
-# gerar APK separado do HappyCashFood
-npm run mobile:build:android:apk:food
-```
-
-Documentacao detalhada:
-
-- `docs/happycashfood-food-offline.md`
-
-__________________________________________________________________________________
 📱 Versão Mobile (Expo) :
 
 O projeto agora também está preparado para testar Android e iOS com um app Expo separado em `mobile/`.

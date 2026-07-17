@@ -1,15 +1,12 @@
-const contextFromEnv = process.env.HAPPYCASH_MOBILE_CONTEXT || process.env.EXPO_PUBLIC_HAPPYCASH_CONTEXT;
-const isFoodContext = String(contextFromEnv || '').trim().toLowerCase() === 'happycashfood';
 const defaultProjectId = '644bdd5c-af8c-4e44-a395-36a71e68f57e';
-const foodProjectId = process.env.HAPPYCASH_FOOD_MOBILE_EAS_PROJECT_ID || defaultProjectId;
 
 module.exports = {
   expo: {
-    name: isFoodContext ? 'HappyCashFood Mobile' : 'HappyCash Mobile',
-    slug: isFoodContext ? 'happycashfood-mobile' : 'happycash-mobile',
+    name: 'HappyCash Mobile',
+    slug: 'happycash-mobile',
     version: '0.1.61',
     orientation: 'portrait',
-    scheme: isFoodContext ? 'happycashfood' : 'happycash',
+    scheme: 'happycash',
     userInterfaceStyle: 'dark',
     icon: './assets/icon.png',
     splash: {
@@ -19,13 +16,13 @@ module.exports = {
     },
     ios: {
       supportsTablet: true,
-      bundleIdentifier: isFoodContext ? 'com.happycashfood.mobile' : 'com.happycash.mobile',
+      bundleIdentifier: 'com.happycash.mobile',
       infoPlist: {
         ITSAppUsesNonExemptEncryption: false,
       },
     },
     android: {
-      package: isFoodContext ? 'com.happycashfood.mobile' : 'com.happycash.mobile',
+      package: 'com.happycash.mobile',
       edgeToEdgeEnabled: true,
       adaptiveIcon: {
         foregroundImage: './assets/adaptive-icon.png',
@@ -34,10 +31,10 @@ module.exports = {
     },
     extra: {
       eas: {
-        projectId: isFoodContext ? foodProjectId : defaultProjectId,
+        projectId: defaultProjectId,
       },
       happycash: {
-        context: isFoodContext ? 'happycashfood' : 'happycash',
+        context: 'happycash',
       },
     },
   },

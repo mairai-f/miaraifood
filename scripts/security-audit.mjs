@@ -17,7 +17,7 @@ if (trackedEnvFiles.length) {
   add("PASS", "Nenhum .env real esta versionado.");
 }
 
-const browserFilePattern = /^(src|happycashagenda\/src|happycashfood\/src|happycashsite\/src|happycashmenu\/src|mobile)\//;
+const browserFilePattern = /^(src|happycashsite\/src|mobile)\//;
 const serviceRoleInBrowser = trackedFiles
   .filter((file) => browserFilePattern.test(file))
   .filter((file) => readFileSync(join(root, file), "utf8").includes("SUPABASE_SERVICE_ROLE_KEY"));
@@ -83,6 +83,7 @@ if (existsSync(corsPath)) {
 
 const rlsMigrationCount = trackedFiles
   .filter((file) => file.startsWith("supabase/migrations/") && file.endsWith(".sql"))
+  .filter((file) => existsSync(join(root, file)))
   .filter((file) => /enable row level security/i.test(readFileSync(join(root, file), "utf8"))).length;
 
 if (rlsMigrationCount) {

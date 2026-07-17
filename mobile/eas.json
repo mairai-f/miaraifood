@@ -20,29 +20,10 @@
         "EXPO_PUBLIC_HAPPYCASH_WEB_URL": "https://app.happycashsite.com.br"
       }
     },
-    "food-preview": {
-      "android": {
-        "buildType": "apk"
-      },
-      "distribution": "internal",
-      "env": {
-        "HAPPYCASH_MOBILE_CONTEXT": "happycashfood",
-        "EXPO_PUBLIC_HAPPYCASH_CONTEXT": "happycashfood",
-        "EXPO_PUBLIC_HAPPYCASH_WEB_URL": "https://food.happycashsite.com.br"
-      }
-    },
     "production": {
       "autoIncrement": true,
       "env": {
         "EXPO_PUBLIC_HAPPYCASH_WEB_URL": "https://app.happycashsite.com.br"
-      }
-    },
-    "food-production": {
-      "autoIncrement": true,
-      "env": {
-        "HAPPYCASH_MOBILE_CONTEXT": "happycashfood",
-        "EXPO_PUBLIC_HAPPYCASH_CONTEXT": "happycashfood",
-        "EXPO_PUBLIC_HAPPYCASH_WEB_URL": "https://food.happycashsite.com.br"
       }
     }
   },

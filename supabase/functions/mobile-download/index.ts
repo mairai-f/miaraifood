@@ -24,16 +24,11 @@ type SupportedMobilePlatform = "android" | "ios";
 const supportedPlatforms = new Set<SupportedMobilePlatform>(["android", "ios"]);
 const contextBucketEnvKeys: Record<DesktopReleaseContext, string> = {
   happycash: "MOBILE_DOWNLOAD_BUCKET",
-  happycashfood: "FOOD_MOBILE_DOWNLOAD_BUCKET",
 };
 const contextPlatformEnvKeys: Record<DesktopReleaseContext, Record<SupportedMobilePlatform, string>> = {
   happycash: {
     android: "ANDROID_APK_OBJECT_PATH",
     ios: "IOS_TESTFLIGHT_URL",
-  },
-  happycashfood: {
-    android: "FOOD_ANDROID_APK_OBJECT_PATH",
-    ios: "FOOD_IOS_TESTFLIGHT_URL",
   },
 };
 const contextDirectUrlEnvKeys: Record<DesktopReleaseContext, Record<SupportedMobilePlatform, string>> = {
@@ -41,23 +36,14 @@ const contextDirectUrlEnvKeys: Record<DesktopReleaseContext, Record<SupportedMob
     android: "ANDROID_APK_URL",
     ios: "IOS_TESTFLIGHT_URL",
   },
-  happycashfood: {
-    android: "FOOD_ANDROID_APK_URL",
-    ios: "FOOD_IOS_TESTFLIGHT_URL",
-  },
 };
 
-const releaseProvider = (context: DesktopReleaseContext) => (
-  context === "happycashfood"
-    ? (Deno.env.get("FOOD_MOBILE_RELEASE_PROVIDER") || Deno.env.get("MOBILE_RELEASE_PROVIDER") || "storage").trim().toLowerCase()
-    : (Deno.env.get("MOBILE_RELEASE_PROVIDER") || "storage").trim().toLowerCase()
-);
+const releaseProvider = (_context: DesktopReleaseContext) =>
+  (Deno.env.get("MOBILE_RELEASE_PROVIDER") || "storage").trim().toLowerCase();
 
-const resolveDownloadContext = (planId?: string | null): DesktopReleaseContext =>
-  planId === "food_offline" ? "happycashfood" : "happycash";
+const resolveDownloadContext = (_planId?: string | null): DesktopReleaseContext => "happycash";
 
-const resolveDefaultBucketName = (context: DesktopReleaseContext) =>
-  context === "happycashfood" ? "happycashfood-mobile-downloads" : "mobile-downloads";
+const resolveDefaultBucketName = (_context: DesktopReleaseContext) => "mobile-downloads";
 
 const extractAccessToken = (authorization: string | null) => {
   if (!authorization) return null;
@@ -270,14 +256,13 @@ Deno.serve(async (request) => {
     return jsonResponse(request, {
       success: true,
       downloadUrl: apkUrl,
-      assetName: downloadContext === "happycashfood" ? "HappyCashFood-Mobile.apk" : "HappyCash-Mobile.apk",
+      assetName: "HappyCash-Mobile.apk",
       validUntil: license.validUntil,
     });
   }
 
   const bucketName =
     Deno.env.get(bucketEnvKey)?.trim()
-    || (downloadContext === "happycashfood" ? Deno.env.get("FOOD_DOWNLOAD_BUCKET")?.trim() : null)
     || Deno.env.get("MOBILE_DOWNLOAD_BUCKET")?.trim()
     || Deno.env.get("DESKTOP_DOWNLOAD_BUCKET")?.trim()
     || resolveDefaultBucketName(downloadContext);

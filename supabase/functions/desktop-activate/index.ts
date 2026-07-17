@@ -60,8 +60,7 @@ const normalizeOptionalText = (value: string | null | undefined, maxLength: numb
   return normalized.slice(0, maxLength);
 };
 
-const normalizeAppContext = (value: string | null | undefined) =>
-  value?.trim().toLowerCase() === "happycashfood" ? "happycashfood" : "happycash";
+const normalizeAppContext = (_value: string | null | undefined): ProductContext => "happycash";
 
 Deno.serve(async (request) => {
   if (request.method === "OPTIONS") {
@@ -152,11 +151,7 @@ Deno.serve(async (request) => {
   if (accountProductContext !== appContext) {
     return jsonResponse(
       request,
-      {
-        error: accountProductContext === "happycashfood"
-          ? "Esta chave pertence ao HappyCashFood. Use o aplicativo HappyCashFood para ativar esta empresa."
-          : "Esta chave pertence ao HappyCash. Use o aplicativo HappyCash para ativar esta empresa.",
-      },
+      { error: "Esta chave pertence a outro produto. Use uma chave do HappyCash." },
       403,
     );
   }

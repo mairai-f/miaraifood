@@ -15,14 +15,9 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
 
 const runtimeEnv = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env ?? {};
-const appContext = runtimeEnv.EXPO_PUBLIC_HAPPYCASH_CONTEXT?.trim().toLowerCase() === 'happycashfood'
-  ? 'happycashfood'
-  : 'happycash';
-const productLabel = appContext === 'happycashfood' ? 'HappyCashFood Mobile' : 'HappyCash Mobile';
-const productShortLabel = appContext === 'happycashfood' ? 'HappyCashFood' : 'HappyCash';
-const defaultPublicSystemUrl = appContext === 'happycashfood'
-  ? 'https://food.happycashsite.com.br'
-  : 'https://app.happycashsite.com.br';
+const productLabel = 'HappyCash Mobile';
+const productShortLabel = 'HappyCash';
+const defaultPublicSystemUrl = 'https://app.happycashsite.com.br';
 const envConfiguredUrl = runtimeEnv.EXPO_PUBLIC_HAPPYCASH_WEB_URL?.trim() || '';
 const envSuggestedDevUrl = runtimeEnv.EXPO_PUBLIC_HAPPYCASH_DEV_URL?.trim() || '';
 
@@ -64,7 +59,7 @@ export default function App() {
       <View style={styles.card}>
         <Text style={styles.title}>{productLabel}</Text>
         <Text style={styles.subtitle}>
-          Este app Expo carrega a versao web do {productShortLabel} dentro de um WebView para testar Android sem misturar a release mobile do Food com a do HappyCash principal.
+          Este app Expo carrega a versao web do {productShortLabel} dentro de um WebView para testar Android.
         </Text>
 
         <View style={styles.quickActions}>

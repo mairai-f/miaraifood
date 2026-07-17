@@ -422,6 +422,18 @@ export default function Reports() {
   ];
   const netIncomeVariation = getVariationPct(dre.netIncome, previousDre.netIncome);
   const revenueVariation = getVariationPct(dre.netRevenue, previousDre.netRevenue);
+  const reportPeriodLabel = `${formatDateOnly(`${startDate}T12:00:00`)} a ${formatDateOnly(`${endDate}T12:00:00`)}`;
+  const setDatePreset = (preset: 'today' | '7d' | 'month') => {
+    const end = new Date();
+    const start = new Date(end);
+    if (preset === '7d') start.setDate(end.getDate() - 6);
+    if (preset === 'month') start.setMonth(end.getMonth() - 1);
+    setStartDate(start.toISOString().split('T')[0]);
+    setEndDate(end.toISOString().split('T')[0]);
+  };
+  const scrollToReportSection = (sectionId: string) => {
+    document.getElementById(sectionId)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
 
   const exportCsv = () => {
     const rows = [
@@ -481,13 +493,33 @@ export default function Reports() {
       <div className="flex flex-wrap gap-3 items-end" data-tour-id="reports-filters">
         <div className="space-y-1"><Label className="text-xs">De</Label><Input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="h-8 text-xs w-40" /></div>
         <div className="space-y-1"><Label className="text-xs">Até</Label><Input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="h-8 text-xs w-40" /></div>
+        <Button type="button" variant="outline" size="sm" onClick={() => setDatePreset('today')}>Hoje</Button>
+        <Button type="button" variant="outline" size="sm" onClick={() => setDatePreset('7d')}>7 dias</Button>
+        <Button type="button" variant="outline" size="sm" onClick={() => setDatePreset('month')}>30 dias</Button>
         <Button type="button" variant="outline" size="sm" onClick={exportCsv}>
           <Download className="mr-2 h-4 w-4" />Exportar CSV
         </Button>
       </div>
 
+      <div className="flex flex-wrap items-center gap-2 rounded-md border bg-card p-2 text-xs">
+        <span className="px-1 font-medium text-muted-foreground">Ir para</span>
+        {[
+          ['reports-summary', 'Resumo'],
+          ['reports-dre', 'DRE'],
+          ['reports-alerts', 'Alertas'],
+          ['reports-charts', 'Graficos'],
+          ['reports-margin-profit', 'Margem'],
+          ['reports-rankings', 'Rankings'],
+        ].map(([id, label]) => (
+          <Button key={id} type="button" variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => scrollToReportSection(id)}>
+            {label}
+          </Button>
+        ))}
+        <Badge variant="outline" className="ml-auto">{reportPeriodLabel}</Badge>
+      </div>
+
       {/* Stats */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3" data-tour-id="reports-stats">
+      <div id="reports-summary" className="scroll-mt-24 grid grid-cols-2 lg:grid-cols-4 gap-3" data-tour-id="reports-stats">
         {([
           { detail: 'sales', label: 'Vendas válidas', value: activeFilteredSales.length, icon: TrendingUp },
           { detail: 'revenue', label: 'Faturamento', value: `R$ ${totalRevenue.toFixed(2)}`, icon: DollarSign },
@@ -502,12 +534,12 @@ export default function Reports() {
         ))}
       </div>
 
-      <Card className="border-border/50" data-tour-id="reports-dre">
+      <Card id="reports-dre" className="scroll-mt-24 border-border/50" data-tour-id="reports-dre">
         <CardHeader className="flex flex-row items-start justify-between gap-3">
           <div>
             <CardTitle className="text-sm">DRE - Resultado real</CardTitle>
             <p className="mt-1 text-xs text-muted-foreground">
-              {formatDateOnly(`${startDate}T12:00:00`)} a {formatDateOnly(`${endDate}T12:00:00`)}
+              {reportPeriodLabel}
             </p>
           </div>
           {loadingDreAccounts && <Badge variant="secondary">Atualizando contas</Badge>}
@@ -587,7 +619,7 @@ export default function Reports() {
         </CardContent>
       </Card>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4" data-tour-id="reports-alerts">
+      <div id="reports-alerts" className="scroll-mt-24 grid grid-cols-1 lg:grid-cols-2 gap-4" data-tour-id="reports-alerts">
         <Card className="border-border/50">
           <CardHeader><CardTitle className="text-sm">Produtos Abaixo do Mínimo</CardTitle></CardHeader>
           <CardContent>
@@ -620,6 +652,7 @@ export default function Reports() {
         </Card>
       </div>
 
+      <div id="reports-charts" className="scroll-mt-24">
       <Suspense
         fallback={(
           <Card className="border-border/50">
@@ -639,8 +672,9 @@ export default function Reports() {
           paymentBreakdown={paymentBreakdown}
         />
       </Suspense>
+      </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4" data-tour-id="reports-margin-profit">
+      <div id="reports-margin-profit" className="scroll-mt-24 grid grid-cols-1 lg:grid-cols-2 gap-4" data-tour-id="reports-margin-profit">
         <Card className="border-border/50">
           <CardHeader><CardTitle className="text-sm">Lucro Bruto por Produto</CardTitle></CardHeader>
           <CardContent>
@@ -718,7 +752,7 @@ export default function Reports() {
         </Card>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4" data-tour-id="reports-rankings">
+      <div id="reports-rankings" className="scroll-mt-24 grid grid-cols-1 lg:grid-cols-2 gap-4" data-tour-id="reports-rankings">
         {/* Top products */}
         <Card className="border-border/50">
           <CardHeader><CardTitle className="text-sm">🏆 Produtos Mais Vendidos</CardTitle></CardHeader>

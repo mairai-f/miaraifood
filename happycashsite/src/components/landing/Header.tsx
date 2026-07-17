@@ -19,9 +19,9 @@ const solutionLinks = [
     href: "/sistema-de-gestao-de-negocios",
   },
   {
-    label: "Gestão de RH",
-    description: "Funcionários, ponto, escalas, documentos e permissões.",
-    href: "/sistema-de-gestao-rh",
+    label: "RH Enterprise",
+    description: "Folha, holerite, ponto, SST, eSocial e IA.",
+    href: "/happycash-rh-enterprise",
   },
   {
     label: "Controle de fiado",

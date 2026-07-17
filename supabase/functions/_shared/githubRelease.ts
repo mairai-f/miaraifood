@@ -35,25 +35,15 @@ export interface GitHubMobileReleaseAsset {
   size: number | null;
 }
 
-export type DesktopReleaseContext = "happycash" | "happycashfood";
+export type DesktopReleaseContext = "happycash";
 
 const DEFAULT_OWNER = "celioantonio7";
 const DEFAULT_CHANNEL = "latest";
 const DEFAULT_REPOSITORIES: Record<DesktopReleaseContext, string> = {
   happycash: "HappyCash-Releases",
-  happycashfood: "HappyCashFood-Releases",
 };
 
-const readReleaseConfig = (context: DesktopReleaseContext) => {
-  if (context === "happycashfood") {
-    return {
-      owner: (Deno.env.get("GITHUB_FOOD_RELEASE_OWNER") || Deno.env.get("GITHUB_DESKTOP_RELEASE_OWNER") || DEFAULT_OWNER).trim(),
-      repo: (Deno.env.get("GITHUB_FOOD_RELEASE_REPO") || DEFAULT_REPOSITORIES.happycashfood).trim(),
-      channel: (Deno.env.get("GITHUB_FOOD_RELEASE_CHANNEL") || Deno.env.get("GITHUB_DESKTOP_RELEASE_CHANNEL") || DEFAULT_CHANNEL).trim().toLowerCase(),
-      token: Deno.env.get("GITHUB_FOOD_RELEASE_TOKEN")?.trim() || Deno.env.get("GITHUB_DESKTOP_RELEASE_TOKEN")?.trim() || null,
-    };
-  }
-
+const readReleaseConfig = (_context: DesktopReleaseContext) => {
   return {
     owner: (Deno.env.get("GITHUB_DESKTOP_RELEASE_OWNER") || DEFAULT_OWNER).trim(),
     repo: (Deno.env.get("GITHUB_DESKTOP_RELEASE_REPO") || DEFAULT_REPOSITORIES.happycash).trim(),

@@ -1,5 +1,0 @@
-User-agent: *
-Allow: /
-Disallow: /downloads/
-
-Sitemap: https://www.happycashsite.com.br/sitemap.xml

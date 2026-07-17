@@ -15,7 +15,6 @@ lerna-debug.log*
 .envrc
 node_modules/
 dist/
-dist-food/
 dist-site/
 dist-ssr/
 dist-electron/
@@ -45,3 +44,6 @@ mobile/android/
 mobile/ios/
 mobile/dist/
 mobile/web-build/
+
+# Produtos mantidos em repositórios separados
+happycashrh/

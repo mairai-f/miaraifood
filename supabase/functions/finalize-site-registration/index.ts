@@ -85,18 +85,6 @@ const isAsaasConfigured = () => Boolean(Deno.env.get("ASAAS_API_KEY"));
 
 const normalizeDigits = (value?: string | null) => (value || "").replace(/\D/g, "");
 
-const slugify = (value: string, fallback: string) => {
-  const slug = value
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 48);
-
-  return `${slug || "agenda"}-${fallback.replace(/-/g, "").slice(0, 12)}`.slice(0, 63);
-};
-
 const updatePendingRegistration = async (
   serviceClient: ServiceClient,
   registrationId: string,
@@ -180,74 +168,6 @@ const ensureBillingCustomer = async (
   }
 
   return asaasCustomer.id;
-};
-
-const ensureAgendaDefaults = async (
-  serviceClient: ServiceClient,
-  ownerUserId: string,
-  storeAccountId: string,
-  registration: PendingRegistrationRow,
-) => {
-  const { error: settingsError } = await serviceClient
-    .from("agenda_business_settings")
-    .upsert(
-      {
-        owner_user_id: ownerUserId,
-        store_account_id: storeAccountId,
-        slug: slugify(registration.nome_estabelecimento, storeAccountId),
-        display_name: registration.nome_estabelecimento || "HappyCash Agenda",
-        business_type: registration.tipo_estabelecimento || "Servicos",
-        professional_label: "Profissional",
-        service_label: "Servico",
-        tagline: "Agendamentos online com clientes, profissionais e pagamentos em um so lugar.",
-        logo_url: null,
-        primary_hsl: "258 84% 58%",
-        accent_hsl: "44 96% 56%",
-        success_hsl: "151 74% 43%",
-        public_booking_enabled: true,
-      },
-      { onConflict: "owner_user_id" },
-    );
-
-  if (settingsError) {
-    throw new Error(settingsError.message || "Nao foi possivel preparar a identidade do HappyCash Agenda.");
-  }
-
-  const { data: existingHours, error: hoursReadError } = await serviceClient
-    .from("business_hours")
-    .select("day_of_week")
-    .eq("store_account_id", storeAccountId);
-
-  if (hoursReadError) {
-    throw new Error(hoursReadError.message || "Nao foi possivel consultar os horarios do HappyCash Agenda.");
-  }
-
-  const existingDays = new Set(((existingHours as { day_of_week: number }[] | null) || []).map((row) => row.day_of_week));
-  const defaultHours = [
-    { day_of_week: 0, open_time: "09:00", close_time: "19:30", is_open: false },
-    { day_of_week: 1, open_time: "09:00", close_time: "19:30", is_open: true },
-    { day_of_week: 2, open_time: "09:00", close_time: "19:30", is_open: true },
-    { day_of_week: 3, open_time: "09:00", close_time: "19:30", is_open: true },
-    { day_of_week: 4, open_time: "09:00", close_time: "19:30", is_open: true },
-    { day_of_week: 5, open_time: "09:00", close_time: "19:30", is_open: true },
-    { day_of_week: 6, open_time: "09:00", close_time: "19:30", is_open: true },
-  ]
-    .filter((row) => !existingDays.has(row.day_of_week))
-    .map((row) => ({
-      ...row,
-      owner_user_id: ownerUserId,
-      store_account_id: storeAccountId,
-    }));
-
-  if (!defaultHours.length) return;
-
-  const { error: hoursInsertError } = await serviceClient
-    .from("business_hours")
-    .insert(defaultHours);
-
-  if (hoursInsertError) {
-    throw new Error(hoursInsertError.message || "Nao foi possivel criar os horarios do HappyCash Agenda.");
-  }
 };
 
 Deno.serve(async (request) => {
@@ -497,10 +417,6 @@ Deno.serve(async (request) => {
     let asaasCustomerId: string | null = null;
     if (isAsaasConfigured() && storeAccountId) {
       asaasCustomerId = await ensureBillingCustomer(serviceClient, user.id, storeAccountId, registration);
-    }
-
-    if (accountProductContext === "happycashagenda" && storeAccountId) {
-      await ensureAgendaDefaults(serviceClient, user.id, storeAccountId, registration);
     }
 
     const { data: existingSubscriptionsData, error: existingSubscriptionsError } = await serviceClient

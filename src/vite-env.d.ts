@@ -49,7 +49,7 @@ interface Window {
         platform: string;
         databasePath: string;
         updateChannel: string;
-        productContext: "happycash" | "happycashfood";
+        productContext: "happycash";
         installerToken: string | null;
       }>;
       getRuntimeInfoSync: () => {
@@ -58,7 +58,7 @@ interface Window {
         platform: string;
         databasePath: string;
         updateChannel: string;
-        productContext: "happycash" | "happycashfood";
+        productContext: "happycash";
         installerToken: string | null;
       };
       getUpdateStatus: () => Promise<unknown>;

@@ -117,9 +117,7 @@ export const validateDesktopLicense = async (
     return {
       ok: false,
       code: "PRO_ACTIVE_REQUIRED",
-      message: normalizedProductContext === "happycashfood"
-        ? "O aplicativo desktop do HappyCashFood libera somente apos a confirmacao do pagamento do plano HappyCashFood Offline."
-        : "O aplicativo desktop do HappyCash libera somente apos a confirmacao do pagamento do plano PRO.",
+      message: "O aplicativo desktop do HappyCash libera somente apos a confirmacao do pagamento do plano PRO.",
       planId: currentSubscription?.plan_id ?? null,
       status: currentSubscription?.status ?? null,
       validUntil,

@@ -144,8 +144,6 @@ const planLabels: Record<string, string> = {
   fiado: 'Plano Fiado',
   completo: 'Plano Completo',
   pro: 'Plano PRO',
-  food: 'HappyCashFood',
-  food_offline: 'HappyCashFood Offline',
 };
 
 const formatBytes = (value: number | null | undefined) => {
@@ -762,7 +760,7 @@ export default function Settings() {
                 <div className="rounded-lg border border-primary/20 bg-primary/5 p-4 text-sm text-muted-foreground">
                   <p className="font-medium text-foreground">{countdown.markerLabel}</p>
                   <p className="mt-1">{countdown.remainingLabel}</p>
-                  {(subscription?.plan_id === 'pro' || subscription?.plan_id === 'food_offline') && !countdown.isExpired && (
+                  {subscription?.plan_id === 'pro' && !countdown.isExpired && (
                     <p className="mt-2 text-primary">
                       Este plano fica apto para liberar o download do desktop na area logada do site.
                     </p>
