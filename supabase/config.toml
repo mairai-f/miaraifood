@@ -3,9 +3,12 @@ project_id = "ymffclntmynwfdiarlaw"
 [auth]
 enabled = true
 site_url = "https://www.happycashsite.com.br"
+password_requirements = "lower_upper_letters_digits_symbols"
 additional_redirect_urls = [
   "https://www.happycashsite.com.br/**",
   "https://app.happycashsite.com.br/**",
+  "https://food.happycashsite.com.br/**",
+  "https://agenda.happycashsite.com.br/**",
   "http://localhost:8080/**",
   "http://localhost:8081/**",
   "http://localhost:8082/**",
@@ -96,7 +99,9 @@ subject = "Metodo de login removido no HappyCash"
 content_path = "./templates/identity-unlinked.html"
 
 [auth.captcha]
-enabled = false
+enabled = true
+provider = "turnstile"
+secret = "env(SUPABASE_AUTH_CAPTCHA_SECRET)"
 
 [auth.passkey]
 enabled = true
