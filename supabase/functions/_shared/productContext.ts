@@ -3,9 +3,9 @@ export type ProductContext = "happycash";
 const HAPPYCASH_PAID_PLAN_IDS = new Set(["fiado", "completo", "pro"]);
 const HAPPYCASH_DESKTOP_PLAN_IDS = new Set(["pro"]);
 
-export const normalizeProductContext = (): ProductContext => "happycash";
+export const normalizeProductContext = (_value?: string | null): ProductContext => "happycash";
 
-export const resolveProductContextFromPlanId = (): ProductContext => "happycash";
+export const resolveProductContextFromPlanId = (_planId?: string | null): ProductContext => "happycash";
 
 export const isPaidPlanAllowedForProductContext = (
   _productContext: ProductContext,

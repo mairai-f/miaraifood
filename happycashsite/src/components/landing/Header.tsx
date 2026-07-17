@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ChevronDown, Loader2, Menu, X } from "lucide-react";
+import { BarChart3, BookOpen, BriefcaseBusiness, ChevronDown, Loader2, Menu, Package, ShoppingCart, X } from "lucide-react";
 import { Link, useLocation, useSearchParams } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -10,33 +10,42 @@ import { useCurrentSubscription } from "@/hooks/use-current-subscription";
 import { isCurrentSubscription } from "@/lib/subscriptionStatus";
 import { isPublicPlanId, publicPlanContent } from "@/lib/subscriptionPlans";
 import { SiteThemeToggle } from "@/components/SiteThemeToggle";
-import happyCashLogo from "../../../../src/assets/login/happycash.svg";
 
 const solutionLinks = [
   {
+    icon: BarChart3,
     label: "Gestão e relatórios",
     description: "ERP para comércio pequeno, médio e grande porte.",
     href: "/sistema-de-gestao-de-negocios",
+    tone: "bg-sky-50 text-sky-800 border-sky-200 dark:bg-sky-950/40 dark:text-sky-100 dark:border-sky-900/60",
   },
   {
+    icon: BriefcaseBusiness,
     label: "RH Enterprise",
     description: "Folha, holerite, ponto, SST, eSocial e IA.",
     href: "/happycash-rh-enterprise",
+    tone: "bg-violet-50 text-violet-800 border-violet-200 dark:bg-violet-950/40 dark:text-violet-100 dark:border-violet-900/60",
   },
   {
+    icon: BookOpen,
     label: "Controle de fiado",
     description: "Clientes, saldo, cobrança e histórico no mesmo fluxo.",
     href: "/controle-de-fiado",
+    tone: "bg-amber-50 text-amber-800 border-amber-200 dark:bg-amber-950/40 dark:text-amber-100 dark:border-amber-900/60",
   },
   {
+    icon: ShoppingCart,
     label: "Sistema PDV",
     description: "Frente de caixa mais organizada para vender rápido.",
     href: "/sistema-pdv",
+    tone: "bg-cyan-50 text-cyan-800 border-cyan-200 dark:bg-cyan-950/40 dark:text-cyan-100 dark:border-cyan-900/60",
   },
   {
+    icon: Package,
     label: "Controle de estoque",
     description: "Entradas, saídas e estoque mínimo com visão clara.",
     href: "/controle-de-estoque",
+    tone: "bg-emerald-50 text-emerald-800 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-100 dark:border-emerald-900/60",
   },
 ];
 
@@ -70,7 +79,6 @@ const Header = () => {
   );
   const showTestButton = !isAuthenticated || (!loadingSubscription && !hasActivePaidPlan);
   const demoHref = isAuthenticated ? "/dashboard#planos" : "/cadastro?plan=demo";
-  const demoSignupHref = "/cadastro?plan=demo";
   const currentPlanName = subscription?.plan_id && isPublicPlanId(subscription.plan_id)
     ? publicPlanContent[subscription.plan_id].name
     : null;
@@ -85,7 +93,7 @@ const Header = () => {
 
   const mainLinks = [
     { label: "Funcionalidades", href: buildHomeSectionHref("funcionalidades") },
-    { label: "Demonstração", to: demoSignupHref },
+    { label: "Demonstração", href: buildHomeSectionHref("screenshots") },
     { label: "Planos", href: buildHomeSectionHref("planos") },
     { label: "FAQ", href: buildHomeSectionHref("faq") },
   ];
@@ -108,13 +116,9 @@ const Header = () => {
       <div className="mx-auto max-w-7xl rounded-[28px] border border-border bg-card/82 shadow-[0_18px_60px_rgba(15,23,42,0.12)] backdrop-blur-xl">
         <div className="flex h-[76px] items-center justify-between px-4 sm:px-5 lg:px-6">
           <Link to={homeHref} className="flex h-11 items-center" aria-label="HappyCash">
-            <img
-              src={happyCashLogo}
-              alt="HappyCash"
-              className="block h-auto w-[11.75rem] object-contain sm:w-[12.75rem] lg:w-[13.5rem]"
-              loading="eager"
-              decoding="async"
-            />
+            <span className="font-heading text-2xl font-black leading-none text-[#0f2a5f] dark:text-white sm:text-3xl">
+              Happy<span className="bg-gradient-to-r from-[#0ea5e9] to-[#21d4c5] bg-clip-text text-transparent">Cash</span>
+            </span>
           </Link>
 
           <nav className="hidden items-center gap-3 lg:flex">
@@ -127,16 +131,21 @@ const Header = () => {
                 <ChevronDown className="h-4 w-4" />
               </button>
 
-              <div className="pointer-events-none absolute left-0 top-[calc(100%+10px)] w-[540px] translate-y-2 rounded-[24px] border border-border bg-card p-3 opacity-0 shadow-[0_24px_60px_rgba(15,23,42,0.14)] transition-all duration-200 group-hover:pointer-events-auto group-hover:translate-y-0 group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:translate-y-0 group-focus-within:opacity-100">
+              <div className="pointer-events-none absolute left-0 top-[calc(100%+10px)] w-[580px] translate-y-2 rounded-[24px] border border-border bg-card/95 p-3 opacity-0 shadow-[0_24px_60px_rgba(15,23,42,0.14)] backdrop-blur-xl transition-all duration-200 group-hover:pointer-events-auto group-hover:translate-y-0 group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:translate-y-0 group-focus-within:opacity-100">
                 <div className="grid grid-cols-2 gap-2">
                   {solutionLinks.map((item) => (
                     <Link
                       key={item.href}
                       to={item.href}
-                      className="rounded-[16px] border border-transparent bg-background/70 px-3 py-2.5 transition-all duration-200 hover:border-primary/20 hover:bg-accent"
+                      className={`group/item rounded-[16px] border px-3 py-2.5 shadow-sm transition-all duration-200 hover:-translate-y-1 hover:shadow-lg ${item.tone}`}
                     >
-                      <span className="text-sm font-semibold text-foreground">{item.label}</span>
-                      <span className="mt-1 block text-xs leading-5 text-muted-foreground">{item.description}</span>
+                      <span className="flex items-center gap-2 text-sm font-bold">
+                        <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/80 shadow-sm transition-transform duration-200 group-hover/item:scale-110 dark:bg-white/10">
+                          <item.icon className="h-4 w-4" />
+                        </span>
+                        {item.label}
+                      </span>
+                      <span className="mt-1 block pl-10 text-xs leading-5 opacity-80">{item.description}</span>
                     </Link>
                   ))}
                 </div>
@@ -241,11 +250,16 @@ const Header = () => {
                     <Link
                       key={item.href}
                       to={item.href}
-                      className="rounded-[16px] border border-border bg-background/70 px-3 py-2.5"
+                      className={`rounded-[16px] border px-3 py-2.5 shadow-sm ${item.tone}`}
                       onClick={closeMobileMenu}
                     >
-                      <span className="text-sm font-semibold text-foreground">{item.label}</span>
-                      <span className="mt-1 hidden text-xs leading-5 text-muted-foreground sm:block">{item.description}</span>
+                      <span className="flex items-center gap-2 text-sm font-bold">
+                        <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/80 shadow-sm dark:bg-white/10">
+                          <item.icon className="h-4 w-4" />
+                        </span>
+                        {item.label}
+                      </span>
+                      <span className="mt-1 hidden pl-10 text-xs leading-5 opacity-80 sm:block">{item.description}</span>
                     </Link>
                   ))}
                 </div>

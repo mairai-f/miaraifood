@@ -1,5 +1,8 @@
 project_id = "ymffclntmynwfdiarlaw"
 
+[storage.vector]
+enabled = false
+
 [auth]
 enabled = true
 site_url = "https://www.happycashsite.com.br"

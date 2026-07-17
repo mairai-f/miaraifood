@@ -84,6 +84,8 @@ interface PendingServiceTicketAdminAction {
 type CashSession = ScopedCashSession;
 
 interface CashCloseReceipt {
+  sessionId?: string | null;
+  closeNumber?: string | number | null;
   openedAt: string;
   closedAt: string;
   openedBy: string;
@@ -614,6 +616,16 @@ export default function PDV() {
   );
 
   const buildCloseCashWhatsAppMessage = (receipt: CashCloseReceipt) => {
+    const expectedBalance = Number.isFinite(receipt.expectedBalance)
+      ? receipt.expectedBalance
+      : receipt.openingAmount + receipt.salesTotal - receipt.cashOutTotal;
+    const countedBalance = Number.isFinite(receipt.countedBalance)
+      ? receipt.countedBalance
+      : receipt.finalBalance;
+    const difference = Number.isFinite(receipt.difference)
+      ? receipt.difference
+      : countedBalance - expectedBalance;
+    const averageTicket = receipt.saleCount > 0 ? receipt.salesTotal / receipt.saleCount : 0;
     const paymentLines = getCloseCashPaymentSummary(receipt.sales).map(item =>
       `• ${item.label}: ${formatMoney(item.total)}`
     );
@@ -630,18 +642,28 @@ export default function PDV() {
       `Fechado por: ${receipt.closedBy}`,
       `Data de fechamento: ${formatSaleDate(receipt.closedAt)}`,
       '',
+      '*Valores sistêmicos*',
       `Abertura: ${formatMoney(receipt.openingAmount)}`,
-      `Vendas: ${formatMoney(receipt.salesTotal)}`,
+      `Entradas: ${formatMoney(0)}`,
       `Saídas: ${formatMoney(receipt.cashOutTotal)}`,
-      `Saldo final: ${formatMoney(receipt.finalBalance)}`,
-      `Quantidade de vendas: ${receipt.saleCount}`,
-      '',
-      'Formas de pagamento',
       ...(paymentLines.length > 0 ? paymentLines : ['Sem vendas nesta abertura.']),
+      `Total: ${formatMoney(expectedBalance)}`,
       '',
-      'Saídas de caixa',
+      '*Valores informados*',
+      `Valor contado: ${formatMoney(countedBalance)}`,
+      `Total: ${formatMoney(countedBalance)}`,
+      '',
+      '*Diferença de valores*',
+      `Total: ${formatMoney(difference)}`,
+      ...(receipt.differenceReason ? [`Justificativa: ${receipt.differenceReason}`] : []),
+      '',
+      '*Saídas de caixa*',
       `Total: ${formatMoney(receipt.cashOutTotal)}`,
       ...cashOutLines,
+      '',
+      `Número de vendas: ${receipt.saleCount}`,
+      `Valor total em venda: ${formatMoney(receipt.salesTotal)}`,
+      `Ticket médio: ${formatMoney(averageTicket)}`,
     ].join('\n');
   };
 
@@ -1219,6 +1241,232 @@ export default function PDV() {
 
   const handlePrintCloseCashReceipt = () => {
     if (!lastCloseReceipt || typeof window === 'undefined') return;
+
+    const expectedBalance = Number.isFinite(lastCloseReceipt.expectedBalance)
+      ? lastCloseReceipt.expectedBalance
+      : lastCloseReceipt.openingAmount + lastCloseReceipt.salesTotal - lastCloseReceipt.cashOutTotal;
+    const countedBalance = Number.isFinite(lastCloseReceipt.countedBalance)
+      ? lastCloseReceipt.countedBalance
+      : lastCloseReceipt.finalBalance;
+    const difference = Number.isFinite(lastCloseReceipt.difference)
+      ? lastCloseReceipt.difference
+      : countedBalance - expectedBalance;
+    const averageTicket = lastCloseReceipt.saleCount > 0 ? lastCloseReceipt.salesTotal / lastCloseReceipt.saleCount : 0;
+    const receiptNumber = lastCloseReceipt.closeNumber
+      ?? (lastCloseReceipt.sessionId ? lastCloseReceipt.sessionId.slice(-8).toUpperCase() : 'sem numero');
+    const paymentSummary = getCloseCashPaymentSummary(lastCloseReceipt.sales);
+    const paymentByKey = new Map(paymentSummary.map(item => [item.key, item]));
+    const printPaymentOrder = [
+      ['dinheiro', 'DINHEIRO'],
+      ['cartao_credito', 'CREDITO'],
+      ['cartao_debito', 'DEBITO'],
+      ['pix', 'PIX'],
+    ] as const;
+    const fixedPaymentLines = printPaymentOrder.map(([key, label]) => {
+      const item = paymentByKey.get(key);
+      return { label, total: item?.total ?? 0 };
+    });
+    const extraPaymentLines = paymentSummary
+      .filter(item => !printPaymentOrder.some(([key]) => key === item.key) && (item.total > 0 || item.count > 0))
+      .map(item => ({ label: item.label.toUpperCase(), total: item.total }));
+    const receiptWidth = 42;
+    const separator = '-'.repeat(receiptWidth);
+    const centerLine = (value: string) => {
+      const text = value.slice(0, receiptWidth);
+      const left = Math.max(0, Math.floor((receiptWidth - text.length) / 2));
+      return `${' '.repeat(left)}${text}`;
+    };
+    const wrapReceiptLine = (value: string) => {
+      const words = value.split(/\s+/).filter(Boolean);
+      const lines: string[] = [];
+      let current = '';
+
+      for (const word of words) {
+        if (!current) {
+          current = word.slice(0, receiptWidth);
+          continue;
+        }
+
+        if (`${current} ${word}`.length <= receiptWidth) {
+          current = `${current} ${word}`;
+          continue;
+        }
+
+        lines.push(current);
+        current = word.slice(0, receiptWidth);
+      }
+
+      if (current) lines.push(current);
+      return lines.length > 0 ? lines : [''];
+    };
+    const amountLine = (label: string, value: number) => {
+      const left = `${label.toUpperCase()}:`;
+      const right = formatMoney(value);
+      const room = receiptWidth - left.length - right.length;
+      return room > 0 ? `${left}${' '.repeat(room)}${right}` : `${left} ${right}`;
+    };
+    const textLine = (label: string, value: string) => {
+      const left = `${label.toUpperCase()}:`;
+      const room = receiptWidth - left.length - value.length;
+      return room > 0 ? `${left}${' '.repeat(room)}${value}` : `${left} ${value}`;
+    };
+    const cashOutLines = lastCloseReceipt.cashOuts.length > 0
+      ? lastCloseReceipt.cashOuts.flatMap(expense => wrapReceiptLine(`${expense.description || 'Saida'}: ${formatMoney(expense.amount)}`))
+      : ['SEM SAIDAS REGISTRADAS'];
+    const receiptLines = [
+      centerLine('HappyCash ERP'),
+      centerLine(retailCouponStoreName),
+      ...wrapReceiptLine(`CPF/CNPJ: ${receiptProfile.taxId || 'Nao informado'}`),
+      ...wrapReceiptLine(`ENDERECO: ${receiptProfile.address || 'Nao informado'}`),
+      ...wrapReceiptLine(`TELEFONE: ${receiptProfile.phone || 'Nao informado'}`),
+      separator,
+      centerLine(`FECHAMENTO DO CAIXA ${receiptNumber}`),
+      separator,
+      centerLine('VALORES SISTEMICOS'),
+      separator,
+      amountLine('Abertura', lastCloseReceipt.openingAmount),
+      amountLine('Entradas', 0),
+      amountLine('Saidas', lastCloseReceipt.cashOutTotal),
+      ...fixedPaymentLines.map(item => amountLine(item.label, item.total)),
+      ...extraPaymentLines.map(item => amountLine(item.label, item.total)),
+      amountLine('Total', expectedBalance),
+      separator,
+      centerLine('VALORES INFORMADOS'),
+      separator,
+      amountLine('Valor contado', countedBalance),
+      amountLine('Total', countedBalance),
+      separator,
+      centerLine('DIFERENCA DE VALORES'),
+      separator,
+      amountLine('Total', difference),
+      ...(lastCloseReceipt.differenceReason ? ['JUSTIFICATIVA:', ...wrapReceiptLine(lastCloseReceipt.differenceReason)] : []),
+      separator,
+      centerLine('DETALHAMENTO SAIDAS'),
+      separator,
+      ...cashOutLines,
+      separator,
+      textLine('Numero de vendas', String(lastCloseReceipt.saleCount)),
+      amountLine('Valor total em venda', lastCloseReceipt.salesTotal),
+      amountLine('Ticket medio em vendas', averageTicket),
+      amountLine('Valor total das taxas', 0),
+      textLine('Responsavel', lastCloseReceipt.closedBy),
+      textLine('Abertura', formatSaleDate(lastCloseReceipt.openedAt)),
+      textLine('Fechamento', formatSaleDate(lastCloseReceipt.closedAt)),
+      separator,
+      'RECONHECO QUE OS VALORES ACIMA',
+      'FORAM CONFERIDOS NO FECHAMENTO',
+      '',
+      '________________________________________',
+      centerLine('ASSINATURA DO RESPONSAVEL'),
+    ];
+    const compactPrintWindow = window.open('', '_blank', 'width=420,height=720');
+
+    if (!compactPrintWindow) {
+      console.error('Nao foi possivel abrir a janela de impressao do recibo.');
+      return;
+    }
+
+    const compactDocumentTitle = `recibo-fechamento-caixa-${new Date(lastCloseReceipt.closedAt).toISOString()}`;
+    const compactReceiptHtml = receiptLines.map(line => escapeHtml(line)).join('\n');
+
+    compactPrintWindow.document.write(`
+      <!DOCTYPE html>
+      <html lang="pt-BR">
+        <head>
+          <meta charset="utf-8" />
+          <meta name="viewport" content="width=device-width, initial-scale=1" />
+          <title>${escapeHtml(compactDocumentTitle)}</title>
+          <style>
+            * { box-sizing: border-box; }
+            html, body {
+              margin: 0;
+              padding: 0;
+              background: #f1f5f9;
+              color: #111827;
+              font-family: "Courier New", Courier, monospace;
+            }
+            body {
+              display: flex;
+              justify-content: center;
+              padding: 10px;
+            }
+            .receipt {
+              width: 76mm;
+              max-width: 100%;
+              background: #ffffff;
+              border: 1px solid #d1d5db;
+              border-radius: 8px;
+              padding: 8px 7px 10px;
+              box-shadow: 0 12px 30px rgba(15, 23, 42, 0.12);
+            }
+            .receipt img {
+              display: block;
+              width: 38mm;
+              max-width: 70%;
+              height: auto;
+              margin: 0 auto 6px;
+            }
+            pre {
+              margin: 0;
+              white-space: pre-wrap;
+              word-break: break-word;
+              font-size: 10.5px;
+              line-height: 1.33;
+              letter-spacing: 0;
+            }
+            @media print {
+              @page {
+                size: 80mm auto;
+                margin: 3mm;
+              }
+              html, body {
+                width: 80mm;
+                background: #ffffff;
+              }
+              body {
+                display: block;
+                padding: 0;
+              }
+              .receipt {
+                width: 74mm;
+                border: none;
+                border-radius: 0;
+                box-shadow: none;
+                padding: 0;
+              }
+              pre {
+                font-size: 9.5px;
+                line-height: 1.28;
+              }
+            }
+          </style>
+        </head>
+        <body>
+          <main class="receipt">
+            <img src="${happyCashLogo}" alt="HappyCash" />
+            <pre>${compactReceiptHtml}</pre>
+          </main>
+          <script>
+            window.addEventListener('load', () => {
+              const startPrint = () => {
+                window.focus();
+                window.print();
+              };
+              const logo = document.querySelector('img');
+              if (logo && !logo.complete) {
+                logo.addEventListener('load', () => setTimeout(startPrint, 200), { once: true });
+                logo.addEventListener('error', () => setTimeout(startPrint, 200), { once: true });
+              } else {
+                setTimeout(startPrint, 200);
+              }
+              window.onafterprint = () => window.close();
+            });
+          </script>
+        </body>
+      </html>
+    `);
+    compactPrintWindow.document.close();
+    return;
 
     const paymentBreakdown = getPaymentBreakdown(lastCloseReceipt.sales);
     const printWindow = window.open('', '_blank', 'width=1280,height=920');
@@ -3516,6 +3764,7 @@ export default function PDV() {
     }
 
     const receipt: CashCloseReceipt = {
+      sessionId: cashSession.id ?? null,
       openedAt: cashSession.openedAt,
       closedAt: new Date().toISOString(),
       openedBy: cashSession.openedBy,
@@ -5610,10 +5859,33 @@ export default function PDV() {
                   <p className="font-bold text-destructive">{formatMoney(lastCloseReceipt.cashOutTotal)}</p>
                 </div>
                 <div className="rounded-lg border border-border p-3">
-                  <p className="text-xs text-muted-foreground">Saldo final</p>
+                  <p className="text-xs text-muted-foreground">Valor contado</p>
                   <p className="font-bold">{formatMoney(lastCloseReceipt.finalBalance)}</p>
                 </div>
               </div>
+
+              <div className="grid gap-2 sm:grid-cols-3">
+                <div className="rounded-lg border border-border bg-secondary/20 p-3">
+                  <p className="text-xs text-muted-foreground">Total sistêmico</p>
+                  <p className="font-bold">{formatMoney(lastCloseReceipt.expectedBalance)}</p>
+                </div>
+                <div className="rounded-lg border border-border bg-secondary/20 p-3">
+                  <p className="text-xs text-muted-foreground">Total informado</p>
+                  <p className="font-bold">{formatMoney(lastCloseReceipt.countedBalance)}</p>
+                </div>
+                <div className="rounded-lg border border-border bg-secondary/20 p-3">
+                  <p className="text-xs text-muted-foreground">Diferença</p>
+                  <p className={`font-bold ${Math.abs(lastCloseReceipt.difference) >= 0.01 ? 'text-destructive' : 'text-green-600'}`}>
+                    {formatMoney(lastCloseReceipt.difference)}
+                  </p>
+                </div>
+              </div>
+              {lastCloseReceipt.differenceReason && (
+                <div className="rounded-lg border border-destructive/25 bg-destructive/5 p-3">
+                  <p className="text-xs text-muted-foreground">Justificativa da diferença</p>
+                  <p className="font-medium">{lastCloseReceipt.differenceReason}</p>
+                </div>
+              )}
 
               <div className="rounded-lg border border-border p-3">
                 <div className="mb-2 flex flex-wrap items-center justify-between gap-2">

@@ -7,6 +7,7 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
+import { CircleHelp } from "lucide-react";
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -23,6 +24,15 @@ const faqs = [
   { q: "Quantos produtos e clientes posso cadastrar?", a: "Ilimitado! Não há limite de cadastros de produtos ou clientes em nenhum dos planos." },
   { q: "O sistema ajuda no controle de estoque?", a: "Sim. Você consegue acompanhar cadastro de produtos, movimentações e estoque mínimo para ter mais clareza sobre a operação." },
   { q: "Posso migrar do Plano Fiado para o Completo?", a: "Sim! Você pode fazer upgrade a qualquer momento e seguir no novo plano no seu ciclo atual de 30 dias." },
+];
+
+const faqTones = [
+  "border-sky-200 bg-sky-50/85 text-sky-950 dark:border-sky-900/60 dark:bg-sky-950/30 dark:text-sky-50",
+  "border-emerald-200 bg-emerald-50/85 text-emerald-950 dark:border-emerald-900/60 dark:bg-emerald-950/30 dark:text-emerald-50",
+  "border-amber-200 bg-amber-50/85 text-amber-950 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-50",
+  "border-violet-200 bg-violet-50/85 text-violet-950 dark:border-violet-900/60 dark:bg-violet-950/30 dark:text-violet-50",
+  "border-cyan-200 bg-cyan-50/85 text-cyan-950 dark:border-cyan-900/60 dark:bg-cyan-950/30 dark:text-cyan-50",
+  "border-rose-200 bg-rose-50/85 text-rose-950 dark:border-rose-900/60 dark:bg-rose-950/30 dark:text-rose-50",
 ];
 
 const FAQ = () => {
@@ -48,10 +58,11 @@ const FAQ = () => {
   }, []);
 
   return (
-    <section ref={ref} id="faq" className="py-24 md:py-32 relative">
+    <section ref={ref} id="faq" className="relative overflow-hidden bg-[linear-gradient(135deg,#f7fbff_0%,#eefcff_44%,#fff8ed_100%)] py-24 dark:bg-[linear-gradient(135deg,#071426_0%,#071d22_46%,#171224_100%)] md:py-32">
       <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-primary/30 to-transparent" />
+      <div className="absolute inset-0 bg-[linear-gradient(rgba(31,86,165,0.045)_1px,transparent_1px),linear-gradient(90deg,rgba(20,184,212,0.04)_1px,transparent_1px)] bg-[size:44px_44px]" />
       
-      <div className="container max-w-3xl">
+      <div className="container relative z-10 max-w-3xl">
         <div className="faq-title text-center mb-16">
           <span className="inline-block text-sm font-semibold text-primary tracking-widest uppercase mb-4">FAQ</span>
           <h2 className="font-heading text-3xl md:text-4xl lg:text-5xl font-bold mb-4">
@@ -65,12 +76,17 @@ const FAQ = () => {
               <AccordionItem 
                 key={i} 
                 value={`item-${i}`} 
-                className="border border-border rounded-xl px-6 bg-card/30 backdrop-blur-sm data-[state=open]:border-primary/30 data-[state=open]:bg-card/60 transition-all duration-300"
+                className={`group rounded-xl border px-5 shadow-sm backdrop-blur-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl data-[state=open]:border-primary/35 data-[state=open]:shadow-primary/10 ${faqTones[i % faqTones.length]}`}
               >
-                <AccordionTrigger className="text-left hover:no-underline hover:text-primary py-5 text-base">
-                  {f.q}
+                <AccordionTrigger className="gap-3 py-5 text-left text-base font-bold hover:no-underline hover:text-primary">
+                  <span className="flex min-w-0 items-center gap-3">
+                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white/70 text-primary shadow-sm transition-transform duration-300 group-hover:scale-110 dark:bg-white/10">
+                      <CircleHelp className="h-4 w-4" />
+                    </span>
+                    <span>{f.q}</span>
+                  </span>
                 </AccordionTrigger>
-                <AccordionContent className="text-muted-foreground pb-5 leading-relaxed">
+                <AccordionContent className="pb-5 leading-relaxed text-muted-foreground">
                   {f.a}
                 </AccordionContent>
               </AccordionItem>

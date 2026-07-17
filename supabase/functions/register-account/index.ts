@@ -67,6 +67,7 @@ const registrationCorsOptions = {
 const MAX_IP_ATTEMPTS_PER_15_MIN = 5;
 const MAX_EMAIL_ATTEMPTS_PER_HOUR = 3;
 const DEFAULT_CONFIRM_REDIRECT = "https://www.happycashsite.com.br/auth/callback?plan=demo";
+const DEFAULT_RECOVERY_REDIRECT = "https://www.happycashsite.com.br/login?recovery=1";
 const DEFAULT_CONFIRM_REDIRECT_ORIGINS = [
   "https://www.happycashsite.com.br",
   "https://happycashsite.com.br",
@@ -142,6 +143,28 @@ const resolveRedirectTo = (value?: string) => {
     return fallback;
   } catch {
     return fallback;
+  }
+};
+
+const resolveRecoveryRedirectTo = (email: string) => {
+  const fallback = Deno.env.get("SITE_PASSWORD_RECOVERY_REDIRECT_URL")?.trim() || DEFAULT_RECOVERY_REDIRECT;
+
+  try {
+    const parsed = new URL(fallback);
+    const allowedOrigins = new Set(DEFAULT_CONFIRM_REDIRECT_ORIGINS);
+    const recoveryUrl = allowedOrigins.has(parsed.origin) ? parsed : new URL(DEFAULT_RECOVERY_REDIRECT);
+
+    if (!recoveryUrl.pathname || recoveryUrl.pathname === "/") {
+      recoveryUrl.pathname = "/login";
+    }
+    recoveryUrl.searchParams.set("recovery", "1");
+    recoveryUrl.searchParams.set("email", email);
+    recoveryUrl.hash = "";
+    return recoveryUrl.toString();
+  } catch {
+    const recoveryUrl = new URL(DEFAULT_RECOVERY_REDIRECT);
+    recoveryUrl.searchParams.set("email", email);
+    return recoveryUrl.toString();
   }
 };
 
@@ -434,7 +457,7 @@ Deno.serve(async (request) => {
     if (existingProfile?.user_id) {
       await sendExistingAccountRecoveryEmail(anonClient, {
         email: data.email,
-        redirectTo: data.redirectTo,
+        redirectTo: resolveRecoveryRedirectTo(data.email),
         captchaToken: data.captchaToken,
       });
       await logAttempt(serviceClient, {
@@ -462,7 +485,7 @@ Deno.serve(async (request) => {
     if ((existingStoreAccountByEmail as StoreAccountRow | null)?.id) {
       await sendExistingAccountRecoveryEmail(anonClient, {
         email: data.email,
-        redirectTo: data.redirectTo,
+        redirectTo: resolveRecoveryRedirectTo(data.email),
         captchaToken: data.captchaToken,
       });
       await logAttempt(serviceClient, {

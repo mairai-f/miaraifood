@@ -10,6 +10,23 @@ import { useLandingAccountActions } from "@/hooks/use-landing-account-actions";
 import type { SiteSeoConfig } from "@/lib/siteSeo";
 
 const SUPPORT_EMAIL = "happycashsupport@gmail.com";
+const cardTones = [
+  "border-sky-200 bg-sky-50/85 dark:border-sky-900/60 dark:bg-sky-950/30",
+  "border-emerald-200 bg-emerald-50/85 dark:border-emerald-900/60 dark:bg-emerald-950/30",
+  "border-amber-200 bg-amber-50/85 dark:border-amber-900/60 dark:bg-amber-950/30",
+  "border-violet-200 bg-violet-50/85 dark:border-violet-900/60 dark:bg-violet-950/30",
+  "border-cyan-200 bg-cyan-50/85 dark:border-cyan-900/60 dark:bg-cyan-950/30",
+  "border-rose-200 bg-rose-50/85 dark:border-rose-900/60 dark:bg-rose-950/30",
+];
+
+const iconTones = [
+  "bg-sky-500 text-white shadow-sky-500/30",
+  "bg-emerald-500 text-white shadow-emerald-500/30",
+  "bg-amber-500 text-white shadow-amber-500/30",
+  "bg-violet-500 text-white shadow-violet-500/30",
+  "bg-cyan-500 text-white shadow-cyan-500/30",
+  "bg-rose-500 text-white shadow-rose-500/30",
+];
 
 interface SolutionCard {
   title: string;
@@ -70,8 +87,8 @@ const SolutionPage = ({
       <Header />
 
       <main>
-        <section className="relative overflow-hidden pt-28 md:pt-36">
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(31,86,165,0.18),transparent_38%),radial-gradient(circle_at_bottom_right,rgba(20,184,212,0.14),transparent_32%)]" />
+        <section className="relative overflow-hidden bg-[linear-gradient(135deg,#f7fbff_0%,#edfbff_50%,#fff8ea_100%)] pt-28 dark:bg-[linear-gradient(135deg,#061426_0%,#071c24_50%,#171426_100%)] md:pt-36">
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(31,86,165,0.2),transparent_38%),radial-gradient(circle_at_bottom_right,rgba(20,184,212,0.16),transparent_32%)]" />
           <div className="absolute inset-0 bg-[linear-gradient(rgba(31,86,165,0.05)_1px,transparent_1px),linear-gradient(90deg,rgba(20,184,212,0.04)_1px,transparent_1px)] bg-[size:56px_56px]" />
 
           <div className="container relative z-10 grid gap-12 pb-20 lg:grid-cols-[1.05fr_0.95fr] lg:items-center">
@@ -110,10 +127,10 @@ const SolutionPage = ({
               </a>
 
               <div className="mt-8 flex flex-wrap gap-3">
-                {highlightItems.map((item) => (
+                {highlightItems.map((item, index) => (
                   <span
                     key={item}
-                    className="rounded-full border border-border/70 bg-card/60 px-4 py-2 text-sm text-foreground/85 shadow-sm"
+                  className={`rounded-full border px-4 py-2 text-sm font-semibold shadow-sm backdrop-blur ${cardTones[index % cardTones.length]}`}
                   >
                     {item}
                   </span>
@@ -123,14 +140,14 @@ const SolutionPage = ({
 
             <div className="relative">
               <div className="absolute -inset-4 rounded-[2rem] bg-gradient-to-br from-primary/25 via-transparent to-secondary/25 blur-3xl" />
-              <div className="relative overflow-hidden rounded-[2rem] border border-border/70 bg-card/75 p-3 shadow-2xl shadow-primary/10 backdrop-blur-sm">
-                <img src={imageSrc} alt={imageAlt} className="w-full rounded-[1.5rem]" />
+              <div className="screenshot-hover-frame relative overflow-hidden rounded-[2rem] border border-border/70 bg-slate-950 p-3 shadow-2xl shadow-primary/10 backdrop-blur-sm">
+                <img src={imageSrc} alt={imageAlt} className="w-full rounded-[1.5rem] transition-transform duration-700 hover:scale-[1.025]" />
               </div>
             </div>
           </div>
         </section>
 
-        <section className="py-20 md:py-24">
+        <section className="bg-[linear-gradient(180deg,#ffffff_0%,#f3fbff_100%)] py-20 dark:bg-[linear-gradient(180deg,#07111f_0%,#081827_100%)] md:py-24">
           <div className="container">
             <div className="mx-auto max-w-3xl text-center">
               <h2 className="font-heading text-3xl font-bold md:text-4xl">{promiseTitle}</h2>
@@ -138,12 +155,12 @@ const SolutionPage = ({
             </div>
 
             <div className="mt-12 grid gap-4 md:grid-cols-3">
-              {promiseCards.map((item) => (
+              {promiseCards.map((item, index) => (
                 <article
                   key={item.title}
-                  className="rounded-3xl border border-border/70 bg-card/60 p-6 shadow-lg shadow-black/5"
+                  className={`feature-hover-lift rounded-3xl border p-6 shadow-lg shadow-black/5 transition-all duration-300 hover:-translate-y-2 hover:shadow-2xl ${cardTones[index % cardTones.length]}`}
                 >
-                  <div className="mb-4 inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+                  <div className={`mb-4 inline-flex h-11 w-11 items-center justify-center rounded-2xl shadow-lg ${iconTones[index % iconTones.length]}`}>
                     <CheckCircle2 className="h-5 w-5" />
                   </div>
                   <h3 className="font-heading text-lg font-semibold">{item.title}</h3>
@@ -171,9 +188,9 @@ const SolutionPage = ({
                 {workflowSteps.map((item, index) => (
                   <article
                     key={item.title}
-                    className="rounded-3xl border border-border/70 bg-background/90 p-6 shadow-lg shadow-black/5"
+                    className={`feature-hover-lift rounded-3xl border p-6 shadow-lg shadow-black/5 transition-all duration-300 hover:-translate-y-2 hover:shadow-2xl ${cardTones[(index + 2) % cardTones.length]}`}
                   >
-                    <span className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-primary text-sm font-bold text-primary-foreground">
+                    <span className={`inline-flex h-10 w-10 items-center justify-center rounded-2xl text-sm font-bold shadow-lg ${iconTones[(index + 2) % iconTones.length]}`}>
                       {index + 1}
                     </span>
                     <h3 className="mt-4 font-heading text-lg font-semibold">{item.title}</h3>
@@ -196,10 +213,10 @@ const SolutionPage = ({
             </div>
 
             <div className="mt-12 grid gap-4 md:grid-cols-2">
-              {featureCards.map((item) => (
+              {featureCards.map((item, index) => (
                 <article
                   key={item.title}
-                  className="rounded-3xl border border-border/70 bg-card/60 p-7 shadow-lg shadow-black/5 transition-transform duration-300 hover:-translate-y-1 hover:border-primary/30"
+                  className={`feature-hover-lift rounded-3xl border p-7 shadow-lg shadow-black/5 transition-all duration-300 hover:-translate-y-2 hover:border-primary/35 hover:shadow-2xl ${cardTones[(index + 1) % cardTones.length]}`}
                 >
                   <h3 className="font-heading text-xl font-semibold">{item.title}</h3>
                   <p className="mt-3 text-sm leading-7 text-muted-foreground">{item.description}</p>
@@ -225,7 +242,7 @@ const SolutionPage = ({
                 <AccordionItem
                   key={faq.question}
                   value={`faq-${index}`}
-                  className="rounded-3xl border border-border/70 bg-card/50 px-6"
+                  className={`rounded-3xl border px-6 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-lg ${cardTones[index % cardTones.length]}`}
                 >
                   <AccordionTrigger className="text-left text-base hover:no-underline">
                     {faq.question}

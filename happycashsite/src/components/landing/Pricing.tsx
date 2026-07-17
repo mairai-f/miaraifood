@@ -117,7 +117,7 @@ const Pricing = () => {
   }, []);
 
   return (
-    <section ref={ref} id="planos" className="py-24 md:py-32 relative">
+    <section ref={ref} id="planos" className="relative overflow-hidden bg-gradient-to-b from-background via-[#eef8ff] to-background py-24 dark:via-[#0b1a32] md:py-32">
       <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-primary/30 to-transparent" />
       <div className="container">
         <div className="pricing-title text-center mb-16">
@@ -157,13 +157,13 @@ const Pricing = () => {
 
         {/* Platform badges */}
         <div className="flex flex-wrap justify-center gap-4 mb-12">
-          <div className="flex items-center gap-2 rounded-full border border-border bg-card/50 px-4 py-2 text-sm text-muted-foreground">
+          <div className="flex items-center gap-2 rounded-full border border-sky-200 bg-sky-50 px-4 py-2 text-sm font-medium text-sky-900 dark:border-sky-900/60 dark:bg-sky-950/50 dark:text-sky-100">
             <Smartphone size={16} className="text-primary" /> Mobile (Web)
           </div>
-          <div className="flex items-center gap-2 rounded-full border border-border bg-card/50 px-4 py-2 text-sm text-muted-foreground">
+          <div className="flex items-center gap-2 rounded-full border border-cyan-200 bg-cyan-50 px-4 py-2 text-sm font-medium text-cyan-900 dark:border-cyan-900/60 dark:bg-cyan-950/50 dark:text-cyan-100">
             <Monitor size={16} className="text-primary" /> Web
           </div>
-          <div className="flex items-center gap-2 rounded-full border border-border bg-card/50 px-4 py-2 text-sm text-muted-foreground">
+          <div className="flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-medium text-emerald-900 dark:border-emerald-900/60 dark:bg-emerald-950/50 dark:text-emerald-100">
             <Download size={16} className="text-primary" /> Linux & Windows
           </div>
         </div>
@@ -183,16 +183,18 @@ const Pricing = () => {
               ? `/cadastro?plan=${plan.id}&period=annual`
               : `/cadastro?plan=${plan.id}`;
 
+            const planToneClass = isPro
+              ? "border-primary/70 bg-gradient-to-b from-primary/25 via-cyan-100/60 to-card shadow-2xl shadow-primary/20 ring-1 ring-primary/25 hover:border-primary hover:shadow-primary/30 dark:via-cyan-950/30"
+              : isDemo
+                ? "border-emerald-300 bg-gradient-to-b from-emerald-100 via-lime-50 to-card hover:border-emerald-400 hover:shadow-emerald-500/20 dark:border-emerald-900/70 dark:from-emerald-950/60 dark:via-lime-950/20"
+                : plan.id === "fiado"
+                  ? "border-cyan-200 bg-gradient-to-b from-cyan-100 via-sky-50 to-card hover:border-cyan-400 hover:shadow-cyan-500/20 dark:border-cyan-900/70 dark:from-cyan-950/60 dark:via-sky-950/25"
+                  : "border-indigo-200 bg-gradient-to-b from-indigo-100 via-blue-50 to-card hover:border-indigo-400 hover:shadow-indigo-500/20 dark:border-indigo-900/70 dark:from-indigo-950/60 dark:via-blue-950/25";
+
             return (
               <div
                 key={plan.name}
-                className={`pricing-card group relative flex h-full flex-col rounded-lg border p-6 transition-all duration-500 hover:-translate-y-2 hover:scale-[1.015] hover:shadow-2xl ${
-                  isPro
-                    ? "border-primary/70 bg-gradient-to-b from-primary/20 via-secondary/10 to-card shadow-2xl shadow-primary/20 ring-1 ring-primary/25 hover:border-primary hover:shadow-primary/25"
-                    : isDemo
-                    ? "border-secondary/50 bg-gradient-to-b from-secondary/10 to-card"
-                    : "border-border bg-card/50 backdrop-blur-sm hover:border-primary/45 hover:shadow-primary/10"
-                }`}
+                className={`pricing-card plan-hover-glow group relative isolate flex h-full flex-col overflow-hidden rounded-lg border p-6 transition-all duration-500 hover:-translate-y-3 hover:scale-[1.018] hover:shadow-2xl ${planToneClass}`}
               >
                 {isPro && (
                   <div className="absolute -top-4 left-1/2 flex -translate-x-1/2 items-center gap-1.5 rounded-full border border-primary/30 bg-primary px-4 py-1.5 text-xs font-bold uppercase text-primary-foreground shadow-lg shadow-primary/30">

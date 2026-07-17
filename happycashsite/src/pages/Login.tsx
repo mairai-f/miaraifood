@@ -182,9 +182,10 @@ const Login = () => {
     }
   };
 
-  const openResetDialog = (emailValue: string) => {
-    setResetEmail(normalizeEmail(emailValue));
-    setResetStep('email');
+  const openResetDialog = (emailValue: string, options?: { step?: 'email' | 'code' }) => {
+    const normalizedEmail = normalizeEmail(emailValue);
+    setResetEmail(normalizedEmail);
+    setResetStep(options?.step === 'code' && normalizedEmail ? 'code' : 'email');
     setResetCode('');
     setResetPassword('');
     setResetConfirmPassword('');
@@ -195,7 +196,8 @@ const Login = () => {
 
   useEffect(() => {
     if (searchParams.get('recovery') === '1') {
-      openResetDialog(email);
+      const recoveryEmail = searchParams.get('email')?.replace(/\s/g, '+') ?? '';
+      openResetDialog(recoveryEmail || email, { step: recoveryEmail ? 'code' : 'email' });
     }
     // Abre apenas na primeira renderizacao quando a URL pede recuperacao.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -238,8 +240,12 @@ const Login = () => {
         return;
       }
 
+      const recoveryRedirectUrl = new URL('/login', window.location.origin);
+      recoveryRedirectUrl.searchParams.set('recovery', '1');
+      recoveryRedirectUrl.searchParams.set('email', normalizedResetEmail);
+
       const { error } = await supabase.auth.resetPasswordForEmail(normalizedResetEmail, {
-        redirectTo: `${window.location.origin}/reset-password`,
+        redirectTo: recoveryRedirectUrl.toString(),
         captchaToken,
       });
 

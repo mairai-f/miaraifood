@@ -1,7 +1,6 @@
 import { useState, type MouseEvent } from "react";
 import { Link, useLocation } from "react-router-dom";
-import happyCashLogo from "../../../../src/assets/login/happycash.svg";
-import { Instagram, Mail } from "lucide-react";
+import { Instagram, Mail, ReceiptText, ShieldCheck, Sparkles } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
@@ -15,6 +14,7 @@ import {
 
 const SUPPORT_EMAIL = LEGAL_SUPPORT_EMAIL;
 const INSTAGRAM_URL = "https://www.instagram.com/happycashsystem/";
+const footerChips = ["PDV", "Fiado", "Estoque", "Resend", "TEF", "Relatórios"];
 
 const Footer = () => {
   const [legalModal, setLegalModal] = useState<LegalDocumentKey | null>(null);
@@ -30,88 +30,105 @@ const Footer = () => {
 
   return (
     <>
-      <footer data-site-footer className="relative border-t border-border bg-card/30 backdrop-blur-sm">
-        {/* Top gradient line */}
+      <footer data-site-footer className="relative overflow-hidden border-t border-border bg-[linear-gradient(135deg,#07172f_0%,#0a2344_48%,#062f36_100%)] text-white">
+        <div className="footer-light-beam absolute inset-x-0 top-0 h-24 opacity-70" />
+        <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.055)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.045)_1px,transparent_1px)] bg-[size:46px_46px]" />
         <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-primary/40 to-transparent" />
         
-        <div className="container pb-28 pt-16 md:pb-16">
+        <div className="container relative z-10 pb-28 pt-16 md:pb-16">
           <div className="grid gap-10 items-start md:grid-cols-5">
             <div className="md:col-span-2 space-y-4">
-              <img
-                src={happyCashLogo}
-                alt="HappyCash"
-                className="h-auto w-[12rem] object-contain md:w-[15rem] lg:w-[17rem]"
-                loading="lazy"
-                decoding="async"
-              />
-              <p className="text-sm text-muted-foreground max-w-sm leading-relaxed">
+              <Link to="/" className="inline-flex items-center gap-2" aria-label="HappyCash">
+                <span className="font-heading text-3xl font-black leading-none text-white md:text-4xl">
+                  Happy<span className="bg-gradient-to-r from-[#38bdf8] to-[#34d399] bg-clip-text text-transparent">Cash</span>
+                </span>
+                <Sparkles className="h-5 w-5 text-cyan-200" />
+              </Link>
+              <p className="text-sm text-blue-100 max-w-sm leading-relaxed">
                 Sistema ERP para controlar fiado, PDV, estoque, RH e gestão comercial sem depender de caderno, planilha e improviso.
               </p>
+              <div className="flex flex-wrap gap-2 pt-1">
+                {footerChips.map((item) => (
+                  <span key={item} className="footer-chip rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs font-bold text-cyan-50 backdrop-blur">
+                    {item}
+                  </span>
+                ))}
+              </div>
               <div className="flex items-center gap-3 pt-2">
                 <a href={`mailto:${SUPPORT_EMAIL}`}
-                  className="h-10 w-10 rounded-full bg-muted flex items-center justify-center text-muted-foreground hover:bg-primary hover:text-primary-foreground transition-all duration-300">
+                  className="h-10 w-10 rounded-full bg-white/10 flex items-center justify-center text-cyan-100 hover:bg-cyan-400 hover:text-slate-950 transition-all duration-300">
                   <Mail size={18} />
                 </a>
-                <a href={INSTAGRAM_URL} target="_blank" rel="noopener noreferrer" className="h-10 w-10 rounded-full bg-muted flex items-center justify-center text-muted-foreground hover:bg-primary hover:text-primary-foreground transition-all duration-300">
+                <a href={INSTAGRAM_URL} target="_blank" rel="noopener noreferrer" className="h-10 w-10 rounded-full bg-white/10 flex items-center justify-center text-cyan-100 hover:bg-pink-400 hover:text-slate-950 transition-all duration-300">
                   <Instagram size={18} />
                 </a>
               </div>
             </div>
 
             <div className="space-y-4">
-              <h4 className="font-heading font-semibold text-sm text-foreground">Navegação</h4>
+              <h4 className="font-heading font-semibold text-sm text-white">Navegação</h4>
               <nav className="flex flex-col gap-3">
-                <a href={buildHomeSectionHref("funcionalidades")} className="text-sm text-muted-foreground hover:text-primary transition-colors">Funcionalidades</a>
-                <a href={buildHomeSectionHref("planos")} className="text-sm text-muted-foreground hover:text-primary transition-colors">Planos</a>
-                <a href={buildHomeSectionHref("screenshots")} className="text-sm text-muted-foreground hover:text-primary transition-colors">Telas do sistema</a>
-                <a href={buildHomeSectionHref("faq")} className="text-sm text-muted-foreground hover:text-primary transition-colors">FAQ</a>
+                <a href={buildHomeSectionHref("funcionalidades")} className="text-sm text-blue-100 hover:text-cyan-200 transition-colors">Funcionalidades</a>
+                <a href={buildHomeSectionHref("planos")} className="text-sm text-blue-100 hover:text-cyan-200 transition-colors">Planos</a>
+                <a href={buildHomeSectionHref("screenshots")} className="text-sm text-blue-100 hover:text-cyan-200 transition-colors">Telas do sistema</a>
+                <a href={buildHomeSectionHref("faq")} className="text-sm text-blue-100 hover:text-cyan-200 transition-colors">FAQ</a>
               </nav>
             </div>
 
             <div className="space-y-4">
-              <h4 className="font-heading font-semibold text-sm text-foreground">Soluções</h4>
+              <h4 className="font-heading font-semibold text-sm text-white">Soluções</h4>
               <nav className="flex flex-col gap-3">
-                <Link to="/sistema-de-gestao-de-negocios" className="text-sm text-muted-foreground hover:text-primary transition-colors">
+                <Link to="/sistema-de-gestao-de-negocios" className="text-sm text-blue-100 hover:text-cyan-200 transition-colors">
                   Sistema de gestão de negócios
                 </Link>
-                <Link to="/happycash-rh-enterprise" className="text-sm text-muted-foreground hover:text-primary transition-colors">
+                <Link to="/happycash-rh-enterprise" className="text-sm text-blue-100 hover:text-cyan-200 transition-colors">
                   HappyCash RH Enterprise
                 </Link>
-                <Link to="/controle-de-fiado" className="text-sm text-muted-foreground hover:text-primary transition-colors">
+                <Link to="/controle-de-fiado" className="text-sm text-blue-100 hover:text-cyan-200 transition-colors">
                   Controle de fiado
                 </Link>
-                <Link to="/app-para-fiado" className="text-sm text-muted-foreground hover:text-primary transition-colors">
+                <Link to="/app-para-fiado" className="text-sm text-blue-100 hover:text-cyan-200 transition-colors">
                   App para fiado
                 </Link>
-                <Link to="/gestao-de-clientes-fiado" className="text-sm text-muted-foreground hover:text-primary transition-colors">
+                <Link to="/gestao-de-clientes-fiado" className="text-sm text-blue-100 hover:text-cyan-200 transition-colors">
                   Gestão de clientes fiado
                 </Link>
-                <Link to="/caderneta-de-fiado-digital" className="text-sm text-muted-foreground hover:text-primary transition-colors">
+                <Link to="/caderneta-de-fiado-digital" className="text-sm text-blue-100 hover:text-cyan-200 transition-colors">
                   Caderneta de fiado digital
                 </Link>
-                <Link to="/sistema-pdv" className="text-sm text-muted-foreground hover:text-primary transition-colors">
+                <Link to="/sistema-pdv" className="text-sm text-blue-100 hover:text-cyan-200 transition-colors">
                   Sistema PDV
                 </Link>
-                <Link to="/controle-de-estoque" className="text-sm text-muted-foreground hover:text-primary transition-colors">
+                <Link to="/controle-de-estoque" className="text-sm text-blue-100 hover:text-cyan-200 transition-colors">
                   Controle de estoque
                 </Link>
               </nav>
             </div>
 
             <div className="space-y-4">
-              <h4 className="font-heading font-semibold text-sm text-foreground">Guias</h4>
+              <h4 className="font-heading font-semibold text-sm text-white">Guias</h4>
               <nav className="flex flex-col gap-3">
-                <Link to="/blog/como-controlar-fiado-no-mercadinho" className="text-sm text-muted-foreground hover:text-primary transition-colors">
+                <Link to="/blog/como-controlar-fiado-no-mercadinho" className="text-sm text-blue-100 hover:text-cyan-200 transition-colors">
                   Como controlar fiado no mercadinho
                 </Link>
-                <Link to="/blog/planilha-de-fiado-vs-app" className="text-sm text-muted-foreground hover:text-primary transition-colors">
+                <Link to="/blog/planilha-de-fiado-vs-app" className="text-sm text-blue-100 hover:text-cyan-200 transition-colors">
                   Planilha de fiado vs app
                 </Link>
               </nav>
-              <h4 className="pt-2 font-heading font-semibold text-sm text-foreground">Contato</h4>
+              <div className="rounded-lg border border-cyan-300/20 bg-white/10 p-3 text-xs leading-5 text-cyan-50 backdrop-blur">
+                <div className="mb-2 flex items-center gap-2 font-bold text-white">
+                  <ShieldCheck className="h-4 w-4 text-emerald-200" />
+                  Operação assistida
+                </div>
+                <div className="flex items-center gap-2 text-blue-100">
+                  <ReceiptText className="h-4 w-4 text-cyan-200" />
+                  Fechamento, email e recibo organizados.
+                </div>
+              </div>
+              <h4 className="pt-2 font-heading font-semibold text-sm text-white">Contato</h4>
               <a
                 href={`mailto:${SUPPORT_EMAIL}`}
-                className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-primary transition-colors"
+                className="inline-flex items-center gap-2 text-sm text-blue-100 hover:text-cyan-200 transition-colors"
               >
                 <Mail size={16} />
                 {SUPPORT_EMAIL}
@@ -119,27 +136,27 @@ const Footer = () => {
             </div>
           </div>
 
-          <div className="mt-14 border-t border-border/50 pt-8 text-xs text-muted-foreground md:pr-72">
+          <div className="mt-14 border-t border-white/10 pt-8 text-xs text-blue-100 md:pr-72">
             <div className="flex flex-col items-center justify-between gap-4 md:flex-row">
               <p>© HappyCash. Todos os direitos reservados.</p>
               <nav className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2">
                 <a
                   href={LEGAL_MODAL_DOCUMENTS.privacy.path}
-                  className="hover:text-primary transition-colors"
+                  className="hover:text-cyan-200 transition-colors"
                   onClick={(event) => openLegalModal(event, "privacy")}
                 >
                   Política de Privacidade
                 </a>
                 <a
                   href={LEGAL_MODAL_DOCUMENTS.terms.path}
-                  className="hover:text-primary transition-colors"
+                  className="hover:text-cyan-200 transition-colors"
                   onClick={(event) => openLegalModal(event, "terms")}
                 >
                   Termos de Uso
                 </a>
                 <a
                   href={LEGAL_MODAL_DOCUMENTS.lgpd.path}
-                  className="hover:text-primary transition-colors"
+                  className="hover:text-cyan-200 transition-colors"
                   onClick={(event) => openLegalModal(event, "lgpd")}
                 >
                   LGPD

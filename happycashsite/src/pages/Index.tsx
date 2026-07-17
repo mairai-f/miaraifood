@@ -5,6 +5,7 @@ import Header from "@/components/landing/Header";
 import Hero from "@/components/landing/Hero";
 import OutcomeHighlights from "@/components/landing/OutcomeHighlights";
 import Stats from "@/components/landing/Stats";
+import TechStack from "@/components/landing/TechStack";
 import Features from "@/components/landing/Features";
 import Benefits from "@/components/landing/Benefits";
 import Pricing from "@/components/landing/Pricing";
@@ -115,6 +116,7 @@ const Index = () => {
       <Hero />
       <OutcomeHighlights />
       <Stats />
+      <TechStack />
       <Features />
       <Benefits />
       <Pricing />
