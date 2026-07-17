@@ -247,6 +247,43 @@ const getPaymentBreakdown = (sales: Sale[]) => {
   return Array.from(breakdown.values()).sort((a, b) => b.total - a.total);
 };
 
+const CLOSE_CASH_PAYMENT_METHOD_ORDER = ['pix', 'cartao_debito', 'cartao_credito', 'dinheiro'] as const;
+
+const getCloseCashPaymentSummary = (sales: Sale[]) => {
+  const breakdown = getPaymentBreakdown(sales);
+  const breakdownByKey = new Map(breakdown.map(item => [item.key, item]));
+  const handledKeys = new Set<string>(CLOSE_CASH_PAYMENT_METHOD_ORDER);
+
+  const orderedItems = CLOSE_CASH_PAYMENT_METHOD_ORDER.map(key => (
+    breakdownByKey.get(key) ?? {
+      key,
+      label: getPaymentMethodLabel(key),
+      total: 0,
+      count: 0,
+      sales: [],
+    }
+  ));
+
+  const otherItems = breakdown.filter(item => !handledKeys.has(item.key));
+  const otherTotal = otherItems.reduce((sum, item) => sum + item.total, 0);
+  const otherCount = otherItems.reduce((sum, item) => sum + item.count, 0);
+
+  if (otherTotal <= 0 && otherCount === 0) {
+    return orderedItems;
+  }
+
+  return [
+    ...orderedItems,
+    {
+      key: 'outros',
+      label: translateCurrentText('Outros'),
+      total: otherTotal,
+      count: otherCount,
+      sales: otherItems.flatMap(item => item.sales),
+    },
+  ];
+};
+
 const paymentMethodPrintStyles: Record<string, { surface: string; border: string; chip: string; chipText: string; accent: string }> = {
   dinheiro: {
     surface: '#ecfdf5',
@@ -577,19 +614,16 @@ export default function PDV() {
   );
 
   const buildCloseCashWhatsAppMessage = (receipt: CashCloseReceipt) => {
-    const paymentLines = getPaymentBreakdown(receipt.sales).map(item =>
-      `• ${item.label}: ${formatMoney(item.total)} (${item.count} venda${item.count === 1 ? '' : 's'})`
+    const paymentLines = getCloseCashPaymentSummary(receipt.sales).map(item =>
+      `• ${item.label}: ${formatMoney(item.total)}`
     );
-    const salesLines = receipt.sales.length > 0
-      ? receipt.sales.map(sale => `• ${formatSaleDate(sale.date)} | ${formatPaymentMethod(sale.payment_method)} | ${formatMoney(sale.total)}`)
-      : ['Sem vendas nesta abertura.'];
 
     const cashOutLines = receipt.cashOuts.length > 0
-      ? receipt.cashOuts.map(expense => `• ${formatSaleDate(expense.date)} | ${expense.description} | ${formatMoney(expense.amount)}`)
+      ? receipt.cashOuts.map(expense => `• ${expense.description}: ${formatMoney(expense.amount)}`)
       : ['Sem saídas nesta abertura.'];
 
     return [
-      `🧾 *${retailCouponStoreName} - Fechamento do Caixa*`,
+      `*${retailCouponStoreName} - Fechamento do Caixa*`,
       '',
       `Aberto por: ${receipt.openedBy}`,
       `Data de abertura: ${formatSaleDate(receipt.openedAt)}`,
@@ -605,10 +639,8 @@ export default function PDV() {
       'Formas de pagamento',
       ...(paymentLines.length > 0 ? paymentLines : ['Sem vendas nesta abertura.']),
       '',
-      `Entradas por venda (${receipt.saleCount})`,
-      ...salesLines,
-      '',
       'Saídas de caixa',
+      `Total: ${formatMoney(receipt.cashOutTotal)}`,
       ...cashOutLines,
     ].join('\n');
   };
@@ -1756,21 +1788,216 @@ export default function PDV() {
             @media print {
               @page {
                 size: A4 portrait;
-                margin: 10mm;
+                margin: 8mm;
               }
 
               html, body {
                 background: #ffffff;
+                width: 100%;
               }
 
               body {
                 padding: 0;
               }
 
+              .print-shell {
+                width: 100%;
+                max-width: none;
+                margin: 0;
+              }
+
               .receipt-sheet {
                 border-radius: 0;
                 border: none;
                 box-shadow: none;
+                overflow: visible;
+              }
+
+              .receipt-header {
+                padding: 14mm 8mm 10mm;
+              }
+
+              .receipt-body {
+                padding: 8mm 0 0;
+              }
+
+              .brand-badge {
+                width: 72px;
+                height: 72px;
+                border-radius: 18px;
+                box-shadow: none;
+              }
+
+              .brand-badge img {
+                width: 48px;
+                height: 48px;
+              }
+
+              .eyebrow {
+                margin-top: 10px;
+                font-size: 11px;
+              }
+
+              .receipt-title {
+                margin-top: 8px;
+                font-size: 24px;
+              }
+
+              .receipt-subtitle {
+                margin-top: 8px;
+                font-size: 12px;
+                line-height: 1.45;
+              }
+
+              .top-grid,
+              .tables-grid {
+                grid-template-columns: 1fr;
+                gap: 8px;
+              }
+
+              .metrics-grid {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+                gap: 8px;
+              }
+
+              .panel,
+              .metric-card,
+              .section-card,
+              .table-card,
+              .payment-card {
+                border-radius: 12px;
+                padding: 12px;
+                page-break-inside: avoid;
+                break-inside: avoid;
+              }
+
+              .panel-kicker,
+              .metric-label,
+              .section-kicker,
+              .payment-chip,
+              .payment-share-label,
+              .table th {
+                letter-spacing: 0.08em;
+              }
+
+              .responsible-line {
+                font-size: 14px;
+              }
+
+              .responsible-date,
+              .section-copy,
+              .payment-meta {
+                font-size: 11px;
+                line-height: 1.45;
+              }
+
+              .dark-stat-label {
+                font-size: 12px;
+              }
+
+              .dark-stat-value {
+                font-size: 24px;
+                overflow-wrap: anywhere;
+              }
+
+              .metric-value,
+              .payment-total,
+              .payment-share-value {
+                font-size: 20px;
+                overflow-wrap: anywhere;
+              }
+
+              .section-card,
+              .table-card {
+                margin-top: 8px;
+              }
+
+              .section-header,
+              .payment-card-top,
+              .payment-sale-row {
+                align-items: stretch;
+                flex-direction: column;
+                gap: 8px;
+              }
+
+              .section-title {
+                margin-top: 6px;
+                font-size: 20px;
+              }
+
+              .section-title[style] {
+                font-size: 20px !important;
+              }
+
+              .section-meta,
+              .payment-sale-value,
+              .table-value {
+                white-space: normal;
+              }
+
+              .payment-stack,
+              .payment-sales-list {
+                gap: 8px;
+                margin-top: 10px;
+              }
+
+              .payment-share {
+                min-width: 0;
+                padding: 10px;
+              }
+
+              .payment-sale-row {
+                padding: 10px;
+                border-radius: 12px;
+              }
+
+              .payment-sale-date {
+                font-size: 12px;
+              }
+
+              .payment-sale-copy {
+                font-size: 10px;
+              }
+
+              .payment-sale-value {
+                font-size: 16px;
+              }
+
+              .table {
+                table-layout: fixed;
+                margin-top: 10px;
+              }
+
+              .table th {
+                padding: 0 4px 6px;
+                font-size: 9px;
+              }
+
+              .table td {
+                padding: 8px 4px;
+                font-size: 10px;
+                line-height: 1.35;
+                overflow-wrap: anywhere;
+                word-break: break-word;
+              }
+
+              .table th:nth-child(1),
+              .table td:nth-child(1) {
+                width: 38%;
+              }
+
+              .table th:nth-child(2),
+              .table td:nth-child(2) {
+                width: 36%;
+              }
+
+              .table th:nth-child(3),
+              .table td:nth-child(3) {
+                width: 26%;
+              }
+
+              .table-value {
+                font-size: 12px;
               }
             }
           </style>
@@ -1933,6 +2160,14 @@ export default function PDV() {
   const cashOutAmountValue = parsedCashOutAmount ?? 0;
   const cashOutExceedsBalance = cashOutAmountValue > currentCashBalance;
   const showOpenCashDialog = !cashSession && !showCloseCashReceipt && !cashSessionLoading;
+  const currentCloseCashPaymentSummary = useMemo(
+    () => getCloseCashPaymentSummary(cashSessionSales),
+    [cashSessionSales],
+  );
+  const closeCashReceiptPaymentSummary = useMemo(
+    () => lastCloseReceipt ? getCloseCashPaymentSummary(lastCloseReceipt.sales) : [],
+    [lastCloseReceipt],
+  );
   const getCartQuantityForProduct = useCallback((productId: string) =>
     cart
       .filter(item => item.product.id === productId)
@@ -5131,7 +5366,7 @@ export default function PDV() {
           }
         }}
       >
-        <DialogContent>
+        <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-2xl">
           <DialogHeader><DialogTitle>Confirmar fechamento (administrador)</DialogTitle></DialogHeader>
           <div className="space-y-3">
             <p className="text-sm text-muted-foreground">
@@ -5147,6 +5382,43 @@ export default function PDV() {
             {Math.abs(closingDifference) >= 0.01 && (
               <div className="space-y-1"><Label>Justificativa da diferença</Label><Textarea value={closingDifferenceReason} onChange={e => setClosingDifferenceReason(e.target.value)} placeholder="Ex: troco informado incorretamente" /></div>
             )}
+            <div className="rounded-md border border-border bg-secondary/20 p-3 text-sm">
+              <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                <p className="font-semibold">Resumo do fechamento</p>
+                <span className="text-xs text-muted-foreground">
+                  {cashSessionSales.length} venda{cashSessionSales.length === 1 ? '' : 's'} registrada{cashSessionSales.length === 1 ? '' : 's'}
+                </span>
+              </div>
+              <div className="grid gap-2 sm:grid-cols-4">
+                {currentCloseCashPaymentSummary.map(item => (
+                  <div key={item.key} className="rounded-md border border-border bg-background p-2">
+                    <p className="text-xs text-muted-foreground">{item.label}</p>
+                    <p className="font-semibold text-primary">{formatMoney(item.total)}</p>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-3 rounded-md border border-border bg-background p-2">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="font-medium">Saídas de caixa</p>
+                  <p className="font-semibold text-destructive">{formatMoney(cashOutTotal)}</p>
+                </div>
+                {cashSessionCashOuts.length > 0 ? (
+                  <div className="mt-2 space-y-1 text-xs text-muted-foreground">
+                    {cashSessionCashOuts.slice(0, 4).map(expense => (
+                      <div key={expense.id} className="flex items-start justify-between gap-3">
+                        <span className="min-w-0 truncate">{expense.description}</span>
+                        <span className="shrink-0 font-medium text-foreground">{formatMoney(expense.amount)}</span>
+                      </div>
+                    ))}
+                    {cashSessionCashOuts.length > 4 && (
+                      <p>+ {cashSessionCashOuts.length - 4} saída{cashSessionCashOuts.length - 4 === 1 ? '' : 's'} no detalhe do recibo.</p>
+                    )}
+                  </div>
+                ) : (
+                  <p className="mt-1 text-xs text-muted-foreground">Sem saídas registradas nesta abertura.</p>
+                )}
+              </div>
+            </div>
             <div className="space-y-1">
               <Label>Email ou usuario do administrador</Label>
               <Input
@@ -5328,6 +5600,26 @@ export default function PDV() {
                 <div className="rounded-lg border border-border p-3">
                   <p className="text-xs text-muted-foreground">Saldo final</p>
                   <p className="font-bold">{formatMoney(lastCloseReceipt.finalBalance)}</p>
+                </div>
+              </div>
+
+              <div className="rounded-lg border border-border p-3">
+                <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                  <p className="font-semibold">Formas de pagamento</p>
+                  <p className="text-xs text-muted-foreground">
+                    {lastCloseReceipt.saleCount} venda{lastCloseReceipt.saleCount === 1 ? '' : 's'} no fechamento
+                  </p>
+                </div>
+                <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+                  {closeCashReceiptPaymentSummary.map(item => (
+                    <div key={item.key} className="rounded-lg border border-border bg-secondary/20 p-3">
+                      <p className="text-xs text-muted-foreground">{item.label}</p>
+                      <p className="font-bold text-primary">{formatMoney(item.total)}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {item.count} venda{item.count === 1 ? '' : 's'}
+                      </p>
+                    </div>
+                  ))}
                 </div>
               </div>
 

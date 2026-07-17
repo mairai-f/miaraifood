@@ -48,31 +48,46 @@ ________________________________________________________________________________
 - Modal de pagamento foi ajustado para não quebrar botões por espaçamento em celular e computador.
 
 __________________________________________________________________________________
-📧 Relatório de fechamento por e-mail :
+📧 E-mails HappyCash pelo Resend :
 
-Sempre que o caixa for fechado no PDV, o sistema agora tenta enviar o recibo de fechamento por e-mail.
+Os e-mails transacionais usam identidade HappyCash e remetente padrão:
 
-Para ativar o envio, publique a função do Supabase e configure os secrets abaixo:
-
-```bash
-supabase functions deploy send-cash-close-report
-
-supabase secrets set RESEND_API_KEY="sua-chave-resend"
-supabase secrets set CASH_CLOSE_REPORT_FROM_EMAIL="HappyCash <no-reply@seudominio.com>"
+```text
+HappyCash <no-reply@auth.happycashsite.com.br>
 ```
 
-Secrets opcionais:
+Fluxos cobertos:
+
+- Supabase Auth: confirmacao de conta, recuperacao de senha, magic link, convite, troca de e-mail, reautenticacao e notificacoes de seguranca.
+- Edge Functions: boas-vindas, fechamento de caixa e envio de NFC-e por e-mail com DANFE HTML anexado.
+
+Para ativar em producao, verifique o dominio no Resend, publique as funcoes e configure a API key:
 
 ```bash
-supabase secrets set CASH_CLOSE_REPORT_RECIPIENTS="financeiro@empresa.com,gestor@empresa.com"
-supabase secrets set CASH_CLOSE_REPORT_TIMEZONE="America/Sao_Paulo"
-supabase secrets set CASH_CLOSE_REPORT_SUBJECT_PREFIX="[HappyCash]"
+npx supabase functions deploy finalize-site-registration send-cash-close-report send-fiscal-document-email --project-ref ymffclntmynwfdiarlaw
+
+npx supabase secrets set --project-ref ymffclntmynwfdiarlaw RESEND_API_KEY="sua-chave-resend"
+npx supabase config push --project-ref ymffclntmynwfdiarlaw
+```
+
+Secrets opcionais para sobrescrever remetente/fallbacks:
+
+```bash
+npx supabase secrets set --project-ref ymffclntmynwfdiarlaw \
+  HAPPYCASH_FROM_EMAIL="HappyCash <no-reply@auth.happycashsite.com.br>" \
+  CASH_CLOSE_REPORT_FROM_EMAIL="HappyCash <no-reply@auth.happycashsite.com.br>" \
+  FISCAL_DOCUMENT_FROM_EMAIL="HappyCash <no-reply@auth.happycashsite.com.br>" \
+  WELCOME_FROM_EMAIL="HappyCash <no-reply@auth.happycashsite.com.br>" \
+  CASH_CLOSE_REPORT_RECIPIENTS="financeiro@empresa.com,gestor@empresa.com" \
+  CASH_CLOSE_REPORT_TIMEZONE="America/Sao_Paulo" \
+  CASH_CLOSE_REPORT_SUBJECT_PREFIX="[HappyCash]"
 ```
 
 Comportamento:
 
-- O sistema envia primeiro para o e-mail do usuário autenticado que fechou o caixa.
-- Se o usuário autenticado não tiver e-mail disponível, ele usa `CASH_CLOSE_REPORT_RECIPIENTS` como fallback.
+- O fechamento de caixa envia para o destinatario informado, e usa o e-mail da loja como fallback.
+- A tela Notas permite enviar NFC-e por e-mail e anexa um DANFE HTML simplificado.
+- A boas-vindas e enviada ao finalizar o cadastro confirmado no site.
 - O fechamento do caixa continua normalmente mesmo se o envio falhar, e o status aparece no recibo de fechamento.
 
 __________________________________________________________________________________

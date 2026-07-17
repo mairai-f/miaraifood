@@ -7,6 +7,12 @@ import {
 } from "../_shared/asaas.ts";
 import { buildCorsHeaders, handleCorsPreflight } from "../_shared/cors.ts";
 import {
+  escapeHtml,
+  getHappyCashFromEmail,
+  renderHappyCashEmail,
+  sendHappyCashEmail,
+} from "../_shared/happycashEmail.ts";
+import {
   getProductContextLabel,
   normalizeProductContext,
   type ProductContext,
@@ -84,6 +90,18 @@ const extractAccessToken = (authorization: string | null) => {
 const isAsaasConfigured = () => Boolean(Deno.env.get("ASAAS_API_KEY"));
 
 const normalizeDigits = (value?: string | null) => (value || "").replace(/\D/g, "");
+
+const formatDate = (value: string | null | undefined) => {
+  if (!value) return "nao informado";
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "nao informado";
+
+  return new Intl.DateTimeFormat("pt-BR", {
+    dateStyle: "short",
+    timeZone: "America/Sao_Paulo",
+  }).format(date);
+};
 
 const updatePendingRegistration = async (
   serviceClient: ServiceClient,
@@ -168,6 +186,66 @@ const ensureBillingCustomer = async (
   }
 
   return asaasCustomer.id;
+};
+
+const sendWelcomeEmail = async (
+  registration: PendingRegistrationRow,
+  details: {
+    trialEndsAt: string | null;
+    productContext: ProductContext;
+  },
+) => {
+  if (!Deno.env.get("RESEND_API_KEY")?.trim()) {
+    return;
+  }
+
+  const appUrl = Deno.env.get("HAPPYCASH_APP_URL")?.trim() || "https://app.happycashsite.com.br";
+  const productLabel = getProductContextLabel(details.productContext);
+  const trialEndsAt = formatDate(details.trialEndsAt);
+  const establishmentName = registration.nome_estabelecimento || registration.nome_cliente || "sua loja";
+  const html = renderHappyCashEmail({
+    eyebrow: "Bem-vindo",
+    title: "Sua conta HappyCash esta pronta",
+    preview: `A conta de ${establishmentName} ja pode acessar o HappyCash.`,
+    intro:
+      `O cadastro de ${establishmentName} foi ativado com sucesso. ` +
+      `Agora voce ja pode acessar o HappyCash e configurar sua operacao.`,
+    metrics: [
+      { label: "Produto", value: productLabel, tone: "primary" },
+      { label: "Demo ate", value: trialEndsAt, tone: "success" },
+    ],
+    action: {
+      label: "Acessar HappyCash",
+      href: appUrl,
+    },
+    contentHtml: `
+      <div style="margin-top:20px;border:1px solid #d8e2ef;border-radius:14px;background:#f8fbff;padding:16px;">
+        <p style="margin:0;color:#42526a;font-size:14px;line-height:22px;">
+          Conta: <strong>${escapeHtml(registration.email)}</strong><br>
+          Loja: <strong>${escapeHtml(establishmentName)}</strong><br>
+          Cidade: <strong>${escapeHtml(`${registration.cidade}/${registration.estado}`)}</strong>
+        </p>
+      </div>
+    `,
+    footerNote: "Este e-mail confirma a ativacao da sua conta HappyCash.",
+  });
+  const text = [
+    "Sua conta HappyCash esta pronta",
+    "",
+    `Conta: ${registration.email}`,
+    `Loja: ${establishmentName}`,
+    `Produto: ${productLabel}`,
+    `Demo ate: ${trialEndsAt}`,
+    `Acesse: ${appUrl}`,
+  ].join("\n");
+
+  await sendHappyCashEmail({
+    from: getHappyCashFromEmail("WELCOME_FROM_EMAIL"),
+    to: [registration.email],
+    subject: "Bem-vindo ao HappyCash",
+    html,
+    text,
+  });
 };
 
 Deno.serve(async (request) => {
@@ -480,6 +558,15 @@ Deno.serve(async (request) => {
       status: "completed",
       store_account_id: storeAccountId,
       trial_ends_at: trialEndsAt,
+    });
+
+    await sendWelcomeEmail(registration, {
+      trialEndsAt,
+      productContext: accountProductContext,
+    }).catch((error) => {
+      console.warn("Nao foi possivel enviar o e-mail de boas-vindas.", {
+        message: error instanceof Error ? error.message : "erro desconhecido",
+      });
     });
 
     return jsonResponse(request, {

@@ -1,5 +1,13 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { buildCorsHeaders, handleCorsPreflight } from '../_shared/cors.ts';
+import {
+  escapeHtml,
+  getHappyCashFromEmail,
+  isValidEmailRecipient,
+  normalizeEmailRecipients,
+  renderHappyCashEmail,
+  sendHappyCashEmail,
+} from '../_shared/happycashEmail.ts';
 import { checkRedisRateLimit, readRateLimitEnv } from '../_shared/rateLimit.ts';
 
 interface CashSale {
@@ -49,20 +57,6 @@ const parseRecipients = (rawValue: string | undefined) =>
     .map((value) => value.trim())
     .filter(Boolean);
 
-const normalizeRecipients = (values: unknown) => {
-  if (!Array.isArray(values)) return [];
-
-  return Array.from(new Set(
-    values
-      .filter((value): value is string => typeof value === 'string')
-      .map((value) => value.trim())
-      .filter(Boolean),
-  ));
-};
-
-const isValidEmailRecipient = (value: string) =>
-  /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
-
 interface CallerProfile {
   owner_user_id: string | null;
   email: string | null;
@@ -71,14 +65,6 @@ interface CallerProfile {
 interface StoreAccount {
   email: string | null;
 }
-
-const escapeHtml = (value: string) =>
-  value
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#39;');
 
 const formatMoney = (value: number) =>
   new Intl.NumberFormat('pt-BR', {
@@ -189,61 +175,64 @@ const buildEmailContent = (receipt: CashCloseReceipt, timezone: string) => {
       </tr>
     `;
 
-  const html = `
-    <div style="background:#f3f4f6;padding:24px;font-family:Arial,sans-serif;color:#111827;">
-      <div style="max-width:760px;margin:0 auto;background:#ffffff;border-radius:18px;padding:32px;border:1px solid #e5e7eb;">
-        <p style="margin:0 0 8px;font-size:12px;letter-spacing:0.08em;text-transform:uppercase;color:#9ca3af;">HappyCash</p>
-        <h1 style="margin:0 0 8px;font-size:28px;line-height:1.2;">Relatorio de fechamento do caixa</h1>
-        <p style="margin:0 0 24px;color:#6b7280;">
-          Caixa aberto por <strong>${escapeHtml(receipt.openedBy)}</strong> em ${escapeHtml(formatDateTime(receipt.openedAt, timezone))}
-          <br />
-          Caixa fechado por <strong>${escapeHtml(receipt.closedBy)}</strong> em ${escapeHtml(formatDateTime(receipt.closedAt, timezone))}
-        </p>
-
-        <div style="margin-bottom:24px;border:1px solid #e5e7eb;border-radius:14px;padding:20px;">
-          <h2 style="margin:0 0 12px;font-size:18px;">Resumo</h2>
-          <table style="width:100%;border-collapse:collapse;">
-            <tbody>${summaryHtml}</tbody>
-          </table>
-        </div>
-
-        <div style="margin-bottom:24px;border:1px solid #e5e7eb;border-radius:14px;padding:20px;">
-          <h2 style="margin:0 0 12px;font-size:18px;">Total por forma de pagamento</h2>
-          <table style="width:100%;border-collapse:collapse;">
-            <tbody>${paymentHtml}</tbody>
-          </table>
-        </div>
-
-        <div style="margin-bottom:24px;border:1px solid #e5e7eb;border-radius:14px;padding:20px;">
-          <h2 style="margin:0 0 12px;font-size:18px;">Entradas por venda</h2>
-          <table style="width:100%;border-collapse:collapse;">
-            <thead>
-              <tr>
-                <th align="left" style="padding-bottom:8px;font-size:12px;color:#9ca3af;">Horario</th>
-                <th align="left" style="padding-bottom:8px;font-size:12px;color:#9ca3af;">Pagamento</th>
-                <th align="right" style="padding-bottom:8px;font-size:12px;color:#9ca3af;">Valor</th>
-              </tr>
-            </thead>
-            <tbody>${salesHtml}</tbody>
-          </table>
-        </div>
-
-        <div style="border:1px solid #e5e7eb;border-radius:14px;padding:20px;">
-          <h2 style="margin:0 0 12px;font-size:18px;">Saidas de caixa</h2>
-          <table style="width:100%;border-collapse:collapse;">
-            <thead>
-              <tr>
-                <th align="left" style="padding-bottom:8px;font-size:12px;color:#9ca3af;">Horario</th>
-                <th align="left" style="padding-bottom:8px;font-size:12px;color:#9ca3af;">Descricao</th>
-                <th align="right" style="padding-bottom:8px;font-size:12px;color:#9ca3af;">Valor</th>
-              </tr>
-            </thead>
-            <tbody>${cashOutHtml}</tbody>
-          </table>
-        </div>
+  const html = renderHappyCashEmail({
+    eyebrow: 'Fechamento de caixa',
+    title: 'Relatorio de fechamento do caixa',
+    preview: `Saldo final ${formatMoney(receipt.finalBalance)} em ${formatDateTime(receipt.closedAt, timezone)}`,
+    intro:
+      `Caixa aberto por ${receipt.openedBy} em ${formatDateTime(receipt.openedAt, timezone)}. ` +
+      `Fechado por ${receipt.closedBy} em ${formatDateTime(receipt.closedAt, timezone)}.`,
+    metrics: [
+      { label: 'Saldo final', value: formatMoney(receipt.finalBalance), tone: 'success' },
+      { label: 'Vendas', value: formatMoney(receipt.salesTotal), tone: 'primary' },
+      { label: 'Saidas', value: formatMoney(receipt.cashOutTotal), tone: receipt.cashOutTotal > 0 ? 'danger' : 'default' },
+      { label: 'Qtd. vendas', value: String(receipt.saleCount) },
+    ],
+    contentHtml: `
+      <div style="margin-top:24px;border:1px solid #d8e2ef;border-radius:14px;padding:20px;">
+        <h2 style="margin:0 0 12px;color:#14213d;font-size:18px;line-height:24px;">Resumo financeiro</h2>
+        <table style="width:100%;border-collapse:collapse;">
+          <tbody>${summaryHtml}</tbody>
+        </table>
       </div>
-    </div>
-  `;
+
+      <div style="margin-top:18px;border:1px solid #d8e2ef;border-radius:14px;padding:20px;">
+        <h2 style="margin:0 0 12px;color:#14213d;font-size:18px;line-height:24px;">Total por forma de pagamento</h2>
+        <table style="width:100%;border-collapse:collapse;">
+          <tbody>${paymentHtml}</tbody>
+        </table>
+      </div>
+
+      <div style="margin-top:18px;border:1px solid #d8e2ef;border-radius:14px;padding:20px;">
+        <h2 style="margin:0 0 12px;color:#14213d;font-size:18px;line-height:24px;">Entradas por venda</h2>
+        <table style="width:100%;border-collapse:collapse;">
+          <thead>
+            <tr>
+              <th align="left" style="padding-bottom:8px;font-size:12px;color:#5b6b83;">Horario</th>
+              <th align="left" style="padding-bottom:8px;font-size:12px;color:#5b6b83;">Pagamento</th>
+              <th align="right" style="padding-bottom:8px;font-size:12px;color:#5b6b83;">Valor</th>
+            </tr>
+          </thead>
+          <tbody>${salesHtml}</tbody>
+        </table>
+      </div>
+
+      <div style="margin-top:18px;border:1px solid #d8e2ef;border-radius:14px;padding:20px;">
+        <h2 style="margin:0 0 12px;color:#14213d;font-size:18px;line-height:24px;">Saidas de caixa</h2>
+        <table style="width:100%;border-collapse:collapse;">
+          <thead>
+            <tr>
+              <th align="left" style="padding-bottom:8px;font-size:12px;color:#5b6b83;">Horario</th>
+              <th align="left" style="padding-bottom:8px;font-size:12px;color:#5b6b83;">Descricao</th>
+              <th align="right" style="padding-bottom:8px;font-size:12px;color:#5b6b83;">Valor</th>
+            </tr>
+          </thead>
+          <tbody>${cashOutHtml}</tbody>
+        </table>
+      </div>
+    `,
+    footerNote: 'Este fechamento foi enviado automaticamente pelo HappyCash.',
+  });
 
   const paymentText = paymentBreakdown.length > 0
     ? paymentBreakdown
@@ -322,15 +311,14 @@ Deno.serve(async (request) => {
     );
   }
 
-  const resendApiKey = Deno.env.get('RESEND_API_KEY');
-  const fromEmail = Deno.env.get('CASH_CLOSE_REPORT_FROM_EMAIL');
+  const fromEmail = getHappyCashFromEmail('CASH_CLOSE_REPORT_FROM_EMAIL');
 
-  if (!resendApiKey || !fromEmail) {
+  if (!Deno.env.get('RESEND_API_KEY')?.trim()) {
     return jsonResponse(
       request,
       {
         error:
-          'Configure os secrets RESEND_API_KEY e CASH_CLOSE_REPORT_FROM_EMAIL para enviar o relatorio por e-mail.',
+          'Configure o secret RESEND_API_KEY para enviar o relatorio por e-mail.',
       },
       500,
     );
@@ -406,7 +394,7 @@ Deno.serve(async (request) => {
       return jsonResponse(request, { error: 'Dados do fechamento nao informados.' }, 400);
     }
 
-    const customRecipients = normalizeRecipients(requestedRecipients);
+    const customRecipients = normalizeEmailRecipients(requestedRecipients);
     const invalidRecipients = customRecipients.filter((recipient) => !isValidEmailRecipient(recipient));
 
     if (invalidRecipients.length > 0) {
@@ -431,26 +419,7 @@ Deno.serve(async (request) => {
     const subject = subjectPrefix ? `${subjectPrefix} ${subjectBase}` : subjectBase;
     const { html, text } = buildEmailContent(receipt, reportTimezone);
 
-    const resendResponse = await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${resendApiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        from: fromEmail,
-        to: recipients,
-        subject,
-        html,
-        text,
-      }),
-    });
-
-    if (!resendResponse.ok) {
-      const resendError = await resendResponse.text();
-      console.error('Erro ao enviar e-mail pelo Resend:', resendError);
-      return jsonResponse(request, { error: 'O provedor de e-mail recusou o envio do relatorio.' }, 502);
-    }
+    await sendHappyCashEmail({ from: fromEmail, to: recipients, subject, html, text });
 
     return jsonResponse(request, {
       message: 'Relatorio enviado por e-mail com sucesso.',

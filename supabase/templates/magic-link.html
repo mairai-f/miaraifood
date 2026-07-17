@@ -1,9 +1,49 @@
-<h2>Codigo de recuperacao HappyCash</h2>
-
-<p>Use o codigo abaixo para recuperar o usuario e definir um novo PIN operacional:</p>
-
-<p style="font-size: 28px; font-weight: 700; letter-spacing: 4px;">{{ .Token }}</p>
-
-<p>O codigo expira em 1 hora e pode ser usado somente uma vez.</p>
-
-<p>Se voce nao solicitou esta recuperacao, ignore este email.</p>
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Codigo de acesso HappyCash</title>
+  </head>
+  <body style="margin:0;padding:0;background:#eef4fb;font-family:Arial,Helvetica,sans-serif;color:#14213d;">
+    <div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;">Use o link ou codigo para entrar no HappyCash.</div>
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#eef4fb;">
+      <tr>
+        <td align="center" style="padding:28px 12px;">
+          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:640px;background:#ffffff;border:1px solid #d8e2ef;border-radius:20px;overflow:hidden;">
+            <tr>
+              <td style="padding:26px 28px;background:#14213d;">
+                <p style="margin:0;color:#ffffff;font-size:24px;line-height:30px;font-weight:900;">Happy<span style="color:#22c55e;">Cash</span></p>
+                <p style="margin:8px 0 0;color:#b9c9df;font-size:13px;line-height:19px;">Sistema de gestao, PDV e controle financeiro</p>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:30px 28px;">
+                <p style="margin:0 0 10px;color:#1f5ca3;font-size:12px;line-height:18px;font-weight:900;letter-spacing:0.12em;text-transform:uppercase;">Acesso seguro</p>
+                <h1 style="margin:0;color:#14213d;font-size:28px;line-height:34px;font-weight:900;">Seu acesso HappyCash</h1>
+                <p style="margin:16px 0 0;color:#42526a;font-size:15px;line-height:24px;">Recebemos uma solicitacao de entrada para <strong>{{ .Email }}</strong>. Clique no botao ou digite o codigo abaixo.</p>
+                <table role="presentation" cellspacing="0" cellpadding="0" style="margin:28px 0;">
+                  <tr>
+                    <td style="border-radius:12px;background:#1f5ca3;">
+                      <a href="{{ .ConfirmationURL }}" style="display:inline-block;padding:14px 22px;color:#ffffff;text-decoration:none;font-size:15px;line-height:20px;font-weight:800;">Entrar no HappyCash</a>
+                    </td>
+                  </tr>
+                </table>
+                <div style="border:1px solid #d8e2ef;border-radius:14px;background:#f8fbff;padding:16px;">
+                  <p style="margin:0 0 8px;color:#5b6b83;font-size:12px;line-height:18px;">Codigo de uso unico</p>
+                  <p style="margin:0;color:#14213d;font-size:30px;line-height:36px;font-weight:900;letter-spacing:6px;">{{ .Token }}</p>
+                </div>
+                <p style="margin:20px 0 0;color:#5b6b83;font-size:13px;line-height:20px;">Se voce nao solicitou este acesso, ignore este e-mail.</p>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:18px 28px;background:#f8fbff;border-top:1px solid #d8e2ef;">
+                <p style="margin:0;color:#5b6b83;font-size:12px;line-height:20px;">HappyCash nunca pede sua senha por e-mail.</p>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>

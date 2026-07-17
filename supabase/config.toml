@@ -27,9 +27,73 @@ max_frequency = "1m0s"
 otp_length = 8
 otp_expiry = 3600
 
+[auth.email.smtp]
+enabled = true
+host = "smtp.resend.com"
+port = 465
+user = "resend"
+pass = "env(RESEND_API_KEY)"
+admin_email = "no-reply@auth.happycashsite.com.br"
+sender_name = "HappyCash"
+
+[auth.email.template.invite]
+subject = "Convite para acessar o HappyCash"
+content_path = "./templates/invite.html"
+
+[auth.email.template.confirmation]
+subject = "Confirme sua conta HappyCash"
+content_path = "./templates/confirmation.html"
+
+[auth.email.template.recovery]
+subject = "Recuperacao de senha HappyCash"
+content_path = "./templates/recovery.html"
+
 [auth.email.template.magic_link]
-subject = "Codigo de recuperacao HappyCash"
-content_path = "./supabase/templates/magic-link.html"
+subject = "Codigo de acesso HappyCash"
+content_path = "./templates/magic-link.html"
+
+[auth.email.template.email_change]
+subject = "Confirme a troca de e-mail HappyCash"
+content_path = "./templates/email-change.html"
+
+[auth.email.template.reauthentication]
+subject = "{{ .Token }} e seu codigo HappyCash"
+content_path = "./templates/reauthentication.html"
+
+[auth.email.notification.password_changed]
+enabled = true
+subject = "Senha alterada na sua conta HappyCash"
+content_path = "./templates/password-changed.html"
+
+[auth.email.notification.email_changed]
+enabled = true
+subject = "E-mail alterado na sua conta HappyCash"
+content_path = "./templates/email-changed.html"
+
+[auth.email.notification.phone_changed]
+enabled = true
+subject = "Telefone alterado na sua conta HappyCash"
+content_path = "./templates/phone-changed.html"
+
+[auth.email.notification.mfa_factor_enrolled]
+enabled = true
+subject = "Novo metodo de verificacao no HappyCash"
+content_path = "./templates/mfa-factor-enrolled.html"
+
+[auth.email.notification.mfa_factor_unenrolled]
+enabled = true
+subject = "Metodo de verificacao removido no HappyCash"
+content_path = "./templates/mfa-factor-unenrolled.html"
+
+[auth.email.notification.identity_linked]
+enabled = true
+subject = "Novo metodo de login vinculado no HappyCash"
+content_path = "./templates/identity-linked.html"
+
+[auth.email.notification.identity_unlinked]
+enabled = true
+subject = "Metodo de login removido no HappyCash"
+content_path = "./templates/identity-unlinked.html"
 
 [auth.captcha]
 enabled = false
@@ -91,6 +155,12 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.manage-fiscal-documents]
+verify_jwt = false
+
+[functions.send-cash-close-report]
+verify_jwt = false
+
+[functions.send-fiscal-document-email]
 verify_jwt = false
 
 [functions.operator-login]

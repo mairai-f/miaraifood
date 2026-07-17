@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Preview de e-mails HappyCash</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --ink: #14213d;
+        --muted: #5b6b83;
+        --line: #d8e2ef;
+        --page: #eef4fb;
+        --card: #ffffff;
+        --primary: #1f5ca3;
+        --success: #22c55e;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        background: var(--page);
+        color: var(--ink);
+        font-family: Inter, Segoe UI, Arial, sans-serif;
+      }
+
+      header {
+        background: var(--ink);
+        color: #ffffff;
+        padding: 28px;
+      }
+
+      header h1 {
+        margin: 0;
+        font-size: 26px;
+        line-height: 32px;
+      }
+
+      header p {
+        margin: 8px 0 0;
+        color: #b9c9df;
+        font-size: 14px;
+        line-height: 22px;
+      }
+
+      main {
+        width: min(1200px, calc(100% - 32px));
+        margin: 24px auto 48px;
+      }
+
+      .notice {
+        border: 1px solid var(--line);
+        background: #ffffff;
+        border-left: 5px solid var(--success);
+        border-radius: 8px;
+        padding: 14px 16px;
+        color: var(--muted);
+        font-size: 14px;
+        line-height: 22px;
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
+        gap: 18px;
+        margin-top: 18px;
+      }
+
+      article {
+        min-width: 0;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--card);
+        overflow: hidden;
+        box-shadow: 0 8px 24px rgba(20, 33, 61, 0.08);
+      }
+
+      article div {
+        padding: 14px 16px;
+        border-bottom: 1px solid var(--line);
+      }
+
+      h2 {
+        margin: 0;
+        font-size: 16px;
+        line-height: 22px;
+      }
+
+      p {
+        margin: 6px 0 0;
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 20px;
+      }
+
+      a {
+        color: var(--primary);
+        text-decoration: none;
+        font-weight: 700;
+      }
+
+      iframe {
+        display: block;
+        width: 100%;
+        height: 620px;
+        border: 0;
+        background: #ffffff;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>Happy<span style="color:var(--success)">Cash</span> - modelos de e-mail</h1>
+      <p>Previa visual dos templates configurados no Supabase Auth e no Resend.</p>
+    </header>
+
+    <main>
+      <section class="notice">
+        Os campos entre chaves, como <strong>{{ .Email }}</strong> e <strong>{{ .Token }}</strong>,
+        sao preenchidos automaticamente pelo Supabase no envio real. Abra cada modelo em tela cheia pelo link do cartao se quiser revisar com mais conforto.
+      </section>
+
+      <section class="grid">
+        <article>
+          <div>
+            <h2>Confirmacao de conta</h2>
+            <p>Assunto: Confirme sua conta HappyCash | <a href="../../supabase/templates/confirmation.html" target="_blank">abrir</a></p>
+          </div>
+          <iframe src="../../supabase/templates/confirmation.html"></iframe>
+        </article>
+
+        <article>
+          <div>
+            <h2>Recuperacao de senha</h2>
+            <p>Assunto: Recuperacao de senha HappyCash | <a href="../../supabase/templates/recovery.html" target="_blank">abrir</a></p>
+          </div>
+          <iframe src="../../supabase/templates/recovery.html"></iframe>
+        </article>
+
+        <article>
+          <div>
+            <h2>Magic link / codigo de acesso</h2>
+            <p>Assunto: Codigo de acesso HappyCash | <a href="../../supabase/templates/magic-link.html" target="_blank">abrir</a></p>
+          </div>
+          <iframe src="../../supabase/templates/magic-link.html"></iframe>
+        </article>
+
+        <article>
+          <div>
+            <h2>Convite</h2>
+            <p>Assunto: Convite para acessar o HappyCash | <a href="../../supabase/templates/invite.html" target="_blank">abrir</a></p>
+          </div>
+          <iframe src="../../supabase/templates/invite.html"></iframe>
+        </article>
+
+        <article>
+          <div>
+            <h2>Troca de e-mail</h2>
+            <p>Assunto: Confirme a troca de e-mail HappyCash | <a href="../../supabase/templates/email-change.html" target="_blank">abrir</a></p>
+          </div>
+          <iframe src="../../supabase/templates/email-change.html"></iframe>
+        </article>
+
+        <article>
+          <div>
+            <h2>Reautenticacao</h2>
+            <p>Assunto: {{ .Token }} e seu codigo HappyCash | <a href="../../supabase/templates/reauthentication.html" target="_blank">abrir</a></p>
+          </div>
+          <iframe src="../../supabase/templates/reauthentication.html"></iframe>
+        </article>
+
+        <article>
+          <div>
+            <h2>Senha alterada</h2>
+            <p>Assunto: Senha alterada na sua conta HappyCash | <a href="../../supabase/templates/password-changed.html" target="_blank">abrir</a></p>
+          </div>
+          <iframe src="../../supabase/templates/password-changed.html"></iframe>
+        </article>
+
+        <article>
+          <div>
+            <h2>E-mail alterado</h2>
+            <p>Assunto: E-mail alterado na sua conta HappyCash | <a href="../../supabase/templates/email-changed.html" target="_blank">abrir</a></p>
+          </div>
+          <iframe src="../../supabase/templates/email-changed.html"></iframe>
+        </article>
+
+        <article>
+          <div>
+            <h2>Telefone alterado</h2>
+            <p>Assunto: Telefone alterado na sua conta HappyCash | <a href="../../supabase/templates/phone-changed.html" target="_blank">abrir</a></p>
+          </div>
+          <iframe src="../../supabase/templates/phone-changed.html"></iframe>
+        </article>
+
+        <article>
+          <div>
+            <h2>MFA adicionado</h2>
+            <p>Assunto: Novo metodo de verificacao no HappyCash | <a href="../../supabase/templates/mfa-factor-enrolled.html" target="_blank">abrir</a></p>
+          </div>
+          <iframe src="../../supabase/templates/mfa-factor-enrolled.html"></iframe>
+        </article>
+
+        <article>
+          <div>
+            <h2>MFA removido</h2>
+            <p>Assunto: Metodo de verificacao removido no HappyCash | <a href="../../supabase/templates/mfa-factor-unenrolled.html" target="_blank">abrir</a></p>
+          </div>
+          <iframe src="../../supabase/templates/mfa-factor-unenrolled.html"></iframe>
+        </article>
+
+        <article>
+          <div>
+            <h2>Login vinculado</h2>
+            <p>Assunto: Novo metodo de login vinculado no HappyCash | <a href="../../supabase/templates/identity-linked.html" target="_blank">abrir</a></p>
+          </div>
+          <iframe src="../../supabase/templates/identity-linked.html"></iframe>
+        </article>
+
+        <article>
+          <div>
+            <h2>Login removido</h2>
+            <p>Assunto: Metodo de login removido no HappyCash | <a href="../../supabase/templates/identity-unlinked.html" target="_blank">abrir</a></p>
+          </div>
+          <iframe src="../../supabase/templates/identity-unlinked.html"></iframe>
+        </article>
+      </section>
+    </main>
+  </body>
+</html>

@@ -1,4 +1,5 @@
 import { Suspense, lazy, useEffect, useMemo, useState } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import { useData } from '@/contexts/DataContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useOperationalScope } from '@/contexts/useOperationalScope';
@@ -22,6 +23,21 @@ const fromTable = (table: string) => supabase.from(table as never);
 const money = (value: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
 const variationLabel = (value: number) => `${value >= 0 ? '+' : ''}${value.toFixed(1)}%`;
 
+type ReportSection = 'resumo' | 'dre' | 'alertas' | 'graficos' | 'margem' | 'rankings';
+
+const reportSectionNav: Array<{ section: ReportSection; label: string; path: string }> = [
+  { section: 'resumo', label: 'Resumo', path: '/relatorios' },
+  { section: 'dre', label: 'DRE', path: '/relatorios/dre' },
+  { section: 'alertas', label: 'Alertas', path: '/relatorios/alertas' },
+  { section: 'graficos', label: 'Graficos', path: '/relatorios/graficos' },
+  { section: 'margem', label: 'Margem', path: '/relatorios/margem' },
+  { section: 'rankings', label: 'Rankings', path: '/relatorios/rankings' },
+];
+
+const getReportSection = (section: string | undefined): ReportSection => (
+  reportSectionNav.some(item => item.section === section) ? section as ReportSection : 'resumo'
+);
+
 const ReportsChartsSection = lazy(() =>
   import('@/components/reports/ReportsChartsSection').then((module) => ({
     default: module.ReportsChartsSection,
@@ -38,6 +54,9 @@ export default function Reports() {
   const { sales, saleItems, clients, products, debtEntries, payments, expenses, loading } = useData();
   const { ownerUserId } = useAuth();
   const { scope: operationalScope } = useOperationalScope();
+  const navigate = useNavigate();
+  const { section } = useParams<{ section?: string }>();
+  const activeSection = getReportSection(section);
   const operationalLocationId = operationalScope?.location.id ?? null;
   const today = new Date();
   const [startDate, setStartDate] = useState(() => {
@@ -431,10 +450,6 @@ export default function Reports() {
     setStartDate(start.toISOString().split('T')[0]);
     setEndDate(end.toISOString().split('T')[0]);
   };
-  const scrollToReportSection = (sectionId: string) => {
-    document.getElementById(sectionId)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  };
-
   const exportCsv = () => {
     const rows = [
       ['tipo', 'data', 'descricao', 'cliente', 'quantidade', 'total', 'lucro'],
@@ -502,16 +517,16 @@ export default function Reports() {
       </div>
 
       <div className="flex flex-wrap items-center gap-2 rounded-md border bg-card p-2 text-xs">
-        <span className="px-1 font-medium text-muted-foreground">Ir para</span>
-        {[
-          ['reports-summary', 'Resumo'],
-          ['reports-dre', 'DRE'],
-          ['reports-alerts', 'Alertas'],
-          ['reports-charts', 'Graficos'],
-          ['reports-margin-profit', 'Margem'],
-          ['reports-rankings', 'Rankings'],
-        ].map(([id, label]) => (
-          <Button key={id} type="button" variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => scrollToReportSection(id)}>
+        <span className="px-1 font-medium text-muted-foreground">Abrir</span>
+        {reportSectionNav.map(({ section: targetSection, label, path }) => (
+          <Button
+            key={targetSection}
+            type="button"
+            variant={activeSection === targetSection ? 'default' : 'ghost'}
+            size="sm"
+            className="h-7 px-2 text-xs"
+            onClick={() => navigate(path)}
+          >
             {label}
           </Button>
         ))}
@@ -519,6 +534,7 @@ export default function Reports() {
       </div>
 
       {/* Stats */}
+      {activeSection === 'resumo' && (
       <div id="reports-summary" className="scroll-mt-24 grid grid-cols-2 lg:grid-cols-4 gap-3" data-tour-id="reports-stats">
         {([
           { detail: 'sales', label: 'Vendas válidas', value: activeFilteredSales.length, icon: TrendingUp },
@@ -533,7 +549,9 @@ export default function Reports() {
           <ReportMetricCard key={metric.detail} label={metric.label} value={metric.value} icon={metric.icon} onClick={() => setDetail(metric.detail)} />
         ))}
       </div>
+      )}
 
+      {activeSection === 'dre' && (
       <Card id="reports-dre" className="scroll-mt-24 border-border/50" data-tour-id="reports-dre">
         <CardHeader className="flex flex-row items-start justify-between gap-3">
           <div>
@@ -618,7 +636,9 @@ export default function Reports() {
           </div>
         </CardContent>
       </Card>
+      )}
 
+      {activeSection === 'alertas' && (
       <div id="reports-alerts" className="scroll-mt-24 grid grid-cols-1 lg:grid-cols-2 gap-4" data-tour-id="reports-alerts">
         <Card className="border-border/50">
           <CardHeader><CardTitle className="text-sm">Produtos Abaixo do Mínimo</CardTitle></CardHeader>
@@ -651,7 +671,9 @@ export default function Reports() {
           </CardContent>
         </Card>
       </div>
+      )}
 
+      {activeSection === 'graficos' && (
       <div id="reports-charts" className="scroll-mt-24">
       <Suspense
         fallback={(
@@ -673,7 +695,9 @@ export default function Reports() {
         />
       </Suspense>
       </div>
+      )}
 
+      {activeSection === 'margem' && (
       <div id="reports-margin-profit" className="scroll-mt-24 grid grid-cols-1 lg:grid-cols-2 gap-4" data-tour-id="reports-margin-profit">
         <Card className="border-border/50">
           <CardHeader><CardTitle className="text-sm">Lucro Bruto por Produto</CardTitle></CardHeader>
@@ -751,7 +775,9 @@ export default function Reports() {
           </CardContent>
         </Card>
       </div>
+      )}
 
+      {activeSection === 'rankings' && (
       <div id="reports-rankings" className="scroll-mt-24 grid grid-cols-1 lg:grid-cols-2 gap-4" data-tour-id="reports-rankings">
         {/* Top products */}
         <Card className="border-border/50">
@@ -841,6 +867,7 @@ export default function Reports() {
           </CardContent>
         </Card>
       </div>
+      )}
 
       {detail !== null && (
         <Suspense fallback={null}>

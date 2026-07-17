@@ -265,6 +265,7 @@ const AuthenticatedArea = () => {
           <Route path="/estoque/curva-abc" element={<ProtectedRoute requiredPermission="stock.view" requiredFeature="stock.manage"><LazyPage><StockAbcCurve /></LazyPage></ProtectedRoute>} />
           <Route path="/estoque/sugestoes-compra" element={<ProtectedRoute requiredPermission="stock.view" requiredFeature="stock.manage"><LazyPage><StockPurchaseSuggestions /></LazyPage></ProtectedRoute>} />
           <Route path="/relatorios" element={<ProtectedRoute requiredPermission="reports.view" requiredFeature="reports.view"><LazyPage><Reports /></LazyPage></ProtectedRoute>} />
+          <Route path="/relatorios/:section" element={<ProtectedRoute requiredPermission="reports.view" requiredFeature="reports.view"><LazyPage><Reports /></LazyPage></ProtectedRoute>} />
           <Route path="/financeiro" element={<ProtectedRoute requiredPermission="financial.view" requiredFeature="financial.manage"><LazyPage><Financial /></LazyPage></ProtectedRoute>} />
           <Route path="/operacoes" element={<ProtectedRoute requiredPermission="purchases.view" requiredFeature="financial.manage"><LazyPage><Operations /></LazyPage></ProtectedRoute>} />
           <Route path="/precificacao" element={<ProtectedRoute requiredPermission="pricing.view" requiredFeature="pricing.manage"><LazyPage><PricingManager /></LazyPage></ProtectedRoute>} />
