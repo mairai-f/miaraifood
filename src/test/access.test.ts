@@ -5,7 +5,6 @@ describe('canAccessPath', () => {
   it('permite que admin acesse rotas administrativas', () => {
     expect(canAccessPath('admin', '/financeiro')).toBe(true);
     expect(canAccessPath('admin', '/excluidos')).toBe(true);
-    expect(canAccessPath('admin', '/rh')).toBe(true);
   });
 
   it('bloqueia rotas administrativas para operador', () => {
@@ -19,16 +18,14 @@ describe('canAccessPath', () => {
     expect(canAccessPath('operator', '/pdv')).toBe(true);
     expect(canAccessPath('operator', '/clientes')).toBe(true);
     expect(canAccessPath('operator', '/produtos')).toBe(true);
-    expect(canAccessPath('operator', '/portal-funcionario')).toBe(true);
     expect(canAccessPath('operator', '/cliente/joao')).toBe(true);
   });
 
-  it('isola o perfil RH no modulo de recursos humanos', () => {
-    expect(canAccessPath('hr', '/rh')).toBe(true);
-    expect(canAccessPath('hr', '/portal-funcionario')).toBe(true);
+  it('mantem perfil RH fora das rotas do ERP principal', () => {
     expect(canAccessPath('hr', '/')).toBe(false);
     expect(canAccessPath('hr', '/pdv')).toBe(false);
     expect(canAccessPath('hr', '/clientes')).toBe(false);
+    expect(canAccessPath('hr', '/financeiro')).toBe(false);
   });
 
   it('bloqueia gestao de produtos para operador', () => {
