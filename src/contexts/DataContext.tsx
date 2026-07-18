@@ -65,6 +65,7 @@ import { normalizeClientDebtDueDate } from '@/lib/clientDebtDueDate';
 import { filterProductsBySearch, toProductUppercase } from '@/lib/productSearch';
 import { calculateStockMovement, type StockMovementType } from '@/lib/stockMovement';
 import { blocksSaleWithoutStock, clampTrackedStock } from '@/lib/stockSalePolicy';
+import { buildStoreDataScopeKey, readStoreDataModuleCache, writeStoreDataModuleCache } from '@/lib/storeDataCache';
 import { buildServiceTicketBarcode, isServiceTicketBarcode, isValidServiceTicketNumber, normalizeServiceTicketRecord } from '@/lib/serviceTicket';
 import { getPublicErrorMessage, getRedactedLogValue } from '../../shared/security/redaction';
 
@@ -245,6 +246,34 @@ const ALL_DATA_MODULES: DataModule[] = [
   'expenses',
   'pricing',
 ];
+
+type StoreDataModulePayload = {
+  blockSaleWithoutStock?: boolean;
+  clients?: Client[];
+  products?: Product[];
+  productPackagings?: ProductPackaging[];
+  debtEntries?: DebtEntry[];
+  payments?: Payment[];
+  rewards?: Reward[];
+  sales?: Sale[];
+  saleItems?: SaleItem[];
+  serviceTickets?: ServiceTicket[];
+  serviceTicketItems?: ServiceTicketItem[];
+  stockMovements?: StockMovement[];
+  expenses?: Expense[];
+  pricingRules?: ProductCategoryPricingRule[];
+  priceHistory?: ProductPriceHistoryEntry[];
+};
+
+type StoreDataSyncStateRow = {
+  module: string;
+  signature: string | null;
+  row_count?: number | string | null;
+  last_changed_at?: string | null;
+};
+
+const isDataModule = (value: string): value is DataModule =>
+  ALL_DATA_MODULES.includes(value as DataModule);
 
 const BASE_DATA_MODULES: DataModule[] = [
   'storeOperationalSettings',
@@ -643,12 +672,78 @@ export function DataProvider({ children }: { children: ReactNode }) {
     const canReadExpenses = needsExpenses && hasFeature('financial.manage');
     const canReadPricing = needsPricing && hasFeature('pricing.manage');
 
+    const canReadModule: Record<DataModule, boolean> = {
+      storeOperationalSettings: needsOperationalSettings,
+      clients: canReadClients,
+      products: canReadProducts,
+      rewards: canReadRewards,
+      sales: canReadSales,
+      saleItems: canReadSales && needsSaleItems,
+      serviceTickets: canReadServiceTickets && needsServiceTickets,
+      serviceTicketItems: canReadServiceTickets && needsServiceTicketItems,
+      stock: canReadStock,
+      expenses: canReadExpenses,
+      pricing: canReadPricing,
+    };
+    const cacheScopeKey = buildStoreDataScopeKey(operationalLocationId);
+    const remoteSyncStateByModule = new Map<DataModule, string>();
+    let syncStateAvailable = false;
+
+    if (typeof navigator === 'undefined' || navigator.onLine !== false) {
+      const { data: syncStateRows, error: syncStateError } = await db.rpc('get_store_data_sync_state', {
+        p_location_id: operationalLocationId,
+      }).catch((error: unknown) => ({ data: null, error }));
+
+      if (!syncStateError && Array.isArray(syncStateRows)) {
+        syncStateAvailable = true;
+        (syncStateRows as StoreDataSyncStateRow[]).forEach((row) => {
+          if (isDataModule(row.module) && row.signature) {
+            remoteSyncStateByModule.set(row.module, row.signature);
+          }
+        });
+      } else if (syncStateError && !isMissingRpcError(syncStateError, 'get_store_data_sync_state')) {
+        console.warn('Nao foi possivel ler o estado de sincronizacao; carregando dados normalmente.', getRedactedLogValue(syncStateError));
+      }
+    }
+
+    const cachedModuleData: Partial<Record<DataModule, StoreDataModulePayload>> = {};
+    if (syncStateAvailable) {
+      requestedModules.forEach((module) => {
+        if (!canReadModule[module]) return;
+
+        const signature = remoteSyncStateByModule.get(module);
+        const cached = readStoreDataModuleCache<StoreDataModulePayload>({
+          ownerUserId,
+          userId: user.id,
+          scopeKey: cacheScopeKey,
+          module,
+          signature,
+        });
+
+        if (cached) {
+          cachedModuleData[module] = cached;
+        }
+      });
+    }
+
+    const hasCachedOperationalSettings = Boolean(cachedModuleData.storeOperationalSettings);
+    const hasCachedClients = Boolean(cachedModuleData.clients);
+    const hasCachedProducts = Boolean(cachedModuleData.products);
+    const hasCachedRewards = Boolean(cachedModuleData.rewards);
+    const hasCachedSales = Boolean(cachedModuleData.sales);
+    const hasCachedSaleItems = Boolean(cachedModuleData.saleItems);
+    const hasCachedServiceTickets = Boolean(cachedModuleData.serviceTickets);
+    const hasCachedServiceTicketItems = Boolean(cachedModuleData.serviceTicketItems);
+    const hasCachedStock = Boolean(cachedModuleData.stock);
+    const hasCachedExpenses = Boolean(cachedModuleData.expenses);
+    const hasCachedPricing = Boolean(cachedModuleData.pricing);
+
     const emptyResult = Promise.resolve({ data: [], error: null });
     const emptySingleResult = Promise.resolve({ data: null, error: null });
 
     let productsResponse = { data: [], error: null };
 
-    if (canReadProducts) {
+    if (canReadProducts && !hasCachedProducts) {
       const productsByCode = await db.from('products').select('*').order('code', { ascending: true });
       productsResponse = productsByCode.error?.message?.includes('products.code')
         ? await db.from('products').select('*').order('created_at', { ascending: true })
@@ -659,24 +754,24 @@ export function DataProvider({ children }: { children: ReactNode }) {
       operationalLocationId ? query.eq('location_id', operationalLocationId) : query;
 
     const [settings, c, p, pkg, inventory, d, pay, r, s, si, st, sti, sm, exp, pr, ph] = await Promise.all([
-      needsOperationalSettings ? db.rpc('get_store_operational_settings').single() : emptySingleResult,
-      canReadClients ? db.from('clients').select('*').order('created_at', { ascending: false }).limit(1000) : emptyResult,
+      needsOperationalSettings && !hasCachedOperationalSettings ? db.rpc('get_store_operational_settings').single() : emptySingleResult,
+      canReadClients && !hasCachedClients ? db.from('clients').select('*').order('created_at', { ascending: false }).limit(1000) : emptyResult,
       Promise.resolve(productsResponse),
-      canReadProducts ? db.from('product_packagings').select('*').eq('active', true).order('base_quantity', { ascending: false }) : emptyResult,
-      canReadProducts && operationalLocationId
+      canReadProducts && !hasCachedProducts ? db.from('product_packagings').select('*').eq('active', true).order('base_quantity', { ascending: false }) : emptyResult,
+      canReadProducts && !hasCachedProducts && operationalLocationId
         ? db.from('location_inventory').select('product_id, stock, min_stock').eq('location_id', operationalLocationId)
         : emptyResult,
-      canReadFiado ? db.from('debt_entries').select('*').order('date_added', { ascending: false }).limit(2000) : emptyResult,
-      canReadFiado ? db.from('payments').select('*').order('date', { ascending: false }).limit(2000) : emptyResult,
-      canReadRewards ? db.from('rewards').select('*').order('created_at', { ascending: false }).limit(1000) : emptyResult,
-      canReadSales ? locationQuery(db.from('sales').select('*')).order('date', { ascending: false }).limit(2000) : emptyResult,
-      canReadSales && needsSaleItems ? db.from('sale_items').select('*').limit(5000) : emptyResult,
-      canReadServiceTickets ? locationQuery(db.from('service_tickets').select('*')).order('number', { ascending: true }).limit(1000) : emptyResult,
-      canReadServiceTickets && needsServiceTicketItems ? db.from('service_ticket_items').select('*').order('created_at', { ascending: true }).limit(5000) : emptyResult,
-      canReadStock ? locationQuery(db.from('stock_movements').select('*')).order('date', { ascending: false }).limit(2000) : emptyResult,
-      canReadExpenses ? locationQuery(db.from('expenses').select('*')).order('date', { ascending: false }).limit(1000) : emptyResult,
-      canReadPricing ? db.from('product_category_pricing_rules').select('*').order('category', { ascending: true }) : emptyResult,
-      canReadPricing ? db.from('product_price_history').select('*').order('created_at', { ascending: false }).limit(1000) : emptyResult,
+      canReadFiado && !hasCachedClients ? db.from('debt_entries').select('*').order('date_added', { ascending: false }).limit(2000) : emptyResult,
+      canReadFiado && !hasCachedClients ? db.from('payments').select('*').order('date', { ascending: false }).limit(2000) : emptyResult,
+      canReadRewards && !hasCachedRewards ? db.from('rewards').select('*').order('created_at', { ascending: false }).limit(1000) : emptyResult,
+      canReadSales && !hasCachedSales ? locationQuery(db.from('sales').select('*')).order('date', { ascending: false }).limit(2000) : emptyResult,
+      canReadSales && needsSaleItems && !hasCachedSaleItems ? db.from('sale_items').select('*').limit(5000) : emptyResult,
+      canReadServiceTickets && !hasCachedServiceTickets ? locationQuery(db.from('service_tickets').select('*')).order('number', { ascending: true }).limit(1000) : emptyResult,
+      canReadServiceTickets && needsServiceTicketItems && !hasCachedServiceTicketItems ? db.from('service_ticket_items').select('*').order('created_at', { ascending: true }).limit(5000) : emptyResult,
+      canReadStock && !hasCachedStock ? locationQuery(db.from('stock_movements').select('*')).order('date', { ascending: false }).limit(2000) : emptyResult,
+      canReadExpenses && !hasCachedExpenses ? locationQuery(db.from('expenses').select('*')).order('date', { ascending: false }).limit(1000) : emptyResult,
+      canReadPricing && !hasCachedPricing ? db.from('product_category_pricing_rules').select('*').order('category', { ascending: true }) : emptyResult,
+      canReadPricing && !hasCachedPricing ? db.from('product_price_history').select('*').order('created_at', { ascending: false }).limit(1000) : emptyResult,
     ]);
 
     const canFallbackOperationalSettings = needsOperationalSettings && isMissingRpcError(settings.error, 'get_store_operational_settings');
@@ -724,42 +819,60 @@ export function DataProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    const nextClients = needsClients ? ((c.data as Client[]) ?? []) : clients;
+    const cachedClientsModule = cachedModuleData.clients;
+    const cachedProductsModule = cachedModuleData.products;
+    const cachedOperationalSettingsModule = cachedModuleData.storeOperationalSettings;
+    const cachedRewardsModule = cachedModuleData.rewards;
+    const cachedSalesModule = cachedModuleData.sales;
+    const cachedSaleItemsModule = cachedModuleData.saleItems;
+    const cachedServiceTicketsModule = cachedModuleData.serviceTickets;
+    const cachedServiceTicketItemsModule = cachedModuleData.serviceTicketItems;
+    const cachedStockModule = cachedModuleData.stock;
+    const cachedExpensesModule = cachedModuleData.expenses;
+    const cachedPricingModule = cachedModuleData.pricing;
+
+    const nextClients = needsClients ? (cachedClientsModule?.clients ?? ((c.data as Client[]) ?? [])) : clients;
     const inventoryByProductId = new Map(
       (((needsProducts ? inventory.data : []) ?? []) as Array<{ product_id: string; stock: number; min_stock: number }>)
         .map((row) => [row.product_id, row]),
     );
+    const nextRemoteProducts = productsWithDisplayCodes((p.data as Product[]) ?? []).map((product) => {
+      const localInventory = inventoryByProductId.get(product.id);
+      return localInventory
+        ? { ...product, stock: Number(localInventory.stock || 0), min_stock: Number(localInventory.min_stock || 0) }
+        : product;
+    });
     const nextProducts = needsProducts
-      ? productsWithDisplayCodes((p.data as Product[]) ?? []).map((product) => {
-        const localInventory = inventoryByProductId.get(product.id);
-        return localInventory
-          ? { ...product, stock: Number(localInventory.stock || 0), min_stock: Number(localInventory.min_stock || 0) }
-          : product;
-      })
+      ? (cachedProductsModule?.products ?? nextRemoteProducts)
       : products;
     const nextBlockSaleWithoutStock = canFallbackOperationalSettings
       ? true
-      : needsOperationalSettings
-        ? Boolean(settings.data?.block_sale_without_stock ?? true)
-        : blockSaleWithoutStock;
-    const nextProductPackagings = needsProducts ? ((pkg.data as ProductPackaging[]) ?? []) : productPackagings;
-    const nextDebtEntries = needsClients ? ((d.data as DebtEntry[]) ?? []) : debtEntries;
-    const nextPayments = needsClients ? ((pay.data as Payment[]) ?? []) : payments;
-    const nextRewards = needsRewards ? ((r.data as Reward[]) ?? []) : rewards;
-    const nextSales = needsSales ? ((s.data as Sale[]) ?? []) : sales;
-    const nextSaleItems = needsSaleItems ? ((si.data as SaleItem[]) ?? []) : saleItems;
+      : cachedOperationalSettingsModule
+        ? Boolean(cachedOperationalSettingsModule.blockSaleWithoutStock ?? true)
+        : needsOperationalSettings
+          ? Boolean(settings.data?.block_sale_without_stock ?? true)
+          : blockSaleWithoutStock;
+    const nextProductPackagings = needsProducts ? (cachedProductsModule?.productPackagings ?? ((pkg.data as ProductPackaging[]) ?? [])) : productPackagings;
+    const nextDebtEntries = needsClients ? (cachedClientsModule?.debtEntries ?? ((d.data as DebtEntry[]) ?? [])) : debtEntries;
+    const nextPayments = needsClients ? (cachedClientsModule?.payments ?? ((pay.data as Payment[]) ?? [])) : payments;
+    const nextRewards = needsRewards ? (cachedRewardsModule?.rewards ?? ((r.data as Reward[]) ?? [])) : rewards;
+    const nextSales = needsSales ? (cachedSalesModule?.sales ?? ((s.data as Sale[]) ?? [])) : sales;
+    const nextSaleItems = needsSaleItems ? (cachedSaleItemsModule?.saleItems ?? ((si.data as SaleItem[]) ?? [])) : saleItems;
     const nextServiceTickets = needsServiceTickets
-      ? sortServiceTicketsByNumber(((st.data as ServiceTicket[]) ?? []).map(normalizeServiceTicketRecord))
+      ? (cachedServiceTicketsModule?.serviceTickets
+        ?? sortServiceTicketsByNumber(((st.data as ServiceTicket[]) ?? []).map(normalizeServiceTicketRecord)))
       : serviceTickets;
     const nextServiceTicketItems = needsServiceTicketItems
-      ? sortServiceTicketItemsByCreatedAt((sti.data as ServiceTicketItem[]) ?? [])
+      ? (cachedServiceTicketItemsModule?.serviceTicketItems
+        ?? sortServiceTicketItemsByCreatedAt((sti.data as ServiceTicketItem[]) ?? []))
       : serviceTicketItems;
-    const nextStockMovements = needsStock ? ((sm.data as StockMovement[]) ?? []) : stockMovements;
-    const nextExpenses = needsExpenses ? ((exp.data as Expense[]) ?? []) : expenses;
+    const nextStockMovements = needsStock ? (cachedStockModule?.stockMovements ?? ((sm.data as StockMovement[]) ?? [])) : stockMovements;
+    const nextExpenses = needsExpenses ? (cachedExpensesModule?.expenses ?? ((exp.data as Expense[]) ?? [])) : expenses;
     const nextPricingRules = needsPricing
-      ? (((pr.data as ProductCategoryPricingRule[]) ?? []).map(normalizePricingRuleRow))
+      ? (cachedPricingModule?.pricingRules
+        ?? (((pr.data as ProductCategoryPricingRule[]) ?? []).map(normalizePricingRuleRow)))
       : pricingRules;
-    const nextPriceHistory = needsPricing ? ((ph.data as ProductPriceHistoryEntry[]) ?? []) : priceHistory;
+    const nextPriceHistory = needsPricing ? (cachedPricingModule?.priceHistory ?? ((ph.data as ProductPriceHistoryEntry[]) ?? [])) : priceHistory;
 
     if (needsClients) {
       setClients(nextClients);
@@ -792,6 +905,50 @@ export function DataProvider({ children }: { children: ReactNode }) {
       return nextState;
     });
     if (!silent && hasMissingRequestedModules) setLoading(false);
+
+    const writeModuleCache = (module: DataModule, data: StoreDataModulePayload) => {
+      if (!syncStateAvailable || cachedModuleData[module] || !canReadModule[module]) return;
+
+      const signature = remoteSyncStateByModule.get(module);
+      writeStoreDataModuleCache({
+        ownerUserId,
+        userId: user.id,
+        scopeKey: cacheScopeKey,
+        module,
+        signature,
+        data,
+      });
+    };
+
+    if (needsOperationalSettings) {
+      writeModuleCache('storeOperationalSettings', { blockSaleWithoutStock: nextBlockSaleWithoutStock });
+    }
+    if (needsClients) {
+      writeModuleCache('clients', {
+        clients: nextClients,
+        debtEntries: nextDebtEntries,
+        payments: nextPayments,
+      });
+    }
+    if (needsProducts) {
+      writeModuleCache('products', {
+        products: nextProducts,
+        productPackagings: nextProductPackagings,
+      });
+    }
+    if (needsRewards) writeModuleCache('rewards', { rewards: nextRewards });
+    if (needsSales) writeModuleCache('sales', { sales: nextSales });
+    if (needsSaleItems) writeModuleCache('saleItems', { saleItems: nextSaleItems });
+    if (needsServiceTickets) writeModuleCache('serviceTickets', { serviceTickets: nextServiceTickets });
+    if (needsServiceTicketItems) writeModuleCache('serviceTicketItems', { serviceTicketItems: nextServiceTicketItems });
+    if (needsStock) writeModuleCache('stock', { stockMovements: nextStockMovements });
+    if (needsExpenses) writeModuleCache('expenses', { expenses: nextExpenses });
+    if (needsPricing) {
+      writeModuleCache('pricing', {
+        pricingRules: nextPricingRules,
+        priceHistory: nextPriceHistory,
+      });
+    }
 
     if (shouldRefreshOfflineSnapshot) {
       const snapshot: OfflineSnapshot = {
