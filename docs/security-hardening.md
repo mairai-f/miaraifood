@@ -5,7 +5,7 @@
 Public and sensitive Edge Functions support optional Redis-backed rate limiting through Upstash REST.
 This protects account registration, billing checkout, admin/operator login, desktop/mobile downloads, license validation, administrative approvals, fiscal actions, access tracking, and message/email sending endpoints.
 Without the Redis secrets, the functions keep working and skip the Redis check.
-Admin login also uses Redis to block the email/IP pair after 3 failed attempts in 15 minutes. Operator login keeps the same 3-attempt rule through the login attempt table, scoped by company and username/IP.
+Admin login also uses Redis to warn when one attempt remains and require an email access key on the fourth failed attempt in 15 minutes. Operator login keeps the same 3-attempt rule through the login attempt table, scoped by company and username/IP.
 
 Configure these as Supabase secrets:
 
@@ -17,7 +17,7 @@ supabase secrets set REGISTER_ACCOUNT_RATE_LIMIT_PER_MINUTE="12"
 supabase secrets set FINALIZE_SITE_REGISTRATION_RATE_LIMIT_PER_MINUTE="20"
 supabase secrets set CREATE_PLAN_CHARGE_RATE_LIMIT_PER_MINUTE="10"
 supabase secrets set ADMIN_LOGIN_RATE_LIMIT_PER_MINUTE="30"
-supabase secrets set ADMIN_LOGIN_MAX_FAILED_ATTEMPTS_PER_15_MIN="3"
+supabase secrets set ADMIN_LOGIN_MAX_FAILED_ATTEMPTS_PER_15_MIN="4"
 supabase secrets set OPERATOR_LOGIN_RATE_LIMIT_PER_MINUTE="30"
 supabase secrets set OPERATOR_LOGIN_MAX_IP_ATTEMPTS_PER_15_MIN="3"
 supabase secrets set OPERATOR_LOGIN_MAX_USERNAME_ATTEMPTS_PER_15_MIN="3"

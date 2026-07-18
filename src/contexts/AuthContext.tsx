@@ -570,10 +570,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       const resolvedError = getPublicAuthErrorMessage(functionErrorMessage, 'Email ou senha incorretos.');
-      if (errorPayload?.verificationRequired || errorPayload?.code === 'LOGIN_VERIFICATION_REQUIRED') {
+      const verificationRequired = Boolean(errorPayload?.verificationRequired || errorPayload?.code === 'LOGIN_VERIFICATION_REQUIRED');
+      if (verificationRequired || errorPayload?.remainingAttempts === 1) {
         return {
           error: resolvedError,
-          verificationRequired: true,
+          verificationRequired,
           retryAfterSeconds: errorPayload.retryAfterSeconds ?? null,
           remainingAttempts: errorPayload.remainingAttempts ?? null,
           maxFailedAttempts: errorPayload.maxFailedAttempts ?? null,

@@ -87,6 +87,7 @@ export default function Login() {
   const [showAdminPassword, setShowAdminPassword] = useState(false);
   const [adminAccessCode, setAdminAccessCode] = useState('');
   const [adminLoginVerificationRequired, setAdminLoginVerificationRequired] = useState(false);
+  const [adminLoginAlert, setAdminLoginAlert] = useState<string | null>(null);
   const [adminOfflineUsername, setAdminOfflineUsername] = useState(offlineAdminAccess?.username ?? '');
   const [adminOfflinePin, setAdminOfflinePin] = useState('');
   const [operatorUsername, setOperatorUsername] = useState(initialPreferences.operatorUsername);
@@ -146,6 +147,7 @@ export default function Login() {
     });
 
     setSubmitting(true);
+    setAdminLoginAlert(null);
 
     try {
       const result = adminAccessMode === 'offline'
@@ -155,6 +157,7 @@ export default function Login() {
         if (typeof result === 'object') {
           setAdminLoginVerificationRequired(Boolean(result.verificationRequired));
           if (result.verificationRequired) setAdminAccessCode('');
+          setAdminLoginAlert(result.error || 'Codigo de autorizacao necessario.');
           toast.error(result.error || 'Codigo de autorizacao necessario.');
           return;
         }
@@ -168,6 +171,7 @@ export default function Login() {
       if (adminAccessMode === 'online') {
         setAdminLoginVerificationRequired(false);
         setAdminAccessCode('');
+        setAdminLoginAlert(null);
         applySystemSessionPreference(keepConnected);
       }
     } finally {
@@ -559,6 +563,7 @@ export default function Login() {
                               setEmail(e.target.value);
                               setAdminAccessCode('');
                               setAdminLoginVerificationRequired(false);
+                              setAdminLoginAlert(null);
                             }}
                             required
                             placeholder="Digite seu e-mail"
@@ -589,7 +594,10 @@ export default function Login() {
                               name="happycash-admin-password"
                               type={showAdminPassword ? 'text' : 'password'}
                               value={adminPassword}
-                              onChange={e => setAdminPassword(e.target.value)}
+                              onChange={e => {
+                                setAdminPassword(e.target.value);
+                                setAdminLoginAlert(null);
+                              }}
                               required
                               placeholder="Digite sua senha"
                               minLength={6}
@@ -610,12 +618,15 @@ export default function Login() {
                         </div>
                         {adminLoginVerificationRequired && (
                           <div className="space-y-2">
-                            <Label className="text-[15px] font-medium text-[#24324a]">Codigo de autorizacao</Label>
+                            <Label className="text-[15px] font-medium text-[#24324a]">Chave de acesso</Label>
                             <Input
                               id="happycash-admin-access-code"
                               name="happycash-admin-access-code"
                               value={adminAccessCode}
-                              onChange={e => setAdminAccessCode(e.target.value.replace(/\D/g, '').slice(0, 8))}
+                              onChange={e => {
+                                setAdminAccessCode(e.target.value.replace(/\D/g, '').slice(0, 8));
+                                setAdminLoginAlert(null);
+                              }}
                               required
                               placeholder="00000000"
                               autoComplete="one-time-code"
@@ -623,13 +634,15 @@ export default function Login() {
                               className="h-10 rounded-2xl border-[#d8e1ef] bg-white px-4 text-center text-[15px] font-bold tracking-[0.35em] text-[#24324a] placeholder:text-[#9aa6b8] focus-visible:ring-[#1f56a5]/25 focus-visible:ring-offset-0 sm:h-11"
                             />
                             <p className="text-xs leading-5 text-[#64748b]">
-                              Enviamos um codigo para reconhecer esta tentativa de entrada.
+                              Enviamos uma chave para reconhecer esta tentativa de entrada.
                             </p>
                           </div>
                         )}
-                        <p className="rounded-2xl border border-[#d9e3f2] bg-[#f4f7fc] px-3 py-2 text-xs leading-5 text-[#64748b]">
-                          Apos 3 tentativas incorretas, sera enviado um codigo ao e-mail para autorizar a entrada.
-                        </p>
+                        {adminLoginAlert && (
+                          <p className="rounded-2xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold leading-5 text-red-700">
+                            {adminLoginAlert}
+                          </p>
+                        )}
                       </>
                     )}
 

@@ -163,7 +163,9 @@ const Login = () => {
           }
         }
 
-        const resolvedError = resolveLoginErrorMessage(functionErrorMessage);
+        const resolvedError = errorPayload?.remainingAttempts === 1 && !errorPayload?.verificationRequired
+          ? 'Voce tem apenas mais uma tentativa de login.'
+          : resolveLoginErrorMessage(functionErrorMessage);
         if (errorPayload?.verificationRequired || errorPayload?.code === 'LOGIN_VERIFICATION_REQUIRED') {
           setLoginVerificationRequired(true);
           setAccessCode('');
@@ -217,7 +219,8 @@ const Login = () => {
   useEffect(() => {
     if (searchParams.get('recovery') === '1') {
       const recoveryEmail = searchParams.get('email')?.replace(/\s/g, '+') ?? '';
-      openResetDialog(recoveryEmail || email, { step: recoveryEmail ? 'code' : 'email' });
+      const recoveryStep = searchParams.get('step') === 'email' ? 'email' : 'code';
+      openResetDialog(recoveryEmail || email, { step: recoveryStep });
     }
     // Abre apenas na primeira renderizacao quando a URL pede recuperacao.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -563,7 +566,7 @@ const Login = () => {
 
                 {loginVerificationRequired && (
                   <div className="space-y-2">
-                    <Label htmlFor="login-access-code" className="text-[15px] font-medium text-[#24324a]">Codigo de autorizacao</Label>
+                    <Label htmlFor="login-access-code" className="text-[15px] font-medium text-[#24324a]">Chave de acesso</Label>
                     <Input
                       id="login-access-code"
                       inputMode="numeric"
@@ -578,14 +581,10 @@ const Login = () => {
                       className="h-10 rounded-2xl border-[#d8e1ef] bg-white px-4 text-center text-[15px] font-bold tracking-[0.35em] text-[#24324a] placeholder:text-[#9aa6b8] focus-visible:ring-[#1f56a5]/25 focus-visible:ring-offset-0 sm:h-11"
                     />
                     <p className="text-xs leading-5 text-[#64748b]">
-                      Enviamos um codigo para reconhecer esta tentativa de entrada.
+                      Enviamos uma chave para reconhecer esta tentativa de entrada.
                     </p>
                   </div>
                 )}
-
-                <p className="rounded-2xl border border-[#d9e3f2] bg-[#f4f7fc] px-3 py-2 text-xs leading-5 text-[#64748b]">
-                  Apos 3 tentativas incorretas, sera enviado um codigo ao e-mail para autorizar a entrada.
-                </p>
 
                 <div className="grid gap-2 pt-0.5 sm:gap-2.5 sm:grid-cols-2">
                   <div className="flex min-w-0 items-center gap-2.5">

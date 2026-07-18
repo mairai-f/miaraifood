@@ -41,12 +41,14 @@ type StoreAccountRow = {
 
 const LOGIN_LOCK_MESSAGE = "Muitas tentativas de login. Aguarde alguns minutos e tente novamente.";
 const INVALID_LOGIN_MESSAGE = "Email ou senha incorretos.";
+const LAST_LOGIN_ATTEMPT_MESSAGE = "Voce tem apenas mais uma tentativa de login.";
 const LOGIN_VERIFICATION_REQUIRED_CODE = "LOGIN_VERIFICATION_REQUIRED";
 const LOGIN_VERIFICATION_REQUIRED_MESSAGE = "Por seguranca, enviamos um codigo para seu e-mail. Digite o codigo para reconhecer esta tentativa e entrar.";
 const LOGIN_VERIFICATION_INVALID_MESSAGE = "Codigo de autorizacao invalido ou expirado. Solicite um novo codigo e tente novamente.";
 const LOGIN_VERIFICATION_SEND_LIMIT_MESSAGE = "Ja enviamos um codigo recentemente. Verifique seu e-mail antes de pedir outro.";
 const LOGIN_ATTEMPT_WINDOW_SECONDS = 15 * 60;
 const LOGIN_VERIFICATION_WINDOW_SECONDS = 10 * 60;
+const DEFAULT_HAPPYCASH_SITE_ORIGIN = "https://www.happycashsite.com.br";
 
 const jsonResponse = (request: Request, body: Record<string, unknown>, status = 200) =>
   new Response(JSON.stringify(body), {
@@ -79,7 +81,7 @@ const getBody = async (request: Request): Promise<AdminLoginRequest | null> => {
   }
 };
 
-const readFailedAttemptLimit = () => readRateLimitEnv("ADMIN_LOGIN_MAX_FAILED_ATTEMPTS_PER_15_MIN", 3);
+const readFailedAttemptLimit = () => readRateLimitEnv("ADMIN_LOGIN_MAX_FAILED_ATTEMPTS_PER_15_MIN", 4);
 const readVerificationEmailLimit = () => readRateLimitEnv("ADMIN_LOGIN_VERIFICATION_EMAILS_PER_15_MIN", 3);
 const shouldRequireEmailVerification = (loginSurface: string) =>
   loginSurface === "web" || loginSurface === "happycashsite";
@@ -87,6 +89,16 @@ const shouldRequireEmailVerification = (loginSurface: string) =>
 const buildVerificationIdentifier = (email: string) => email;
 const buildVerificationDigest = (email: string, code: string) =>
   sha256(`admin-login-verification:${email}:${code}`);
+const getHappyCashSiteOrigin = () =>
+  Deno.env.get("HAPPYCASH_SITE_URL")?.trim().replace(/\/+$/, "") || DEFAULT_HAPPYCASH_SITE_ORIGIN;
+
+const buildPasswordResetUrl = (email: string) => {
+  const url = new URL("/login", getHappyCashSiteOrigin());
+  url.searchParams.set("recovery", "1");
+  url.searchParams.set("step", "email");
+  url.searchParams.set("email", email);
+  return url.toString();
+};
 
 const generateVerificationCode = () => {
   const bytes = new Uint32Array(1);
@@ -197,32 +209,38 @@ const sendLoginVerificationCode = async (
 
   try {
     const surfaceLabel = getSurfaceLabel(loginSurface);
+    const passwordResetUrl = buildPasswordResetUrl(email);
     const html = renderHappyCashEmail({
       eyebrow: "Acesso protegido",
       title: "Reconheca esta tentativa de entrada",
-      preview: "Use o codigo de autorizacao para liberar seu acesso HappyCash.",
-      intro: `Detectamos 3 tentativas incorretas de login para ${email} no ${surfaceLabel}. Se foi voce, use o codigo abaixo para autorizar a entrada.`,
+      preview: "Use a chave de acesso para liberar sua entrada HappyCash.",
+      intro: `Detectamos tentativas incorretas de login para ${email} no ${surfaceLabel}. Se foi voce, use a chave abaixo para autorizar a entrada.`,
       contentHtml: `
         <div style="margin:28px 0;border:1px solid #d8e2ef;border-radius:14px;background:#f8fbff;padding:18px;text-align:center;">
-          <p style="margin:0 0 8px;color:#5b6b83;font-size:12px;line-height:18px;">Codigo de autorizacao</p>
+          <p style="margin:0 0 8px;color:#5b6b83;font-size:12px;line-height:18px;">Chave de acesso</p>
           <p style="margin:0;color:#14213d;font-size:34px;line-height:40px;font-weight:900;letter-spacing:7px;">${escapeHtml(code)}</p>
         </div>
-        <p style="margin:18px 0 0;color:#42526a;font-size:14px;line-height:22px;">Este codigo expira em 10 minutos. Se voce nao reconhece esta tentativa, troque sua senha e fale com o suporte.</p>
+        <p style="margin:18px 0 0;color:#42526a;font-size:14px;line-height:22px;">Esta chave expira em 10 minutos. Se voce esqueceu a senha, use o botao abaixo para abrir a redefinicao no HappyCash Site.</p>
       `,
-      footerNote: "HappyCash nunca pede sua senha por e-mail. Use este codigo somente na tela oficial de login.",
+      action: {
+        label: "Redefinir senha",
+        href: passwordResetUrl,
+      },
+      footerNote: "HappyCash nunca pede sua senha por e-mail. Use esta chave somente na tela oficial de login.",
     });
     const text = [
       "Reconheca esta tentativa de entrada HappyCash.",
-      `Detectamos 3 tentativas incorretas de login para ${email} no ${surfaceLabel}.`,
-      `Codigo de autorizacao: ${code}`,
-      "Este codigo expira em 10 minutos.",
+      `Detectamos tentativas incorretas de login para ${email} no ${surfaceLabel}.`,
+      `Chave de acesso: ${code}`,
+      "Esta chave expira em 10 minutos.",
+      `Redefinir senha: ${passwordResetUrl}`,
       "Se voce nao reconhece esta tentativa, troque sua senha e fale com o suporte.",
     ].join("\n");
 
     await sendHappyCashEmail({
       from: getHappyCashFromEmail("LOGIN_VERIFICATION_FROM_EMAIL"),
       to: [email],
-      subject: "Codigo de autorizacao HappyCash",
+      subject: "Chave de acesso HappyCash",
       html,
       text,
     });
@@ -308,10 +326,16 @@ const failedLoginResponse = async (
     return verificationRequiredResponse(request, email, loginSurface, { sendCode: true });
   }
 
+  const errorMessage = failure.allowed && shouldRequireEmailVerification(loginSurface) && failure.remaining === 1
+    ? LAST_LOGIN_ATTEMPT_MESSAGE
+    : failure.allowed
+      ? INVALID_LOGIN_MESSAGE
+      : LOGIN_LOCK_MESSAGE;
+
   return jsonResponse(
     request,
     {
-      error: failure.allowed ? INVALID_LOGIN_MESSAGE : LOGIN_LOCK_MESSAGE,
+      error: errorMessage,
       retryAfterSeconds: failure.allowed ? null : failure.retryAfterSeconds,
       maxFailedAttempts: readFailedAttemptLimit(),
       remainingAttempts: failure.remaining,
