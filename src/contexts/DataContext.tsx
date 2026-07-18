@@ -1099,6 +1099,75 @@ export function DataProvider({ children }: { children: ReactNode }) {
   }, [authLoading, fetchAll, isDemoMode, isHrOnlySession, loading, passiveRefreshEnabled, planLoading, user]);
 
   useEffect(() => {
+    if (
+      authLoading
+      || planLoading
+      || !user
+      || !ownerUserId
+      || !operationalLocationId
+      || isDemoMode
+      || isHrOnlySession
+      || !location.pathname.startsWith('/pdv')
+      || (typeof navigator !== 'undefined' && navigator.onLine === false)
+    ) {
+      return;
+    }
+
+    type InventoryRealtimeRow = {
+      owner_user_id?: string | null;
+      product_id?: string | null;
+      stock?: number | string | null;
+      min_stock?: number | string | null;
+    };
+
+    const updateProductInventory = (row: InventoryRealtimeRow) => {
+      if (!row.product_id || (row.owner_user_id && row.owner_user_id !== ownerUserId)) return;
+      if (row.stock === null || row.stock === undefined) return;
+
+      setProducts(prev => prev.map(product => (
+        product.id === row.product_id
+          ? {
+              ...product,
+              stock: Number(row.stock ?? 0),
+              min_stock: row.min_stock === null || row.min_stock === undefined
+                ? product.min_stock
+                : Number(row.min_stock ?? 0),
+            }
+          : product
+      )));
+    };
+
+    const channel = db
+      .channel(`pdv-stock:${ownerUserId}:${operationalLocationId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'location_inventory',
+          filter: `location_id=eq.${operationalLocationId}`,
+        },
+        (payload: { new?: InventoryRealtimeRow }) => {
+          updateProductInventory(payload.new ?? {});
+        },
+      )
+      .subscribe();
+
+    return () => {
+      void db.removeChannel(channel);
+    };
+  }, [
+    authLoading,
+    isDemoMode,
+    isHrOnlySession,
+    location.pathname,
+    operationalLocationId,
+    ownerUserId,
+    planLoading,
+    user,
+  ]);
+
+  useEffect(() => {
     if (!canUseOfflineConcentrator || !ownerUserId || loading || !user || isDemoMode || !fullSnapshotPrimedRef.current) {
       return;
     }
