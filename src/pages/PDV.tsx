@@ -20,8 +20,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { Ban, FileText, History, Loader2, Maximize2, Minimize2, Minus, Plus, Printer, Receipt, Search, ShoppingCart, Wallet, X } from 'lucide-react';
-import type { Expense, Product, ProductPackaging, Reward, Sale } from '@/types';
+import { Ban, FileText, History, Loader2, Maximize2, Minimize2, Minus, Plus, Printer, Receipt, RefreshCw, Search, ShoppingCart, Wallet, X } from 'lucide-react';
+import type { Expense, Product, ProductPackaging, Reward, Sale, SaleItem } from '@/types';
 import { INTERNET_REQUIRED_MESSAGE, isInternetUnavailable, openExternalUrl } from '@/lib/openExternalUrl';
 import { normalizePhone } from '@/lib/phone';
 import { openRetailCouponPrintWindow } from '@/lib/retailCoupon';
@@ -61,6 +61,8 @@ import { formatCurrency, formatDateTime, formatPercent, getActiveLocale, transla
 // Generated Supabase types are behind the current PDV schema.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
+const PDV_SALE_SEARCH_COLUMNS = 'id, client_id, user_id, operator_user_id, cash_session_id, location_id, terminal_id, seller_name, is_delivery, service_ticket_number, status, cancel_reason, cancelled_at, total, discount, payment_method, cash_received, change_amount, fiscal_customer_document, fiscal_customer_name, date, created_at';
+const PDV_SALE_ITEM_SEARCH_COLUMNS = 'id, sale_id, product_id, product_code, product_name, quantity, unit_price, packaging_id, packaging_name, packaging_quantity, packaging_price, cost_price, total, discount_amount, net_total, unit_profit, total_profit, markup_pct';
 
 interface CartItem {
   product: Product;
@@ -447,6 +449,10 @@ export default function PDV() {
   const [showCashOut, setShowCashOut] = useState(false);
   const [saleSearch, setSaleSearch] = useState('');
   const [saleLimit, setSaleLimit] = useState(25);
+  const [salesSearchRows, setSalesSearchRows] = useState<Sale[]>([]);
+  const [salesSearchItems, setSalesSearchItems] = useState<SaleItem[]>([]);
+  const [salesSearchLoading, setSalesSearchLoading] = useState(false);
+  const [salesSearchError, setSalesSearchError] = useState<string | null>(null);
   const [saleToCancel, setSaleToCancel] = useState<string | null>(null);
   const [cancelReason, setCancelReason] = useState('');
   const [cashOutAmount, setCashOutAmount] = useState('');
@@ -1210,8 +1216,90 @@ export default function PDV() {
     return sales.filter(sale => isInCurrentCashSession(sale.date));
   }, [isInCurrentCashSession, sales]);
 
+  const loadSalesSearchRows = useCallback(async () => {
+    if (!cashSession || !ownerUserId) {
+      setSalesSearchRows([]);
+      setSalesSearchItems([]);
+      setSalesSearchError('Abra o caixa para buscar vendas desta sessao.');
+      return;
+    }
+
+    setSalesSearchLoading(true);
+    setSalesSearchError(null);
+
+    const sortedLocalSales = [...sessionScopedSales]
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+      .slice(0, saleLimit);
+    const localSaleIds = new Set(sortedLocalSales.map(sale => sale.id));
+
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+      setSalesSearchRows(sortedLocalSales);
+      setSalesSearchItems(saleItems.filter(item => localSaleIds.has(item.sale_id)));
+      setSalesSearchLoading(false);
+      return;
+    }
+
+    try {
+      let salesQuery = db
+        .from('sales')
+        .select(PDV_SALE_SEARCH_COLUMNS)
+        .gte('date', cashSession.openedAt);
+
+      if (operationalLocationId) {
+        salesQuery = salesQuery.eq('location_id', operationalLocationId);
+      }
+
+      const { data: salesData, error: salesError } = await salesQuery
+        .order('date', { ascending: false })
+        .limit(saleLimit);
+
+      if (salesError) throw salesError;
+
+      const nextSales = ((salesData as Sale[] | null) ?? []);
+      const saleIds = nextSales.map(sale => sale.id);
+      let nextSaleItems: SaleItem[] = [];
+
+      if (saleIds.length > 0) {
+        const { data: itemsData, error: itemsError } = await db
+          .from('sale_items')
+          .select(PDV_SALE_ITEM_SEARCH_COLUMNS)
+          .in('sale_id', saleIds);
+
+        if (itemsError) throw itemsError;
+        nextSaleItems = (itemsData as SaleItem[] | null) ?? [];
+      }
+
+      setSalesSearchRows(nextSales);
+      setSalesSearchItems(nextSaleItems);
+    } catch (error) {
+      console.error('Nao foi possivel buscar vendas do PDV:', getRedactedLogValue(error));
+      setSalesSearchRows(sortedLocalSales);
+      setSalesSearchItems(saleItems.filter(item => localSaleIds.has(item.sale_id)));
+      setSalesSearchError(getPublicErrorMessage(error, 'Nao foi possivel buscar vendas agora. Exibindo dados locais.'));
+    } finally {
+      setSalesSearchLoading(false);
+    }
+  }, [cashSession, operationalLocationId, ownerUserId, saleItems, saleLimit, sessionScopedSales]);
+
+  useEffect(() => {
+    if (!showSalesSearch) return;
+    void loadSalesSearchRows();
+  }, [loadSalesSearchRows, showSalesSearch]);
+
+  const getSaleItemsForSale = useCallback((saleId: string) => {
+    const itemsById = new Map<string, SaleItem>();
+    saleItems.forEach(item => {
+      if (item.sale_id === saleId) itemsById.set(item.id, item);
+    });
+    salesSearchItems.forEach(item => {
+      if (item.sale_id === saleId) itemsById.set(item.id, item);
+    });
+
+    return Array.from(itemsById.values());
+  }, [saleItems, salesSearchItems]);
+
   const visibleSales = useMemo(() => {
-    return sessionScopedSales
+    return salesSearchRows
       .filter(sale => {
         if (!saleSearchTerm) return true;
         const client = activeClients.find(c => c.id === sale.client_id);
@@ -1233,7 +1321,7 @@ export default function PDV() {
       })
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
       .slice(0, saleLimit);
-  }, [activeClients, saleLimit, saleSearchTerm, sessionScopedSales]);
+  }, [activeClients, saleLimit, saleSearchTerm, salesSearchRows]);
 
   const visibleSalesTotal = visibleSales
     .filter(sale => sale.status !== 'cancelled')
@@ -2383,10 +2471,10 @@ export default function PDV() {
   };
 
   const cancelledSales = useMemo(() => {
-    return sessionScopedSales
+    return salesSearchRows
       .filter(sale => sale.status === 'cancelled')
       .sort((a, b) => new Date(b.cancelled_at || b.date).getTime() - new Date(a.cancelled_at || a.date).getTime());
-  }, [sessionScopedSales]);
+  }, [salesSearchRows]);
 
   const cashSessionSales = useMemo(() => {
     return sessionScopedSales.filter(sale => sale.status !== 'cancelled');
@@ -3586,7 +3674,7 @@ export default function PDV() {
     const client = sale.client_id
       ? activeClients.find(item => item.id === sale.client_id)
       : null;
-    const items = saleItems.filter(item => item.sale_id === sale.id);
+    const items = getSaleItemsForSale(sale.id);
     const subtotalValue = items.reduce((sum, item) => sum + item.total, 0);
 
     openRetailCouponPrintWindow({
@@ -4104,6 +4192,9 @@ export default function PDV() {
       await cancelSale(saleToCancel, cancelReason.trim());
       setSaleToCancel(null);
       setCancelReason('');
+      if (showSalesSearch) {
+        await loadSalesSearchRows();
+      }
       silentToast.success('Venda cancelada!');
     } catch (error) {
       console.error('Erro ao cancelar venda:', getRedactedLogValue(error));
@@ -5422,7 +5513,7 @@ export default function PDV() {
         <DialogContent className="max-h-[90vh] max-w-5xl overflow-hidden">
           <DialogHeader><DialogTitle>Buscar vendas</DialogTitle></DialogHeader>
           <div className="flex min-h-0 flex-col gap-3">
-            <div className="grid gap-2 sm:grid-cols-[1fr_180px]">
+            <div className="grid gap-2 sm:grid-cols-[1fr_180px_auto]">
               <Input
                 value={saleSearch}
                 onChange={e => setSaleSearch(e.target.value)}
@@ -5432,12 +5523,23 @@ export default function PDV() {
               <Select value={saleLimit.toString()} onValueChange={value => setSaleLimit(parseInt(value, 10))}>
                 <SelectTrigger className="h-10"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {[25, 50, 75, 100, 125, 150].map(limit => (
+                  {[25, 100, 125, 150, 200].map(limit => (
                     <SelectItem key={limit} value={limit.toString()}>0-{limit} registros</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
+              <Button type="button" variant="outline" className="h-10 gap-2" onClick={() => void loadSalesSearchRows()} disabled={salesSearchLoading}>
+                {salesSearchLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                Atualizar
+              </Button>
             </div>
+
+            {salesSearchError && (
+              <Alert variant="destructive">
+                <AlertTitle>Busca de vendas</AlertTitle>
+                <AlertDescription>{salesSearchError}</AlertDescription>
+              </Alert>
+            )}
 
             <div className="grid gap-2 sm:grid-cols-3">
               <div className="rounded-lg border border-border p-3">
@@ -5458,9 +5560,11 @@ export default function PDV() {
             </div>
 
             <div className="min-h-0 max-h-[55vh] overflow-auto space-y-2">
-              {visibleSales.map(sale => {
+              {salesSearchLoading ? (
+                <p className="py-8 text-center text-sm text-muted-foreground">Buscando vendas...</p>
+              ) : visibleSales.map(sale => {
                 const client = activeClients.find(c => c.id === sale.client_id);
-                const items = saleItems.filter(item => item.sale_id === sale.id);
+                const items = getSaleItemsForSale(sale.id);
                 const isCancelled = sale.status === 'cancelled';
                 const saleCashReceived = Number(sale.cash_received || 0);
                 const saleChangeAmount = Number(sale.change_amount || 0);
@@ -5512,7 +5616,7 @@ export default function PDV() {
                   </div>
                 );
               })}
-              {visibleSales.length === 0 && <p className="py-8 text-center text-sm text-muted-foreground">Nenhuma venda encontrada.</p>}
+              {!salesSearchLoading && visibleSales.length === 0 && <p className="py-8 text-center text-sm text-muted-foreground">Nenhuma venda encontrada.</p>}
             </div>
           </div>
         </DialogContent>
@@ -5525,7 +5629,7 @@ export default function PDV() {
           <div className="max-h-[70vh] overflow-auto space-y-2">
             {cancelledSales.map(sale => {
               const client = activeClients.find(c => c.id === sale.client_id);
-              const items = saleItems.filter(item => item.sale_id === sale.id);
+              const items = getSaleItemsForSale(sale.id);
               return (
                 <div key={sale.id} className="rounded-lg border border-border p-3">
                   <div className="flex flex-wrap items-start justify-between gap-2">

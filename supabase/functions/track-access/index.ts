@@ -3,18 +3,15 @@ import { buildCorsHeaders, handleCorsPreflight } from "../_shared/cors.ts";
 import { checkRedisRateLimit, readRateLimitEnv } from "../_shared/rateLimit.ts";
 
 type AccessEventType = "heartbeat" | "logout";
-type AccessSource = "system" | "site";
-type DeviceType = "desktop" | "mobile" | "tablet" | "unknown";
 type UserRole = "admin" | "operator" | "waiter" | "hr";
-const normalizeUserRole = (value: string | null | undefined): UserRole => {
-  if (value === "operator" || value === "waiter" || value === "hr") return value;
-  return "admin";
-};
 
 interface TrackAccessRequest {
   eventType?: AccessEventType;
-  source?: AccessSource;
+  source?: "system" | "site";
   clientSessionId?: string;
+  desktopInstallationId?: string | null;
+  desktopAppContext?: string | null;
+  desktopStoreAccountId?: string | null;
   metadata?: Record<string, unknown> | null;
 }
 
@@ -25,9 +22,11 @@ interface AccessProfileRow {
   email: string | null;
 }
 
-interface AccessSessionRow {
+interface DesktopActivationPresenceRow {
   id: string;
-  login_at: string;
+  store_account_id: string;
+  current_user_id: string | null;
+  current_session_started_at: string | null;
 }
 
 const jsonResponse = (request: Request, body: Record<string, unknown>, status = 200) =>
@@ -47,59 +46,24 @@ const extractAccessToken = (authorization: string | null) => {
   return matchedToken?.[1]?.trim() || null;
 };
 
-const normalizeSource = (value?: string | null): AccessSource =>
-  value === "site" ? "site" : "system";
+const normalizeUserRole = (value: string | null | undefined): UserRole => {
+  if (value === "operator" || value === "waiter" || value === "hr") return value;
+  return "admin";
+};
 
 const normalizeEventType = (value?: string | null): AccessEventType =>
   value === "logout" ? "logout" : "heartbeat";
 
-const extractIpAddress = (request: Request) => {
-  const candidates = [
-    request.headers.get("cf-connecting-ip"),
-    request.headers.get("x-forwarded-for"),
-    request.headers.get("x-real-ip"),
-  ].filter(Boolean) as string[];
-
-  for (const candidate of candidates) {
-    const firstIp = candidate.split(",")[0]?.trim();
-    if (firstIp) return firstIp;
-  }
-
-  return null;
+const normalizeOptionalText = (value: unknown, maxLength = 120) => {
+  if (typeof value !== "string") return null;
+  const normalized = value.trim();
+  return normalized ? normalized.slice(0, maxLength) : null;
 };
 
-const detectDeviceType = (userAgent: string): DeviceType => {
-  const ua = userAgent.toLowerCase();
-  if (!ua) return "unknown";
-  if (/ipad|tablet|playbook|silk/i.test(ua)) return "tablet";
-  if (/mobi|android|iphone|ipod|phone/i.test(ua)) return "mobile";
-  if (/windows|macintosh|linux|x11|cros/i.test(ua)) return "desktop";
-  return "unknown";
-};
-
-const detectBrowser = (userAgent: string) => {
-  const ua = userAgent.toLowerCase();
-  if (!ua) return "Desconhecido";
-  if (ua.includes("edg/")) return "Edge";
-  if (ua.includes("opr/") || ua.includes("opera")) return "Opera";
-  if (ua.includes("chrome/")) return "Chrome";
-  if (ua.includes("firefox/")) return "Firefox";
-  if (ua.includes("safari/") && !ua.includes("chrome/")) return "Safari";
-  if (ua.includes("electron/")) return "Electron";
-  return "Desconhecido";
-};
-
-const detectOs = (userAgent: string) => {
-  const ua = userAgent.toLowerCase();
-  if (!ua) return "Desconhecido";
-  if (ua.includes("windows")) return "Windows";
-  if (ua.includes("iphone") || ua.includes("ipad") || ua.includes("ios")) return "iOS";
-  if (ua.includes("android")) return "Android";
-  if (ua.includes("mac os") || ua.includes("macintosh")) return "macOS";
-  if (ua.includes("cros")) return "Chrome OS";
-  if (ua.includes("linux")) return "Linux";
-  return "Desconhecido";
-};
+const normalizeMetadata = (value: unknown): Record<string, unknown> =>
+  value && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : {};
 
 Deno.serve(async (request) => {
   if (request.method === "OPTIONS") {
@@ -109,7 +73,7 @@ Deno.serve(async (request) => {
   }
 
   if (request.method !== "POST") {
-    return jsonResponse(request, { error: "Método não suportado." }, 405);
+    return jsonResponse(request, { error: "Metodo nao suportado." }, 405);
   }
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
@@ -118,11 +82,11 @@ Deno.serve(async (request) => {
   const accessToken = extractAccessToken(request.headers.get("Authorization"));
 
   if (!supabaseUrl || !supabaseAnonKey || !supabaseServiceRoleKey) {
-    return jsonResponse(request, { error: "Configuração do Supabase inválida." }, 500);
+    return jsonResponse(request, { error: "Configuracao do Supabase invalida." }, 500);
   }
 
   if (!accessToken) {
-    return jsonResponse(request, { error: "Sessão inválida. Faça login novamente." }, 401);
+    return jsonResponse(request, { error: "Sessao invalida. Faca login novamente." }, 401);
   }
 
   const endpointRateLimit = await checkRedisRateLimit(request, {
@@ -140,6 +104,25 @@ Deno.serve(async (request) => {
       },
       429,
     );
+  }
+
+  let body: TrackAccessRequest;
+
+  try {
+    body = await request.json();
+  } catch {
+    return jsonResponse(request, { error: "Payload invalido." }, 400);
+  }
+
+  const desktopInstallationId = normalizeOptionalText(body.desktopInstallationId, 160);
+  const desktopAppContext = normalizeOptionalText(body.desktopAppContext, 40);
+
+  if (!desktopInstallationId || desktopAppContext !== "happycash" || body.source === "site") {
+    return jsonResponse(request, {
+      success: true,
+      ignored: true,
+      reason: "access_history_disabled",
+    });
   }
 
   const authClient = createClient(supabaseUrl, supabaseAnonKey, {
@@ -167,24 +150,8 @@ Deno.serve(async (request) => {
   } = await authClient.auth.getUser();
 
   if (authError || !user) {
-    return jsonResponse(request, { error: "Sessão inválida. Faça login novamente." }, 401);
+    return jsonResponse(request, { error: "Sessao invalida. Faca login novamente." }, 401);
   }
-
-  let body: TrackAccessRequest;
-
-  try {
-    body = await request.json();
-  } catch {
-    return jsonResponse(request, { error: "Payload inválido." }, 400);
-  }
-
-  const clientSessionId = body.clientSessionId?.trim();
-  if (!clientSessionId) {
-    return jsonResponse(request, { error: "Sessão do cliente não informada." }, 400);
-  }
-
-  const eventType = normalizeEventType(body.eventType);
-  const source = normalizeSource(body.source);
 
   const { data: profileData, error: profileError } = await serviceClient
     .from("profiles")
@@ -193,7 +160,7 @@ Deno.serve(async (request) => {
     .maybeSingle();
 
   if (profileError) {
-    return jsonResponse(request, { error: "Não foi possível identificar o usuário." }, 500);
+    return jsonResponse(request, { error: "Nao foi possivel identificar o usuario." }, 500);
   }
 
   const profile = (profileData as AccessProfileRow | null) || null;
@@ -201,144 +168,87 @@ Deno.serve(async (request) => {
   const ownerUserId = profile?.owner_user_id ?? user.id;
   const username = profile?.username ?? null;
   const email = profile?.email ?? user.email ?? null;
+  const desktopStoreAccountId = normalizeOptionalText(body.desktopStoreAccountId, 80);
 
-  const userAgent = request.headers.get("user-agent") || "";
-  const deviceType = detectDeviceType(userAgent);
-  const browserName = detectBrowser(userAgent);
-  const osName = detectOs(userAgent);
-  const ipAddress = extractIpAddress(request);
-  const countryCode = request.headers.get("cf-ipcountry") || null;
-  const now = new Date().toISOString();
-
-  const { data: existingSessionData, error: existingSessionError } = await serviceClient
-    .from("access_sessions")
-    .select("id, login_at")
+  let activationQuery = serviceClient
+    .from("desktop_machine_activations")
+    .select("id, store_account_id, current_user_id, current_session_started_at")
     .eq("owner_user_id", ownerUserId)
-    .eq("user_id", user.id)
-    .eq("source", source)
-    .eq("client_session_id", clientSessionId)
-    .maybeSingle();
+    .eq("installation_id", desktopInstallationId)
+    .eq("app_context", "happycash");
 
-  if (existingSessionError) {
-    return jsonResponse(request, { error: "Não foi possível carregar a sessão de acesso." }, 500);
+  if (desktopStoreAccountId) {
+    activationQuery = activationQuery.eq("store_account_id", desktopStoreAccountId);
   }
 
-  const existingSession = (existingSessionData as AccessSessionRow | null) || null;
-  const metadata = body.metadata && typeof body.metadata === "object" ? body.metadata : {};
+  const { data: activationData, error: activationError } = await activationQuery.maybeSingle();
 
-  if (!existingSession && eventType === "logout") {
-    return jsonResponse(request, { success: true, ignored: true });
+  if (activationError) {
+    return jsonResponse(request, { error: "Nao foi possivel carregar a maquina ativada." }, 500);
   }
 
-  let accessSessionId = existingSession?.id ?? null;
-
-  if (!existingSession) {
-    const { data: insertedSession, error: insertSessionError } = await serviceClient
-      .from("access_sessions")
-      .insert({
-        owner_user_id: ownerUserId,
-        user_id: user.id,
-        role,
-        username,
-        email,
-        source,
-        client_session_id: clientSessionId,
-        device_type: deviceType,
-        os_name: osName,
-        browser_name: browserName,
-        ip_address: ipAddress,
-        country_code: countryCode,
-        user_agent: userAgent || null,
-        login_at: now,
-        last_seen_at: now,
-        ended_at: null,
-        metadata,
-      })
-      .select("id")
-      .single();
-
-    if (insertSessionError || !insertedSession) {
-      return jsonResponse(request, { error: "Não foi possível criar a sessão de acesso." }, 500);
-    }
-
-    accessSessionId = (insertedSession as { id: string }).id;
-
-    const { error: insertLogError } = await serviceClient
-      .from("access_logs")
-      .insert({
-        access_session_id: accessSessionId,
-        owner_user_id: ownerUserId,
-        user_id: user.id,
-        role,
-        username,
-        email,
-        source,
-        event_type: "login",
-        device_type: deviceType,
-        os_name: osName,
-        browser_name: browserName,
-        ip_address: ipAddress,
-        country_code: countryCode,
-        user_agent: userAgent || null,
-        occurred_at: now,
-        metadata,
-      });
-
-    if (insertLogError) {
-      return jsonResponse(request, { error: "Não foi possível registrar o login." }, 500);
-    }
-
-    return jsonResponse(request, { success: true, eventType: "login" });
+  const activation = (activationData as DesktopActivationPresenceRow | null) || null;
+  if (!activation) {
+    return jsonResponse(request, {
+      success: true,
+      ignored: true,
+      reason: "desktop_not_activated",
+    });
   }
 
-  const { error: updateSessionError } = await serviceClient
-    .from("access_sessions")
-    .update({
-      role,
-      username,
-      email,
-      device_type: deviceType,
-      os_name: osName,
-      browser_name: browserName,
-      ip_address: ipAddress,
-      country_code: countryCode,
-      user_agent: userAgent || null,
-      last_seen_at: now,
-      ended_at: eventType === "logout" ? now : null,
-      metadata,
-    })
-    .eq("id", existingSession.id);
-
-  if (updateSessionError) {
-    return jsonResponse(request, { error: "Não foi possível atualizar a sessão de acesso." }, 500);
+  const eventType = normalizeEventType(body.eventType);
+  if (eventType === "logout" && activation.current_user_id && activation.current_user_id !== user.id) {
+    return jsonResponse(request, {
+      success: true,
+      ignored: true,
+      reason: "another_user_active_on_machine",
+    });
   }
+
+  const metadata = normalizeMetadata(body.metadata);
+  const now = new Date().toISOString();
+  const platform = normalizeOptionalText(metadata.platform, 40);
+  const appVersion = normalizeOptionalText(metadata.appVersion, 40);
+  const currentSessionStartedAt = activation.current_user_id === user.id && activation.current_session_started_at
+    ? activation.current_session_started_at
+    : now;
+
+  const updatePayload: Record<string, unknown> = {
+    last_seen_at: now,
+    updated_at: now,
+  };
+
+  if (platform) updatePayload.platform = platform;
+  if (appVersion) updatePayload.app_version = appVersion;
 
   if (eventType === "logout") {
-    const { error: logoutLogError } = await serviceClient
-      .from("access_logs")
-      .insert({
-        access_session_id: existingSession.id,
-        owner_user_id: ownerUserId,
-        user_id: user.id,
-        role,
-        username,
-        email,
-        source,
-        event_type: "logout",
-        device_type: deviceType,
-        os_name: osName,
-        browser_name: browserName,
-        ip_address: ipAddress,
-        country_code: countryCode,
-        user_agent: userAgent || null,
-        occurred_at: now,
-        metadata,
-      });
-
-    if (logoutLogError) {
-      return jsonResponse(request, { error: "Não foi possível registrar o logout." }, 500);
-    }
+    updatePayload.current_user_id = null;
+    updatePayload.current_username = null;
+    updatePayload.current_email = null;
+    updatePayload.current_user_role = null;
+    updatePayload.current_session_started_at = null;
+    updatePayload.current_session_seen_at = null;
+  } else {
+    updatePayload.current_user_id = user.id;
+    updatePayload.current_username = username;
+    updatePayload.current_email = email;
+    updatePayload.current_user_role = role;
+    updatePayload.current_session_started_at = currentSessionStartedAt;
+    updatePayload.current_session_seen_at = now;
   }
 
-  return jsonResponse(request, { success: true, eventType });
+  const { error: updateActivationError } = await serviceClient
+    .from("desktop_machine_activations")
+    .update(updatePayload)
+    .eq("id", activation.id);
+
+  if (updateActivationError) {
+    return jsonResponse(request, { error: "Nao foi possivel atualizar a presenca da maquina." }, 500);
+  }
+
+  return jsonResponse(request, {
+    success: true,
+    eventType,
+    tracked: "desktop_machine",
+  });
 });

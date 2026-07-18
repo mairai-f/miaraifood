@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Monitor, Smartphone, Tablet, RefreshCw, Shield } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { MonitorSmartphone, RefreshCw, ShieldCheck } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { ACCESS_ACTIVE_WINDOW_MS } from '@/lib/accessTracking';
 import { formatDateTime } from '../../shared/locale/format';
@@ -7,96 +8,99 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { getPublicErrorMessage, maskEmail, maskIpAddress } from '../../shared/security/redaction';
+import { getPublicErrorMessage, maskEmail } from '../../shared/security/redaction';
 
 type QueryError = { message: string } | null;
 
-type AccessSessionRow = {
+type PosTerminalAccessRow = {
   id: string;
-  username: string | null;
-  email: string | null;
-  role: 'admin' | 'operator' | 'waiter' | 'hr';
-  source: 'system' | 'site';
-  device_type: 'desktop' | 'mobile' | 'tablet' | 'unknown';
-  os_name: string | null;
-  browser_name: string | null;
-  ip_address: string | null;
-  country_code: string | null;
-  login_at: string;
-  last_seen_at: string;
-  ended_at: string | null;
+  location_id: string;
+  code: string;
+  name: string;
+  terminal_type: 'desktop' | 'web' | 'mobile' | 'totem';
+  installation_id: string | null;
+  active: boolean;
+  last_seen_at: string | null;
+  current_user_id: string | null;
+  current_username: string | null;
+  current_email: string | null;
+  current_user_role: string | null;
+  current_session_started_at: string | null;
+  current_session_seen_at: string | null;
 };
 
-type AccessLogRow = {
+type StoreLocationAccessRow = {
   id: string;
-  username: string | null;
-  email: string | null;
-  role: 'admin' | 'operator' | 'waiter' | 'hr';
-  source: 'system' | 'site';
-  event_type: 'login' | 'logout';
-  device_type: 'desktop' | 'mobile' | 'tablet' | 'unknown';
-  os_name: string | null;
-  browser_name: string | null;
-  ip_address: string | null;
-  country_code: string | null;
-  occurred_at: string;
+  name: string;
 };
+
+type QueryResult<T> = Promise<{
+  data: T[] | null;
+  error: QueryError;
+}>;
 
 type AccessQueryClient = {
-  from(table: 'access_sessions'): {
+  rpc(name: 'get_current_store_account_id_for_context', args: { target_context: 'happycash' }): Promise<{
+    data: string | null;
+    error: QueryError;
+  }>;
+  from(table: 'pos_terminals'): {
     select(columns: string): {
-      order(column: string, options: { ascending: boolean }): Promise<{
-        data: AccessSessionRow[] | null;
-        error: QueryError;
-      }>;
+      eq(column: 'store_account_id', value: string): {
+        order(column: 'name', options?: { ascending?: boolean }): {
+          limit(count: number): QueryResult<PosTerminalAccessRow>;
+        };
+      };
     };
   };
-  from(table: 'access_logs'): {
+  from(table: 'store_locations'): {
     select(columns: string): {
-      order(column: string, options: { ascending: boolean }): Promise<{
-        data: AccessLogRow[] | null;
-        error: QueryError;
-      }>;
+      eq(column: 'store_account_id', value: string): {
+        order(column: 'name', options?: { ascending?: boolean }): {
+          limit(count: number): QueryResult<StoreLocationAccessRow>;
+        };
+      };
     };
   };
 };
 
-const deviceLabel: Record<AccessSessionRow['device_type'], string> = {
-  desktop: 'Computador',
-  mobile: 'Celular',
-  tablet: 'Tablet',
-  unknown: 'Desconhecido',
+const accessDb = supabase as unknown as AccessQueryClient;
+
+const terminalTypeLabel: Record<PosTerminalAccessRow['terminal_type'], string> = {
+  desktop: 'Desktop',
+  web: 'Web',
+  mobile: 'Mobile',
+  totem: 'Totem',
 };
 
-const roleLabel: Record<AccessSessionRow['role'], string> = {
+const roleLabel: Record<string, string> = {
   admin: 'Administrador',
   operator: 'Operador',
   waiter: 'Garcom',
   hr: 'RH',
 };
 
-const sourceLabel: Record<AccessSessionRow['source'], string> = {
-  system: 'Sistema',
-  site: 'Site',
+const parseTimestamp = (value?: string | null) => {
+  if (!value) return null;
+  const parsed = new Date(value).getTime();
+  return Number.isFinite(parsed) ? parsed : null;
 };
 
-const accessDb = supabase as unknown as AccessQueryClient;
+const getTerminalSeenAt = (terminal: PosTerminalAccessRow) =>
+  terminal.current_session_seen_at || terminal.last_seen_at;
 
-const DeviceIcon = ({ type }: { type: AccessSessionRow['device_type'] }) => {
-  if (type === 'mobile') return <Smartphone className="h-4 w-4" />;
-  if (type === 'tablet') return <Tablet className="h-4 w-4" />;
-  return <Monitor className="h-4 w-4" />;
+const isTerminalOnline = (terminal: PosTerminalAccessRow) => {
+  if (!terminal.active) return false;
+  const seenAt = parseTimestamp(getTerminalSeenAt(terminal));
+  return Boolean(seenAt && Date.now() - seenAt <= ACCESS_ACTIVE_WINDOW_MS);
 };
 
-const isSessionActive = (session: AccessSessionRow) => {
-  if (session.ended_at) return false;
-  const lastSeenAt = new Date(session.last_seen_at).getTime();
-  return Date.now() - lastSeenAt <= ACCESS_ACTIVE_WINDOW_MS;
-};
+const getTerminalUserName = (terminal: PosTerminalAccessRow) =>
+  terminal.current_username || maskEmail(terminal.current_email) || (terminal.current_user_id ? 'Usuario identificado' : null);
 
 export default function AccessMonitor() {
-  const [sessions, setSessions] = useState<AccessSessionRow[]>([]);
-  const [logs, setLogs] = useState<AccessLogRow[]>([]);
+  const [terminals, setTerminals] = useState<PosTerminalAccessRow[]>([]);
+  const [locations, setLocations] = useState<StoreLocationAccessRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -105,69 +109,94 @@ export default function AccessMonitor() {
     setRefreshing(true);
     setError(null);
 
-    const [
-      { data: sessionsData, error: sessionsError },
-      { data: logsData, error: logsError },
-    ] = await Promise.all([
-      accessDb.from('access_sessions')
-        .select('id, username, email, role, source, device_type, os_name, browser_name, ip_address, country_code, login_at, last_seen_at, ended_at')
-        .order('last_seen_at', { ascending: false }),
-      accessDb.from('access_logs')
-        .select('id, username, email, role, source, event_type, device_type, os_name, browser_name, ip_address, country_code, occurred_at')
-        .order('occurred_at', { ascending: false }),
-    ]);
+    try {
+      const { data: accountId, error: accountError } = await accessDb.rpc(
+        'get_current_store_account_id_for_context',
+        { target_context: 'happycash' },
+      );
 
-    if (sessionsError || logsError) {
-      setError(getPublicErrorMessage(sessionsError?.message || logsError?.message, 'Não foi possível carregar os acessos.'));
+      if (accountError || !accountId) {
+        throw accountError ?? new Error('Empresa HappyCash nao encontrada.');
+      }
+
+      const [terminalsResult, locationsResult] = await Promise.all([
+        accessDb.from('pos_terminals')
+          .select('id, location_id, code, name, terminal_type, installation_id, active, last_seen_at, current_user_id, current_username, current_email, current_user_role, current_session_started_at, current_session_seen_at')
+          .eq('store_account_id', accountId)
+          .order('name', { ascending: true })
+          .limit(200),
+        accessDb.from('store_locations')
+          .select('id, name')
+          .eq('store_account_id', accountId)
+          .order('name', { ascending: true })
+          .limit(100),
+      ]);
+
+      if (terminalsResult.error || locationsResult.error) {
+        throw terminalsResult.error ?? locationsResult.error;
+      }
+
+      setTerminals(terminalsResult.data || []);
+      setLocations(locationsResult.data || []);
+    } catch (loadError) {
+      setError(getPublicErrorMessage(loadError, 'Nao foi possivel carregar os terminais.'));
+      setTerminals([]);
+      setLocations([]);
+    } finally {
       setRefreshing(false);
       setLoading(false);
-      return;
     }
-
-    setSessions((sessionsData || []).slice(0, 100));
-    setLogs((logsData || []).slice(0, 120));
-    setRefreshing(false);
-    setLoading(false);
   }, []);
 
   useEffect(() => {
     void loadAccessData();
-
-    const intervalId = window.setInterval(() => {
-      void loadAccessData();
-    }, 30_000);
-
-    return () => window.clearInterval(intervalId);
   }, [loadAccessData]);
 
-  const activeSessions = useMemo(
-    () => sessions.filter(isSessionActive),
-    [sessions],
+  const locationNameById = useMemo(
+    () => new Map(locations.map((location) => [location.id, location.name])),
+    [locations],
   );
-
-  const endedSessions = useMemo(
-    () => sessions.filter(session => !isSessionActive(session)).slice(0, 20),
-    [sessions],
+  const onlineTerminals = useMemo(() => terminals.filter(isTerminalOnline), [terminals]);
+  const linkedDesktopTerminals = useMemo(
+    () => terminals.filter((terminal) => terminal.installation_id && terminal.terminal_type === 'desktop'),
+    [terminals],
+  );
+  const identifiedUsersCount = useMemo(
+    () => new Set(terminals.map((terminal) => terminal.current_user_id).filter(Boolean)).size,
+    [terminals],
   );
 
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Monitor de acessos</h1>
+          <h1 className="text-3xl font-bold tracking-tight">Monitor de terminais</h1>
           <p className="text-sm text-muted-foreground">
-            Veja quem entrou no sistema, de qual dispositivo e quais sessões ainda estão ativas.
+            Acompanhamento leve por maquina desktop ativada, sem historico de login por web ou mobile.
           </p>
         </div>
-        <Button type="button" variant="outline" className="gap-2" onClick={() => void loadAccessData()} disabled={refreshing}>
-          <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
-          Atualizar
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button type="button" variant="outline" className="gap-2" onClick={() => void loadAccessData()} disabled={refreshing}>
+            <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
+            Atualizar
+          </Button>
+          <Button asChild type="button" variant="secondary">
+            <Link to="/configuracoes/filiais">Gerenciar terminais</Link>
+          </Button>
+        </div>
       </div>
+
+      <Alert>
+        <ShieldCheck className="h-4 w-4" />
+        <AlertTitle>Historico de acesso desativado</AlertTitle>
+        <AlertDescription>
+          Novos acessos web e mobile nao criam registros. O desktop ativado atualiza somente o usuario atual e a ultima atividade do terminal.
+        </AlertDescription>
+      </Alert>
 
       {error && (
         <Alert variant="destructive">
-          <AlertTitle>Falha ao carregar acessos</AlertTitle>
+          <AlertTitle>Falha ao carregar terminais</AlertTitle>
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       )}
@@ -175,129 +204,85 @@ export default function AccessMonitor() {
       <div className="grid gap-4 md:grid-cols-3">
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Sessões ativas agora</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">Terminais online</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-3xl font-bold">{activeSessions.length}</p>
+            <p className="text-3xl font-bold">{onlineTerminals.length}</p>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Total de sessões recentes</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">Desktop vinculados</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-3xl font-bold">{sessions.length}</p>
+            <p className="text-3xl font-bold">{linkedDesktopTerminals.length}</p>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Eventos registrados</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">Usuarios identificados</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-3xl font-bold">{logs.length}</p>
+            <p className="text-3xl font-bold">{identifiedUsersCount}</p>
           </CardContent>
         </Card>
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle>Sessões ativas</CardTitle>
+          <CardTitle>Terminais reconhecidos</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
           {loading ? (
-            <p className="text-sm text-muted-foreground">Carregando acessos...</p>
-          ) : activeSessions.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Nenhuma sessão ativa no momento.</p>
-          ) : activeSessions.map(session => (
-            <div key={session.id} className="rounded-xl border border-border/60 p-4">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                <div className="space-y-2">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Badge>{roleLabel[session.role]}</Badge>
-                    <Badge variant="outline">{sourceLabel[session.source]}</Badge>
-                    <Badge variant="secondary" className="gap-1">
-                      <DeviceIcon type={session.device_type} />
-                      {deviceLabel[session.device_type]}
-                    </Badge>
+            <p className="text-sm text-muted-foreground">Carregando terminais...</p>
+          ) : terminals.length === 0 ? (
+            <p className="text-sm text-muted-foreground">Nenhum terminal cadastrado ainda.</p>
+          ) : terminals.map((terminal) => {
+            const userName = getTerminalUserName(terminal);
+            const seenAt = getTerminalSeenAt(terminal);
+
+            return (
+              <div key={terminal.id} className="rounded-lg border border-border/60 p-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="space-y-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge variant={isTerminalOnline(terminal) ? 'default' : 'outline'}>
+                        {isTerminalOnline(terminal) ? 'Online' : 'Offline'}
+                      </Badge>
+                      <Badge variant="secondary" className="gap-1">
+                        <MonitorSmartphone className="h-4 w-4" />
+                        {terminalTypeLabel[terminal.terminal_type]}
+                      </Badge>
+                      {terminal.installation_id ? <Badge variant="outline">Desktop vinculado</Badge> : null}
+                    </div>
+                    <div>
+                      <p className="font-semibold">{terminal.name}</p>
+                      <p className="font-mono text-xs text-muted-foreground">{terminal.code}</p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="font-semibold">{session.username || maskEmail(session.email) || 'Usuário sem nome'}</p>
-                    <p className="text-sm text-muted-foreground">{maskEmail(session.email) || 'Email protegido'}</p>
+                  <div className="text-sm text-muted-foreground sm:text-right">
+                    <p>{locationNameById.get(terminal.location_id) ?? 'Filial removida'}</p>
+                    <p>{seenAt ? formatDateTime(seenAt) : 'Sem atividade registrada'}</p>
                   </div>
                 </div>
-                <div className="text-sm text-muted-foreground sm:text-right">
-                  <p>Entrou: {formatDateTime(session.login_at)}</p>
-                  <p>Última atividade: {formatDateTime(session.last_seen_at)}</p>
+                <div className="mt-3 text-sm">
+                  {userName ? (
+                    <>
+                      <p className="font-medium">{userName}</p>
+                      <p className="text-muted-foreground">
+                        {terminal.current_user_role ? roleLabel[terminal.current_user_role] ?? terminal.current_user_role : 'Perfil nao informado'}
+                        {terminal.current_session_started_at ? ` desde ${formatDateTime(terminal.current_session_started_at)}` : ''}
+                      </p>
+                    </>
+                  ) : (
+                    <p className="text-muted-foreground">Sem usuario conectado neste terminal.</p>
+                  )}
                 </div>
               </div>
-              <div className="mt-3 grid gap-2 text-sm text-muted-foreground md:grid-cols-3">
-                <p>Dispositivo: {session.browser_name || 'N/D'} • {session.os_name || 'N/D'}</p>
-                <p>IP: {maskIpAddress(session.ip_address) || 'Não disponível'}</p>
-                <p>País: {session.country_code || 'Não disponível'}</p>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </CardContent>
       </Card>
-
-      <div className="grid gap-6 xl:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle>Últimas sessões encerradas</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {endedSessions.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Nenhuma sessão encerrada recente.</p>
-            ) : endedSessions.map(session => (
-              <div key={session.id} className="rounded-xl border border-border/60 p-4">
-                <div className="flex flex-wrap items-center gap-2">
-                  <Badge variant="outline">{roleLabel[session.role]}</Badge>
-                  <Badge variant="secondary">{deviceLabel[session.device_type]}</Badge>
-                  <Badge variant="outline">{sourceLabel[session.source]}</Badge>
-                </div>
-                <p className="mt-2 font-medium">{session.username || maskEmail(session.email) || 'Usuário sem nome'}</p>
-                <div className="mt-2 space-y-1 text-sm text-muted-foreground">
-                  <p>Última atividade: {formatDateTime(session.last_seen_at)}</p>
-                  <p>Encerrada em: {session.ended_at ? formatDateTime(session.ended_at) : 'Sem logout registrado'}</p>
-                  <p>{session.browser_name || 'N/D'} • {session.os_name || 'N/D'} • {maskIpAddress(session.ip_address) || 'IP indisponível'}</p>
-                </div>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Histórico recente</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {logs.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Nenhum evento de acesso registrado ainda.</p>
-            ) : logs.slice(0, 30).map(log => (
-              <div key={log.id} className="flex items-start gap-3 rounded-xl border border-border/60 p-4">
-                <div className="mt-0.5 rounded-full bg-primary/10 p-2 text-primary">
-                  <Shield className="h-4 w-4" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <p className="font-medium">{log.username || maskEmail(log.email) || 'Usuário sem nome'}</p>
-                    <Badge variant={log.event_type === 'login' ? 'default' : 'outline'}>
-                      {log.event_type === 'login' ? 'Login' : 'Logout'}
-                    </Badge>
-                  </div>
-                  <p className="text-sm text-muted-foreground">
-                    {roleLabel[log.role]} • {sourceLabel[log.source]} • {deviceLabel[log.device_type]}
-                  </p>
-                  <p className="text-sm text-muted-foreground">
-                    {log.browser_name || 'N/D'} • {log.os_name || 'N/D'} • {maskIpAddress(log.ip_address) || 'IP indisponível'}
-                  </p>
-                </div>
-                <p className="text-xs text-muted-foreground">{formatDateTime(log.occurred_at)}</p>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-      </div>
     </div>
   );
 }

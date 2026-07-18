@@ -24,7 +24,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { getRedactedLogValue } from '../../shared/security/redaction';
+import { getRedactedLogValue, maskEmail } from '../../shared/security/redaction';
 
 interface StoreLocationRow {
   id: string;
@@ -47,7 +47,54 @@ interface PosTerminalRow {
   installation_id: string | null;
   active: boolean;
   last_seen_at: string | null;
+  current_user_id?: string | null;
+  current_username?: string | null;
+  current_email?: string | null;
+  current_user_role?: string | null;
+  current_session_started_at?: string | null;
+  current_session_seen_at?: string | null;
 }
+
+const TERMINAL_ACTIVE_WINDOW_MS = 10 * 60_000;
+
+const terminalUserRoleLabel: Record<string, string> = {
+  admin: 'Administrador',
+  operator: 'Operador',
+  waiter: 'Garcom',
+  hr: 'RH',
+};
+
+const parseTimestamp = (value?: string | null) => {
+  if (!value) return null;
+  const parsed = new Date(value).getTime();
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
+const getTerminalSeenAt = (terminal: PosTerminalRow) =>
+  terminal.current_session_seen_at || terminal.last_seen_at;
+
+const isTerminalOnline = (terminal: PosTerminalRow) => {
+  if (!terminal.active) return false;
+  const seenAt = parseTimestamp(getTerminalSeenAt(terminal));
+  return Boolean(seenAt && Date.now() - seenAt <= TERMINAL_ACTIVE_WINDOW_MS);
+};
+
+const formatTerminalSeenAt = (terminal: PosTerminalRow) => {
+  const seenAt = parseTimestamp(getTerminalSeenAt(terminal));
+  if (!seenAt) return 'Sem atividade';
+
+  const elapsedMinutes = Math.max(0, Math.floor((Date.now() - seenAt) / 60_000));
+  if (elapsedMinutes < 1) return 'Agora';
+  if (elapsedMinutes < 60) return `${elapsedMinutes} min atras`;
+
+  const elapsedHours = Math.floor(elapsedMinutes / 60);
+  if (elapsedHours < 24) return `${elapsedHours} h atras`;
+
+  return `${Math.floor(elapsedHours / 24)} d atras`;
+};
+
+const getTerminalUserName = (terminal: PosTerminalRow) =>
+  terminal.current_username || maskEmail(terminal.current_email) || (terminal.current_user_id ? 'Usuario identificado' : null);
 
 /** Painel Web; filiais e terminais nao entram no bundle operacional do Electron. */
 export function LocationsTerminalsPanel() {
@@ -512,13 +559,35 @@ export function LocationsTerminalsPanel() {
               </div>
               <div className="overflow-x-auto rounded-lg border">
                 <Table>
-                  <TableHeader><TableRow><TableHead>Terminal</TableHead><TableHead>Filial</TableHead><TableHead>Tipo</TableHead><TableHead>Vinculo</TableHead><TableHead className="text-right">Acoes</TableHead></TableRow></TableHeader>
+                  <TableHeader><TableRow><TableHead>Terminal</TableHead><TableHead>Filial</TableHead><TableHead>Tipo</TableHead><TableHead>Usuario atual</TableHead><TableHead>Vinculo</TableHead><TableHead className="text-right">Acoes</TableHead></TableRow></TableHeader>
                   <TableBody>
                     {terminals.map((terminal) => (
                       <TableRow key={terminal.id}>
-                        <TableCell><p className="font-medium">{terminal.name}</p><p className="font-mono text-xs text-muted-foreground">{terminal.code}</p></TableCell>
+                        <TableCell>
+                          <div className="space-y-1">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <p className="font-medium">{terminal.name}</p>
+                              <Badge variant={isTerminalOnline(terminal) ? 'default' : 'outline'}>
+                                {isTerminalOnline(terminal) ? 'Online' : 'Offline'}
+                              </Badge>
+                            </div>
+                            <p className="font-mono text-xs text-muted-foreground">{terminal.code}</p>
+                          </div>
+                        </TableCell>
                         <TableCell>{locationNameById.get(terminal.location_id) ?? 'Filial removida'}</TableCell>
                         <TableCell>{posTerminalTypeLabels[terminal.terminal_type]}</TableCell>
+                        <TableCell>
+                          {getTerminalUserName(terminal) ? (
+                            <div className="space-y-1">
+                              <p className="font-medium">{getTerminalUserName(terminal)}</p>
+                              <p className="text-xs text-muted-foreground">
+                                {terminal.current_user_role ? terminalUserRoleLabel[terminal.current_user_role] ?? terminal.current_user_role : 'Perfil nao informado'} - {formatTerminalSeenAt(terminal)}
+                              </p>
+                            </div>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">Sem usuario conectado</span>
+                          )}
+                        </TableCell>
                         <TableCell>{terminal.installation_id ? <Badge variant="secondary">Desktop vinculado</Badge> : <span className="text-xs text-muted-foreground">Manual</span>}</TableCell>
                         <TableCell className="text-right">
                           <div className="flex items-center justify-end gap-2">

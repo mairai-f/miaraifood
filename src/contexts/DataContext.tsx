@@ -139,6 +139,7 @@ const normalizePricingRuleRow = (rule: ProductCategoryPricingRule): ProductCateg
 });
 
 const nowIso = () => new Date().toISOString();
+const PASSIVE_REFRESH_INTERVAL_MS = 5 * 60_000;
 const createId = () => (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
   ? crypto.randomUUID()
   : `temp-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`);
@@ -446,6 +447,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     () => isHrOnlySession ? [] : uniqueModules([...BASE_DATA_MODULES, ...getRouteSpecificModules(location.pathname)]),
     [isHrOnlySession, location.pathname],
   );
+  const passiveRefreshEnabled = !location.pathname.startsWith('/pdv');
 
   const clearStoreData = useCallback(() => {
     setClients([]);
@@ -901,7 +903,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   }, [authLoading, canUseOfflineConcentrator, fetchAll, isDemoMode, isHrOnlySession, loading, ownerUserId, planLoading, user]);
 
   useEffect(() => {
-    if (authLoading || planLoading || !user || isDemoMode || isHrOnlySession) {
+    if (authLoading || planLoading || !user || isDemoMode || isHrOnlySession || !passiveRefreshEnabled) {
       return;
     }
 
@@ -911,13 +913,13 @@ export function DataProvider({ children }: { children: ReactNode }) {
       if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
 
       const now = Date.now();
-      if (now - lastPassiveRefreshAtRef.current < 30000) return;
+      if (now - lastPassiveRefreshAtRef.current < PASSIVE_REFRESH_INTERVAL_MS) return;
       lastPassiveRefreshAtRef.current = now;
 
       void fetchAll({ silent: true });
     };
 
-    const intervalId = window.setInterval(silentlyRefreshRemoteState, 60000);
+    const intervalId = window.setInterval(silentlyRefreshRemoteState, PASSIVE_REFRESH_INTERVAL_MS);
     const handleFocus = () => {
       silentlyRefreshRemoteState();
     };
@@ -937,7 +939,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       window.removeEventListener('online', handleFocus);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [authLoading, fetchAll, isDemoMode, isHrOnlySession, loading, planLoading, user]);
+  }, [authLoading, fetchAll, isDemoMode, isHrOnlySession, loading, passiveRefreshEnabled, planLoading, user]);
 
   useEffect(() => {
     if (!canUseOfflineConcentrator || !ownerUserId || loading || !user || isDemoMode || !fullSnapshotPrimedRef.current) {
@@ -3195,7 +3197,6 @@ export function DataProvider({ children }: { children: ReactNode }) {
         if (soldQuantity === 0) return product;
         return { ...product, stock: getNextTrackedStock(product, -soldQuantity) };
       }));
-      await fetchAll({ silent: true });
 
       return {
         sale: saleData as Sale,
@@ -3303,7 +3304,6 @@ export function DataProvider({ children }: { children: ReactNode }) {
         if (restoredQuantity === 0) return product;
         return { ...product, stock: (product.stock || 0) + restoredQuantity };
       }));
-      await fetchAll({ silent: true });
     } catch (error) {
       if (canUseOfflineConcentrator && isProbablyOfflineError(error)) {
         await cancelOfflineSale();

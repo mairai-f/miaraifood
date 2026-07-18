@@ -1,12 +1,13 @@
 import { getRedactedLogValue } from '../../shared/security/redaction';
+import { readDesktopActivation } from '@/lib/desktopActivation';
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 
 const CLIENT_SESSION_STORAGE_KEY = "happycash:system:client-session-id";
 
-export const ACCESS_HEARTBEAT_INTERVAL_MS = 60_000;
-export const ACCESS_ACTIVE_WINDOW_MS = 5 * 60_000;
+export const ACCESS_HEARTBEAT_INTERVAL_MS = 5 * 60_000;
+export const ACCESS_ACTIVE_WINDOW_MS = 10 * 60_000;
 
 type TrackAccessEventType = "heartbeat" | "logout";
 
@@ -43,6 +44,12 @@ export const trackSystemAccessEvent = async (
   if (!SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY || !accessToken) return false;
 
   try {
+    const activation = readDesktopActivation();
+    if (!activation?.installationId || activation.appContext !== 'happycash' || typeof window === 'undefined' || !window.electronAPI) {
+      return false;
+    }
+
+    const runtimeInfo = window.electronAPI.app?.getRuntimeInfoSync?.();
     const response = await fetch(`${SUPABASE_URL}/functions/v1/track-access`, {
       method: "POST",
       headers: {
@@ -53,7 +60,15 @@ export const trackSystemAccessEvent = async (
       body: JSON.stringify({
         eventType,
         source: "system",
-        clientSessionId: getSystemClientSessionId(),
+        clientSessionId: activation.installationId,
+        desktopInstallationId: activation.installationId,
+        desktopAppContext: activation.appContext,
+        desktopStoreAccountId: activation.storeAccountId,
+        metadata: {
+          platform: runtimeInfo?.platform ?? null,
+          appVersion: runtimeInfo?.appVersion ?? null,
+          companyName: activation.companyName,
+        },
       }),
     });
 
