@@ -85,6 +85,8 @@ export default function Login() {
   const [email, setEmail] = useState(initialPreferences.adminEmail);
   const [adminPassword, setAdminPassword] = useState('');
   const [showAdminPassword, setShowAdminPassword] = useState(false);
+  const [adminAccessCode, setAdminAccessCode] = useState('');
+  const [adminLoginVerificationRequired, setAdminLoginVerificationRequired] = useState(false);
   const [adminOfflineUsername, setAdminOfflineUsername] = useState(offlineAdminAccess?.username ?? '');
   const [adminOfflinePin, setAdminOfflinePin] = useState('');
   const [operatorUsername, setOperatorUsername] = useState(initialPreferences.operatorUsername);
@@ -148,8 +150,15 @@ export default function Login() {
     try {
       const result = adminAccessMode === 'offline'
         ? await loginOfflineAdmin(adminOfflineUsername, adminOfflinePin)
-        : await login(email, adminPassword);
+        : await login(email, adminPassword, adminLoginVerificationRequired ? adminAccessCode : undefined);
       if (result !== true) {
+        if (typeof result === 'object') {
+          setAdminLoginVerificationRequired(Boolean(result.verificationRequired));
+          if (result.verificationRequired) setAdminAccessCode('');
+          toast.error(result.error || 'Codigo de autorizacao necessario.');
+          return;
+        }
+
         toast.error(result || (adminAccessMode === 'offline'
           ? 'Usuario admin ou PIN incorretos.'
           : 'Email ou senha incorretos.'));
@@ -157,6 +166,8 @@ export default function Login() {
       }
 
       if (adminAccessMode === 'online') {
+        setAdminLoginVerificationRequired(false);
+        setAdminAccessCode('');
         applySystemSessionPreference(keepConnected);
       }
     } finally {
@@ -544,7 +555,11 @@ export default function Login() {
                             name="happycash-admin-email"
                             type="email"
                             value={email}
-                            onChange={e => setEmail(e.target.value)}
+                            onChange={e => {
+                              setEmail(e.target.value);
+                              setAdminAccessCode('');
+                              setAdminLoginVerificationRequired(false);
+                            }}
                             required
                             placeholder="Digite seu e-mail"
                             autoComplete="off"
@@ -593,6 +608,28 @@ export default function Login() {
                             </button>
                           </div>
                         </div>
+                        {adminLoginVerificationRequired && (
+                          <div className="space-y-2">
+                            <Label className="text-[15px] font-medium text-[#24324a]">Codigo de autorizacao</Label>
+                            <Input
+                              id="happycash-admin-access-code"
+                              name="happycash-admin-access-code"
+                              value={adminAccessCode}
+                              onChange={e => setAdminAccessCode(e.target.value.replace(/\D/g, '').slice(0, 8))}
+                              required
+                              placeholder="00000000"
+                              autoComplete="one-time-code"
+                              inputMode="numeric"
+                              className="h-10 rounded-2xl border-[#d8e1ef] bg-white px-4 text-center text-[15px] font-bold tracking-[0.35em] text-[#24324a] placeholder:text-[#9aa6b8] focus-visible:ring-[#1f56a5]/25 focus-visible:ring-offset-0 sm:h-11"
+                            />
+                            <p className="text-xs leading-5 text-[#64748b]">
+                              Enviamos um codigo para reconhecer esta tentativa de entrada.
+                            </p>
+                          </div>
+                        )}
+                        <p className="rounded-2xl border border-[#d9e3f2] bg-[#f4f7fc] px-3 py-2 text-xs leading-5 text-[#64748b]">
+                          Apos 3 tentativas incorretas, sera enviado um codigo ao e-mail para autorizar a entrada.
+                        </p>
                       </>
                     )}
 

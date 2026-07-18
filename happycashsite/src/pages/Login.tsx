@@ -49,6 +49,11 @@ const loginFeatureCards = [
 
 interface AdminLoginResponse {
   success?: boolean;
+  verificationRequired?: boolean;
+  code?: string;
+  retryAfterSeconds?: number | null;
+  remainingAttempts?: number | null;
+  maxFailedAttempts?: number | null;
   session?: {
     access_token?: string;
     refresh_token?: string;
@@ -61,6 +66,8 @@ const Login = () => {
   const [email, setEmail] = useState(initialPreferences.email);
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [accessCode, setAccessCode] = useState('');
+  const [loginVerificationRequired, setLoginVerificationRequired] = useState(false);
   const [rememberAccount, setRememberAccount] = useState(initialPreferences.rememberAccount);
   const [keepConnected, setKeepConnected] = useState(initialPreferences.keepConnected);
   const [loading, setLoading] = useState(false);
@@ -82,6 +89,11 @@ const Login = () => {
   const clearPasswordState = () => {
     setPassword('');
     setShowPassword(false);
+  };
+
+  const resetLoginVerification = () => {
+    setAccessCode('');
+    setLoginVerificationRequired(false);
   };
 
   const selectedPlanId = (() => {
@@ -132,16 +144,19 @@ const Login = () => {
         body: {
           email: normalizedEmail,
           password,
+          accessCode: loginVerificationRequired ? accessCode : null,
+          loginSurface: 'happycashsite',
           captchaToken,
         },
       }).catch((error) => ({ data: null, error }));
 
       if (error || !data?.success || !data.session?.access_token || !data.session?.refresh_token) {
         let functionErrorMessage = data?.error || 'Email ou senha incorretos.';
+        let errorPayload: (AdminLoginResponse & { message?: string }) | null = data ?? null;
 
         if (error && typeof error === 'object' && 'context' in error && error.context instanceof Response) {
           try {
-            const errorPayload = await error.context.clone().json() as { error?: string; message?: string };
+            errorPayload = await error.context.clone().json() as AdminLoginResponse & { message?: string };
             functionErrorMessage = errorPayload.error || errorPayload.message || functionErrorMessage;
           } catch {
             functionErrorMessage = 'Email ou senha incorretos.';
@@ -149,6 +164,10 @@ const Login = () => {
         }
 
         const resolvedError = resolveLoginErrorMessage(functionErrorMessage);
+        if (errorPayload?.verificationRequired || errorPayload?.code === 'LOGIN_VERIFICATION_REQUIRED') {
+          setLoginVerificationRequired(true);
+          setAccessCode('');
+        }
         clearPasswordState();
         setLoginError(resolvedError);
         toast({ title: 'Erro ao entrar', description: resolvedError, variant: 'destructive' });
@@ -170,6 +189,7 @@ const Login = () => {
 
       setEmail(normalizedEmail);
       clearPasswordState();
+      resetLoginVerification();
       applySiteSessionPreference(keepConnected);
       toast({ title: 'Bem-vindo de volta!' });
       navigate(nextPath || (selectedPlanQuery ? `/dashboard?${selectedPlanQuery}` : '/dashboard'));
@@ -498,6 +518,7 @@ const Login = () => {
                     onChange={e => {
                       setEmail(e.target.value);
                       if (loginError) setLoginError(null);
+                      resetLoginVerification();
                     }}
                     required
                     className="h-10 rounded-2xl border-[#d8e1ef] bg-white px-4 text-[15px] text-[#24324a] placeholder:text-[#9aa6b8] focus-visible:ring-[#1f56a5]/25 focus-visible:ring-offset-0 sm:h-11"
@@ -539,6 +560,32 @@ const Login = () => {
                     </button>
                   </div>
                 </div>
+
+                {loginVerificationRequired && (
+                  <div className="space-y-2">
+                    <Label htmlFor="login-access-code" className="text-[15px] font-medium text-[#24324a]">Codigo de autorizacao</Label>
+                    <Input
+                      id="login-access-code"
+                      inputMode="numeric"
+                      autoComplete="one-time-code"
+                      placeholder="00000000"
+                      value={accessCode}
+                      onChange={e => {
+                        setAccessCode(e.target.value.replace(/\D/g, '').slice(0, 8));
+                        if (loginError) setLoginError(null);
+                      }}
+                      required
+                      className="h-10 rounded-2xl border-[#d8e1ef] bg-white px-4 text-center text-[15px] font-bold tracking-[0.35em] text-[#24324a] placeholder:text-[#9aa6b8] focus-visible:ring-[#1f56a5]/25 focus-visible:ring-offset-0 sm:h-11"
+                    />
+                    <p className="text-xs leading-5 text-[#64748b]">
+                      Enviamos um codigo para reconhecer esta tentativa de entrada.
+                    </p>
+                  </div>
+                )}
+
+                <p className="rounded-2xl border border-[#d9e3f2] bg-[#f4f7fc] px-3 py-2 text-xs leading-5 text-[#64748b]">
+                  Apos 3 tentativas incorretas, sera enviado um codigo ao e-mail para autorizar a entrada.
+                </p>
 
                 <div className="grid gap-2 pt-0.5 sm:gap-2.5 sm:grid-cols-2">
                   <div className="flex min-w-0 items-center gap-2.5">

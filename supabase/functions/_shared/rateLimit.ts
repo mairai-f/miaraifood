@@ -229,3 +229,71 @@ export const clearRedisLoginFailures = async (
     });
   }
 };
+
+type RedisLoginValueOptions = Pick<RateLimitOptions, "namespace" | "identifier"> & {
+  value: string;
+  windowSeconds: number;
+};
+
+export const writeRedisLoginValue = async (
+  request: Request,
+  options: RedisLoginValueOptions,
+) => {
+  const redisConfig = getRedisConfig();
+
+  if (!redisConfig) return false;
+
+  try {
+    const key = await buildRedisLoginAttemptKey(request, options);
+    const windowSeconds = Math.max(1, Math.floor(options.windowSeconds));
+    await runRedisPipeline(redisConfig, [["SET", key, options.value, "EX", windowSeconds]]);
+    return true;
+  } catch (error) {
+    console.warn("Login value write failed", {
+      namespace: options.namespace,
+      error: error instanceof Error ? error.message : "unknown",
+    });
+    return false;
+  }
+};
+
+export const readRedisLoginValue = async (
+  request: Request,
+  options: Pick<RateLimitOptions, "namespace" | "identifier">,
+) => {
+  const redisConfig = getRedisConfig();
+
+  if (!redisConfig) return null;
+
+  try {
+    const key = await buildRedisLoginAttemptKey(request, options);
+    const body = await runRedisPipeline(redisConfig, [["GET", key]]);
+    const value = body[0]?.result;
+    return typeof value === "string" ? value : null;
+  } catch (error) {
+    console.warn("Login value read failed", {
+      namespace: options.namespace,
+      error: error instanceof Error ? error.message : "unknown",
+    });
+    return null;
+  }
+};
+
+export const clearRedisLoginValue = async (
+  request: Request,
+  options: Pick<RateLimitOptions, "namespace" | "identifier">,
+) => {
+  const redisConfig = getRedisConfig();
+
+  if (!redisConfig) return;
+
+  try {
+    const key = await buildRedisLoginAttemptKey(request, options);
+    await runRedisPipeline(redisConfig, [["DEL", key]]);
+  } catch (error) {
+    console.warn("Login value clear failed", {
+      namespace: options.namespace,
+      error: error instanceof Error ? error.message : "unknown",
+    });
+  }
+};

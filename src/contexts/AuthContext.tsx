@@ -66,7 +66,7 @@ interface AuthContextType {
   isAdmin: boolean;
   isOperator: boolean;
   isHr: boolean;
-  login: (email: string, password: string) => Promise<string | true>;
+  login: (email: string, password: string, accessCode?: string) => Promise<AdminLoginResult>;
   signInWithGoogle: () => Promise<string | true>;
   signInWithPasskey: () => Promise<string | true>;
   loginOfflineAdmin: (username: string, pin: string) => Promise<string | true>;
@@ -100,6 +100,11 @@ interface OperatorLoginResponse {
 
 interface AdminLoginResponse {
   success?: boolean;
+  verificationRequired?: boolean;
+  code?: string;
+  retryAfterSeconds?: number | null;
+  remainingAttempts?: number | null;
+  maxFailedAttempts?: number | null;
   session?: {
     access_token?: string;
     refresh_token?: string;
@@ -112,6 +117,14 @@ interface AdminLoginResponse {
   };
   error?: string;
 }
+
+type AdminLoginResult = true | string | {
+  error: string;
+  verificationRequired?: boolean;
+  retryAfterSeconds?: number | null;
+  remainingAttempts?: number | null;
+  maxFailedAttempts?: number | null;
+};
 
 interface LocalOfflineSession {
   source: 'offline-admin' | 'offline-operator';
@@ -523,7 +536,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return true;
   }, [fetchProfile]);
 
-  const login = async (email: string, password: string): Promise<string | true> => {
+  const login = async (email: string, password: string, accessCode?: string): Promise<AdminLoginResult> => {
     let captchaToken: string | undefined;
     try {
       captchaToken = await requestTurnstileToken('app-login');
@@ -536,6 +549,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       body: {
         email,
         password,
+        accessCode: accessCode?.replace(/\D/g, '').slice(0, 8) || null,
+        loginSurface: isDesktopRuntime() ? 'desktop' : 'web',
         desktopOwnerUserId: activation?.ownerUserId ?? null,
         captchaToken,
       },
@@ -543,17 +558,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     if (error || !data?.success || !data.session?.access_token || !data.session?.refresh_token) {
       let functionErrorMessage = data?.error || 'Email ou senha incorretos.';
+      let errorPayload: (AdminLoginResponse & { message?: string }) | null = data ?? null;
 
       if (error && typeof error === 'object' && 'context' in error && error.context instanceof Response) {
         try {
-          const errorPayload = await error.context.clone().json() as { error?: string; message?: string };
+          errorPayload = await error.context.clone().json() as AdminLoginResponse & { message?: string };
           functionErrorMessage = errorPayload.error || errorPayload.message || functionErrorMessage;
         } catch {
           functionErrorMessage = 'Email ou senha incorretos.';
         }
       }
 
-      return getPublicAuthErrorMessage(functionErrorMessage, 'Email ou senha incorretos.');
+      const resolvedError = getPublicAuthErrorMessage(functionErrorMessage, 'Email ou senha incorretos.');
+      if (errorPayload?.verificationRequired || errorPayload?.code === 'LOGIN_VERIFICATION_REQUIRED') {
+        return {
+          error: resolvedError,
+          verificationRequired: true,
+          retryAfterSeconds: errorPayload.retryAfterSeconds ?? null,
+          remainingAttempts: errorPayload.remainingAttempts ?? null,
+          maxFailedAttempts: errorPayload.maxFailedAttempts ?? null,
+        };
+      }
+
+      return resolvedError;
     }
 
     const { error: setSessionError } = await supabase.auth.setSession({
