@@ -2,7 +2,7 @@ import { useMemo, useState, type FormEvent } from 'react';
 import { Building2, Eye, EyeOff, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 
-import happyCashLogo from '@/assets/login/happycash.svg';
+import happyCashLogo from '@/assets/login/happycash.webp';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,

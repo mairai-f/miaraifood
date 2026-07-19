@@ -1,6 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { isDesktopRuntime, isProbablyOfflineError } from '@/lib/offlineConcentrator';
 import { useAuth } from './AuthContext';
 
 interface PlanContextValue {
@@ -17,6 +16,17 @@ const PlanContext = createContext<PlanContextValue | null>(null);
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
 const planAccessCacheKey = (userId: string) => `happycash:system:plan-access:${userId}`;
+
+const settleSupabaseQuery = async <TData,>(
+  query: PromiseLike<{ data: TData; error: unknown }>,
+  fallbackData: TData,
+) => {
+  try {
+    return await query;
+  } catch (error) {
+    return { data: fallbackData, error };
+  }
+};
 
 const readCachedPlanAccess = (userId: string) => {
   if (typeof window === 'undefined') return null;
@@ -96,17 +106,24 @@ export function PlanProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    if (shouldShowBlockingLoading) {
+    const cachedPlanAccess = readCachedPlanAccess(user.id);
+    const ownerCachedPlanAccess = ownerUserId && ownerUserId !== user.id
+      ? readCachedPlanAccess(ownerUserId)
+      : null;
+    const fallbackPlanAccess = cachedPlanAccess || ownerCachedPlanAccess;
+
+    if (shouldShowBlockingLoading && fallbackPlanAccess) {
+      setPlanId(fallbackPlanAccess.planId);
+      setFeatures(fallbackPlanAccess.features);
+      markPlanSubjectResolved(requestPlanSubject);
+      setLoading(false);
+    } else if (shouldShowBlockingLoading) {
       setLoading(true);
     }
 
     const applyCachedPlanAccess = (error: unknown) => {
-      const cachedPlanAccess = readCachedPlanAccess(user.id);
-      const ownerCachedPlanAccess = ownerUserId && ownerUserId !== user.id
-        ? readCachedPlanAccess(ownerUserId)
-        : null;
-      const fallbackPlanAccess = cachedPlanAccess || ownerCachedPlanAccess;
-      if (!fallbackPlanAccess || !isDesktopRuntime() || !isProbablyOfflineError(error)) {
+      if (!fallbackPlanAccess) {
+        void error;
         return false;
       }
 
@@ -118,7 +135,10 @@ export function PlanProvider({ children }: { children: ReactNode }) {
       return true;
     };
 
-    const { data: currentPlanId, error: planError } = await db.rpc('get_current_store_plan_id');
+    const { data: currentPlanId, error: planError } = await settleSupabaseQuery(
+      db.rpc('get_current_store_plan_id'),
+      null,
+    );
     if (!isCurrentRequest()) return;
 
     if (planError || !currentPlanId) {
@@ -131,11 +151,14 @@ export function PlanProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    const { data: featureRows, error: featureError } = await db
-      .from('subscription_plan_features')
-      .select('feature_key')
-      .eq('plan_id', currentPlanId)
-      .eq('enabled', true);
+    const { data: featureRows, error: featureError } = await settleSupabaseQuery(
+      db
+        .from('subscription_plan_features')
+        .select('feature_key')
+        .eq('plan_id', currentPlanId)
+        .eq('enabled', true),
+      null,
+    );
     if (!isCurrentRequest()) return;
 
     if (featureError) {

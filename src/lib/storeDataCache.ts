@@ -58,10 +58,37 @@ export const readStoreDataModuleCache = <T>(
   }
 };
 
+export const readLatestStoreDataModuleCache = <T>(
+  keyParts: StoreDataCacheKeyParts,
+): T | null => {
+  if (!isBrowser() || !keyParts.ownerUserId || !keyParts.userId) return null;
+
+  try {
+    const rawValue = window.localStorage.getItem(buildStoreDataCacheKey(keyParts));
+    if (!rawValue) return null;
+
+    const parsed = JSON.parse(rawValue) as Partial<StoreDataCacheEntry<T>>;
+    if (
+      parsed.version !== STORE_DATA_CACHE_VERSION
+      || parsed.ownerUserId !== keyParts.ownerUserId
+      || parsed.userId !== keyParts.userId
+      || parsed.scopeKey !== keyParts.scopeKey
+      || parsed.module !== keyParts.module
+      || parsed.data === undefined
+    ) {
+      return null;
+    }
+
+    return parsed.data as T;
+  } catch {
+    return null;
+  }
+};
+
 export const writeStoreDataModuleCache = <T>(
   keyParts: StoreDataCacheKeyParts & { signature: string | null | undefined; data: T },
 ) => {
-  if (!isBrowser() || !keyParts.ownerUserId || !keyParts.userId || !keyParts.signature) return;
+  if (!isBrowser() || !keyParts.ownerUserId || !keyParts.userId) return;
 
   try {
     const entry: StoreDataCacheEntry<T> = {
@@ -70,7 +97,7 @@ export const writeStoreDataModuleCache = <T>(
       userId: keyParts.userId,
       scopeKey: keyParts.scopeKey,
       module: keyParts.module,
-      signature: keyParts.signature,
+      signature: keyParts.signature || 'latest',
       savedAt: new Date().toISOString(),
       data: keyParts.data,
     };

@@ -1,6 +1,6 @@
 import { useState, type MouseEvent } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { Instagram, Mail, ReceiptText, ShieldCheck, Sparkles } from "lucide-react";
+import { Instagram, Mail } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
@@ -42,7 +42,6 @@ const Footer = () => {
                 <span className="font-heading text-3xl font-black leading-none text-white md:text-4xl">
                   Happy<span className="bg-gradient-to-r from-[#38bdf8] to-[#34d399] bg-clip-text text-transparent">Cash</span>
                 </span>
-                <Sparkles className="h-5 w-5 text-cyan-200" />
               </Link>
               <p className="text-sm text-blue-100 max-w-sm leading-relaxed">
                 Sistema ERP para controlar fiado, PDV, estoque, RH e gestão comercial sem depender de caderno, planilha e improviso.
@@ -115,16 +114,6 @@ const Footer = () => {
                   Planilha de fiado vs app
                 </Link>
               </nav>
-              <div className="rounded-lg border border-cyan-300/20 bg-white/10 p-3 text-xs leading-5 text-cyan-50 backdrop-blur">
-                <div className="mb-2 flex items-center gap-2 font-bold text-white">
-                  <ShieldCheck className="h-4 w-4 text-emerald-200" />
-                  Operação assistida
-                </div>
-                <div className="flex items-center gap-2 text-blue-100">
-                  <ReceiptText className="h-4 w-4 text-cyan-200" />
-                  Fechamento, email e recibo organizados.
-                </div>
-              </div>
               <h4 className="pt-2 font-heading font-semibold text-sm text-white">Contato</h4>
               <a
                 href={`mailto:${SUPPORT_EMAIL}`}

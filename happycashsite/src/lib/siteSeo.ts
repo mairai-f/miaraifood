@@ -14,7 +14,7 @@ export interface SiteSeoConfig {
 export const createSiteUrl = (path = "/") => new URL(path, SITE_ORIGIN).toString();
 
 export const resolveSeoImage = (value?: string) => {
-  if (!value) return createSiteUrl("/favicon.png");
+  if (!value) return createSiteUrl("/favicon.webp");
   if (/^https?:\/\//i.test(value)) return value;
 
   return new URL(value, SITE_ORIGIN).toString();

@@ -1,9 +1,9 @@
 export const HAPPYCASH_DEFAULT_FROM_EMAIL = "HappyCash <no-reply@auth.happycashsite.com.br>";
 export const HAPPYCASH_SUPPORT_EMAIL = "happycashsupport@gmail.com";
 export const HAPPYCASH_BRAND_LOGO_URL = Deno.env.get("HAPPYCASH_BRAND_LOGO_URL")?.trim()
-  || "https://www.happycashsite.com.br/happycash-logo.png";
+  || "https://www.happycashsite.com.br/happycash-logo.webp";
 export const HAPPYCASH_BRAND_FAVICON_URL = Deno.env.get("HAPPYCASH_BRAND_FAVICON_URL")?.trim()
-  || "https://www.happycashsite.com.br/favicon.png";
+  || "https://www.happycashsite.com.br/favicon.webp";
 
 export const escapeHtml = (value: string | number | null | undefined) =>
   String(value ?? "")

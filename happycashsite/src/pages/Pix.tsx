@@ -1,7 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, CreditCard, ShieldCheck } from "lucide-react";
 import { Link } from "react-router-dom";
-import logo from "../../../src/assets/login/happycash.svg";
+import logo from "../../../src/assets/login/happycash.webp";
 import { publicPlanContent, type PaidPlanId } from "@/lib/subscriptionPlans";
 
 const plans: PaidPlanId[] = ["fiado", "completo", "pro"];

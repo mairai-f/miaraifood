@@ -17,11 +17,11 @@ import {
   saveSiteLoginPreferences,
 } from '@/lib/authSessionPreferences';
 import { isPublicPlanId, publicPlanContent } from '@/lib/subscriptionPlans';
-import happyCashLogo from '../../../src/assets/login/happycash.svg';
-import loginPdvRapido from '../../../src/assets/login/pdvrapido.svg';
-import loginRelatorios from '../../../src/assets/login/relatorios.svg';
-import loginErp from '../../../src/assets/login/erp.svg';
-import loginEstoque from '../../../src/assets/login/estoque.svg';
+import happyCashLogo from '../../../src/assets/login/happycash.webp';
+import loginPdvRapido from '../../../src/assets/login/pdvrapido.webp';
+import loginRelatorios from '../../../src/assets/login/relatorios.webp';
+import loginErp from '../../../src/assets/login/erp.webp';
+import loginEstoque from '../../../src/assets/login/estoque.webp';
 import { getPublicAuthErrorMessage } from '../../../shared/security/redaction';
 import { getPasswordPolicyError, passwordPolicyHint } from '../../../shared/security/passwordPolicy';
 import { requestTurnstileToken } from '../../../shared/security/turnstile';

@@ -204,6 +204,7 @@ const desktopWarmPageLoaders = [
   loadPDV,
   loadStock,
   loadFinancial,
+  loadSettings,
 ];
 
 const webWarmPageLoaders = [
@@ -211,6 +212,8 @@ const webWarmPageLoaders = [
   loadClients,
   loadProducts,
   loadPDV,
+  loadStock,
+  loadSettings,
 ];
 
 const warmPageChunks = (isDesktop: boolean) => {

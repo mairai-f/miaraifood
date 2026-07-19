@@ -8,7 +8,7 @@ import { useDesktopRuntime } from '@/contexts/DesktopRuntimeContext';
 import { usePermissions } from '@/contexts/usePermissions';
 import { useOperationalScope } from '@/contexts/useOperationalScope';
 import { usePlanAccess } from '@/contexts/PlanContext';
-import happyCashLogo from '@/assets/login/happycash.svg';
+import happyCashLogo from '@/assets/login/happycash.webp';
 import { roleLabel } from '@/lib/access';
 import { readDesktopActivation } from '@/lib/desktopActivation';
 import { isGuidedTourEligiblePlan, requestGuidedTourStart } from '@/lib/guidedTour';
@@ -225,8 +225,8 @@ export function AppLayout({ children }: { children: ReactNode }) {
       await syncNow();
       toast.success(isDesktop ? 'Desktop e web atualizados.' : 'Dados atualizados.');
     } catch (error) {
-      console.error('Nao foi possivel sincronizar pelo atalho global:', getRedactedLogValue(error));
-      toast.error('Nao foi possivel sincronizar agora.');
+      console.warn('Sincronizacao manual nao concluiu agora; mantendo os dados atuais:', getRedactedLogValue(error));
+      toast.warning('Sincronização ficou pendente. O sistema continua aberto.');
     } finally {
       setSyncingNow(false);
     }
@@ -503,7 +503,9 @@ export function AppLayout({ children }: { children: ReactNode }) {
   if (isPdvMode) {
     return (
       <div className="h-screen overflow-hidden bg-background">
-        <main className="h-screen overflow-hidden p-3 sm:p-4 lg:overflow-y-auto lg:p-6">{children}</main>
+        <main className="h-screen overflow-hidden p-3 sm:p-4 lg:overflow-y-auto lg:p-6">
+          {children}
+        </main>
       </div>
     );
   }

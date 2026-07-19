@@ -77,14 +77,23 @@ export function OperationalScopeProvider({ children }: { children: ReactNode }) 
 
     const runtime = isDesktop ? 'desktop' : 'web';
     const cachedScope = readOperationalScopeCache(ownerUserId, user.id, runtime);
-    if (cachedScope) setScope(cachedScope);
+    if (cachedScope) {
+      setScope(cachedScope);
+      setLocations([cachedScope.location]);
+      setTerminals(cachedScope.terminal ? [cachedScope.terminal] : []);
+      setLoading(false);
+    } else {
+      setScope(null);
+      setLocations([]);
+      setTerminals([]);
+    }
 
     if (isLocalOfflineSession) {
       setLoading(false);
       return;
     }
 
-    setLoading(true);
+    if (!cachedScope) setLoading(true);
     try {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const db = supabase as any;
@@ -154,7 +163,7 @@ export function OperationalScopeProvider({ children }: { children: ReactNode }) 
     } catch (error) {
       // A aplicacao continua operacional com o trigger Matriz/LEGACY quando a
       // migracao ainda nao foi aplicada ou a rede estiver indisponivel.
-      console.error('Nao foi possivel resolver filial e terminal:', getRedactedLogValue(error));
+      console.warn('Nao foi possivel resolver filial e terminal; mantendo o escopo em cache:', getRedactedLogValue(error));
       setScope(cachedScope);
     } finally {
       setLoading(false);

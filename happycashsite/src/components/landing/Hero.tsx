@@ -4,10 +4,11 @@ import { Button } from "@/components/ui/button";
 import {
   ArrowRight,
   BadgeCheck,
+  BookOpen,
   CheckCircle2,
   MonitorSmartphone,
+  Package,
   Play,
-  Printer,
   ReceiptText,
   ShieldCheck,
 } from "lucide-react";
@@ -21,19 +22,19 @@ const heroSignals = [
   {
     label: "Caixa",
     text: "PDV rapido",
-    icon: "https://api.iconify.design/streamline-freehand-color:receipt-cash-register-print.svg",
+    icon: ReceiptText,
     className: "bg-[#e8f7ff] border-[#91d8ff] text-[#075985]",
   },
   {
     label: "Caderno",
     text: "fiado",
-    icon: "https://api.iconify.design/noto:notebook.svg",
+    icon: BookOpen,
     className: "bg-[#fff4c7] border-[#facc15] text-[#854d0e]",
   },
   {
     label: "Estoque",
     text: "reposicao",
-    icon: "https://api.iconify.design/fluent-emoji-flat:package.svg",
+    icon: Package,
     className: "bg-[#dcfce7] border-[#86efac] text-[#166534]",
   },
 ];
@@ -42,13 +43,6 @@ const quickWins = [
   "PDV e fechamento de caixa",
   "Fiado com historico por cliente",
   "Estoque, RH e relatorios",
-];
-
-const paymentRows = [
-  ["Pix", "R$ 128,90"],
-  ["Debito", "R$ 74,30"],
-  ["Credito", "R$ 216,10"],
-  ["Dinheiro", "R$ 58,00"],
 ];
 
 const Hero = () => {
@@ -68,7 +62,6 @@ const Hero = () => {
 
       gsap.to(".device-float-a", { y: -10, duration: 3.4, ease: "sine.inOut", repeat: -1, yoyo: true });
       gsap.to(".device-float-b", { y: 8, duration: 3.8, ease: "sine.inOut", repeat: -1, yoyo: true });
-      gsap.to(".receipt-strip", { y: -6, duration: 2.8, ease: "sine.inOut", repeat: -1, yoyo: true });
     }, sectionRef);
 
     return () => ctx.revert();
@@ -85,7 +78,7 @@ const Hero = () => {
             <div className="grid max-w-xl grid-cols-3 gap-2">
               {heroSignals.map((item) => (
                 <div key={item.label} className={`hero-signal rounded-lg border px-3 py-2 shadow-sm ${item.className}`}>
-                  <img src={item.icon} alt="" className="mb-1 h-7 w-7" loading="eager" decoding="async" />
+                  <item.icon className="mb-1 h-7 w-7" aria-hidden="true" />
                   <span className="block font-heading text-base font-black leading-none">{item.label}</span>
                   <span className="mt-1 block truncate text-[0.68rem] font-bold uppercase tracking-[0.08em] opacity-80">{item.text}</span>
                 </div>
@@ -193,28 +186,6 @@ const Hero = () => {
                   loading="lazy"
                   decoding="async"
                 />
-              </div>
-
-              <div className="absolute bottom-[18%] right-[32%] w-[29%] min-w-[10rem] sm:right-[28%] lg:right-[36%]">
-                <div className="rounded-t-lg border border-slate-300 bg-slate-100 px-3 py-2 shadow-[0_14px_36px_rgba(15,23,42,0.18)]">
-                  <div className="flex items-center gap-2 text-xs font-bold text-slate-700">
-                    <Printer className="h-4 w-4 text-primary" />
-                    Impressao rapida
-                  </div>
-                  <div className="mt-2 h-2 rounded-full bg-slate-300" />
-                </div>
-                <div className="receipt-strip mx-auto w-[78%] border-x border-b border-slate-200 bg-white px-3 py-3 text-[0.62rem] leading-4 text-slate-700 shadow-[0_18px_35px_rgba(15,23,42,0.12)]">
-                  <div className="mb-2 flex items-center justify-between border-b border-dashed border-slate-300 pb-1 font-bold">
-                    <span>FECHAMENTO</span>
-                    <span>Hoje</span>
-                  </div>
-                  {paymentRows.map(([label, value]) => (
-                    <div key={label} className="flex items-center justify-between">
-                      <span>{label}</span>
-                      <span className="font-semibold">{value}</span>
-                    </div>
-                  ))}
-                </div>
               </div>
 
               <div className="absolute left-[55%] top-[7%] hidden rounded-lg border border-primary/20 bg-card/85 px-3 py-2 shadow-lg backdrop-blur-xl md:block">

@@ -65,7 +65,7 @@ import { normalizeClientDebtDueDate } from '@/lib/clientDebtDueDate';
 import { filterProductsBySearch, toProductUppercase } from '@/lib/productSearch';
 import { calculateStockMovement, type StockMovementType } from '@/lib/stockMovement';
 import { blocksSaleWithoutStock, clampTrackedStock } from '@/lib/stockSalePolicy';
-import { buildStoreDataScopeKey, readStoreDataModuleCache, writeStoreDataModuleCache } from '@/lib/storeDataCache';
+import { buildStoreDataScopeKey, readLatestStoreDataModuleCache, readStoreDataModuleCache, writeStoreDataModuleCache } from '@/lib/storeDataCache';
 import { buildServiceTicketBarcode, isServiceTicketBarcode, isValidServiceTicketNumber, normalizeServiceTicketRecord } from '@/lib/serviceTicket';
 import { getPublicErrorMessage, getRedactedLogValue } from '../../shared/security/redaction';
 
@@ -141,6 +141,7 @@ const normalizePricingRuleRow = (rule: ProductCategoryPricingRule): ProductCateg
 
 const nowIso = () => new Date().toISOString();
 const PASSIVE_REFRESH_INTERVAL_MS = 5 * 60_000;
+const MAX_BLOCKING_DATA_LOAD_MS = 900;
 const createId = () => (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
   ? crypto.randomUUID()
   : `temp-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`);
@@ -151,6 +152,16 @@ const stripSyncFields = <T extends { sync_status?: unknown; sync_error?: unknown
 const compactObject = (value: Record<string, unknown>) => Object.fromEntries(
   Object.entries(value).filter(([, entryValue]) => entryValue !== undefined),
 );
+const settleSupabaseQuery = async <TData,>(
+  query: PromiseLike<{ data: TData; error: unknown }>,
+  fallbackData: TData,
+) => {
+  try {
+    return await query;
+  } catch (error) {
+    return { data: fallbackData, error };
+  }
+};
 const normalizePaymentDetails = (details: unknown) => details ?? [];
 const sortByIsoDesc = <T,>(rows: T[], selectIso: (row: T) => string | null | undefined) => (
   [...rows].sort((left, right) => new Date(selectIso(right) ?? 0).getTime() - new Date(selectIso(left) ?? 0).getTime())
@@ -341,6 +352,7 @@ interface DataContextType {
   serviceTickets: ServiceTicket[]; serviceTicketItems: ServiceTicketItem[];
   pricingRules: ProductCategoryPricingRule[]; priceHistory: ProductPriceHistoryEntry[];
   loading: boolean;
+  loadError: string | null;
   blockSaleWithoutStock: boolean;
   offlinePreparationStatus: OfflinePreparationStatus;
   offlinePreparationMessage: string | null;
@@ -435,7 +447,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const { user, username, profileEmail, ownerUserId, loading: authLoading, isAdmin, isLocalOfflineSession, role } = useAuth();
   const { isDesktop, offlineEnabled } = useDesktopRuntime();
   const { hasFeature, loading: planLoading, planId } = usePlanAccess();
-  const { scope: operationalScope } = useOperationalScope();
+  const { scope: operationalScope, loading: operationalScopeLoading } = useOperationalScope();
   const location = useLocation();
   const operationalLocationId = operationalScope?.location.id ?? null;
   const operationalTerminalId = operationalScope?.terminal?.id ?? null;
@@ -455,6 +467,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [pricingRules, setPricingRules] = useState<ProductCategoryPricingRule[]>([]);
   const [priceHistory, setPriceHistory] = useState<ProductPriceHistoryEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [loadedModules, setLoadedModules] = useState<Record<DataModule, boolean>>(createEmptyModuleLoadState);
   const [blockSaleWithoutStock, setBlockSaleWithoutStock] = useState(true);
   const [offlinePreparationStatus, setOfflinePreparationStatus] = useState<OfflinePreparationStatus>('unavailable');
@@ -470,13 +483,21 @@ export function DataProvider({ children }: { children: ReactNode }) {
     || null;
   const offlineSyncInFlightRef = useRef(false);
   const lastPassiveRefreshAtRef = useRef(0);
+  const loadingRef = useRef(true);
   const fullSnapshotPrimedRef = useRef(false);
+  const fullStorePrefetchStartedRef = useRef(false);
   const hrDataClearedRef = useRef(false);
+  const dataScopeRef = useRef<string | null>(null);
   const routeRequiredModules = useMemo(
     () => isHrOnlySession ? [] : uniqueModules([...BASE_DATA_MODULES, ...getRouteSpecificModules(location.pathname)]),
     [isHrOnlySession, location.pathname],
   );
   const passiveRefreshEnabled = !location.pathname.startsWith('/pdv');
+  const dataScopeKey = buildStoreDataScopeKey(operationalLocationId);
+
+  useEffect(() => {
+    loadingRef.current = loading;
+  }, [loading]);
 
   const clearStoreData = useCallback(() => {
     setClients([]);
@@ -498,6 +519,22 @@ export function DataProvider({ children }: { children: ReactNode }) {
     fullSnapshotPrimedRef.current = false;
   }, []);
 
+  useEffect(() => {
+    const nextScopeKey = `${ownerUserId || 'no-owner'}:${user?.id || 'no-user'}:${dataScopeKey}`;
+    if (dataScopeRef.current === null) {
+      dataScopeRef.current = nextScopeKey;
+      return;
+    }
+
+    if (dataScopeRef.current === nextScopeKey) return;
+
+    dataScopeRef.current = nextScopeKey;
+    setLoadedModules(createEmptyModuleLoadState());
+    setLoadError(null);
+    fullSnapshotPrimedRef.current = false;
+    fullStorePrefetchStartedRef.current = false;
+  }, [dataScopeKey, ownerUserId, user?.id]);
+
   const markOfflineNotReady = useCallback((message = 'Este computador ainda nao foi preparado para uso offline. Conecte a internet, entre uma vez e aguarde o download dos dados da loja terminar.') => {
     setOfflinePreparationStatus('not-ready');
     setOfflinePreparationMessage(message);
@@ -508,6 +545,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     if (!user || !ownerUserId || !isDemoMode) return;
 
     clearStoreData();
+    setLoadError(null);
     setLoading(false);
   }, [clearStoreData, isDemoMode, ownerUserId, user]);
 
@@ -567,6 +605,70 @@ export function DataProvider({ children }: { children: ReactNode }) {
     fullSnapshotPrimedRef.current = true;
   }, []);
 
+  const applyCachedStoreDataModules = useCallback((moduleData: Partial<Record<DataModule, StoreDataModulePayload>>) => {
+    const cachedModules = ALL_DATA_MODULES.filter((module) => Boolean(moduleData[module]));
+    if (cachedModules.length === 0) return false;
+
+    const clientsModule = moduleData.clients;
+    if (clientsModule) {
+      setClients(sortClientsByCreatedAt(clientsModule.clients ?? []));
+      setDebtEntries(sortDebtEntriesByDateAdded(clientsModule.debtEntries ?? []));
+      setPayments(sortPaymentsByDate(clientsModule.payments ?? []));
+    }
+
+    const productsModule = moduleData.products;
+    if (productsModule) {
+      setProducts(productsWithDisplayCodes(productsModule.products ?? []));
+      setProductPackagings(productsModule.productPackagings ?? []);
+    }
+
+    const operationalSettingsModule = moduleData.storeOperationalSettings;
+    if (operationalSettingsModule) {
+      setBlockSaleWithoutStock(operationalSettingsModule.blockSaleWithoutStock ?? true);
+    }
+
+    const rewardsModule = moduleData.rewards;
+    if (rewardsModule) setRewards(rewardsModule.rewards ?? []);
+
+    const salesModule = moduleData.sales;
+    if (salesModule) setSales(salesModule.sales ?? []);
+
+    const saleItemsModule = moduleData.saleItems;
+    if (saleItemsModule) setSaleItems(saleItemsModule.saleItems ?? []);
+
+    const serviceTicketsModule = moduleData.serviceTickets;
+    if (serviceTicketsModule) {
+      setServiceTickets(sortServiceTicketsByNumber((serviceTicketsModule.serviceTickets ?? []).map(normalizeServiceTicketRecord)));
+    }
+
+    const serviceTicketItemsModule = moduleData.serviceTicketItems;
+    if (serviceTicketItemsModule) {
+      setServiceTicketItems(sortServiceTicketItemsByCreatedAt(serviceTicketItemsModule.serviceTicketItems ?? []));
+    }
+
+    const stockModule = moduleData.stock;
+    if (stockModule) setStockMovements(stockModule.stockMovements ?? []);
+
+    const expensesModule = moduleData.expenses;
+    if (expensesModule) setExpenses(expensesModule.expenses ?? []);
+
+    const pricingModule = moduleData.pricing;
+    if (pricingModule) {
+      setPricingRules((pricingModule.pricingRules ?? []).map(normalizePricingRuleRow));
+      setPriceHistory(pricingModule.priceHistory ?? []);
+    }
+
+    setLoadedModules((previous) => {
+      const nextState = { ...previous };
+      cachedModules.forEach((module) => {
+        nextState[module] = true;
+      });
+      return nextState;
+    });
+
+    return true;
+  }, []);
+
   const loadOfflineSnapshotFallback = useCallback(async () => {
     if (!canUseOfflineConcentrator || !ownerUserId) return false;
 
@@ -603,13 +705,17 @@ export function DataProvider({ children }: { children: ReactNode }) {
     const shouldRefreshOfflineSnapshot = canUseOfflineConcentrator && ownerUserId && options.fullStore === true;
     const hasMissingRequestedModules = requestedModules.some((module) => !loadedModules[module]);
 
-    if (authLoading || planLoading) {
-      if (!silent && hasMissingRequestedModules) setLoading(true);
+    if (authLoading || planLoading || (!isHrOnlySession && operationalScopeLoading)) {
+      if (!silent && hasMissingRequestedModules) {
+        setLoadError(null);
+        setLoading(true);
+      }
       return;
     }
 
     if (isHrOnlySession) {
       clearStoreData();
+      setLoadError(null);
       setOfflinePreparationStatus('unavailable');
       setOfflinePreparationMessage(null);
       setOfflineSnapshotUpdatedAt(null);
@@ -619,16 +725,19 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
     if (!user || !ownerUserId) {
       clearStoreData();
+      setLoadError(null);
       if (!silent && hasMissingRequestedModules) setLoading(false);
       return;
     }
 
     if (isDemoMode) {
+      if (!silent) setLoadError(null);
       if (!silent && hasMissingRequestedModules) setLoading(false);
       return;
     }
 
     if (requestedModules.length === 0) {
+      if (!silent) setLoadError(null);
       if (!silent && hasMissingRequestedModules) setLoading(false);
       return;
     }
@@ -642,8 +751,6 @@ export function DataProvider({ children }: { children: ReactNode }) {
         return;
       }
     }
-
-    if (!silent && hasMissingRequestedModules) setLoading(true);
 
     if (shouldRefreshOfflineSnapshot) {
       setOfflinePreparationStatus('preparing');
@@ -685,14 +792,67 @@ export function DataProvider({ children }: { children: ReactNode }) {
       expenses: canReadExpenses,
       pricing: canReadPricing,
     };
-    const cacheScopeKey = buildStoreDataScopeKey(operationalLocationId);
+    const cacheScopeKey = dataScopeKey;
+    const unreadableMissingModules = requestedModules.filter((module) => !canReadModule[module] && !loadedModules[module]);
+    const hasMissingReadableRequestedModules = requestedModules.some((module) => canReadModule[module] && !loadedModules[module]);
+    let servedBlockingLoadFromCache = false;
+
+    if (unreadableMissingModules.length > 0) {
+      setLoadedModules((previous) => {
+        const nextState = { ...previous };
+        unreadableMissingModules.forEach((module) => {
+          nextState[module] = true;
+        });
+        return nextState;
+      });
+    }
+
+    if (!silent && hasMissingReadableRequestedModules) {
+      setLoadError(null);
+      setLoading(true);
+    } else if (!silent && hasMissingRequestedModules) {
+      setLoadError(null);
+      setLoading(false);
+    }
+
+    if (!silent && hasMissingReadableRequestedModules) {
+      const fastCachedModuleData: Partial<Record<DataModule, StoreDataModulePayload>> = {};
+      const readableMissingModules = requestedModules.filter((module) => canReadModule[module] && !loadedModules[module]);
+
+      readableMissingModules.forEach((module) => {
+        const cached = readLatestStoreDataModuleCache<StoreDataModulePayload>({
+          ownerUserId,
+          userId: user.id,
+          scopeKey: cacheScopeKey,
+          module,
+        });
+
+        if (cached) {
+          fastCachedModuleData[module] = cached;
+        }
+      });
+
+      const cachedModuleKeys = new Set(Object.keys(fastCachedModuleData) as DataModule[]);
+      const hasCompleteCachedRouteData = readableMissingModules.length > 0
+        && readableMissingModules.every((module) => cachedModuleKeys.has(module));
+
+      if (hasCompleteCachedRouteData && applyCachedStoreDataModules(fastCachedModuleData)) {
+        servedBlockingLoadFromCache = true;
+        setLoadError(null);
+        setLoading(false);
+      }
+    }
+
     const remoteSyncStateByModule = new Map<DataModule, string>();
     let syncStateAvailable = false;
 
     if (typeof navigator === 'undefined' || navigator.onLine !== false) {
-      const { data: syncStateRows, error: syncStateError } = await db.rpc('get_store_data_sync_state', {
-        p_location_id: operationalLocationId,
-      }).catch((error: unknown) => ({ data: null, error }));
+      const { data: syncStateRows, error: syncStateError } = await settleSupabaseQuery(
+        db.rpc('get_store_data_sync_state', {
+          p_location_id: operationalLocationId,
+        }),
+        null,
+      );
 
       if (!syncStateError && Array.isArray(syncStateRows)) {
         syncStateAvailable = true;
@@ -744,9 +904,15 @@ export function DataProvider({ children }: { children: ReactNode }) {
     let productsResponse = { data: [], error: null };
 
     if (canReadProducts && !hasCachedProducts) {
-      const productsByCode = await db.from('products').select('*').order('code', { ascending: true });
+      const productsByCode = await settleSupabaseQuery(
+        db.from('products').select('*').order('code', { ascending: true }),
+        [],
+      );
       productsResponse = productsByCode.error?.message?.includes('products.code')
-        ? await db.from('products').select('*').order('created_at', { ascending: true })
+        ? await settleSupabaseQuery(
+          db.from('products').select('*').order('created_at', { ascending: true }),
+          [],
+        )
         : productsByCode;
     }
 
@@ -754,24 +920,52 @@ export function DataProvider({ children }: { children: ReactNode }) {
       operationalLocationId ? query.eq('location_id', operationalLocationId) : query;
 
     const [settings, c, p, pkg, inventory, d, pay, r, s, si, st, sti, sm, exp, pr, ph] = await Promise.all([
-      needsOperationalSettings && !hasCachedOperationalSettings ? db.rpc('get_store_operational_settings').single() : emptySingleResult,
-      canReadClients && !hasCachedClients ? db.from('clients').select('*').order('created_at', { ascending: false }).limit(1000) : emptyResult,
-      Promise.resolve(productsResponse),
-      canReadProducts && !hasCachedProducts ? db.from('product_packagings').select('*').eq('active', true).order('base_quantity', { ascending: false }) : emptyResult,
-      canReadProducts && !hasCachedProducts && operationalLocationId
-        ? db.from('location_inventory').select('product_id, stock, min_stock').eq('location_id', operationalLocationId)
+      needsOperationalSettings && !hasCachedOperationalSettings
+        ? settleSupabaseQuery(db.rpc('get_store_operational_settings').single(), null)
+        : emptySingleResult,
+      canReadClients && !hasCachedClients
+        ? settleSupabaseQuery(db.from('clients').select('*').order('created_at', { ascending: false }).limit(1000), [])
         : emptyResult,
-      canReadFiado && !hasCachedClients ? db.from('debt_entries').select('*').order('date_added', { ascending: false }).limit(2000) : emptyResult,
-      canReadFiado && !hasCachedClients ? db.from('payments').select('*').order('date', { ascending: false }).limit(2000) : emptyResult,
-      canReadRewards && !hasCachedRewards ? db.from('rewards').select('*').order('created_at', { ascending: false }).limit(1000) : emptyResult,
-      canReadSales && !hasCachedSales ? locationQuery(db.from('sales').select('*')).order('date', { ascending: false }).limit(2000) : emptyResult,
-      canReadSales && needsSaleItems && !hasCachedSaleItems ? db.from('sale_items').select('*').limit(5000) : emptyResult,
-      canReadServiceTickets && !hasCachedServiceTickets ? locationQuery(db.from('service_tickets').select('*')).order('number', { ascending: true }).limit(1000) : emptyResult,
-      canReadServiceTickets && needsServiceTicketItems && !hasCachedServiceTicketItems ? db.from('service_ticket_items').select('*').order('created_at', { ascending: true }).limit(5000) : emptyResult,
-      canReadStock && !hasCachedStock ? locationQuery(db.from('stock_movements').select('*')).order('date', { ascending: false }).limit(2000) : emptyResult,
-      canReadExpenses && !hasCachedExpenses ? locationQuery(db.from('expenses').select('*')).order('date', { ascending: false }).limit(1000) : emptyResult,
-      canReadPricing && !hasCachedPricing ? db.from('product_category_pricing_rules').select('*').order('category', { ascending: true }) : emptyResult,
-      canReadPricing && !hasCachedPricing ? db.from('product_price_history').select('*').order('created_at', { ascending: false }).limit(1000) : emptyResult,
+      Promise.resolve(productsResponse),
+      canReadProducts && !hasCachedProducts
+        ? settleSupabaseQuery(db.from('product_packagings').select('*').eq('active', true).order('base_quantity', { ascending: false }), [])
+        : emptyResult,
+      canReadProducts && !hasCachedProducts && operationalLocationId
+        ? settleSupabaseQuery(db.from('location_inventory').select('product_id, stock, min_stock').eq('location_id', operationalLocationId), [])
+        : emptyResult,
+      canReadFiado && !hasCachedClients
+        ? settleSupabaseQuery(db.from('debt_entries').select('*').order('date_added', { ascending: false }).limit(2000), [])
+        : emptyResult,
+      canReadFiado && !hasCachedClients
+        ? settleSupabaseQuery(db.from('payments').select('*').order('date', { ascending: false }).limit(2000), [])
+        : emptyResult,
+      canReadRewards && !hasCachedRewards
+        ? settleSupabaseQuery(db.from('rewards').select('*').order('created_at', { ascending: false }).limit(1000), [])
+        : emptyResult,
+      canReadSales && !hasCachedSales
+        ? settleSupabaseQuery(locationQuery(db.from('sales').select('*')).order('date', { ascending: false }).limit(2000), [])
+        : emptyResult,
+      canReadSales && needsSaleItems && !hasCachedSaleItems
+        ? settleSupabaseQuery(db.from('sale_items').select('*').limit(5000), [])
+        : emptyResult,
+      canReadServiceTickets && !hasCachedServiceTickets
+        ? settleSupabaseQuery(locationQuery(db.from('service_tickets').select('*')).order('number', { ascending: true }).limit(1000), [])
+        : emptyResult,
+      canReadServiceTickets && needsServiceTicketItems && !hasCachedServiceTicketItems
+        ? settleSupabaseQuery(db.from('service_ticket_items').select('*').order('created_at', { ascending: true }).limit(5000), [])
+        : emptyResult,
+      canReadStock && !hasCachedStock
+        ? settleSupabaseQuery(locationQuery(db.from('stock_movements').select('*')).order('date', { ascending: false }).limit(2000), [])
+        : emptyResult,
+      canReadExpenses && !hasCachedExpenses
+        ? settleSupabaseQuery(locationQuery(db.from('expenses').select('*')).order('date', { ascending: false }).limit(1000), [])
+        : emptyResult,
+      canReadPricing && !hasCachedPricing
+        ? settleSupabaseQuery(db.from('product_category_pricing_rules').select('*').order('category', { ascending: true }), [])
+        : emptyResult,
+      canReadPricing && !hasCachedPricing
+        ? settleSupabaseQuery(db.from('product_price_history').select('*').order('created_at', { ascending: false }).limit(1000), [])
+        : emptyResult,
     ]);
 
     const canFallbackOperationalSettings = needsOperationalSettings && isMissingRpcError(settings.error, 'get_store_operational_settings');
@@ -810,12 +1004,15 @@ export function DataProvider({ children }: { children: ReactNode }) {
         }
       }
 
-      console.error('Falha ao atualizar os dados remotos; mantendo o ultimo estado em memoria.', getRedactedLogValue(remoteErrors));
+      console.warn('Falha ao atualizar os dados remotos; mantendo o ultimo estado em memoria.', getRedactedLogValue(remoteErrors));
       if (canUseOfflineConcentrator && !silent) {
         setOfflinePreparationStatus('error');
         setOfflinePreparationMessage('Nao foi possivel baixar os dados para uso offline agora. Verifique a internet e tente novamente.');
       }
-      if (!silent && hasMissingRequestedModules) setLoading(false);
+      if (!servedBlockingLoadFromCache && !silent && hasMissingReadableRequestedModules) {
+        setLoadError(null);
+        setLoading(false);
+      }
       return;
     }
 
@@ -904,10 +1101,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
       });
       return nextState;
     });
-    if (!silent && hasMissingRequestedModules) setLoading(false);
+    if (!silent) setLoadError(null);
+    if (!silent && hasMissingReadableRequestedModules) setLoading(false);
 
     const writeModuleCache = (module: DataModule, data: StoreDataModulePayload) => {
-      if (!syncStateAvailable || cachedModuleData[module] || !canReadModule[module]) return;
+      if (cachedModuleData[module] || !canReadModule[module]) return;
 
       const signature = remoteSyncStateByModule.get(module);
       writeStoreDataModuleCache({
@@ -984,10 +1182,12 @@ export function DataProvider({ children }: { children: ReactNode }) {
     }
   }, [
     authLoading,
+    applyCachedStoreDataModules,
     blockSaleWithoutStock,
     canUseOfflineConcentrator,
     clearStoreData,
     clients,
+    dataScopeKey,
     debtEntries,
     expenses,
     hasFeature,
@@ -997,6 +1197,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     loadOfflineSnapshotFallback,
     loadedModules,
     operationalLocationId,
+    operationalScopeLoading,
     ownerUserId,
     payments,
     planLoading,
@@ -1014,12 +1215,21 @@ export function DataProvider({ children }: { children: ReactNode }) {
     user,
   ]);
 
+  const handleFetchAllError = useCallback((error: unknown, options?: { clearBlockingLoading?: boolean }) => {
+    console.warn('Falha inesperada ao carregar os dados da tela; mantendo o estado atual.', getRedactedLogValue(error));
+    if (options?.clearBlockingLoading) {
+      setLoadError(null);
+      setLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     if (isHrOnlySession) {
       if (!hrDataClearedRef.current) {
         clearStoreData();
         hrDataClearedRef.current = true;
       }
+      setLoadError(null);
       setOfflinePreparationStatus('unavailable');
       setOfflinePreparationMessage(null);
       setOfflineSnapshotUpdatedAt(null);
@@ -1029,16 +1239,46 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
     hrDataClearedRef.current = false;
 
-    if (authLoading || planLoading || !user || isDemoMode) return;
+    if (authLoading || planLoading || operationalScopeLoading || !user || isDemoMode) return;
 
     const missingModules = routeRequiredModules.filter((module) => !loadedModules[module]);
     if (missingModules.length === 0) {
+      setLoadError(null);
       setLoading(false);
       return;
     }
 
-    void fetchAll({ modules: missingModules });
-  }, [authLoading, clearStoreData, fetchAll, isDemoMode, isHrOnlySession, loadedModules, planLoading, routeRequiredModules, user]);
+    const baseModulesLoaded = BASE_DATA_MODULES.every((module) => loadedModules[module]);
+    if (baseModulesLoaded) {
+      setLoadError(null);
+      setLoading(false);
+      void fetchAll({ modules: missingModules, silent: true }).catch(handleFetchAllError);
+      return;
+    }
+
+    let cancelled = false;
+    const timeoutId = window.setTimeout(() => {
+      if (cancelled || !loadingRef.current) return;
+      console.warn('Carregamento inicial dos dados passou de 1s; liberando a tela e mantendo a busca em segundo plano.');
+      setLoadError(null);
+      setLoading(false);
+    }, MAX_BLOCKING_DATA_LOAD_MS);
+
+    void fetchAll({ modules: missingModules }).catch((error: unknown) => {
+      handleFetchAllError(error, { clearBlockingLoading: true });
+    }).finally(() => {
+      window.clearTimeout(timeoutId);
+    });
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timeoutId);
+    };
+  }, [authLoading, clearStoreData, fetchAll, handleFetchAllError, isDemoMode, isHrOnlySession, loadedModules, operationalScopeLoading, planLoading, routeRequiredModules, user]);
+
+  useEffect(() => {
+    fullStorePrefetchStartedRef.current = false;
+  }, [operationalLocationId, ownerUserId, user?.id]);
 
   useEffect(() => {
     if (
@@ -1056,8 +1296,32 @@ export function DataProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    void fetchAll({ silent: true, fullStore: true });
-  }, [authLoading, canUseOfflineConcentrator, fetchAll, isDemoMode, isHrOnlySession, loading, ownerUserId, planLoading, user]);
+    void fetchAll({ silent: true, fullStore: true }).catch(handleFetchAllError);
+  }, [authLoading, canUseOfflineConcentrator, fetchAll, handleFetchAllError, isDemoMode, isHrOnlySession, loading, ownerUserId, planLoading, user]);
+
+  useEffect(() => {
+    if (
+      authLoading
+      || planLoading
+      || !user
+      || !ownerUserId
+      || isDemoMode
+      || isHrOnlySession
+      || canUseOfflineConcentrator
+      || loading
+      || fullStorePrefetchStartedRef.current
+      || (typeof navigator !== 'undefined' && navigator.onLine === false)
+    ) {
+      return;
+    }
+
+    fullStorePrefetchStartedRef.current = true;
+
+    void fetchAll({ silent: true, fullStore: true }).catch((error: unknown) => {
+      fullStorePrefetchStartedRef.current = false;
+      handleFetchAllError(error);
+    });
+  }, [authLoading, canUseOfflineConcentrator, fetchAll, handleFetchAllError, isDemoMode, isHrOnlySession, loading, ownerUserId, planLoading, user]);
 
   useEffect(() => {
     if (authLoading || planLoading || !user || isDemoMode || isHrOnlySession || !passiveRefreshEnabled) {
@@ -1073,7 +1337,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       if (now - lastPassiveRefreshAtRef.current < PASSIVE_REFRESH_INTERVAL_MS) return;
       lastPassiveRefreshAtRef.current = now;
 
-      void fetchAll({ silent: true });
+      void fetchAll({ silent: true }).catch(handleFetchAllError);
     };
 
     const intervalId = window.setInterval(silentlyRefreshRemoteState, PASSIVE_REFRESH_INTERVAL_MS);
@@ -1096,7 +1360,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       window.removeEventListener('online', handleFocus);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [authLoading, fetchAll, isDemoMode, isHrOnlySession, loading, passiveRefreshEnabled, planLoading, user]);
+  }, [authLoading, fetchAll, handleFetchAllError, isDemoMode, isHrOnlySession, loading, passiveRefreshEnabled, planLoading, user]);
 
   useEffect(() => {
     if (
@@ -1882,6 +2146,16 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
     await fetchAll({ fullStore: canUseOfflineConcentrator });
   }, [canUseOfflineConcentrator, fetchAll, isDemoMode, ownerUserId, syncOfflineQueue]);
+
+  const refetch = useCallback(async () => {
+    setLoadError(null);
+
+    try {
+      await fetchAll();
+    } catch (error) {
+      handleFetchAllError(error, { clearBlockingLoading: true });
+    }
+  }, [fetchAll, handleFetchAllError]);
 
   // --- Clients ---
   const addClient = async (name: string, phone: string, creditLimit?: number | null, debtDueDate?: string | null) => {
@@ -4341,7 +4615,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
   return (
     <DataContext.Provider value={{
-      clients, products, productPackagings, debtEntries, payments, rewards, sales, saleItems, serviceTickets, serviceTicketItems, stockMovements, expenses, pricingRules, priceHistory, loading,
+      clients, products, productPackagings, debtEntries, payments, rewards, sales, saleItems, serviceTickets, serviceTicketItems, stockMovements, expenses, pricingRules, priceHistory, loading, loadError,
       blockSaleWithoutStock,
       offlinePreparationStatus, offlinePreparationMessage, offlineSnapshotUpdatedAt,
       addClient, updateClient, softDeleteClient,
@@ -4355,7 +4629,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       updateStoreOperationalSettings,
       addReward, updateReward, deleteReward,
       syncNow,
-      refetch: fetchAll,
+      refetch,
     }}>
       {children}
     </DataContext.Provider>

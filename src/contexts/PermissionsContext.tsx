@@ -63,6 +63,7 @@ export function PermissionsProvider({ children }: { children: ReactNode }) {
 
     const cachedPermissions = readPermissionCache(ownerUserId, user.id);
     const fallbackPermissions = cachedPermissions ?? getDefaultPermissionsForRole(role);
+    const hasCachedPermissions = Boolean(cachedPermissions);
     setPermissions(fallbackPermissions);
 
     if (role === 'admin') {
@@ -77,7 +78,7 @@ export function PermissionsProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    setLoading(true);
+    setLoading(!hasCachedPermissions);
 
     try {
       // Os tipos gerados do Supabase serao atualizados depois que a migracao for aplicada.
@@ -96,7 +97,7 @@ export function PermissionsProvider({ children }: { children: ReactNode }) {
       writePermissionCache(ownerUserId, user.id, allowedPermissions);
     } catch (error) {
       // Falha de rede nao deve derrubar o PDV: usa o ultimo conjunto validado.
-      console.error('Nao foi possivel atualizar as permissoes do ERP:', getRedactedLogValue(error));
+      console.warn('Nao foi possivel atualizar as permissoes do ERP; mantendo o ultimo conjunto validado:', getRedactedLogValue(error));
       setPermissions(fallbackPermissions);
     } finally {
       setLoading(false);

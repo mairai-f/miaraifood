@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 
-import happyCashLogo from "@/assets/login/happycash.svg";
+import happyCashLogo from "@/assets/login/happycash.webp";
 import { Progress } from "@/components/ui/progress";
 import type { DesktopUpdateSplashSummary } from "@/lib/desktopUpdateSplash";
 import { cn } from "@/lib/utils";

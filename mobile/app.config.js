@@ -12,7 +12,7 @@ module.exports = {
     splash: {
       image: './assets/splash.png',
       resizeMode: 'contain',
-      backgroundColor: '#1a1a1a',
+      backgroundColor: '#f8fbff',
     },
     ios: {
       supportsTablet: true,
@@ -26,7 +26,7 @@ module.exports = {
       edgeToEdgeEnabled: true,
       adaptiveIcon: {
         foregroundImage: './assets/adaptive-icon.png',
-        backgroundColor: '#1a1a1a',
+        backgroundColor: '#f8fbff',
       },
     },
     extra: {

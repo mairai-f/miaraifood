@@ -18,7 +18,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import { createSiteUrl } from "@/lib/siteSeo";
 import { isPublicPlanId, publicPlanContent } from "@/lib/subscriptionPlans";
-import logo from "../../../src/assets/login/happycash.svg";
+import logo from "../../../src/assets/login/happycash.webp";
 import { Eye, EyeOff, Loader2, PlayCircle, UserPlus } from "lucide-react";
 import { getPasswordPolicyError, passwordPolicyHint } from "../../../shared/security/passwordPolicy";
 import { requestTurnstileToken } from "../../../shared/security/turnstile";

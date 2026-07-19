@@ -1,5 +1,6 @@
 import {
   buildStoreDataScopeKey,
+  readLatestStoreDataModuleCache,
   readStoreDataModuleCache,
   writeStoreDataModuleCache,
 } from '@/lib/storeDataCache';
@@ -44,5 +45,12 @@ describe('storeDataCache', () => {
       module: 'products',
       signature: 'sig-2',
     })).toBeNull();
+
+    expect(readLatestStoreDataModuleCache({
+      ownerUserId: 'owner-1',
+      userId: 'user-1',
+      scopeKey,
+      module: 'products',
+    })).toEqual({ products: [{ id: 'product-1', name: 'Cafe' }] });
   });
 });

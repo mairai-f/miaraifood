@@ -26,7 +26,7 @@ import { INTERNET_REQUIRED_MESSAGE, isInternetUnavailable, openExternalUrl } fro
 import { normalizePhone } from '@/lib/phone';
 import { openRetailCouponPrintWindow } from '@/lib/retailCoupon';
 import { supabase } from '@/integrations/supabase/client';
-import happyCashLogo from '@/assets/login/happycash.svg';
+import happyCashLogo from '@/assets/login/happycash.webp';
 import { roleLabel } from '@/lib/access';
 import { useCompanyDisplayName } from '@/hooks/use-company-display-name';
 import { useStoreReceiptProfile } from '@/hooks/use-store-receipt-profile';

@@ -12,11 +12,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Eye, EyeOff, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
-import happyCashLogo from '@/assets/login/happycash.svg';
-import loginPdvRapido from '@/assets/login/pdvrapido.svg';
-import loginRelatorios from '@/assets/login/relatorios.svg';
-import loginErp from '@/assets/login/erp.svg';
-import loginEstoque from '@/assets/login/estoque.svg';
+import happyCashLogo from '@/assets/login/happycash.webp';
+import loginPdvRapido from '@/assets/login/pdvrapido.webp';
+import loginRelatorios from '@/assets/login/relatorios.webp';
+import loginErp from '@/assets/login/erp.webp';
+import loginEstoque from '@/assets/login/estoque.webp';
 import {
   applySystemSessionPreference,
   getSystemLoginPreferences,
