@@ -16,6 +16,7 @@ import { SplashScreen } from "@/components/SplashScreen";
 import { hasSeenAppSplash, markAppSplashSeen } from "@/lib/appSplash";
 import { getDesktopUpdateSplashSummary } from "@/lib/desktopUpdateSplash";
 import {
+  DESKTOP_ACTIVATION_CHANGED_EVENT,
   isDesktopActivationRequired,
   readDesktopActivation,
   type DesktopActivationRecord,
@@ -118,6 +119,19 @@ function AppRoutes() {
   useEffect(() => {
     setDesktopActivation(readDesktopActivation());
   }, [isAuthenticated, isDesktop]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const syncDesktopActivation = () => setDesktopActivation(readDesktopActivation());
+    window.addEventListener(DESKTOP_ACTIVATION_CHANGED_EVENT, syncDesktopActivation);
+    window.addEventListener("storage", syncDesktopActivation);
+
+    return () => {
+      window.removeEventListener(DESKTOP_ACTIVATION_CHANGED_EVENT, syncDesktopActivation);
+      window.removeEventListener("storage", syncDesktopActivation);
+    };
+  }, []);
 
   useEffect(() => {
     if (!isDesktop) {

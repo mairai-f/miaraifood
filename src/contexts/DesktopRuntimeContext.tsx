@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useState, type React
 
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
+import { clearDesktopActivation, readDesktopActivation } from '@/lib/desktopActivation';
 import { isProbablyOfflineError } from '@/lib/offlineConcentrator';
 import { getPublicErrorMessage } from '../../shared/security/redaction';
 
@@ -204,11 +205,16 @@ export function DesktopRuntimeProvider({ children }: { children: ReactNode }) {
 
     setChecking(true);
 
+    const desktopActivation = readDesktopActivation();
     const { data, error: invokeError } = await supabase.functions.invoke<DesktopLicenseResponse>('desktop-license', {
       headers: {
         Authorization: `Bearer ${session.access_token}`,
       },
-      body: {},
+      body: {
+        desktopInstallationId: desktopActivation?.installationId ?? null,
+        desktopStoreAccountId: desktopActivation?.storeAccountId ?? null,
+        desktopAppContext: desktopActivation?.appContext ?? 'happycash',
+      },
     });
 
     if (invokeError || !data?.licensed) {
@@ -278,6 +284,10 @@ export function DesktopRuntimeProvider({ children }: { children: ReactNode }) {
         setPlanId(data?.planId ?? null);
         setValidUntil(data?.validUntil ?? null);
         setOfflineEnabled(Boolean(data?.offlineEnabled));
+      }
+
+      if (nextCode === 'DESKTOP_ACTIVATION_REVOKED') {
+        clearDesktopActivation();
       }
 
       setLicensed(false);

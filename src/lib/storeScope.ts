@@ -87,3 +87,16 @@ export const writeOperationalScopeCache = (
     // O escopo continua valido em memoria quando o armazenamento estiver indisponivel.
   }
 };
+
+export const clearOperationalScopeCache = (
+  ownerUserId: string,
+  userId: string,
+  runtime: 'web' | 'desktop',
+) => {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.removeItem(getOperationalScopeCacheKey(ownerUserId, userId, runtime));
+  } catch {
+    // Ignora falhas de armazenamento; o estado em memoria sera limpo pelo caller.
+  }
+};

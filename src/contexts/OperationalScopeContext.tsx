@@ -3,8 +3,9 @@ import { useAuth } from '@/contexts/AuthContext';
 import { OperationalScopeContext, type OperationalScopeContextValue } from '@/contexts/operational-scope-context';
 import { useDesktopRuntime } from '@/contexts/DesktopRuntimeContext';
 import { supabase } from '@/integrations/supabase/client';
-import { readDesktopActivation } from '@/lib/desktopActivation';
+import { clearDesktopActivation, readDesktopActivation } from '@/lib/desktopActivation';
 import {
+  clearOperationalScopeCache,
   readOperationalScopeCache,
   writeOperationalScopeCache,
   type OperationalLocation,
@@ -110,7 +111,15 @@ export function OperationalScopeProvider({ children }: { children: ReactNode }) 
         });
         if (error) throw error;
         const row = ((data ?? []) as DesktopScopeRow[])[0];
-        if (!row) throw new Error('Terminal Desktop ainda nao foi vinculado.');
+        if (!row) {
+          clearOperationalScopeCache(ownerUserId, user.id, runtime);
+          clearDesktopActivation();
+          setScope(null);
+          setLocations([]);
+          setTerminals([]);
+          setLoading(false);
+          return;
+        }
 
         const nextScope: OperationalScope = {
           location: {

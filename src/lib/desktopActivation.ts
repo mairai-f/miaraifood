@@ -39,8 +39,14 @@ export interface DesktopLegalAcceptanceInput {
 
 const activationStorageKey = 'happycash:desktop:activation';
 const installationIdStorageKey = 'happycash:desktop:installation-id';
+export const DESKTOP_ACTIVATION_CHANGED_EVENT = 'happycash:desktop-activation-changed';
 
 const isBrowser = () => typeof window !== 'undefined';
+const notifyDesktopActivationChanged = () => {
+  if (!isBrowser()) return;
+  window.dispatchEvent(new Event(DESKTOP_ACTIVATION_CHANGED_EVENT));
+};
+
 const normalizeInstallerToken = (value?: string | null) => {
   const normalized = value?.trim();
   return normalized ? normalized : null;
@@ -82,6 +88,7 @@ export const readDesktopActivation = (): DesktopActivationRecord | null => {
 export const writeDesktopActivation = (payload: DesktopActivationRecord) => {
   if (!isBrowser()) return;
   window.localStorage.setItem(activationStorageKey, JSON.stringify(payload));
+  notifyDesktopActivationChanged();
 };
 
 export const clearDesktopActivation = (options?: { clearInstallationId?: boolean }) => {
@@ -90,6 +97,7 @@ export const clearDesktopActivation = (options?: { clearInstallationId?: boolean
   if (options?.clearInstallationId) {
     window.localStorage.removeItem(installationIdStorageKey);
   }
+  notifyDesktopActivationChanged();
 };
 
 export const getDesktopInstallationId = () => {
