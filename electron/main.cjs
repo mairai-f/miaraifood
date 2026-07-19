@@ -11,6 +11,7 @@ const UPDATE_METADATA_RETRY_DELAY_MS = 60_000;
 const UPDATE_AUTO_INSTALL_DELAY_MS = 900;
 const UPDATE_INSTALL_RETRY_DELAY_MS = 8_000;
 const UPDATE_INSTALL_STUCK_TIMEOUT_MS = 24_000;
+const UPDATE_FORCE_QUIT_DELAY_MS = 4_500;
 const isDevelopment = Boolean(process.env.VITE_DEV_SERVER_URL) || !app.isPackaged;
 const loadPackagedMetadata = () => {
   try {
@@ -58,8 +59,10 @@ let updateState = {
 let pendingUpdateRetryTimer = null;
 let pendingUpdateInstallTimer = null;
 let pendingUpdateInstallWatchdogTimer = null;
+let pendingUpdateForceQuitTimer = null;
 let autoInstallDownloadedUpdate = false;
 let updateInstallAttemptCount = 0;
+let installingDownloadedUpdate = false;
 const appendPrintLog = (event, details = {}) => {
   const entry = JSON.stringify({
     timestamp: new Date().toISOString(),
@@ -359,6 +362,13 @@ const clearPendingUpdateInstallWatchdog = () => {
   }
 };
 
+const clearPendingUpdateForceQuit = () => {
+  if (pendingUpdateForceQuitTimer) {
+    clearTimeout(pendingUpdateForceQuitTimer);
+    pendingUpdateForceQuitTimer = null;
+  }
+};
+
 const getUpdateInstallFailureMessage = () =>
   'A atualização foi baixada, mas o instalador não conseguiu reiniciar o HappyCash automaticamente. Abra Configurações > Desktop e offline para tentar novamente ou baixe a atualização manualmente.';
 
@@ -367,7 +377,9 @@ const markUpdateInstallFailed = (errorMessage = getUpdateInstallFailureMessage()
   autoInstallDownloadedUpdate = false;
   clearPendingUpdateInstall();
   clearPendingUpdateInstallWatchdog();
+  clearPendingUpdateForceQuit();
   updateInstallAttemptCount = 0;
+  installingDownloadedUpdate = false;
 
   return setUpdateState({
     status: 'error',
@@ -400,10 +412,26 @@ const scheduleUpdateInstallWatchdog = () => {
 function invokeQuitAndInstall(trigger = 'manual') {
   updateInstallAttemptCount += 1;
   scheduleUpdateInstallWatchdog();
+  clearPendingUpdateForceQuit();
 
   try {
+    installingDownloadedUpdate = true;
     console.log(`Iniciando instalacao da atualizacao (${trigger}), tentativa ${updateInstallAttemptCount}.`);
     autoUpdater.quitAndInstall(false, true);
+
+    pendingUpdateForceQuitTimer = setTimeout(() => {
+      pendingUpdateForceQuitTimer = null;
+      if (!installingDownloadedUpdate || getUpdateState().status !== 'installing') return;
+
+      console.warn('Updater ainda nao encerrou o app. Fechando janelas para liberar a instalacao.');
+      BrowserWindow.getAllWindows().forEach((window) => {
+        if (!window.isDestroyed()) {
+          window.destroy();
+        }
+      });
+      app.quit();
+    }, UPDATE_FORCE_QUIT_DELAY_MS);
+
     return { success: true };
   } catch (error) {
     console.error('Falha ao iniciar instalacao da atualizacao:', error);
@@ -1102,7 +1130,9 @@ const checkForUpdates = async (options = {}) => {
   autoInstallDownloadedUpdate = shouldAutoInstallOnDownloaded;
   clearPendingUpdateInstall();
   clearPendingUpdateInstallWatchdog();
+  clearPendingUpdateForceQuit();
   updateInstallAttemptCount = 0;
+  installingDownloadedUpdate = false;
 
   setUpdateState({
     status: 'checking',
@@ -1181,7 +1211,9 @@ const setupAutoUpdates = (mainWindow) => {
     clearPendingUpdateRetry();
     clearPendingUpdateInstall();
     clearPendingUpdateInstallWatchdog();
+    clearPendingUpdateForceQuit();
     updateInstallAttemptCount = 0;
+    installingDownloadedUpdate = false;
     setUpdateState({
       status: 'checking',
       availableVersion: null,
@@ -1203,7 +1235,9 @@ const setupAutoUpdates = (mainWindow) => {
     clearPendingUpdateRetry();
     clearPendingUpdateInstall();
     clearPendingUpdateInstallWatchdog();
+    clearPendingUpdateForceQuit();
     updateInstallAttemptCount = 0;
+    installingDownloadedUpdate = false;
     setUpdateState({
       status: 'downloading',
       availableVersion: info?.version || null,
@@ -1237,8 +1271,10 @@ const setupAutoUpdates = (mainWindow) => {
     clearPendingUpdateRetry();
     clearPendingUpdateInstall();
     clearPendingUpdateInstallWatchdog();
+    clearPendingUpdateForceQuit();
     autoInstallDownloadedUpdate = false;
     updateInstallAttemptCount = 0;
+    installingDownloadedUpdate = false;
     setUpdateState({
       status: 'idle',
       availableVersion: null,
@@ -1275,8 +1311,10 @@ const setupAutoUpdates = (mainWindow) => {
 
     clearPendingUpdateInstall();
     clearPendingUpdateInstallWatchdog();
+    clearPendingUpdateForceQuit();
     autoInstallDownloadedUpdate = false;
     updateInstallAttemptCount = 0;
+    installingDownloadedUpdate = false;
 
     setUpdateState({
       status: 'error',
@@ -1326,6 +1364,7 @@ const setupAutoUpdates = (mainWindow) => {
     clearPendingUpdateRetry();
     clearPendingUpdateInstall();
     clearPendingUpdateInstallWatchdog();
+    clearPendingUpdateForceQuit();
   });
 };
 
@@ -1565,7 +1604,7 @@ app.whenReady().then(() => {
 });
 
 app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') {
+  if (installingDownloadedUpdate || process.platform !== 'darwin') {
     app.quit();
   }
 });

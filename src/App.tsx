@@ -17,8 +17,10 @@ import { hasSeenAppSplash, markAppSplashSeen } from "@/lib/appSplash";
 import { getDesktopUpdateSplashSummary } from "@/lib/desktopUpdateSplash";
 import {
   DESKTOP_ACTIVATION_CHANGED_EVENT,
+  clearDesktopActivation,
   isDesktopActivationRequired,
   readDesktopActivation,
+  validateDesktopActivationStatus,
   type DesktopActivationRecord,
 } from "@/lib/desktopActivation";
 import {
@@ -60,6 +62,7 @@ function AppRoutes() {
   const [desktopUpdatePreflightStarted, setDesktopUpdatePreflightStarted] = useState(false);
   const [desktopUpdatePreflightDone, setDesktopUpdatePreflightDone] = useState(false);
   const [desktopUpdateAutoInstallStarted, setDesktopUpdateAutoInstallStarted] = useState(false);
+  const [desktopActivationPreflightDone, setDesktopActivationPreflightDone] = useState(!isDesktop || !desktopActivation);
   const desktopUpdateBlocksSplash = isDesktop && (
     !desktopUpdatePreflightDone
     || desktopUpdateStatus?.status === "checking"
@@ -67,9 +70,12 @@ function AppRoutes() {
     || desktopUpdateStatus?.status === "downloaded"
     || desktopUpdateStatus?.status === "installing"
   );
-  const shouldBlockSplash = loading || planLoading || checkingDesktopLicense || desktopUpdateBlocksSplash;
+  const shouldBlockSplash = loading || planLoading || checkingDesktopLicense || desktopUpdateBlocksSplash || !desktopActivationPreflightDone;
   const requiresDesktopActivation = isDesktop && isDesktopActivationRequired() && !desktopActivation;
   const desktopUpdateSplashSummary = getDesktopUpdateSplashSummary(desktopUpdateStatus);
+  const mustShowDesktopStartupSplash = isDesktop && showSplash && (
+    desktopUpdateBlocksSplash || !desktopActivationPreflightDone
+  );
 
   useEffect(() => {
     if (!isDesktop && hasSeenAppSplash()) {
@@ -132,6 +138,40 @@ function AppRoutes() {
       window.removeEventListener("storage", syncDesktopActivation);
     };
   }, []);
+
+  useEffect(() => {
+    if (!isDesktop || !desktopActivation) {
+      setDesktopActivationPreflightDone(true);
+      return;
+    }
+
+    let cancelled = false;
+    setDesktopActivationPreflightDone(false);
+
+    void validateDesktopActivationStatus(desktopActivation)
+      .then(async (status) => {
+        if (cancelled) return;
+        if (status.revoked) {
+          clearDesktopActivation();
+          setDesktopActivation(null);
+          if (isAuthenticated) {
+            await logout();
+          }
+        }
+      })
+      .catch((error) => {
+        console.warn('Nao foi possivel validar a ativacao do desktop na abertura:', error);
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setDesktopActivationPreflightDone(true);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [desktopActivation, isAuthenticated, isDesktop, logout]);
 
   useEffect(() => {
     if (!isDesktop) {
@@ -217,7 +257,7 @@ function AppRoutes() {
     setDesktopActivation(activation);
   };
 
-  if (showSplash && !isAuthenticated) {
+  if ((showSplash && !isAuthenticated) || mustShowDesktopStartupSplash) {
     return (
       <SplashScreen
         progress={progress}

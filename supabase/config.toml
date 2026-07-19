@@ -150,6 +150,9 @@ verify_jwt = false
 [functions.desktop-license]
 verify_jwt = false
 
+[functions.desktop-activation-status]
+verify_jwt = false
+
 [functions.desktop-activate]
 verify_jwt = false
 

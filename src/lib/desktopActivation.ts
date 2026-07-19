@@ -32,6 +32,13 @@ interface DesktopActivationResponse {
   error?: string;
 }
 
+interface DesktopActivationStatusResponse {
+  active?: boolean;
+  revoked?: boolean;
+  code?: string;
+  error?: string;
+}
+
 export interface DesktopLegalAcceptanceInput {
   accepted: boolean;
   source: LegalAcceptanceSource;
@@ -115,6 +122,44 @@ export const getDesktopInstallationId = () => {
 };
 
 export const getActivatedDesktopOwnerUserId = () => readDesktopActivation()?.ownerUserId ?? null;
+
+export const validateDesktopActivationStatus = async (activation: DesktopActivationRecord) => {
+  const { data, error } = await supabase.functions.invoke<DesktopActivationStatusResponse>('desktop-activation-status', {
+    body: {
+      ownerUserId: activation.ownerUserId,
+      storeAccountId: activation.storeAccountId,
+      installationId: activation.installationId,
+      appContext: activation.appContext,
+      installerToken: activation.installerToken,
+    },
+  });
+
+  if (error) {
+    let message = data?.error || 'Nao foi possivel validar a ativacao desta maquina agora.';
+    if (typeof error === 'object' && 'context' in error && error.context instanceof Response) {
+      try {
+        const payload = await error.context.clone().json() as DesktopActivationStatusResponse;
+        message = payload.error || message;
+      } catch {
+        message = 'Nao foi possivel validar a ativacao desta maquina agora.';
+      }
+    }
+
+    return {
+      active: false as const,
+      revoked: false as const,
+      code: data?.code ?? 'LOOKUP_FAILED',
+      error: getPublicErrorMessage(message, 'Nao foi possivel validar a ativacao desta maquina agora.'),
+    };
+  }
+
+  return {
+    active: Boolean(data?.active),
+    revoked: Boolean(data?.revoked),
+    code: data?.code ?? null,
+    error: data?.error ?? null,
+  };
+};
 
 export const activateDesktopWithLicenseKey = async (
   licenseKey: string,
