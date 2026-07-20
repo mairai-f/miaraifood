@@ -1,5 +1,6 @@
 import { createClient, type SupabaseClient } from 'npm:@supabase/supabase-js@2';
 import {
+  buildOperatorAuthPasswordCandidates,
   buildOperatorEmail,
   isValidOperatorUsername,
   normalizeOperatorUsername,
@@ -487,23 +488,31 @@ const verifyStaffCredentialsForOwner = async (
       persistSession: false,
     },
   });
-  const { data, error } = await verificationClient.auth.signInWithPassword({
-    email: buildOperatorEmail(normalizedLogin),
-    password: resolveOperatorAuthPassword(normalizedLogin, password),
-  });
+  let verifiedUserId: string | null = null;
+  for (const candidatePassword of buildOperatorAuthPasswordCandidates(normalizedLogin, password)) {
+    const { data, error } = await verificationClient.auth.signInWithPassword({
+      email: buildOperatorEmail(normalizedLogin),
+      password: candidatePassword,
+    });
 
-  if (error || !data.user?.id) {
+    if (!error && data.user?.id) {
+      verifiedUserId = data.user.id;
+      break;
+    }
+  }
+
+  if (!verifiedUserId) {
     return 'Usuario ou senha/PIN do gerente invalidos.';
   }
 
-  if (data.user.id !== details.callerUserId) {
+  if (verifiedUserId !== details.callerUserId) {
     return 'A credencial informada precisa ser do gerente logado nesta sessao.';
   }
 
   const { data: verificationProfile, error: verificationProfileError } = await details.serviceClient
     .from('profiles')
     .select('user_id, role, owner_user_id')
-    .eq('user_id', data.user.id)
+    .eq('user_id', verifiedUserId)
     .single();
 
   if (
@@ -517,7 +526,7 @@ const verifyStaffCredentialsForOwner = async (
 
   const hasRequiredPermission = await userHasErpPermission(
     details.serviceClient,
-    data.user.id,
+    verifiedUserId,
     details.requiredPermissionKey,
   );
 
