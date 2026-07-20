@@ -1,7 +1,7 @@
-const OPERATOR_PIN_PATTERN = /^\d{4,8}$/;
+const OPERATOR_PIN_PATTERN = /^\d{6,8}$/;
 const OPERATOR_AUTH_PIN_PREFIX = "happycash-operator-pin-v1";
 
-export const operatorCredentialHint = "Use somente numeros, com PIN de 4 a 8 digitos.";
+export const operatorCredentialHint = "Use somente numeros, com PIN de 6 a 8 digitos.";
 
 export const isOperatorPin = (value: string) => OPERATOR_PIN_PATTERN.test(value.trim());
 
@@ -45,5 +45,5 @@ export const getOperatorCredentialError = (value: string) => {
     return "O PIN do operador deve ter somente numeros.";
   }
 
-  return "O PIN do operador deve ter de 4 a 8 digitos.";
+  return "O PIN do operador deve ter de 6 a 8 digitos.";
 };

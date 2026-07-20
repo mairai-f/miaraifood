@@ -1648,7 +1648,7 @@ export function OperatorManagementPanel({
                       className="h-11 min-w-0 text-base tracking-wide"
                       value={password}
                       onChange={event => setPassword(event.target.value)}
-                      placeholder="4 a 8 numeros"
+                      placeholder="6 a 8 numeros"
                       inputMode="numeric"
                       maxLength={8}
                     />
@@ -2039,7 +2039,7 @@ export function OperatorManagementPanel({
               <PasswordInput
                 value={resetPassword}
                 onChange={event => setResetPassword(event.target.value)}
-                placeholder="Use 4 a 8 numeros"
+                placeholder="Use 6 a 8 numeros"
                 autoComplete="new-password"
               />
               <p className="text-xs text-muted-foreground">{operatorCredentialHint}</p>

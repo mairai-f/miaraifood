@@ -6,7 +6,8 @@ enabled = false
 [auth]
 enabled = true
 site_url = "https://www.happycashsite.com.br"
-password_requirements = "lower_upper_letters_digits_symbols"
+minimum_password_length = 6
+password_requirements = ""
 additional_redirect_urls = [
   "https://www.happycashsite.com.br/**",
   "https://app.happycashsite.com.br/**",
