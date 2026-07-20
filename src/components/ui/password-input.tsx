@@ -24,7 +24,7 @@ const PasswordInput = React.forwardRef<HTMLInputElement, PasswordInputProps>(
     const [visible, setVisible] = React.useState(false);
 
     return (
-      <div className="relative">
+      <div className="relative w-full min-w-0">
         <Input
           ref={ref}
           type={visible ? "text" : "password"}
@@ -35,7 +35,7 @@ const PasswordInput = React.forwardRef<HTMLInputElement, PasswordInputProps>(
           type="button"
           onClick={() => setVisible((current) => !current)}
           className={cn(
-            "absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground",
+            "absolute right-1 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:text-foreground",
             toggleClassName,
           )}
           aria-label={visible ? hideAriaLabel : showAriaLabel}

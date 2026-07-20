@@ -35,6 +35,7 @@ type ReportSection = 'resumo' | 'dre' | 'alertas' | 'graficos' | 'margem' | 'ran
 type CommissionStaffRow = {
   user_id: string;
   username: string | null;
+  email?: string | null;
   job_title: string | null;
   commission_enabled: boolean | null;
   commission_rate_pct: number | string | null;
@@ -53,6 +54,9 @@ const reportSectionNav: Array<{ section: ReportSection; label: string; path: str
 const getReportSection = (section: string | undefined): ReportSection => (
   reportSectionNav.some(item => item.section === section) ? section as ReportSection : 'resumo'
 );
+
+const normalizeCommissionLookup = (value: string | null | undefined) =>
+  value?.trim().toLowerCase() ?? '';
 
 const ReportsChartsSection = lazy(() =>
   import('@/components/reports/ReportsChartsSection').then((module) => ({
@@ -128,7 +132,7 @@ export default function Reports() {
     const loadCommissionStaff = async () => {
       setLoadingCommissions(true);
       const { data, error } = await fromTable('profiles')
-        .select('user_id, username, job_title, commission_enabled, commission_rate_pct')
+        .select('user_id, username, email, job_title, commission_enabled, commission_rate_pct')
         .eq('owner_user_id', ownerUserId)
         .eq('commission_enabled', true)
         .in('role', ['operator', 'waiter', 'hr'])
@@ -148,7 +152,7 @@ export default function Reports() {
     return () => {
       active = false;
     };
-  }, [ownerUserId]);
+  }, [activeSection, ownerUserId]);
 
   const filteredSales = useMemo(() => {
     const start = new Date(startDate + 'T00:00:00');
@@ -454,15 +458,26 @@ export default function Reports() {
 
   const commissionRows = useMemo(() => {
     const salesByOperatorId = new Map<string, { total: number; count: number }>();
+    const commissionStaffById = new Map(commissionStaff.map((staff) => [staff.user_id, staff]));
+    const commissionStaffByLabel = new Map<string, CommissionStaffRow>();
+
+    for (const staff of commissionStaff) {
+      [staff.username, staff.email].forEach((value) => {
+        const key = normalizeCommissionLookup(value);
+        if (key) commissionStaffByLabel.set(key, staff);
+      });
+    }
 
     for (const sale of activeFilteredSales) {
-      const operatorId = sale.operator_user_id || sale.user_id;
-      if (!operatorId) continue;
+      const staff = (sale.operator_user_id ? commissionStaffById.get(sale.operator_user_id) : null)
+        ?? commissionStaffByLabel.get(normalizeCommissionLookup(sale.seller_name))
+        ?? (sale.user_id ? commissionStaffById.get(sale.user_id) : null);
+      if (!staff) continue;
 
-      const current = salesByOperatorId.get(operatorId) ?? { total: 0, count: 0 };
+      const current = salesByOperatorId.get(staff.user_id) ?? { total: 0, count: 0 };
       current.total += sale.total;
       current.count += 1;
-      salesByOperatorId.set(operatorId, current);
+      salesByOperatorId.set(staff.user_id, current);
     }
 
     return commissionStaff

@@ -1201,7 +1201,8 @@ Deno.serve(async (request): Promise<Response> => {
     });
 
     if (resetError) {
-      return jsonResponse(request, { error: 'Não foi possível redefinir a senha.' }, 400);
+      console.error('Erro ao redefinir PIN do colaborador:', resetError.message);
+      return jsonResponse(request, { error: 'Não foi possível redefinir o PIN do colaborador.' }, 400);
     }
 
     return jsonResponse(request, {

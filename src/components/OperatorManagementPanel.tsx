@@ -52,6 +52,13 @@ interface OperatorProfile {
 }
 
 type StaffRole = 'operator' | 'waiter' | 'hr';
+type StaffEditorSection = 'address' | 'schedule' | 'commission' | 'permissions' | 'review';
+type StaffEditorSectionConfig = {
+  key: StaffEditorSection;
+  label: string;
+  icon: typeof MapPin;
+  hidden?: boolean;
+};
 
 interface OpenCashSession {
   id: string;
@@ -251,7 +258,7 @@ export function OperatorManagementPanel({
   const [selectedPermissionKeys, setSelectedPermissionKeys] = useState<Set<ErpPermissionKey>>(new Set());
   const [permissionKeysByOperatorId, setPermissionKeysByOperatorId] = useState<Record<string, Set<ErpPermissionKey>>>({});
   const [loadingPermissionOptions, setLoadingPermissionOptions] = useState(false);
-  const [createStep, setCreateStep] = useState<'data' | 'permissions' | 'review'>('data');
+  const [editorSection, setEditorSection] = useState<StaffEditorSection>('permissions');
   const [openingAmount, setOpeningAmount] = useState('');
   const [openCashDialogOpen, setOpenCashDialogOpen] = useState(false);
   const [resetDialogOpen, setResetDialogOpen] = useState(false);
@@ -388,7 +395,7 @@ export function OperatorManagementPanel({
     setCommissionRatePct('');
     setSelectedPermissionKeys(ensureRequiredStaffPermissions([]));
     resetEmployeeBasicProfileForm();
-    setCreateStep('data');
+    setEditorSection('permissions');
   }, [resetEmployeeBasicProfileForm]);
 
   const resetAdminAuthorization = useCallback(() => {
@@ -783,7 +790,7 @@ export function OperatorManagementPanel({
     setCommissionRatePct(formatPercentInput(operator.commission_rate_pct));
     setSelectedPermissionKeys(ensureRequiredStaffPermissions(permissionKeysByOperatorId[operator.user_id] ?? []));
     setEmployeeBasicProfileForm(employeeDetailsByOperatorId[operator.user_id]);
-    setCreateStep('data');
+    setEditorSection('permissions');
   };
 
   if (!canManageStaffAccess) return null;
@@ -811,13 +818,13 @@ export function OperatorManagementPanel({
 
     if (selectedPermissionKeys.size === 0) {
       toast.error('Selecione ao menos um acesso para o colaborador.');
-      setCreateStep('permissions');
+      setEditorSection('permissions');
       return false;
     }
 
     if (!isAdmin && [...selectedPermissionKeys].some((permissionKey) => managerProtectedGrantKeys.has(permissionKey))) {
       toast.error('Gerente não pode conceder acessos administrativos sensíveis.');
-      setCreateStep('permissions');
+      setEditorSection('permissions');
       return false;
     }
 
@@ -830,6 +837,7 @@ export function OperatorManagementPanel({
     const commissionRate = parsePercentInput(commissionRatePct);
     if (isAdmin && commissionEnabled && (commissionRate <= 0 || commissionRate > 100)) {
       toast.error('Informe uma comissão entre 0,01% e 100%.');
+      setEditorSection('commission');
       return false;
     }
 
@@ -859,19 +867,20 @@ export function OperatorManagementPanel({
 
     if (selectedPermissionKeys.size === 0) {
       toast.error('Selecione ao menos um acesso para o colaborador.');
-      setCreateStep('permissions');
+      setEditorSection('permissions');
       return false;
     }
 
     if (!isAdmin && [...selectedPermissionKeys].some((permissionKey) => managerProtectedGrantKeys.has(permissionKey))) {
       toast.error('Gerente não pode conceder acessos administrativos sensíveis.');
-      setCreateStep('permissions');
+      setEditorSection('permissions');
       return false;
     }
 
     const commissionRate = parsePercentInput(commissionRatePct);
     if (isAdmin && commissionEnabled && (commissionRate <= 0 || commissionRate > 100)) {
       toast.error('Informe uma comissão entre 0,01% e 100%.');
+      setEditorSection('commission');
       return false;
     }
 
@@ -905,12 +914,54 @@ export function OperatorManagementPanel({
     return { login: normalizedLogin, password: normalizedPassword };
   };
 
+  const getRequestedCommissionSettings = () => {
+    const enabled = isAdmin && commissionEnabled;
+    return {
+      enabled,
+      ratePct: enabled ? parsePercentInput(commissionRatePct) : 0,
+    };
+  };
+
+  const persistAndVerifyCommissionSettings = async (operatorUserId: string) => {
+    if (!isAdmin) return null;
+
+    const requested = getRequestedCommissionSettings();
+    const { data, error } = await db
+      .from('profiles')
+      .update({
+        commission_enabled: requested.enabled,
+        commission_rate_pct: requested.ratePct,
+      })
+      .eq('user_id', operatorUserId)
+      .select('commission_enabled, commission_rate_pct')
+      .single();
+
+    if (error) {
+      console.error('Erro ao salvar comissão do colaborador:', getRedactedLogValue(error));
+      const message = String(error.message ?? '').toLowerCase();
+      return message.includes('commission_enabled') || message.includes('commission_rate_pct')
+        ? 'As colunas de comissão ainda não existem no banco. Aplique a migration de comissões antes de salvar.'
+        : 'Não foi possível salvar a comissão do colaborador.';
+    }
+
+    const savedEnabled = data?.commission_enabled === true;
+    const savedRate = Number(String(data?.commission_rate_pct ?? 0).replace(',', '.')) || 0;
+    const rateMatches = Math.abs(savedRate - requested.ratePct) < 0.01;
+
+    if (savedEnabled !== requested.enabled || !rateMatches) {
+      return 'A comissão não foi confirmada no banco. Tente salvar novamente.';
+    }
+
+    return null;
+  };
+
   const handleCreateOperator = async (adminEmail: string, adminPassword: string, adminAccessToken?: string) => {
     setCreating(true);
+    const requestedCommission = getRequestedCommissionSettings();
     const commissionPayload = isAdmin
       ? {
-        commissionEnabled,
-        commissionRatePct: commissionEnabled ? parsePercentInput(commissionRatePct) : 0,
+        commissionEnabled: requestedCommission.enabled,
+        commissionRatePct: requestedCommission.ratePct,
       }
       : {};
 
@@ -943,6 +994,23 @@ export function OperatorManagementPanel({
       return false;
     }
 
+    const commissionError = await persistAndVerifyCommissionSettings(data.operator.user_id);
+    if (commissionError) {
+      setLatestCredential({
+        username: data.operator.username,
+        jobTitle: data.operator.job_title || jobTitle.trim(),
+      });
+      toast.error(`Colaborador criado, mas ${commissionError}`);
+      setAdminAuthorizationError(commissionError);
+      setAdminAuthorizationPassword('');
+      await loadData();
+      resetCreateForm();
+      handleCreateDialogOpenChange(false);
+      resetAdminAuthorization();
+      setCreating(false);
+      return false;
+    }
+
     setLatestCredential({
       username: data.operator.username,
       jobTitle: data.operator.job_title || jobTitle.trim(),
@@ -960,10 +1028,11 @@ export function OperatorManagementPanel({
   const handleUpdateOperatorAccess = async (adminEmail: string, adminPassword: string, adminAccessToken?: string) => {
     if (!editingOperator) return false;
     setCreating(true);
+    const requestedCommission = getRequestedCommissionSettings();
     const commissionPayload = isAdmin
       ? {
-        commissionEnabled,
-        commissionRatePct: commissionEnabled ? parsePercentInput(commissionRatePct) : 0,
+        commissionEnabled: requestedCommission.enabled,
+        commissionRatePct: requestedCommission.ratePct,
       }
       : {};
     const { data, error } = await supabase.functions.invoke<OperatorFunctionResponse>('manage-operators', {
@@ -988,6 +1057,16 @@ export function OperatorManagementPanel({
       toast.error(message);
       setAdminAuthorizationError(message);
       setAdminAuthorizationPassword('');
+      setCreating(false);
+      return false;
+    }
+
+    const commissionError = await persistAndVerifyCommissionSettings(editingOperator.user_id);
+    if (commissionError) {
+      toast.error(commissionError);
+      setAdminAuthorizationError(commissionError);
+      setAdminAuthorizationPassword('');
+      await loadData();
       setCreating(false);
       return false;
     }
@@ -1084,8 +1163,9 @@ export function OperatorManagementPanel({
     });
 
     if (error || !data?.success || !data.operator) {
-      toast.error(await resolveFunctionErrorMessage(error, 'Não foi possível redefinir a senha', data));
-      setAdminAuthorizationError(await resolveFunctionErrorMessage(error, 'Não foi possível redefinir a senha', data));
+      const message = await resolveFunctionErrorMessage(error, 'Não foi possível redefinir o PIN', data);
+      toast.error(message);
+      setAdminAuthorizationError(message);
       setResetting(false);
       return false;
     }
@@ -1098,7 +1178,7 @@ export function OperatorManagementPanel({
     setResetPassword('');
     setSelectedOperator(null);
     setResetDialogOpen(false);
-    toast.success('Senha redefinida com sucesso');
+    toast.success('PIN redefinido com sucesso');
     await loadData();
     setResetting(false);
     resetAdminAuthorization();
@@ -1257,6 +1337,18 @@ export function OperatorManagementPanel({
     await loadData();
     setDeletingOperatorId(null);
   };
+
+  const editorSections: StaffEditorSectionConfig[] = [
+    { key: 'address', label: 'Endereço', icon: MapPin },
+    { key: 'schedule', label: 'Escala', icon: CalendarDays },
+    { key: 'commission', label: 'Comissão', icon: Percent, hidden: !isAdmin },
+    { key: 'permissions', label: 'Acessos', icon: BriefcaseBusiness },
+    { key: 'review', label: 'Revisão', icon: Eye },
+  ];
+  const visibleEditorSections = editorSections.filter((section) => !section.hidden);
+  const activeEditorSection = visibleEditorSections.some((section) => section.key === editorSection)
+    ? editorSection
+    : 'permissions';
 
   return (
     <>
@@ -1463,56 +1555,36 @@ export function OperatorManagementPanel({
       </Card>
 
       <Dialog open={accessDialogOpen} onOpenChange={handleAccessDialogOpenChange}>
-        <DialogContent className="flex h-[100dvh] w-screen max-w-none flex-col gap-0 overflow-hidden rounded-none p-0 sm:h-[90vh] sm:max-w-6xl sm:rounded-lg">
+        <DialogContent className="flex h-[100dvh] w-screen max-w-none flex-col gap-0 overflow-hidden rounded-none p-0 sm:h-[94vh] sm:max-w-6xl sm:rounded-lg">
           <DialogHeader>
             <div className="border-b px-4 py-4 sm:px-6">
               <DialogTitle>{editingOperator ? 'Editar colaborador e acessos' : 'Cadastrar colaborador'}</DialogTitle>
               <DialogDescription className="mt-1 text-sm">
-                {isAdmin ? 'O administrador' : 'O gerente'} define cadastro, foto, endereco, escala basica e acessos marcando os checkboxes.
+                {isAdmin ? 'O administrador' : 'O gerente'} define os dados principais e ajusta cada grupo pelos botões.
               </DialogDescription>
-              <div className="mt-3 grid grid-cols-3 gap-2 md:hidden">
-                {(['data', 'permissions', 'review'] as const).map((step, index) => (
-                  <Button key={step} type="button" size="sm" variant={createStep === step ? 'default' : 'outline'} onClick={() => setCreateStep(step)}>
-                    {index + 1}. {step === 'data' ? 'Dados' : step === 'permissions' ? 'Acessos' : 'Revisão'}
-                  </Button>
-                ))}
-              </div>
             </div>
           </DialogHeader>
 
-          <div className="grid min-h-0 flex-1 md:grid-cols-[390px_minmax(0,1fr)]">
+          <div className="grid min-h-0 flex-1 overflow-y-auto md:grid-cols-[420px_minmax(0,1fr)] md:overflow-hidden">
             <form
-              className={`${createStep === 'data' ? 'block' : 'hidden'} overflow-y-auto border-r p-4 md:block sm:p-6`}
+              className="min-h-0 min-w-0 overflow-hidden border-b p-4 md:border-b-0 md:border-r"
               onSubmit={(event) => {
                 event.preventDefault();
                 requestAdminAuthorization();
               }}
             >
-              <div className="space-y-4">
-                <div className="space-y-1">
-                  <Label>Nome completo</Label>
-                  <Input
-                    value={fullName}
-                    onChange={event => setFullName(event.target.value)}
-                    placeholder="Ex: Joao Silva"
-                    maxLength={100}
-                    autoComplete="name"
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Nomes completos iguais não são permitidos; o primeiro nome pode repetir se o sobrenome for diferente.
-                  </p>
-                </div>
-                <div className="rounded-lg border border-border bg-muted/20 p-3">
+              <div className="space-y-2">
+                <div className="rounded-lg border border-border bg-muted/20 p-2">
                   <div className="flex items-start gap-3">
                     {photoUrl ? (
                       <img
                         src={photoUrl}
                         alt="Foto do colaborador"
-                        className="h-20 w-20 shrink-0 rounded-lg border border-border object-cover"
+                        className="h-14 w-14 shrink-0 rounded-lg border border-border object-cover"
                       />
                     ) : (
-                      <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-lg border border-dashed border-border bg-background text-muted-foreground">
-                        <Camera className="h-7 w-7" />
+                      <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg border border-dashed border-border bg-background text-muted-foreground">
+                        <Camera className="h-6 w-6" />
                       </div>
                     )}
                     <div className="min-w-0 flex-1 space-y-2">
@@ -1535,17 +1607,29 @@ export function OperatorManagementPanel({
                     </div>
                   </div>
                 </div>
+
+                <div className="space-y-1">
+                  <Label>Nome completo</Label>
+                  <Input
+                    value={fullName}
+                    onChange={event => setFullName(event.target.value)}
+                    placeholder="Ex: Joao Silva"
+                    maxLength={100}
+                    autoComplete="name"
+                  />
+                </div>
+
                 <div className="space-y-1">
                   <Label>Função</Label>
                   <Input
                     value={jobTitle}
                     onChange={event => setJobTitle(event.target.value)}
-                    placeholder="Ex: Caixa da manha, Gerente, Atendimento"
+                    placeholder="Ex: Caixa da manha"
                     maxLength={60}
                     autoComplete="organization-title"
                   />
-                  <p className="text-xs text-muted-foreground">O administrador escreve o nome. A função não libera permissões automaticamente.</p>
                 </div>
+
                 <div className="space-y-1">
                   <Label>Usuário</Label>
                   <Input
@@ -1556,58 +1640,92 @@ export function OperatorManagementPanel({
                     autoComplete="username"
                   />
                 </div>
+
                 {!editingOperator && (
-                  <div className="space-y-1">
+                  <div className="min-w-0 space-y-1">
                     <Label>PIN inicial</Label>
-                    <PasswordInput value={password} onChange={event => setPassword(event.target.value)} placeholder="Use 4 a 8 numeros" />
-                    <p className="text-xs text-muted-foreground">{operatorCredentialHint}</p>
+                    <PasswordInput
+                      className="h-11 min-w-0 text-base tracking-wide"
+                      value={password}
+                      onChange={event => setPassword(event.target.value)}
+                      placeholder="4 a 8 numeros"
+                      inputMode="numeric"
+                      maxLength={8}
+                    />
                   </div>
                 )}
-                <p className="text-xs text-muted-foreground">
-                  {editingOperator ? 'O usuário não muda nesta tela para preservar o login.' : 'Use de 3 a 24 caracteres com letras, números, ponto, hífen ou underscore.'}
-                </p>
-                <div className="rounded-lg border border-border p-3">
-                  <div className="mb-3 flex items-center gap-2 text-sm font-medium">
-                    <MapPin className="h-4 w-4 text-primary" />
-                    Endereço
-                  </div>
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <div className="space-y-1">
-                      <Label>CEP</Label>
-                      <Input value={addressZipCode} onChange={event => setAddressZipCode(event.target.value)} placeholder="00000-000" autoComplete="postal-code" />
-                    </div>
-                    <div className="space-y-1">
-                      <Label>Estado</Label>
-                      <Input value={addressState} onChange={event => setAddressState(event.target.value.toUpperCase().slice(0, 2))} placeholder="SP" maxLength={2} autoComplete="address-level1" />
-                    </div>
-                    <div className="space-y-1 sm:col-span-2">
-                      <Label>Rua</Label>
-                      <Input value={addressStreet} onChange={event => setAddressStreet(event.target.value)} placeholder="Rua, avenida..." autoComplete="address-line1" />
-                    </div>
-                    <div className="space-y-1">
-                      <Label>Número</Label>
-                      <Input value={addressNumber} onChange={event => setAddressNumber(event.target.value)} placeholder="123" autoComplete="address-line2" />
-                    </div>
-                    <div className="space-y-1">
-                      <Label>Complemento</Label>
-                      <Input value={addressComplement} onChange={event => setAddressComplement(event.target.value)} placeholder="Apto, sala..." autoComplete="address-line3" />
-                    </div>
-                    <div className="space-y-1">
-                      <Label>Bairro</Label>
-                      <Input value={addressNeighborhood} onChange={event => setAddressNeighborhood(event.target.value)} placeholder="Bairro" autoComplete="address-level3" />
-                    </div>
-                    <div className="space-y-1">
-                      <Label>Cidade</Label>
-                      <Input value={addressCity} onChange={event => setAddressCity(event.target.value)} placeholder="Cidade" autoComplete="address-level2" />
-                    </div>
-                  </div>
+
+              </div>
+            </form>
+
+            <div className="flex min-h-0 flex-col overflow-hidden">
+              <div className="shrink-0 border-b bg-background p-4 sm:p-6">
+                <div className="grid grid-cols-2 gap-2 lg:grid-cols-5">
+                  {visibleEditorSections.map((section) => {
+                    const Icon = section.icon;
+                    return (
+                      <Button
+                        key={section.key}
+                        type="button"
+                        variant={activeEditorSection === section.key ? 'default' : 'outline'}
+                        className="justify-start"
+                        onClick={() => setEditorSection(section.key)}
+                      >
+                        <Icon className="mr-2 h-4 w-4" />
+                        {section.label}
+                      </Button>
+                    );
+                  })}
                 </div>
-                <div className="rounded-lg border border-border p-3">
-                  <div className="mb-3 flex items-center gap-2 text-sm font-medium">
+              </div>
+
+              <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6">
+                {activeEditorSection === 'address' && (
+                  <section className="rounded-lg border border-border p-4">
+                    <div className="mb-4 flex items-center gap-2 text-sm font-medium">
+                      <MapPin className="h-4 w-4 text-primary" />
+                      Endereço
+                    </div>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <div className="space-y-1">
+                        <Label>CEP</Label>
+                        <Input value={addressZipCode} onChange={event => setAddressZipCode(event.target.value)} placeholder="00000-000" autoComplete="postal-code" />
+                      </div>
+                      <div className="space-y-1">
+                        <Label>Estado</Label>
+                        <Input value={addressState} onChange={event => setAddressState(event.target.value.toUpperCase().slice(0, 2))} placeholder="SP" maxLength={2} autoComplete="address-level1" />
+                      </div>
+                      <div className="space-y-1 sm:col-span-2">
+                        <Label>Rua</Label>
+                        <Input value={addressStreet} onChange={event => setAddressStreet(event.target.value)} placeholder="Rua, avenida..." autoComplete="address-line1" />
+                      </div>
+                      <div className="space-y-1">
+                        <Label>Número</Label>
+                        <Input value={addressNumber} onChange={event => setAddressNumber(event.target.value)} placeholder="123" autoComplete="address-line2" />
+                      </div>
+                      <div className="space-y-1">
+                        <Label>Complemento</Label>
+                        <Input value={addressComplement} onChange={event => setAddressComplement(event.target.value)} placeholder="Apto, sala..." autoComplete="address-line3" />
+                      </div>
+                      <div className="space-y-1">
+                        <Label>Bairro</Label>
+                        <Input value={addressNeighborhood} onChange={event => setAddressNeighborhood(event.target.value)} placeholder="Bairro" autoComplete="address-level3" />
+                      </div>
+                      <div className="space-y-1">
+                        <Label>Cidade</Label>
+                        <Input value={addressCity} onChange={event => setAddressCity(event.target.value)} placeholder="Cidade" autoComplete="address-level2" />
+                      </div>
+                    </div>
+                  </section>
+                )}
+
+              {activeEditorSection === 'schedule' && (
+                <section className="rounded-lg border border-border p-4">
+                  <div className="mb-4 flex items-center gap-2 text-sm font-medium">
                     <CalendarDays className="h-4 w-4 text-primary" />
                     Escala básica
                   </div>
-                  <div className="grid grid-cols-4 gap-2">
+                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                     {weekDayOptions.map((day) => (
                       <label key={day.key} className="flex items-center gap-2 rounded-md border border-border px-2 py-2 text-xs">
                         <input
@@ -1620,7 +1738,7 @@ export function OperatorManagementPanel({
                       </label>
                     ))}
                   </div>
-                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                  <div className="mt-4 grid gap-3 sm:grid-cols-2">
                     <div className="space-y-1">
                       <Label>Entrada</Label>
                       <Input type="time" value={workScheduleStartTime} onChange={event => setWorkScheduleStartTime(event.target.value)} />
@@ -1630,86 +1748,72 @@ export function OperatorManagementPanel({
                       <Input type="time" value={workScheduleEndTime} onChange={event => setWorkScheduleEndTime(event.target.value)} />
                     </div>
                   </div>
-                  <p className="mt-2 text-xs text-muted-foreground">
+                  <p className="mt-3 text-xs text-muted-foreground">
                     {formatBasicWorkJourney(workScheduleDays, workScheduleStartTime, workScheduleEndTime) || 'Nenhuma escala definida.'}
                   </p>
-                </div>
-                {isAdmin && (
-                  <div className="rounded-lg border border-border p-3">
-                    <div className="mb-3 flex items-center justify-between gap-3">
-                      <div className="flex min-w-0 items-center gap-2 text-sm font-medium">
-                        <Percent className="h-4 w-4 text-primary" />
-                        Comissão
-                      </div>
-                      <Switch
-                        aria-label="Ativar comissão do colaborador"
-                        checked={commissionEnabled}
-                        onCheckedChange={setCommissionEnabled}
-                      />
+                </section>
+              )}
+
+              {activeEditorSection === 'commission' && isAdmin && (
+                <section className="rounded-lg border border-border p-4">
+                  <div className="mb-4 flex items-center justify-between gap-3">
+                    <div className="flex min-w-0 items-center gap-2 text-sm font-medium">
+                      <Percent className="h-4 w-4 text-primary" />
+                      Comissão
                     </div>
-                    <div className="space-y-1">
-                      <Label>Percentual sobre vendas</Label>
-                      <Input
-                        inputMode="decimal"
-                        value={commissionRatePct}
-                        disabled={!commissionEnabled}
-                        onChange={event => setCommissionRatePct(event.target.value.replace(/[^\d,.]/g, '').slice(0, 6))}
-                        placeholder="Ex: 3"
-                      />
-                      <p className="text-xs text-muted-foreground">
-                        Entra no relatório de comissões quando estiver ativo. O cálculo usa vendas válidas do período vinculadas ao colaborador.
-                      </p>
-                    </div>
+                    <Switch
+                      aria-label="Ativar comissão do colaborador"
+                      checked={commissionEnabled}
+                      onCheckedChange={setCommissionEnabled}
+                    />
                   </div>
-                )}
-                <div className="rounded-lg border border-primary/20 bg-primary/5 p-3">
-                  <p className="text-sm font-medium">Acessos do colaborador</p>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    Marque somente os módulos que este colaborador pode abrir no sistema.
-                  </p>
-                </div>
-                <div className="hidden rounded-lg border bg-muted/30 p-3 text-sm md:block">
-                  <p className="font-medium">Resumo</p>
-                  <p className="text-muted-foreground">{staffRoleLabels[inferredStaffRole]} · {normalizedFullName || 'Nome nao informado'} · {jobTitle || 'Funcao nao informada'} · {selectedPermissionKeys.size} acessos</p>
-                  <p className="mt-1 text-xs text-muted-foreground">{formatBasicWorkJourney(workScheduleDays, workScheduleStartTime, workScheduleEndTime) || 'Escala nao informada'}</p>
-                  {isAdmin && (
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      Comissão: {commissionEnabled ? `${parsePercentInput(commissionRatePct).toFixed(2).replace('.', ',')}%` : 'inativa'}
+                  <div className="max-w-sm space-y-1">
+                    <Label>Percentual sobre vendas</Label>
+                    <Input
+                      inputMode="decimal"
+                      value={commissionRatePct}
+                      disabled={!commissionEnabled}
+                      onChange={event => setCommissionRatePct(event.target.value.replace(/[^\d,.]/g, '').slice(0, 6))}
+                      placeholder="Ex: 3"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Entra no relatório quando estiver ativo. O cálculo usa vendas válidas vinculadas ao colaborador.
                     </p>
-                  )}
-                </div>
-              </div>
-            </form>
+                  </div>
+                </section>
+              )}
 
-            <div className={`${createStep === 'permissions' ? 'block' : 'hidden'} overflow-y-auto p-4 md:block sm:p-6`}>
-              <OperatorPermissionSelector
-                permissions={visiblePermissionOptions}
-                selected={selectedPermissionKeys}
-                locked={lockedStaffPermissionKeys}
-                managerPermissionKeys={isAdmin ? OPERATIONAL_MANAGER_PERMISSION_KEYS : []}
-                loading={loadingPermissionOptions}
-                onToggle={togglePermission}
-                onToggleModule={togglePermissionModule}
-                onToggleManager={isAdmin ? toggleManagerPermissions : undefined}
-              />
+              {activeEditorSection === 'permissions' && (
+                <OperatorPermissionSelector
+                  permissions={visiblePermissionOptions}
+                  selected={selectedPermissionKeys}
+                  locked={lockedStaffPermissionKeys}
+                  managerPermissionKeys={isAdmin ? OPERATIONAL_MANAGER_PERMISSION_KEYS : []}
+                  loading={loadingPermissionOptions}
+                  onToggle={togglePermission}
+                  onToggleModule={togglePermissionModule}
+                  onToggleManager={isAdmin ? toggleManagerPermissions : undefined}
+                />
+              )}
+
+              {activeEditorSection === 'review' && (
+                <section className="space-y-4 rounded-lg border p-4">
+                  <div><p className="text-xs text-muted-foreground">Tipo calculado</p><p className="font-semibold">{staffRoleLabels[inferredStaffRole]}</p></div>
+                  <div><p className="text-xs text-muted-foreground">Nome completo</p><p className="font-semibold">{normalizedFullName || 'Não informado'}</p></div>
+                  <div><p className="text-xs text-muted-foreground">Função</p><p className="font-semibold">{jobTitle || 'Não informada'}</p></div>
+                  <div><p className="text-xs text-muted-foreground">Usuário</p><p className="font-semibold">{username || 'Não informado'}</p></div>
+                  <div><p className="text-xs text-muted-foreground">Endereço</p><p className="font-semibold">{[addressStreet, addressNumber, addressCity, addressState].filter(Boolean).join(', ') || 'Não informado'}</p></div>
+                  <div><p className="text-xs text-muted-foreground">Escala</p><p className="font-semibold">{formatBasicWorkJourney(workScheduleDays, workScheduleStartTime, workScheduleEndTime) || 'Não informada'}</p></div>
+                  {isAdmin && <div><p className="text-xs text-muted-foreground">Comissão</p><p className="font-semibold">{commissionEnabled ? `${parsePercentInput(commissionRatePct).toFixed(2).replace('.', ',')}%` : 'Inativa'}</p></div>}
+                  <div><p className="text-xs text-muted-foreground">Acessos ({selectedPermissionNames.length})</p><p className="mt-1 text-sm">{selectedPermissionNames.join(', ') || 'Nenhum acesso selecionado'}</p></div>
+                </section>
+              )}
             </div>
-
-            <div className={`${createStep === 'review' ? 'block' : 'hidden'} overflow-y-auto p-4 md:hidden`}>
-              <div className="space-y-4 rounded-lg border p-4">
-                <div><p className="text-xs text-muted-foreground">Tipo calculado</p><p className="font-semibold">{staffRoleLabels[inferredStaffRole]}</p></div>
-                <div><p className="text-xs text-muted-foreground">Nome completo</p><p className="font-semibold">{normalizedFullName || 'Não informado'}</p></div>
-                <div><p className="text-xs text-muted-foreground">Função</p><p className="font-semibold">{jobTitle || 'Não informada'}</p></div>
-                <div><p className="text-xs text-muted-foreground">Usuário</p><p className="font-semibold">{username || 'Não informado'}</p></div>
-                <div><p className="text-xs text-muted-foreground">Endereço</p><p className="font-semibold">{[addressStreet, addressNumber, addressCity, addressState].filter(Boolean).join(', ') || 'Não informado'}</p></div>
-                <div><p className="text-xs text-muted-foreground">Escala</p><p className="font-semibold">{formatBasicWorkJourney(workScheduleDays, workScheduleStartTime, workScheduleEndTime) || 'Não informada'}</p></div>
-                {isAdmin && <div><p className="text-xs text-muted-foreground">Comissão</p><p className="font-semibold">{commissionEnabled ? `${parsePercentInput(commissionRatePct).toFixed(2).replace('.', ',')}%` : 'Inativa'}</p></div>}
-                <div><p className="text-xs text-muted-foreground">Acessos ({selectedPermissionNames.length})</p><p className="mt-1 text-sm">{selectedPermissionNames.join(', ') || 'Nenhum acesso selecionado'}</p></div>
-              </div>
             </div>
           </div>
 
           <DialogFooter className="border-t p-4 sm:px-6">
-            <div className="hidden w-full justify-end gap-2 md:flex">
+            <div className="flex w-full justify-end gap-2">
               <Button type="button" variant="outline" onClick={() => handleAccessDialogOpenChange(false)}>Cancelar</Button>
               <Button
                 type="button"
@@ -1718,18 +1822,6 @@ export function OperatorManagementPanel({
               >
                 {creating ? 'Salvando...' : editingOperator ? 'Salvar alteracoes' : 'Salvar cadastro'}
               </Button>
-            </div>
-            <div className="flex w-full justify-between gap-2 md:hidden">
-              <Button type="button" variant="outline" onClick={() => createStep === 'data' ? handleAccessDialogOpenChange(false) : setCreateStep(createStep === 'review' ? 'permissions' : 'data')}>
-                {createStep === 'data' ? 'Cancelar' : 'Voltar'}
-              </Button>
-              {createStep === 'data' && <Button type="button" onClick={() => setCreateStep('permissions')}>Continuar</Button>}
-              {createStep === 'permissions' && <Button type="button" onClick={() => setCreateStep('review')} disabled={selectedPermissionKeys.size === 0}>Revisar</Button>}
-              {createStep === 'review' && (
-                <Button type="button" onClick={requestAdminAuthorization} disabled={creating}>
-                  {creating ? 'Salvando...' : editingOperator ? 'Salvar' : 'Salvar cadastro'}
-                </Button>
-              )}
             </div>
           </DialogFooter>
         </DialogContent>
