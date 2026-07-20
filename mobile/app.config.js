@@ -14,13 +14,6 @@ module.exports = {
       resizeMode: 'contain',
       backgroundColor: '#f8fbff',
     },
-    ios: {
-      supportsTablet: true,
-      bundleIdentifier: 'com.happycash.mobile',
-      infoPlist: {
-        ITSAppUsesNonExemptEncryption: false,
-      },
-    },
     android: {
       package: 'com.happycash.mobile',
       edgeToEdgeEnabled: true,

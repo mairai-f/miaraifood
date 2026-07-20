@@ -1,14 +1,12 @@
-# HappyCash Mobile
+# HappyCash Android
 
-App Expo do HappyCash para testar Android e iOS sem mexer no frontend web atual.
+App Android do HappyCash para instalar por APK ou publicar na Google Play.
 
 ## Como funciona
 
-- Este app abre o sistema HappyCash dentro de um `WebView`.
-- Você pode apontar para uma URL pública ou para o frontend local na mesma rede.
-- O caminho mais rápido para iPhone e Android é usar `Expo Go`.
-
-Por padrão, o app abre `https://app.happycashsite.com.br`.
+- Por padrão, o app abre `https://app.happycashsite.com.br`.
+- O APK inicia direto no HappyCash, sem tela de URL, sem botão de abrir site externo e sem modo de configuração visível para o cliente.
+- No plano PRO, o app usa o mesmo preparo local do desktop para permitir contingência offline por até 24 horas depois de uma validação online.
 
 ## Instalação
 
@@ -17,14 +15,13 @@ cd mobile
 npm install
 ```
 
-## Rodando
+## Rodando no Android
 
 Da raiz do repositório:
 
 ```bash
 npm run mobile:start
 npm run mobile:android
-npm run mobile:ios
 ```
 
 Ou dentro de `mobile/`:
@@ -32,60 +29,41 @@ Ou dentro de `mobile/`:
 ```bash
 npm run start
 npm run android
-npm run ios
 ```
 
-## Teste local no celular
+## URL do sistema
 
-1. Rode o frontend principal do HappyCash na raiz com `npm run dev`.
-2. Descubra o IP da máquina na rede local.
-3. Abra o Expo Go no celular e escaneie o QR code do Expo.
-4. No app, informe uma URL como `http://SEU-IP:8080`.
-
-Você também pode definir essas variáveis antes de iniciar o Expo:
+Para apontar uma build de teste para outro ambiente, defina:
 
 ```bash
 EXPO_PUBLIC_HAPPYCASH_WEB_URL="https://seu-endereco-publico"
-EXPO_PUBLIC_HAPPYCASH_DEV_URL="http://SEU-IP:8080"
 ```
 
-## Build Android e iOS com EAS
+## Build Android com EAS
 
-Este app já tem suporte a builds nativos via EAS, com configurações em `mobile/eas.json`.
+As configurações ficam em `mobile/eas.json`.
 
 ### Android APK
+
 1. No diretório `mobile`, instale as dependências:
    - `npm install`
 2. Verifique o `EXPO_PUBLIC_HAPPYCASH_WEB_URL` no `mobile/eas.json` ou via env.
 3. Faça login no Expo/EAS:
    - `npx expo login`
    - `npx eas login`
-4. Faça o build de preview:
+4. Gere o APK de preview:
    - `npm run build:android:apk`
 5. Baixe o APK no painel do Expo e instale em um dispositivo Android para testar.
 
 ### Android para loja / AAB
+
 1. Use o perfil de produção:
    - `npm run build:android:store`
 2. Faça upload do AAB no Google Play Console para faixa de teste interna ou alfa.
 
-### iOS / TestFlight
-1. Confirme que o app está cadastrado no App Store Connect com `com.happycash.mobile`.
-2. Configure a conta Apple Developer e as credenciais no EAS:
-   - `npx eas credentials`
-3. Faça o build de produção:
-   - `npm run build:ios:store`
-4. Envie o app para TestFlight:
-   - `npx eas submit --platform ios --profile production`
-5. No App Store Connect, crie uma build de TestFlight e convide testadores.
+## Offline Android
 
-### Observações sobre TestFlight
-- O `bundleIdentifier` já está definido como `com.happycash.mobile`.
-- Para usar TestFlight, você precisa cadastrar o app no App Store Connect e adicionar certificados/perfis de provisionamento.
-- Se preferir, use `eas submit --platform ios --profile production` após o build.
-
-## Observações
-
-- Para iPhone via Expo Go, use um projeto compatível com Expo Go em dispositivo físico.
-- Como o app mobile é um `WebView`, a exigência de login e senha do administrador para pagamento do fiado entra automaticamente nas builds Android/iOS quando a URL web publicada estiver atualizada.
-- O mobile já está preparado para gerar APK e builds iOS nativos, mas precisa do fluxo Apple/credentials para TestFlight.
+- O primeiro acesso precisa ser online, com plano PRO ativo.
+- Depois do login online, o app valida a licença e prepara os dados locais.
+- Se a internet cair, administrador e operadores preparados podem usar o app por até 24 horas.
+- Ao reconectar, o HappyCash sincroniza as operações pendentes e renova a validação local.

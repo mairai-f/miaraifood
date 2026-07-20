@@ -377,10 +377,10 @@ export default function PDV() {
   const { scope: operationalScope } = useOperationalScope();
   const operationalLocationId = operationalScope?.location.id ?? null;
   const operationalTerminalId = operationalScope?.terminal?.id ?? null;
-  const { isDesktop, licensed: desktopLicensed, offlineEnabled, planId: desktopPlanId } = useDesktopRuntime();
+  const { isDesktop, isLocalRuntime, licensed: desktopLicensed, offlineEnabled, planId: desktopPlanId } = useDesktopRuntime();
   const navigate = useNavigate();
   const location = useLocation();
-  const canUseDesktopOffline = isDesktop && offlineEnabled && isOfflineConcentratorAvailable();
+  const canUseDesktopOffline = isLocalRuntime && offlineEnabled && isOfflineConcentratorAvailable();
   const desktopActivation = useMemo(() => readDesktopActivation(), []);
   const canUseFiscalModule = canUseDesktopFiscalModule({
     isDesktop,

@@ -1,6 +1,6 @@
 import { ReactNode, useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Clock3, Home, Users, Package, LogOut, Menu, X, UserCircle, Receipt, Boxes, ChevronDown, ChevronUp, Settings, Database, Loader2, WifiOff, ClipboardList, HelpCircle, MapPin, RefreshCw } from 'lucide-react';
+import { ArrowLeft, Clock3, Home, Users, Package, LogOut, Menu, X, UserCircle, Receipt, Boxes, ChevronDown, ChevronUp, Settings, Database, Loader2, WifiOff, ClipboardList, HelpCircle, MapPin, RefreshCw, UserCog } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import { useData } from '@/contexts/DataContext';
@@ -10,7 +10,7 @@ import { useOperationalScope } from '@/contexts/useOperationalScope';
 import { usePlanAccess } from '@/contexts/PlanContext';
 import happyCashLogo from '@/assets/login/happycash.webp';
 import { roleLabel } from '@/lib/access';
-import { readDesktopActivation } from '@/lib/desktopActivation';
+import { getDesktopInstallationId, readDesktopActivation, writeDesktopActivation } from '@/lib/desktopActivation';
 import { isGuidedTourEligiblePlan, requestGuidedTourStart } from '@/lib/guidedTour';
 import { isRuntimeScopeAllowed, type ErpPermissionKey, type RuntimeScope } from '@/lib/permissions';
 import { hasOfflineAdminAccess, saveOfflineAdminAccess } from '@/lib/offlineAdminAccess';
@@ -50,31 +50,34 @@ const navItems: NavigationItem[] = [
   { path: '/clientes', label: 'Clientes', icon: Users, shortcut: '4', featureKey: 'clients.manage', permissionKey: 'clients.view', runtimeScope: 'both', tourId: 'nav-clients' },
   { path: '/produtos', label: 'Produtos', icon: Package, shortcut: '5', featureKey: 'products.manage', permissionKey: 'products.view', runtimeScope: 'both', tourId: 'nav-products' },
   { path: '/estoque', label: 'Estoque', icon: Boxes, shortcut: '6', featureKey: 'stock.manage', permissionKey: 'stock.view', runtimeScope: 'both', tourId: 'nav-stock' },
+  { path: '/configuracoes/colaboradores', label: 'Colaboradores', icon: UserCog, shortcut: '7', featureKey: 'settings.manage', permissionKey: 'staff.manage', runtimeScope: 'both', tourId: 'nav-staff' },
   { path: '/configuracoes', label: 'Configurações', icon: Settings, shortcut: '7', featureKey: 'settings.manage', permissionKey: 'settings.manage', runtimeScope: 'both', tourId: 'nav-settings' },
 ];
 
 const centralAdministrativePaths = new Set([
-  '/financeiro', '/relatorios', '/operacoes', '/notas', '/acessos', '/auditoria',
+  '/financeiro', '/relatorios', '/operacoes', '/notas', '/auditoria',
   '/recompensas', '/precificacao', '/excluidos',
 ]);
 
-const OFFLINE_VALIDATION_GRACE_DAYS = 5;
-const OFFLINE_VALIDATION_GRACE_MS = OFFLINE_VALIDATION_GRACE_DAYS * 24 * 60 * 60 * 1000;
-const OFFLINE_VALIDATION_REMINDER_HOURS = 5;
+const OFFLINE_VALIDATION_GRACE_HOURS = 24;
+const OFFLINE_VALIDATION_GRACE_MS = OFFLINE_VALIDATION_GRACE_HOURS * 60 * 60 * 1000;
+const OFFLINE_VALIDATION_GRACE_LABEL = '24 horas';
+const OFFLINE_VALIDATION_REMINDER_HOURS = 2;
 const OFFLINE_VALIDATION_REMINDER_MS = OFFLINE_VALIDATION_REMINDER_HOURS * 60 * 60 * 1000;
 
-const offlineValidationCacheKey = (userId: string) => `happycash:desktop:offline-validation:${userId}`;
-const offlineValidationReminderKey = (userId: string, expiresAt: string) =>
-  `happycash:desktop:offline-validation-reminder:${userId}:${expiresAt}`;
+const offlineValidationCacheKey = (runtimeKind: 'desktop' | 'mobile', userId: string) =>
+  `happycash:${runtimeKind}:offline-validation:${userId}`;
+const offlineValidationReminderKey = (runtimeKind: 'desktop' | 'mobile', userId: string, expiresAt: string) =>
+  `happycash:${runtimeKind}:offline-validation-reminder:${userId}:${expiresAt}`;
 
-const readOfflineValidationStartedAt = (userId: string) => {
+const readOfflineValidationStartedAt = (runtimeKind: 'desktop' | 'mobile', userId: string) => {
   if (typeof window === 'undefined') return null;
-  return window.localStorage.getItem(offlineValidationCacheKey(userId));
+  return window.localStorage.getItem(offlineValidationCacheKey(runtimeKind, userId));
 };
 
-const writeOfflineValidationStartedAt = (userId: string, value: string) => {
+const writeOfflineValidationStartedAt = (runtimeKind: 'desktop' | 'mobile', userId: string, value: string) => {
   if (typeof window === 'undefined') return;
-  window.localStorage.setItem(offlineValidationCacheKey(userId), value);
+  window.localStorage.setItem(offlineValidationCacheKey(runtimeKind, userId), value);
 };
 
 const parseTimestamp = (value: string | null | undefined) => {
@@ -118,6 +121,8 @@ export function AppLayout({ children }: { children: ReactNode }) {
   } = useData();
   const {
     isDesktop,
+    isMobileApp,
+    isLocalRuntime,
     licensed: desktopLicensed,
     refresh: refreshDesktopLicense,
     validUntil: desktopValidUntil,
@@ -145,17 +150,21 @@ export function AppLayout({ children }: { children: ReactNode }) {
   const navRef = useRef<HTMLElement | null>(null);
   const [scrollHints, setScrollHints] = useState({ top: false, bottom: false });
   const isPdvMode = location.pathname === '/pdv';
-  const showCentralBackButton = role !== 'hr' && (
+  const canOpenSettings = role !== 'hr' && hasPermission('settings.manage') && hasFeature('settings.manage');
+  const showCentralBackButton = canOpenSettings && (
     location.pathname.startsWith('/configuracoes/')
     || centralAdministrativePaths.has(location.pathname)
   );
   const desktopActivation = readDesktopActivation();
+  const localRuntimeKind: 'desktop' | 'mobile' = isMobileApp ? 'mobile' : 'desktop';
+  const localRuntimeLabel = isMobileApp ? 'app Android' : 'desktop';
+  const localDeviceLabel = isMobileApp ? 'aparelho' : 'computador';
   const visibleNavItems = navItems.filter(item => {
+    if (item.path === '/configuracoes/colaboradores' && canOpenSettings) return false;
     if (!hasPermission(item.permissionKey) || !hasFeature(item.featureKey)) return false;
     if (!isRuntimeScopeAllowed(item.runtimeScope, isDesktop)) return false;
     return true;
   });
-  const canOpenSettings = role !== 'hr' && hasPermission('settings.manage') && hasFeature('settings.manage');
   const canUseGuidedTour = role !== 'hr' && isGuidedTourEligiblePlan(planId);
   const hasOpenLocalCashSession = Boolean(
     ownerUserId && user?.id && readScopedCashSession(ownerUserId, user.id),
@@ -163,27 +172,27 @@ export function AppLayout({ children }: { children: ReactNode }) {
   const terminalsForCurrentLocation = operationalScope
     ? operationalTerminals.filter((terminal) => terminal.locationId === operationalScope.location.id)
     : [];
-  const fallbackValidationStartedAt = user?.id ? readOfflineValidationStartedAt(user.id) : null;
+  const fallbackValidationStartedAt = user?.id ? readOfflineValidationStartedAt(localRuntimeKind, user.id) : null;
   const offlineValidationExpiresAt = desktopValidationExpiresAt
     || buildOfflineValidationExpiresAt(offlineValidationStartedAt || fallbackValidationStartedAt, desktopValidUntil);
   const offlineValidationExpiresAtMs = parseTimestamp(offlineValidationExpiresAt);
   const offlineValidationRemainingMs = offlineValidationExpiresAtMs ? offlineValidationExpiresAtMs - Date.now() : null;
   const offlineValidationExpired = Boolean(
-    isDesktop
+    isLocalRuntime
     && usingOfflineValidationCache
     && offlineValidationRemainingMs !== null
     && offlineValidationRemainingMs <= 0
   );
   const shouldShowOfflineReminder = Boolean(
-    isDesktop
+    isLocalRuntime
     && usingOfflineValidationCache
     && offlineValidationRemainingMs !== null
     && offlineValidationRemainingMs > 0
     && offlineValidationRemainingMs <= OFFLINE_VALIDATION_REMINDER_MS
   );
-  const isOfflinePreparationRelevant = isDesktop && offlinePreparationStatus !== 'unavailable';
+  const isOfflinePreparationRelevant = isLocalRuntime && offlinePreparationStatus !== 'unavailable';
   const shouldBlockMissingOfflineSnapshot = Boolean(
-    isDesktop
+    isLocalRuntime
     && isLocalOfflineSession
     && !isOnline
     && (offlinePreparationStatus === 'not-ready' || offlinePreparationStatus === 'error')
@@ -223,14 +232,14 @@ export function AppLayout({ children }: { children: ReactNode }) {
 
     try {
       await syncNow();
-      toast.success(isDesktop ? 'Desktop e web atualizados.' : 'Dados atualizados.');
+      toast.success(isDesktop ? 'Desktop e web atualizados.' : isMobileApp ? 'App e web atualizados.' : 'Dados atualizados.');
     } catch (error) {
       console.warn('Sincronizacao manual nao concluiu agora; mantendo os dados atuais:', getRedactedLogValue(error));
       toast.warning('Sincronização ficou pendente. O sistema continua aberto.');
     } finally {
       setSyncingNow(false);
     }
-  }, [isDesktop, syncNow, syncingNow]);
+  }, [isDesktop, isMobileApp, syncNow, syncingNow]);
 
   const defaultOfflineAdminUsername = (username || user?.email || 'admin')
     .trim()
@@ -336,29 +345,29 @@ export function AppLayout({ children }: { children: ReactNode }) {
   }, [location.pathname, open, updateScrollHints]);
 
   useEffect(() => {
-    if (!isDesktop || !user?.id) {
+    if (!isLocalRuntime || !user?.id) {
       setOfflineValidationStartedAt(null);
       return;
     }
 
-    const storedStartedAt = readOfflineValidationStartedAt(user.id);
+    const storedStartedAt = readOfflineValidationStartedAt(localRuntimeKind, user.id);
 
     if (desktopLicensed && !usingOfflineValidationCache) {
       const nextStartedAt = new Date().toISOString();
-      writeOfflineValidationStartedAt(user.id, nextStartedAt);
+      writeOfflineValidationStartedAt(localRuntimeKind, user.id, nextStartedAt);
       setOfflineValidationStartedAt(nextStartedAt);
       return;
     }
 
     if (usingOfflineValidationCache && !storedStartedAt) {
       const migratedStartedAt = new Date().toISOString();
-      writeOfflineValidationStartedAt(user.id, migratedStartedAt);
+      writeOfflineValidationStartedAt(localRuntimeKind, user.id, migratedStartedAt);
       setOfflineValidationStartedAt(migratedStartedAt);
       return;
     }
 
     setOfflineValidationStartedAt(storedStartedAt);
-  }, [desktopLicensed, isDesktop, user?.id, usingOfflineValidationCache]);
+  }, [desktopLicensed, isLocalRuntime, localRuntimeKind, user?.id, usingOfflineValidationCache]);
 
   useEffect(() => {
     if (!user?.id || !offlineValidationExpiresAt || !shouldShowOfflineReminder) {
@@ -366,41 +375,69 @@ export function AppLayout({ children }: { children: ReactNode }) {
       return;
     }
 
-    const reminderKey = offlineValidationReminderKey(user.id, offlineValidationExpiresAt);
+    const reminderKey = offlineValidationReminderKey(localRuntimeKind, user.id, offlineValidationExpiresAt);
     if (window.sessionStorage.getItem(reminderKey) === '1') return;
 
     setOfflineReminderOpen(true);
-  }, [offlineValidationExpiresAt, shouldShowOfflineReminder, user?.id]);
+  }, [localRuntimeKind, offlineValidationExpiresAt, shouldShowOfflineReminder, user?.id]);
 
   useEffect(() => {
     if (
-      !isDesktop
+      !isMobileApp
+      || !user?.id
+      || !ownerUserId
+      || !session?.access_token
+      || isLocalOfflineSession
+    ) {
+      return;
+    }
+
+    const currentActivation = readDesktopActivation();
+    if (currentActivation?.ownerUserId === ownerUserId) return;
+
+    writeDesktopActivation({
+      ownerUserId,
+      companyName: username || user.email || 'HappyCash',
+      cnpj: null,
+      planId,
+      validUntil: desktopValidUntil,
+      activatedAt: new Date().toISOString(),
+      installationId: getDesktopInstallationId(),
+      appContext: 'happycash',
+      storeAccountId: null,
+      installerToken: null,
+    });
+  }, [desktopValidUntil, isLocalOfflineSession, isMobileApp, ownerUserId, planId, session?.access_token, user?.email, user?.id, username]);
+
+  useEffect(() => {
+    if (
+      !isLocalRuntime
       || role !== 'admin'
       || !user?.id
       || !ownerUserId
       || !session?.access_token
       || isLocalOfflineSession
-      || !desktopActivation
+      || (isDesktop && !desktopActivation)
     ) {
       setOfflineAdminSetupOpen(false);
       return;
     }
 
-    if (desktopActivation.ownerUserId !== ownerUserId) {
+    if (isDesktop && desktopActivation?.ownerUserId !== ownerUserId) {
       setOfflineAdminSetupOpen(false);
       return;
     }
 
     setOfflineAdminSetupOpen(!hasOfflineAdminAccess(ownerUserId));
-  }, [desktopActivation, isDesktop, isLocalOfflineSession, ownerUserId, role, session?.access_token, user?.id]);
+  }, [desktopActivation, isDesktop, isLocalRuntime, isLocalOfflineSession, ownerUserId, role, session?.access_token, user?.id]);
 
   const handleCloseOfflineReminder = useCallback(() => {
     if (user?.id && offlineValidationExpiresAt) {
-      window.sessionStorage.setItem(offlineValidationReminderKey(user.id, offlineValidationExpiresAt), '1');
+      window.sessionStorage.setItem(offlineValidationReminderKey(localRuntimeKind, user.id, offlineValidationExpiresAt), '1');
     }
 
     setOfflineReminderOpen(false);
-  }, [offlineValidationExpiresAt, user?.id]);
+  }, [localRuntimeKind, offlineValidationExpiresAt, user?.id]);
 
   const handleOfflineAdminSetup = useCallback(async (payload: { username: string; pin: string }) => {
     if (!user?.id || !ownerUserId) {
@@ -432,7 +469,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
         }
       }
 
-      toast.message('Preparando banco local desta maquina...');
+      toast.message(`Preparando banco local neste ${localDeviceLabel}...`);
       await refetch();
       setOfflineAdminSetupOpen(false);
       toast.success('Acesso offline do administrador configurado e dados locais atualizados.');
@@ -441,7 +478,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
     } finally {
       setSavingOfflineAdminSetup(false);
     }
-  }, [ownerUserId, refetch, refreshProfile, session?.access_token, user?.email, user?.id, username]);
+  }, [localDeviceLabel, ownerUserId, refetch, refreshProfile, session?.access_token, user?.email, user?.id, username]);
 
   if (offlineValidationExpired) {
     return (
@@ -452,7 +489,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
             <h2 className="text-xl font-semibold text-foreground">Validação offline expirada</h2>
           </div>
           <p className="mt-4 text-sm text-muted-foreground">
-            O HappyCash pode ficar offline por até {OFFLINE_VALIDATION_GRACE_DAYS} dias após a última validação.
+            O HappyCash pode ficar offline por até {OFFLINE_VALIDATION_GRACE_LABEL} após a última validação.
             Esse prazo terminou, então agora é preciso reconectar à internet para validar novamente.
           </p>
           <div className="mt-4 rounded-xl border border-border/70 bg-background/70 p-4 text-sm text-muted-foreground">
@@ -478,14 +515,14 @@ export function AppLayout({ children }: { children: ReactNode }) {
         <div className="w-full max-w-xl rounded-2xl border border-border/70 bg-card p-6 shadow-xl">
           <div className="flex items-center gap-3 text-primary">
             <WifiOff className="h-5 w-5" />
-            <h2 className="text-xl font-semibold text-foreground">Desktop ainda nao preparado para offline</h2>
+            <h2 className="text-xl font-semibold text-foreground">{localRuntimeLabel} ainda nao preparado para offline</h2>
           </div>
           <p className="mt-4 text-sm text-muted-foreground">
-            {offlinePreparationMessage || 'Este computador ainda nao baixou os dados da loja para uso offline.'}
+            {offlinePreparationMessage || `Este ${localDeviceLabel} ainda nao baixou os dados da loja para uso offline.`}
           </p>
           <div className="mt-4 rounded-xl border border-border/70 bg-background/70 p-4 text-sm text-muted-foreground">
             <p>Como preparar: conecte a internet, entre com o administrador, configure o usuario/PIN offline e aguarde a mensagem de acesso offline pronto.</p>
-            <p className="mt-2">Depois disso, se a internet cair, o HappyCash abre os dados salvos neste computador.</p>
+            <p className="mt-2">Depois disso, se a internet cair, o HappyCash abre os dados salvos neste {localDeviceLabel}.</p>
           </div>
           <div className="mt-6 flex flex-wrap gap-3">
             <Button type="button" onClick={() => void refetch()}>
@@ -515,7 +552,8 @@ export function AppLayout({ children }: { children: ReactNode }) {
       <DesktopOfflineAdminSetupDialog
         open={offlineAdminSetupOpen}
         defaultUsername={defaultOfflineAdminUsername}
-        companyName={desktopActivation?.companyName ?? null}
+        companyName={desktopActivation?.companyName ?? (isMobileApp ? username || user?.email || 'HappyCash' : null)}
+        deviceLabel={isMobileApp ? 'aparelho' : 'maquina'}
         submitting={savingOfflineAdminSetup}
         onSubmit={handleOfflineAdminSetup}
       />
@@ -773,7 +811,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
                           : 'Atenção ao uso offline'}
                     </p>
                     <p className="mt-1 leading-relaxed">
-                      {offlinePreparationMessage || 'Conecte a internet para preparar este computador para uso offline.'}
+                      {offlinePreparationMessage || `Conecte a internet para preparar este ${localDeviceLabel} para uso offline.`}
                     </p>
                     {offlineSnapshotUpdatedAt && (
                       <p className="mt-1 text-xs">

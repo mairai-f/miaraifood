@@ -8,10 +8,10 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Download, TrendingUp, Package, Users, DollarSign } from 'lucide-react';
+import { Download, TrendingUp, Package, Users, DollarSign, Percent } from 'lucide-react';
 import { DataRouteLoader } from '@/components/DataRouteLoader';
 import { formatDateOnly, translateCurrentText } from '../../shared/locale/format';
-import type { ReportDetail } from '@/components/reports/ReportDetailsDialog';
+import type { ReportDebtRow, ReportDetail } from '@/components/reports/ReportDetailsDialog';
 import { ReportMetricCard } from '@/components/reports/ReportMetricCard';
 import { formatProductCode } from '@/lib/productCode';
 import { buildDreStatement, getPreviousPeriodRange, getVariationPct } from '@/lib/dre';
@@ -22,8 +22,23 @@ import { getRedactedLogValue } from '../../shared/security/redaction';
 const fromTable = (table: string) => supabase.from(table as never);
 const money = (value: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
 const variationLabel = (value: number) => `${value >= 0 ? '+' : ''}${value.toFixed(1)}%`;
+const isManualDeletedDebtEntry = (entry: { manual_deleted?: boolean }) => entry.manual_deleted === true;
+const isLegacyDeletedDebtEntry = (entry: { deleted: boolean; status: string; manual_deleted?: boolean }) =>
+  entry.deleted === true && entry.status !== 'paid' && !isManualDeletedDebtEntry(entry);
+const isVisibleDebtEntry = (entry: { deleted: boolean; status: string; manual_deleted?: boolean }) =>
+  !isManualDeletedDebtEntry(entry) && !isLegacyDeletedDebtEntry(entry);
+const isVisiblePendingDebtEntry = (entry: { deleted: boolean; status: string; manual_deleted?: boolean }) =>
+  isVisibleDebtEntry(entry) && entry.status === 'pending' && !entry.deleted;
 
-type ReportSection = 'resumo' | 'dre' | 'alertas' | 'graficos' | 'margem' | 'rankings';
+type ReportSection = 'resumo' | 'dre' | 'alertas' | 'graficos' | 'margem' | 'rankings' | 'comissoes';
+
+type CommissionStaffRow = {
+  user_id: string;
+  username: string | null;
+  job_title: string | null;
+  commission_enabled: boolean | null;
+  commission_rate_pct: number | string | null;
+};
 
 const reportSectionNav: Array<{ section: ReportSection; label: string; path: string }> = [
   { section: 'resumo', label: 'Resumo', path: '/relatorios' },
@@ -32,6 +47,7 @@ const reportSectionNav: Array<{ section: ReportSection; label: string; path: str
   { section: 'graficos', label: 'Graficos', path: '/relatorios/graficos' },
   { section: 'margem', label: 'Margem', path: '/relatorios/margem' },
   { section: 'rankings', label: 'Rankings', path: '/relatorios/rankings' },
+  { section: 'comissoes', label: 'Comissões', path: '/relatorios/comissoes' },
 ];
 
 const getReportSection = (section: string | undefined): ReportSection => (
@@ -51,7 +67,7 @@ const ReportDetailsDialog = lazy(() =>
 );
 
 export default function Reports() {
-  const { sales, saleItems, clients, products, debtEntries, payments, expenses, loading } = useData();
+  const { sales, saleItems, clients, products, debtEntries, payments, expenses, getClientBalance, getClientTotalSpending, loading } = useData();
   const { ownerUserId } = useAuth();
   const { scope: operationalScope } = useOperationalScope();
   const navigate = useNavigate();
@@ -66,7 +82,9 @@ export default function Reports() {
   const [endDate, setEndDate] = useState(today.toISOString().split('T')[0]);
   const [detail, setDetail] = useState<ReportDetail | null>(null);
   const [financialAccounts, setFinancialAccounts] = useState<FinancialAccount[]>([]);
+  const [commissionStaff, setCommissionStaff] = useState<CommissionStaffRow[]>([]);
   const [loadingDreAccounts, setLoadingDreAccounts] = useState(false);
+  const [loadingCommissions, setLoadingCommissions] = useState(false);
   const previousDreRange = useMemo(() => getPreviousPeriodRange(startDate, endDate), [endDate, startDate]);
 
   useEffect(() => {
@@ -99,6 +117,39 @@ export default function Reports() {
     };
   }, [operationalLocationId, ownerUserId]);
 
+  useEffect(() => {
+    if (!ownerUserId) {
+      setCommissionStaff([]);
+      setLoadingCommissions(false);
+      return;
+    }
+
+    let active = true;
+    const loadCommissionStaff = async () => {
+      setLoadingCommissions(true);
+      const { data, error } = await fromTable('profiles')
+        .select('user_id, username, job_title, commission_enabled, commission_rate_pct')
+        .eq('owner_user_id', ownerUserId)
+        .eq('commission_enabled', true)
+        .in('role', ['operator', 'waiter', 'hr'])
+        .order('username', { ascending: true });
+
+      if (!active) return;
+      if (error) {
+        console.error('Erro ao carregar colaboradores com comissao:', getRedactedLogValue(error));
+        setCommissionStaff([]);
+      } else {
+        setCommissionStaff((data as unknown as CommissionStaffRow[]) ?? []);
+      }
+      setLoadingCommissions(false);
+    };
+
+    void loadCommissionStaff();
+    return () => {
+      active = false;
+    };
+  }, [ownerUserId]);
+
   const filteredSales = useMemo(() => {
     const start = new Date(startDate + 'T00:00:00');
     const end = new Date(endDate + 'T23:59:59');
@@ -129,16 +180,6 @@ export default function Reports() {
     });
   }, [debtEntries, startDate, endDate]);
 
-  const filteredFiadoPayments = useMemo(() => {
-    const start = new Date(startDate + 'T00:00:00');
-    const end = new Date(endDate + 'T23:59:59');
-
-    return payments.filter(payment => {
-      const paymentDate = new Date(payment.date);
-      return paymentDate >= start && paymentDate <= end;
-    });
-  }, [payments, startDate, endDate]);
-
   // Total revenue & profit
   const totalRevenue = activeFilteredSales.reduce((s, sale) => s + sale.total, 0);
   const totalCost = filteredItems.reduce((s, i) => s + i.cost_price * i.quantity, 0);
@@ -147,12 +188,80 @@ export default function Reports() {
   const profitMargin = totalRevenue > 0 ? (totalProfit / totalRevenue) * 100 : 0;
   const totalUnitsSold = filteredItems.reduce((sum, item) => sum + item.quantity, 0);
   const averageUnitsPerSale = activeFilteredSales.length > 0 ? totalUnitsSold / activeFilteredSales.length : 0;
-  const totalFiadoSpent = filteredFiadoEntries.reduce((sum, entry) => sum + entry.total, 0);
-  const totalFiadoPaid = filteredFiadoPayments.reduce((sum, payment) => sum + payment.amount, 0);
-  const pendingDebtEntries = debtEntries
-    .filter(entry => entry.status === 'pending' && !entry.deleted && !entry.manual_deleted);
-  const totalOpenFiado = pendingDebtEntries
-    .reduce((sum, entry) => sum + entry.total, 0);
+  const activeClients = useMemo(() => clients.filter(client => !client.deleted), [clients]);
+  const activeClientIds = useMemo(() => new Set(activeClients.map(client => client.id)), [activeClients]);
+  const pendingDebtEntries = useMemo(
+    () => debtEntries.filter(isVisiblePendingDebtEntry),
+    [debtEntries],
+  );
+  const openDebtRows = useMemo<ReportDebtRow[]>(() => activeClients
+    .map((client) => {
+      const clientEntries = pendingDebtEntries.filter(entry => entry.client_id === client.id);
+      const balance = getClientBalance(client.id);
+      if (balance <= 0) return null;
+
+      const pendingTotal = clientEntries.reduce((sum, entry) => sum + entry.total, 0);
+      const clientPayments = payments.filter(payment => payment.client_id === client.id);
+      const entryTimes = clientEntries.map(entry => new Date(entry.date_added).getTime()).filter(Number.isFinite);
+      const paymentTimes = clientPayments.map(payment => new Date(payment.date).getTime()).filter(Number.isFinite);
+      const oldestEntryTime = entryTimes.length > 0 ? Math.min(...entryTimes) : null;
+      const lastActivityTime = Math.max(...entryTimes, ...paymentTimes, 0);
+
+      return {
+        id: client.id,
+        clientId: client.id,
+        clientName: client.name,
+        balance,
+        pendingTotal,
+        partialPaid: Math.max(0, pendingTotal - balance),
+        entriesCount: clientEntries.length,
+        oldestDate: oldestEntryTime ? new Date(oldestEntryTime).toISOString() : null,
+        lastActivityAt: lastActivityTime > 0 ? new Date(lastActivityTime).toISOString() : null,
+      };
+    })
+    .filter((row): row is ReportDebtRow => Boolean(row))
+    .sort((left, right) => right.balance - left.balance), [
+      activeClients,
+      getClientBalance,
+      payments,
+      pendingDebtEntries,
+    ]);
+  const totalOpenFiado = openDebtRows.reduce((sum, row) => sum + row.balance, 0);
+  const totalGeneralFiadoSpent = activeClients.reduce((sum, client) => sum + getClientTotalSpending(client.id), 0);
+  const totalGeneralFiadoPaid = payments
+    .filter(payment => activeClientIds.has(payment.client_id))
+    .reduce((sum, payment) => sum + payment.amount, 0);
+  const remainingPendingDebtEntries = useMemo(() => {
+    const remainingRows: Array<{ id: string; date_added: string; remaining: number }> = [];
+
+    activeClients.forEach((client) => {
+      const clientEntries = pendingDebtEntries
+        .filter(entry => entry.client_id === client.id)
+        .sort((left, right) => new Date(left.date_added).getTime() - new Date(right.date_added).getTime());
+      const clientPayments = payments.filter(payment => payment.client_id === client.id);
+      const latestTotalPaymentTime = clientPayments
+        .filter(payment => payment.type === 'total')
+        .reduce((latest, payment) => Math.max(latest, new Date(payment.date).getTime()), 0);
+      let partialPaymentBalance = clientPayments
+        .filter(payment => payment.type === 'partial' && new Date(payment.date).getTime() >= latestTotalPaymentTime)
+        .reduce((sum, payment) => sum + payment.amount, 0);
+
+      clientEntries.forEach((entry) => {
+        const appliedPayment = Math.min(partialPaymentBalance, entry.total);
+        partialPaymentBalance = Math.max(0, partialPaymentBalance - entry.total);
+        const remaining = Math.max(0, entry.total - appliedPayment);
+        if (remaining > 0.005) {
+          remainingRows.push({
+            id: entry.id,
+            date_added: entry.date_added,
+            remaining,
+          });
+        }
+      });
+    });
+
+    return remainingRows;
+  }, [activeClients, payments, pendingDebtEntries]);
   const lowStockProducts = useMemo(
     () => products
       .filter(product => !product.deleted && product.min_stock > 0 && product.stock <= product.min_stock)
@@ -167,24 +276,23 @@ export default function Reports() {
       d30: { label: '30+ dias', count: 0, total: 0 },
     };
 
-    debtEntries
-      .filter(entry => entry.status === 'pending' && !entry.deleted && !entry.manual_deleted)
+    remainingPendingDebtEntries
       .forEach(entry => {
         const ageDays = Math.floor((now.getTime() - new Date(entry.date_added).getTime()) / (24 * 60 * 60 * 1000));
         if (ageDays >= 30) {
           buckets.d30.count += 1;
-          buckets.d30.total += entry.total;
+          buckets.d30.total += entry.remaining;
         } else if (ageDays >= 15) {
           buckets.d15.count += 1;
-          buckets.d15.total += entry.total;
+          buckets.d15.total += entry.remaining;
         } else if (ageDays >= 7) {
           buckets.d7.count += 1;
-          buckets.d7.total += entry.total;
+          buckets.d7.total += entry.remaining;
         }
       });
 
     return [buckets.d7, buckets.d15, buckets.d30];
-  }, [debtEntries]);
+  }, [remainingPendingDebtEntries]);
 
   const productById = useMemo(() => new Map(products.map((product) => [product.id, product])), [products]);
 
@@ -283,51 +391,32 @@ export default function Reports() {
 
   // Top clients
   const clientRanking = useMemo(() => {
-    const map = new Map<string, { name: string; totalSpent: number; totalPaid: number; items: number }>();
+    return activeClients
+      .map((client) => {
+        const totalSpent = getClientTotalSpending(client.id);
+        const totalPaid = payments
+          .filter(payment => payment.client_id === client.id)
+          .reduce((sum, payment) => sum + payment.amount, 0);
+        const items = debtEntries
+          .filter(entry => entry.client_id === client.id && isVisibleDebtEntry(entry))
+          .reduce((sum, entry) => sum + entry.quantity, 0);
 
-    for (const entry of filteredFiadoEntries) {
-      const client = clients.find(c => c.id === entry.client_id);
-      if (!client) continue;
-
-      const existing = map.get(client.id);
-      if (existing) {
-        existing.totalSpent += entry.total;
-        existing.items += entry.quantity;
-      } else {
-        map.set(client.id, {
+        return {
           name: client.name,
-          totalSpent: entry.total,
-          totalPaid: 0,
-          items: entry.quantity,
-        });
-      }
-    }
-
-    for (const payment of filteredFiadoPayments) {
-      const client = clients.find(c => c.id === payment.client_id);
-      if (!client) continue;
-
-      const existing = map.get(client.id);
-      if (existing) {
-        existing.totalPaid += payment.amount;
-      } else {
-        map.set(client.id, {
-          name: client.name,
-          totalSpent: 0,
-          totalPaid: payment.amount,
-          items: 0,
-        });
-      }
-    }
-
-    return Array.from(map.values())
+          totalSpent,
+          totalPaid,
+          openBalance: getClientBalance(client.id),
+          items,
+        };
+      })
+      .filter(client => client.totalSpent > 0 || client.totalPaid > 0 || client.openBalance > 0)
       .sort((a, b) => {
         if (b.totalSpent !== a.totalSpent) return b.totalSpent - a.totalSpent;
-        if (b.totalPaid !== a.totalPaid) return b.totalPaid - a.totalPaid;
+        if (b.openBalance !== a.openBalance) return b.openBalance - a.openBalance;
         return b.items - a.items;
       })
       .slice(0, 10);
-  }, [clients, filteredFiadoEntries, filteredFiadoPayments]);
+  }, [activeClients, debtEntries, getClientBalance, getClientTotalSpending, payments]);
 
   const clientRevenueRanking = useMemo(() => {
     const map = new Map<string, { name: string; revenue: number; sales: number }>();
@@ -362,6 +451,43 @@ export default function Reports() {
       .sort((a, b) => (b.stock * (b.cost_price || 0)) - (a.stock * (a.cost_price || 0)))
       .slice(0, 10);
   }, [filteredItems, products]);
+
+  const commissionRows = useMemo(() => {
+    const salesByOperatorId = new Map<string, { total: number; count: number }>();
+
+    for (const sale of activeFilteredSales) {
+      const operatorId = sale.operator_user_id || sale.user_id;
+      if (!operatorId) continue;
+
+      const current = salesByOperatorId.get(operatorId) ?? { total: 0, count: 0 };
+      current.total += sale.total;
+      current.count += 1;
+      salesByOperatorId.set(operatorId, current);
+    }
+
+    return commissionStaff
+      .map((staff) => {
+        const rate = Number(String(staff.commission_rate_pct ?? 0).replace(',', '.')) || 0;
+        const totals = salesByOperatorId.get(staff.user_id) ?? { total: 0, count: 0 };
+        const commission = totals.total * rate / 100;
+
+        return {
+          userId: staff.user_id,
+          name: staff.username || 'Colaborador sem usuario',
+          jobTitle: staff.job_title || 'Funcao nao informada',
+          rate,
+          salesTotal: totals.total,
+          salesCount: totals.count,
+          averageTicket: totals.count > 0 ? totals.total / totals.count : 0,
+          commission,
+        };
+      })
+      .sort((left, right) => right.commission - left.commission || right.salesTotal - left.salesTotal || left.name.localeCompare(right.name));
+  }, [activeFilteredSales, commissionStaff]);
+
+  const totalCommission = commissionRows.reduce((sum, row) => sum + row.commission, 0);
+  const totalCommissionSales = commissionRows.reduce((sum, row) => sum + row.salesTotal, 0);
+  const totalCommissionSalesCount = commissionRows.reduce((sum, row) => sum + row.salesCount, 0);
 
   // Vendas do dia 
   const salesByDay = useMemo(() => {
@@ -474,6 +600,15 @@ export default function Reports() {
         entry.total.toFixed(2),
         '',
       ]),
+      ...openDebtRows.map(row => [
+        'fiado_em_aberto',
+        row.lastActivityAt || '',
+        `Saldo real em aberto (${row.entriesCount} lancamento(s), pago parcial R$ ${row.partialPaid.toFixed(2)})`,
+        row.clientName,
+        String(row.entriesCount),
+        row.balance.toFixed(2),
+        '',
+      ]),
       ...dreRows.map(row => [
         'dre',
         `${startDate} a ${endDate}`,
@@ -482,6 +617,15 @@ export default function Reports() {
         '',
         row.value.toFixed(2),
         '',
+      ]),
+      ...commissionRows.map(row => [
+        'comissao',
+        `${startDate} a ${endDate}`,
+        `${row.name} (${row.rate.toFixed(2)}%)`,
+        '',
+        String(row.salesCount),
+        row.salesTotal.toFixed(2),
+        row.commission.toFixed(2),
       ]),
     ];
     const csv = rows
@@ -817,16 +961,16 @@ export default function Reports() {
 
         {/* Top clients */}
         <Card className="border-border/50">
-          <CardHeader><CardTitle className="text-sm">👥 Clientes que Mais Compram no Fiado</CardTitle></CardHeader>
+          <CardHeader><CardTitle className="text-sm">Clientes que Mais Compram</CardTitle></CardHeader>
           <CardContent>
             <div className="mb-3 grid grid-cols-2 gap-2 rounded-lg border border-border/60 bg-secondary/20 p-3">
               <div>
-                <p className="text-[11px] text-muted-foreground">Total gasto</p>
-                <p className="text-sm font-bold">R$ {totalFiadoSpent.toFixed(2)}</p>
+                <p className="text-[11px] text-muted-foreground">Consumo geral</p>
+                <p className="text-sm font-bold">R$ {totalGeneralFiadoSpent.toFixed(2)}</p>
               </div>
               <div>
-                <p className="text-[11px] text-muted-foreground">Total pago</p>
-                <p className="text-sm font-bold text-primary">R$ {totalFiadoPaid.toFixed(2)}</p>
+                <p className="text-[11px] text-muted-foreground">Pago geral</p>
+                <p className="text-sm font-bold text-primary">R$ {totalGeneralFiadoPaid.toFixed(2)}</p>
               </div>
             </div>
             {clientRanking.length === 0 ? <p className="text-xs text-muted-foreground">Sem dados</p> : (
@@ -835,8 +979,8 @@ export default function Reports() {
                   <div key={i} className="flex items-start justify-between gap-3 text-xs">
                     <span className="truncate mr-2">{i + 1}. {c.name}</span>
                     <div className="shrink-0 text-right">
-                      <p className="font-medium">Gasto: R$ {c.totalSpent.toFixed(2)}</p>
-                      <p className="text-muted-foreground">Pago: R$ {c.totalPaid.toFixed(2)}</p>
+                      <p className="font-medium">Consumo: R$ {c.totalSpent.toFixed(2)}</p>
+                      <p className="text-muted-foreground">Pago: R$ {c.totalPaid.toFixed(2)} · Aberto: R$ {c.openBalance.toFixed(2)}</p>
                     </div>
                   </div>
                 ))}
@@ -869,13 +1013,67 @@ export default function Reports() {
       </div>
       )}
 
+      {activeSection === 'comissoes' && (
+      <div id="reports-commissions" className="scroll-mt-24 space-y-4">
+        <div className="grid gap-3 md:grid-cols-3">
+          <ReportMetricCard label="Comissões" value={money(totalCommission)} icon={Percent} />
+          <ReportMetricCard label="Vendas comissionadas" value={money(totalCommissionSales)} icon={DollarSign} />
+          <ReportMetricCard label="Vendas válidas" value={totalCommissionSalesCount} icon={TrendingUp} />
+        </div>
+
+        <Card className="border-border/50">
+          <CardHeader>
+            <CardTitle className="text-sm">Comissões por colaborador</CardTitle>
+            <p className="text-xs text-muted-foreground">
+              Apenas colaboradores com comissão ativa em Colaboradores entram neste relatório. Base: vendas válidas vinculadas ao operador.
+            </p>
+          </CardHeader>
+          <CardContent>
+            {loadingCommissions ? (
+              <p className="text-sm text-muted-foreground">Carregando colaboradores com comissão...</p>
+            ) : commissionRows.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Nenhum colaborador com comissão ativa.</p>
+            ) : (
+              <div className="overflow-x-auto rounded-lg border">
+                <table className="w-full text-sm">
+                  <thead className="bg-muted/40 text-left text-xs text-muted-foreground">
+                    <tr>
+                      <th className="px-3 py-2 font-medium">Colaborador</th>
+                      <th className="px-3 py-2 text-right font-medium">Vendas</th>
+                      <th className="px-3 py-2 text-right font-medium">Total vendido</th>
+                      <th className="px-3 py-2 text-right font-medium">%</th>
+                      <th className="px-3 py-2 text-right font-medium">Comissão</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {commissionRows.map((row) => (
+                      <tr key={row.userId} className="border-t">
+                        <td className="px-3 py-2">
+                          <p className="font-medium">{row.name}</p>
+                          <p className="text-xs text-muted-foreground">{row.jobTitle}</p>
+                        </td>
+                        <td className="px-3 py-2 text-right">{row.salesCount}</td>
+                        <td className="px-3 py-2 text-right">{money(row.salesTotal)}</td>
+                        <td className="px-3 py-2 text-right">{row.rate.toFixed(2).replace('.', ',')}%</td>
+                        <td className="px-3 py-2 text-right font-semibold">{money(row.commission)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+      )}
+
       {detail !== null && (
         <Suspense fallback={null}>
           <ReportDetailsDialog
             detail={detail}
             sales={activeFilteredSales}
             saleItems={filteredItems}
-            debts={pendingDebtEntries}
+            debts={openDebtRows}
             clients={clients}
             onOpenChange={(open) => { if (!open) setDetail(null); }}
           />

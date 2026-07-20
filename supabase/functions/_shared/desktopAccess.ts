@@ -64,13 +64,26 @@ export const validateDesktopLicense = async (
   userId: string,
   productContext?: ProductContext,
 ): Promise<DesktopLicenseValidationResult> => {
-  const { data: profile } = await serviceClient
+  const { data: profile, error: profileError } = await serviceClient
     .from("profiles")
     .select("role, owner_user_id")
     .eq("user_id", userId)
     .maybeSingle();
 
   const ownershipProfile = (profile as ProfileOwnershipRow | null) ?? null;
+  if (profileError || !ownershipProfile) {
+    return {
+      ok: false,
+      code: "PROFILE_NOT_FOUND",
+      message: "Sessao invalida. Faca login novamente.",
+      planId: null,
+      status: null,
+      validUntil: null,
+      features: [],
+      offlineEnabled: false,
+    };
+  }
+
   const ownerUserId = ownershipProfile?.role && staffRoles.has(ownershipProfile.role) && ownershipProfile.owner_user_id
     ? ownershipProfile.owner_user_id
     : userId;

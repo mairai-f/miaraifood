@@ -9,8 +9,9 @@ const SALES_PAGE_URL = 'https://www.happycashsite.com.br/#planos';
 
 export function DesktopLicenseBlocked() {
   const { logout } = useAuth();
-  const { error, code, planId, refresh, validUntil, validationExpiresAt } = useDesktopRuntime();
+  const { error, code, planId, refresh, validUntil, validationExpiresAt, isMobileApp } = useDesktopRuntime();
   const isOfflineValidationExpired = code === 'OFFLINE_VALIDATION_EXPIRED';
+  const runtimeLabel = isMobileApp ? 'app Android' : 'desktop';
 
   return (
     <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[#eef3fb] p-6 dark:bg-background">
@@ -21,17 +22,17 @@ export function DesktopLicenseBlocked() {
             <span className="flex h-11 w-11 items-center justify-center rounded-full bg-primary/10">
               <KeyRound className="h-5 w-5" />
             </span>
-            <CardTitle className="text-2xl">Licenca desktop indisponivel</CardTitle>
+            <CardTitle className="text-2xl">Licenca do {runtimeLabel} indisponivel</CardTitle>
           </div>
           <CardDescription className="text-muted-foreground">
             {isOfflineValidationExpired
               ? 'O prazo de validacao offline terminou. Conecte o app a internet para renovar o acesso local.'
-              : 'O aplicativo desktop do HappyCash funciona para contas com plano PRO em status ativo, com pagamento confirmado e licenca validada no backend.'}
+              : `O ${runtimeLabel} do HappyCash funciona para contas com plano PRO em status ativo, com pagamento confirmado e licenca validada no backend.`}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="rounded-2xl border border-border bg-background/70 p-4">
-            <p className="font-medium text-foreground">{error || 'Sua conta ainda nao esta apta para usar o desktop.'}</p>
+            <p className="font-medium text-foreground">{error || `Sua conta ainda nao esta apta para usar o ${runtimeLabel}.`}</p>
             <div className="mt-3 space-y-1 text-sm text-muted-foreground">
               <p>Plano atual: {planId || 'nao identificado'}</p>
               <p>Codigo: {code || 'sem codigo'}</p>
@@ -46,8 +47,8 @@ export function DesktopLicenseBlocked() {
             <p className="font-medium text-foreground">Como liberar</p>
             <p className="mt-1">
               {isOfflineValidationExpired
-                ? 'Reconecte o desktop e clique em validar novamente. Depois disso, o modo offline volta a contar um novo prazo local de 5 dias.'
-                : 'Ative o plano PRO no site e aguarde a confirmacao do pagamento. Assim que o status ficar ativo, o desktop volta a validar automaticamente.'}
+                ? `Reconecte o ${runtimeLabel} e clique em validar novamente. Depois disso, o modo offline volta a contar um novo prazo local de 24 horas.`
+                : `Ative o plano PRO no site e aguarde a confirmacao do pagamento. Assim que o status ficar ativo, o ${runtimeLabel} volta a validar automaticamente.`}
             </p>
           </div>
 
@@ -55,7 +56,12 @@ export function DesktopLicenseBlocked() {
             <Button
               type="button"
               onClick={() => {
-                window.electronAPI?.openExternal(SALES_PAGE_URL);
+                if (window.electronAPI?.openExternal) {
+                  window.electronAPI.openExternal(SALES_PAGE_URL);
+                  return;
+                }
+
+                window.location.href = SALES_PAGE_URL;
               }}
               className="rounded-2xl"
             >

@@ -165,15 +165,21 @@ Deno.serve(async (request) => {
   const ownerUserId = profile?.role && staffRoles.has(profile.role) && profile.owner_user_id
     ? profile.owner_user_id
     : user.id;
+  const desktopAppContext = normalizeOptionalText(body?.desktopAppContext, 40) ?? "happycash";
+  const runtimeLabel = desktopAppContext === "mobile" ? "app Android" : "desktop";
 
   const license = await validateDesktopLicense(serviceClient, user.id);
 
   if (!license.ok) {
+    const runtimeLicenseError = license.code === "PRO_ACTIVE_REQUIRED"
+      ? `O ${runtimeLabel} do HappyCash libera somente apos a confirmacao do pagamento do plano PRO.`
+      : `Nao foi possivel validar sua licenca do ${runtimeLabel} agora.`;
+
     return jsonResponse(
       request,
       {
         licensed: false,
-        error: "Nao foi possivel validar sua licenca desktop agora.",
+        error: runtimeLicenseError,
         code: license.code,
         planId: license.planId,
         status: license.status,
@@ -185,7 +191,6 @@ Deno.serve(async (request) => {
     );
   }
 
-  const desktopAppContext = normalizeOptionalText(body?.desktopAppContext, 40) ?? "happycash";
   const desktopInstallationId = normalizeOptionalText(body?.desktopInstallationId, 120);
   const desktopStoreAccountId = normalizeOptionalText(body?.desktopStoreAccountId, 80);
 

@@ -19,22 +19,20 @@ interface MobileDownloadResponse {
   validUntil?: string | null;
 }
 
-type SupportedMobilePlatform = "android" | "ios";
+type SupportedMobilePlatform = "android";
 
-const supportedPlatforms = new Set<SupportedMobilePlatform>(["android", "ios"]);
+const supportedPlatforms = new Set<SupportedMobilePlatform>(["android"]);
 const contextBucketEnvKeys: Record<DesktopReleaseContext, string> = {
   happycash: "MOBILE_DOWNLOAD_BUCKET",
 };
 const contextPlatformEnvKeys: Record<DesktopReleaseContext, Record<SupportedMobilePlatform, string>> = {
   happycash: {
     android: "ANDROID_APK_OBJECT_PATH",
-    ios: "IOS_TESTFLIGHT_URL",
   },
 };
 const contextDirectUrlEnvKeys: Record<DesktopReleaseContext, Record<SupportedMobilePlatform, string>> = {
   happycash: {
     android: "ANDROID_APK_URL",
-    ios: "IOS_TESTFLIGHT_URL",
   },
 };
 
@@ -196,28 +194,6 @@ Deno.serve(async (request) => {
   const directUrlKey = contextDirectUrlEnvKeys[downloadContext][platform];
   const storagePathKey = contextPlatformEnvKeys[downloadContext][platform];
   const bucketEnvKey = contextBucketEnvKeys[downloadContext];
-
-  if (platform === "ios") {
-    const testFlightUrl = Deno.env.get(directUrlKey)?.trim() || Deno.env.get("IOS_TESTFLIGHT_URL")?.trim();
-
-    if (!testFlightUrl) {
-      return jsonResponse(
-        request,
-        {
-          error: "O link do TestFlight iOS não foi configurado.",
-          code: "DOWNLOAD_NOT_CONFIGURED",
-          requiredEnv: [directUrlKey],
-        },
-        503,
-      );
-    }
-
-    return jsonResponse(request, {
-      success: true,
-      downloadUrl: testFlightUrl,
-      validUntil: license.validUntil,
-    });
-  }
 
   if (releaseProvider(downloadContext) === "github") {
     try {

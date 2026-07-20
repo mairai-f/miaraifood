@@ -22,6 +22,8 @@ type ManageOperatorRequest =
       jobTitle?: string;
       staffRole?: string;
       permissionKeys?: string[];
+      commissionEnabled?: boolean;
+      commissionRatePct?: number | string | null;
       photoUrl?: string | null;
       addressZipCode?: string | null;
       addressStreet?: string | null;
@@ -42,6 +44,8 @@ type ManageOperatorRequest =
       jobTitle?: string;
       staffRole?: string;
       permissionKeys?: string[];
+      commissionEnabled?: boolean;
+      commissionRatePct?: number | string | null;
       photoUrl?: string | null;
       addressZipCode?: string | null;
       addressStreet?: string | null;
@@ -121,11 +125,36 @@ const normalizePersonNameKey = (value: string | undefined | null) =>
     .replace(/[\u0300-\u036f]/g, '')
     .toLowerCase();
 const isValidPersonName = (value: string) => value.length >= 3 && value.length <= 100;
+const normalizeCommissionSettings = (details: { commissionEnabled?: boolean; commissionRatePct?: number | string | null }) => {
+  const enabled = details.commissionEnabled === true;
+  const rawRate = typeof details.commissionRatePct === 'number'
+    ? details.commissionRatePct
+    : Number(String(details.commissionRatePct ?? '').replace(',', '.'));
+  const ratePct = Number.isFinite(rawRate) ? Number(rawRate.toFixed(2)) : 0;
+
+  if (!enabled) {
+    return { enabled: false, ratePct: 0, error: null as string | null };
+  }
+
+  if (ratePct <= 0 || ratePct > 100) {
+    return { enabled, ratePct, error: 'Informe uma comissao entre 0,01% e 100%.' };
+  }
+
+  return { enabled, ratePct, error: null as string | null };
+};
 const isHrPermissionKey = (permissionKey: string) => permissionKey.startsWith('hr.');
 const isEmployeePortalPermissionKey = (permissionKey: string) => permissionKey.startsWith('employee_portal.');
 const isEnterpriseOnlyPermissionKey = (permissionKey: string) =>
   isHrPermissionKey(permissionKey) || isEmployeePortalPermissionKey(permissionKey);
 const requiredStaffPermissionKeys: string[] = [];
+const protectedManagerGrantPermissionKeys = new Set<string>([
+  'settings.manage',
+  'rbac.manage',
+  'fiscal.manage',
+  'audit.view',
+  'staff.manage',
+  'multi_store.manage',
+]);
 const ensureRequiredStaffPermissions = (permissionKeys: string[]) => [...new Set([
   ...permissionKeys,
   ...requiredStaffPermissionKeys,
@@ -399,12 +428,113 @@ const verifyAdminCredentials = async (
   return null;
 };
 
+const userHasErpPermission = async (
+  serviceClient: SupabaseClient,
+  targetUserId: string,
+  permissionKey: string,
+) => {
+  const { data, error } = await serviceClient.rpc('erp_user_has_permission', {
+    target_user_id: targetUserId,
+    target_permission_key: permissionKey,
+  });
+
+  if (error) {
+    console.error('Erro ao consultar permissao efetiva:', error.message);
+    return false;
+  }
+
+  return data === true;
+};
+
+const getProtectedManagerPermissions = async (
+  serviceClient: SupabaseClient,
+  targetUserId: string,
+) => {
+  const checks = await Promise.all([...protectedManagerGrantPermissionKeys].map(async (permissionKey) => {
+    const allowed = await userHasErpPermission(serviceClient, targetUserId, permissionKey);
+    return allowed ? permissionKey : null;
+  }));
+
+  return checks.filter((permissionKey): permissionKey is string => Boolean(permissionKey));
+};
+
+const verifyStaffCredentialsForOwner = async (
+  details: {
+    supabaseUrl: string;
+    supabaseAnonKey: string;
+    serviceClient: SupabaseClient;
+    ownerUserId: string;
+    callerUserId: string;
+    login?: string;
+    password?: string;
+    requiredPermissionKey: string;
+  },
+) => {
+  const normalizedLogin = normalizeOperatorUsername(details.login ?? '');
+  const password = details.password?.trim() ?? '';
+
+  if (!normalizedLogin || !password) {
+    return 'Confirme esta acao com usuario e senha/PIN do gerente.';
+  }
+
+  if (!isValidOperatorUsername(normalizedLogin)) {
+    return operatorUsernameHelpText;
+  }
+
+  const verificationClient = createClient(details.supabaseUrl, details.supabaseAnonKey, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+    },
+  });
+  const { data, error } = await verificationClient.auth.signInWithPassword({
+    email: buildOperatorEmail(normalizedLogin),
+    password: resolveOperatorAuthPassword(normalizedLogin, password),
+  });
+
+  if (error || !data.user?.id) {
+    return 'Usuario ou senha/PIN do gerente invalidos.';
+  }
+
+  if (data.user.id !== details.callerUserId) {
+    return 'A credencial informada precisa ser do gerente logado nesta sessao.';
+  }
+
+  const { data: verificationProfile, error: verificationProfileError } = await details.serviceClient
+    .from('profiles')
+    .select('user_id, role, owner_user_id')
+    .eq('user_id', data.user.id)
+    .single();
+
+  if (
+    verificationProfileError
+    || !verificationProfile
+    || verificationProfile.owner_user_id !== details.ownerUserId
+    || !staffRoles.includes(verificationProfile.role)
+  ) {
+    return 'Esta credencial nao pertence a um gerente desta loja.';
+  }
+
+  const hasRequiredPermission = await userHasErpPermission(
+    details.serviceClient,
+    data.user.id,
+    details.requiredPermissionKey,
+  );
+
+  if (!hasRequiredPermission) {
+    return 'Este gerente nao possui permissao para gerenciar colaboradores.';
+  }
+
+  return null;
+};
+
 const verifyStaffAccessAuthorization = async (
   details: {
     supabaseUrl: string;
     supabaseAnonKey: string;
     serviceClient: SupabaseClient;
     ownerUserId: string;
+    callerUserId: string;
     callerProfile: CallerProfile;
     adminEmail?: string;
     adminPassword?: string;
@@ -423,7 +553,16 @@ const verifyStaffAccessAuthorization = async (
     });
   }
 
-  return 'Somente administrador pode gerenciar funcionários e acessos.';
+  return verifyStaffCredentialsForOwner({
+    supabaseUrl: details.supabaseUrl,
+    supabaseAnonKey: details.supabaseAnonKey,
+    serviceClient: details.serviceClient,
+    ownerUserId: details.ownerUserId,
+    callerUserId: details.callerUserId,
+    login: details.adminEmail,
+    password: details.adminPassword,
+    requiredPermissionKey: 'staff.manage',
+  });
 };
 
 Deno.serve(async (request): Promise<Response> => {
@@ -514,9 +653,25 @@ Deno.serve(async (request): Promise<Response> => {
 
   const callerIsAdmin = callerProfile.role === 'admin';
   const isAdminVerificationAction = body.action === 'verify_admin';
+  const callerCanManageStaff = callerIsAdmin || await userHasErpPermission(serviceClient, user.id, 'staff.manage');
+  const callerHasCashPermission = callerIsAdmin || await userHasErpPermission(serviceClient, user.id, 'pdv.open_cash');
+  const callerCanOpenCash = callerIsAdmin || (callerCanManageStaff && callerHasCashPermission);
 
-  if (!callerIsAdmin && !isAdminVerificationAction) {
-    return jsonResponse(request, { error: 'Somente administrador pode gerenciar funcionários e acessos.' }, 403);
+  if (!isAdminVerificationAction) {
+    const isStaffManagementAction = ['list', 'create', 'update_access', 'reset_password'].includes(body.action);
+    const isCashAction = body.action === 'open_cash';
+
+    if (isStaffManagementAction && !callerCanManageStaff) {
+      return jsonResponse(request, { error: 'Somente administrador ou gerente autorizado pode gerenciar colaboradores e acessos.' }, 403);
+    }
+
+    if (isCashAction && !callerCanOpenCash) {
+      return jsonResponse(request, { error: 'Voce nao possui permissao para abrir caixa de colaborador.' }, 403);
+    }
+
+    if (!isStaffManagementAction && !isCashAction && !callerIsAdmin) {
+      return jsonResponse(request, { error: 'Somente administrador pode executar esta acao.' }, 403);
+    }
   }
 
   if (body.action !== 'delete_account' && !isAdminVerificationAction) {
@@ -558,15 +713,22 @@ Deno.serve(async (request): Promise<Response> => {
   if (body.action === 'list') {
     const [
       { data: operators, error: operatorsError },
+      { data: openCashSessions, error: openCashSessionsError },
       { data: permissionRows, error: permissionError },
       { data: employeeRows, error: employeeError },
     ] = await Promise.all([
       serviceClient
         .from('profiles')
-        .select('user_id, username, role, job_title, created_at')
+        .select('user_id, username, role, job_title, created_at, commission_enabled, commission_rate_pct')
         .eq('owner_user_id', ownerUserId)
         .in('role', staffRoles)
         .order('username', { ascending: true }),
+      serviceClient
+        .from('cash_sessions')
+        .select('id, operator_user_id, operator_name, opening_amount, opened_at')
+        .eq('owner_user_id', ownerUserId)
+        .eq('status', 'open')
+        .order('opened_at', { ascending: false }),
       serviceClient
         .from('erp_staff_permission_overrides')
         .select('user_id, permission_key, allowed')
@@ -581,6 +743,10 @@ Deno.serve(async (request): Promise<Response> => {
 
     if (operatorsError) {
       return jsonResponse(request, { error: 'Nao foi possivel consultar os operadores.' }, 500);
+    }
+
+    if (openCashSessionsError) {
+      return jsonResponse(request, { error: 'Nao foi possivel consultar os caixas abertos.' }, 500);
     }
 
     if (permissionError || employeeError) {
@@ -609,6 +775,7 @@ Deno.serve(async (request): Promise<Response> => {
         full_name: (employeeDetailsByUserId.get(operator.user_id)?.full_name as string | null | undefined) ?? null,
         permission_keys: permissionsByUserId.get(operator.user_id) ?? [],
       })),
+      openCashSessions: openCashSessions ?? [],
     });
   }
 
@@ -618,6 +785,9 @@ Deno.serve(async (request): Promise<Response> => {
     const password = body.password?.trim();
     const jobTitle = normalizeJobTitle(body.jobTitle);
     const employeeDetails = readStaffEmployeeDetails(body);
+    const commissionSettings = callerIsAdmin
+      ? normalizeCommissionSettings(body)
+      : { enabled: false, ratePct: 0, error: null as string | null };
     const credentialError = getOperatorCredentialError(password || '');
     const authPassword = resolveOperatorAuthPassword(normalizedUsername, password || '');
     const requestedPermissionKeys = ensureRequiredStaffPermissions([...new Set(
@@ -636,7 +806,7 @@ Deno.serve(async (request): Promise<Response> => {
     }
 
     if (!password || credentialError) {
-      return jsonResponse(request, { error: credentialError || 'Informe a senha ou PIN do operador.' }, 400);
+      return jsonResponse(request, { error: credentialError || 'Informe o PIN do operador.' }, 400);
     }
 
     if (!isValidJobTitle(jobTitle)) {
@@ -648,7 +818,15 @@ Deno.serve(async (request): Promise<Response> => {
     }
 
     if (requestedPermissionKeys.some(isEnterpriseOnlyPermissionKey)) {
-      return jsonResponse(request, { error: 'Permissoes de RH Enterprise e Portal nao fazem parte do cadastro de funcionarios do HappyCash.' }, 400);
+      return jsonResponse(request, { error: 'Permissoes de RH Enterprise e Portal nao fazem parte do cadastro de colaboradores do HappyCash.' }, 400);
+    }
+
+    if (commissionSettings.error) {
+      return jsonResponse(request, { error: commissionSettings.error }, 400);
+    }
+
+    if (!callerIsAdmin && requestedPermissionKeys.some((permissionKey) => protectedManagerGrantPermissionKeys.has(permissionKey))) {
+      return jsonResponse(request, { error: 'Gerente nao pode conceder acessos administrativos sensiveis ou criar outro gerente.' }, 403);
     }
 
     const adminVerificationError = await verifyStaffAccessAuthorization({
@@ -656,6 +834,7 @@ Deno.serve(async (request): Promise<Response> => {
       supabaseAnonKey,
       serviceClient,
       ownerUserId,
+      callerUserId: user.id,
       callerProfile: callerProfile as CallerProfile,
       adminEmail: body.adminEmail,
       adminPassword: body.adminPassword,
@@ -726,6 +905,8 @@ Deno.serve(async (request): Promise<Response> => {
         job_title: jobTitle,
         owner_user_id: ownerUserId,
         created_by_user_id: user.id,
+        commission_enabled: commissionSettings.enabled,
+        commission_rate_pct: commissionSettings.ratePct,
       }, { onConflict: 'user_id' });
 
     if (updateProfileError) {
@@ -779,6 +960,8 @@ Deno.serve(async (request): Promise<Response> => {
         username: normalizedUsername,
         role: operatorRole,
         job_title: jobTitle,
+        commission_enabled: commissionSettings.enabled,
+        commission_rate_pct: commissionSettings.ratePct,
         permission_keys: requestedPermissionKeys,
       },
     });
@@ -789,6 +972,7 @@ Deno.serve(async (request): Promise<Response> => {
     const fullName = normalizePersonName(body.fullName);
     const jobTitle = normalizeJobTitle(body.jobTitle);
     const employeeDetails = readStaffEmployeeDetails(body);
+    const commissionSettings = callerIsAdmin ? normalizeCommissionSettings(body) : null;
     const requestedPermissionKeys = ensureRequiredStaffPermissions([...new Set(
       (Array.isArray(body.permissionKeys) ? body.permissionKeys : []).filter(
         (permissionKey): permissionKey is string => typeof permissionKey === 'string' && permissionKey.trim() !== '',
@@ -800,8 +984,8 @@ Deno.serve(async (request): Promise<Response> => {
       return jsonResponse(request, { error: 'Colaborador invalido.' }, 400);
     }
 
-    if (callerProfile.role === 'hr' && operatorUserId === user.id) {
-      return jsonResponse(request, { error: 'O RH nao pode alterar o proprio acesso.' }, 403);
+    if (!callerIsAdmin && operatorUserId === user.id) {
+      return jsonResponse(request, { error: 'Gerente nao pode alterar o proprio acesso.' }, 403);
     }
 
     if (!isValidJobTitle(jobTitle)) {
@@ -817,7 +1001,15 @@ Deno.serve(async (request): Promise<Response> => {
     }
 
     if (requestedPermissionKeys.some(isEnterpriseOnlyPermissionKey)) {
-      return jsonResponse(request, { error: 'Permissoes de RH Enterprise e Portal nao fazem parte do cadastro de funcionarios do HappyCash.' }, 400);
+      return jsonResponse(request, { error: 'Permissoes de RH Enterprise e Portal nao fazem parte do cadastro de colaboradores do HappyCash.' }, 400);
+    }
+
+    if (commissionSettings?.error) {
+      return jsonResponse(request, { error: commissionSettings.error }, 400);
+    }
+
+    if (!callerIsAdmin && requestedPermissionKeys.some((permissionKey) => protectedManagerGrantPermissionKeys.has(permissionKey))) {
+      return jsonResponse(request, { error: 'Gerente nao pode conceder acessos administrativos sensiveis ou criar outro gerente.' }, 403);
     }
 
     const adminVerificationError = await verifyStaffAccessAuthorization({
@@ -825,6 +1017,7 @@ Deno.serve(async (request): Promise<Response> => {
       supabaseAnonKey,
       serviceClient,
       ownerUserId,
+      callerUserId: user.id,
       callerProfile: callerProfile as CallerProfile,
       adminEmail: body.adminEmail,
       adminPassword: body.adminPassword,
@@ -837,7 +1030,7 @@ Deno.serve(async (request): Promise<Response> => {
     const [{ data: targetProfile, error: targetProfileError }, { data: permissionCatalog, error: permissionCatalogError }] = await Promise.all([
       serviceClient
         .from('profiles')
-        .select('user_id, role, owner_user_id, username, job_title')
+        .select('user_id, role, owner_user_id, username, job_title, commission_enabled, commission_rate_pct')
         .eq('user_id', operatorUserId)
         .single(),
       serviceClient.from('erp_permission_catalog').select('permission_key'),
@@ -851,6 +1044,13 @@ Deno.serve(async (request): Promise<Response> => {
       return jsonResponse(request, { error: 'Voce nao pode editar este colaborador.' }, 403);
     }
 
+    if (!callerIsAdmin) {
+      const protectedTargetPermissions = await getProtectedManagerPermissions(serviceClient, operatorUserId);
+      if (protectedTargetPermissions.length > 0) {
+        return jsonResponse(request, { error: 'Gerente nao pode alterar outro gerente ou colaborador com acesso administrativo sensivel.' }, 403);
+      }
+    }
+
     if (permissionCatalogError) {
       return jsonResponse(request, { error: 'Nao foi possivel validar os acessos selecionados.' }, 500);
     }
@@ -860,9 +1060,15 @@ Deno.serve(async (request): Promise<Response> => {
       return jsonResponse(request, { error: 'Um ou mais acessos selecionados sao invalidos.' }, 400);
     }
 
+    const profileUpdatePayload: Record<string, unknown> = { job_title: jobTitle, role: nextStaffRole };
+    if (commissionSettings) {
+      profileUpdatePayload.commission_enabled = commissionSettings.enabled;
+      profileUpdatePayload.commission_rate_pct = commissionSettings.ratePct;
+    }
+
     const { error: updateProfileError } = await serviceClient
       .from('profiles')
-      .update({ job_title: jobTitle, role: nextStaffRole })
+      .update(profileUpdatePayload)
       .eq('user_id', operatorUserId);
     if (updateProfileError) {
       return jsonResponse(request, { error: 'Nao foi possivel atualizar a funcao do colaborador.' }, 500);
@@ -883,7 +1089,12 @@ Deno.serve(async (request): Promise<Response> => {
     if (hrSyncError) {
       await serviceClient
         .from('profiles')
-        .update({ job_title: targetProfile.job_title, role: targetProfile.role })
+        .update({
+          job_title: targetProfile.job_title,
+          role: targetProfile.role,
+          commission_enabled: targetProfile.commission_enabled ?? false,
+          commission_rate_pct: targetProfile.commission_rate_pct ?? 0,
+        })
         .eq('user_id', operatorUserId);
       const isDuplicateName = hrSyncError.startsWith('Ja existe colaborador');
       return jsonResponse(
@@ -907,7 +1118,12 @@ Deno.serve(async (request): Promise<Response> => {
     if (permissionError) {
       await serviceClient
         .from('profiles')
-        .update({ job_title: targetProfile.job_title, role: targetProfile.role })
+        .update({
+          job_title: targetProfile.job_title,
+          role: targetProfile.role,
+          commission_enabled: targetProfile.commission_enabled ?? false,
+          commission_rate_pct: targetProfile.commission_rate_pct ?? 0,
+        })
         .eq('user_id', operatorUserId);
       return jsonResponse(request, { error: 'Nao foi possivel salvar os acessos do colaborador.' }, 500);
     }
@@ -919,6 +1135,8 @@ Deno.serve(async (request): Promise<Response> => {
         username: targetProfile.username,
         role: nextStaffRole,
         job_title: jobTitle,
+        commission_enabled: commissionSettings?.enabled ?? targetProfile.commission_enabled ?? false,
+        commission_rate_pct: commissionSettings?.ratePct ?? targetProfile.commission_rate_pct ?? 0,
         permission_keys: requestedPermissionKeys,
       },
     });
@@ -933,12 +1151,12 @@ Deno.serve(async (request): Promise<Response> => {
       return jsonResponse(request, { error: 'Operador inválido.' }, 400);
     }
 
-    if (callerProfile.role === 'hr' && operatorUserId === user.id) {
-      return jsonResponse(request, { error: 'O RH nao pode redefinir a propria senha.' }, 403);
+    if (!callerIsAdmin && operatorUserId === user.id) {
+      return jsonResponse(request, { error: 'Gerente nao pode redefinir a propria senha.' }, 403);
     }
 
     if (!password || credentialError) {
-      return jsonResponse(request, { error: credentialError || 'Informe a nova senha ou PIN.' }, 400);
+      return jsonResponse(request, { error: credentialError || 'Informe o novo PIN.' }, 400);
     }
 
     const accessVerificationError = await verifyStaffAccessAuthorization({
@@ -946,6 +1164,7 @@ Deno.serve(async (request): Promise<Response> => {
       supabaseAnonKey,
       serviceClient,
       ownerUserId,
+      callerUserId: user.id,
       callerProfile: callerProfile as CallerProfile,
       adminEmail: body.adminEmail,
       adminPassword: body.adminPassword,
@@ -967,6 +1186,13 @@ Deno.serve(async (request): Promise<Response> => {
 
     if (!staffRoles.includes(targetProfile.role) || targetProfile.owner_user_id !== ownerUserId) {
       return jsonResponse(request, { error: 'Você não pode redefinir a senha deste operador.' }, 403);
+    }
+
+    if (!callerIsAdmin) {
+      const protectedTargetPermissions = await getProtectedManagerPermissions(serviceClient, operatorUserId);
+      if (protectedTargetPermissions.length > 0) {
+        return jsonResponse(request, { error: 'Gerente nao pode redefinir senha de outro gerente ou colaborador com acesso administrativo sensivel.' }, 403);
+      }
     }
 
     const authPassword = resolveOperatorAuthPassword(targetProfile.username ?? '', password || '');
@@ -1014,6 +1240,11 @@ Deno.serve(async (request): Promise<Response> => {
 
     if (targetProfile.role !== 'operator' || targetProfile.owner_user_id !== ownerUserId) {
       return jsonResponse(request, { error: 'Você não pode abrir caixa para este operador.' }, 403);
+    }
+
+    const targetCanOperateCash = await userHasErpPermission(serviceClient, targetProfile.user_id, 'pdv.open_cash');
+    if (!targetCanOperateCash) {
+      return jsonResponse(request, { error: 'Este colaborador não possui acesso para operar caixa.' }, 403);
     }
 
     const { data: existingOpenSession, error: existingOpenSessionError } = await serviceClient

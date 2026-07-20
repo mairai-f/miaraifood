@@ -25,6 +25,7 @@ interface DesktopOfflineAdminSetupDialogProps {
   open: boolean;
   defaultUsername: string;
   companyName: string | null;
+  deviceLabel?: 'maquina' | 'aparelho';
   submitting: boolean;
   onSubmit: (payload: { username: string; pin: string }) => Promise<void>;
 }
@@ -33,6 +34,7 @@ export function DesktopOfflineAdminSetupDialog({
   open,
   defaultUsername,
   companyName,
+  deviceLabel = 'maquina',
   submitting,
   onSubmit,
 }: DesktopOfflineAdminSetupDialogProps) {
@@ -40,6 +42,9 @@ export function DesktopOfflineAdminSetupDialog({
   const [pin, setPin] = useState('');
   const [confirmPin, setConfirmPin] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const deviceSetupReference = deviceLabel === 'aparelho' ? 'deste aparelho' : 'desta maquina';
+  const deviceActivatedReference = deviceLabel === 'aparelho' ? 'neste aparelho' : 'nesta maquina';
+  const deviceOnlyReference = deviceLabel === 'aparelho' ? 'neste aparelho' : 'neste computador';
 
   useEffect(() => {
     if (!open) return;
@@ -86,17 +91,17 @@ export function DesktopOfflineAdminSetupDialog({
           <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary">
             <ShieldCheck className="h-5 w-5" />
           </div>
-          <DialogTitle className="text-center">Configure o admin offline desta maquina</DialogTitle>
+          <DialogTitle className="text-center">Configure o admin offline {deviceSetupReference}</DialogTitle>
           <DialogDescription className="text-center">
-            Depois do primeiro login com email e senha, cadastre um usuario admin e um PIN local. Em seguida o HappyCash baixa os dados da loja e deixa esta maquina pronta para uso offline.
+            Depois do primeiro login com email e senha, cadastre um usuario admin e um PIN local. Em seguida o HappyCash baixa os dados da loja e deixa o acesso offline pronto {deviceActivatedReference}.
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
           <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 text-sm text-muted-foreground">
-            <p className="font-medium text-foreground">{companyName || 'Empresa ativada nesta maquina'}</p>
+            <p className="font-medium text-foreground">{companyName || `Empresa ativada ${deviceActivatedReference}`}</p>
             <p className="mt-2">
-              Esse usuario admin e PIN vao valer apenas neste computador e ficam vinculados ao administrador desta empresa.
+              Esse usuario admin e PIN vao valer apenas {deviceOnlyReference} e ficam vinculados ao administrador desta empresa.
             </p>
           </div>
 

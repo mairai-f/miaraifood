@@ -3,15 +3,15 @@ import { supabase } from '@/integrations/supabase/client';
 import type { Session, User } from '@supabase/supabase-js';
 import { normalizeUserRole, type UserRole } from '@/lib/access';
 import { clearSystemTemporarySessionPreference, enforceSystemSessionPreference } from '@/lib/authSessionPreferences';
-import {
-  ACCESS_HEARTBEAT_INTERVAL_MS,
-  clearSystemClientSessionId,
-  trackSystemAccessEvent,
-} from '@/lib/accessTracking';
 import { getActivatedDesktopOwnerUserId, readDesktopActivation } from '@/lib/desktopActivation';
 import { verifyOfflineAdminAccess } from '@/lib/offlineAdminAccess';
-import { saveOfflineOperatorAccess, verifyOfflineOperatorAccess } from '@/lib/offlineOperatorAccess';
-import { isDesktopRuntime, isProbablyOfflineError } from '@/lib/offlineConcentrator';
+import {
+  deleteOfflineOperatorAccess,
+  readOfflineOperatorAccess,
+  saveOfflineOperatorAccess,
+  verifyOfflineOperatorAccess,
+} from '@/lib/offlineOperatorAccess';
+import { isDesktopRuntime, isLocalAppRuntime, isMobileAppRuntime, isProbablyOfflineError } from '@/lib/offlineConcentrator';
 import { getPasskeyErrorMessage, getPasskeySupportErrorMessage, type PasskeyEntry } from '@/lib/passkeys';
 import {
   clearLocalLoginFailures,
@@ -84,6 +84,7 @@ interface AuthContextType {
 
 interface OperatorLoginResponse {
   success?: boolean;
+  code?: string;
   session?: {
     access_token?: string;
     refresh_token?: string;
@@ -161,7 +162,11 @@ const AuthContext = createContext<AuthContextType | null>(null);
 const profileCacheKey = (userId: string) => `happycash:system:profile:${userId}`;
 const DESKTOP_ACTIVATION_OWNER_MISMATCH = 'DESKTOP_ACTIVATION_OWNER_MISMATCH';
 const SYSTEM_PRODUCT_CONTEXT_MISMATCH = 'SYSTEM_PRODUCT_CONTEXT_MISMATCH';
+const PROFILE_NOT_FOUND = 'PROFILE_NOT_FOUND';
+const OPERATOR_ACCESS_REMOVED = 'OPERATOR_ACCESS_REMOVED';
 const SYSTEM_PRODUCT_CONTEXT_MISMATCH_MESSAGE = 'Email ou senha incorretos.';
+const PROFILE_NOT_FOUND_MESSAGE = 'Este acesso foi removido. Entre com outro usuário ou fale com o administrador.';
+const getLocalActivationLabel = () => isMobileAppRuntime() ? 'app Android' : 'desktop';
 const readCachedProfile = (userId: string): UserProfile | null => {
   if (typeof window === 'undefined') return null;
 
@@ -181,6 +186,16 @@ const writeCachedProfile = (userId: string, profile: UserProfile) => {
     window.localStorage.setItem(profileCacheKey(userId), JSON.stringify(profile));
   } catch {
     // Keep auth usable even when localStorage is unavailable.
+  }
+};
+
+const deleteCachedProfile = (userId: string) => {
+  if (typeof window === 'undefined') return;
+
+  try {
+    window.localStorage.removeItem(profileCacheKey(userId));
+  } catch {
+    // Cache cleanup should never block sign-out.
   }
 };
 
@@ -269,9 +284,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (error) {
         console.error('Erro ao carregar perfil do usuário:', getRedactedLogValue(error));
+        throw error;
       }
 
       const profile = (data ?? null) as ProfileQueryRow | null;
+      if (!profile) {
+        const cachedProfile = readCachedProfile(currentUser.id);
+        if (cachedProfile?.owner_user_id && cachedProfile.username && cachedProfile.role !== 'admin') {
+          deleteOfflineOperatorAccess(cachedProfile.owner_user_id, cachedProfile.username);
+        }
+        deleteCachedProfile(currentUser.id);
+        throw new Error(PROFILE_NOT_FOUND);
+      }
 
       const resolvedProfile: UserProfile = {
         username: profile?.username ?? null,
@@ -289,7 +313,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       resolvedProfile.product_context = productContext;
 
       const activatedOwnerUserId = getActivatedDesktopOwnerUserId();
-      if (isDesktopRuntime() && activatedOwnerUserId && resolvedProfile.owner_user_id !== activatedOwnerUserId) {
+      if (isLocalAppRuntime() && activatedOwnerUserId && resolvedProfile.owner_user_id !== activatedOwnerUserId) {
         throw new Error(DESKTOP_ACTIVATION_OWNER_MISMATCH);
       }
 
@@ -298,7 +322,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch (error) {
       if (
         error instanceof Error
-        && (error.message === DESKTOP_ACTIVATION_OWNER_MISMATCH || error.message === SYSTEM_PRODUCT_CONTEXT_MISMATCH)
+        && (
+          error.message === DESKTOP_ACTIVATION_OWNER_MISMATCH
+          || error.message === SYSTEM_PRODUCT_CONTEXT_MISMATCH
+          || error.message === PROFILE_NOT_FOUND
+        )
       ) {
         throw error;
       }
@@ -306,17 +334,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.error('Erro inesperado ao carregar perfil do usuário:', getRedactedLogValue(error));
 
       const cachedProfile = readCachedProfile(currentUser.id);
-      if (cachedProfile && isDesktopRuntime() && isProbablyOfflineError(error)) {
+      if (cachedProfile && isLocalAppRuntime() && isProbablyOfflineError(error)) {
         return cachedProfile;
       }
 
-      return {
-        username: null,
-        email: currentUser.email ?? null,
-        role: 'admin',
-        owner_user_id: currentUser.id,
-        product_context: 'happycash',
-      };
+      throw error instanceof Error ? error : new Error('PROFILE_LOAD_FAILED');
     }
   }, [fetchStoreAccountProductContext]);
 
@@ -383,7 +405,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (!isMounted || currentRequestId !== syncRequestId) return;
 
         if (error || !data.user) {
-          if (isDesktopRuntime() && isProbablyOfflineError(error) && nextSession.user) {
+          if (isLocalAppRuntime() && isProbablyOfflineError(error) && nextSession.user) {
             setSession(nextSession);
             setUser(nextSession.user);
             await syncProfileState(nextSession.user);
@@ -407,7 +429,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         resetAuthState();
         if (
           error instanceof Error
-          && (error.message === DESKTOP_ACTIVATION_OWNER_MISMATCH || error.message === SYSTEM_PRODUCT_CONTEXT_MISMATCH)
+          && (
+            error.message === DESKTOP_ACTIVATION_OWNER_MISMATCH
+            || error.message === SYSTEM_PRODUCT_CONTEXT_MISMATCH
+            || error.message === PROFILE_NOT_FOUND
+          )
         ) {
           clearLocalSession();
         }
@@ -468,7 +494,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         resetAuthState();
         if (
           error instanceof Error
-          && (error.message === DESKTOP_ACTIVATION_OWNER_MISMATCH || error.message === SYSTEM_PRODUCT_CONTEXT_MISMATCH)
+          && (
+            error.message === DESKTOP_ACTIVATION_OWNER_MISMATCH
+            || error.message === SYSTEM_PRODUCT_CONTEXT_MISMATCH
+            || error.message === PROFILE_NOT_FOUND
+          )
         ) {
           clearLocalSession();
         }
@@ -486,18 +516,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!session?.access_token || !user) return;
 
-    const sendHeartbeat = () => {
-      void trackSystemAccessEvent(session.access_token, 'heartbeat');
+    let isActive = true;
+    let isValidatingProfile = false;
+
+    const validateProfileAccess = () => {
+      if (isValidatingProfile) return;
+      isValidatingProfile = true;
+
+      void fetchProfile(user)
+        .catch((error) => {
+          if (!isActive) return;
+
+          if (
+            error instanceof Error
+            && (
+              error.message === PROFILE_NOT_FOUND
+              || error.message === DESKTOP_ACTIVATION_OWNER_MISMATCH
+              || error.message === SYSTEM_PRODUCT_CONTEXT_MISMATCH
+            )
+          ) {
+            resetAuthState();
+            clearLocalSession();
+          }
+        })
+        .finally(() => {
+          isValidatingProfile = false;
+        });
     };
 
-    sendHeartbeat();
-
-    const heartbeatId = window.setInterval(sendHeartbeat, ACCESS_HEARTBEAT_INTERVAL_MS);
-
-    const handleFocus = () => sendHeartbeat();
+    const handleFocus = () => validateProfileAccess();
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
-        sendHeartbeat();
+        validateProfileAccess();
       }
     };
 
@@ -505,11 +555,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     document.addEventListener('visibilitychange', handleVisibilityChange);
 
     return () => {
-      window.clearInterval(heartbeatId);
+      isActive = false;
       window.removeEventListener('focus', handleFocus);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [session?.access_token, user]);
+  }, [clearLocalSession, fetchProfile, resetAuthState, session?.access_token, user]);
 
   const validateSignedInAdminSession = useCallback(async (signedInUser: User) => {
     const activation = readDesktopActivation();
@@ -518,17 +568,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const profile = await fetchProfile(signedInUser);
       if (activation?.ownerUserId && (profile.owner_user_id ?? signedInUser.id) !== activation.ownerUserId) {
         await supabase.auth.signOut({ scope: 'local' });
-        return `Este login nao pertence a empresa ativada neste desktop: ${activation.companyName}.`;
+        return `Este login nao pertence a empresa ativada neste ${getLocalActivationLabel()}: ${activation.companyName}.`;
       }
     } catch (activationError) {
       await supabase.auth.signOut({ scope: 'local' });
       if (activationError instanceof Error && activationError.message === DESKTOP_ACTIVATION_OWNER_MISMATCH) {
         return activation?.ownerUserId
-          ? `Este login nao pertence a empresa ativada neste desktop: ${activation.companyName}.`
+          ? `Este login nao pertence a empresa ativada neste ${getLocalActivationLabel()}: ${activation.companyName}.`
           : 'Nao foi possivel validar a empresa desta sessao.';
       }
       if (activationError instanceof Error && activationError.message === SYSTEM_PRODUCT_CONTEXT_MISMATCH) {
         return SYSTEM_PRODUCT_CONTEXT_MISMATCH_MESSAGE;
+      }
+      if (activationError instanceof Error && activationError.message === PROFILE_NOT_FOUND) {
+        return PROFILE_NOT_FOUND_MESSAGE;
       }
       return 'Nao foi possivel validar a empresa desta sessao.';
     }
@@ -550,7 +603,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         email,
         password,
         accessCode: accessCode?.replace(/\D/g, '').slice(0, 8) || null,
-        loginSurface: isDesktopRuntime() ? 'desktop' : 'web',
+        loginSurface: isDesktopRuntime() ? 'desktop' : isMobileAppRuntime() ? 'mobile' : 'web',
         desktopOwnerUserId: activation?.ownerUserId ?? null,
         captchaToken,
       },
@@ -662,7 +715,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const activation = readDesktopActivation();
 
     if (!activation?.ownerUserId) {
-      return 'Ative esta maquina com a chave da empresa antes do login offline.';
+      return 'Entre uma vez online neste aparelho antes do login offline.';
     }
 
     if (activation.appContext !== 'happycash') {
@@ -716,19 +769,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const activation = readDesktopActivation();
     const tryOfflineOperatorLogin = async () => {
       if (!activation?.ownerUserId) {
-        return 'Ative esta maquina com a chave da empresa antes do login offline.';
+        return 'Entre uma vez online neste aparelho antes do login offline.';
       }
 
       if (activation.appContext !== 'happycash') {
         return SYSTEM_PRODUCT_CONTEXT_MISMATCH_MESSAGE;
       }
-
-      const blockMessage = getLocalLoginBlockMessage({
-        namespace: 'offline-operator',
-        ownerUserId: activation.ownerUserId,
-        identifier: username,
-      });
-      if (blockMessage) return blockMessage;
 
       const verification = await verifyOfflineOperatorAccess({
         ownerUserId: activation.ownerUserId,
@@ -737,18 +783,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
 
       if (!verification.success) {
-        return recordLocalLoginFailure({
-          namespace: 'offline-operator',
-          ownerUserId: activation.ownerUserId,
-          identifier: username,
-        }) || verification.error;
+        return verification.error;
       }
-
-      clearLocalLoginFailures({
-        namespace: 'offline-operator',
-        ownerUserId: activation.ownerUserId,
-        identifier: username,
-      });
 
       clearSystemTemporarySessionPreference();
       await supabase.auth.signOut({ scope: 'local' });
@@ -766,7 +802,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return true;
     };
 
-    if (isDesktopRuntime() && typeof navigator !== 'undefined' && navigator.onLine === false) {
+    if (isLocalAppRuntime() && typeof navigator !== 'undefined' && navigator.onLine === false) {
       return tryOfflineOperatorLogin();
     }
 
@@ -787,18 +823,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }).catch((error) => ({ data: null, error }));
 
     if (error || !data?.success || !data.session?.access_token || !data.session?.refresh_token) {
-      if (isDesktopRuntime() && isProbablyOfflineError(error)) {
+      if (isLocalAppRuntime() && isProbablyOfflineError(error)) {
         return tryOfflineOperatorLogin();
       }
 
       let functionErrorMessage = data?.error || 'Usuário ou senha incorretos.';
+      let functionErrorCode = data?.code ?? null;
 
       if (error && typeof error === 'object' && 'context' in error && error.context instanceof Response) {
         try {
-          const errorPayload = await error.context.clone().json() as { error?: string; message?: string };
+          const errorPayload = await error.context.clone().json() as { error?: string; message?: string; code?: string };
           functionErrorMessage = errorPayload.error || errorPayload.message || functionErrorMessage;
+          functionErrorCode = errorPayload.code ?? functionErrorCode;
         } catch {
           functionErrorMessage = 'Usuário ou senha incorretos.';
+        }
+      }
+
+      if (functionErrorCode === OPERATOR_ACCESS_REMOVED && activation?.ownerUserId) {
+        const hadOfflineAccess = Boolean(readOfflineOperatorAccess(activation.ownerUserId, username));
+        if (hadOfflineAccess) {
+          deleteOfflineOperatorAccess(activation.ownerUserId, username);
+          return PROFILE_NOT_FOUND_MESSAGE;
         }
       }
 
@@ -829,14 +875,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       if (profileError instanceof Error && profileError.message === DESKTOP_ACTIVATION_OWNER_MISMATCH) {
         return activation?.ownerUserId
-          ? `Este login nao pertence a empresa ativada neste desktop: ${activation.companyName}.`
+          ? `Este login nao pertence a empresa ativada neste ${getLocalActivationLabel()}: ${activation.companyName}.`
           : 'Nao foi possivel validar esta sessao do operador.';
+      }
+      if (profileError instanceof Error && profileError.message === PROFILE_NOT_FOUND) {
+        if (activation?.ownerUserId) {
+          deleteOfflineOperatorAccess(activation.ownerUserId, username);
+        }
+        return PROFILE_NOT_FOUND_MESSAGE;
       }
       return 'Nao foi possivel validar esta sessao do operador.';
     }
 
     if (
-      isDesktopRuntime()
+      isLocalAppRuntime()
       && activation?.ownerUserId
       && data.operator?.userId
       && data.operator.role !== 'hr'
@@ -927,11 +979,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const logout = async () => {
-    if (session?.access_token) {
-      await trackSystemAccessEvent(session.access_token, 'logout');
-    }
-
-    clearSystemClientSessionId();
     clearSystemTemporarySessionPreference();
 
     if (localOfflineSession) {

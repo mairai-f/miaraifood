@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { PasswordInput } from '@/components/ui/password-input';
+import { Switch } from '@/components/ui/switch';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -20,14 +21,21 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { toast } from 'sonner';
-import { BriefcaseBusiness, CalendarDays, Camera, Eye, KeyRound, MapPin, Pencil, Plus, Trash2, Upload, Users, Wallet, XCircle } from 'lucide-react';
+import { BriefcaseBusiness, CalendarDays, Camera, Eye, KeyRound, MapPin, Pencil, Percent, Plus, Trash2, Upload, Users, Wallet, XCircle } from 'lucide-react';
 import type { Expense, Sale } from '@/types';
 import { getOperatorCredentialError, operatorCredentialHint } from '../../shared/security/operatorCredential';
 import { getPublicErrorMessage, getRedactedLogValue } from '../../shared/security/redaction';
 import { readDesktopActivation } from '@/lib/desktopActivation';
-import { saveOfflineOperatorAccess } from '@/lib/offlineOperatorAccess';
+import { deleteOfflineOperatorAccess, saveOfflineOperatorAccess } from '@/lib/offlineOperatorAccess';
 import { OperatorPermissionSelector, type OperatorPermissionOption } from '@/components/OperatorPermissionSelector';
-import { isErpPermissionKey, togglePermissionWithDependencies, type ErpPermissionKey } from '@/lib/permissions';
+import { usePermissions } from '@/contexts/usePermissions';
+import {
+  OPERATIONAL_MANAGER_PERMISSION_KEYS,
+  SENSITIVE_ADMIN_PERMISSION_KEYS,
+  isErpPermissionKey,
+  togglePermissionWithDependencies,
+  type ErpPermissionKey,
+} from '@/lib/permissions';
 
 // Generated Supabase types are behind the current schema for these admin tables.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -39,6 +47,8 @@ interface OperatorProfile {
   role: StaffRole;
   job_title: string | null;
   created_at: string;
+  commission_enabled?: boolean | null;
+  commission_rate_pct?: number | string | null;
 }
 
 type StaffRole = 'operator' | 'waiter' | 'hr';
@@ -77,7 +87,10 @@ interface OperatorFunctionResponse {
     address_state?: string | null;
     work_journey?: string | null;
     permission_keys?: string[];
+    commission_enabled?: boolean | null;
+    commission_rate_pct?: number | string | null;
   }>;
+  openCashSessions?: OpenCashSession[];
   cashSession?: {
     id: string;
   };
@@ -86,6 +99,8 @@ interface OperatorFunctionResponse {
     username: string;
     role?: StaffRole;
     job_title?: string;
+    commission_enabled?: boolean | null;
+    commission_rate_pct?: number | string | null;
   };
   error?: string;
 }
@@ -117,20 +132,25 @@ interface OperatorManagementPanelProps {
 }
 
 const fallbackJobTitle: Record<StaffRole, string> = {
-  operator: 'Funcionário',
-  waiter: 'Funcionário',
+  operator: 'Colaborador',
+  waiter: 'Colaborador',
   hr: 'Analista de RH',
 };
 const staffRoleLabels: Record<StaffRole, string> = {
-  operator: 'Funcionário',
-  waiter: 'Funcionário',
-  hr: 'Funcionário',
+  operator: 'Colaborador',
+  waiter: 'Colaborador',
+  hr: 'Colaborador',
 };
 const isHrPermissionKey = (permissionKey: ErpPermissionKey) => permissionKey.startsWith('hr.');
 const isEmployeePortalPermissionKey = (permissionKey: ErpPermissionKey) => permissionKey.startsWith('employee_portal.');
 const isEnterpriseOnlyPermissionKey = (permissionKey: ErpPermissionKey) =>
   isHrPermissionKey(permissionKey) || isEmployeePortalPermissionKey(permissionKey);
 const lockedStaffPermissionKeys = new Set<ErpPermissionKey>();
+const managerProtectedGrantKeys = new Set<ErpPermissionKey>([
+  ...SENSITIVE_ADMIN_PERMISSION_KEYS,
+  'staff.manage',
+  'multi_store.manage',
+]);
 const ensureRequiredStaffPermissions = (permissionKeys: Iterable<ErpPermissionKey>) => new Set<ErpPermissionKey>([
   ...permissionKeys,
   ...lockedStaffPermissionKeys,
@@ -139,6 +159,14 @@ const resolveStaffRoleFromPermissions = (_permissionKeys: Iterable<ErpPermission
 
 const normalizeLabel = (value: string | null | undefined) => value?.trim().toLowerCase() ?? '';
 const normalizePersonName = (value: string | null | undefined) => value?.trim().replace(/\s+/g, ' ') ?? '';
+const parsePercentInput = (value: string) => {
+  const parsed = Number(value.trim().replace(',', '.'));
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+const formatPercentInput = (value: number | string | null | undefined) => {
+  const parsed = typeof value === 'number' ? value : Number(String(value ?? '').replace(',', '.'));
+  return Number.isFinite(parsed) && parsed > 0 ? String(parsed).replace('.', ',') : '';
+};
 const normalizePersonNameKey = (value: string | null | undefined) =>
   normalizePersonName(value)
     .normalize('NFD')
@@ -199,6 +227,7 @@ export function OperatorManagementPanel({
   initialStaffRole,
 }: OperatorManagementPanelProps) {
   const { isAdmin, ownerUserId, session, user, username: currentUsername, profileEmail } = useAuth();
+  const { hasPermission } = usePermissions();
   const { sales, expenses, loading: dataLoading } = useData();
   const [operators, setOperators] = useState<OperatorProfile[]>([]);
   const [openCashSessions, setOpenCashSessions] = useState<OpenCashSession[]>([]);
@@ -211,6 +240,8 @@ export function OperatorManagementPanel({
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [jobTitle, setJobTitle] = useState('');
+  const [commissionEnabled, setCommissionEnabled] = useState(false);
+  const [commissionRatePct, setCommissionRatePct] = useState('');
   const [adminAuthorizationOpen, setAdminAuthorizationOpen] = useState(false);
   const [pendingAccessAction, setPendingAccessAction] = useState<'create' | 'update' | 'reset_password' | null>(null);
   const [adminAuthorizationEmail, setAdminAuthorizationEmail] = useState('');
@@ -258,10 +289,10 @@ export function OperatorManagementPanel({
 
   const createDialogOpen = controlledCreateDialogOpen ?? internalCreateDialogOpen;
   const setCreateDialogOpen = onCreateDialogOpenChange ?? setInternalCreateDialogOpen;
-  const canManageStaffAccess = isAdmin;
-  const canManageCashActions = isAdmin;
+  const canManageStaffAccess = isAdmin || hasPermission('staff.manage');
+  const canManageCashActions = isAdmin || hasPermission('pdv.open_cash');
   const canDeleteStaffAccess = isAdmin;
-  const accessAuthorizationLabel = 'administrador';
+  const accessAuthorizationLabel = isAdmin ? 'administrador' : 'gerente';
 
   const resetEmployeeBasicProfileForm = useCallback(() => {
     setPhotoUrl('');
@@ -353,6 +384,8 @@ export function OperatorManagementPanel({
     setUsername('');
     setPassword('');
     setJobTitle('');
+    setCommissionEnabled(false);
+    setCommissionRatePct('');
     setSelectedPermissionKeys(ensureRequiredStaffPermissions([]));
     resetEmployeeBasicProfileForm();
     setCreateStep('data');
@@ -412,7 +445,12 @@ export function OperatorManagementPanel({
       .finally(() => setLoadingPermissionOptions(false));
   }, [accessDialogOpen, permissionOptions.length]);
 
-  const visiblePermissionOptions = permissionOptions;
+  const visiblePermissionOptions = useMemo(
+    () => isAdmin
+      ? permissionOptions
+      : permissionOptions.filter((permission) => !managerProtectedGrantKeys.has(permission.permission_key)),
+    [isAdmin, permissionOptions],
+  );
 
   const resolveFunctionErrorMessage = useCallback(async (
     error: unknown,
@@ -463,7 +501,7 @@ export function OperatorManagementPanel({
       });
     } catch (error) {
       console.error('Nao foi possivel salvar o acesso offline do operador:', getRedactedLogValue(error));
-      toast.warning('Funcionário salvo online, mas nao foi possivel preparar o login offline nesta maquina.');
+      toast.warning('Colaborador salvo online, mas nao foi possivel preparar o login offline nesta maquina.');
     }
   }, [ownerUserId]);
 
@@ -497,7 +535,7 @@ export function OperatorManagementPanel({
       });
 
       if (error || !data?.success) {
-        toast.error(await resolveFunctionErrorMessage(error, 'Nao foi possivel carregar os acessos dos funcionários.', data));
+        toast.error(await resolveFunctionErrorMessage(error, 'Nao foi possivel carregar os acessos dos colaboradores.', data));
         setOperators([]);
         setOpenCashSessions([]);
         setOperatorFullNamesById({});
@@ -536,7 +574,7 @@ export function OperatorManagementPanel({
       }
 
       setOperators(nextOperators);
-      setOpenCashSessions([]);
+      setOpenCashSessions((data.openCashSessions ?? []) as OpenCashSession[]);
       setOperatorFullNamesById(nextOperatorFullNamesById);
       setEmployeeDetailsByOperatorId(nextEmployeeDetailsByOperatorId);
       setPermissionKeysByOperatorId(nextPermissionKeysByOperatorId);
@@ -552,7 +590,7 @@ export function OperatorManagementPanel({
     ] = await Promise.all([
       db
         .from('profiles')
-        .select('user_id, username, role, job_title, created_at')
+        .select('user_id, username, role, job_title, created_at, commission_enabled, commission_rate_pct')
         .eq('owner_user_id', ownerUserId)
         .in('role', ['operator', 'waiter', 'hr'])
         .order('created_at', { ascending: false }),
@@ -576,7 +614,7 @@ export function OperatorManagementPanel({
 
     if (operatorError) {
       console.error('Erro ao carregar operadores:', getRedactedLogValue(operatorError));
-      toast.error('Não foi possível carregar os funcionários');
+      toast.error('Não foi possível carregar os colaboradores');
     }
 
     if (openError) {
@@ -585,8 +623,8 @@ export function OperatorManagementPanel({
     }
 
     if (permissionError) {
-      console.error('Erro ao carregar acessos dos funcionários:', getRedactedLogValue(permissionError));
-      toast.error('Nao foi possivel carregar os acessos dos funcionários');
+      console.error('Erro ao carregar acessos dos colaboradores:', getRedactedLogValue(permissionError));
+      toast.error('Nao foi possivel carregar os acessos dos colaboradores');
     }
 
     if (employeeError) {
@@ -699,6 +737,16 @@ export function OperatorManagementPanel({
     )));
   };
 
+  const toggleManagerPermissions = (checked: boolean) => {
+    const visibleKeys = new Set(visiblePermissionOptions.map((permission) => permission.permission_key));
+    const managerKeys = OPERATIONAL_MANAGER_PERMISSION_KEYS.filter((permissionKey) => visibleKeys.has(permissionKey));
+
+    setSelectedPermissionKeys((current) => ensureRequiredStaffPermissions(managerKeys.reduce(
+      (next, permissionKey) => togglePermissionWithDependencies(next, permissionKey, checked),
+      ensureRequiredStaffPermissions(current),
+    )));
+  };
+
   const selectedPermissionNames = visiblePermissionOptions
     .filter((permission) => selectedPermissionKeys.has(permission.permission_key))
     .map((permission) => permission.name);
@@ -714,13 +762,25 @@ export function OperatorManagementPanel({
   const operatorCanOperateCash = (operator: OperatorProfile) =>
     operator.role !== 'hr' && (permissionKeysByOperatorId[operator.user_id]?.has('pdv.open_cash') ?? false);
 
+  const operatorHasManagerProtectedAccess = (operator: OperatorProfile) => {
+    const permissionKeys = permissionKeysByOperatorId[operator.user_id] ?? new Set<ErpPermissionKey>();
+    return [...permissionKeys].some((permissionKey) => managerProtectedGrantKeys.has(permissionKey));
+  };
+
   const handleEditOperator = (operator: OperatorProfile) => {
+    if (!isAdmin && (operator.user_id === user?.id || operatorHasManagerProtectedAccess(operator))) {
+      toast.error('Gerente pode editar somente colaboradores operacionais comuns.');
+      return;
+    }
+
     setEditingOperator(operator);
     setFullName(operatorFullNamesById[operator.user_id] ?? operator.username);
     setUsername(operator.username);
     setPassword('');
     resetAdminAuthorization();
     setJobTitle(operator.job_title?.trim() || fallbackJobTitle[operator.role]);
+    setCommissionEnabled(operator.commission_enabled === true);
+    setCommissionRatePct(formatPercentInput(operator.commission_rate_pct));
     setSelectedPermissionKeys(ensureRequiredStaffPermissions(permissionKeysByOperatorId[operator.user_id] ?? []));
     setEmployeeBasicProfileForm(employeeDetailsByOperatorId[operator.user_id]);
     setCreateStep('data');
@@ -730,27 +790,33 @@ export function OperatorManagementPanel({
 
   const validateAccessFormBeforeAuthorization = () => {
     if (!session?.access_token) {
-      toast.error('Sua sessão expirou. Entre novamente para cadastrar funcionários.');
+      toast.error('Sua sessão expirou. Entre novamente para cadastrar colaboradores.');
       return false;
     }
 
     if (!normalizedFullName || normalizedFullName.length < 3) {
-      toast.error('Informe o nome completo do funcionário.');
+      toast.error('Informe o nome completo do colaborador.');
       return false;
     }
 
     if (duplicateFullName) {
-      toast.error('Ja existe funcionário com esse nome completo. Use um segundo nome, sobrenome ou identificador diferente.');
+      toast.error('Ja existe colaborador com esse nome completo. Use um segundo nome, sobrenome ou identificador diferente.');
       return false;
     }
 
     if (!username.trim() || !password.trim() || !jobTitle.trim()) {
-      toast.error('Preencha nome, funcao, usuario e senha ou PIN');
+      toast.error('Preencha nome, funcao, usuario e PIN');
       return false;
     }
 
     if (selectedPermissionKeys.size === 0) {
-      toast.error('Selecione ao menos um acesso para o funcionário.');
+      toast.error('Selecione ao menos um acesso para o colaborador.');
+      setCreateStep('permissions');
+      return false;
+    }
+
+    if (!isAdmin && [...selectedPermissionKeys].some((permissionKey) => managerProtectedGrantKeys.has(permissionKey))) {
+      toast.error('Gerente não pode conceder acessos administrativos sensíveis.');
       setCreateStep('permissions');
       return false;
     }
@@ -761,12 +827,18 @@ export function OperatorManagementPanel({
       return false;
     }
 
+    const commissionRate = parsePercentInput(commissionRatePct);
+    if (isAdmin && commissionEnabled && (commissionRate <= 0 || commissionRate > 100)) {
+      toast.error('Informe uma comissão entre 0,01% e 100%.');
+      return false;
+    }
+
     return true;
   };
 
   const validateUpdateAccessBeforeAuthorization = () => {
     if (!session?.access_token || !editingOperator) {
-      toast.error('Sua sessao expirou. Entre novamente para editar funcionários.');
+      toast.error('Sua sessao expirou. Entre novamente para editar colaboradores.');
       return false;
     }
 
@@ -776,18 +848,30 @@ export function OperatorManagementPanel({
     }
 
     if (!normalizedFullName || normalizedFullName.length < 3) {
-      toast.error('Informe o nome completo do funcionário.');
+      toast.error('Informe o nome completo do colaborador.');
       return false;
     }
 
     if (duplicateFullName) {
-      toast.error('Ja existe funcionário com esse nome completo. Use um segundo nome, sobrenome ou identificador diferente.');
+      toast.error('Ja existe colaborador com esse nome completo. Use um segundo nome, sobrenome ou identificador diferente.');
       return false;
     }
 
     if (selectedPermissionKeys.size === 0) {
-      toast.error('Selecione ao menos um acesso para o funcionário.');
+      toast.error('Selecione ao menos um acesso para o colaborador.');
       setCreateStep('permissions');
+      return false;
+    }
+
+    if (!isAdmin && [...selectedPermissionKeys].some((permissionKey) => managerProtectedGrantKeys.has(permissionKey))) {
+      toast.error('Gerente não pode conceder acessos administrativos sensíveis.');
+      setCreateStep('permissions');
+      return false;
+    }
+
+    const commissionRate = parsePercentInput(commissionRatePct);
+    if (isAdmin && commissionEnabled && (commissionRate <= 0 || commissionRate > 100)) {
+      toast.error('Informe uma comissão entre 0,01% e 100%.');
       return false;
     }
 
@@ -813,8 +897,8 @@ export function OperatorManagementPanel({
     const normalizedLogin = login.trim().toLowerCase();
     const normalizedPassword = password.trim();
 
-    if (!isAdmin) {
-      setAdminAuthorizationError('Somente o administrador pode confirmar alterações de funcionários.');
+    if (!session?.access_token) {
+      setAdminAuthorizationError('Sua sessao expirou. Entre novamente para continuar.');
       return null;
     }
 
@@ -823,6 +907,12 @@ export function OperatorManagementPanel({
 
   const handleCreateOperator = async (adminEmail: string, adminPassword: string, adminAccessToken?: string) => {
     setCreating(true);
+    const commissionPayload = isAdmin
+      ? {
+        commissionEnabled,
+        commissionRatePct: commissionEnabled ? parsePercentInput(commissionRatePct) : 0,
+      }
+      : {};
 
     const { data, error } = await supabase.functions.invoke<OperatorFunctionResponse>('manage-operators', {
       headers: {
@@ -836,6 +926,7 @@ export function OperatorManagementPanel({
         jobTitle: jobTitle.trim(),
         staffRole: inferredStaffRole,
         permissionKeys: [...ensureRequiredStaffPermissions(selectedPermissionKeys)],
+        ...commissionPayload,
         ...buildEmployeeDetailsPayload(),
         adminEmail,
         adminPassword,
@@ -844,7 +935,7 @@ export function OperatorManagementPanel({
     });
 
     if (error || !data?.success || !data.operator) {
-      const message = await resolveFunctionErrorMessage(error, 'Não foi possível criar o funcionário', data);
+      const message = await resolveFunctionErrorMessage(error, 'Não foi possível criar o colaborador', data);
       toast.error(message);
       setAdminAuthorizationError(message);
       setAdminAuthorizationPassword('');
@@ -859,7 +950,7 @@ export function OperatorManagementPanel({
     await saveOperatorOfflineAccessIfPossible(data.operator, password.trim());
     resetCreateForm();
     handleCreateDialogOpenChange(false);
-    toast.success('Funcionário criado com sucesso');
+    toast.success('Colaborador criado com sucesso');
     await loadData();
     setCreating(false);
     resetAdminAuthorization();
@@ -869,6 +960,12 @@ export function OperatorManagementPanel({
   const handleUpdateOperatorAccess = async (adminEmail: string, adminPassword: string, adminAccessToken?: string) => {
     if (!editingOperator) return false;
     setCreating(true);
+    const commissionPayload = isAdmin
+      ? {
+        commissionEnabled,
+        commissionRatePct: commissionEnabled ? parsePercentInput(commissionRatePct) : 0,
+      }
+      : {};
     const { data, error } = await supabase.functions.invoke<OperatorFunctionResponse>('manage-operators', {
       headers: { Authorization: `Bearer ${session.access_token}` },
       body: {
@@ -878,6 +975,7 @@ export function OperatorManagementPanel({
         jobTitle: jobTitle.trim(),
         staffRole: inferredStaffRole,
         permissionKeys: [...ensureRequiredStaffPermissions(selectedPermissionKeys)],
+        ...commissionPayload,
         ...buildEmployeeDetailsPayload(),
         adminEmail,
         adminPassword,
@@ -886,7 +984,7 @@ export function OperatorManagementPanel({
     });
 
     if (error || !data?.success) {
-      const message = await resolveFunctionErrorMessage(error, 'Nao foi possivel atualizar o funcionário', data);
+      const message = await resolveFunctionErrorMessage(error, 'Nao foi possivel atualizar o colaborador', data);
       toast.error(message);
       setAdminAuthorizationError(message);
       setAdminAuthorizationPassword('');
@@ -945,8 +1043,13 @@ export function OperatorManagementPanel({
     }
 
     if (!selectedOperator) return;
+    if (!isAdmin && (selectedOperator.user_id === user?.id || operatorHasManagerProtectedAccess(selectedOperator))) {
+      toast.error('Gerente pode redefinir PIN somente de colaboradores operacionais comuns.');
+      return;
+    }
+
     if (!resetPassword.trim()) {
-      toast.error('Informe a nova senha ou PIN');
+      toast.error('Informe o novo PIN');
       return;
     }
     const credentialError = getOperatorCredentialError(resetPassword.trim());
@@ -1031,7 +1134,7 @@ export function OperatorManagementPanel({
 
     if (error || !data?.success || !data.cashSession) {
       console.error('Erro ao abrir caixa do operador:', getRedactedLogValue(error));
-      toast.error(await resolveFunctionErrorMessage(error, 'Não foi possível abrir o caixa para este funcionário', data));
+      toast.error(await resolveFunctionErrorMessage(error, 'Não foi possível abrir o caixa para este colaborador', data));
       setOpeningCash(false);
       return;
     }
@@ -1123,7 +1226,7 @@ export function OperatorManagementPanel({
 
   const handleDeleteOperator = async (operator: OperatorProfile) => {
     if (!session?.access_token) {
-      toast.error('Sua sessão expirou. Entre novamente para excluir funcionários.');
+      toast.error('Sua sessão expirou. Entre novamente para excluir colaboradores.');
       return;
     }
 
@@ -1141,12 +1244,16 @@ export function OperatorManagementPanel({
 
     if (error || !data?.success) {
       console.error('Erro ao excluir operador:', getRedactedLogValue(error));
-      toast.error(await resolveFunctionErrorMessage(error, 'Não foi possível excluir o funcionário', data));
+      toast.error(await resolveFunctionErrorMessage(error, 'Não foi possível excluir o colaborador', data));
       setDeletingOperatorId(null);
       return;
     }
 
-    toast.success(`Funcionário ${operator.username} excluido com sucesso`);
+    if (ownerUserId) {
+      deleteOfflineOperatorAccess(ownerUserId, operator.username);
+    }
+
+    toast.success(`Colaborador ${operator.username} excluido com sucesso`);
     await loadData();
     setDeletingOperatorId(null);
   };
@@ -1157,7 +1264,7 @@ export function OperatorManagementPanel({
         <CardHeader className="gap-4">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
             <div className="space-y-2">
-              <CardTitle className="text-lg">Funcionários, acessos e escala básica</CardTitle>
+              <CardTitle className="text-lg">Colaboradores, acessos e escala básica</CardTitle>
               <p className="text-sm text-muted-foreground">
                 Use Editar para ajustar cadastro, foto, endereço, escala e acessos individuais.
               </p>
@@ -1166,7 +1273,7 @@ export function OperatorManagementPanel({
             <div className="flex flex-col gap-3 lg:items-end">
               <Button onClick={() => handleCreateDialogOpenChange(true)} className="w-full lg:w-auto">
                 <Plus className="mr-2 h-4 w-4" />
-                Cadastrar funcionário
+                Cadastrar colaborador
               </Button>
 
               <div className={`grid gap-2 ${isAdmin ? 'grid-cols-2 sm:w-[280px]' : 'sm:w-[180px]'}`}>
@@ -1216,6 +1323,7 @@ export function OperatorManagementPanel({
                   const canOperateCash = operatorCanOperateCash(operator);
                   const employeeDetails = employeeDetailsByOperatorId[operator.user_id];
                   const displayName = operatorFullNamesById[operator.user_id] || operator.username;
+                  const canEditStaffRecord = isAdmin || (operator.user_id !== user?.id && !operatorHasManagerProtectedAccess(operator));
 
                   return (
                     <div key={operator.user_id} className="flex flex-col gap-3 p-3 sm:flex-row sm:items-center sm:justify-between">
@@ -1241,6 +1349,12 @@ export function OperatorManagementPanel({
                             <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${openSession ? 'bg-primary/15 text-primary' : 'bg-secondary text-muted-foreground'}`}>
                               {openSession ? 'Caixa aberto' : canOperateCash ? 'Caixa fechado' : 'Sem caixa'}
                             </span>
+                            {isAdmin && operator.commission_enabled ? (
+                              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">
+                                <Percent className="h-3 w-3" />
+                                {formatPercentInput(operator.commission_rate_pct)}%
+                              </span>
+                            ) : null}
                           </div>
                           <p className="truncate text-sm text-muted-foreground">
                             @{operator.username} · {operator.job_title?.trim() || fallbackJobTitle[operator.role]}
@@ -1253,6 +1367,8 @@ export function OperatorManagementPanel({
                       </div>
 
                       <div className="flex flex-wrap gap-2 sm:justify-end">
+                        {canEditStaffRecord ? (
+                          <>
                           <Button variant="outline" size="sm" onClick={() => handleEditOperator(operator)}>
                             <Pencil className="mr-2 h-4 w-4" />
                             Editar
@@ -1267,8 +1383,10 @@ export function OperatorManagementPanel({
                             }}
                           >
                             <KeyRound className="mr-2 h-4 w-4" />
-                            Senha
+                            PIN
                           </Button>
+                          </>
+                        ) : null}
                           {canManageCashActions && !openSession && canOperateCash && (
                             <Button
                               variant="outline"
@@ -1317,9 +1435,9 @@ export function OperatorManagementPanel({
                             </AlertDialogTrigger>
                             <AlertDialogContent>
                               <AlertDialogHeader>
-                                <AlertDialogTitle>Excluir funcionário?</AlertDialogTitle>
+                                <AlertDialogTitle>Excluir colaborador?</AlertDialogTitle>
                                 <AlertDialogDescription>
-                                  O funcionário "{operator.username}" sera removido do sistema.
+                                  O colaborador "{operator.username}" sera removido do sistema.
                                 </AlertDialogDescription>
                               </AlertDialogHeader>
                               <AlertDialogFooter>
@@ -1328,7 +1446,7 @@ export function OperatorManagementPanel({
                                   className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                                   onClick={() => void handleDeleteOperator(operator)}
                                 >
-                                  Excluir funcionário
+                                  Excluir colaborador
                                 </AlertDialogAction>
                               </AlertDialogFooter>
                             </AlertDialogContent>
@@ -1348,9 +1466,9 @@ export function OperatorManagementPanel({
         <DialogContent className="flex h-[100dvh] w-screen max-w-none flex-col gap-0 overflow-hidden rounded-none p-0 sm:h-[90vh] sm:max-w-6xl sm:rounded-lg">
           <DialogHeader>
             <div className="border-b px-4 py-4 sm:px-6">
-              <DialogTitle>{editingOperator ? 'Editar funcionário e acessos' : 'Cadastrar funcionário'}</DialogTitle>
+              <DialogTitle>{editingOperator ? 'Editar colaborador e acessos' : 'Cadastrar colaborador'}</DialogTitle>
               <DialogDescription className="mt-1 text-sm">
-                O administrador define cadastro, foto, endereco, escala basica e acessos marcando os checkboxes.
+                {isAdmin ? 'O administrador' : 'O gerente'} define cadastro, foto, endereco, escala basica e acessos marcando os checkboxes.
               </DialogDescription>
               <div className="mt-3 grid grid-cols-3 gap-2 md:hidden">
                 {(['data', 'permissions', 'review'] as const).map((step, index) => (
@@ -1389,7 +1507,7 @@ export function OperatorManagementPanel({
                     {photoUrl ? (
                       <img
                         src={photoUrl}
-                        alt="Foto do funcionário"
+                        alt="Foto do colaborador"
                         className="h-20 w-20 shrink-0 rounded-lg border border-border object-cover"
                       />
                     ) : (
@@ -1433,15 +1551,15 @@ export function OperatorManagementPanel({
                   <Input
                     value={username}
                     onChange={event => setUsername(event.target.value)}
-                    placeholder="Ex: funcionario.caixa"
+                    placeholder="Ex: colaborador.caixa"
                     readOnly={Boolean(editingOperator)}
                     autoComplete="username"
                   />
                 </div>
                 {!editingOperator && (
                   <div className="space-y-1">
-                    <Label>Senha ou PIN inicial</Label>
-                    <PasswordInput value={password} onChange={event => setPassword(event.target.value)} placeholder="Use uma senha forte ou PIN" />
+                    <Label>PIN inicial</Label>
+                    <PasswordInput value={password} onChange={event => setPassword(event.target.value)} placeholder="Use 4 a 8 numeros" />
                     <p className="text-xs text-muted-foreground">{operatorCredentialHint}</p>
                   </div>
                 )}
@@ -1516,16 +1634,49 @@ export function OperatorManagementPanel({
                     {formatBasicWorkJourney(workScheduleDays, workScheduleStartTime, workScheduleEndTime) || 'Nenhuma escala definida.'}
                   </p>
                 </div>
+                {isAdmin && (
+                  <div className="rounded-lg border border-border p-3">
+                    <div className="mb-3 flex items-center justify-between gap-3">
+                      <div className="flex min-w-0 items-center gap-2 text-sm font-medium">
+                        <Percent className="h-4 w-4 text-primary" />
+                        Comissão
+                      </div>
+                      <Switch
+                        aria-label="Ativar comissão do colaborador"
+                        checked={commissionEnabled}
+                        onCheckedChange={setCommissionEnabled}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label>Percentual sobre vendas</Label>
+                      <Input
+                        inputMode="decimal"
+                        value={commissionRatePct}
+                        disabled={!commissionEnabled}
+                        onChange={event => setCommissionRatePct(event.target.value.replace(/[^\d,.]/g, '').slice(0, 6))}
+                        placeholder="Ex: 3"
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Entra no relatório de comissões quando estiver ativo. O cálculo usa vendas válidas do período vinculadas ao colaborador.
+                      </p>
+                    </div>
+                  </div>
+                )}
                 <div className="rounded-lg border border-primary/20 bg-primary/5 p-3">
-                  <p className="text-sm font-medium">Acessos do funcionário</p>
+                  <p className="text-sm font-medium">Acessos do colaborador</p>
                   <p className="mt-1 text-xs text-muted-foreground">
-                    Marque somente os módulos que este funcionário pode abrir no sistema.
+                    Marque somente os módulos que este colaborador pode abrir no sistema.
                   </p>
                 </div>
                 <div className="hidden rounded-lg border bg-muted/30 p-3 text-sm md:block">
                   <p className="font-medium">Resumo</p>
                   <p className="text-muted-foreground">{staffRoleLabels[inferredStaffRole]} · {normalizedFullName || 'Nome nao informado'} · {jobTitle || 'Funcao nao informada'} · {selectedPermissionKeys.size} acessos</p>
                   <p className="mt-1 text-xs text-muted-foreground">{formatBasicWorkJourney(workScheduleDays, workScheduleStartTime, workScheduleEndTime) || 'Escala nao informada'}</p>
+                  {isAdmin && (
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Comissão: {commissionEnabled ? `${parsePercentInput(commissionRatePct).toFixed(2).replace('.', ',')}%` : 'inativa'}
+                    </p>
+                  )}
                 </div>
               </div>
             </form>
@@ -1535,9 +1686,11 @@ export function OperatorManagementPanel({
                 permissions={visiblePermissionOptions}
                 selected={selectedPermissionKeys}
                 locked={lockedStaffPermissionKeys}
+                managerPermissionKeys={isAdmin ? OPERATIONAL_MANAGER_PERMISSION_KEYS : []}
                 loading={loadingPermissionOptions}
                 onToggle={togglePermission}
                 onToggleModule={togglePermissionModule}
+                onToggleManager={isAdmin ? toggleManagerPermissions : undefined}
               />
             </div>
 
@@ -1549,6 +1702,7 @@ export function OperatorManagementPanel({
                 <div><p className="text-xs text-muted-foreground">Usuário</p><p className="font-semibold">{username || 'Não informado'}</p></div>
                 <div><p className="text-xs text-muted-foreground">Endereço</p><p className="font-semibold">{[addressStreet, addressNumber, addressCity, addressState].filter(Boolean).join(', ') || 'Não informado'}</p></div>
                 <div><p className="text-xs text-muted-foreground">Escala</p><p className="font-semibold">{formatBasicWorkJourney(workScheduleDays, workScheduleStartTime, workScheduleEndTime) || 'Não informada'}</p></div>
+                {isAdmin && <div><p className="text-xs text-muted-foreground">Comissão</p><p className="font-semibold">{commissionEnabled ? `${parsePercentInput(commissionRatePct).toFixed(2).replace('.', ',')}%` : 'Inativa'}</p></div>}
                 <div><p className="text-xs text-muted-foreground">Acessos ({selectedPermissionNames.length})</p><p className="mt-1 text-sm">{selectedPermissionNames.join(', ') || 'Nenhum acesso selecionado'}</p></div>
               </div>
             </div>
@@ -1609,7 +1763,7 @@ export function OperatorManagementPanel({
               />
             </div>
             <div className="space-y-1">
-              <Label>Senha ou PIN do {accessAuthorizationLabel}</Label>
+              <Label>Senha/PIN do {accessAuthorizationLabel}</Label>
               <PasswordInput
                 name="operator-access-admin-password"
                 value={adminAuthorizationPassword}
@@ -1643,7 +1797,7 @@ export function OperatorManagementPanel({
       >
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Fechar caixa do funcionário</DialogTitle>
+            <DialogTitle>Fechar caixa do colaborador</DialogTitle>
             <DialogDescription>
               Confirme com o administrador para registrar o fechamento do caixa.
             </DialogDescription>
@@ -1657,7 +1811,7 @@ export function OperatorManagementPanel({
             }}
           >
             <div className="rounded-md border border-border bg-secondary/30 p-3 text-sm">
-              <p className="text-muted-foreground">Funcionário</p>
+              <p className="text-muted-foreground">Colaborador</p>
               <p className="font-semibold">{cashSessionToClose?.operator.username || '-'}</p>
               <p className="mt-2 text-muted-foreground">Total atual</p>
               <p className="font-semibold">
@@ -1716,9 +1870,9 @@ export function OperatorManagementPanel({
       >
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Abrir caixa para funcionário</DialogTitle>
+            <DialogTitle>Abrir caixa para colaborador</DialogTitle>
             <DialogDescription>
-              Informe o valor inicial para abrir o caixa do funcionário selecionado.
+              Informe o valor inicial para abrir o caixa do colaborador selecionado.
             </DialogDescription>
           </DialogHeader>
 
@@ -1730,7 +1884,7 @@ export function OperatorManagementPanel({
             }}
           >
             <div className="space-y-1">
-              <Label>Funcionário</Label>
+              <Label>Colaborador</Label>
               <Input value={operatorToOpenCash?.username || ''} readOnly />
             </div>
             <div className="space-y-1">
@@ -1745,7 +1899,7 @@ export function OperatorManagementPanel({
               />
             </div>
             <p className="text-xs text-muted-foreground">
-              O funcionário selecionado tera o caixa aberto com este valor inicial.
+              O colaborador selecionado tera o caixa aberto com este valor inicial.
             </p>
 
             <DialogFooter>
@@ -1772,9 +1926,9 @@ export function OperatorManagementPanel({
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Redefinir senha do funcionário</DialogTitle>
+            <DialogTitle>Redefinir PIN do colaborador</DialogTitle>
             <DialogDescription>
-              Defina uma nova senha ou PIN para o funcionário usar no login.
+              Defina um novo PIN para o colaborador usar no login.
             </DialogDescription>
           </DialogHeader>
           <form
@@ -1785,15 +1939,15 @@ export function OperatorManagementPanel({
             }}
           >
             <div className="space-y-1">
-              <Label>Funcionário</Label>
+              <Label>Colaborador</Label>
               <Input value={selectedOperator?.username || ''} readOnly />
             </div>
             <div className="space-y-1">
-              <Label>Nova senha ou PIN</Label>
+              <Label>Novo PIN</Label>
               <PasswordInput
                 value={resetPassword}
                 onChange={event => setResetPassword(event.target.value)}
-                placeholder="Informe uma senha forte ou PIN"
+                placeholder="Use 4 a 8 numeros"
                 autoComplete="new-password"
               />
               <p className="text-xs text-muted-foreground">{operatorCredentialHint}</p>

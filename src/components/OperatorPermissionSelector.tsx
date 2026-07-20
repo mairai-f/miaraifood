@@ -15,9 +15,11 @@ interface OperatorPermissionSelectorProps {
   permissions: OperatorPermissionOption[];
   selected: ReadonlySet<ErpPermissionKey>;
   locked?: ReadonlySet<ErpPermissionKey>;
+  managerPermissionKeys?: readonly ErpPermissionKey[];
   loading: boolean;
   onToggle: (permissionKey: ErpPermissionKey, checked: boolean) => void;
   onToggleModule: (permissionKeys: ErpPermissionKey[], checked: boolean) => void;
+  onToggleManager?: (checked: boolean) => void;
 }
 
 const moduleLabels: Record<string, string> = {
@@ -25,7 +27,7 @@ const moduleLabels: Record<string, string> = {
   products: 'Produtos', stock: 'Estoque', purchases: 'Compras e fornecedores', reports: 'Relatórios',
   financial: 'Financeiro', pricing: 'Precificação', fiscal: 'Fiscal', rewards: 'Recompensas',
 	  deleted: 'Registros excluídos', settings: 'Configurações', staff: 'Acessos',
-	  security: 'Segurança e auditoria', hr: 'Recursos Humanos', employee_portal: 'Portal do funcionário', delivery: 'Delivery', conciliation: 'Conciliação',
+	  security: 'Segurança e auditoria', hr: 'Recursos Humanos', employee_portal: 'Portal do colaborador', delivery: 'Delivery', conciliation: 'Conciliação',
   multi_store: 'Filiais', time_clock: 'Relógio de ponto', self_service: 'Autoatendimento',
 };
 
@@ -33,9 +35,11 @@ export function OperatorPermissionSelector({
   permissions,
   selected,
   locked = new Set(),
+  managerPermissionKeys = [],
   loading,
   onToggle,
   onToggleModule,
+  onToggleManager,
 }: OperatorPermissionSelectorProps) {
   const grouped = useMemo(() => {
     const modules = new Map<string, OperatorPermissionOption[]>();
@@ -47,6 +51,23 @@ export function OperatorPermissionSelector({
     return [...modules.entries()];
   }, [permissions]);
 
+  const visiblePermissionKeys = useMemo(
+    () => new Set(permissions.map((permission) => permission.permission_key)),
+    [permissions],
+  );
+  const visibleManagerPermissionKeys = useMemo(
+    () => managerPermissionKeys.filter((permissionKey) => visiblePermissionKeys.has(permissionKey)),
+    [managerPermissionKeys, visiblePermissionKeys],
+  );
+  const selectedManagerPermissionCount = visibleManagerPermissionKeys.filter((permissionKey) =>
+    selected.has(permissionKey) || locked.has(permissionKey)
+  ).length;
+  const managerChecked = visibleManagerPermissionKeys.length > 0 && selectedManagerPermissionCount === visibleManagerPermissionKeys.length
+    ? true
+    : selectedManagerPermissionCount > 0
+      ? 'indeterminate'
+      : false;
+
   if (loading) return <p className="py-8 text-center text-sm text-muted-foreground">Carregando acessos...</p>;
 
   return (
@@ -56,6 +77,22 @@ export function OperatorPermissionSelector({
         <span>O mesmo acesso vale para Web, Desktop e Mobile.</span>
         <Badge variant="outline">{selected.size} selecionados</Badge>
       </div>
+
+      {visibleManagerPermissionKeys.length > 0 && onToggleManager && (
+        <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-primary/25 bg-primary/5 p-4">
+          <Checkbox
+            className="mt-0.5"
+            checked={managerChecked}
+            onCheckedChange={(checked) => onToggleManager(checked === true)}
+          />
+          <span className="min-w-0">
+            <span className="block text-sm font-semibold">Controle operacional total</span>
+            <span className="block text-xs text-muted-foreground">
+              Marca os acessos de gerente para rotina da loja, sem transformar o colaborador em administrador dono da conta.
+            </span>
+          </span>
+        </label>
+      )}
 
       <div className="grid gap-3 lg:grid-cols-2">
         {grouped.map(([moduleKey, modulePermissions]) => {

@@ -319,11 +319,29 @@ export type OfflineStatus = {
   };
 };
 
+const getNativeOfflineApi = () => {
+  if (typeof window === 'undefined') return undefined;
+  return window.electronAPI?.offline ?? window.happyCashMobileAPI?.offline;
+};
+
+const getNativeAppApi = () => {
+  if (typeof window === 'undefined') return undefined;
+  return window.electronAPI?.app ?? window.happyCashMobileAPI?.app;
+};
+
+const isHappyCashMobileUserAgent = () =>
+  typeof navigator !== 'undefined' && /HappyCashAndroid\//i.test(navigator.userAgent);
+
 export const isOfflineConcentratorAvailable = () =>
-  typeof window !== 'undefined' && Boolean(window.electronAPI?.offline);
+  Boolean(getNativeOfflineApi());
 
 export const isDesktopRuntime = () =>
   typeof window !== 'undefined' && Boolean(window.electronAPI);
+
+export const isMobileAppRuntime = () =>
+  typeof window !== 'undefined' && (Boolean(window.happyCashMobileAPI) || isHappyCashMobileUserAgent());
+
+export const isLocalAppRuntime = () => isDesktopRuntime() || isMobileAppRuntime();
 
 const noopSnapshotResult = {
   snapshot: null,
@@ -331,8 +349,9 @@ const noopSnapshotResult = {
 };
 
 export const readDesktopRuntimeInfo = async () => {
-  if (!window.electronAPI?.app) return null;
-  return window.electronAPI.app.getRuntimeInfo() as Promise<DesktopRuntimeInfo>;
+  const appApi = getNativeAppApi();
+  if (!appApi?.getRuntimeInfo) return null;
+  return appApi.getRuntimeInfo() as Promise<DesktopRuntimeInfo>;
 };
 
 export const readDesktopUpdateStatus = async () => {
@@ -361,16 +380,21 @@ export const onDesktopUpdateStatus = (callback: (status: DesktopUpdateStatus) =>
 };
 
 export const replaceOfflineSnapshot = async (ownerUserId: string, snapshot: OfflineSnapshot) => {
-  if (!window.electronAPI?.offline) return null;
-  return window.electronAPI.offline.replaceSnapshot({ ownerUserId, snapshot });
+  const offlineApi = getNativeOfflineApi();
+  if (!offlineApi) return null;
+  return offlineApi.replaceSnapshot({ ownerUserId, snapshot });
 };
 
 export const getOfflineSnapshot = async (ownerUserId: string): Promise<{
   snapshot: OfflineSnapshot | null;
   updatedAt: string | null;
 }> => {
-  if (!window.electronAPI?.offline) return noopSnapshotResult;
-  return window.electronAPI.offline.getSnapshot({ ownerUserId });
+  const offlineApi = getNativeOfflineApi();
+  if (!offlineApi) return noopSnapshotResult;
+  return offlineApi.getSnapshot({ ownerUserId }) as Promise<{
+    snapshot: OfflineSnapshot | null;
+    updatedAt: string | null;
+  }>;
 };
 
 export const enqueueOfflineOperation = async (
@@ -378,21 +402,24 @@ export const enqueueOfflineOperation = async (
   operationType: OfflineOperationType,
   payload: OfflineOperationPayload,
 ) => {
-  if (!window.electronAPI?.offline) return null;
-  return window.electronAPI.offline.enqueue({ ownerUserId, operationType, payload }) as Promise<OfflineQueueItem | null>;
+  const offlineApi = getNativeOfflineApi();
+  if (!offlineApi) return null;
+  return offlineApi.enqueue({ ownerUserId, operationType, payload }) as Promise<OfflineQueueItem | null>;
 };
 
 export const listOfflineQueue = async (
   ownerUserId: string,
   statuses?: OfflineOperationStatus[],
 ) => {
-  if (!window.electronAPI?.offline) return [];
-  return window.electronAPI.offline.listQueue({ ownerUserId, statuses }) as Promise<OfflineQueueItem[]>;
+  const offlineApi = getNativeOfflineApi();
+  if (!offlineApi) return [];
+  return offlineApi.listQueue({ ownerUserId, statuses }) as Promise<OfflineQueueItem[]>;
 };
 
 export const updateOfflineQueueItem = async (payload: OfflineQueueUpdateInput) => {
-  if (!window.electronAPI?.offline) return null;
-  return window.electronAPI.offline.updateQueueItem(payload) as Promise<OfflineQueueItem | null>;
+  const offlineApi = getNativeOfflineApi();
+  if (!offlineApi) return null;
+  return offlineApi.updateQueueItem(payload) as Promise<OfflineQueueItem | null>;
 };
 
 export const recordOfflineConflict = async (
@@ -402,8 +429,9 @@ export const recordOfflineConflict = async (
   message: string,
   payload: OfflineOperationPayload,
 ) => {
-  if (!window.electronAPI?.offline) return null;
-  return window.electronAPI.offline.recordConflict({
+  const offlineApi = getNativeOfflineApi();
+  if (!offlineApi) return null;
+  return offlineApi.recordConflict({
     ownerUserId,
     operationId,
     operationType,
@@ -413,31 +441,36 @@ export const recordOfflineConflict = async (
 };
 
 export const listOfflineConflicts = async (ownerUserId: string) => {
-  if (!window.electronAPI?.offline) return [];
-  return window.electronAPI.offline.listConflicts({ ownerUserId }) as Promise<OfflineConflictRecord[]>;
+  const offlineApi = getNativeOfflineApi();
+  if (!offlineApi) return [];
+  return offlineApi.listConflicts({ ownerUserId }) as Promise<OfflineConflictRecord[]>;
 };
 
 export const resolveOfflineConflict = async (id: string, resolved = true) => {
-  if (!window.electronAPI?.offline) return null;
-  return window.electronAPI.offline.resolveConflict({ id, resolved }) as Promise<OfflineConflictRecord | null>;
+  const offlineApi = getNativeOfflineApi();
+  if (!offlineApi) return null;
+  return offlineApi.resolveConflict({ id, resolved }) as Promise<OfflineConflictRecord | null>;
 };
 
 export const retryOfflineOperation = async (
   operationId: string,
   resolveConflicts = true,
 ): Promise<OfflineRetryResult | null> => {
-  if (!window.electronAPI?.offline) return null;
-  return window.electronAPI.offline.retryOperation({ operationId, resolveConflicts }) as Promise<OfflineRetryResult | null>;
+  const offlineApi = getNativeOfflineApi();
+  if (!offlineApi) return null;
+  return offlineApi.retryOperation({ operationId, resolveConflicts }) as Promise<OfflineRetryResult | null>;
 };
 
 export const cleanupOfflineData = async (ownerUserId: string): Promise<OfflineCleanupResult | null> => {
-  if (!window.electronAPI?.offline) return null;
-  return window.electronAPI.offline.cleanupData({ ownerUserId }) as Promise<OfflineCleanupResult | null>;
+  const offlineApi = getNativeOfflineApi();
+  if (!offlineApi) return null;
+  return offlineApi.cleanupData({ ownerUserId }) as Promise<OfflineCleanupResult | null>;
 };
 
 export const getOfflineStatus = async (ownerUserId: string): Promise<OfflineStatus | null> => {
-  if (!window.electronAPI?.offline) return null;
-  return window.electronAPI.offline.getStatus({ ownerUserId }) as Promise<OfflineStatus>;
+  const offlineApi = getNativeOfflineApi();
+  if (!offlineApi) return null;
+  return offlineApi.getStatus({ ownerUserId }) as Promise<OfflineStatus>;
 };
 
 export const isProbablyOfflineError = (error: unknown) => {

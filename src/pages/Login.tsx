@@ -24,6 +24,7 @@ import {
 } from '@/lib/authSessionPreferences';
 import { clearDesktopActivation, readDesktopActivation } from '@/lib/desktopActivation';
 import { readOfflineAdminAccess } from '@/lib/offlineAdminAccess';
+import { isLocalAppRuntime, isMobileAppRuntime } from '@/lib/offlineConcentrator';
 import type { Database } from '@/integrations/supabase/types';
 import { getOperatorCredentialError } from '../../shared/security/operatorCredential';
 import { requestTurnstileToken } from '../../shared/security/turnstile';
@@ -98,8 +99,12 @@ export default function Login() {
   const [submitting, setSubmitting] = useState(false);
   const [oauthSubmitting, setOauthSubmitting] = useState(false);
   const { login, signInWithGoogle, loginOfflineAdmin, loginOperator } = useAuth();
-  const isDesktop = typeof window !== 'undefined' && Boolean(window.electronAPI);
-  const canUseGoogleLogin = adminAccessMode === 'online' && !isDesktop && typeof window !== 'undefined' && /^https?:$/.test(window.location.protocol);
+  const isLocalRuntime = isLocalAppRuntime();
+  const isMobileApp = isMobileAppRuntime();
+  const localDeviceReference = isMobileApp ? 'este aparelho' : 'esta maquina';
+  const localDeviceSetupReference = isMobileApp ? 'deste aparelho' : 'desta maquina';
+  const localRuntimeLabel = isMobileApp ? 'app Android' : 'desktop';
+  const canUseGoogleLogin = adminAccessMode === 'online' && !isLocalRuntime && typeof window !== 'undefined' && /^https?:$/.test(window.location.protocol);
 
   const [operatorRecoveryOpen, setOperatorRecoveryOpen] = useState(false);
   const [operatorRecoveryStep, setOperatorRecoveryStep] = useState<OperatorRecoveryStep>('email');
@@ -426,11 +431,11 @@ export default function Login() {
               {desktopActivation && (
                 <div className="mt-4 rounded-[20px] border border-[#d9e3f2] bg-[#f4f7fc] px-4 py-3 text-left text-[13px] leading-5 text-[#5f6f86] sm:text-sm sm:leading-6">
                   <p className="font-semibold text-[#24324a]">{desktopActivation.companyName}</p>
-                  {!isDesktop && (
+                  {isLocalRuntime && (
                     <p className="mt-1.5">
                       {offlineAdminAvailable
-                        ? 'Empresa reconhecida nesta maquina. Ao entrar online, o desktop baixa os dados da loja e atualiza a copia local para uso offline.'
-                        : 'Empresa reconhecida nesta maquina. No primeiro acesso, entre como administrador com email e senha para cadastrar o usuario admin offline desta maquina.'}
+                        ? `Empresa reconhecida ${localDeviceReference}. Ao entrar online, o ${localRuntimeLabel} baixa os dados da loja e atualiza a copia local para uso offline.`
+                        : `Empresa reconhecida ${localDeviceReference}. No primeiro acesso, entre como administrador com email e senha para cadastrar o usuario admin offline ${localDeviceSetupReference}.`}
                     </p>
                   )}
                   <button
@@ -441,13 +446,13 @@ export default function Login() {
                       window.location.reload();
                     }}
                   >
-                    Trocar chave desta máquina
+                    Trocar chave {localDeviceSetupReference}
                   </button>
                 </div>
               )}
               {!isOnline && !offlineAdminAvailable && (
                 <div className="mt-4 rounded-[20px] border border-red-200 bg-red-50 px-4 py-3 text-[13px] leading-5 text-red-700 sm:text-sm sm:leading-6">
-                  Esta maquina ainda nao tem usuario admin offline configurado. Conecte a internet, entre com email e senha e finalize o cadastro local.
+                  {isMobileApp ? 'Este aparelho' : 'Esta maquina'} ainda nao tem usuario admin offline configurado. Conecte a internet, entre com email e senha e finalize o cadastro local.
                 </div>
               )}
 

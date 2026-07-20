@@ -41,7 +41,6 @@ export const ERP_PERMISSION_KEYS = [
   'settings.manage',
   'staff.manage',
   'rbac.manage',
-  'access_monitor.view',
   'audit.view',
   'hr.view',
   'hr.employees.manage',
@@ -69,6 +68,51 @@ export const ERP_PERMISSION_KEYS = [
 ] as const;
 
 export type ErpPermissionKey = (typeof ERP_PERMISSION_KEYS)[number];
+
+export const OPERATIONAL_MANAGER_PERMISSION_KEYS = [
+  'dashboard.view',
+  'pdv.use',
+  'pdv.open_cash',
+  'pdv.close_cash',
+  'pdv.cash_out',
+  'pdv.cancel_sale',
+  'pdv.edit_price',
+  'pdv.sell_without_stock',
+  'pdv.view_other_cashiers',
+  'pdv.change_seller',
+  'service_tickets.use',
+  'service_tickets.transfer',
+  'service_tickets.cancel',
+  'clients.view',
+  'clients.manage',
+  'products.view',
+  'products.manage',
+  'stock.view',
+  'stock.manage',
+  'purchases.view',
+  'purchases.manage',
+  'reports.view',
+  'financial.view',
+  'financial.manage',
+  'pricing.view',
+  'pricing.manage',
+  'fiscal.view',
+  'rewards.manage',
+  'deleted.view',
+  'staff.manage',
+  'delivery.use',
+  'conciliation.manage',
+  'multi_store.manage',
+  'time_clock.manage',
+  'self_service.manage',
+] as const satisfies readonly ErpPermissionKey[];
+
+export const SENSITIVE_ADMIN_PERMISSION_KEYS = [
+  'settings.manage',
+  'rbac.manage',
+  'fiscal.manage',
+  'audit.view',
+] as const satisfies readonly ErpPermissionKey[];
 
 const operatorDefaults = new Set<ErpPermissionKey>([
   'dashboard.view',

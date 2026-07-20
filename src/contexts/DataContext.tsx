@@ -445,7 +445,7 @@ const DataContext = createContext<DataContextType | null>(null);
 
 export function DataProvider({ children }: { children: ReactNode }) {
   const { user, username, profileEmail, ownerUserId, loading: authLoading, isAdmin, isLocalOfflineSession, role } = useAuth();
-  const { isDesktop, offlineEnabled } = useDesktopRuntime();
+  const { isLocalRuntime, isMobileApp, offlineEnabled } = useDesktopRuntime();
   const { hasFeature, loading: planLoading, planId } = usePlanAccess();
   const { scope: operationalScope, loading: operationalScopeLoading } = useOperationalScope();
   const location = useLocation();
@@ -475,7 +475,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [offlineSnapshotUpdatedAt, setOfflineSnapshotUpdatedAt] = useState<string | null>(null);
   const isDemoMode = planId === 'demo';
   const isHrOnlySession = role === 'hr';
-  const canUseOfflineConcentrator = isDesktop && offlineEnabled && isOfflineConcentratorAvailable();
+  const canUseOfflineConcentrator = isLocalRuntime && offlineEnabled && isOfflineConcentratorAvailable();
+  const localDeviceLabel = isMobileApp ? 'aparelho' : 'computador';
   const actorDisplayName = username?.trim()
     || profileEmail?.trim()
     || user?.email?.trim()
@@ -535,11 +536,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
     fullStorePrefetchStartedRef.current = false;
   }, [dataScopeKey, ownerUserId, user?.id]);
 
-  const markOfflineNotReady = useCallback((message = 'Este computador ainda nao foi preparado para uso offline. Conecte a internet, entre uma vez e aguarde o download dos dados da loja terminar.') => {
+  const markOfflineNotReady = useCallback((message = `Este ${localDeviceLabel} ainda nao foi preparado para uso offline. Conecte a internet, entre uma vez e aguarde o download dos dados da loja terminar.`) => {
     setOfflinePreparationStatus('not-ready');
     setOfflinePreparationMessage(message);
     setOfflineSnapshotUpdatedAt(null);
-  }, []);
+  }, [localDeviceLabel]);
 
   useEffect(() => {
     if (!user || !ownerUserId || !isDemoMode) return;
@@ -566,7 +567,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
         if (result.snapshot) {
           setOfflinePreparationStatus('ready');
-          setOfflinePreparationMessage('Dados offline preparados neste computador.');
+          setOfflinePreparationMessage(`Dados offline preparados neste ${localDeviceLabel}.`);
           setOfflineSnapshotUpdatedAt(result.updatedAt ?? result.snapshot.savedAt ?? null);
         } else {
           markOfflineNotReady();
@@ -574,7 +575,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       } catch {
         if (!cancelled) {
           setOfflinePreparationStatus('error');
-          setOfflinePreparationMessage('Nao foi possivel verificar o preparo offline deste computador.');
+          setOfflinePreparationMessage(`Nao foi possivel verificar o preparo offline deste ${localDeviceLabel}.`);
           setOfflineSnapshotUpdatedAt(null);
         }
       }
@@ -583,7 +584,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, [canUseOfflineConcentrator, isDemoMode, markOfflineNotReady, ownerUserId]);
+  }, [canUseOfflineConcentrator, isDemoMode, localDeviceLabel, markOfflineNotReady, ownerUserId]);
 
   const applyOfflineSnapshot = useCallback((snapshot: OfflineSnapshot) => {
     setClients(sortClientsByCreatedAt(snapshot.clients ?? []));
@@ -682,11 +683,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
     applyOfflineSnapshot(offlineSnapshotResult.snapshot);
     setOfflinePreparationStatus('ready');
-    setOfflinePreparationMessage('Usando os dados offline salvos neste computador.');
+    setOfflinePreparationMessage(`Usando os dados offline salvos neste ${localDeviceLabel}.`);
     setOfflineSnapshotUpdatedAt(offlineSnapshotResult.updatedAt ?? offlineSnapshotResult.snapshot.savedAt ?? null);
     setLoading(false);
     return true;
-  }, [applyOfflineSnapshot, canUseOfflineConcentrator, clearStoreData, markOfflineNotReady, ownerUserId]);
+  }, [applyOfflineSnapshot, canUseOfflineConcentrator, clearStoreData, localDeviceLabel, markOfflineNotReady, ownerUserId]);
 
     const getNextTrackedStock = useCallback((product: Product, quantityDelta: number) => {
     const nextStock = Number(product.stock || 0) + quantityDelta;
@@ -754,7 +755,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
     if (shouldRefreshOfflineSnapshot) {
       setOfflinePreparationStatus('preparing');
-      setOfflinePreparationMessage('Preparando acesso offline... baixando e salvando os dados da loja neste computador.');
+      setOfflinePreparationMessage(`Preparando acesso offline... baixando e salvando os dados da loja neste ${localDeviceLabel}.`);
     }
 
     const needsOperationalSettings = requestedModules.includes('storeOperationalSettings');
@@ -1173,7 +1174,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       try {
         await replaceOfflineSnapshot(ownerUserId, snapshot);
         setOfflinePreparationStatus('ready');
-        setOfflinePreparationMessage('Acesso offline pronto. Se a internet cair, estes dados serao carregados deste computador.');
+        setOfflinePreparationMessage(`Acesso offline pronto. Se a internet cair, estes dados serao carregados deste ${localDeviceLabel}.`);
         setOfflineSnapshotUpdatedAt(snapshot.savedAt);
         fullSnapshotPrimedRef.current = true;
       } catch (error) {
@@ -1194,6 +1195,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     isHrOnlySession,
     isDemoMode,
     isLocalOfflineSession,
+    localDeviceLabel,
     loadOfflineSnapshotFallback,
     loadedModules,
     operationalLocationId,

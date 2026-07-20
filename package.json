@@ -17,7 +17,6 @@
     "mobile:install": "npm install --prefix mobile",
     "mobile:start": "npm --prefix mobile run start",
     "mobile:android": "npm --prefix mobile run android",
-    "mobile:ios": "npm --prefix mobile run ios",
     "mobile:web": "npm --prefix mobile run web",
     "mobile:build:android:apk": "npm --prefix mobile run build:android:apk",
     "mobile:build:android:store": "npm --prefix mobile run build:android:store",

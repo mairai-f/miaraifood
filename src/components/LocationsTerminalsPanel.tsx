@@ -27,7 +27,7 @@ import { PasswordInput } from '@/components/ui/password-input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { getRedactedLogValue, maskEmail } from '../../shared/security/redaction';
+import { getRedactedLogValue } from '../../shared/security/redaction';
 
 interface StoreLocationRow {
   id: string;
@@ -50,58 +50,11 @@ interface PosTerminalRow {
   installation_id: string | null;
   active: boolean;
   last_seen_at: string | null;
-  current_user_id?: string | null;
-  current_username?: string | null;
-  current_email?: string | null;
-  current_user_role?: string | null;
-  current_session_started_at?: string | null;
-  current_session_seen_at?: string | null;
 }
 
 type PendingDeleteAction =
   | { type: 'location'; location: StoreLocationRow }
   | { type: 'terminal'; terminal: PosTerminalRow };
-
-const TERMINAL_ACTIVE_WINDOW_MS = 10 * 60_000;
-
-const terminalUserRoleLabel: Record<string, string> = {
-  admin: 'Administrador',
-  operator: 'Operador',
-  waiter: 'Garcom',
-  hr: 'RH',
-};
-
-const parseTimestamp = (value?: string | null) => {
-  if (!value) return null;
-  const parsed = new Date(value).getTime();
-  return Number.isFinite(parsed) ? parsed : null;
-};
-
-const getTerminalSeenAt = (terminal: PosTerminalRow) =>
-  terminal.current_session_seen_at || terminal.last_seen_at;
-
-const isTerminalOnline = (terminal: PosTerminalRow) => {
-  if (!terminal.active) return false;
-  const seenAt = parseTimestamp(getTerminalSeenAt(terminal));
-  return Boolean(seenAt && Date.now() - seenAt <= TERMINAL_ACTIVE_WINDOW_MS);
-};
-
-const formatTerminalSeenAt = (terminal: PosTerminalRow) => {
-  const seenAt = parseTimestamp(getTerminalSeenAt(terminal));
-  if (!seenAt) return 'Sem atividade';
-
-  const elapsedMinutes = Math.max(0, Math.floor((Date.now() - seenAt) / 60_000));
-  if (elapsedMinutes < 1) return 'Agora';
-  if (elapsedMinutes < 60) return `${elapsedMinutes} min atras`;
-
-  const elapsedHours = Math.floor(elapsedMinutes / 60);
-  if (elapsedHours < 24) return `${elapsedHours} h atras`;
-
-  return `${Math.floor(elapsedHours / 24)} d atras`;
-};
-
-const getTerminalUserName = (terminal: PosTerminalRow) =>
-  terminal.current_username || maskEmail(terminal.current_email) || (terminal.current_user_id ? 'Usuario identificado' : null);
 
 /** Painel Web; filiais e terminais nao entram no bundle operacional do Electron. */
 export function LocationsTerminalsPanel() {
@@ -215,6 +168,11 @@ export function LocationsTerminalsPanel() {
       : [],
     [activeProducts, selectedTransferProduct, transferProductSearch],
   );
+  const terminalBeingEdited = useMemo(
+    () => terminals.find((terminal) => terminal.id === terminalEditingId) ?? null,
+    [terminalEditingId, terminals],
+  );
+  const terminalIdentityLocked = Boolean(terminalBeingEdited?.installation_id || terminalBeingEdited?.code === 'LEGACY');
 
   useEffect(() => {
     if (activeLocations.length === 0) return;
@@ -395,33 +353,38 @@ export function LocationsTerminalsPanel() {
     const normalizedCode = normalizeStoreScopeCode(terminalCode);
     const currentTerminal = terminals.find((terminal) => terminal.id === terminalEditingId);
     const isLegacyTerminal = currentTerminal?.code === 'LEGACY';
-    if (!terminalName.trim() || !terminalLocationId || !isValidStoreScopeCode(normalizedCode)) {
+    const isActivatedTerminal = Boolean(currentTerminal?.installation_id);
+    const nextCode = isLegacyTerminal || isActivatedTerminal ? currentTerminal?.code ?? '' : normalizedCode;
+
+    if (!currentTerminal) {
+      toast.info('O terminal aparece automaticamente depois da ativacao do HappyCash Desktop.');
+      return;
+    }
+
+    if (!terminalName.trim() || !terminalLocationId || !isValidStoreScopeCode(nextCode)) {
       toast.error('Informe filial, nome e codigo valido para o terminal.');
       return;
     }
 
     setSaving(true);
     try {
-      const wasEditing = Boolean(terminalEditingId);
       const payload = {
         store_account_id: storeAccountId,
         owner_user_id: ownerUserId,
         location_id: isLegacyTerminal ? currentTerminal.location_id : terminalLocationId,
-        code: isLegacyTerminal ? currentTerminal.code : normalizedCode,
+        code: nextCode,
         name: terminalName.trim(),
-        terminal_type: terminalType,
+        terminal_type: isActivatedTerminal ? currentTerminal.terminal_type : terminalType,
       };
       // Tipos gerados serao atualizados depois da aplicacao da migracao.
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const db = supabase as any;
-      const { error } = terminalEditingId
-        ? await db.from('pos_terminals').update(payload).eq('id', terminalEditingId)
-        : await db.from('pos_terminals').insert(payload);
+      const { error } = await db.from('pos_terminals').update(payload).eq('id', currentTerminal.id);
       if (error) throw error;
       resetTerminalForm();
       setTerminalDialogOpen(false);
       await loadData();
-      toast.success(wasEditing ? 'Terminal atualizado.' : 'Terminal cadastrado.');
+      toast.success('Terminal atualizado.');
     } catch (error) {
       console.error('Erro ao salvar terminal:', getRedactedLogValue(error));
       toast.error('Nao foi possivel salvar o terminal. Verifique se o codigo ja existe.');
@@ -674,42 +637,47 @@ export function LocationsTerminalsPanel() {
                   <h3 id="terminals-title" className="flex items-center gap-2 text-sm font-semibold">
                     <MonitorSmartphone className="h-4 w-4 text-primary" /> Terminais
                   </h3>
-                  <p className="text-xs text-muted-foreground">Desktop ativado e reconhecido automaticamente.</p>
+                  <p className="text-xs text-muted-foreground">Maquinas desktop autorizadas pela ativacao da empresa.</p>
                 </div>
                 <Dialog open={terminalDialogOpen} onOpenChange={(open) => {
                   setTerminalDialogOpen(open);
                   if (!open) resetTerminalForm();
                 }}>
-                  <DialogTrigger asChild><Button type="button" size="sm" variant="outline"><Plus className="mr-1 h-4 w-4" />Novo terminal</Button></DialogTrigger>
+                  <Badge variant="outline">Cadastro automatico pelo desktop</Badge>
                   <DialogContent>
                     <form onSubmit={handleSaveTerminal}>
-                      <DialogHeader><DialogTitle>{terminalEditingId ? 'Editar terminal' : 'Cadastrar terminal'}</DialogTitle></DialogHeader>
+                      <DialogHeader>
+                        <DialogTitle>Editar terminal</DialogTitle>
+                        <DialogDescription>
+                          O cadastro nasce na ativacao do HappyCash Desktop. Aqui voce ajusta nome, filial e bloqueio do terminal.
+                        </DialogDescription>
+                      </DialogHeader>
                       <div className="space-y-4 py-4">
                         <div className="space-y-1">
                           <Label>Filial</Label>
-                          <Select value={terminalLocationId} onValueChange={setTerminalLocationId} disabled={terminals.find((terminal) => terminal.id === terminalEditingId)?.code === 'LEGACY'}>
+                          <Select value={terminalLocationId} onValueChange={setTerminalLocationId} disabled={terminalBeingEdited?.code === 'LEGACY'}>
                             <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                             <SelectContent>{locations.filter((location) => location.active).map((location) => <SelectItem key={location.id} value={location.id}>{location.name}</SelectItem>)}</SelectContent>
                           </Select>
                         </div>
                         <div className="space-y-1"><Label htmlFor="terminal-name">Nome</Label><Input id="terminal-name" value={terminalName} onChange={(event) => setTerminalName(event.target.value)} placeholder="Caixa 01" /></div>
-                        <div className="space-y-1"><Label htmlFor="terminal-code">Codigo</Label><Input id="terminal-code" value={terminalCode} disabled={terminals.find((terminal) => terminal.id === terminalEditingId)?.code === 'LEGACY'} onChange={(event) => setTerminalCode(normalizeStoreScopeCode(event.target.value))} placeholder="CX-01" maxLength={32} /></div>
+                        <div className="space-y-1"><Label htmlFor="terminal-code">Codigo</Label><Input id="terminal-code" value={terminalCode} disabled={terminalIdentityLocked} onChange={(event) => setTerminalCode(normalizeStoreScopeCode(event.target.value))} placeholder="CX-01" maxLength={32} /></div>
                         <div className="space-y-1">
                           <Label>Tipo</Label>
-                          <Select value={terminalType} onValueChange={(value) => setTerminalType(value as PosTerminalType)}>
+                          <Select value={terminalType} onValueChange={(value) => setTerminalType(value as PosTerminalType)} disabled={terminalIdentityLocked}>
                             <SelectTrigger><SelectValue /></SelectTrigger>
                             <SelectContent>{Object.entries(posTerminalTypeLabels).map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}</SelectContent>
                           </Select>
                         </div>
                       </div>
-                      <DialogFooter><Button type="submit" disabled={saving}>{saving ? 'Salvando...' : terminalEditingId ? 'Salvar terminal' : 'Cadastrar terminal'}</Button></DialogFooter>
+                      <DialogFooter><Button type="submit" disabled={saving}>{saving ? 'Salvando...' : 'Salvar terminal'}</Button></DialogFooter>
                     </form>
                   </DialogContent>
                 </Dialog>
               </div>
               <div className="overflow-x-auto rounded-lg border">
                 <Table>
-                  <TableHeader><TableRow><TableHead>Terminal</TableHead><TableHead>Filial</TableHead><TableHead>Tipo</TableHead><TableHead>Usuario atual</TableHead><TableHead>Vinculo</TableHead><TableHead className="text-right">Acoes</TableHead></TableRow></TableHeader>
+                  <TableHeader><TableRow><TableHead>Terminal</TableHead><TableHead>Filial</TableHead><TableHead>Tipo</TableHead><TableHead>Vinculo</TableHead><TableHead className="text-right">Ativo</TableHead><TableHead className="text-right">Acoes</TableHead></TableRow></TableHeader>
                   <TableBody>
                     {terminals.map((terminal) => (
                       <TableRow key={terminal.id}>
@@ -717,28 +685,14 @@ export function LocationsTerminalsPanel() {
                           <div className="space-y-1">
                             <div className="flex flex-wrap items-center gap-2">
                               <p className="font-medium">{terminal.name}</p>
-                              <Badge variant={isTerminalOnline(terminal) ? 'default' : 'outline'}>
-                                {isTerminalOnline(terminal) ? 'Online' : 'Offline'}
-                              </Badge>
                             </div>
                             <p className="font-mono text-xs text-muted-foreground">{terminal.code}</p>
                           </div>
                         </TableCell>
                         <TableCell>{locationNameById.get(terminal.location_id) ?? 'Filial removida'}</TableCell>
                         <TableCell>{posTerminalTypeLabels[terminal.terminal_type]}</TableCell>
-                        <TableCell>
-                          {getTerminalUserName(terminal) ? (
-                            <div className="space-y-1">
-                              <p className="font-medium">{getTerminalUserName(terminal)}</p>
-                              <p className="text-xs text-muted-foreground">
-                                {terminal.current_user_role ? terminalUserRoleLabel[terminal.current_user_role] ?? terminal.current_user_role : 'Perfil nao informado'} - {formatTerminalSeenAt(terminal)}
-                              </p>
-                            </div>
-                          ) : (
-                            <span className="text-xs text-muted-foreground">Sem usuario conectado</span>
-                          )}
-                        </TableCell>
                         <TableCell>{terminal.installation_id ? <Badge variant="secondary">Desktop vinculado</Badge> : <span className="text-xs text-muted-foreground">Manual</span>}</TableCell>
+                        <TableCell className="text-right">{terminal.active ? <Badge>Autorizado</Badge> : <Badge variant="outline">Bloqueado</Badge>}</TableCell>
                         <TableCell className="text-right">
                           <div className="flex items-center justify-end gap-2">
                             <Button type="button" size="icon" variant="ghost" onClick={() => openTerminalEdit(terminal)} aria-label={`Editar ${terminal.name}`}>
@@ -755,7 +709,7 @@ export function LocationsTerminalsPanel() {
                             >
                               <Trash2 className="h-4 w-4" />
                             </Button>
-                            <Switch aria-label={`Ativar ${terminal.name}`} checked={terminal.active} disabled={terminal.code === 'LEGACY' || Boolean(terminal.installation_id)} onCheckedChange={(active) => void updateActiveState('pos_terminals', terminal.id, active)} />
+                            <Switch aria-label={`Ativar ${terminal.name}`} checked={terminal.active} disabled={terminal.code === 'LEGACY'} onCheckedChange={(active) => void updateActiveState('pos_terminals', terminal.id, active)} />
                           </div>
                         </TableCell>
                       </TableRow>

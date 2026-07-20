@@ -1,6 +1,6 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState, type ChangeEvent } from 'react';
-import { BarChart3, Building2, Calculator, ChevronRight, ClipboardList, Clock3, DatabaseBackup, Download, FileText, Gift, Laptop, Loader2, MapPinned, PackageSearch, Settings as SettingsIcon, Shield, ShieldAlert, Trash2, UserCog, WalletCards } from 'lucide-react';
-import { Link, useParams } from 'react-router-dom';
+import { BarChart3, Building2, Calculator, ChevronRight, ClipboardList, Clock3, DatabaseBackup, Download, FileText, Gift, Laptop, Loader2, MapPinned, PackageSearch, Settings as SettingsIcon, ShieldAlert, Trash2, UserCog, WalletCards } from 'lucide-react';
+import { Link, useLocation, useParams } from 'react-router-dom';
 import { DataRouteLoader } from '@/components/DataRouteLoader';
 import { useAuth } from '@/contexts/AuthContext';
 import { useDesktopRuntime } from '@/contexts/DesktopRuntimeContext';
@@ -101,7 +101,7 @@ interface SettingsNavigationItem {
 const settingsNavigationItems: SettingsNavigationItem[] = [
   { path: '/configuracoes/empresa', section: 'empresa', title: 'Empresa', description: 'Dados, identidade e configuracao de impressao.', icon: Building2, featureKey: 'settings.manage', permissionKey: 'settings.manage', runtimeScope: 'both' },
   { path: '/configuracoes/backup', section: 'backup', title: 'Backup', description: 'Exportacao e restauracao dos dados.', icon: DatabaseBackup, featureKey: 'settings.manage', permissionKey: 'settings.manage', runtimeScope: 'both' },
-  { path: '/configuracoes/colaboradores', section: 'colaboradores', title: 'Funcionários', description: 'Cadastro, foto, endereco, acessos e escala basica.', icon: UserCog, featureKey: 'hr.manage', permissionKey: 'settings.manage', runtimeScope: 'both' },
+  { path: '/configuracoes/colaboradores', section: 'colaboradores', title: 'Colaboradores', description: 'Cadastro, foto, endereco, acessos e escala basica.', icon: UserCog, featureKey: 'settings.manage', permissionKey: 'settings.manage', runtimeScope: 'both' },
   { path: '/configuracoes/filiais', section: 'filiais', title: 'Filiais e terminais', description: 'Lojas, terminais e escopo operacional.', icon: MapPinned, featureKey: 'settings.manage', permissionKey: 'multi_store.manage', runtimeScope: 'web' },
   { path: '/configuracoes/catalogo', section: 'catalogo', title: 'Catalogo avancado', description: 'Marcas, grupos, unidades e tabelas.', icon: PackageSearch, featureKey: 'settings.manage', permissionKey: 'products.manage', runtimeScope: 'web' },
   { path: '/configuracoes/desktop', section: 'desktop', title: 'Desktop e offline', description: 'Atualizacoes, sincronizacao e conflitos.', icon: Laptop, featureKey: 'settings.manage', permissionKey: 'settings.manage', runtimeScope: 'desktop' },
@@ -110,7 +110,6 @@ const settingsNavigationItems: SettingsNavigationItem[] = [
   { path: '/notas', title: 'Notas', description: 'Configuracao e emissao fiscal.', icon: FileText, featureKey: 'notes.manage', permissionKey: 'fiscal.view', runtimeScope: 'both', fiscalDesktopAccess: true },
   { path: '/relatorios', title: 'Relatorios', description: 'Vendas, caixa, estoque e indicadores.', icon: BarChart3, featureKey: 'reports.view', permissionKey: 'reports.view', runtimeScope: 'both' },
   { path: '/operacoes', title: 'Operacoes', description: 'Compras, fornecedores e reposicao.', icon: ClipboardList, featureKey: 'financial.manage', permissionKey: 'purchases.view', runtimeScope: 'both' },
-  { path: '/acessos', title: 'Acessos', description: 'Monitoramento e seguranca da equipe.', icon: Shield, featureKey: 'settings.manage', permissionKey: 'access_monitor.view', runtimeScope: 'web' },
   { path: '/recompensas', title: 'Recompensas', description: 'Fidelidade e beneficios dos clientes.', icon: Gift, featureKey: 'rewards.manage', permissionKey: 'rewards.manage', runtimeScope: 'both' },
   { path: '/precificacao', title: 'Precificacao', description: 'Custos, margens e regras de preco.', icon: Calculator, featureKey: 'pricing.manage', permissionKey: 'pricing.view', runtimeScope: 'both' },
   { path: '/excluidos', title: 'Excluidos', description: 'Consulte cadastros removidos.', icon: Trash2, featureKey: 'deleted.view', permissionKey: 'deleted.view', runtimeScope: 'both' },
@@ -177,7 +176,13 @@ export default function Settings() {
   const { refetch, syncNow, loading: dataLoading } = data;
   const { subscription, countdown, statusLabel, loading: loadingSubscription } = useCurrentSubscription();
   const { section: routeSection } = useParams<{ section?: string }>();
-  const matchedSettingsSection = settingsNavigationItems.find((item) => item.section === routeSection)?.section ?? null;
+  const location = useLocation();
+  const routeSectionFromPath = location.pathname.startsWith('/configuracoes/')
+    ? location.pathname.split('/').filter(Boolean).at(-1)
+    : undefined;
+  const matchedSettingsSection = settingsNavigationItems.find((item) =>
+    item.section === (routeSection ?? routeSectionFromPath)
+  )?.section ?? null;
   const activeSettingsSection: SettingsSection | null = matchedSettingsSection;
   const [resetTarget, setResetTarget] = useState<ResetTarget | null>(null);
   const [resetDialogOpen, setResetDialogOpen] = useState(false);
@@ -1131,7 +1136,7 @@ export default function Settings() {
       </Card>}
 
       {activeSettingsSection === 'colaboradores' && (
-        <Suspense fallback={<SettingsSectionLoader label="Carregando funcionários..." />}>
+        <Suspense fallback={<SettingsSectionLoader label="Carregando colaboradores..." />}>
           <OperatorManagementPanel />
         </Suspense>
       )}
@@ -1164,7 +1169,7 @@ export default function Settings() {
         </CardHeader>
         <CardContent className="space-y-3">
           <p className="text-sm text-muted-foreground">
-            Os clientes, produtos e funcionarios continuam cadastrados.
+            Os clientes, produtos e colaboradores continuam cadastrados.
           </p>
 
           <Dialog open={resetDialogOpen} onOpenChange={handleResetDialogOpenChange}>

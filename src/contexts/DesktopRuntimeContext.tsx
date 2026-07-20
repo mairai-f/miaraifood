@@ -19,6 +19,8 @@ interface DesktopLicenseResponse {
 
 interface DesktopRuntimeContextValue {
   isDesktop: boolean;
+  isMobileApp: boolean;
+  isLocalRuntime: boolean;
   checking: boolean;
   licensed: boolean;
   offlineEnabled: boolean;
@@ -32,10 +34,17 @@ interface DesktopRuntimeContextValue {
 }
 
 const DesktopRuntimeContext = createContext<DesktopRuntimeContextValue | null>(null);
+const isHappyCashMobileUserAgent = () =>
+  typeof navigator !== 'undefined' && /HappyCashAndroid\//i.test(navigator.userAgent);
 const isDesktopRuntime = typeof window !== 'undefined' && Boolean(window.electronAPI);
-const licenseCacheKey = (userId: string) => `happycash:desktop:license:${userId}`;
-const OFFLINE_VALIDATION_GRACE_DAYS = 5;
-const OFFLINE_VALIDATION_GRACE_MS = OFFLINE_VALIDATION_GRACE_DAYS * 24 * 60 * 60 * 1000;
+const isMobileAppRuntime = typeof window !== 'undefined' && (Boolean(window.happyCashMobileAPI) || isHappyCashMobileUserAgent());
+const isLocalRuntime = isDesktopRuntime || isMobileAppRuntime;
+const localRuntimeKind = isMobileAppRuntime ? 'mobile' : 'desktop';
+const localRuntimeLabel = isMobileAppRuntime ? 'app Android' : 'desktop';
+const licenseCacheKey = (userId: string) => `happycash:${localRuntimeKind}:license:${userId}`;
+const OFFLINE_VALIDATION_GRACE_HOURS = 24;
+const OFFLINE_VALIDATION_GRACE_MS = OFFLINE_VALIDATION_GRACE_HOURS * 60 * 60 * 1000;
+const OFFLINE_VALIDATION_GRACE_LABEL = '24 horas';
 
 const toTimestamp = (value: string | null | undefined) => {
   if (!value) return null;
@@ -91,8 +100,8 @@ const writeCachedLicense = (
 
 export function DesktopRuntimeProvider({ children }: { children: ReactNode }) {
   const { session, user, ownerUserId, loading: authLoading, isLocalOfflineSession } = useAuth();
-  const [checking, setChecking] = useState(isDesktopRuntime);
-  const [licensed, setLicensed] = useState(!isDesktopRuntime);
+  const [checking, setChecking] = useState(isLocalRuntime);
+  const [licensed, setLicensed] = useState(!isLocalRuntime);
   const [offlineEnabled, setOfflineEnabled] = useState(false);
   const [validUntil, setValidUntil] = useState<string | null>(null);
   const [validationExpiresAt, setValidationExpiresAt] = useState<string | null>(null);
@@ -103,7 +112,7 @@ export function DesktopRuntimeProvider({ children }: { children: ReactNode }) {
 
   const resetState = useCallback((nextChecking: boolean) => {
     setChecking(nextChecking);
-    setLicensed(!isDesktopRuntime);
+    setLicensed(!isLocalRuntime);
     setOfflineEnabled(false);
     setValidUntil(null);
     setValidationExpiresAt(null);
@@ -114,7 +123,7 @@ export function DesktopRuntimeProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const refresh = useCallback(async () => {
-    if (!isDesktopRuntime) {
+    if (!isLocalRuntime) {
       resetState(false);
       return;
     }
@@ -170,8 +179,8 @@ export function DesktopRuntimeProvider({ children }: { children: ReactNode }) {
       }
 
       const expiredMessage = cachedValidationExpiresAt
-        ? `A validacao offline expirou. Conecte o HappyCash a internet para renovar o acesso apos ${OFFLINE_VALIDATION_GRACE_DAYS} dias.`
-        : 'Esta maquina ainda nao possui uma validacao offline pronta para uso.';
+        ? `A validacao offline expirou. Conecte o HappyCash a internet para renovar o acesso apos ${OFFLINE_VALIDATION_GRACE_LABEL}.`
+        : `Este ${localRuntimeLabel} ainda nao possui uma validacao offline pronta para uso.`;
 
       setLicensed(false);
       setOfflineEnabled(Boolean(cachedLicense?.offlineEnabled));
@@ -197,7 +206,7 @@ export function DesktopRuntimeProvider({ children }: { children: ReactNode }) {
       setValidationExpiresAt(null);
       setUsingOfflineValidationCache(false);
       setPlanId(null);
-      setError('Sua sessao online expirou ou nao foi carregada. Saia e entre novamente com o administrador para validar a licenca desktop.');
+      setError(`Sua sessao online expirou ou nao foi carregada. Saia e entre novamente com o administrador para validar a licenca do ${localRuntimeLabel}.`);
       setCode('SESSION_UNAVAILABLE');
       setChecking(false);
       return;
@@ -205,7 +214,7 @@ export function DesktopRuntimeProvider({ children }: { children: ReactNode }) {
 
     setChecking(true);
 
-    const desktopActivation = readDesktopActivation();
+    const desktopActivation = isDesktopRuntime ? readDesktopActivation() : null;
     const { data, error: invokeError } = await supabase.functions.invoke<DesktopLicenseResponse>('desktop-license', {
       headers: {
         Authorization: `Bearer ${session.access_token}`,
@@ -213,7 +222,7 @@ export function DesktopRuntimeProvider({ children }: { children: ReactNode }) {
       body: {
         desktopInstallationId: desktopActivation?.installationId ?? null,
         desktopStoreAccountId: desktopActivation?.storeAccountId ?? null,
-        desktopAppContext: desktopActivation?.appContext ?? 'happycash',
+        desktopAppContext: isMobileAppRuntime ? 'mobile' : desktopActivation?.appContext ?? 'happycash',
       },
     });
 
@@ -252,7 +261,7 @@ export function DesktopRuntimeProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      let message = data?.error || 'Nao foi possivel validar sua licenca desktop agora.';
+      let message = data?.error || `Nao foi possivel validar sua licenca do ${localRuntimeLabel} agora.`;
       let nextCode = data?.code || null;
       const shouldPreferOfflineValidationMessage = Boolean(cachedLicense)
         && (((typeof navigator !== 'undefined' && navigator.onLine === false) || isProbablyOfflineError(invokeError)));
@@ -263,7 +272,7 @@ export function DesktopRuntimeProvider({ children }: { children: ReactNode }) {
         && toTimestamp(cachedValidationExpiresAt)
         && toTimestamp(cachedValidationExpiresAt)! <= Date.now()
       ) {
-        message = `A validacao offline expirou. Conecte o HappyCash a internet para renovar o acesso apos ${OFFLINE_VALIDATION_GRACE_DAYS} dias.`;
+        message = `A validacao offline expirou. Conecte o HappyCash a internet para renovar o acesso apos ${OFFLINE_VALIDATION_GRACE_LABEL}.`;
         nextCode = 'OFFLINE_VALIDATION_EXPIRED';
       }
 
@@ -291,7 +300,7 @@ export function DesktopRuntimeProvider({ children }: { children: ReactNode }) {
       }
 
       setLicensed(false);
-      setError(getPublicErrorMessage(message, 'Nao foi possivel validar sua licenca desktop agora.'));
+      setError(getPublicErrorMessage(message, `Nao foi possivel validar sua licenca do ${localRuntimeLabel} agora.`));
       setCode(nextCode);
       setValidationExpiresAt(cachedValidationExpiresAt);
       setUsingOfflineValidationCache(false);
@@ -328,6 +337,8 @@ export function DesktopRuntimeProvider({ children }: { children: ReactNode }) {
     <DesktopRuntimeContext.Provider
       value={{
         isDesktop: isDesktopRuntime,
+        isMobileApp: isMobileAppRuntime,
+        isLocalRuntime,
         checking,
         licensed,
         offlineEnabled,

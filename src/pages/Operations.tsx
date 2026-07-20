@@ -23,7 +23,7 @@ import { useOperationalScope } from '@/contexts/useOperationalScope';
 import { supabase } from '@/integrations/supabase/client';
 import { parseDecimalInput } from '@/lib/numberInput';
 import { getLocalIsoDate } from '@/lib/clientDebtDueDate';
-import { filterProductsBySearch, toProductUppercase } from '@/lib/productSearch';
+import { filterProductsBySearch, productMatchesSearch, toProductUppercase } from '@/lib/productSearch';
 import { normalizePhone } from '@/lib/phone';
 import { openExternalUrl } from '@/lib/openExternalUrl';
 import { formatProductCode } from '@/lib/productCode';
@@ -456,25 +456,41 @@ export default function Operations() {
       groups.set(key, group);
     });
 
-    const query = suggestionSearch.trim().toLocaleUpperCase('pt-BR');
+    const query = suggestionSearch.trim();
+    const normalizedQuery = toProductUppercase(query);
     return Array.from(groups.values())
-      .filter((group) => !query || [
-        group.supplierName,
-        ...group.suggestions.map((suggestion) => suggestion.productName),
-      ].some((value) => value.toLocaleUpperCase('pt-BR').includes(query)))
+      .map((group) => {
+        if (!query) return group;
+
+        const supplierMatches = toProductUppercase(group.supplierName).includes(normalizedQuery);
+        const suggestions = supplierMatches
+          ? group.suggestions
+          : group.suggestions.filter((suggestion) => productMatchesSearch(suggestion.product, query));
+
+        if (suggestions.length === 0) return null;
+
+        return {
+          ...group,
+          suggestions,
+          criticalCount: suggestions.filter((suggestion) => suggestion.severity === 'critical').length,
+          totalUnits: suggestions.reduce((sum, suggestion) => sum + suggestion.suggestedQuantity, 0),
+          totalCost: suggestions.reduce((sum, suggestion) => sum + suggestion.subtotal, 0),
+        };
+      })
+      .filter((group): group is PurchaseSuggestionGroup => Boolean(group))
       .sort((left, right) => (
         right.criticalCount - left.criticalCount
         || right.totalUnits - left.totalUnits
         || left.supplierName.localeCompare(right.supplierName, 'pt-BR')
       ));
   }, [purchaseSuggestions, suggestionSearch, suppliers]);
-  const suggestionSummary = useMemo(() => purchaseSuggestions.reduce((summary, suggestion) => {
-    if (suggestion.severity === 'critical') summary.critical += 1;
-    if (suggestion.severity === 'attention') summary.attention += 1;
-    summary.units += suggestion.suggestedQuantity;
-    summary.cost += suggestion.subtotal;
+  const suggestionSummary = useMemo(() => purchaseSuggestionGroups.reduce((summary, group) => {
+    summary.critical += group.criticalCount;
+    summary.attention += group.suggestions.filter((suggestion) => suggestion.severity === 'attention').length;
+    summary.units += group.totalUnits;
+    summary.cost += group.totalCost;
     return summary;
-  }, { critical: 0, attention: 0, units: 0, cost: 0 }), [purchaseSuggestions]);
+  }, { critical: 0, attention: 0, units: 0, cost: 0 }), [purchaseSuggestionGroups]);
   const supplierSummaries = useMemo(() => {
     const summaries = new Map<string, SupplierSummary>();
 

@@ -3,8 +3,7 @@ export type DownloadPlatform =
   | "linux"
   | "linux-deb"
   | "linux-appimage"
-  | "android"
-  | "ios";
+  | "android";
 
 export const desktopDownloadConfigKeys = {
   bucket: "DESKTOP_DOWNLOAD_BUCKET",
@@ -41,11 +40,6 @@ export const downloads = {
     route: "/downloads/android",
     requiredEnv: [desktopDownloadConfigKeys.bucket, desktopDownloadConfigKeys.androidApkObjectPath],
   },
-  ios: {
-    label: "iOS TestFlight",
-    route: "/downloads/ios",
-    requiredEnv: ["IOS_TESTFLIGHT_URL"],
-  },
 };
 
 export const isDownloadPlatform = (value: string | null | undefined): value is DownloadPlatform =>
@@ -53,5 +47,4 @@ export const isDownloadPlatform = (value: string | null | undefined): value is D
   value === "linux" ||
   value === "linux-deb" ||
   value === "linux-appimage" ||
-  value === "android" ||
-  value === "ios";
+  value === "android";

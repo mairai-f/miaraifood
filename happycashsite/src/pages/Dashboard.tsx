@@ -49,6 +49,7 @@ import { Label } from "@/components/ui/label";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useToast } from "@/hooks/use-toast";
 import { FiscalResponsibilityNotice } from "@/components/FiscalResponsibilityNotice";
+import Footer from "@/components/landing/Footer";
 import logo from "../../../src/assets/login/happycash.webp";
 
 type AuthUser = {
@@ -520,14 +521,12 @@ const Dashboard = () => {
     : siteProductContext;
   const activeSystemUrl = getSystemUrlForProductContext(systemProductContext);
   const activeSystemLabel = getSystemLabelForProductContext(systemProductContext);
-  const offlineAccessLabel = isCurrentProPlan ? "PRO liberado" : "Somente PRO";
-  const desktopDownloadsTitle = "Downloads do desktop";
-  const desktopDownloadsCtaWindows = "Baixar Windows (.exe)";
-  const desktopDownloadsCtaDeb = "Baixar Linux (.deb)";
-  const desktopDownloadsCtaAppImage = "Baixar Linux AppImage";
-  const mobileDownloadsTitle = "Downloads do mobile";
-  const mobileDownloadsCtaAndroid = "Baixar APK Android";
-  const mobileDownloadsDescription = "O app mobile do HappyCash fica liberado somente para contas com plano PRO ativo.";
+  const downloadLinks = [
+    { title: "Windows", detail: ".exe", route: downloads.windows.route },
+    { title: "Linux", detail: ".deb", route: downloads["linux-deb"].route },
+    { title: "Linux", detail: "AppImage", route: downloads["linux-appimage"].route },
+    { title: "Android", detail: "APK", route: downloads.android.route },
+  ] as const;
 
   useEffect(() => {
     setDesktopLicenseKey(null);
@@ -1091,8 +1090,9 @@ const Dashboard = () => {
   if (!user) return null;
 
   return (
-    <div className="min-h-screen bg-background p-4 sm:p-6">
-      <div className="mx-auto max-w-6xl space-y-6">
+    <div className="min-h-screen bg-background">
+      <main className="p-4 sm:p-6">
+        <div className="mx-auto max-w-6xl space-y-6">
         <div className="flex flex-col gap-4 rounded-3xl border border-border bg-card/80 p-6 backdrop-blur-sm sm:flex-row sm:items-center sm:justify-between">
           <div className="space-y-3">
             <img src={logo} alt="HappyCash" className="h-12" />
@@ -1185,233 +1185,135 @@ const Dashboard = () => {
           </Alert>
         )}
 
-        <div className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
-          <Card className="rounded-3xl border-border/70">
-            <CardHeader className="space-y-4">
-              <div className="flex flex-wrap items-center gap-3">
-                <Badge variant={countdown.badgeVariant}>
-                  {getSubscriptionStatusLabel(currentSubscription)}
-                </Badge>
-                {currentPlanContent && (
-                  <Badge variant="outline">
-                    {currentPlanContent.name}
+        <div className="space-y-6">
+          <div className="grid gap-6 lg:grid-cols-[minmax(0,1.2fr)_minmax(22rem,0.8fr)]">
+            <Card className="rounded-3xl border-border/70">
+              <CardHeader className="space-y-4">
+                <div className="flex flex-wrap items-center gap-3">
+                  <Badge variant={countdown.badgeVariant}>
+                    {getSubscriptionStatusLabel(currentSubscription)}
                   </Badge>
-                )}
-              </div>
-              <div>
-                <CardTitle className="text-2xl">Sua conta esta pronta</CardTitle>
-                <CardDescription className="mt-2 text-sm">
-                  {storeAccount?.nome_estabelecimento || "Estabelecimento"} com acesso pelo email {user.email || storeAccount?.email || "sem email"}.
-                </CardDescription>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-5">
-              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-                <div className="rounded-2xl border border-border bg-background/70 p-4">
-                  <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Responsavel</p>
-                  <p className="mt-2 font-semibold">{storeAccount?.nome_cliente || "Nao informado"}</p>
-                </div>
-                <div className="rounded-2xl border border-border bg-background/70 p-4">
-                  <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Plano atual</p>
-                  <p className="mt-2 font-semibold">{currentPlanContent?.name || "Sem plano ativo"}</p>
-                </div>
-                <div className="rounded-2xl border border-border bg-background/70 p-4">
-                  <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Validade</p>
-                  <p className="mt-2 font-semibold">
-                    {currentSubscription?.status === "trialing"
-                      ? "3 dias"
-                      : currentPlanContent?.id
-                      ? "30 dias"
-                      : "Sem ciclo"}
-                  </p>
-                </div>
-              </div>
-
-              <div className="rounded-2xl border border-primary/20 bg-primary/5 p-5">
-                <div className="flex flex-wrap items-center gap-2 text-sm font-medium text-primary">
-                  <Clock3 className="h-4 w-4" />
-                  {currentDeadline
-                    ? `Valido ate ${formatDateTime(currentDeadline)}`
-                    : "Sem vencimento definido"}
-                  {countdown.markerLabel && (
-                    <Badge variant={countdown.badgeVariant}>{countdown.markerLabel}</Badge>
+                  {currentPlanContent && (
+                    <Badge variant="outline">
+                      {currentPlanContent.name}
+                    </Badge>
                   )}
                 </div>
-                {countdown.remainingLabel && (
-                  <p className="mt-2 text-sm text-muted-foreground">{countdown.remainingLabel}</p>
-                )}
-                <p className="mt-3 text-sm text-muted-foreground">
-                  {currentPlanContent?.summary || "Escolha um plano abaixo para liberar seu acesso."}
-                </p>
-              </div>
-
-              {currentSubscription?.status === "trialing" && (
-                <Alert className="border-primary/30 bg-background">
-                  <Crown className="h-4 w-4" />
-                  <AlertTitle>Depois da demo, escolha um plano pago</AlertTitle>
-                  <AlertDescription>
-                    Fiado, Completo e PRO ficam ativos por 30 dias cada. Esta conta mostra apenas os planos do ecossistema HappyCash.
-                  </AlertDescription>
-                </Alert>
-              )}
-            </CardContent>
-          </Card>
-
-          <Card className="rounded-3xl border-border/70">
-            <CardHeader>
-              <CardTitle className="text-2xl">Proximo passo</CardTitle>
-              <CardDescription>
-                Crie a conta, volte ao site quando quiser e escolha o plano e a forma de pagamento no momento da ativacao.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="rounded-2xl border border-border bg-background/70 p-4">
-                <p className="text-sm font-semibold">Como esta funcionando agora</p>
-                <ul className="mt-3 space-y-2 text-sm text-muted-foreground">
-                  <li>1. O cadastro cria uma conta separada para o {productLabel}.</li>
-                  <li>2. A demo libera o ambiente escolhido por 3 dias.</li>
-                  <li>3. Os planos pagos exibidos aqui pertencem somente ao {productLabel} e valem 30 dias.</li>
-                  <li>4. Assim que o pagamento for confirmado no Asaas, o plano ativa automaticamente.</li>
-                </ul>
-              </div>
-
-              <>
+                <div>
+                  <CardTitle className="text-2xl">Sua conta esta pronta</CardTitle>
+                  <CardDescription className="mt-2 text-sm">
+                    {storeAccount?.nome_estabelecimento || "Estabelecimento"} com acesso pelo email {user.email || storeAccount?.email || "sem email"}.
+                  </CardDescription>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-5">
+                <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
                   <div className="rounded-2xl border border-border bg-background/70 p-4">
-                    <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
-                      <div>
-                        <p className="text-sm font-semibold">{desktopDownloadsTitle}</p>
-                        <p className="mt-1 text-sm text-muted-foreground">
-                          O executavel fica liberado para contas com plano PRO ativo. Cada nova instalacao pede a chave da empresa, valida o primeiro acesso online, prepara o banco local da loja e os links abaixo sempre consultam a release mais recente para Windows, Linux (.deb) e Linux AppImage.
-                        </p>
-                      </div>
-                      <Badge variant={hasOfflineDownloads ? "default" : "outline"}>
-                        {offlineAccessLabel}
-                      </Badge>
-                    </div>
+                    <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Responsavel</p>
+                    <p className="mt-2 font-semibold">{storeAccount?.nome_cliente || "Nao informado"}</p>
+                  </div>
+                  <div className="rounded-2xl border border-border bg-background/70 p-4">
+                    <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Plano atual</p>
+                    <p className="mt-2 font-semibold">{currentPlanContent?.name || "Sem plano ativo"}</p>
+                  </div>
+                  <div className="rounded-2xl border border-border bg-background/70 p-4">
+                    <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Validade</p>
+                    <p className="mt-2 font-semibold">
+                      {currentSubscription?.status === "trialing"
+                        ? "3 dias"
+                        : currentPlanContent?.id
+                        ? "30 dias"
+                        : "Sem ciclo"}
+                    </p>
+                  </div>
+                </div>
 
-                    {hasOfflineDownloads ? (
-                      <div className="mt-4 grid gap-3">
-                        <div className="rounded-2xl border border-border bg-background/70 p-4">
-                          <p className="text-sm font-semibold">Como funciona no desktop</p>
-                          <ul className="mt-3 space-y-2 text-sm text-muted-foreground">
-                            <li>1. Instale a release mais recente na maquina.</li>
-                            <li>2. Valide a chave da empresa no primeiro acesso dessa maquina.</li>
-                            <li>3. No primeiro acesso online, entre como administrador, configure usuario/PIN e aguarde o download dos dados locais.</li>
-                            <li>4. Depois disso, admin e operadores preparados podem seguir offline por ate 5 dias sem internet.</li>
-                          </ul>
-                        </div>
-                        <div className="rounded-2xl border border-primary/20 bg-primary/5 p-4">
-                          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                            <div className="flex gap-3">
-                              <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground">
-                                <KeyRound className="h-4 w-4" />
-                              </div>
-                              <div>
-                                <p className="text-sm font-semibold">Chave da empresa</p>
-                                <p className="mt-1 text-sm text-muted-foreground">
-                                  Disponivel somente para o dono da conta com {offlineAccessLabel.toLowerCase()}.
-                                </p>
-                              </div>
-                            </div>
-                            <Button
-                              type="button"
-                              variant="outline"
-                              className="h-10 shrink-0 font-semibold"
-                              onClick={handleLoadDesktopLicenseKey}
-                              disabled={desktopLicenseKeyLoading}
-                            >
-                              {desktopLicenseKeyLoading ? (
-                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                              ) : desktopLicenseKeyVisible ? (
-                                <EyeOff className="mr-2 h-4 w-4" />
-                              ) : (
-                                <Eye className="mr-2 h-4 w-4" />
-                              )}
-                              {desktopLicenseKeyVisible ? "Ocultar" : "Mostrar chave"}
-                            </Button>
-                          </div>
-
-                          <div className="mt-4 grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
-                            <div className="min-h-11 rounded-xl border border-border bg-background px-3 py-3 font-mono text-sm font-semibold text-foreground">
-                              {desktopLicenseKey && desktopLicenseKeyVisible ? desktopLicenseKey : "HC-****-****-****"}
-                            </div>
-                            <Button
-                              type="button"
-                              variant="secondary"
-                              className="h-11 font-semibold"
-                              onClick={handleCopyDesktopLicenseKey}
-                              disabled={!desktopLicenseKey}
-                            >
-                              <Copy className="mr-2 h-4 w-4" />
-                              Copiar
-                            </Button>
-                          </div>
-
-                          {desktopLicenseKeyError ? (
-                            <Alert variant="destructive" className="mt-4">
-                              <AlertTitle>Nao foi possivel mostrar a chave</AlertTitle>
-                              <AlertDescription>{desktopLicenseKeyError}</AlertDescription>
-                            </Alert>
-                          ) : null}
-                        </div>
-                        <Button asChild className="h-11 font-semibold">
-                          <Link to={downloads.windows.route}>
-                            <Download className="mr-2 h-4 w-4" />
-                            {desktopDownloadsCtaWindows}
-                          </Link>
-                        </Button>
-                        <Button asChild variant="outline" className="h-11 font-semibold">
-                          <Link to={downloads["linux-deb"].route}>
-                            {desktopDownloadsCtaDeb}
-                          </Link>
-                        </Button>
-                        <Button asChild variant="outline" className="h-11 font-semibold">
-                          <Link to={downloads["linux-appimage"].route}>
-                            {desktopDownloadsCtaAppImage}
-                          </Link>
-                        </Button>
-                      </div>
-                    ) : (
-                      <p className="mt-4 text-sm text-muted-foreground">
-                        Quando o plano PRO estiver ativo, esta area libera a release mais recente do desktop e a ativacao por chave da empresa em cada maquina.
-                      </p>
+                <div className="rounded-2xl border border-primary/20 bg-primary/5 p-5">
+                  <div className="flex flex-wrap items-center gap-2 text-sm font-medium text-primary">
+                    <Clock3 className="h-4 w-4" />
+                    {currentDeadline
+                      ? `Valido ate ${formatDateTime(currentDeadline)}`
+                      : "Sem vencimento definido"}
+                    {countdown.markerLabel && (
+                      <Badge variant={countdown.badgeVariant}>{countdown.markerLabel}</Badge>
                     )}
                   </div>
+                  {countdown.remainingLabel && (
+                    <p className="mt-2 text-sm text-muted-foreground">{countdown.remainingLabel}</p>
+                  )}
+                  <p className="mt-3 text-sm text-muted-foreground">
+                    {currentPlanContent?.summary || "Escolha um plano abaixo para liberar seu acesso."}
+                  </p>
+                </div>
 
-                  <div className="mt-6 rounded-3xl border border-border bg-background/70 p-4">
-                    <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
-                      <div>
-                        <p className="text-sm font-semibold">{mobileDownloadsTitle}</p>
-                        <p className="mt-1 text-sm text-muted-foreground">
-                          {mobileDownloadsDescription}
-                        </p>
+                {currentSubscription?.status === "trialing" && (
+                  <Alert className="border-primary/30 bg-background">
+                    <Crown className="h-4 w-4" />
+                    <AlertTitle>Depois da demo, escolha um plano pago</AlertTitle>
+                    <AlertDescription>
+                      Fiado, Completo e PRO ficam ativos por 30 dias cada. Esta conta mostra apenas os planos do ecossistema HappyCash.
+                    </AlertDescription>
+                  </Alert>
+                )}
+              </CardContent>
+            </Card>
+
+            <div className="grid content-start gap-4">
+              {hasOfflineDownloads ? (
+                <div className="rounded-2xl border border-primary/20 bg-primary/5 p-4">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex min-w-0 items-center gap-3">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground">
+                        <KeyRound className="h-4 w-4" />
                       </div>
-                      <Badge variant={hasOfflineDownloads ? "default" : "outline"}>
-                        {offlineAccessLabel}
-                      </Badge>
+                      <p className="text-sm font-semibold">Chave da empresa</p>
                     </div>
-
-                    {hasOfflineDownloads ? (
-                      <div className="mt-4 grid gap-3">
-                        <Button asChild className="h-11 font-semibold">
-                          <Link to={downloads.android.route}>
-                            <Download className="mr-2 h-4 w-4" />
-                            {mobileDownloadsCtaAndroid}
-                          </Link>
-                        </Button>
-                        <Button asChild variant="outline" className="h-11 font-semibold">
-                          <Link to={downloads.ios.route}>
-                            Acessar TestFlight iOS
-                          </Link>
-                        </Button>
-                      </div>
-                    ) : (
-                      <p className="mt-4 text-sm text-muted-foreground">
-                        Quando o plano PRO estiver ativo, esta area libera o download do app mobile Android e o acesso ao TestFlight iOS.
-                      </p>
-                    )}
+                    <div className="grid grid-cols-2 gap-2 sm:flex sm:w-auto">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="min-h-10 px-3 font-semibold"
+                        onClick={handleLoadDesktopLicenseKey}
+                        disabled={desktopLicenseKeyLoading}
+                      >
+                        {desktopLicenseKeyLoading ? (
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        ) : desktopLicenseKeyVisible ? (
+                          <EyeOff className="mr-2 h-4 w-4" />
+                        ) : (
+                          <Eye className="mr-2 h-4 w-4" />
+                        )}
+                        {desktopLicenseKeyVisible ? "Ocultar" : "Mostrar chave"}
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        className="min-h-10 px-3 font-semibold"
+                        onClick={handleCopyDesktopLicenseKey}
+                        disabled={!desktopLicenseKey}
+                      >
+                        <Copy className="mr-2 h-4 w-4" />
+                        Copiar
+                      </Button>
+                    </div>
                   </div>
-              </>
+
+                  <div className="mt-3 min-h-10 w-full break-all rounded-xl border border-border bg-background px-3 py-2 font-mono text-sm font-semibold text-foreground">
+                    {desktopLicenseKey && desktopLicenseKeyVisible ? desktopLicenseKey : "HC-****-****-****"}
+                  </div>
+
+                  {desktopLicenseKeyError ? (
+                    <Alert variant="destructive" className="mt-4">
+                      <AlertTitle>Nao foi possivel mostrar a chave</AlertTitle>
+                      <AlertDescription>{desktopLicenseKeyError}</AlertDescription>
+                    </Alert>
+                  ) : null}
+                </div>
+              ) : (
+                <div className="rounded-2xl border border-border bg-background/70 p-4 text-sm text-muted-foreground">
+                  Ative o plano PRO para liberar os downloads.
+                </div>
+              )}
 
               <div className="grid gap-3">
                 <Button asChild className="h-12 text-base font-semibold">
@@ -1434,8 +1336,43 @@ const Dashboard = () => {
                   Atualizando informacoes da conta...
                 </div>
               )}
-            </CardContent>
-          </Card>
+            </div>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            {downloadLinks.map((downloadLink) => {
+              const downloadCardClassName = "flex min-h-24 items-center gap-3 rounded-2xl border border-border bg-card p-4 text-left shadow-sm transition-colors";
+              const downloadCardContent = (
+                <>
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                    <Download className="h-4 w-4" />
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block text-sm font-semibold text-foreground">{downloadLink.title}</span>
+                    <span className="mt-1 block text-xs font-medium text-muted-foreground">{downloadLink.detail}</span>
+                  </span>
+                </>
+              );
+
+              return hasOfflineDownloads ? (
+                <Link
+                  key={downloadLink.route}
+                  to={downloadLink.route}
+                  className={`${downloadCardClassName} hover:border-primary/40 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring`}
+                >
+                  {downloadCardContent}
+                </Link>
+              ) : (
+                <div
+                  key={downloadLink.route}
+                  className={`${downloadCardClassName} cursor-not-allowed opacity-60`}
+                  aria-disabled="true"
+                >
+                  {downloadCardContent}
+                </div>
+              );
+            })}
+          </div>
         </div>
 
         <Card className="rounded-3xl border-destructive/30 bg-destructive/5">
@@ -1719,7 +1656,9 @@ const Dashboard = () => {
             </DialogFooter>
           </DialogContent>
         </Dialog>
-      </div>
+        </div>
+      </main>
+      <Footer />
     </div>
   );
 };

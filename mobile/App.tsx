@@ -1,27 +1,12 @@
 import { StatusBar } from 'expo-status-bar';
-import { useState } from 'react';
-import {
-  ActivityIndicator,
-  Linking,
-  Pressable,
-  SafeAreaView,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
+import { ActivityIndicator, SafeAreaView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
 
 const runtimeEnv = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env ?? {};
-const productLabel = 'HappyCash Mobile';
 const productShortLabel = 'HappyCash';
 const defaultPublicSystemUrl = 'https://app.happycashsite.com.br';
 const envConfiguredUrl = runtimeEnv.EXPO_PUBLIC_HAPPYCASH_WEB_URL?.trim() || '';
-const envSuggestedDevUrl = runtimeEnv.EXPO_PUBLIC_HAPPYCASH_DEV_URL?.trim() || '';
-
-const normalizeUrl = (value: string) => value.trim();
 
 const isValidHttpUrl = (value: string) => {
   try {
@@ -32,135 +17,327 @@ const isValidHttpUrl = (value: string) => {
   }
 };
 
+const activeUrl = isValidHttpUrl(envConfiguredUrl) ? envConfiguredUrl : defaultPublicSystemUrl;
+
+const mobileRuntimeBridge = String.raw`
+(function () {
+  if (window.happyCashMobileAPI) return true;
+
+  var appVersion = '0.1.61';
+  var snapshotPrefix = 'happycash:mobile:offline:snapshot:';
+  var queuePrefix = 'happycash:mobile:offline:queue:';
+  var conflictPrefix = 'happycash:mobile:offline:conflicts:';
+
+  var nowIso = function () {
+    return new Date().toISOString();
+  };
+
+  var randomId = function (prefix) {
+    if (window.crypto && typeof window.crypto.randomUUID === 'function') {
+      return window.crypto.randomUUID();
+    }
+    return prefix + '-' + Date.now() + '-' + Math.random().toString(36).slice(2, 10);
+  };
+
+  var readJson = function (key, fallbackValue) {
+    try {
+      var stored = window.localStorage.getItem(key);
+      return stored ? JSON.parse(stored) : fallbackValue;
+    } catch (_error) {
+      return fallbackValue;
+    }
+  };
+
+  var writeJson = function (key, value) {
+    window.localStorage.setItem(key, JSON.stringify(value));
+  };
+
+  var snapshotKey = function (ownerUserId) {
+    return snapshotPrefix + ownerUserId;
+  };
+
+  var queueKey = function (ownerUserId) {
+    return queuePrefix + ownerUserId;
+  };
+
+  var conflictKey = function (ownerUserId) {
+    return conflictPrefix + ownerUserId;
+  };
+
+  var readQueue = function (ownerUserId) {
+    return readJson(queueKey(ownerUserId), []);
+  };
+
+  var writeQueue = function (ownerUserId, items) {
+    writeJson(queueKey(ownerUserId), Array.isArray(items) ? items : []);
+  };
+
+  var readConflicts = function (ownerUserId) {
+    return readJson(conflictKey(ownerUserId), []);
+  };
+
+  var writeConflicts = function (ownerUserId, items) {
+    writeJson(conflictKey(ownerUserId), Array.isArray(items) ? items : []);
+  };
+
+  var findQueueOwner = function (id) {
+    for (var index = 0; index < window.localStorage.length; index += 1) {
+      var key = window.localStorage.key(index);
+      if (!key || key.indexOf(queuePrefix) !== 0) continue;
+      var ownerUserId = key.slice(queuePrefix.length);
+      var queue = readQueue(ownerUserId);
+      if (queue.some(function (item) { return item.id === id; })) {
+        return ownerUserId;
+      }
+    }
+    return null;
+  };
+
+  var findConflictOwner = function (id) {
+    for (var index = 0; index < window.localStorage.length; index += 1) {
+      var key = window.localStorage.key(index);
+      if (!key || key.indexOf(conflictPrefix) !== 0) continue;
+      var ownerUserId = key.slice(conflictPrefix.length);
+      var conflicts = readConflicts(ownerUserId);
+      if (conflicts.some(function (item) { return item.id === id; })) {
+        return ownerUserId;
+      }
+    }
+    return null;
+  };
+
+  var getRuntimeInfo = function () {
+    return {
+      appVersion: appVersion,
+      isPackaged: true,
+      platform: 'android',
+      databasePath: 'android-local-storage',
+      updateChannel: 'mobile',
+      productContext: 'happycash',
+      installerToken: null
+    };
+  };
+
+  window.happyCashMobileAPI = {
+    app: {
+      getRuntimeInfo: function () {
+        return Promise.resolve(getRuntimeInfo());
+      },
+      getRuntimeInfoSync: getRuntimeInfo
+    },
+    offline: {
+      replaceSnapshot: function (payload) {
+        var ownerUserId = payload && payload.ownerUserId;
+        if (!ownerUserId) return Promise.reject(new Error('ownerUserId invalido para snapshot offline.'));
+        var updatedAt = nowIso();
+        writeJson(snapshotKey(ownerUserId), {
+          snapshot: payload.snapshot || null,
+          updatedAt: updatedAt
+        });
+        return Promise.resolve({ success: true, updatedAt: updatedAt });
+      },
+      getSnapshot: function (payload) {
+        var ownerUserId = payload && payload.ownerUserId;
+        if (!ownerUserId) return Promise.reject(new Error('ownerUserId invalido para leitura do snapshot offline.'));
+        var stored = readJson(snapshotKey(ownerUserId), null);
+        return Promise.resolve({
+          snapshot: stored ? stored.snapshot : null,
+          updatedAt: stored ? stored.updatedAt : null
+        });
+      },
+      enqueue: function (payload) {
+        var ownerUserId = payload && payload.ownerUserId;
+        var operationType = payload && payload.operationType;
+        if (!ownerUserId || !operationType) return Promise.reject(new Error('Fila offline invalida.'));
+        var createdAt = nowIso();
+        var item = {
+          id: randomId('offline'),
+          ownerUserId: ownerUserId,
+          operationType: operationType,
+          payload: payload.payload || null,
+          status: 'pending',
+          lastError: null,
+          attemptCount: 0,
+          createdAt: createdAt,
+          updatedAt: createdAt,
+          syncedAt: null
+        };
+        var queue = readQueue(ownerUserId);
+        queue.push(item);
+        writeQueue(ownerUserId, queue);
+        return Promise.resolve(item);
+      },
+      listQueue: function (payload) {
+        var ownerUserId = payload && payload.ownerUserId;
+        if (!ownerUserId) return Promise.reject(new Error('ownerUserId invalido para leitura da fila offline.'));
+        var statuses = Array.isArray(payload.statuses) ? payload.statuses : [];
+        var queue = readQueue(ownerUserId);
+        if (statuses.length === 0) return Promise.resolve(queue);
+        return Promise.resolve(queue.filter(function (item) {
+          return statuses.indexOf(item.status) !== -1;
+        }));
+      },
+      updateQueueItem: function (payload) {
+        var id = payload && payload.id;
+        var ownerUserId = id ? findQueueOwner(id) : null;
+        if (!ownerUserId) return Promise.resolve(null);
+        var queue = readQueue(ownerUserId);
+        var updatedItem = null;
+        var updatedAt = nowIso();
+        queue = queue.map(function (item) {
+          if (item.id !== id) return item;
+          updatedItem = Object.assign({}, item, {
+            status: payload.status || item.status,
+            lastError: typeof payload.lastError === 'undefined' ? item.lastError : payload.lastError,
+            syncedAt: typeof payload.syncedAt === 'undefined' ? item.syncedAt : payload.syncedAt,
+            attemptCount: item.attemptCount + (payload.incrementAttempt ? 1 : 0),
+            updatedAt: updatedAt
+          });
+          return updatedItem;
+        });
+        writeQueue(ownerUserId, queue);
+        return Promise.resolve(updatedItem);
+      },
+      recordConflict: function (payload) {
+        var ownerUserId = payload && payload.ownerUserId;
+        var operationId = payload && payload.operationId;
+        if (!ownerUserId || !operationId) return Promise.reject(new Error('Conflito offline invalido.'));
+        var conflicts = readConflicts(ownerUserId);
+        var createdAt = nowIso();
+        var existingIndex = conflicts.findIndex(function (item) {
+          return item.operationId === operationId && !item.resolvedAt;
+        });
+        var conflict = {
+          id: existingIndex >= 0 ? conflicts[existingIndex].id : randomId('conflict'),
+          ownerUserId: ownerUserId,
+          operationId: operationId,
+          operationType: payload.operationType,
+          message: payload.message || 'Conflito offline.',
+          payload: payload.payload || null,
+          createdAt: createdAt,
+          resolvedAt: null
+        };
+        if (existingIndex >= 0) {
+          conflicts[existingIndex] = conflict;
+        } else {
+          conflicts.push(conflict);
+        }
+        writeConflicts(ownerUserId, conflicts);
+        return Promise.resolve(conflict);
+      },
+      listConflicts: function (payload) {
+        var ownerUserId = payload && payload.ownerUserId;
+        if (!ownerUserId) return Promise.reject(new Error('ownerUserId invalido para leitura dos conflitos offline.'));
+        return Promise.resolve(readConflicts(ownerUserId).sort(function (left, right) {
+          return String(right.createdAt).localeCompare(String(left.createdAt));
+        }));
+      },
+      resolveConflict: function (payload) {
+        var id = payload && payload.id;
+        var ownerUserId = id ? findConflictOwner(id) : null;
+        if (!ownerUserId) return Promise.resolve(null);
+        var resolvedAt = payload.resolved === false ? null : nowIso();
+        var resolvedConflict = null;
+        var conflicts = readConflicts(ownerUserId).map(function (item) {
+          if (item.id !== id) return item;
+          resolvedConflict = Object.assign({}, item, { resolvedAt: resolvedAt });
+          return resolvedConflict;
+        });
+        writeConflicts(ownerUserId, conflicts);
+        return Promise.resolve(resolvedConflict);
+      },
+      retryOperation: function (payload) {
+        var operationId = payload && payload.operationId;
+        var ownerUserId = operationId ? findQueueOwner(operationId) : null;
+        if (!ownerUserId) return Promise.resolve({ queueItem: null, conflicts: [] });
+        var retriedAt = nowIso();
+        var queueItem = null;
+        var queue = readQueue(ownerUserId).map(function (item) {
+          if (item.id !== operationId) return item;
+          queueItem = Object.assign({}, item, {
+            status: 'pending',
+            lastError: null,
+            syncedAt: null,
+            updatedAt: retriedAt
+          });
+          return queueItem;
+        });
+        var conflicts = readConflicts(ownerUserId).map(function (item) {
+          if (item.operationId !== operationId || payload.resolveConflicts === false || item.resolvedAt) return item;
+          return Object.assign({}, item, { resolvedAt: retriedAt });
+        });
+        writeQueue(ownerUserId, queue);
+        writeConflicts(ownerUserId, conflicts);
+        return Promise.resolve({
+          queueItem: queueItem,
+          conflicts: conflicts.filter(function (item) { return item.operationId === operationId; })
+        });
+      },
+      cleanupData: function (payload) {
+        return Promise.resolve({
+          deletedSyncedQueueItems: 0,
+          deletedResolvedConflicts: 0,
+          ownerUserId: payload && payload.ownerUserId
+        });
+      },
+      getStatus: function (payload) {
+        var ownerUserId = payload && payload.ownerUserId;
+        if (!ownerUserId) return Promise.reject(new Error('ownerUserId invalido para leitura do status offline.'));
+        var queue = readQueue(ownerUserId);
+        var conflicts = readConflicts(ownerUserId);
+        var snapshot = readJson(snapshotKey(ownerUserId), null);
+        var countStatus = function (status) {
+          return queue.filter(function (item) { return item.status === status; }).length;
+        };
+        return Promise.resolve({
+          pendingCount: countStatus('pending'),
+          processingCount: countStatus('processing'),
+          syncedCount: countStatus('synced'),
+          conflictCount: countStatus('conflict'),
+          recordedConflictCount: conflicts.length,
+          snapshotUpdatedAt: snapshot ? snapshot.updatedAt : null,
+          runtime: getRuntimeInfo()
+        });
+      }
+    }
+  };
+
+  return true;
+})();
+true;
+`;
+
 export default function App() {
-  const initialActiveUrl = isValidHttpUrl(envConfiguredUrl) ? normalizeUrl(envConfiguredUrl) : defaultPublicSystemUrl;
-  const [draftUrl, setDraftUrl] = useState(envConfiguredUrl || envSuggestedDevUrl || defaultPublicSystemUrl);
-  const [activeUrl, setActiveUrl] = useState(initialActiveUrl);
-  const [showConfig, setShowConfig] = useState(false);
-  const [loadError, setLoadError] = useState('');
-
-  const canLoadDraft = isValidHttpUrl(draftUrl);
-
-  const handleApplyUrl = () => {
-    if (!canLoadDraft) return;
-
-    setActiveUrl(normalizeUrl(draftUrl));
-    setLoadError('');
-    setShowConfig(false);
-  };
-
-  const handleOpenExternally = async () => {
-    if (!activeUrl || !isValidHttpUrl(activeUrl)) return;
-    await Linking.openURL(activeUrl);
-  };
-
-  const renderConfig = () => (
-    <ScrollView contentContainerStyle={styles.configScrollContent}>
-      <View style={styles.card}>
-        <Text style={styles.title}>{productLabel}</Text>
-        <Text style={styles.subtitle}>
-          Este app Expo carrega a versao web do {productShortLabel} dentro de um WebView para testar Android.
-        </Text>
-
-        <View style={styles.quickActions}>
-          <Pressable style={[styles.quickButton, styles.quickButtonPrimary]} onPress={() => setDraftUrl(defaultPublicSystemUrl)}>
-            <Text style={styles.quickButtonPrimaryText}>Usar sistema publico</Text>
-          </Pressable>
-          <Pressable
-            style={styles.quickButton}
-            onPress={() => envSuggestedDevUrl && setDraftUrl(envSuggestedDevUrl)}
-            disabled={!envSuggestedDevUrl}
-          >
-            <Text style={[styles.quickButtonText, !envSuggestedDevUrl && styles.quickButtonTextDisabled]}>
-              URL local sugerida
-            </Text>
-          </Pressable>
-        </View>
-
-        <Text style={styles.label}>URL do {productShortLabel}</Text>
-        <TextInput
-          autoCapitalize="none"
-          autoCorrect={false}
-          keyboardType="url"
-          placeholder="https://seu-endereco-ou-ip"
-          placeholderTextColor="#7c89a5"
-          style={styles.input}
-          value={draftUrl}
-          onChangeText={setDraftUrl}
-        />
-
-        <Text style={styles.help}>
-          Para testar o sistema local no celular, rode o frontend na mesma rede e informe algo como
-          {' '}<Text style={styles.helpStrong}>http://SEU-IP:8080</Text>.
-        </Text>
-
-        {!canLoadDraft && draftUrl.trim().length > 0 && (
-          <Text style={styles.errorText}>Informe uma URL valida com http:// ou https://</Text>
-        )}
-
-        <Pressable
-          style={[styles.actionButton, !canLoadDraft && styles.actionButtonDisabled]}
-          disabled={!canLoadDraft}
-          onPress={handleApplyUrl}
-        >
-          <Text style={styles.actionButtonText}>Abrir {productShortLabel}</Text>
-        </Pressable>
-      </View>
-    </ScrollView>
-  );
-
   return (
     <SafeAreaProvider>
       <SafeAreaView style={styles.container}>
-        <StatusBar style="light" />
-
-        {showConfig || !activeUrl ? (
-          renderConfig()
-        ) : (
-          <>
-            <View style={styles.topBar}>
-              <View style={styles.topBarTextGroup}>
-                <Text style={styles.topBarTitle}>{productShortLabel}</Text>
-                <Text style={styles.topBarUrl} numberOfLines={1}>{activeUrl}</Text>
-              </View>
-
-              <View style={styles.topBarActions}>
-                <Pressable style={styles.secondaryButton} onPress={() => setShowConfig(true)}>
-                  <Text style={styles.secondaryButtonText}>URL</Text>
-                </Pressable>
-                <Pressable style={styles.secondaryButton} onPress={() => void handleOpenExternally()}>
-                  <Text style={styles.secondaryButtonText}>Abrir fora</Text>
-                </Pressable>
-              </View>
+        <StatusBar style="dark" />
+        <WebView
+          source={{ uri: activeUrl }}
+          style={styles.webview}
+          applicationNameForUserAgent="HappyCashAndroid/0.1.61"
+          startInLoadingState
+          javaScriptEnabled
+          domStorageEnabled
+          cacheEnabled
+          cacheMode="LOAD_CACHE_ELSE_NETWORK"
+          setSupportMultipleWindows={false}
+          injectedJavaScriptBeforeContentLoaded={mobileRuntimeBridge}
+          renderLoading={() => (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="large" color="#1f49b6" />
+              <Text style={styles.loadingText}>Carregando {productShortLabel}...</Text>
             </View>
-
-            {loadError ? (
-              <View style={styles.errorContainer}>
-                <Text style={styles.errorTitle}>Nao foi possivel abrir a URL informada.</Text>
-                <Text style={styles.errorText}>{loadError}</Text>
-                <Pressable style={styles.actionButton} onPress={() => setShowConfig(true)}>
-                  <Text style={styles.actionButtonText}>Trocar URL</Text>
-                </Pressable>
-              </View>
-            ) : (
-              <WebView
-                source={{ uri: activeUrl }}
-                style={styles.webview}
-                startInLoadingState
-                setSupportMultipleWindows={false}
-                onError={(event) => {
-                  setLoadError(event.nativeEvent.description || 'Falha ao carregar o HappyCash.');
-                }}
-                renderLoading={() => (
-                  <View style={styles.loadingContainer}>
-                    <ActivityIndicator size="large" color="#ffcc00" />
-                    <Text style={styles.loadingText}>Carregando {productShortLabel}...</Text>
-                  </View>
-                )}
-              />
-            )}
-          </>
-        )}
+          )}
+          renderError={() => (
+            <View style={styles.errorContainer}>
+              <Text style={styles.errorTitle}>Nao foi possivel abrir o HappyCash.</Text>
+              <Text style={styles.errorText}>
+                Conecte a internet para o primeiro acesso. Depois da validacao online, o modo offline local fica disponivel por 24 horas.
+              </Text>
+            </View>
+          )}
+        />
       </SafeAreaView>
     </SafeAreaProvider>
   );
@@ -169,182 +346,42 @@ export default function App() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#05070d',
-  },
-  topBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#182033',
-    backgroundColor: '#0b1020',
-  },
-  topBarTextGroup: {
-    flex: 1,
-  },
-  topBarTitle: {
-    color: '#f4f7ff',
-    fontSize: 18,
-    fontWeight: '700',
-  },
-  topBarUrl: {
-    marginTop: 2,
-    color: '#93a1c0',
-    fontSize: 12,
-  },
-  topBarActions: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  secondaryButton: {
-    minWidth: 58,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderRadius: 12,
-    backgroundColor: '#131c2f',
-    borderWidth: 1,
-    borderColor: '#24304b',
-  },
-  secondaryButtonText: {
-    color: '#d9e3ff',
-    fontSize: 13,
-    fontWeight: '600',
+    backgroundColor: '#f8fbff',
   },
   webview: {
     flex: 1,
-    backgroundColor: '#05070d',
-  },
-  configScrollContent: {
-    flexGrow: 1,
-    justifyContent: 'center',
-    padding: 20,
-  },
-  card: {
-    borderRadius: 24,
-    borderWidth: 1,
-    borderColor: '#1e2940',
-    backgroundColor: '#0b1020',
-    padding: 20,
-  },
-  title: {
-    color: '#f7f8fc',
-    fontSize: 28,
-    fontWeight: '700',
-  },
-  subtitle: {
-    marginTop: 10,
-    color: '#a6b2ce',
-    fontSize: 15,
-    lineHeight: 22,
-  },
-  quickActions: {
-    marginTop: 18,
-    flexDirection: 'row',
-    gap: 10,
-  },
-  quickButton: {
-    flex: 1,
-    minHeight: 48,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: '#24304b',
-    backgroundColor: '#131c2f',
-  },
-  quickButtonPrimary: {
-    backgroundColor: '#ffcc00',
-    borderColor: '#ffcc00',
-  },
-  quickButtonPrimaryText: {
-    color: '#101217',
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  quickButtonText: {
-    color: '#dbe4ff',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  quickButtonTextDisabled: {
-    color: '#66728d',
-  },
-  label: {
-    marginTop: 22,
-    marginBottom: 8,
-    color: '#eef2ff',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  input: {
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: '#24304b',
-    backgroundColor: '#10172a',
-    color: '#f5f7fc',
-    paddingHorizontal: 14,
-    paddingVertical: 14,
-    fontSize: 15,
-  },
-  help: {
-    marginTop: 12,
-    color: '#8f9bb7',
-    fontSize: 13,
-    lineHeight: 19,
-  },
-  helpStrong: {
-    color: '#ffffff',
-    fontWeight: '700',
-  },
-  actionButton: {
-    marginTop: 18,
-    minHeight: 54,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 16,
-    backgroundColor: '#ffcc00',
-  },
-  actionButtonDisabled: {
-    opacity: 0.45,
-  },
-  actionButtonText: {
-    color: '#101217',
-    fontSize: 16,
-    fontWeight: '700',
+    backgroundColor: '#f8fbff',
   },
   loadingContainer: {
-    flex: 1,
+    ...StyleSheet.absoluteFillObject,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#05070d',
-    gap: 12,
+    gap: 14,
+    backgroundColor: '#f8fbff',
   },
   loadingText: {
-    color: '#dbe4ff',
+    color: '#172342',
     fontSize: 15,
+    fontWeight: '700',
   },
   errorContainer: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
     padding: 24,
+    backgroundColor: '#f8fbff',
   },
   errorTitle: {
-    color: '#ffffff',
-    fontSize: 18,
-    fontWeight: '700',
+    color: '#172342',
+    fontSize: 22,
+    fontWeight: '800',
     textAlign: 'center',
   },
   errorText: {
     marginTop: 10,
-    color: '#ff9c9c',
-    fontSize: 14,
-    lineHeight: 20,
+    color: '#56647d',
+    fontSize: 15,
+    lineHeight: 22,
     textAlign: 'center',
   },
 });

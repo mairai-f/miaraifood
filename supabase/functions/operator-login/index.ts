@@ -6,7 +6,6 @@ import {
   normalizeOperatorUsername,
 } from '../_shared/operatorCredentials.ts';
 import { buildCorsHeaders, handleCorsPreflight } from '../_shared/cors.ts';
-import { checkRedisRateLimit, readRateLimitEnv } from '../_shared/rateLimit.ts';
 
 type OperatorLoginRequest = {
   username?: string;
@@ -23,25 +22,14 @@ type OperatorProfileRow = {
   role: string | null;
 };
 
-type AttemptStatus = 'blocked' | 'config_error' | 'failed' | 'invalid' | 'success';
-type AttemptQueryResult = {
-  count: number | null;
-  error: { message?: string } | null;
-};
-type AttemptCountQuery = PromiseLike<AttemptQueryResult> & {
-  eq(column: string, value: string): AttemptCountQuery;
-  in(column: string, values: string[]): AttemptCountQuery;
-  gte(column: string, value: string): AttemptCountQuery;
-};
+type AttemptStatus = 'config_error' | 'failed' | 'invalid' | 'success';
 type OperatorLoginServiceClient = {
   from(table: string): {
     insert(values: Record<string, unknown>): PromiseLike<{ error: { message?: string } | null }>;
-    select(columns: string, options?: { count?: 'exact'; head?: boolean }): AttemptCountQuery;
   };
 };
 
-const MAX_IP_ATTEMPTS_PER_15_MIN = Number(Deno.env.get('OPERATOR_LOGIN_MAX_IP_ATTEMPTS_PER_15_MIN') || '3');
-const MAX_USERNAME_ATTEMPTS_PER_15_MIN = Number(Deno.env.get('OPERATOR_LOGIN_MAX_USERNAME_ATTEMPTS_PER_15_MIN') || '3');
+const OPERATOR_ACCESS_REMOVED = 'OPERATOR_ACCESS_REMOVED';
 
 const jsonResponse = (request: Request, body: Record<string, unknown>, status = 200) =>
   new Response(JSON.stringify(body), {
@@ -109,48 +97,6 @@ const logAttempt = async (
   });
 };
 
-const getAttemptCounts = async (
-  serviceClient: OperatorLoginServiceClient,
-  details: {
-    usernameHash: string | null;
-    ipHash: string | null;
-  },
-) => {
-  const fifteenMinutesAgo = new Date(Date.now() - 15 * 60 * 1000).toISOString();
-
-  const ipCountPromise = details.ipHash
-    ? serviceClient
-        .from('operator_login_attempts')
-        .select('id', { count: 'exact', head: true })
-        .eq('ip_hash', details.ipHash)
-        .in('status', ['failed', 'blocked', 'invalid'])
-        .gte('created_at', fifteenMinutesAgo)
-    : Promise.resolve({ count: 0, error: null });
-
-  const usernameCountPromise = details.usernameHash
-    ? serviceClient
-        .from('operator_login_attempts')
-        .select('id', { count: 'exact', head: true })
-        .eq('username_hash', details.usernameHash)
-        .in('status', ['failed', 'blocked', 'invalid'])
-        .gte('created_at', fifteenMinutesAgo)
-    : Promise.resolve({ count: 0, error: null });
-
-  const [{ count: ipCount, error: ipError }, { count: usernameCount, error: usernameError }] = await Promise.all([
-    ipCountPromise,
-    usernameCountPromise,
-  ]);
-
-  if (ipError || usernameError) {
-    throw new Error('Nao foi possivel validar a seguranca do login do operador agora.');
-  }
-
-  return {
-    ipCount: ipCount ?? 0,
-    usernameCount: usernameCount ?? 0,
-  };
-};
-
 Deno.serve(async (request) => {
   if (request.method === 'OPTIONS') {
     return handleCorsPreflight(request, {
@@ -160,23 +106,6 @@ Deno.serve(async (request) => {
 
   if (request.method !== 'POST') {
     return jsonResponse(request, { error: 'Método não suportado.' }, 405);
-  }
-
-  const endpointRateLimit = await checkRedisRateLimit(request, {
-    namespace: 'operator-login',
-    limit: readRateLimitEnv('OPERATOR_LOGIN_RATE_LIMIT_PER_MINUTE', 30),
-    windowSeconds: 60,
-  });
-
-  if (!endpointRateLimit.allowed) {
-    return jsonResponse(
-      request,
-      {
-        error: 'Muitas tentativas de login em pouco tempo. Aguarde alguns instantes e tente novamente.',
-        retryAfterSeconds: endpointRateLimit.retryAfterSeconds,
-      },
-      429,
-    );
   }
 
   const body = await getBody(request);
@@ -255,31 +184,6 @@ Deno.serve(async (request) => {
     },
   });
 
-  try {
-    const attemptCounts = await getAttemptCounts(serviceAttemptClient, { usernameHash, ipHash });
-
-    if (
-      attemptCounts.ipCount >= MAX_IP_ATTEMPTS_PER_15_MIN ||
-      attemptCounts.usernameCount >= MAX_USERNAME_ATTEMPTS_PER_15_MIN
-    ) {
-      await logAttempt(serviceAttemptClient, {
-        usernameHash,
-        ipHash,
-        origin,
-        status: 'blocked',
-        userAgent,
-      });
-
-      return jsonResponse(
-        request,
-        { error: 'Muitas tentativas de login do operador. Aguarde alguns minutos e tente novamente.' },
-        429,
-      );
-    }
-  } catch {
-    return jsonResponse(request, { error: 'Nao foi possivel validar a seguranca do login agora.' }, 503);
-  }
-
   const { data: profiles, error: profileError } = await serviceClient
     .from('profiles')
     .select('user_id, email, username, owner_user_id, role')
@@ -293,7 +197,14 @@ Deno.serve(async (request) => {
       status: 'failed',
       userAgent,
     });
-    return jsonResponse(request, { error: 'Usuário ou senha incorretos.' }, 401);
+    return jsonResponse(
+      request,
+      {
+        code: ownerUserId && !profileError ? OPERATOR_ACCESS_REMOVED : undefined,
+        error: 'Usuário ou senha incorretos.',
+      },
+      401,
+    );
   }
 
   const matchingProfiles = (profiles as OperatorProfileRow[]).filter(profile =>
@@ -309,7 +220,14 @@ Deno.serve(async (request) => {
       status: 'failed',
       userAgent,
     });
-    return jsonResponse(request, { error: 'Usuário ou senha incorretos.' }, 401);
+    return jsonResponse(
+      request,
+      {
+        code: ownerUserId ? OPERATOR_ACCESS_REMOVED : undefined,
+        error: 'Usuário ou senha incorretos.',
+      },
+      401,
+    );
   }
 
   for (const profile of matchingProfiles) {

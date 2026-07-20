@@ -39,7 +39,6 @@ const pageLoaders = [
   () => import('@/pages/Operations'),
   () => import('@/pages/Notes'),
   () => import('@/pages/Settings'),
-  () => import('@/pages/AccessMonitor'),
   () => import('@/pages/AuditLog'),
 ];
 
@@ -62,7 +61,6 @@ const [
   loadOperations,
   loadNotes,
   loadSettings,
-  loadAccessMonitor,
   loadAuditLog,
 ] = pageLoaders;
 
@@ -84,7 +82,6 @@ const PricingManager = lazy(loadPricingManager);
 const Operations = lazy(loadOperations);
 const Notes = lazy(loadNotes);
 const Settings = lazy(loadSettings);
-const AccessMonitor = lazy(loadAccessMonitor);
 const AuditLog = lazy(loadAuditLog);
 
 function FullScreenLoader() {
@@ -145,21 +142,23 @@ function ProtectedRoute({
   children,
   requiredFeature,
   requiredPermission,
+  allowedPermissions = [],
   runtimeScope = 'both',
   requiredDesktopFiscalAccess = false,
 }: {
   children: ReactNode;
   requiredFeature?: string;
   requiredPermission: ErpPermissionKey;
+  allowedPermissions?: ErpPermissionKey[];
   runtimeScope?: RuntimeScope;
   requiredDesktopFiscalAccess?: boolean;
 }) {
   const { isAuthenticated, loading, role } = useAuth();
   const { loading: permissionsLoading, hasPermission } = usePermissions();
-  const { isDesktop, checking: checkingDesktopLicense, licensed } = useDesktopRuntime();
+  const { isDesktop, isLocalRuntime, checking: checkingDesktopLicense, licensed } = useDesktopRuntime();
   const { loading: planLoading, hasFeature, planId } = usePlanAccess();
   const location = useLocation();
-  const shouldBlockDesktopLicense = checkingDesktopLicense && (!isAuthenticated || (isDesktop && !licensed));
+  const shouldBlockDesktopLicense = checkingDesktopLicense && (!isAuthenticated || (isLocalRuntime && !licensed));
   const shouldBlockAccess = loading || planLoading || permissionsLoading || shouldBlockDesktopLicense;
   const shouldShowSplash = !hasSeenAppSplash() && !isAuthenticated;
   const canUseFiscalNotesModule = !requiredDesktopFiscalAccess || canUseDesktopFiscalModule({
@@ -184,11 +183,12 @@ function ProtectedRoute({
   }
 
   if (!isAuthenticated) return <Navigate to="/login" replace />;
-  if (isDesktop && !licensed) return <DesktopLicenseBlocked />;
+  if (isLocalRuntime && !licensed) return <DesktopLicenseBlocked />;
   const baseFallbackPath = getDefaultAuthenticatedPath(role);
   const fallbackPath = baseFallbackPath;
   if (!isRuntimeScopeAllowed(runtimeScope, isDesktop)) return <Navigate to={fallbackPath} replace />;
-  if (!hasPermission(requiredPermission)) {
+  const hasRequiredPermission = hasPermission(requiredPermission) || allowedPermissions.some(permission => hasPermission(permission));
+  if (!hasRequiredPermission) {
     if (location.pathname === fallbackPath) return <AppLayout><FeatureLocked /></AppLayout>;
     return <Navigate to={fallbackPath} replace />;
   }
@@ -274,8 +274,8 @@ const AuthenticatedArea = () => {
           <Route path="/precificacao" element={<ProtectedRoute requiredPermission="pricing.view" requiredFeature="pricing.manage"><LazyPage><PricingManager /></LazyPage></ProtectedRoute>} />
           <Route path="/notas" element={<ProtectedRoute requiredPermission="fiscal.view" requiredFeature="notes.manage" requiredDesktopFiscalAccess><LazyPage><Notes /></LazyPage></ProtectedRoute>} />
           <Route path="/configuracoes" element={<ProtectedRoute requiredPermission="settings.manage" requiredFeature="settings.manage"><LazyPage><Settings /></LazyPage></ProtectedRoute>} />
+          <Route path="/configuracoes/colaboradores" element={<ProtectedRoute requiredPermission="staff.manage" allowedPermissions={['settings.manage']} requiredFeature="settings.manage"><LazyPage><Settings /></LazyPage></ProtectedRoute>} />
           <Route path="/configuracoes/:section" element={<ProtectedRoute requiredPermission="settings.manage" requiredFeature="settings.manage"><LazyPage><Settings /></LazyPage></ProtectedRoute>} />
-          <Route path="/acessos" element={<ProtectedRoute requiredPermission="access_monitor.view" requiredFeature="settings.manage" runtimeScope="web"><LazyPage><AccessMonitor /></LazyPage></ProtectedRoute>} />
           <Route path="/auditoria" element={<ProtectedRoute requiredPermission="audit.view" requiredFeature="settings.manage" runtimeScope="web"><LazyPage><AuditLog /></LazyPage></ProtectedRoute>} />
           <Route path="/recompensas" element={<ProtectedRoute requiredPermission="rewards.manage" requiredFeature="rewards.manage"><LazyPage><Rewards /></LazyPage></ProtectedRoute>} />
           <Route path="/cliente/:clientRef" element={<ProtectedRoute requiredPermission="clients.view" requiredFeature="clients.manage"><LazyPage><ClientDetail /></LazyPage></ProtectedRoute>} />

@@ -1,11 +1,7 @@
-import { getPasswordPolicyError, passwordPolicyHint } from "./passwordPolicy.ts";
-
 const OPERATOR_PIN_PATTERN = /^\d{4,8}$/;
 const OPERATOR_AUTH_PIN_PREFIX = "happycash-operator-pin-v1";
 
-export const operatorPinHelpText = "Ou use um PIN de 4 a 8 digitos.";
-
-export const operatorCredentialHint = `${passwordPolicyHint} ${operatorPinHelpText}`;
+export const operatorCredentialHint = "Use somente numeros, com PIN de 4 a 8 digitos.";
 
 export const isOperatorPin = (value: string) => OPERATOR_PIN_PATTERN.test(value.trim());
 
@@ -38,12 +34,16 @@ export const getOperatorCredentialError = (value: string) => {
   const normalizedValue = value.trim();
 
   if (!normalizedValue) {
-    return "Informe a senha ou PIN do operador.";
+    return "Informe o PIN do operador.";
   }
 
   if (isOperatorPin(normalizedValue)) {
     return null;
   }
 
-  return getPasswordPolicyError(normalizedValue);
+  if (!/^\d+$/.test(normalizedValue)) {
+    return "O PIN do operador deve ter somente numeros.";
+  }
+
+  return "O PIN do operador deve ter de 4 a 8 digitos.";
 };

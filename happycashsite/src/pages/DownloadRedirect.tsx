@@ -61,7 +61,7 @@ const DownloadRedirect = () => {
         return;
       }
 
-      const functionName = selectedPlatform === "android" || selectedPlatform === "ios"
+      const functionName = selectedPlatform === "android"
         ? "mobile-download"
         : "desktop-download";
 

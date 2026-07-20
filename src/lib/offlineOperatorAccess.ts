@@ -127,6 +127,16 @@ export const readOfflineOperatorAccess = (ownerUserId: string, username: string)
   }
 };
 
+export const deleteOfflineOperatorAccess = (ownerUserId: string, username: string) => {
+  if (!isBrowser() || !ownerUserId || !username) return;
+
+  try {
+    window.localStorage.removeItem(getStorageKey(ownerUserId, username));
+  } catch {
+    // Local cleanup should never block online access handling.
+  }
+};
+
 export const saveOfflineOperatorAccess = async ({
   userId,
   ownerUserId,

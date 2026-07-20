@@ -1,14 +1,25 @@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import type { Client, DebtEntry, Sale, SaleItem } from '@/types';
+import type { Client, Sale, SaleItem } from '@/types';
 
 export type ReportDetail = 'sales' | 'revenue' | 'cost' | 'profit' | 'ticket' | 'margin' | 'debts' | 'items';
+export interface ReportDebtRow {
+  id: string;
+  clientId: string;
+  clientName: string;
+  balance: number;
+  pendingTotal: number;
+  partialPaid: number;
+  entriesCount: number;
+  oldestDate: string | null;
+  lastActivityAt: string | null;
+}
 
 type ReportDetailsDialogProps = {
   detail: ReportDetail | null;
   sales: Sale[];
   saleItems: SaleItem[];
-  debts: DebtEntry[];
+  debts: ReportDebtRow[];
   clients: Client[];
   onOpenChange: (open: boolean) => void;
 };
@@ -36,7 +47,11 @@ export function ReportDetailsDialog({ detail, sales, saleItems, debts, clients, 
       <DialogContent className="max-h-[85vh] max-w-5xl overflow-hidden">
         <DialogHeader>
           <DialogTitle>{detail ? title[detail] : 'Detalhes do relatório'}</DialogTitle>
-          <DialogDescription>Registros do período selecionado que formam este indicador.</DialogDescription>
+          <DialogDescription>
+            {detail === 'debts'
+              ? 'Saldo real em aberto por cliente, ja abatendo pagamentos parciais.'
+              : 'Registros do período selecionado que formam este indicador.'}
+          </DialogDescription>
         </DialogHeader>
         <div className="max-h-[68vh] overflow-auto rounded-md border">
           {showsSales && (
@@ -68,10 +83,30 @@ export function ReportDetailsDialog({ detail, sales, saleItems, debts, clients, 
           )}
           {detail === 'debts' && (
             <Table>
-              <TableHeader><TableRow><TableHead>Data</TableHead><TableHead>Cliente</TableHead><TableHead>Produto</TableHead><TableHead>Qtd.</TableHead><TableHead className="text-right">Valor</TableHead></TableRow></TableHeader>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Cliente</TableHead>
+                  <TableHead>Primeiro pendente</TableHead>
+                  <TableHead>Última atividade</TableHead>
+                  <TableHead className="text-right">Itens</TableHead>
+                  <TableHead className="text-right">Lançado pendente</TableHead>
+                  <TableHead className="text-right">Pago parcial</TableHead>
+                  <TableHead className="text-right">Em aberto</TableHead>
+                </TableRow>
+              </TableHeader>
               <TableBody>
-                {debts.map((entry) => <TableRow key={entry.id}><TableCell>{dateTime(entry.date_added)}</TableCell><TableCell>{clientById.get(entry.client_id) || 'Cliente removido'}</TableCell><TableCell>{entry.product_name}</TableCell><TableCell>{entry.quantity}</TableCell><TableCell className="text-right font-semibold">{money(entry.total)}</TableCell></TableRow>)}
-                {debts.length === 0 && <TableRow><TableCell colSpan={5} className="py-8 text-center text-muted-foreground">Nenhum fiado em aberto.</TableCell></TableRow>}
+                {debts.map((entry) => (
+                  <TableRow key={entry.id}>
+                    <TableCell className="font-medium">{entry.clientName || clientById.get(entry.clientId) || 'Cliente removido'}</TableCell>
+                    <TableCell>{entry.oldestDate ? dateTime(entry.oldestDate) : '-'}</TableCell>
+                    <TableCell>{entry.lastActivityAt ? dateTime(entry.lastActivityAt) : '-'}</TableCell>
+                    <TableCell className="text-right">{entry.entriesCount}</TableCell>
+                    <TableCell className="text-right">{money(entry.pendingTotal)}</TableCell>
+                    <TableCell className="text-right">{money(entry.partialPaid)}</TableCell>
+                    <TableCell className="text-right font-semibold">{money(entry.balance)}</TableCell>
+                  </TableRow>
+                ))}
+                {debts.length === 0 && <TableRow><TableCell colSpan={7} className="py-8 text-center text-muted-foreground">Nenhum fiado em aberto.</TableCell></TableRow>}
               </TableBody>
             </Table>
           )}
