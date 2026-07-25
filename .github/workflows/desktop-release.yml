@@ -97,22 +97,523 @@ jobs:
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
+#
+#      - name: Setup Node
+#        uses: actions/setup-node@v4
+#        with:
+#          node-version: 20
+#          cache: npm
+#
+#      - name: Install dependencies
+#        run: npm ci
+#
+#      - name: Publish Windows installer
+#        env:
+#          GH_TOKEN: ${{ secrets.DESKTOP_RELEASE_GH_TOKEN || secrets.GITHUB_TOKEN }}
+#          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+#          CSC_LINK: ${{ secrets.WINDOWS_CSC_LINK }}
+#          CSC_KEY_PASSWORD: ${{ secrets.WINDOWS_CSC_KEY_PASSWORD }}
+#          WIN_CSC_LINK: ${{ secrets.WINDOWS_CSC_LINK }}
+#          WIN_CSC_KEY_PASSWORD: ${{ secrets.WINDOWS_CSC_KEY_PASSWORD }}
+#        run: npm run electron:publish:win
+#
+#        
+#        # ============================================================
+## NOME DO WORKFLOW
+## ============================================================
+#
+## Nome que aparecerá na aba "Actions" do GitHub
+#name: Desktop Release
+#
+#
+## ============================================================
+## QUANDO O WORKFLOW SERÁ EXECUTADO
+## ============================================================
+#
+#on:
+#
+#  # Executa automaticamente quando houver um "push" de uma tag
+#  push:
+#    tags:
+#
+#      # Aceita tags no formato:
+#      # v1.0.0
+#      # v1.2.3
+#      # v2.10.5
+#      #
+#      # O padrão v*.*.* representa:
+#      # v + número + . + número + . + número
+#      - 'v*.*.*'
+#
+#
+#  # Permite executar o workflow manualmente pelo GitHub
+#  workflow_dispatch:
+#
+#    # Quando executar manualmente, permite informar uma versão
+#    inputs:
+#
+#      # Nome do campo que será exibido no GitHub
+#      version:
+#
+#        # Descrição do campo
+#        description: 'Versao para publicar. Deixe vazio para usar a versao do package.json.'
+#
+#        # O preenchimento não é obrigatório
+#        required: false
+#
+#        # Define que o campo será um texto
+#        type: string
+#
+#
+## ============================================================
+## PERMISSÕES DO WORKFLOW
+## ============================================================
+#
+#permissions:
+#
+#  # Permite que o workflow escreva no conteúdo do repositório.
+#  #
+#  # Isso pode ser necessário para criar ou atualizar Releases
+#  # e outros recursos relacionados ao conteúdo do repositório.
+#  contents: write
+#
+#
+## ============================================================
+## VARIÁVEIS DE AMBIENTE
+## ============================================================
+#
+#env:
+#
+#  # URL pública do projeto Supabase.
+#  #
+#  # O valor é armazenado nos Secrets do GitHub.
+#  VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+#
+#  # Chave pública do Supabase.
+#  #
+#  # Também vem dos Secrets do GitHub.
+#  VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
+#
+#  # Chave pública do Cloudflare Turnstile.
+#  VITE_TURNSTILE_SITE_KEY: ${{ secrets.VITE_TURNSTILE_SITE_KEY }}
+#
+#
+## ============================================================
+## CONTROLE DE EXECUÇÕES SIMULTÂNEAS
+## ============================================================
+#
+#concurrency:
+#
+#  # Cria um grupo de execução baseado na referência atual.
+#  #
+#  # Isso ajuda a evitar que duas execuções do mesmo release
+#  # sejam executadas de maneira conflitante.
+#  group: desktop-release-${{ github.ref }}
+#
+#  # Se uma nova execução começar,
+#  # a execução anterior NÃO será cancelada.
+#  cancel-in-progress: false
+#
+#
+## ============================================================
+## JOBS
+## ============================================================
+#
+## Um workflow pode ter vários "jobs".
+##
+## Neste workflow temos:
+##
+## 1. validate-version
+##       ↓
+## 2. release-linux
+##       ↓
+## 3. release-windows
+##
+## O segundo depende do primeiro.
+## O terceiro depende do segundo.
+#
+#jobs:
+#
+#
+#  # ==========================================================
+#  # JOB 1 — VALIDAR O PROJETO
+#  # ==========================================================
+#
+#  validate-version:
+#
+#    # Define o sistema operacional da máquina virtual
+#    # que executará este job.
+#    #
+#    # O GitHub Actions cria uma máquina Ubuntu temporária
+#    # para executar os comandos.
+#    runs-on: ubuntu-latest
+#
+#
+#    # ----------------------------------------------------------
+#    # ETAPAS DO JOB
+#    # ----------------------------------------------------------
+#
+#    steps:
+#
+#
+#      # ========================================================
+#      # 1 — BAIXAR O CÓDIGO DO GITHUB
+#      # ========================================================
+#
+#      - name: Checkout repo
+#
+#        # A Action oficial checkout baixa o código
+#        # do seu repositório para a máquina virtual.
+#        #
+#        # Sem isso, a máquina não teria acesso aos arquivos
+#        # do seu projeto.
+#        uses: actions/checkout@v4
+#
+#
+#      # ========================================================
+#      # 2 — CONFIGURAR O NODE.JS
+#      # ========================================================
+#
+#      - name: Setup Node
+#
+#        # Nome da Action responsável por configurar o Node.js.
+#        uses: actions/setup-node@v4
+#
+#        with:
+#
+#          # Define a versão do Node.js utilizada.
+#          node-version: 20
+#
+#          # Ativa o cache das dependências do npm.
+#          #
+#          # Isso pode acelerar execuções futuras do workflow.
+#          cache: npm
+#
+#
+#      # ========================================================
+#      # 3 — INSTALAR DEPENDÊNCIAS
+#      # ========================================================
+#
+#      - name: Install dependencies
+#
+#        # npm ci instala as dependências exatamente
+#        # conforme o package-lock.json.
+#        #
+#        # É muito utilizado em ambientes de CI/CD.
+#        run: npm ci
+#
+#
+#      # ========================================================
+#      # 4 — VALIDAR A VERSÃO
+#      # ========================================================
+#
+#      - name: Validate tag matches package version
+#
+#        # Cria uma variável chamada REQUESTED_VERSION.
+#        #
+#        # Se o workflow foi executado manualmente,
+#        # utiliza a versão informada no campo "version".
+#        #
+#        # Caso contrário, utiliza o nome da tag.
+#        env:
+#          REQUESTED_VERSION: ${{ github.event_name == 'workflow_dispatch' && inputs.version || github.ref_name }}
+#
+#        run: |
+#
+#          # Lê a versão existente no package.json.
+#          #
+#          # Exemplo:
+#          #
+#          # "version": "1.5.0"
+#          #
+#          # PACKAGE_VERSION terá:
+#          #
+#          # 1.5.0
+#          PACKAGE_VERSION=$(node -p "require('./package.json').version")
+#
+#
+#          # Remove o "v" da versão solicitada.
+#          #
+#          # Exemplo:
+#          #
+#          # v1.5.0
+#          #
+#          # vira:
+#          #
+#          # 1.5.0
+#          RELEASE_VERSION="${REQUESTED_VERSION#v}"
+#
+#
+#          # Se RELEASE_VERSION estiver vazio,
+#          # utiliza a versão existente no package.json.
+#          if [ -z "$RELEASE_VERSION" ]; then
+#            RELEASE_VERSION="$PACKAGE_VERSION"
+#
+#
+#          # Caso o workflow tenha sido executado a partir de uma branch
+#          # e a versão solicitada seja igual ao nome da branch,
+#          # utiliza a versão do package.json.
+#          elif [ "$GITHUB_REF_TYPE" = "branch" ] && [ "$RELEASE_VERSION" = "$GITHUB_REF_NAME" ]; then
+#            RELEASE_VERSION="$PACKAGE_VERSION"
+#          fi
+#
+#
+#          # Compara a versão do package.json
+#          # com a versão solicitada para o release.
+#          #
+#          # Exemplo correto:
+#          #
+#          # package.json → 1.5.0
+#          # release       → 1.5.0
+#          #
+#          # Se forem diferentes, o workflow falha.
+#          if [ "$PACKAGE_VERSION" != "$RELEASE_VERSION" ]; then
+#
+#            # Mostra uma mensagem de erro.
+#            echo "package.json version ($PACKAGE_VERSION) precisa bater com a versao solicitada (${RELEASE_VERSION})."
+#
+#            # exit 1 significa que o comando falhou.
+#            #
+#            # Como este comando está dentro do workflow,
+#            # o job será interrompido.
+#            exit 1
+#          fi
+#
+#
+#      # ========================================================
+#      # 5 — EXECUTAR LINT
+#      # ========================================================
+#
+#      - name: Lint
+#
+#        # Executa o script "lint" definido no package.json.
+#        #
+#        # Exemplo:
+#        #
+#        # "scripts": {
+#        #   "lint": "eslint ."
+#        # }
+#        #
+#        # O objetivo é encontrar problemas no código.
+#        run: npm run lint
+#
+#
+#      # ========================================================
+#      # 6 — EXECUTAR TESTES
+#      # ========================================================
+#
+#      - name: Test
+#
+#        # Executa os testes definidos no package.json.
+#        #
+#        # Se algum teste falhar,
+#        # o workflow normalmente será interrompido.
+#        run: npm test
+#
+#
+#      # ========================================================
+#      # 7 — GERAR O BUILD
+#      # ========================================================
+#
+#      - name: Build web and site
+#
+#        # Executa o script:
+#        #
+#        # npm run build:all
+#        #
+#        # Esse script está definido no package.json.
+#        #
+#        # Provavelmente executa os processos necessários
+#        # para gerar as versões de produção do projeto.
+#        run: npm run build:all
+#
+#
+#
+#  # ==========================================================
+#  # JOB 2 — PUBLICAR PARA LINUX
+#  # ==========================================================
+#
+#  release-linux:
+#
+#    # "needs" cria uma dependência entre os jobs.
+#    #
+#    # Isso significa:
+#    #
+#    # release-linux só começa se
+#    # validate-version terminar com sucesso.
+#    needs: validate-version
+#
+#    # A publicação Linux será feita em uma máquina Ubuntu.
+#    runs-on: ubuntu-latest
+#
+#
+#    steps:
+#
+#
+#      # ========================================================
+#      # 1 — BAIXAR O CÓDIGO
+#      # ========================================================
+#
+#      - name: Checkout repo
+#
+#        # Baixa o código do repositório.
+#        uses: actions/checkout@v4
+#
+#
+#      # ========================================================
+#      # 2 — CONFIGURAR NODE.JS
+#      # ========================================================
+#
+#      - name: Setup Node
+#
+#        uses: actions/setup-node@v4
+#
+#        with:
+#
+#          # Utiliza Node.js 20.
+#          node-version: 20
+#
+#          # Ativa cache do npm.
+#          cache: npm
+#
+#
+#      # ========================================================
+#      # 3 — INSTALAR DEPENDÊNCIAS
+#      # ========================================================
+#
+#      - name: Install dependencies
+#
+#        # Instala as dependências do projeto.
+#        run: npm ci
+#
+#
+#      # ========================================================
+#      # 4 — PUBLICAR APLICATIVO LINUX
+#      # ========================================================
+#
+#      - name: Publish Linux AppImage
+#
+#        env:
+#
+#          # Token utilizado para autenticar a publicação.
+#          #
+#          # Primeiro tenta usar:
+#          #
+#          # DESKTOP_RELEASE_GH_TOKEN
+#          #
+#          # Se não existir, utiliza:
+#          #
+#          # GITHUB_TOKEN
+#          GH_TOKEN: ${{ secrets.DESKTOP_RELEASE_GH_TOKEN || secrets.GITHUB_TOKEN }}
+#
+#          # Desativa descoberta automática de certificado
+#          # para assinatura do aplicativo.
+#          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+#
+#
+#        # Executa o script do package.json
+#        # responsável por gerar/publicar o aplicativo Linux.
+#        run: npm run electron:publish:linux
+#
+#
+#
+#  # ==========================================================
+#  # JOB 3 — PUBLICAR PARA WINDOWS
+#  # ==========================================================
+#
+#  release-windows:
+#
+#    # Este job depende do release-linux.
+#    #
+#    # Portanto:
+#    #
+#    # validate-version
+#    #       ↓
+#    # release-linux
+#    #       ↓
+#    # release-windows
+#    #
+#    # Se o Linux falhar,
+#    # o Windows não será executado.
+#    needs: release-linux
+#
+#    # O Windows precisa de um ambiente Windows.
+#    runs-on: windows-latest
+#
+#
+#    steps:
+#
+#
+#      # ========================================================
+#      # 1 — BAIXAR O CÓDIGO
+#      # ========================================================
+#
+#      - name: Checkout repo
+#
+#        uses: actions/checkout@v4
+#
+#
+#      # ========================================================
+#      # 2 — CONFIGURAR NODE.JS
+#      # ========================================================
+#
+#      #- name: Setup Node
+#
+      #  uses: actions/setup-node@v4
+#
+      #  with:
+#
+      #    # Node.js 20
+      #    node-version: 20
+#
+      #    # Cache do npm
+      #    cache: npm
 
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
 
-      - name: Install dependencies
-        run: npm ci
+      # ========================================================
+      # 3 — INSTALAR DEPENDÊNCIAS
+      # ========================================================
 
-      - name: Publish Windows installer
-        env:
-          GH_TOKEN: ${{ secrets.DESKTOP_RELEASE_GH_TOKEN || secrets.GITHUB_TOKEN }}
-          CSC_IDENTITY_AUTO_DISCOVERY: "false"
-          CSC_LINK: ${{ secrets.WINDOWS_CSC_LINK }}
-          CSC_KEY_PASSWORD: ${{ secrets.WINDOWS_CSC_KEY_PASSWORD }}
-          WIN_CSC_LINK: ${{ secrets.WINDOWS_CSC_LINK }}
-          WIN_CSC_KEY_PASSWORD: ${{ secrets.WINDOWS_CSC_KEY_PASSWORD }}
-        run: npm run electron:publish:win
+    #  - name: Install dependencies
+
+    #    run: npm ci
+
+
+      # ========================================================
+      # 4 — CONFIGURAR ASSINATURA DO WINDOWS
+      # ========================================================
+
+      #- name: Publish Windows installer
+
+       # env:
+
+          # Token para autenticar a publicação.
+          #GH_TOKEN: ${{ secrets.DESKTOP_RELEASE_GH_TOKEN || secrets.GITHUB_TOKEN }}
+
+
+          # Desativa descoberta automática de certificado.
+         # CSC_IDENTITY_AUTO_DISCOVERY: "false"
+
+
+          # Certificado utilizado para assinar o aplicativo Windows.
+          #
+          # O valor real está armazenado nos Secrets do GitHub.
+          #CSC_LINK: ${{ secrets.WINDOWS_CSC_LINK }}
+
+
+          # Senha do certificado.
+          #
+          # Também armazenada nos Secrets.
+          # CSC_KEY_PASSWORD: ${{ secrets.WINDOWS_CSC_KEY_PASSWORD }}
+
+
+          # Variáveis adicionais relacionadas
+          # à assinatura do aplicativo Windows.
+         # WIN_CSC_LINK: ${{ secrets.WINDOWS_CSC_LINK }}
+
+         # WIN_CSC_KEY_PASSWORD: ${{ secrets.WINDOWS_CSC_KEY_PASSWORD }}
+
+
+        # Executa o script responsável por gerar
+        # e publicar o instalador do Windows.
+        #run: npm run electron:publish:win

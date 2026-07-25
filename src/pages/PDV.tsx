@@ -42,6 +42,7 @@ import { findServiceTicketByLookup } from '@/lib/serviceTicket';
 import { blocksSaleWithoutStock } from '@/lib/stockSalePolicy';
 import { formatProductCode } from '@/lib/productCode';
 import { readDesktopActivation } from '@/lib/desktopActivation';
+import { getLocalIsoDate, normalizeClientDebtDueDate } from '@/lib/clientDebtDueDate';
 import { buildDesktopFiscalAccessPayload, canUseDesktopFiscalModule } from '@/lib/fiscalAccess';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { getPublicErrorMessage, getRedactedLogValue } from '../../shared/security/redaction';
@@ -56,7 +57,7 @@ import {
   normalizeFiscalRuntimeStatus,
   openFiscalDocumentPrintWindow,
 } from '@/lib/fiscal';
-import { formatCurrency, formatDateTime, formatPercent, getActiveLocale, translateCurrentText } from '../../shared/locale/format';
+import { formatCurrency, formatDateOnly, formatDateTime, formatPercent, getActiveLocale, translateCurrentText } from '../../shared/locale/format';
 
 // Generated Supabase types are behind the current PDV schema.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -448,6 +449,7 @@ export default function PDV() {
   const [showCancelledSales, setShowCancelledSales] = useState(false);
   const [showCashOut, setShowCashOut] = useState(false);
   const [saleSearch, setSaleSearch] = useState('');
+  const [saleSearchDate, setSaleSearchDate] = useState('');
   const [saleLimit, setSaleLimit] = useState(25);
   const [salesSearchRows, setSalesSearchRows] = useState<Sale[]>([]);
   const [salesSearchItems, setSalesSearchItems] = useState<SaleItem[]>([]);
@@ -1207,6 +1209,22 @@ export default function PDV() {
   }, [pdvEligibleRewards, selectedRewardId]);
 
   const saleSearchTerm = saleSearch.trim().toLowerCase();
+  const saleSearchDateRange = useMemo(() => {
+    const normalized = normalizeClientDebtDueDate(saleSearchDate);
+    if (!normalized) return null;
+
+    const start = new Date(`${normalized}T00:00:00`);
+    const end = new Date(`${normalized}T23:59:59.999`);
+
+    return {
+      normalized,
+      label: formatDateOnly(`${normalized}T12:00:00`),
+      startIso: start.toISOString(),
+      endIso: end.toISOString(),
+      startTime: start.getTime(),
+      endTime: end.getTime(),
+    };
+  }, [saleSearchDate]);
   const isInCurrentCashSession = useCallback((value: string) => {
     if (!cashSession) return false;
     return new Date(value).getTime() >= new Date(cashSession.openedAt).getTime();
@@ -1216,18 +1234,41 @@ export default function PDV() {
     return sales.filter(sale => isInCurrentCashSession(sale.date));
   }, [isInCurrentCashSession, sales]);
 
+  const salesSearchSource = useMemo(() => {
+    if (!saleSearchDateRange) return sessionScopedSales;
+
+    return sales.filter(sale => {
+      const saleTime = new Date(sale.date).getTime();
+      return saleTime >= saleSearchDateRange.startTime && saleTime <= saleSearchDateRange.endTime;
+    });
+  }, [saleSearchDateRange, sales, sessionScopedSales]);
+
   const loadSalesSearchRows = useCallback(async () => {
-    if (!cashSession || !ownerUserId) {
+    if (!ownerUserId) {
       setSalesSearchRows([]);
       setSalesSearchItems([]);
-      setSalesSearchError('Abra o caixa para buscar vendas desta sessao.');
+      setSalesSearchError('Entre novamente para buscar vendas.');
+      return;
+    }
+
+    if (saleSearchDate && !saleSearchDateRange) {
+      setSalesSearchRows([]);
+      setSalesSearchItems([]);
+      setSalesSearchError('Informe uma data valida para buscar vendas.');
+      return;
+    }
+
+    if (!cashSession && !saleSearchDateRange) {
+      setSalesSearchRows([]);
+      setSalesSearchItems([]);
+      setSalesSearchError('Abra o caixa ou escolha um dia para buscar vendas.');
       return;
     }
 
     setSalesSearchLoading(true);
     setSalesSearchError(null);
 
-    const sortedLocalSales = [...sessionScopedSales]
+    const sortedLocalSales = [...salesSearchSource]
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
       .slice(0, saleLimit);
     const localSaleIds = new Set(sortedLocalSales.map(sale => sale.id));
@@ -1242,8 +1283,15 @@ export default function PDV() {
     try {
       let salesQuery = db
         .from('sales')
-        .select(PDV_SALE_SEARCH_COLUMNS)
-        .gte('date', cashSession.openedAt);
+        .select(PDV_SALE_SEARCH_COLUMNS);
+
+      if (saleSearchDateRange) {
+        salesQuery = salesQuery
+          .gte('date', saleSearchDateRange.startIso)
+          .lte('date', saleSearchDateRange.endIso);
+      } else if (cashSession) {
+        salesQuery = salesQuery.gte('date', cashSession.openedAt);
+      }
 
       if (operationalLocationId) {
         salesQuery = salesQuery.eq('location_id', operationalLocationId);
@@ -1279,7 +1327,7 @@ export default function PDV() {
     } finally {
       setSalesSearchLoading(false);
     }
-  }, [cashSession, operationalLocationId, ownerUserId, saleItems, saleLimit, sessionScopedSales]);
+  }, [cashSession, operationalLocationId, ownerUserId, saleItems, saleLimit, saleSearchDate, saleSearchDateRange, salesSearchSource]);
 
   useEffect(() => {
     if (!showSalesSearch) return;
@@ -5513,25 +5561,63 @@ export default function PDV() {
         <DialogContent className="max-h-[90vh] max-w-5xl overflow-hidden">
           <DialogHeader><DialogTitle>Buscar vendas</DialogTitle></DialogHeader>
           <div className="flex min-h-0 flex-col gap-3">
-            <div className="grid gap-2 sm:grid-cols-[1fr_180px_auto]">
-              <Input
-                value={saleSearch}
-                onChange={e => setSaleSearch(e.target.value)}
-                placeholder="Buscar por vendedor, cliente, data, total, forma ou troco..."
-                className="h-10 text-sm"
-              />
-              <Select value={saleLimit.toString()} onValueChange={value => setSaleLimit(parseInt(value, 10))}>
-                <SelectTrigger className="h-10"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {[25, 100, 125, 150, 200].map(limit => (
-                    <SelectItem key={limit} value={limit.toString()}>0-{limit} registros</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            <div className="grid gap-2 lg:grid-cols-[minmax(220px,1fr)_210px_180px_auto] lg:items-end">
+              <div className="space-y-1">
+                <Label className="text-xs">Busca</Label>
+                <Input
+                  value={saleSearch}
+                  onChange={e => setSaleSearch(e.target.value)}
+                  placeholder="Vendedor, cliente, total, forma ou troco..."
+                  className="h-10 text-sm"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Dia</Label>
+                <div className="flex gap-2">
+                  <Input
+                    type="date"
+                    value={saleSearchDate}
+                    onChange={e => setSaleSearchDate(e.target.value)}
+                    className="h-10 text-sm"
+                    aria-label="Dia da venda"
+                  />
+                  {saleSearchDate && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      className="h-10 w-10 shrink-0"
+                      onClick={() => setSaleSearchDate('')}
+                      aria-label="Limpar dia da busca"
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  )}
+                </div>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Registros</Label>
+                <Select value={saleLimit.toString()} onValueChange={value => setSaleLimit(parseInt(value, 10))}>
+                  <SelectTrigger className="h-10"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {[25, 100, 125, 150, 200].map(limit => (
+                      <SelectItem key={limit} value={limit.toString()}>0-{limit} registros</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
               <Button type="button" variant="outline" className="h-10 gap-2" onClick={() => void loadSalesSearchRows()} disabled={salesSearchLoading}>
                 {salesSearchLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
                 Atualizar
               </Button>
+            </div>
+            <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+              <span>{saleSearchDateRange ? `Dia selecionado: ${saleSearchDateRange.label}` : 'Sem dia selecionado: vendas da sessão atual.'}</span>
+              {!saleSearchDate && (
+                <Button type="button" variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => setSaleSearchDate(getLocalIsoDate())}>
+                  Hoje
+                </Button>
+              )}
             </div>
 
             {salesSearchError && (
