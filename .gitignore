@@ -25,6 +25,8 @@ linux-unpacked/
 *.exe
 *.AppImage
 *.asar
+.asaas-maintenance
+.email-preview
 
 # Editor directories and files
 .vscode/*
