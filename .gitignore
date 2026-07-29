@@ -27,7 +27,7 @@ linux-unpacked/
 *.asar
 .asaas-maintenance
 .email-preview
-
+.robots.txt
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
