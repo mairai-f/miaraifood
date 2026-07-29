@@ -28,6 +28,11 @@ linux-unpacked/
 .asaas-maintenance
 .email-preview
 .robots.txt
+.codex 
+.rewards_setup.md
+.task.md
+task.md
+task-*.md
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
