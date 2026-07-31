@@ -80,6 +80,11 @@
   * {
     @apply border-border;
   }
+  html, body {
+    width: 100%;
+    overflow-x: hidden;
+  }
+
   body {
     @apply bg-background text-foreground antialiased;
     min-height: 100vh;
@@ -89,6 +94,8 @@
   }
 
   #root {
+    width: 100%;
+    overflow-x: hidden;
     min-height: 100vh;
     min-height: 100dvh;
   }

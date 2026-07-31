@@ -44,7 +44,7 @@ export function ReportDetailsDialog({ detail, sales, saleItems, debts, clients, 
 
   return (
     <Dialog open={detail !== null} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[85vh] max-w-5xl overflow-hidden">
+      <DialogContent className="flex h-[100dvh] w-screen max-w-none flex-col gap-3 overflow-hidden rounded-none p-4 sm:h-auto sm:max-h-[85vh] sm:max-w-5xl sm:rounded-2xl sm:p-6">
         <DialogHeader>
           <DialogTitle>{detail ? title[detail] : 'Detalhes do relatório'}</DialogTitle>
           <DialogDescription>
@@ -53,7 +53,7 @@ export function ReportDetailsDialog({ detail, sales, saleItems, debts, clients, 
               : 'Registros do período selecionado que formam este indicador.'}
           </DialogDescription>
         </DialogHeader>
-        <div className="max-h-[68vh] overflow-auto rounded-md border">
+        <div className="min-h-0 flex-1 overflow-y-auto rounded-md border">
           {showsSales && (
             <Table>
               <TableHeader><TableRow><TableHead>Data</TableHead><TableHead>Cliente</TableHead><TableHead>Pagamento</TableHead><TableHead>Itens</TableHead><TableHead className="text-right">Total</TableHead></TableRow></TableHeader>

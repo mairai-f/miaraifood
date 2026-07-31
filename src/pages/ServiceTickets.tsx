@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ClipboardList, Hash, Loader2, Plus } from 'lucide-react';
+import { ClipboardList, Hash, Loader2, Plus, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { useAuth } from '@/contexts/AuthContext';
@@ -9,9 +9,20 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { isValidServiceTicketNumber } from '@/lib/serviceTicket';
 import { formatCurrency } from '../../shared/locale/format';
 import type { ServiceTicket, ServiceTicketItem } from '@/types';
+
 
 const ticketStatusLabel: Record<ServiceTicket['status'], string> = {
   available: 'Livre',
@@ -44,11 +55,14 @@ export default function ServiceTickets() {
     serviceTicketItems,
     loading,
     createServiceTicket,
+    reopenServiceTicket,
   } = useData();
 
   const [selectedTicketId, setSelectedTicketId] = useState<string | null>(null);
   const [creatingTickets, setCreatingTickets] = useState(false);
   const [createNumber, setCreateNumber] = useState('1');
+  const [ticketToReopen, setTicketToReopen] = useState<string | null>(null);
+  const [reopeningTicket, setReopeningTicket] = useState(false);
 
   const canManageTickets = role === 'admin' || role === 'operator';
   const visibleTickets = [...serviceTickets].sort((left, right) => left.number - right.number);
@@ -84,7 +98,27 @@ export default function ServiceTickets() {
     }
   };
 
+  const handleReopenTicket = async () => {
+    if (!ticketToReopen) return;
+    setReopeningTicket(true);
+    const ticket = serviceTickets.find(t => t.id === ticketToReopen);
+    try {
+      await reopenServiceTicket(ticketToReopen);
+      toast.success(`Comanda ${ticket?.number ?? ''} reaberta com sucesso`);
+      setTicketToReopen(null);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Nao foi possivel reabrir a comanda');
+    } finally {
+      setReopeningTicket(false);
+    }
+  };
+
+  const ticketToReopenData = ticketToReopen
+    ? serviceTickets.find(t => t.id === ticketToReopen)
+    : null;
+
   return (
+
     <div className="flex h-full min-h-0 flex-col gap-4 overflow-hidden">
       <div data-tour-id="service-ticket-header">
         <h1 className="text-2xl font-bold">Comandas</h1>
@@ -191,11 +225,40 @@ export default function ServiceTickets() {
                 <div className="rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground">
                   Esta tela serve apenas para cadastro e consulta da comanda. Para abrir a comanda, lancar produtos e finalizar, use o PDV digitando o numero dela ou escaneando o codigo automatico dela.
                 </div>
+
+                {canManageTickets && selectedTicket.status === 'closed' && (
+                  <Button
+                    variant="outline"
+                    className="mt-2 gap-2 self-start"
+                    onClick={() => setTicketToReopen(selectedTicket.id)}
+                  >
+                    <RefreshCw className="h-4 w-4" />
+                    Reabrir comanda para nova rodada
+                  </Button>
+                )}
               </>
             )}
           </CardContent>
         </Card>
       </div>
+
+      <AlertDialog open={!!ticketToReopen} onOpenChange={open => { if (!open) setTicketToReopen(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Reabrir comanda {ticketToReopenData?.number}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Os itens da rodada anterior serão cancelados e a comanda voltará ao status <strong>Livre</strong>, pronta para uma nova rodada. Esta ação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={reopeningTicket}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={() => void handleReopenTicket()} disabled={reopeningTicket}>
+              {reopeningTicket ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
+              Reabrir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

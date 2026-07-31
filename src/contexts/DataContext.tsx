@@ -410,6 +410,7 @@ interface DataContextType {
     cancelledByName?: string | null,
     options?: { skipAdminCheck?: boolean }
   ) => Promise<void>;
+  reopenServiceTicket: (ticketId: string) => Promise<void>;
   addStockMovement: (
     productId: string,
     type: StockMovementType,
@@ -4130,6 +4131,72 @@ export function DataProvider({ children }: { children: ReactNode }) {
     )));
   };
 
+  const reopenServiceTicket: DataContextType['reopenServiceTicket'] = async (ticketId) => {
+    if (!ownerUserId) throw new Error('Loja nao identificada.');
+    const ticket = serviceTickets.find(t => t.id === ticketId);
+    if (!ticket) throw new Error('Comanda nao encontrada.');
+    if (ticket.status !== 'closed') throw new Error('Somente comandas fechadas podem ser reabertas.');
+
+    const now = nowIso();
+
+    // Cancela todos os itens ativos da rodada anterior
+    const activeItems = serviceTicketItems.filter(
+      item => item.ticket_id === ticketId && item.status === 'active',
+    );
+
+    if (!isDemoMode && canUseOfflineConcentrator && typeof navigator !== 'undefined' && navigator.onLine === false) {
+      throw new Error('Conecte a internet para reabrir a comanda.');
+    }
+
+    if (!isDemoMode && activeItems.length > 0) {
+      ensureSuccess(await db
+        .from('service_ticket_items')
+        .update({ status: 'cancelled', cancelled_at: now, cancel_reason: 'Comanda reaberta para nova rodada' })
+        .eq('ticket_id', ticketId)
+        .eq('status', 'active'));
+    }
+
+    const resetChanges: Partial<ServiceTicket> = {
+      status: 'available',
+      opened_at: null,
+      closed_at: null,
+      opened_by_user_id: null,
+      closed_by_user_id: null,
+      opened_by_name: null,
+      closed_by_name: null,
+      closed_sale_id: null,
+      updated_at: now,
+    };
+
+    if (!isDemoMode) {
+      ensureSuccess(await db
+        .from('service_tickets')
+        .update({
+          status: 'available',
+          opened_at: null,
+          closed_at: null,
+          opened_by_user_id: null,
+          closed_by_user_id: null,
+          opened_by_name: null,
+          closed_by_name: null,
+          closed_sale_id: null,
+        })
+        .eq('id', ticketId));
+    }
+
+    setServiceTickets(prev => sortServiceTicketsByNumber(prev.map(t =>
+      t.id === ticketId ? { ...t, ...resetChanges } : t,
+    )));
+
+    if (activeItems.length > 0) {
+      setServiceTicketItems(prev => sortServiceTicketItemsByCreatedAt(prev.map(item =>
+        item.ticket_id === ticketId && item.status === 'active'
+          ? { ...item, status: 'cancelled' as const, cancelled_at: now, cancel_reason: 'Comanda reaberta para nova rodada' }
+          : item,
+      )));
+    }
+  };
+
   // --- Stock ---
   const addStockMovement = async (
     productId: string,
@@ -4626,7 +4693,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       addDebtEntry, addDebtEntries, updateDebtEntry, deleteDebtEntry,
       addPayment, deletePayment, getClientBalance, getClientTotalSpending, closeAllDebt, deleteClientHistory,
       createSale, cancelSale,
-      createServiceTicket, addServiceTicketItem, updateServiceTicketStatus, updateServiceTicketItemQuantity, cancelServiceTicketItem,
+      createServiceTicket, addServiceTicketItem, updateServiceTicketStatus, updateServiceTicketItemQuantity, cancelServiceTicketItem, reopenServiceTicket,
       addStockMovement, clearAllStock, addExpense, deleteExpense,
       updateStoreOperationalSettings,
       addReward, updateReward, deleteReward,

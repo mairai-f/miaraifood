@@ -376,6 +376,16 @@ Deno.serve(async (request) => {
 
   const registration = (registrationData as PendingRegistrationRow | null) || null;
 
+  if (registration?.status === "completed") {
+    return jsonResponse(request, {
+      success: true,
+      alreadyReady: true,
+      storeAccountId: registration.store_account_id,
+      trialEndsAt: registration.trial_ends_at,
+      productContext: normalizeProductContext(registration.product_context),
+    });
+  }
+
   if (!registration) {
     const { data: anyStoreAccountData, error: anyStoreAccountError } = await serviceClient
       .from("store_accounts")
@@ -552,6 +562,8 @@ Deno.serve(async (request) => {
       trialEndsAt = currentSubscription.trial_ends_at || currentSubscription.current_period_ends_at || trialEndsAt;
     }
 
+    const isFirstTimeActivation = registration.status !== "completed";
+
     await updatePendingRegistration(serviceClient, registration.id, {
       completed_at: new Date().toISOString(),
       failure_reason: null,
@@ -560,14 +572,16 @@ Deno.serve(async (request) => {
       trial_ends_at: trialEndsAt,
     });
 
-    await sendWelcomeEmail(registration, {
-      trialEndsAt,
-      productContext: accountProductContext,
-    }).catch((error) => {
-      console.warn("Nao foi possivel enviar o e-mail de boas-vindas.", {
-        message: error instanceof Error ? error.message : "erro desconhecido",
+    if (isFirstTimeActivation) {
+      await sendWelcomeEmail(registration, {
+        trialEndsAt,
+        productContext: accountProductContext,
+      }).catch((error) => {
+        console.warn("Nao foi possivel enviar o e-mail de boas-vindas.", {
+          message: error instanceof Error ? error.message : "erro desconhecido",
+        });
       });
-    });
+    }
 
     return jsonResponse(request, {
       success: true,
