@@ -1,7 +1,7 @@
 import type { Session } from "@supabase/supabase-js";
 
-import { supabase } from "@/integrations/supabase/client";
-import { retryAsync } from "../../../shared/network/retry";
+import { supabase } from "@/utils/supabase/client";
+import { retryAsync } from "../shared/network/retry";
 
 const SESSION_REFRESH_MARGIN_SECONDS = 60;
 

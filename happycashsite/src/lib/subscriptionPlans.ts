@@ -1,4 +1,4 @@
-import { commercialPaidPlanPricing } from "../../../shared/subscriptionPlanPricing";
+import { commercialPaidPlanPricing } from "../shared/subscriptionPlanPricing";
 
 export type PublicPlanId = "demo" | "fiado" | "completo" | "pro";
 export type PaidPlanId = Exclude<PublicPlanId, "demo">;

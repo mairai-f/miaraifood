@@ -1,0 +1,466 @@
+{
+  "navigation": {
+    "home": "Home",
+    "about": "About HappyCash",
+    "projects": "Features",
+    "experience": "Ecosystem",
+    "skills": "Integrations",
+    "achievements": "Benefits",
+    "blog": "Contents",
+    "gallery": "System Screens",
+    "contact": "Plans",
+    "resume": "Terms & Privacy",
+    "tools": "Tools",
+    "menu": {
+      "achievements": "Benefits",
+      "achievementsDesc": "Why choose HappyCash",
+      "skills": "Integrations",
+      "skillsDesc": "Technology connected to your business",
+      "experience": "HappyCash Ecosystem",
+      "experienceDesc": "Connected solutions to simplify",
+      "projects": "Features",
+      "projectsDesc": "Everything you need in one place",
+      "blog": "Contents",
+      "blogDesc": "Content hub about management"
+    },
+    "shortcuts": {
+      "volume1": "Volume I: Management",
+      "volume2": "Volume II: Funcionalidades",
+      "volume3": "Volume III: Recursos",
+      "volume4": "Volume IV: Experience",
+      "preview": "Demo Mode",
+      "idRef": "HC_REF"
+    }
+  },
+  "hero": {
+    "greeting": "Welcome to the HappyCash universe",
+    "subtitle": "ERP • PDV • Business Management • Financial Control",
+    "cta": {
+      "primary": "Explore the System",
+      "secondary": "Get in Touch",
+      "exploreMore": "Explore Features"
+    },
+    "badge": "Simple management for smart businesses",
+    "scroll": "Scroll",
+    "role": "Business ERP System",
+    "description": "Transforming your business management through <span class='text-primary font-semibold'>smart sales</span>, <span class='text-secondary font-semibold'>efficient control</span> and <span class='text-accent font-semibold'>technology built to grow</span>."
+  },
+  "about": {
+    "title": "About HappyCash",
+    "subtitle": "Simple technology for real businesses",
+    "description": "HappyCash ERP is a complete business management platform designed to simplify sales, inventory, customers, finances and reports in a single system.",
+    "stats": {
+      "experience": "Years of Development",
+      "projects": "Features Created",
+      "certifications": "Available Modules",
+      "competitions": "Solutions Developed"
+    },
+    "identity": "Connected System",
+    "architecting": "Building",
+    "digitalReality": "Digital Management",
+    "leadIn": {
+      "label": "WHAT WE DO",
+      "tagline": "MAIN FOCUS",
+      "headlineAI": "Sales Control.",
+      "headlineData": "Inventory and Finance.",
+      "headlineSoftware": "Complete ERP System",
+      "thesis": "We created a platform that brings together PDV, inventory and financial management for businesses that need more control.",
+      "scope": "Complete system for sales, products, customers, suppliers and financial tracking.",
+      "bridging": "Connecting all areas of the business in one place.",
+      "integration": "HappyCash integrates sales, inventory, customers, payments and reports to simplify operations.",
+      "signature": "HappyCash",
+      "role": "ERP for Commerce and Business Management",
+      "aboutMe": "About the System",
+      "scroll": "Explore System",
+      "shortStory": "Our Story"
+    },
+    "profile": {
+      "title": "Simplifying Business <br /> Where Technology Meets Management.",
+      "narrativeLabel": "Our Vision",
+      "narrative": "HappyCash ERP was created to help businesses gain more control over their operations, offering a simple, modern and efficient solution.",
+      "narrative2": "Our platform combines technology, ease of use and essential features to transform how businesses manage their sales and processes.",
+      "pillars": {
+        "reliable": {
+          "title": "Reliable by Nature",
+          "desc": "Built to provide stability and security throughout your business operations."
+        },
+        "optimized": {
+          "title": "Ready for Operations",
+          "desc": "From product registration to closing a sale, everything is designed to make your daily operations easier."
+        },
+        "maintainable": {
+          "title": "Continuous Evolution",
+          "desc": "A platform prepared to receive new features and keep up with your business growth."
+        },
+        "evolvable": {
+          "title": "Data-Driven Decisions",
+          "desc": "Reports and strategic information to help you make better decisions."
+        }
+      }
+    }
+  },
+  "coreEngineering": {
+    "label": "System Technology",
+    "title": "A <span class='text-primary italic font-serif font-light lowercase'>complete.</span> platform <br /> <span class='italic font-serif font-light text-foreground'>simplified</span> management.",
+    "p1": "HappyCash ERP uses modern technologies to deliver performance, security and a simple experience for businesses of all sizes.",
+    "p2": "The platform connects PDV, inventory, customers, finances and reports in a single environment to make decision-making easier.",
+    "p3": "Built with an architecture designed for evolution, enabling continuous improvements, new features and greater scalability.",
+    "gpa": "Businesses Served",
+    "projects": "Modules Developed",
+    "years": "Years of Evolution"
+  },
+  "emergingResearch": {
+    "label": "Platform Evolution",
+    "title": "NEW SOLUTIONS <span class='italic font-serif font-light text-primary lowercase'>&</span> EXPANSION",
+    "agentic": {
+      "title": "SMART AUTOMATION",
+      "desc": "We constantly seek new ways to automate processes, reduce manual tasks and improve business productivity."
+    },
+    "web3": {
+      "title": "CONTINUOUS GROWTH",
+      "desc": "HappyCash is constantly evolving, receiving new modules, integrations and improvements to meet customer needs."
+    }
+  },
+  "closing": {
+    "experience": {
+      "label": "SOLUTIONS",
+      "title1": "HOW",
+      "title2": "HAPPYCASH WORKS",
+      "viewMore": "Explore Solutions"
+    },
+    "projects": {
+      "label": "FEATURES",
+      "title1": "MODULES",
+      "title2": "OF THE SYSTEM",
+      "viewMore": "View Features"
+    },
+    "experiencesList": [
+      {
+        "company": "HappyCash ERP",
+        "role": "MANAGEMENT PLATFORM",
+        "desc": "Complete system developed to centralize sales, inventory, customers, finances and reports in a single solution."
+      },
+      {
+        "company": "PDV HappyCash",
+        "role": "SMART POINT OF SALE",
+        "desc": "Tool created to speed up sales, organize payments and improve customer service."
+      },
+      {
+        "company": "Inventory Control",
+        "role": "PRODUCT MANAGEMENT",
+        "desc": "Complete control of stock entries, exits, prices and movements to keep inventory organized."
+      },
+      {
+        "company": "Mobile App",
+        "role": "MANAGEMENT ANYWHERE",
+        "desc": "Mobile features developed to make it easy to monitor your business in a practical way."
+      },
+      {
+        "company": "Integrations",
+        "role": "CONNECTING SOLUTIONS",
+        "desc": "Continuous integrations and improvements to provide users with a more complete experience."
+      }
+    ],
+    "projectsList": [
+      {
+        "title": "HappyCash ERP",
+        "desc": "Business management system that brings together the main tools to control your business simply."
+      },
+      {
+        "title": "Smart PDV",
+        "desc": "Fast and intuitive sales module for recording orders, payments and commercial operations."
+      },
+      {
+        "title": "Inventory Control",
+        "desc": "Manage products, movements and important information to prevent losses and improve organization."
+      },
+      {
+        "title": "Management Reports",
+        "desc": "View strategic information about sales and performance to make better decisions."
+      },
+      {
+        "title": "HappyCash Mobile",
+        "desc": "Access your business information through a simple and efficient mobile experience."
+      }
+    ],
+    "discoverMore": "Learn More"
+  },
+  "experience": {
+    "title": "Solutions",
+    "subtitle": "See how HappyCash helps businesses organize their operations and grow more efficiently",
+    "showDetail": "View Details",
+    "hideDetail": "Hide Details",
+    "tasks": "FEATURES",
+    "learned": "BENEFITS",
+    "impact": "RESULTS",
+    "present": "Current",
+    "responsibilities": "Features",
+    "skills": "Resources Used",
+    "month": "month",
+    "months": "months",
+    "year": "year",
+    "years": "years",
+    "type": {
+      "full-time": "Available",
+      "part-time": "Flexible",
+      "internship": "Trial",
+      "freelance": "Custom",
+      "contract": "Plan",
+      "apprenticeship": "Learning",
+      "volunteer": "Support"
+    },
+    "filters": {
+      "all": "All",
+      "latest": "Newest",
+      "oldest": "Oldest",
+      "ongoing": "Evolving"
+    },
+    "education": {
+      "title": "Explore the System"
+    }
+  },
+  "expertise": {
+    "title": "Key Capabilities",
+    "subtitle": "Modern features designed to transform business management and improve daily operations",
+    "dragHint": "Drag or scroll to explore"
+  },
+  "skills": {
+    "title": "Features & Technologies",
+    "subtitle": "Technologies and features that make HappyCash a complete business management platform",
+    "hard": "Features",
+    "soft": "Benefits",
+    "technical": "Platform Technology",
+    "tools": "Tools & Integrations",
+    "pillars": "System Pillars",
+    "achievements": "Platform Advantages",
+    "level": {
+      "beginner": "Basic",
+      "intermediate": "Intermediate",
+      "advanced": "Advanced",
+      "expert": "Specialized"
+    }
+  },
+  "achievements": {
+    "title": "Advantages",
+    "subtitle": "Features and advantages that make HappyCash a complete business management solution",
+    "search": "Search advantages...",
+    "viewCredential": "View Details",
+    "category": {
+      "all": "All",
+      "certification": "Technology",
+      "award": "Benefit",
+      "publication": "Feature",
+      "competition": "Solution"
+    },
+    "sort": {
+      "newest": "Newest",
+      "oldest": "Oldest"
+    },
+    "stats": {
+      "total": "Total Features",
+      "awards": "Advantages",
+      "certifications": "Available Modules"
+    }
+  },
+  "contact": {
+    "title": "Get in Touch",
+    "subtitle": "Discover HappyCash ERP and learn how to simplify your business management",
+    "form": {
+      "name": "Your Name",
+      "email": "Your Email",
+      "subject": "Subject",
+      "message": "Your Message",
+      "messagePlaceholder": "Tell us how we can help your business...",
+      "send": "Send Message",
+      "submit": "REQUEST A DEMO",
+      "sending": "SENDING...",
+      "sent": "SENT!",
+      "success": "Message sent successfully!",
+      "error": "An error occurred. Please try again."
+    },
+    "social": {
+      "title": "Follow HappyCash"
+    },
+    "faq": {
+      "title": "Frequently Asked Questions"
+    },
+    "info": {
+      "email": "Email",
+      "phone": "Phone",
+      "location": "Location",
+      "availability": "Available for support"
+    },
+    "hero": {
+      "title": "TALK TO US",
+      "subtitle": "Want to improve your business management? Our team is ready to introduce you to HappyCash.",
+      "ticker": {
+        "build": "Simple management for smart businesses · ",
+        "freelance": "Discover HappyCash ERP · "
+      }
+    },
+    "faqData": [
+      {
+        "q": "What is HappyCash ERP?",
+        "a": "HappyCash ERP is a business management system created to help companies control sales, inventory, customers, finances and reports on a single platform."
+      },
+      {
+        "q": "What types of businesses is HappyCash suitable for?",
+        "a": "The system was developed to serve various segments such as markets, liquor stores, bars, restaurants, stores and small businesses that need more organization."
+      },
+      {
+        "q": "What features does the system have?",
+        "a": "HappyCash includes features such as PDV, inventory control, product registration, customer management, reports, financial management and tools to facilitate daily operations."
+      },
+      {
+        "q": "Does HappyCash work offline?",
+        "a": "The system has features designed to provide greater operational availability, allowing continuity even in environments with limited connectivity."
+      },
+      {
+        "q": "How do I start using HappyCash?",
+        "a": "Contact our team to learn about the available options and start your experience with the system."
+      }
+    ]
+  },
+  "footer": {
+    "copyright": "All rights reserved.",
+    "madeWith": "Built with",
+    "more": "More",
+    "marquee": [
+      "Smart Management",
+      "PDV System",
+      "Inventory Control",
+      "Financial Management",
+      "Business Reports",
+      "Technology for Business"
+    ],
+    "cta": {
+      "title": "Simplify your",
+      "titleHighlight": "Management",
+      "subtitle": "Have more control, organization and convenience to manage your business with HappyCash ERP."
+    },
+    "links": "LINKS",
+    "socials": "SOCIAL MEDIA",
+    "localTime": "SUPPORT",
+    "version": "VERSION",
+    "versionEdition": "2026 © HappyCash ERP"
+  },
+  "ctaSection": {
+    "title": "Transform Your Management",
+    "together": "Today",
+    "subtitle": "Have a complete platform to control sales, inventory, customers and finances. HappyCash ERP simplifies processes and helps your business grow.",
+    "start": "Get Started",
+    "work": "Explore the System",
+    "words": {
+      "amazing": "Simple",
+      "innovative": "Smart",
+      "intelligent": "Efficient",
+      "creative": "Complete"
+    },
+    "ribbon1": "PDV • Inventory • Finance • Customers • Products • Reports • Sales • Automation",
+    "ribbon2": "HappyCash ERP • Business Management • PDV System • Commercial Control • Technology • Productivity"
+  },
+  "stats": {
+    "systemStatus": "System Status: Active Operation",
+    "portfolio": "Platform Metrics",
+    "totalPulse": "Total Operations",
+    "peakActivity": "Peak Activity",
+    "dailyAverage": "Daily Average",
+    "currentSprint": "Current Updates",
+    "engageFlow": "Management Flow",
+    "weeklyEffort": "Weekly Usage",
+    "processSpeed": "System Speed",
+    "avgPerf": "Average Performance",
+    "latency": "LATENCY: OPTIMIZED",
+    "system": "SYSTEM: HAPPYCASH_ERP_STABLE",
+    "scanning": "MONITORING_ACTIVE_FEATURES",
+    "engineering": "TECHNOLOGY",
+    "metrics": "METRICS",
+    "analyticsSub": "MANAGEMENT / SALES / INVENTORY / PERFORMANCE",
+    "statusOnline": "STATUS: ONLINE",
+    "loadStable": "SYSTEM: STABLE"
+  },
+  "projectHeader": {
+    "title": "Managing Businesses with Technology",
+    "subtitle": "A complete business management platform created to simplify processes, connect information and transform the daily operations of businesses through <span class='font-bold text-foreground'>sales</span>, inventory, finance and smart solutions."
+  },
+  "common": {
+    "loading": "Loading...",
+    "error": "Something went wrong",
+    "notFound": "Page not found",
+    "backHome": "Back to Home",
+    "viewMore": "View More",
+    "readMore": "Read More",
+    "close": "Close",
+    "download": "Download",
+    "share": "Share",
+    "scrollAudit": "Scroll to explore"
+  },
+  "technical": {
+    "github": {
+      "title": "Platform Development",
+      "description": "Follow the technical evolution and improvements made to HappyCash ERP.",
+      "total": "Total",
+      "thisWeek": "This Week",
+      "best": "Best",
+      "average": "Average",
+      "less": "Less",
+      "more": "More"
+    },
+    "wakatime": {
+      "title": "Development Statistics",
+      "description": "Follow information about the system's evolution and development.",
+      "lastUpdate": "Last Update",
+      "startDate": "Start Date",
+      "endDate": "End Date",
+      "dailyAverage": "Daily Average",
+      "totalWeek": "Weekly Total",
+      "bestDay": "Best Day",
+      "totalSince": "Total Since Start",
+      "topLanguages": "Top Technologies"
+    }
+  },
+  "blog": {
+    "title": "Content & News",
+    "subtitle": "Information about management, technology and solutions to improve your business performance with HappyCash ERP.",
+    "sectionBadge": "Knowledge Hub",
+    "search": "Search content...",
+    "readTime": "min read",
+    "readMore": "Read Content",
+    "back": "Back to Content",
+    "noResults": "No content found",
+    "categories": {
+      "applied-ai": "Technology",
+      "software-development": "Business Management",
+      "about-me": "About HappyCash",
+      "more": "More"
+    }
+  },
+  "gallery": {
+    "title": "System Gallery",
+    "subtitle": "Explore the features, modules and experiences offered by HappyCash ERP visually.",
+    "filter": {
+      "all": "All Media",
+      "image": "Images",
+      "video": "Videos"
+    },
+    "viewMedia": "View Media"
+  },
+  "chatbot": {
+    "title": "HappyCash Assistant",
+    "subtitle": "Get answers to your questions about the system",
+    "placeholder": "Type a message...",
+    "greeting": "Hello! I’m the virtual assistant for **HappyCash ERP**. 👋\n\nI can help you with information about:\n- System features\n- PDV and sales\n- Inventory control\n- Reports and management\n- Plans and demos\n\nHow can I help?",
+    "suggestions": [
+      "What are the main features?",
+      "How does the PDV work?",
+      "Does the system have inventory control?",
+      "How can I request a demo?"
+    ],
+    "error": "An error occurred. Please try again.",
+    "invalidResponse": "Invalid server response.",
+    "unknownError": "An unknown error occurred.",
+    "retry": "Try again",
+    "inputHint": "Press Enter to send, Shift+Enter for a new line",
+    "close": "Close support"
+  }
+}

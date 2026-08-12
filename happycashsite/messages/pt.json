@@ -1,0 +1,554 @@
+{
+  "navigation": {
+    "home": "Início",
+    "about": "Sobre o HappyCash",
+    "projects": "Funcionalidades",
+    "experience": "Sobre Nós",
+    "skills": "Recursos Integrados",
+    "achievements": "Central de Ajuda",
+    "blog": "Conteúdos HappyCash",
+    "gallery": "Telas do Sistema",
+    "contact": "Planos",
+    "resume": "Termos e Privacidade",
+    "tools": "Ferramentas",
+    "menu": {
+    "achievements": "Central de Ajuda",
+    "achievementsDesc": "Como usar o sistema",
+
+    "skills": "Recursos Integrados",
+    "skillsDesc": "Tecnologia conectada aos equipamentos",
+
+    "experience": "Sobre Nós",
+    "experienceDesc": "Nossa missão e a história do HappyCash",
+
+    "projects": "Funcionalidades",
+    "projectsDesc": "Tudo o que você precisa em um só lugar",
+
+    "blog": "Conteúdos HappyCash",
+    "blogDesc": "Hub de conteúdo sobre gestão e negócios"
+},
+    "shortcuts": {
+      "volume1": "Volume I: Gestão",
+      "volume2": "Volume II: Funcionalidades",
+      "volume3": "Volume III: Recursos",
+      "volume4": "Volume IV: Experiência",
+      "preview": "Modo Demonstração",
+      "idRef": "HC_REF"
+    }
+  },
+
+  "hero": {
+    "greeting": "Bem-vindo ao universo HappyCash",
+    "subtitle": "ERP • PDV • Gestão Empresarial • Controle Financeiro",
+    "cta": {
+      "primary": "Conhecer Sistema",
+      "secondary": "Entrar em Contato",
+      "exploreMore": "Explorar Recursos"
+    },
+    "badge": "Gestão simples para negócios inteligentes",
+    "scroll": "Rolar",
+    "role": "Sistema ERP Empresarial",
+    "description": "Transformando a gestão da sua empresa através de <span class='text-primary font-semibold'>vendas inteligentes</span>, <span class='text-secondary font-semibold'>controle eficiente</span> e <span class='text-accent font-semibold'>tecnologia preparada para crescer</span>."
+  },
+
+ "about": {
+    "title": "Sobre o HappyCash",
+    "subtitle": "Tecnologia simples para negócios reais",
+    "description": "O HappyCash ERP é uma plataforma completa de gestão empresarial criada para simplificar vendas, estoque, clientes, financeiro e relatórios em um único sistema.",
+
+    "stats": {
+        "experience": "Anos de Desenvolvimento",
+        "projects": "Funcionalidades Criadas",
+        "certifications": "Módulos Disponíveis",
+        "competitions": "Soluções Desenvolvidas"
+    },
+
+    "identity": "Sistema Conectado",
+    "architecting": "Construindo",
+    "digitalReality": "A Gestão Digital",
+
+    "leadIn": {
+        "label": "O QUE FAZEMOS",
+        "tagline": "FOCO PRINCIPAL",
+        "headlineAI": "Controle de Vendas.",
+        "headlineData": "Estoque e Financeiro.",
+        "headlineSoftware": "Sistema ERP completo",
+
+        "thesis": "Criamos uma plataforma que reúne PDV, estoque e gestão financeira para empresas que precisam de mais controle.",
+
+        "scope": "Sistema completo para vendas, produtos, clientes, fornecedores e acompanhamento financeiro.",
+
+        "bridging": "Conectando todas as áreas do negócio em um único lugar.",
+
+        "integration": "O HappyCash integra vendas, estoque, clientes, pagamentos e relatórios para simplificar a operação.",
+
+        "signature": "HappyCash",
+
+        "role": "ERP para Comércio e Gestão Empresarial",
+
+        "aboutMe": "Sobre o Sistema",
+
+        "scroll": "Explorar Sistema",
+
+        "shortStory": "Nossa História"
+    },
+
+    "profile": {
+        "title": "Simplificando Negócios <br /> Onde Tecnologia Encontra Gestão.",
+        "narrativeLabel": "Nossa Visão",
+        "narrative": "O HappyCash ERP foi criado para ajudar empresas a terem mais controle sobre suas operações, oferecendo uma solução simples, moderna e eficiente.",
+        "narrative2": "Nossa plataforma combina tecnologia, facilidade de uso e recursos essenciais para transformar a maneira como empresas gerenciam suas vendas e processos.",
+
+        "pillars": {
+            "reliable": {
+                "title": "Confiável por Natureza",
+                "desc": "Construído para oferecer estabilidade e segurança durante a rotina do seu negócio."
+            },
+            "optimized": {
+                "title": "Preparado para Operação",
+                "desc": "Do cadastro de produtos ao fechamento da venda, tudo pensado para facilitar seu dia a dia."
+            },
+            "maintainable": {
+                "title": "Evolução Constante",
+                "desc": "Uma plataforma preparada para receber novos recursos e acompanhar o crescimento da sua empresa."
+            },
+            "evolvable": {
+                "title": "Decisões Baseadas em Dados",
+                "desc": "Relatórios e informações estratégicas para ajudar você a tomar melhores decisões."
+            }
+        }
+    }
+},
+  "coreEngineering": {
+    "label": "Tecnologia do Sistema",
+    "title": "Uma plataforma <span class='text-primary italic font-serif font-light lowercase'>completa.</span> <br /> Gestão <span class='italic font-serif font-light text-foreground'>simplificada.</span>",
+    "p1": "O HappyCash ERP utiliza tecnologias modernas para oferecer desempenho, segurança e uma experiência simples para empresas de todos os tamanhos.",
+    "p2": "A plataforma conecta PDV, estoque, clientes, financeiro e relatórios em um único ambiente para facilitar a tomada de decisões.",
+    "p3": "Desenvolvido com uma arquitetura preparada para evolução, permitindo melhorias constantes, novos recursos e maior escalabilidade.",
+    "gpa": "Empresas Atendidas",
+    "projects": "Módulos Desenvolvidos",
+    "years": "Anos de Evolução"
+  },
+
+  "emergingResearch": {
+    "label": "Evolução da Plataforma",
+    "title": "NOVAS SOLUÇÕES <span class='italic font-serif font-light text-primary lowercase'>&</span> EXPANSÃO",
+    "agentic": {
+      "title": "AUTOMAÇÃO INTELIGENTE",
+      "desc": "Buscamos constantemente novas formas de automatizar processos, reduzir tarefas manuais e melhorar a produtividade dos negócios."
+    },
+    "web3": {
+      "title": "CRESCIMENTO CONTÍNUO",
+      "desc": "O HappyCash está em constante evolução, recebendo novos módulos, integrações e melhorias para acompanhar as necessidades dos clientes."
+    }
+  },
+ 
+  "closing": {
+    "experience": {
+      "label": "SOLUÇÕES",
+      "title1": "COMO O",
+      "title2": "HAPPYCASH FUNCIONA",
+      "viewMore": "Conhecer Soluções"
+    },
+    "projects": {
+      "label": "RECURSOS",
+      "title1": "MÓDULOS",
+      "title2": "DO SISTEMA",
+      "viewMore": "Ver Funcionalidades"
+    },
+
+    "experiencesList": [
+      {
+        "company": "HappyCash ERP",
+        "role": "PLATAFORMA DE GESTÃO",
+        "desc": "Sistema completo desenvolvido para centralizar vendas, estoque, clientes, financeiro e relatórios em uma única solução."
+      },
+      {
+        "company": "PDV HappyCash",
+        "role": "PONTO DE VENDA INTELIGENTE",
+        "desc": "Ferramenta criada para agilizar vendas, organizar pagamentos e melhorar o atendimento ao cliente."
+      },
+      {
+        "company": "Controle de Estoque",
+        "role": "GESTÃO DE PRODUTOS",
+        "desc": "Controle completo de entradas, saídas, preços e movimentações para manter o estoque organizado."
+      },
+      {
+        "company": "Aplicativo Mobile",
+        "role": "GESTÃO EM QUALQUER LUGAR",
+        "desc": "Recursos mobile desenvolvidos para facilitar o acompanhamento do negócio de forma prática."
+      },
+      {
+        "company": "Integrações",
+        "role": "CONECTANDO SOLUÇÕES",
+        "desc": "Integrações e melhorias contínuas para oferecer uma experiência mais completa aos usuários."
+      }
+    ],
+
+    "projectsList": [
+      {
+        "title": "HappyCash ERP",
+        "desc": "Sistema de gestão empresarial que reúne as principais ferramentas para controlar o negócio de forma simples."
+      },
+      {
+        "title": "PDV Inteligente",
+        "desc": "Módulo de vendas rápido e intuitivo para registrar pedidos, pagamentos e operações comerciais."
+      },
+      {
+        "title": "Controle de Estoque",
+        "desc": "Gerencie produtos, movimentações e informações importantes para evitar perdas e melhorar organização."
+      },
+      {
+        "title": "Relatórios Gerenciais",
+        "desc": "Visualize informações estratégicas sobre vendas e desempenho para tomar decisões melhores."
+      },
+      {
+        "title": "HappyCash Mobile",
+        "desc": "Tenha acesso às informações do seu negócio através de uma experiência móvel simples e eficiente."
+      }
+    ],
+
+    "discoverMore": "Conhecer Mais"
+  },
+  "experience": {
+    "title": "Soluções",
+    "subtitle": "Conheça como o HappyCash ajuda empresas a organizarem suas operações e crescerem com mais eficiência",
+    "showDetail": "Ver Detalhes",
+    "hideDetail": "Ocultar Detalhes",
+    "tasks": "RECURSOS",
+    "learned": "BENEFÍCIOS",
+    "impact": "RESULTADOS",
+    "present": "Atual",
+    "responsibilities": "Funcionalidades",
+    "skills": "Recursos Utilizados",
+    "month": "mês",
+    "months": "meses",
+    "year": "ano",
+    "years": "anos",
+
+    "type": {
+      "full-time": "Disponível",
+      "part-time": "Flexível",
+      "internship": "Teste",
+      "freelance": "Personalizado",
+      "contract": "Plano",
+      "apprenticeship": "Aprendizado",
+      "volunteer": "Suporte"
+    },
+
+    "filters": {
+      "all": "Todos",
+      "latest": "Mais Recentes",
+      "oldest": "Mais Antigos",
+      "ongoing": "Em Evolução"
+    },
+
+    "education": {
+      "title": "Conheça o Sistema"
+    }
+  },
+  "expertise": {
+    "title": "Principais Capacidades",
+    "subtitle": "Recursos modernos desenvolvidos para transformar a gestão empresarial e melhorar a rotina dos negócios",
+    "dragHint": "Arraste ou role para explorar"
+  },
+  "skills": {
+    "title": "Recursos & Tecnologias",
+    "subtitle": "Tecnologias e funcionalidades que tornam o HappyCash uma plataforma completa de gestão empresarial",
+    "hard": "Funcionalidades",
+    "soft": "Benefícios",
+    "technical": "Tecnologia da Plataforma",
+    "tools": "Ferramentas & Integrações",
+    "pillars": "Pilares do Sistema",
+    "achievements": "Diferenciais da Plataforma",
+
+    "level": {
+      "beginner": "Básico",
+      "intermediate": "Intermediário",
+      "advanced": "Avançado",
+      "expert": "Especializado"
+    }
+  },
+  "achievements": {
+    "title": "Diferenciais",
+    "subtitle": "Recursos e vantagens que tornam o HappyCash uma solução completa para gestão empresarial",
+    "search": "Buscar diferenciais...",
+    "viewCredential": "Ver Detalhes",
+
+    "category": {
+      "all": "Todos",
+      "certification": "Tecnologia",
+      "award": "Benefício",
+      "publication": "Recurso",
+      "competition": "Solução"
+    },
+
+    "sort": {
+      "newest": "Mais Recentes",
+      "oldest": "Mais Antigos"
+    },
+
+    "stats": {
+      "total": "Total de Recursos",
+      "awards": "Diferenciais",
+      "certifications": "Módulos Disponíveis"
+    }
+  },
+  "contact": {
+    "title": "Entre em Contato",
+    "subtitle": "Conheça o HappyCash ERP e descubra como simplificar a gestão do seu negócio",
+
+    "form": {
+      "name": "Seu Nome",
+      "email": "Seu E-mail",
+      "subject": "Assunto",
+      "message": "Sua Mensagem",
+      "messagePlaceholder": "Conte como podemos ajudar sua empresa...",
+      "send": "Enviar Mensagem",
+      "submit": "SOLICITAR DEMONSTRAÇÃO",
+      "sending": "ENVIANDO...",
+      "sent": "ENVIADO!",
+      "success": "Mensagem enviada com sucesso!",
+      "error": "Ocorreu um erro. Tente novamente."
+    },
+
+    "social": {
+      "title": "Siga o HappyCash"
+    },
+
+    "faq": {
+      "title": "Perguntas Frequentes"
+    },
+
+    "info": {
+      "email": "E-mail",
+      "phone": "Telefone",
+      "location": "Localização",
+      "availability": "Disponível para atendimento"
+    },
+
+    "hero": {
+      "title": "FALE COM A GENTE",
+      "subtitle": "Quer melhorar a gestão da sua empresa? Nossa equipe está pronta para apresentar o HappyCash.",
+      "ticker": {
+        "build": "Gestão simples para negócios inteligentes · ",
+        "freelance": "Conheça o HappyCash ERP · "
+      }
+    },
+
+    "faqData": [
+      {
+        "q": "O que é o HappyCash ERP?",
+        "a": "O HappyCash ERP é um sistema de gestão empresarial criado para ajudar empresas a controlar vendas, estoque, clientes, financeiro e relatórios em uma única plataforma."
+      },
+      {
+        "q": "Para quais tipos de negócios o HappyCash é indicado?",
+        "a": "O sistema foi desenvolvido para atender diversos segmentos como mercados, adegas, bares, restaurantes, lojas e pequenos negócios que precisam de mais organização."
+      },
+      {
+        "q": "Quais funcionalidades o sistema possui?",
+        "a": "O HappyCash possui recursos como PDV, controle de estoque, cadastro de produtos, gestão de clientes, relatórios, financeiro e ferramentas para facilitar a operação diária."
+      },
+      {
+        "q": "O HappyCash funciona offline?",
+        "a": "O sistema possui recursos preparados para oferecer maior disponibilidade operacional, permitindo continuidade mesmo em ambientes com conexão limitada."
+      },
+      {
+        "q": "Como começar a usar o HappyCash?",
+        "a": "Entre em contato com nossa equipe para conhecer as opções disponíveis e iniciar sua experiência com o sistema."
+      }
+    ]
+  },
+  "footer": {
+    "copyright": "Todos os direitos reservados.",
+    "madeWith": "Desenvolvido com",
+    "more": "Mais",
+
+    "marquee": [
+      "Gestão Inteligente",
+      "Sistema PDV",
+      "Controle de Estoque",
+      "Gestão Financeira",
+      "Relatórios Empresariais",
+      "Tecnologia para Negócios"
+    ],
+
+    "cta": {
+      "title": "Simplifique sua",
+      "titleHighlight": "Gestão",
+      "subtitle": "Tenha mais controle, organização e praticidade para administrar sua empresa com o HappyCash ERP."
+    },
+
+    "links": "LINKS",
+    "socials": "REDES SOCIAIS",
+    "localTime": "ATENDIMENTO",
+    "version": "VERSÃO",
+    "versionEdition": "2026 © HappyCash ERP"
+  },
+  "ctaSection": {
+    "title": "Transforme sua Gestão",
+    "together": "Hoje",
+    "subtitle": "Tenha uma plataforma completa para controlar vendas, estoque, clientes e financeiro. O HappyCash ERP simplifica processos e ajuda sua empresa a crescer.",
+    "start": "Começar Agora",
+    "work": "Conhecer o Sistema",
+
+    "words": {
+      "amazing": "Simples",
+      "innovative": "Inteligente",
+      "intelligent": "Eficiente",
+      "creative": "Completa"
+    },
+
+    "ribbon1": "PDV • Estoque • Financeiro • Clientes • Produtos • Relatórios • Vendas • Automação",
+
+    "ribbon2": "HappyCash ERP • Gestão Empresarial • Sistema PDV • Controle Comercial • Tecnologia • Produtividade"
+  },
+  "stats": {
+    "systemStatus": "Status do Sistema: Operação Ativa",
+    "portfolio": "Métricas da Plataforma",
+    "totalPulse": "Total de Operações",
+    "peakActivity": "Maior Atividade",
+    "dailyAverage": "Média Diária",
+    "currentSprint": "Atualizações Atuais",
+    "engageFlow": "Fluxo de Gestão",
+    "weeklyEffort": "Uso Semanal",
+    "processSpeed": "Velocidade do Sistema",
+    "avgPerf": "Desempenho Médio",
+    "latency": "LATÊNCIA: OTIMIZADA",
+    "system": "SISTEMA: HAPPYCASH_ERP_STABLE",
+    "scanning": "MONITORANDO_RECURSOS_ATIVOS",
+    "engineering": "TECNOLOGIA",
+    "metrics": "MÉTRICAS",
+    "analyticsSub": "GESTÃO / VENDAS / ESTOQUE / DESEMPENHO",
+    "statusOnline": "STATUS: ONLINE",
+    "loadStable": "SISTEMA: ESTÁVEL"
+  },
+  "projectHeader": {
+    "title": "Gerenciando Negócios com Tecnologia",
+    "subtitle": "Uma plataforma completa de gestão empresarial criada para simplificar processos, conectar informações e transformar a rotina de empresas através de <span class='font-bold text-foreground'>vendas</span>, estoque, financeiro e soluções inteligentes."
+  },
+  "common": {
+    "loading": "Carregando...",
+    "error": "Algo deu errado",
+    "notFound": "Página não encontrada",
+    "backHome": "Voltar ao Início",
+    "viewMore": "Ver Mais",
+    "readMore": "Ler Mais",
+    "close": "Fechar",
+    "download": "Baixar",
+    "share": "Compartilhar",
+    "scrollAudit": "Role para explorar"
+  },
+  "technical": {
+    "github": {
+      "title": "Desenvolvimento da Plataforma",
+      "description": "Acompanhe a evolução técnica e melhorias realizadas no HappyCash ERP.",
+      "total": "Total",
+      "thisWeek": "Esta Semana",
+      "best": "Melhor",
+      "average": "Média",
+      "less": "Menos",
+      "more": "Mais"
+    },
+
+    "wakatime": {
+      "title": "Estatísticas de Desenvolvimento",
+      "description": "Acompanhe informações sobre evolução e desenvolvimento do sistema.",
+      "lastUpdate": "Última Atualização",
+      "startDate": "Data Inicial",
+      "endDate": "Data Final",
+      "dailyAverage": "Média Diária",
+      "totalWeek": "Total da Semana",
+      "bestDay": "Melhor Dia",
+      "totalSince": "Total Desde o Início",
+      "topLanguages": "Principais Tecnologias"
+    }
+  },
+  "blog": {
+    "title": "Conteúdos & Novidades",
+    "subtitle": "Informações sobre gestão, tecnologia e soluções para melhorar o desempenho do seu negócio com o HappyCash ERP.",
+    "sectionBadge": "Central de Conhecimento",
+    "search": "Buscar conteúdos...",
+    "readTime": "min de leitura",
+    "readMore": "Ler Conteúdo",
+    "back": "Voltar aos Conteúdos",
+    "noResults": "Nenhum conteúdo encontrado",
+
+    "categories": {
+      "gestao": "Gestão Empresarial",
+      "vendas": "Vendas",
+      "pdv": "Frente de Caixa (PDV)",
+      "estoque": "Estoque",
+      "financeiro": "Financeiro",
+      "novidades": "Novidades do HappyCash"
+    }
+  },
+  "projects": {
+    "title": "Funcionalidades",
+    "subtitle": "Conheça todas as soluções do HappyCash ERP",
+    "filters": {
+      "all": "Todas as Soluções",
+      "ongoing": "Em Atualização",
+      "completed": "Disponíveis"
+    },
+    "status": {
+      "ongoing": "Em Atualização",
+      "completed": "Disponível"
+    },
+    "sections": {
+      "backToProjects": "Voltar às Funcionalidades",
+      "missionBrief": "Visão Geral da Funcionalidade",
+      "keyFeatures": "Recursos Principais",
+      "engineeringChronicles": "Soluções Desenvolvidas",
+      "solution": "Solução",
+      "visualGallery": "Galeria Visual",
+      "installation": "Integração e Uso",
+      "projectAccess": "Acesso ao Módulo",
+      "liveDemo": "Solicitar Demonstração",
+      "sourceCode": "Código Fonte",
+      "technologies": "Tecnologias Integradas",
+      "contents": "Nesta Página",
+      "moreProjects": "Outras Funcionalidades",
+      "viewMore": "Ver Mais Imagens",
+      "viewLess": "Ver Menos"
+    },
+    "metadata": {
+      "role": "Módulo",
+      "roleValue": "Recurso Nativo",
+      "timeline": "Atualização",
+      "team": "Suporte",
+      "teamValue": "Equipe HappyCash",
+      "techStack": "Tecnologia",
+      "techStackValue": "{count} tecnologias"
+    }
+  },
+  "gallery": {
+    "title": "Galeria do Sistema",
+    "subtitle": "Conheça visualmente os recursos, módulos e experiências oferecidas pelo HappyCash ERP.",
+    "filter": {
+      "all": "Todas as Mídias",
+      "image": "Imagens",
+      "video": "Vídeos"
+    },
+    "viewMedia": "Ver Mídia"
+  },
+  "chatbot": {
+    "title": "Assistente HappyCash",
+    "subtitle": "Tire suas dúvidas sobre o sistema",
+    "placeholder": "Digite uma mensagem...",
+    "greeting": "Olá! Eu sou o Consultor Especialista do **HappyCash ERP**. 👋\n\nEstou aqui para ajudar você a melhorar a gestão da sua loja, organizar seu financeiro e acabar com os calotes do fiado.\n\nVocê já tem um sistema ou ainda usa o bom e velho caderninho de anotações?",
+    "suggestions": [
+      "Quero acabar com o calote no fiado!",
+      "Meu PDV atual trava muito.",
+      "Como ter controle total do meu estoque?",
+      "Quero ver os preços e planos."
+    ],
+
+    "error": "Ocorreu um erro. Tente novamente.",
+    "invalidResponse": "Resposta inválida do servidor.",
+    "unknownError": "Ocorreu um erro desconhecido.",
+    "retry": "Tentar novamente",
+    "inputHint": "Pressione Enter para enviar, Shift+Enter para nova linha",
+    "close": "Fechar atendimento"
+  }
+}

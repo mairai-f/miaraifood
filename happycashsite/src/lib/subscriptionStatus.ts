@@ -1,4 +1,4 @@
-import { formatDateTime } from '../../../shared/locale/format';
+import { formatDateTime } from '../shared/locale/format';
 
 export interface SubscriptionTimingLike {
   status: string;
