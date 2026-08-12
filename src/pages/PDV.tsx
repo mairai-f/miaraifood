@@ -370,6 +370,7 @@ export default function PDV() {
     updateServiceTicketItemQuantity,
     cancelServiceTicketItem,
     updateServiceTicketStatus,
+    deleteServiceTicket,
     getClientBalance,
     getClientTotalSpending,
   } = useData();
@@ -600,14 +601,14 @@ export default function PDV() {
   const formatMoney = (value: number) => formatCurrency(value);
   const getCartItemPricing = (item: CartItem) => item.manualPrice
     ? {
-        total: item.unitPrice * item.quantity,
-        effectiveUnitPrice: item.unitPrice,
-        totalCost: (item.product.cost_price || 0) * item.quantity,
-        effectiveUnitCost: item.product.cost_price || 0,
-        packaging: null,
-        packageCount: 0,
-        remainderQuantity: item.quantity,
-      }
+      total: item.unitPrice * item.quantity,
+      effectiveUnitPrice: item.unitPrice,
+      totalCost: (item.product.cost_price || 0) * item.quantity,
+      effectiveUnitCost: item.product.cost_price || 0,
+      packaging: null,
+      packageCount: 0,
+      remainderQuantity: item.quantity,
+    }
     : calculatePackagingPrice(item.product, item.quantity, productPackagings, item.packagingId);
   const getCartItemTotal = (item: CartItem) => getCartItemPricing(item).total;
   const isCartItemPriceEdited = (item: CartItem) => Boolean(item.manualPrice);
@@ -1198,9 +1199,9 @@ export default function PDV() {
         ? 'Desativada'
         : fiscalRuntime.providerConfigured === false
           ? 'Credenciais'
-        : fiscalRuntime.ready
-          ? 'Pronta'
-          : 'Pendente';
+          : fiscalRuntime.ready
+            ? 'Pronta'
+            : 'Pendente';
 
   useEffect(() => {
     if (!selectedRewardId) return;
@@ -1630,12 +1631,12 @@ export default function PDV() {
 
     const paymentBreakdownHtml = paymentBreakdown.length > 0
       ? paymentBreakdown
-          .map(item => {
-            const share = lastCloseReceipt.salesTotal > 0 ? (item.total / lastCloseReceipt.salesTotal) * 100 : 0;
-            const averageTicket = item.count > 0 ? item.total / item.count : 0;
-            const styles = getPaymentMethodPrintStyle(item.key);
-            const salesHtml = item.sales
-              .map(sale => `
+        .map(item => {
+          const share = lastCloseReceipt.salesTotal > 0 ? (item.total / lastCloseReceipt.salesTotal) * 100 : 0;
+          const averageTicket = item.count > 0 ? item.total / item.count : 0;
+          const styles = getPaymentMethodPrintStyle(item.key);
+          const salesHtml = item.sales
+            .map(sale => `
                 <div class="payment-sale-row">
                   <div>
                     <p class="payment-sale-date">${escapeHtml(formatSaleDate(sale.date))}</p>
@@ -1644,9 +1645,9 @@ export default function PDV() {
                   <p class="payment-sale-value">${escapeHtml(formatMoney(sale.total))}</p>
                 </div>
               `)
-              .join('');
+            .join('');
 
-            return `
+          return `
               <section class="payment-card" style="border-color:${styles.border};background:${styles.surface};">
                 <div class="payment-card-top">
                   <div>
@@ -1668,8 +1669,8 @@ export default function PDV() {
                 </div>
               </section>
             `;
-          })
-          .join('')
+        })
+        .join('')
       : `
         <div class="empty-block">
           Nenhuma venda registrada neste fechamento.
@@ -1678,14 +1679,14 @@ export default function PDV() {
 
     const salesHtml = lastCloseReceipt.sales.length > 0
       ? lastCloseReceipt.sales
-          .map(sale => `
+        .map(sale => `
             <tr>
               <td>${escapeHtml(formatSaleDate(sale.date))}</td>
               <td>${escapeHtml(formatPaymentMethod(sale.payment_method))}</td>
               <td class="table-value">${escapeHtml(formatMoney(sale.total))}</td>
             </tr>
           `)
-          .join('')
+        .join('')
       : `
         <tr>
           <td colspan="3" class="empty-row">Sem vendas nesta abertura.</td>
@@ -1694,14 +1695,14 @@ export default function PDV() {
 
     const cashOutHtml = lastCloseReceipt.cashOuts.length > 0
       ? lastCloseReceipt.cashOuts
-          .map(expense => `
+        .map(expense => `
             <tr>
               <td>${escapeHtml(formatSaleDate(expense.date))}</td>
               <td>${escapeHtml(expense.description)}</td>
               <td class="table-value table-value-negative">${escapeHtml(formatMoney(expense.amount))}</td>
             </tr>
           `)
-          .join('')
+        .join('')
       : `
         <tr>
           <td colspan="3" class="empty-row">Sem saídas nesta abertura.</td>
@@ -2723,11 +2724,6 @@ export default function PDV() {
     setCart(nextCart);
     setActiveServiceTicketId(ticket.id);
     setMobilePanel('cart');
-    silentToast.success(
-      nextCart.length > 0
-        ? `Comanda ${ticket.number} carregada no caixa`
-        : `Comanda ${ticket.number} aberta no caixa`
-    );
     return true;
   }, [activeServiceTicketId, blurPdvInputs, buildCartFromServiceTicketItems, clearCartQuantityDrafts, findServiceTicket, openScannerNotFoundDialog, resetScannerTracking, role]);
 
@@ -2909,13 +2905,6 @@ export default function PDV() {
     const added = await handleProductSelection(product, { focusAfterSuccess, packaging: matchingPackaging });
     if (!added) return;
     resetScannerTracking();
-    silentToast.success(
-      activeServiceTicket
-        ? `${product.name} lancado na comanda ${activeServiceTicket.number}`
-        : matchingPackaging
-          ? `${matchingPackaging.name} adicionado (${matchingPackaging.base_quantity} unidades)`
-          : `${product.name} adicionado`
-    );
   }, [activeProducts, activeServiceTicket, filtered, findServiceTicket, focusProductSearch, handleProductSelection, loadServiceTicketToCart, openScannerNotFoundDialog, productPackagings, resetScannerTracking, search, searchSelectedIndex]);
 
   useEffect(() => {
@@ -3544,13 +3533,13 @@ export default function PDV() {
 
       if (activeServiceTicket) {
         try {
-          await updateServiceTicketStatus(activeServiceTicket.id, 'closed', {
+          await updateServiceTicketStatus(activeServiceTicket.id, 'available', {
             saleId: sale.id,
             closedByName: sellerName,
           });
         } catch (ticketError) {
           console.error('Nao foi possivel fechar a comanda apos a venda:', getRedactedLogValue(ticketError));
-          silentToast.error('Venda finalizada, mas nao foi possivel fechar a comanda automaticamente');
+          silentToast.error('Venda finalizada, mas nao foi possivel liberar a comanda automaticamente');
         }
       }
 
@@ -4465,36 +4454,6 @@ export default function PDV() {
         }
 
         if (!isEditableTarget(event.target)) {
-          if (event.key === '1') {
-            event.preventDefault();
-            handlePaymentMethodChange('dinheiro');
-            return;
-          }
-
-          if (event.key === '2') {
-            event.preventDefault();
-            handlePaymentMethodChange('pix');
-            return;
-          }
-
-          if (event.key === '3') {
-            event.preventDefault();
-            handlePaymentMethodChange('fiado');
-            return;
-          }
-
-          if (event.key === '4') {
-            event.preventDefault();
-            handlePaymentMethodChange('cartao_debito');
-            return;
-          }
-
-          if (event.key === '5') {
-            event.preventDefault();
-            handlePaymentMethodChange('cartao_credito');
-            return;
-          }
-
           if (event.key === 'Enter') {
             event.preventDefault();
             requestFinalizeConfirmation();
@@ -4687,9 +4646,8 @@ export default function PDV() {
 
   return (
     <div
-      className={`flex min-h-0 flex-col gap-3 overflow-hidden sm:gap-4 lg:flex-row ${
-        cashierMode ? 'fixed inset-0 z-50 h-[100svh] bg-background p-3 sm:p-4' : 'h-full max-h-[100svh]'
-      }`}
+      className={`flex min-h-0 flex-col gap-3 overflow-hidden sm:gap-4 lg:flex-row ${cashierMode ? 'fixed inset-0 z-50 h-[100svh] bg-background p-3 sm:p-4' : 'h-full max-h-[100svh]'
+        }`}
       data-tour-id="pdv-root"
     >
       <div className="shrink-0 lg:hidden">
@@ -4893,11 +4851,10 @@ export default function PDV() {
                 }}
               >
                 <Card
-                  className={`cursor-pointer transition-colors ${
-                    index === searchSelectedIndex
-                      ? 'border-primary ring-2 ring-primary/30'
-                      : 'border-border/50 hover:border-primary/50'
-                  }`}
+                  className={`cursor-pointer transition-colors ${index === searchSelectedIndex
+                    ? 'border-primary ring-2 ring-primary/30'
+                    : 'border-border/50 hover:border-primary/50'
+                    }`}
                   onClick={event => void handleProductPointerSelection(event, p)}
                 >
                   <CardContent className="space-y-2 p-4">
@@ -4950,106 +4907,105 @@ export default function PDV() {
               {cart.map((i, index) => {
                 const pricing = getCartItemPricing(i);
                 return (
-                <div
-                  key={getCartItemKey(i)}
-                  ref={element => {
-                    cartItemSelectionRefs.current[index] = element;
-                  }}
-                  tabIndex={cartKeyboardSelectionIndex === index ? 0 : -1}
-                  className={`flex items-start gap-3 rounded-lg bg-secondary/50 p-3 outline-none transition-colors ${
-                    cartKeyboardSelectionIndex === index
+                  <div
+                    key={getCartItemKey(i)}
+                    ref={element => {
+                      cartItemSelectionRefs.current[index] = element;
+                    }}
+                    tabIndex={cartKeyboardSelectionIndex === index ? 0 : -1}
+                    className={`flex items-start gap-3 rounded-lg bg-secondary/50 p-3 outline-none transition-colors ${cartKeyboardSelectionIndex === index
                       ? 'ring-2 ring-destructive/60 bg-destructive/5'
                       : ''
-                  }`}
-                >
-                  <div className="min-w-0 flex-1 space-y-1.5">
-                    <p className="text-sm font-medium leading-tight whitespace-normal break-words">{i.product.name}</p>
-                    <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                      <span>{i.quantity} unidade{i.quantity === 1 ? '' : 's'}</span>
-                      {pricing.packaging && (
-                        <Badge variant="secondary">
-                          {pricing.packaging.name} · {pricing.packageCount} pacote{pricing.packageCount === 1 ? '' : 's'}
-                          {pricing.remainderQuantity > 0 ? ` + ${pricing.remainderQuantity} un.` : ''}
-                        </Badge>
+                      }`}
+                  >
+                    <div className="min-w-0 flex-1 space-y-1.5">
+                      <p className="text-sm font-medium leading-tight whitespace-normal break-words">{i.product.name}</p>
+                      <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                        <span>{i.quantity} unidade{i.quantity === 1 ? '' : 's'}</span>
+                        {pricing.packaging && (
+                          <Badge variant="secondary">
+                            {pricing.packaging.name} · {pricing.packageCount} pacote{pricing.packageCount === 1 ? '' : 's'}
+                            {pricing.remainderQuantity > 0 ? ` + ${pricing.remainderQuantity} un.` : ''}
+                          </Badge>
+                        )}
+                        {!pricing.packaging && <span>x {formatMoney(i.unitPrice)}</span>}
+                        {isCartItemPriceEdited(i) && <Badge variant="secondary">Preço alterado</Badge>}
+                      </div>
+                      {isCartItemPriceEdited(i) && (
+                        <p className="text-xs text-muted-foreground">Preço base: {formatMoney(i.product.price)}</p>
                       )}
-                      {!pricing.packaging && <span>x {formatMoney(i.unitPrice)}</span>}
-                      {isCartItemPriceEdited(i) && <Badge variant="secondary">Preço alterado</Badge>}
+                      {canEditPdvPrice && !activeServiceTicket && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="h-7 justify-start border-destructive/40 px-2 text-xs text-destructive hover:bg-destructive/10 hover:text-destructive"
+                          onClick={() => openCartItemPriceEditor(i)}
+                        >
+                          Alterar preço
+                        </Button>
+                      )}
+                      <p className="text-sm font-semibold text-primary">{formatMoney(getCartItemTotal(i))}</p>
                     </div>
-                    {isCartItemPriceEdited(i) && (
-                      <p className="text-xs text-muted-foreground">Preço base: {formatMoney(i.product.price)}</p>
-                    )}
-                    {canEditPdvPrice && !activeServiceTicket && (
+                    <div className="flex items-center gap-1 self-center">
                       <Button
-                        type="button"
                         variant="outline"
-                        size="sm"
-                        className="h-7 justify-start border-destructive/40 px-2 text-xs text-destructive hover:bg-destructive/10 hover:text-destructive"
-                        onClick={() => openCartItemPriceEditor(i)}
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={() => void updateQty(i, -1)}
                       >
-                        Alterar preço
+                        <Minus className="h-4 w-4" />
                       </Button>
-                    )}
-                    <p className="text-sm font-semibold text-primary">{formatMoney(getCartItemTotal(i))}</p>
+                      {activeServiceTicket ? (
+                        <span className="text-sm w-10 text-center font-medium">{i.quantity}</span>
+                      ) : (
+                        <Input
+                          type="text"
+                          inputMode="numeric"
+                          value={cartQuantityDrafts[getCartItemKey(i)] ?? String(i.quantity)}
+                          onChange={(event) => {
+                            const sanitized = event.target.value.replace(/[^\d]/g, '');
+                            setCartQuantityDrafts((current) => ({
+                              ...current,
+                              [getCartItemKey(i)]: sanitized,
+                            }));
+                          }}
+                          onBlur={(event) => commitCartQuantityInput(i, event.target.value)}
+                          onFocus={(event) => event.target.select()}
+                          onKeyDown={(event) => {
+                            if (event.key === 'Enter') {
+                              event.preventDefault();
+                              commitCartQuantityInput(i, event.currentTarget.value);
+                              event.currentTarget.blur();
+                            }
+                            if (event.key === 'Escape') {
+                              event.preventDefault();
+                              setCartQuantityDraft(i, i.quantity);
+                              event.currentTarget.blur();
+                            }
+                          }}
+                          className="h-8 w-14 px-1 text-center text-sm font-medium"
+                          aria-label={`Quantidade de ${i.product.name}`}
+                        />
+                      )}
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={() => void updateQty(i, 1)}
+                      >
+                        <Plus className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-destructive"
+                        onClick={() => requestRemoveFromCart(i)}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-1 self-center">
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      className="h-8 w-8"
-                      onClick={() => void updateQty(i, -1)}
-                    >
-                      <Minus className="h-4 w-4" />
-                    </Button>
-                    {activeServiceTicket ? (
-                      <span className="text-sm w-10 text-center font-medium">{i.quantity}</span>
-                    ) : (
-                      <Input
-                        type="text"
-                        inputMode="numeric"
-                        value={cartQuantityDrafts[getCartItemKey(i)] ?? String(i.quantity)}
-                        onChange={(event) => {
-                          const sanitized = event.target.value.replace(/[^\d]/g, '');
-                          setCartQuantityDrafts((current) => ({
-                            ...current,
-                            [getCartItemKey(i)]: sanitized,
-                          }));
-                        }}
-                        onBlur={(event) => commitCartQuantityInput(i, event.target.value)}
-                        onFocus={(event) => event.target.select()}
-                        onKeyDown={(event) => {
-                          if (event.key === 'Enter') {
-                            event.preventDefault();
-                            commitCartQuantityInput(i, event.currentTarget.value);
-                            event.currentTarget.blur();
-                          }
-                          if (event.key === 'Escape') {
-                            event.preventDefault();
-                            setCartQuantityDraft(i, i.quantity);
-                            event.currentTarget.blur();
-                          }
-                        }}
-                        className="h-8 w-14 px-1 text-center text-sm font-medium"
-                        aria-label={`Quantidade de ${i.product.name}`}
-                      />
-                    )}
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      className="h-8 w-8"
-                      onClick={() => void updateQty(i, 1)}
-                    >
-                      <Plus className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8 text-destructive"
-                      onClick={() => requestRemoveFromCart(i)}
-                    >
-                      <X className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
                 );
               })}
               {cart.length === 0 && <p className="text-sm text-muted-foreground text-center py-8">Carrinho vazio</p>}
@@ -5266,11 +5222,11 @@ export default function PDV() {
               <div className="space-y-2">
                 <Label className="text-sm">Pagamento</Label>
                 <div className="grid grid-cols-2 gap-2">
-                  <Button type="button" variant={paymentMethod === 'dinheiro' ? 'default' : 'outline'} onClick={() => handlePaymentMethodChange('dinheiro')}>[1/F3] Dinheiro</Button>
-                  <Button type="button" variant={paymentMethod === 'pix' ? 'default' : 'outline'} onClick={() => handlePaymentMethodChange('pix')}>[2/F4] Pix</Button>
-                  <Button type="button" variant={paymentMethod === 'fiado' ? 'default' : 'outline'} onClick={() => handlePaymentMethodChange('fiado')}>[3/F7] Fiado</Button>
-                  <Button type="button" variant={paymentMethod === 'cartao_debito' ? 'default' : 'outline'} onClick={() => handlePaymentMethodChange('cartao_debito')}>[4/F5] Débito</Button>
-                  <Button type="button" className="col-span-2" variant={paymentMethod === 'cartao_credito' ? 'default' : 'outline'} onClick={() => handlePaymentMethodChange('cartao_credito')}>[5/F6] Crédito</Button>
+                  <Button type="button" variant={paymentMethod === 'dinheiro' ? 'default' : 'outline'} onClick={() => handlePaymentMethodChange('dinheiro')}>[F3] Dinheiro</Button>
+                  <Button type="button" variant={paymentMethod === 'pix' ? 'default' : 'outline'} onClick={() => handlePaymentMethodChange('pix')}>[F4] Pix</Button>
+                  <Button type="button" variant={paymentMethod === 'cartao_debito' ? 'default' : 'outline'} onClick={() => handlePaymentMethodChange('cartao_debito')}>[F5] Débito</Button>
+                  <Button type="button" variant={paymentMethod === 'cartao_credito' ? 'default' : 'outline'} onClick={() => handlePaymentMethodChange('cartao_credito')}>[F6] Crédito</Button>
+                  <Button type="button" className="col-span-2" variant={paymentMethod === 'fiado' ? 'default' : 'outline'} onClick={() => handlePaymentMethodChange('fiado')}>[F7] Fiado</Button>
                 </div>
               </div>
 
@@ -5309,12 +5265,12 @@ export default function PDV() {
                     onFocus={e => e.currentTarget.select()}
                     onChange={e => setCashReceived(e.target.value)}
                     onKeyDown={e => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      e.currentTarget.blur();
-                    }
-                  }}
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        e.currentTarget.blur();
+                      }
+                    }}
                     className="h-9 text-sm"
                   />
                   {change > 0 && <p className="text-sm text-primary font-bold">Troco: R$ {change.toFixed(2)}</p>}
@@ -6004,13 +5960,12 @@ export default function PDV() {
           {lastCloseReceipt && (
             <div className="max-h-[70vh] overflow-auto space-y-3 text-sm">
               <div
-                className={`rounded-lg border p-3 ${
-                  closeCashEmailStatus === 'sent'
-                    ? 'border-primary/30 bg-primary/5'
-                    : closeCashEmailStatus === 'error'
-                      ? 'border-destructive/30 bg-destructive/5'
-                      : 'border-border bg-secondary/20'
-                }`}
+                className={`rounded-lg border p-3 ${closeCashEmailStatus === 'sent'
+                  ? 'border-primary/30 bg-primary/5'
+                  : closeCashEmailStatus === 'error'
+                    ? 'border-destructive/30 bg-destructive/5'
+                    : 'border-border bg-secondary/20'
+                  }`}
               >
                 <p className="font-semibold">
                   {closeCashEmailStatus === 'sending' && 'Enviando relatório por e-mail...'}
@@ -6378,9 +6333,9 @@ export default function PDV() {
                           ? 'A NFC-e esta desativada no painel Notas.'
                           : fiscalRuntime.providerConfigured === false
                             ? 'As credenciais da API fiscal ainda nao estao configuradas no servidor.'
-                          : !fiscalRuntime?.ready
-                            ? `A configuracao fiscal ainda esta incompleta${fiscalRuntime?.missingItems?.length ? `: ${fiscalRuntime.missingItems.join(', ')}.` : '.'}`
-                            : 'O provedor fiscal atual nao esta pronto para emitir esta venda.'}
+                            : !fiscalRuntime?.ready
+                              ? `A configuracao fiscal ainda esta incompleta${fiscalRuntime?.missingItems?.length ? `: ${fiscalRuntime.missingItems.join(', ')}.` : '.'}`
+                              : 'O provedor fiscal atual nao esta pronto para emitir esta venda.'}
                     </AlertDescription>
                   </Alert>
                 )}

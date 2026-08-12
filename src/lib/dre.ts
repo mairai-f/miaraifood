@@ -99,7 +99,11 @@ export const buildDreStatement = ({
   const cogs = items.reduce((sum, item) => sum + Number(item.cost_price ?? 0) * Number(item.quantity ?? 0), 0);
   const grossProfit = netRevenue - cogs;
 
-  const expensesInPeriod = expenses.filter((expense) => isDateInRange(expense.date, startDate, endDate));
+  const expensesInPeriod = expenses.filter((expense) => {
+    const cat = (expense.category || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    const isPDVCashOut = cat === 'saida de caixa' || cat === 'caixa' || cat === 'saida_pdv' || cat === 'sangria' || cat === 'suprimento';
+    return !isPDVCashOut && isDateInRange(expense.date, startDate, endDate);
+  });
   const manualExpenses = expensesInPeriod.reduce((sum, expense) => sum + Number(expense.amount ?? 0), 0);
 
   const accountsWithPaidAmount = financialAccounts

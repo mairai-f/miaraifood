@@ -1239,9 +1239,8 @@ export default function ClientDetail() {
         <DialogContent className="max-w-md sm:max-w-lg">
           <DialogHeader><DialogTitle>Registrar Pagamento</DialogTitle></DialogHeader>
           <div className="max-h-[72svh] space-y-3 overflow-y-auto pr-1 sm:max-h-[76svh] sm:space-y-4">
-            <p className="text-sm text-muted-foreground">Saldo: <span className="text-destructive font-bold">R$ {balance.toFixed(2)}</span></p>
             <div className="space-y-2">
-              <Label>Valor (R$)</Label>
+              <Label>Valor do Pagamento (R$)</Label>
               <Input
                 type="text"
                 inputMode="decimal"
@@ -1257,6 +1256,7 @@ export default function ClientDetail() {
                 <p className="text-xs font-medium text-destructive">{paymentValidationMessage}</p>
               ) : null}
             </div>
+            
             <div className="space-y-3 rounded-lg border border-border/70 bg-background/70 p-2.5 sm:p-3">
               <Button
                 type="button"
@@ -1298,11 +1298,34 @@ export default function ClientDetail() {
                       placeholder={discountType === 'amount' ? '0,00' : '0'}
                     />
                   </div>
-                  <div className="rounded-md bg-muted/50 p-3 text-xs text-muted-foreground">
-                    <p>Desconto aplicado: <span className="font-semibold text-foreground">R$ {calculatedDiscountAmount.toFixed(2)}</span></p>
-                    <p>Total abatido no saldo: <span className="font-semibold text-foreground">R$ {creditedPaymentAmount.toFixed(2)}</span></p>
-                    <p>Restante após confirmar: <span className="font-semibold text-foreground">R$ {remainingAfterPayment.toFixed(2)}</span></p>
-                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="rounded-md border border-border bg-muted/30 p-3 text-sm">
+              <div className="flex justify-between mb-1.5 text-muted-foreground">
+                <span>Dívida Total:</span>
+                <span className="font-medium">R$ {balance.toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between mb-1.5 text-muted-foreground">
+                <span>Valor Pago:</span>
+                <span className="font-medium">R$ {calculatedDiscountAmount > 0 ? (payAmount ? Number.parseFloat(payAmount.replace(',', '.')) : 0).toFixed(2) : creditedPaymentAmount.toFixed(2)}</span>
+              </div>
+              {calculatedDiscountAmount > 0 && (
+                <div className="flex justify-between mb-1.5 text-success">
+                  <span>Desconto Aplicado:</span>
+                  <span className="font-medium">R$ {calculatedDiscountAmount.toFixed(2)}</span>
+                </div>
+              )}
+              <div className="flex justify-between mt-3 pt-3 border-t border-border/50 font-bold">
+                <span>Saldo Restante:</span>
+                <span className={remainingAfterPayment <= 0 ? 'text-success' : 'text-destructive'}>
+                  R$ {remainingAfterPayment.toFixed(2)}
+                </span>
+              </div>
+              {remainingAfterPayment <= 0 && creditedPaymentAmount > 0 && (
+                <div className="mt-3 text-xs font-semibold text-success bg-success/15 p-2 rounded text-center">
+                  ✓ A dívida será totalmente quitada!
                 </div>
               )}
             </div>

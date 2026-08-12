@@ -506,12 +506,19 @@ export default function Reports() {
 
   // Vendas do dia 
   const salesByDay = useMemo(() => {
-    const map = new Map<string, number>();
+    const map = new Map<string, { date: Date; total: number }>();
     for (const s of activeFilteredSales) {
-      const day = formatDateOnly(s.date);
-      map.set(day, (map.get(day) || 0) + s.total);
+      const d = new Date(s.date);
+      const dayKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      
+      const current = map.get(dayKey) || { date: d, total: 0 };
+      current.total += s.total;
+      map.set(dayKey, current);
     }
-    return Array.from(map.entries()).map(([day, total]) => ({ day, total }));
+    
+    return Array.from(map.values())
+      .sort((a, b) => a.date.getTime() - b.date.getTime())
+      .map(item => ({ day: formatDateOnly(item.date), total: item.total }));
   }, [activeFilteredSales]);
 
   const salesByHour = useMemo(() => {
@@ -528,7 +535,7 @@ export default function Reports() {
       hourly[hour].count += 1;
     }
 
-    return hourly.filter(item => item.count > 0);
+    return hourly;
   }, [activeFilteredSales]);
 
   const bestSalesHour = salesByHour.reduce(

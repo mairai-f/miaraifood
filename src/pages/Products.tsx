@@ -78,7 +78,7 @@ export default function Products() {
     loading,
     updateStoreOperationalSettings,
   } = useData();
-  const { session, user, ownerUserId } = useAuth();
+  const { session, user, ownerUserId, isAdmin } = useAuth();
   const { batches } = useProductBatches();
   const { hasPermission } = usePermissions();
   const { scope: operationalScope } = useOperationalScope();
@@ -473,36 +473,13 @@ export default function Products() {
   };
 
   const handleApprovalConfirm = async () => {
-    if (!session?.access_token) {
-      setApprovalError('Sua sessão expirou. Faça login novamente.');
-      return;
-    }
-
     if (!pendingSave) {
       setApprovalError('Nenhuma alteração pendente para aprovar.');
       return;
     }
 
-    if (!approvalEmail.trim() || !approvalPassword.trim()) {
-      setApprovalError('Informe login e senha do gerente.');
-      return;
-    }
-
     setApprovalLoading(true);
     setApprovalError('');
-
-    const result = await verifyPricingManagerApproval(
-      session.access_token,
-      approvalEmail,
-      approvalPassword,
-    );
-
-    setApprovalLoading(false);
-
-    if (!result.success) {
-      setApprovalError(result.error || 'Não foi possível validar a aprovação.');
-      return;
-    }
 
     await persistSave(pendingSave.id, pendingSave.data);
     resetApprovalState();
@@ -595,16 +572,16 @@ export default function Products() {
   };
 
   const addPackagingRow = () => {
-    setPackagingRows((current) => [...current, {
+    setPackagingRows((current) => [{
       draftId: crypto.randomUUID(),
       name: '',
-      base_quantity: 6,
+      base_quantity: 2,
       barcode: '',
       purchase_cost: 0,
-      sale_price: parseDecimalInput(price) * 6,
+      sale_price: 0,
       auto_apply: true,
       closed_only: false,
-    }]);
+    }, ...current]);
   };
 
   const updatePackagingRow = (draftId: string, changes: Partial<DraftPackaging>) => {
@@ -772,31 +749,33 @@ export default function Products() {
                     Na filial {operationalScope?.location.name}, altere quantidades pelo modulo Estoque.
                   </p>
                 )}
-                <div className="space-y-3 rounded-md border p-3">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="text-sm font-semibold">Embalagens comerciais</p>
-                      <p className="text-xs text-muted-foreground">Fardo, caixa ou pacote vinculados ao mesmo produto e estoque-base.</p>
-                    </div>
-                    <Button type="button" size="sm" variant="outline" onClick={addPackagingRow}>
-                      <Plus className="mr-1 h-3 w-3" /> Embalagem
-                    </Button>
-                  </div>
-                  {packagingRows.map((row) => (
-                    <div key={row.draftId} className="min-w-0 space-y-2 rounded-md bg-muted/40 p-2">
-                      <div className="grid min-w-0 grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
-                        <div className="space-y-1 sm:col-span-2"><Label>Nome</Label><Input value={row.name} onChange={(event) => updatePackagingRow(row.draftId, { name: toProductUppercase(event.target.value) })} placeholder="FARDO COM 6" /></div>
-                        <div className="space-y-1"><Label>Unidades</Label><Input type="number" min="2" step="1" value={row.base_quantity} onChange={(event) => updatePackagingRow(row.draftId, { base_quantity: event.target.value })} /></div>
-                        <div className="space-y-1"><Label>Codigo de barras</Label><Input value={row.barcode} onChange={(event) => updatePackagingRow(row.draftId, { barcode: toProductUppercase(event.target.value) })} /></div>
-                        <div className="space-y-1"><Label>Custo da embalagem</Label><Input inputMode="decimal" value={row.purchase_cost} onChange={(event) => updatePackagingRow(row.draftId, { purchase_cost: event.target.value })} /></div>
-                        <div className="space-y-1"><Label>Preco da embalagem</Label><Input inputMode="decimal" value={row.sale_price} onChange={(event) => updatePackagingRow(row.draftId, { sale_price: event.target.value })} /></div>
-                        <label className="flex items-center justify-between gap-2 rounded-md border px-2 py-1.5 text-xs"><span>Aplicar ao atingir a quantidade</span><Switch checked={row.auto_apply} disabled={row.closed_only} onCheckedChange={(auto_apply) => updatePackagingRow(row.draftId, { auto_apply })} /></label>
-                        <div className="flex items-center justify-between gap-2 rounded-md border px-2 py-1.5 text-xs"><label className="flex flex-1 items-center justify-between gap-2"><span>Somente embalagem fechada</span><Switch checked={row.closed_only} onCheckedChange={(closed_only) => updatePackagingRow(row.draftId, { closed_only, auto_apply: closed_only ? false : row.auto_apply })} /></label><Button type="button" variant="ghost" size="icon" onClick={() => removePackagingRow(row.draftId)} aria-label="Remover embalagem"><Trash2 className="h-4 w-4" /></Button></div>
+                {isAdmin && (
+                  <div className="space-y-3 rounded-md border p-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-semibold">Embalagens comerciais</p>
+                        <p className="text-xs text-muted-foreground">Fardo, caixa ou pacote vinculados ao mesmo produto e estoque-base.</p>
                       </div>
+                      <Button type="button" size="sm" variant="outline" onClick={addPackagingRow}>
+                        <Plus className="mr-1 h-3 w-3" /> Embalagem
+                      </Button>
                     </div>
-                  ))}
-                  {packagingRows.length === 0 && <p className="text-xs text-muted-foreground">Nenhuma embalagem. O produto sera vendido somente na unidade-base.</p>}
-                </div>
+                    {packagingRows.map((row) => (
+                      <div key={row.draftId} className="min-w-0 space-y-2 rounded-md bg-muted/40 p-2">
+                        <div className="grid min-w-0 grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                          <div className="space-y-1 sm:col-span-2"><Label>Nome</Label><Input value={row.name} onChange={(event) => updatePackagingRow(row.draftId, { name: toProductUppercase(event.target.value) })} placeholder="FARDO COM 6" /></div>
+                          <div className="space-y-1"><Label>Unidades</Label><Input type="number" min="2" step="1" value={row.base_quantity} onChange={(event) => updatePackagingRow(row.draftId, { base_quantity: event.target.value })} /></div>
+                          <div className="space-y-1"><Label>Codigo de barras</Label><Input value={row.barcode} onChange={(event) => updatePackagingRow(row.draftId, { barcode: toProductUppercase(event.target.value) })} /></div>
+                          <div className="space-y-1"><Label>Custo da embalagem</Label><Input inputMode="decimal" value={row.purchase_cost} onChange={(event) => updatePackagingRow(row.draftId, { purchase_cost: event.target.value })} /></div>
+                          <div className="space-y-1"><Label>Preco da embalagem</Label><Input inputMode="decimal" value={row.sale_price} onChange={(event) => updatePackagingRow(row.draftId, { sale_price: event.target.value })} /></div>
+                          <label className="flex items-center justify-between gap-2 rounded-md border px-2 py-1.5 text-xs"><span>Aplicar ao atingir a quantidade</span><Switch checked={row.auto_apply} disabled={row.closed_only} onCheckedChange={(auto_apply) => updatePackagingRow(row.draftId, { auto_apply })} /></label>
+                          <div className="flex items-center justify-between gap-2 rounded-md border px-2 py-1.5 text-xs"><label className="flex flex-1 items-center justify-between gap-2"><span>Somente embalagem fechada</span><Switch checked={row.closed_only} onCheckedChange={(closed_only) => updatePackagingRow(row.draftId, { closed_only, auto_apply: closed_only ? false : row.auto_apply })} /></label><Button type="button" variant="ghost" size="icon" onClick={() => removePackagingRow(row.draftId)} aria-label="Remover embalagem"><Trash2 className="h-4 w-4" /></Button></div>
+                        </div>
+                      </div>
+                    ))}
+                    {packagingRows.length === 0 && <p className="text-xs text-muted-foreground">Nenhuma embalagem. O produto sera vendido somente na unidade-base.</p>}
+                  </div>
+                )}
                 <div className="space-y-3 rounded-md border p-3">
                   <div><p className="text-sm font-semibold">Política comercial</p><p className="text-xs text-muted-foreground">Limites aplicados ao produto em qualquer filial.</p></div>
                   <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -871,33 +850,12 @@ export default function Products() {
       >
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Aprovação do gerente</DialogTitle>
+            <DialogTitle>Confirmar alteração</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <p className="text-sm text-muted-foreground">
-              Alterações de preço ou custo exigem confirmação do administrador da loja.
+              Você está prestes a alterar informações sensíveis (como preço ou custo). Deseja confirmar esta operação?
             </p>
-            <div className="space-y-1">
-              <Label>Login do gerente</Label>
-              <Input
-                type="email"
-                name="products-price-approval-login"
-                value={approvalEmail}
-                onChange={e => setApprovalEmail(e.target.value)}
-                placeholder="admin@empresa.com"
-                autoComplete="off"
-              />
-            </div>
-            <div className="space-y-1">
-              <Label>Senha do gerente</Label>
-              <PasswordInput
-                name="products-price-approval-password"
-                value={approvalPassword}
-                onChange={e => setApprovalPassword(e.target.value)}
-                placeholder="Digite a senha"
-                autoComplete="new-password"
-              />
-            </div>
             {approvalError && (
               <Alert variant="destructive">
                 <AlertTitle>Falha na aprovação</AlertTitle>
@@ -908,7 +866,7 @@ export default function Products() {
           <DialogFooter>
             <Button variant="outline" onClick={resetApprovalState} disabled={approvalLoading}>Cancelar</Button>
             <Button onClick={() => void handleApprovalConfirm()} disabled={approvalLoading}>
-              {approvalLoading ? 'Validando...' : 'Aprovar alteração'}
+              {approvalLoading ? 'Salvando...' : 'Confirmar'}
             </Button>
           </DialogFooter>
         </DialogContent>

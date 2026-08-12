@@ -288,6 +288,7 @@ export function OperatorManagementPanel({
   const [workScheduleDays, setWorkScheduleDays] = useState<Set<WeekDayKey>>(new Set());
   const [workScheduleStartTime, setWorkScheduleStartTime] = useState('');
   const [workScheduleEndTime, setWorkScheduleEndTime] = useState('');
+  const [cepLoading, setCepLoading] = useState(false);
   const [latestCredential, setLatestCredential] = useState<{
     username: string;
     jobTitle: string;
@@ -375,6 +376,31 @@ export function OperatorManagementPanel({
     };
     reader.onerror = () => toast.error('Nao foi possivel importar a foto.');
     reader.readAsDataURL(file);
+  };
+
+  const handleZipCodeChange = async (event: ChangeEvent<HTMLInputElement>) => {
+    let value = event.target.value.replace(/\D/g, '');
+    if (value.length > 5) value = `${value.slice(0, 5)}-${value.slice(5, 8)}`;
+    setAddressZipCode(value);
+
+    const rawCep = value.replace(/\D/g, '');
+    if (rawCep.length === 8) {
+      setCepLoading(true);
+      try {
+        const response = await fetch(`https://viacep.com.br/ws/${rawCep}/json/`);
+        const data = await response.json();
+        if (!data.erro) {
+          setAddressStreet(data.logradouro || '');
+          setAddressNeighborhood(data.bairro || '');
+          setAddressCity(data.localidade || '');
+          setAddressState(data.uf || '');
+        }
+      } catch (error) {
+        console.warn('Erro ao consultar CEP:', error);
+      } finally {
+        setCepLoading(false);
+      }
+    }
   };
 
   const toggleWorkScheduleDay = (day: WeekDayKey, checked: boolean) => {
@@ -887,7 +913,7 @@ export function OperatorManagementPanel({
     return true;
   };
 
-  const requestAdminAuthorization = () => {
+  const requestAdminAuthorization = async () => {
     const isUpdate = Boolean(editingOperator);
     const valid = isUpdate ? validateUpdateAccessBeforeAuthorization() : validateAccessFormBeforeAuthorization();
     if (!valid) return;
@@ -1082,17 +1108,29 @@ export function OperatorManagementPanel({
   const handleConfirmAdminAuthorization = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
-    const adminEmail = adminAuthorizationEmail.trim();
-    const adminPassword = adminAuthorizationPassword.trim();
+    let adminEmail = adminAuthorizationEmail.trim();
+    let adminPassword = adminAuthorizationPassword.trim();
+    let adminAccessToken: string | undefined = undefined;
 
-    if (!adminEmail || !adminPassword) {
-      setAdminAuthorizationError(`Digite login e senha do ${accessAuthorizationLabel}.`);
-      return;
+    if (isAdmin && session?.access_token) {
+      adminAccessToken = session.access_token;
+    } else {
+      if (!adminEmail || !adminPassword) {
+        setAdminAuthorizationError(`Digite login e senha do ${accessAuthorizationLabel}.`);
+        return;
+      }
     }
 
     setAdminAuthorizationError('');
     setCreating(true);
-    const authorization = await verifyAccessForOperatorSave(adminEmail, adminPassword);
+
+    let authorization: AdminAccessAuthorization | null = null;
+    if (adminAccessToken) {
+      authorization = { login: '', password: '', accessToken: adminAccessToken };
+    } else {
+      authorization = await verifyAccessForOperatorSave(adminEmail, adminPassword);
+    }
+
     if (!authorization) {
       setCreating(false);
       return;
@@ -1115,7 +1153,7 @@ export function OperatorManagementPanel({
     }
   };
 
-  const requestResetPasswordAuthorization = () => {
+  const requestResetPasswordAuthorization = async () => {
     if (!session?.access_token) {
       toast.error('Sua sessão expirou. Entre novamente para redefinir senhas.');
       return;
@@ -1244,32 +1282,36 @@ export function OperatorManagementPanel({
     const normalizedAdminEmail = closeCashAdminEmail.trim().toLowerCase();
     const adminPassword = closeCashAdminPassword.trim();
 
-    if (!normalizedAdminEmail) {
-      setCloseCashError('Digite o email do administrador.');
-      return;
-    }
+    if (!isAdmin) {
+      if (!normalizedAdminEmail) {
+        setCloseCashError('Digite o email do administrador.');
+        return;
+      }
 
-    if (!adminPassword) {
-      setCloseCashError('Digite a senha do administrador.');
-      return;
+      if (!adminPassword) {
+        setCloseCashError('Digite a senha do administrador.');
+        return;
+      }
     }
 
     setClosingCash(true);
     setCloseCashError('');
 
     try {
-      const { data: verificationData, error: verificationError } = await supabase.functions.invoke<OperatorFunctionResponse>('manage-operators', {
-        headers: { Authorization: `Bearer ${session.access_token}` },
-        body: {
-          action: 'verify_admin',
-          adminEmail: normalizedAdminEmail,
-          adminPassword,
-        },
-      });
+      if (!isAdmin) {
+        const { data: verificationData, error: verificationError } = await supabase.functions.invoke<OperatorFunctionResponse>('manage-operators', {
+          headers: { Authorization: `Bearer ${session.access_token}` },
+          body: {
+            action: 'verify_admin',
+            adminEmail: normalizedAdminEmail,
+            adminPassword,
+          },
+        });
 
-      if (verificationError || !verificationData?.success) {
-        setCloseCashError(await resolveFunctionErrorMessage(verificationError, 'Email ou senha de administrador incorretos.', verificationData));
-        return;
+        if (verificationError || !verificationData?.success) {
+          setCloseCashError(await resolveFunctionErrorMessage(verificationError, 'Email ou senha de administrador incorretos.', verificationData));
+          return;
+        }
       }
 
       const closedAt = new Date().toISOString();
@@ -1689,7 +1731,13 @@ export function OperatorManagementPanel({
                     <div className="grid gap-3 sm:grid-cols-2">
                       <div className="space-y-1">
                         <Label>CEP</Label>
-                        <Input value={addressZipCode} onChange={event => setAddressZipCode(event.target.value)} placeholder="00000-000" autoComplete="postal-code" />
+                        <Input 
+                          value={addressZipCode} 
+                          onChange={handleZipCodeChange} 
+                          placeholder="00000-000" 
+                          autoComplete="postal-code" 
+                          disabled={cepLoading}
+                        />
                       </div>
                       <div className="space-y-1">
                         <Label>Estado</Label>
@@ -1842,28 +1890,32 @@ export function OperatorManagementPanel({
           </DialogHeader>
 
           <form className="space-y-4" onSubmit={handleConfirmAdminAuthorization}>
-            <div className="space-y-1">
-              <Label>Login do {accessAuthorizationLabel}</Label>
-              <Input
-                type={isAdmin ? 'email' : 'text'}
-                name="operator-access-admin-login"
-                value={adminAuthorizationEmail}
-                onChange={event => setAdminAuthorizationEmail(event.target.value)}
-                placeholder={isAdmin ? 'admin@empresa.com' : 'usuario.rh'}
-                autoComplete="off"
-                autoFocus
-              />
-            </div>
-            <div className="space-y-1">
-              <Label>Senha/PIN do {accessAuthorizationLabel}</Label>
-              <PasswordInput
-                name="operator-access-admin-password"
-                value={adminAuthorizationPassword}
-                onChange={event => setAdminAuthorizationPassword(event.target.value)}
-                placeholder="Digite a senha"
-                autoComplete="new-password"
-              />
-            </div>
+            {!isAdmin && (
+              <>
+                <div className="space-y-1">
+                  <Label>Login do {accessAuthorizationLabel}</Label>
+                  <Input
+                    type={isAdmin ? 'email' : 'text'}
+                    name="operator-access-admin-login"
+                    value={adminAuthorizationEmail}
+                    onChange={event => setAdminAuthorizationEmail(event.target.value)}
+                    placeholder={isAdmin ? 'admin@empresa.com' : 'usuario.rh'}
+                    autoComplete="off"
+                    autoFocus
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label>Senha/PIN do {accessAuthorizationLabel}</Label>
+                  <PasswordInput
+                    name="operator-access-admin-password"
+                    value={adminAuthorizationPassword}
+                    onChange={event => setAdminAuthorizationPassword(event.target.value)}
+                    placeholder="Digite a senha"
+                    autoComplete="new-password"
+                  />
+                </div>
+              </>
+            )}
             {adminAuthorizationError ? (
               <p className="text-sm font-medium text-destructive">{adminAuthorizationError}</p>
             ) : null}
@@ -1911,28 +1963,32 @@ export function OperatorManagementPanel({
               </p>
             </div>
 
-            <div className="space-y-1">
-              <Label>Login do administrador (email)</Label>
-              <Input
-                type="email"
-                name="operator-close-cash-admin-login"
-                value={closeCashAdminEmail}
-                onChange={event => setCloseCashAdminEmail(event.target.value)}
-                placeholder="admin@empresa.com"
-                autoComplete="off"
-              />
-            </div>
+            {!isAdmin && (
+              <>
+                <div className="space-y-1">
+                  <Label>Login do administrador (email)</Label>
+                  <Input
+                    type="email"
+                    name="operator-close-cash-admin-login"
+                    value={closeCashAdminEmail}
+                    onChange={event => setCloseCashAdminEmail(event.target.value)}
+                    placeholder="admin@empresa.com"
+                    autoComplete="off"
+                  />
+                </div>
 
-            <div className="space-y-1">
-              <Label>Senha do administrador</Label>
-              <PasswordInput
-                name="operator-close-cash-admin-password"
-                value={closeCashAdminPassword}
-                onChange={event => setCloseCashAdminPassword(event.target.value)}
-                placeholder="Digite a senha"
-                autoComplete="new-password"
-              />
-            </div>
+                <div className="space-y-1">
+                  <Label>Senha do administrador</Label>
+                  <PasswordInput
+                    name="operator-close-cash-admin-password"
+                    value={closeCashAdminPassword}
+                    onChange={event => setCloseCashAdminPassword(event.target.value)}
+                    placeholder="Digite a senha"
+                    autoComplete="new-password"
+                  />
+                </div>
+              </>
+            )}
 
             {closeCashError && (
               <p className="text-sm font-medium text-destructive">{closeCashError}</p>

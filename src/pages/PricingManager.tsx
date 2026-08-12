@@ -754,36 +754,13 @@ export default function PricingManager() {
   };
 
   const handleManagerApproval = async () => {
-    if (!session?.access_token) {
-      setManagerApprovalError('Sua sessão expirou. Faça login novamente.');
-      return;
-    }
-
     if (!pendingPricingApproval) {
       setManagerApprovalError('Nenhuma alteração pendente para aprovar.');
       return;
     }
 
-    if (!managerEmail.trim() || !managerPassword.trim()) {
-      setManagerApprovalError('Informe login e senha do gerente.');
-      return;
-    }
-
     setManagerApprovalLoading(true);
     setManagerApprovalError('');
-
-    const approval = await verifyPricingManagerApproval(
-      session.access_token,
-      managerEmail,
-      managerPassword,
-    );
-
-    setManagerApprovalLoading(false);
-
-    if (!approval.success) {
-      setManagerApprovalError(approval.error || 'Não foi possível validar a aprovação.');
-      return;
-    }
 
     if (pendingPricingApproval.kind === 'product') {
       await persistProductSave(pendingPricingApproval.productId, pendingPricingApproval.payload);
@@ -791,6 +768,8 @@ export default function PricingManager() {
     }
 
     await persistRuleSave(pendingPricingApproval.ruleId, pendingPricingApproval.payload);
+    
+    setManagerApprovalLoading(false);
   };
 
   const handleRuleSave = async () => {
@@ -1162,33 +1141,12 @@ export default function PricingManager() {
       >
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Aprovação do gerente</DialogTitle>
+            <DialogTitle>Confirmar alteração</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <p className="text-sm text-muted-foreground">
-              Mudanças de preço, custo e markup exigem confirmação do administrador da loja.
+              Você está prestes a alterar informações de preço, custo ou regras de precificação. Deseja confirmar esta operação?
             </p>
-            <div className="space-y-1.5">
-              <Label>Login do gerente</Label>
-              <Input
-                type="email"
-                name="pricing-manager-approval-login"
-                value={managerEmail}
-                onChange={(event) => setManagerEmail(event.target.value)}
-                placeholder="admin@empresa.com"
-                autoComplete="off"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Senha do gerente</Label>
-              <PasswordInput
-                name="pricing-manager-approval-password"
-                value={managerPassword}
-                onChange={(event) => setManagerPassword(event.target.value)}
-                placeholder="Digite a senha"
-                autoComplete="new-password"
-              />
-            </div>
             {managerApprovalError && (
               <Alert variant="destructive">
                 <AlertTitle>Não foi possível aprovar</AlertTitle>
@@ -1201,7 +1159,7 @@ export default function PricingManager() {
               Cancelar
             </Button>
             <Button onClick={() => void handleManagerApproval()} disabled={managerApprovalLoading}>
-              {managerApprovalLoading ? 'Validando...' : 'Aprovar alteração'}
+              {managerApprovalLoading ? 'Salvando...' : 'Confirmar'}
             </Button>
           </DialogFooter>
         </DialogContent>

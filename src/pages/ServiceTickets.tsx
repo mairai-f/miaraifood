@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ClipboardList, Hash, Loader2, Plus } from 'lucide-react';
+import { ClipboardList, Hash, Loader2, Plus, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { useAuth } from '@/contexts/AuthContext';
@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { isValidServiceTicketNumber } from '@/lib/serviceTicket';
 import { formatCurrency } from '../../shared/locale/format';
 import type { ServiceTicket, ServiceTicketItem } from '@/types';
@@ -38,17 +39,19 @@ const getTicketTotal = (items: ServiceTicketItem[]) =>
   items.filter(item => item.status === 'active').reduce((sum, item) => sum + Number(item.total || 0), 0);
 
 export default function ServiceTickets() {
-  const { role } = useAuth();
+  const { role, isAdmin } = useAuth();
   const {
     serviceTickets,
     serviceTicketItems,
     loading,
     createServiceTicket,
+    deleteServiceTicket,
   } = useData();
 
   const [selectedTicketId, setSelectedTicketId] = useState<string | null>(null);
   const [creatingTickets, setCreatingTickets] = useState(false);
   const [createNumber, setCreateNumber] = useState('1');
+  const [showDeletePrompt, setShowDeletePrompt] = useState(false);
 
   const canManageTickets = role === 'admin' || role === 'operator';
   const visibleTickets = [...serviceTickets].sort((left, right) => left.number - right.number);
@@ -78,9 +81,21 @@ export default function ServiceTickets() {
       await createServiceTicket(number);
       toast.success(`Comanda ${number} cadastrada`);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Nao foi possivel cadastrar a comanda');
+      toast.error('Não foi possível criar a comanda');
     } finally {
       setCreatingTickets(false);
+    }
+  };
+
+  const handleDeleteTicket = async () => {
+    if (!selectedTicketId) return;
+    try {
+      await deleteServiceTicket(selectedTicketId);
+      setShowDeletePrompt(false);
+      setSelectedTicketId(null);
+      toast.success('Comanda excluída com sucesso');
+    } catch (error) {
+      toast.error('Não foi possível excluir a comanda');
     }
   };
 
@@ -191,11 +206,37 @@ export default function ServiceTickets() {
                 <div className="rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground">
                   Esta tela serve apenas para cadastro e consulta da comanda. Para abrir a comanda, lancar produtos e finalizar, use o PDV digitando o numero dela ou escaneando o codigo automatico dela.
                 </div>
+
+                {isAdmin && (
+                  <div className="mt-4 pt-4 border-t border-border flex justify-end">
+                    <Button variant="destructive" onClick={() => setShowDeletePrompt(true)}>
+                      <Trash2 className="mr-2 h-4 w-4" /> Excluir comanda permanentemente
+                    </Button>
+                  </div>
+                )}
               </>
             )}
           </CardContent>
         </Card>
       </div>
+
+      <AlertDialog open={showDeletePrompt} onOpenChange={setShowDeletePrompt}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir comanda permanentemente?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta ação excluirá a comanda <strong>{selectedTicket?.number}</strong> e todos os seus itens do sistema. 
+              Isso não pode ser desfeito.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteTicket} className="bg-destructive hover:bg-destructive/90 text-destructive-foreground">
+              Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

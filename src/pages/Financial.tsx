@@ -75,7 +75,12 @@ export default function Financial() {
   const filteredExpenses = useMemo(() => {
     const start = new Date(startDate + 'T00:00:00');
     const end = new Date(endDate + 'T23:59:59');
-    return expenses.filter(e => { const d = new Date(e.date); return d >= start && d <= end; });
+    return expenses.filter(e => { 
+      const d = new Date(e.date);
+      const cat = (e.category || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+      const isPDVCashOut = cat === 'saida de caixa' || cat === 'caixa' || cat === 'saida_pdv' || cat === 'sangria' || cat === 'suprimento';
+      return !isPDVCashOut && d >= start && d <= end; 
+    });
   }, [expenses, startDate, endDate]);
 
   const filteredAccounts = useMemo(() => {

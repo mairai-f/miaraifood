@@ -33,6 +33,7 @@ linux-unpacked/
 .task.md
 task.md
 task-*.md
+docs
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

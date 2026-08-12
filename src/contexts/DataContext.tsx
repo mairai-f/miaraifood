@@ -399,6 +399,7 @@ interface DataContextType {
     status: ServiceTicketStatus,
     metadata?: { saleId?: string | null; closedByName?: string | null }
   ) => Promise<void>;
+  deleteServiceTicket: (ticketId: string) => Promise<void>;
   updateServiceTicketItemQuantity: (
     itemId: string,
     quantity: number,
@@ -689,7 +690,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     return true;
   }, [applyOfflineSnapshot, canUseOfflineConcentrator, clearStoreData, localDeviceLabel, markOfflineNotReady, ownerUserId]);
 
-    const getNextTrackedStock = useCallback((product: Product, quantityDelta: number) => {
+  const getNextTrackedStock = useCallback((product: Product, quantityDelta: number) => {
     const nextStock = Number(product.stock || 0) + quantityDelta;
     return clampTrackedStock(product, nextStock, blockSaleWithoutStock);
   }, [blockSaleWithoutStock]);
@@ -1393,12 +1394,12 @@ export function DataProvider({ children }: { children: ReactNode }) {
       setProducts(prev => prev.map(product => (
         product.id === row.product_id
           ? {
-              ...product,
-              stock: Number(row.stock ?? 0),
-              min_stock: row.min_stock === null || row.min_stock === undefined
-                ? product.min_stock
-                : Number(row.min_stock ?? 0),
-            }
+            ...product,
+            stock: Number(row.stock ?? 0),
+            min_stock: row.min_stock === null || row.min_stock === undefined
+              ? product.min_stock
+              : Number(row.min_stock ?? 0),
+          }
           : product
       )));
     };
@@ -3408,15 +3409,15 @@ export function DataProvider({ children }: { children: ReactNode }) {
     const closeAllDebtOffline = async () => {
       const payment = balance > 0
         ? {
-            id: createId(),
-            client_id: clientId,
-            amount: balance,
-            type: 'total',
-            date: paymentDate,
-            details: paymentDetails,
-            sync_status: 'queued',
-            sync_error: null,
-          } as Payment
+          id: createId(),
+          client_id: clientId,
+          amount: balance,
+          type: 'total',
+          date: paymentDate,
+          details: paymentDetails,
+          sync_status: 'queued',
+          sync_error: null,
+        } as Payment
         : null;
 
       const queued = await enqueueOfflineOperation(ownerUserId!, 'debt_entries.close_all', {
@@ -3438,14 +3439,14 @@ export function DataProvider({ children }: { children: ReactNode }) {
         setDebtEntries(prev => prev.map(entry =>
           pendingIds.includes(entry.id)
             ? {
-                ...entry,
-                status: 'paid',
-                date_paid: paymentDate,
-                deleted: true,
-                manual_deleted: false,
-                sync_status: 'queued',
-                sync_error: null,
-              }
+              ...entry,
+              status: 'paid',
+              date_paid: paymentDate,
+              deleted: true,
+              manual_deleted: false,
+              sync_status: 'queued',
+              sync_error: null,
+            }
             : entry
         ));
       }
@@ -3926,12 +3927,12 @@ export function DataProvider({ children }: { children: ReactNode }) {
     const shouldOpenTicket = ticket.status === 'available';
     const openedChanges: Partial<ServiceTicket> = shouldOpenTicket
       ? {
-          status: 'open',
-          opened_at: now,
-          opened_by_user_id: user?.id ?? null,
-          opened_by_name: item.addedByName ?? null,
-          updated_at: now,
-        }
+        status: 'open',
+        opened_at: now,
+        opened_by_user_id: user?.id ?? null,
+        opened_by_name: item.addedByName ?? null,
+        updated_at: now,
+      }
       : { updated_at: now };
 
     if (isDemoMode) {
@@ -4009,7 +4010,24 @@ export function DataProvider({ children }: { children: ReactNode }) {
       changes.closed_sale_id = metadata.saleId ?? ticket.closed_sale_id ?? null;
     }
 
+    if (status === 'available') {
+      changes.opened_at = null;
+      changes.opened_by_user_id = null;
+      changes.opened_by_name = null;
+      changes.closed_at = null;
+      changes.closed_by_user_id = null;
+      changes.closed_by_name = null;
+      changes.closed_sale_id = null;
+    }
+
     if (isDemoMode) {
+      if (status === 'available') {
+        setServiceTicketItems(prev => prev.map(item =>
+          item.ticket_id === ticketId && item.status === 'active'
+            ? { ...item, status: 'cancelled' }
+            : item
+        ));
+      }
       setServiceTickets(prev => sortServiceTicketsByNumber(prev.map(currentTicket =>
         currentTicket.id === ticketId ? { ...currentTicket, ...changes } : currentTicket
       )));
@@ -4034,9 +4052,42 @@ export function DataProvider({ children }: { children: ReactNode }) {
       }))
       .eq('id', ticketId));
 
+    if (status === 'available') {
+      await db
+        .from('service_ticket_items')
+        .update({ status: 'cancelled' })
+        .eq('ticket_id', ticketId)
+        .eq('status', 'active');
+
+      setServiceTicketItems(prev => prev.map(item =>
+        item.ticket_id === ticketId && item.status === 'active'
+          ? { ...item, status: 'cancelled' }
+          : item
+      ));
+    }
+
     setServiceTickets(prev => sortServiceTicketsByNumber(prev.map(currentTicket =>
       currentTicket.id === ticketId ? { ...currentTicket, ...changes } : currentTicket
     )));
+  };
+
+  const deleteServiceTicket: DataContextType['deleteServiceTicket'] = async (ticketId) => {
+    if (!ownerUserId) throw new Error('Loja nao identificada.');
+    if (!isAdmin) throw new Error('Somente o administrador pode excluir comandas definitivamente.');
+
+    const ticket = serviceTickets.find(currentTicket => currentTicket.id === ticketId);
+    if (!ticket) throw new Error('Comanda nao encontrada.');
+
+    const { error } = await db
+      .from('service_tickets')
+      .delete()
+      .eq('id', ticketId)
+      .eq('owner_user_id', ownerUserId);
+
+    if (error) throw error;
+
+    setServiceTickets(prev => prev.filter(currentTicket => currentTicket.id !== ticketId));
+    setServiceTicketItems(prev => prev.filter(item => item.ticket_id !== ticketId));
   };
 
   const updateServiceTicketItemQuantity: DataContextType['updateServiceTicketItemQuantity'] = async (itemId, quantity, options = {}) => {
@@ -4626,7 +4677,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       addDebtEntry, addDebtEntries, updateDebtEntry, deleteDebtEntry,
       addPayment, deletePayment, getClientBalance, getClientTotalSpending, closeAllDebt, deleteClientHistory,
       createSale, cancelSale,
-      createServiceTicket, addServiceTicketItem, updateServiceTicketStatus, updateServiceTicketItemQuantity, cancelServiceTicketItem,
+      createServiceTicket, addServiceTicketItem, updateServiceTicketStatus, deleteServiceTicket, updateServiceTicketItemQuantity, cancelServiceTicketItem,
       addStockMovement, clearAllStock, addExpense, deleteExpense,
       updateStoreOperationalSettings,
       addReward, updateReward, deleteReward,
