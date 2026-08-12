@@ -60,7 +60,7 @@ let pendingUpdateRetryTimer = null;
 let pendingUpdateInstallTimer = null;
 let pendingUpdateInstallWatchdogTimer = null;
 let pendingUpdateForceQuitTimer = null;
-let autoInstallDownloadedUpdate = false;
+let autoInstallDownloadedUpdate = true;
 let updateInstallAttemptCount = 0;
 let installingDownloadedUpdate = false;
 const appendPrintLog = (event, details = {}) => {
@@ -417,20 +417,21 @@ function invokeQuitAndInstall(trigger = 'manual') {
   try {
     installingDownloadedUpdate = true;
     console.log(`Iniciando instalacao da atualizacao (${trigger}), tentativa ${updateInstallAttemptCount}.`);
-    autoUpdater.quitAndInstall(false, true);
+
+    // Destruir janelas antes para liberar os handles do arquivo executavel no SO (Windows/Linux)
+    BrowserWindow.getAllWindows().forEach((window) => {
+      if (!window.isDestroyed()) {
+        window.destroy();
+      }
+    });
+
+    autoUpdater.quitAndInstall(true, true);
 
     pendingUpdateForceQuitTimer = setTimeout(() => {
       pendingUpdateForceQuitTimer = null;
-      if (!installingDownloadedUpdate || getUpdateState().status !== 'installing') return;
-
-      console.warn('Updater ainda nao encerrou o app. Fechando janelas para liberar a instalacao.');
-      BrowserWindow.getAllWindows().forEach((window) => {
-        if (!window.isDestroyed()) {
-          window.destroy();
-        }
-      });
-      app.quit();
-    }, UPDATE_FORCE_QUIT_DELAY_MS);
+      console.warn('Updater ainda nao encerrou o app. Forcando encerramento do processo para liberar instalacao.');
+      app.exit(0);
+    }, 2500);
 
     return { success: true };
   } catch (error) {

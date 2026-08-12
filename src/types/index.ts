@@ -80,6 +80,7 @@ export interface Product {
   fiscal_unit?: string | null;
   fiscal_gtin?: string | null;
   fiscal_cest?: string | null;
+  expiry_date?: string | null;
   deleted?: boolean;
   deleted_at?: string | null;
   sync_status?: 'synced' | 'queued' | 'conflict';

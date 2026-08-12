@@ -83,13 +83,13 @@ export function OperationsDetailsDialog({
 
   return (
     <Dialog open={detail !== null} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[85vh] max-w-5xl overflow-hidden">
+      <DialogContent className="flex h-[100dvh] w-screen max-w-none flex-col gap-3 overflow-hidden rounded-none p-4 sm:h-auto sm:max-h-[85vh] sm:max-w-5xl sm:rounded-2xl sm:p-6">
         <DialogHeader>
           <DialogTitle>{detail ? titleByDetail[detail] : 'Detalhes'}</DialogTitle>
           <DialogDescription>Registros que compõem o indicador exibido em Operações.</DialogDescription>
         </DialogHeader>
 
-        <div className="max-h-[68vh] overflow-auto rounded-md border">
+        <div className="min-h-0 flex-1 overflow-y-auto rounded-md border">
           {detail === 'purchases' && (
             <Table>
               <TableHeader><TableRow><TableHead>Data</TableHead><TableHead>Fornecedor</TableHead><TableHead>Produtos comprados</TableHead><TableHead>Documento</TableHead><TableHead className="text-right">Total</TableHead></TableRow></TableHeader>

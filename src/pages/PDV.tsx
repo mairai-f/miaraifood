@@ -20,7 +20,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { Ban, FileText, History, Loader2, Maximize2, Minimize2, Minus, Plus, Printer, Receipt, RefreshCw, Search, ShoppingCart, Wallet, X } from 'lucide-react';
+import { Ban, ChevronDown, ChevronUp, FileText, History, Loader2, Maximize2, Minimize2, Minus, Plus, Printer, Receipt, RefreshCw, Search, ShoppingCart, Wallet, X } from 'lucide-react';
 import type { Expense, Product, ProductPackaging, Reward, Sale, SaleItem } from '@/types';
 import { INTERNET_REQUIRED_MESSAGE, isInternetUnavailable, openExternalUrl } from '@/lib/openExternalUrl';
 import { normalizePhone } from '@/lib/phone';
@@ -456,6 +456,7 @@ export default function PDV() {
   const [salesSearchItems, setSalesSearchItems] = useState<SaleItem[]>([]);
   const [salesSearchLoading, setSalesSearchLoading] = useState(false);
   const [salesSearchError, setSalesSearchError] = useState<string | null>(null);
+  const [expandedSaleId, setExpandedSaleId] = useState<string | null>(null);
   const [saleToCancel, setSaleToCancel] = useState<string | null>(null);
   const [cancelReason, setCancelReason] = useState('');
   const [cashOutAmount, setCashOutAmount] = useState('');
@@ -5514,9 +5515,23 @@ export default function PDV() {
 
       {/* Sales search dialog */}
       <Dialog open={showSalesSearch} onOpenChange={setShowSalesSearch}>
-        <DialogContent className="max-h-[90vh] max-w-5xl overflow-hidden">
-          <DialogHeader><DialogTitle>Buscar vendas</DialogTitle></DialogHeader>
-          <div className="flex min-h-0 flex-col gap-3">
+        <DialogContent className="flex h-[100dvh] w-screen max-w-none flex-col gap-3 overflow-hidden rounded-none p-0 sm:h-auto sm:max-h-[90vh] sm:max-w-5xl sm:rounded-2xl">
+          {/* Header — sticky, com botão fechar explícito visível em mobile */}
+          <div className="flex shrink-0 items-center justify-between border-b border-border px-4 py-3 sm:px-6 sm:pt-5">
+            <DialogTitle className="text-base font-semibold sm:text-lg">Buscar vendas</DialogTitle>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 shrink-0"
+              aria-label="Fechar buscador de vendas"
+              onClick={() => setShowSalesSearch(false)}
+            >
+              <X className="h-5 w-5" />
+            </Button>
+          </div>
+
+          <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-4 pb-4 sm:px-6 sm:pb-6">
             <div className="grid gap-2 lg:grid-cols-[minmax(220px,1fr)_210px_180px_auto] lg:items-end">
               <div className="space-y-1">
                 <Label className="text-xs">Busca</Label>
@@ -5601,7 +5616,7 @@ export default function PDV() {
               </div>
             </div>
 
-            <div className="min-h-0 max-h-[55vh] overflow-auto space-y-2">
+            <div className="space-y-2">
               {salesSearchLoading ? (
                 <p className="py-8 text-center text-sm text-muted-foreground">Buscando vendas...</p>
               ) : visibleSales.map(sale => {
@@ -5610,13 +5625,20 @@ export default function PDV() {
                 const isCancelled = sale.status === 'cancelled';
                 const saleCashReceived = Number(sale.cash_received || 0);
                 const saleChangeAmount = Number(sale.change_amount || 0);
+                const isExpanded = expandedSaleId === sale.id;
                 return (
-                  <div key={sale.id} className={`rounded-lg border border-border p-3 ${isCancelled ? 'opacity-60' : ''}`}>
-                    <div className="grid gap-2 lg:grid-cols-[1fr_auto]">
+                  <div key={sale.id} className={`rounded-lg border border-border ${isCancelled ? 'opacity-60' : ''}`}>
+                    {/* Cabeçalho da venda — sempre visível */}
+                    <div className="grid gap-2 p-3 lg:grid-cols-[1fr_auto]">
                       <div className="min-w-0 space-y-1">
                         <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                           <p className="font-semibold">{formatSaleDate(sale.date)}</p>
                           <span className="text-sm text-muted-foreground">{sale.is_delivery ? 'Delivery' : 'Balcão'}</span>
+                          {sale.service_ticket_number != null && (
+                            <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
+                              Comanda #{sale.service_ticket_number}
+                            </span>
+                          )}
                           {isCancelled && <span className="text-sm font-semibold text-destructive">Cancelada</span>}
                         </div>
                         <p className="text-sm text-muted-foreground">
@@ -5652,9 +5674,50 @@ export default function PDV() {
                               <Ban className="h-4 w-4 mr-1" />Cancelar
                             </Button>
                           )}
+                          {/* Botão de expandir dropdown */}
+                          {items.length > 0 && (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              className="gap-1"
+                              aria-label={isExpanded ? 'Ocultar itens da venda' : 'Ver itens da venda'}
+                              onClick={() => setExpandedSaleId(isExpanded ? null : sale.id)}
+                            >
+                              {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                              {isExpanded ? 'Ocultar' : 'Ver itens'}
+                            </Button>
+                          )}
                         </div>
                       </div>
                     </div>
+
+                    {/* Dropdown de itens — visível somente quando expandido */}
+                    {isExpanded && items.length > 0 && (
+                      <div className="border-t border-border bg-muted/30 px-3 pb-3 pt-2">
+                        {sale.service_ticket_number != null && (
+                          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                            Comanda #{sale.service_ticket_number}
+                          </p>
+                        )}
+                        <div className="space-y-1">
+                          <div className="grid grid-cols-[1fr_auto_auto_auto] gap-x-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                            <span>Produto</span>
+                            <span className="text-right">Qtd</span>
+                            <span className="text-right">Unit.</span>
+                            <span className="text-right">Total</span>
+                          </div>
+                          {items.map(item => (
+                            <div key={item.id} className="grid grid-cols-[1fr_auto_auto_auto] gap-x-3 text-sm">
+                              <span className="truncate">{item.product_name}</span>
+                              <span className="text-right tabular-nums">{item.quantity}</span>
+                              <span className="text-right tabular-nums text-muted-foreground">{formatMoney(item.unit_price)}</span>
+                              <span className="text-right tabular-nums font-medium">{formatMoney(item.total)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 );
               })}
@@ -5666,9 +5729,9 @@ export default function PDV() {
 
       {/* Cancelled sales dialog */}
       <Dialog open={showCancelledSales} onOpenChange={setShowCancelledSales}>
-        <DialogContent className="max-h-[90vh] max-w-3xl overflow-hidden">
+        <DialogContent className="flex h-[100dvh] w-screen max-w-none flex-col gap-3 overflow-hidden rounded-none p-4 sm:h-auto sm:max-h-[90vh] sm:max-w-3xl sm:rounded-2xl sm:p-6">
           <DialogHeader><DialogTitle>Vendas canceladas</DialogTitle></DialogHeader>
-          <div className="max-h-[70vh] overflow-auto space-y-2">
+          <div className="min-h-0 flex-1 overflow-y-auto space-y-2 pr-1">
             {cancelledSales.map(sale => {
               const client = activeClients.find(c => c.id === sale.client_id);
               const items = getSaleItemsForSale(sale.id);
@@ -5955,10 +6018,10 @@ export default function PDV() {
 
       {/* Close cash receipt dialog */}
       <Dialog open={showCloseCashReceipt} onOpenChange={setShowCloseCashReceipt}>
-        <DialogContent className="max-h-[90vh] max-w-3xl overflow-hidden">
+        <DialogContent className="flex h-[100dvh] w-screen max-w-none flex-col gap-3 overflow-hidden rounded-none p-4 sm:h-auto sm:max-h-[90vh] sm:max-w-3xl sm:rounded-2xl sm:p-6">
           <DialogHeader><DialogTitle>Recibo de fechamento do caixa</DialogTitle></DialogHeader>
           {lastCloseReceipt && (
-            <div className="max-h-[70vh] overflow-auto space-y-3 text-sm">
+            <div className="min-h-0 flex-1 overflow-y-auto space-y-3 text-sm pr-1">
               <div
                 className={`rounded-lg border p-3 ${closeCashEmailStatus === 'sent'
                   ? 'border-primary/30 bg-primary/5'
