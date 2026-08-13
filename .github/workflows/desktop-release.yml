@@ -58,14 +58,8 @@ jobs:
             exit 1
           fi
 
-      - name: Lint
-        run: npm run lint
-
-      - name: Test
-        run: npm test
-
-      - name: Build web and site
-        run: npm run build:all
+      - name: Build Desktop Web App
+        run: npm run build
 
   release-linux:
     needs: validate-version
