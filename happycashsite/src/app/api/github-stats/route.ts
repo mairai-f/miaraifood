@@ -116,7 +116,7 @@ export async function GET() {
               return {
                 type: 'push',
                 repo: e.repo.name,
-                branch: e.payload.ref.replace('refs/heads/', ''),
+                branch: e.payload.ref?.replace('refs/heads/', '') || '',
                 message: e.payload.commits?.[0]?.message || 'No commit message',
                 date: e.created_at,
               };
@@ -124,11 +124,11 @@ export async function GET() {
               return {
                 type: 'pr',
                 repo: e.repo.name,
-                title: e.payload.pull_request.title,
-                status: e.payload.action, // opened, closed, etc.
-                merged: e.payload.pull_request.merged,
+                title: e.payload.pull_request?.title || '',
+                status: e.payload.action || '',
+                merged: e.payload.pull_request?.merged || false,
                 date: e.created_at,
-                url: e.payload.pull_request.html_url
+                url: e.payload.pull_request?.html_url || ''
               };
             }
             return null;

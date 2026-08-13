@@ -1108,8 +1108,8 @@ export function OperatorManagementPanel({
   const handleConfirmAdminAuthorization = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
-    let adminEmail = adminAuthorizationEmail.trim();
-    let adminPassword = adminAuthorizationPassword.trim();
+    const adminEmail = adminAuthorizationEmail.trim();
+    const adminPassword = adminAuthorizationPassword.trim();
     let adminAccessToken: string | undefined = undefined;
 
     if (isAdmin && session?.access_token) {

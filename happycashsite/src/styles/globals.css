@@ -71,14 +71,14 @@
   }
 
   html {
-    scroll-behavior: smooth;
+    scroll-behavior: auto;
     position: relative;
   }
 
   body {
     @apply bg-background text-foreground antialiased;
     font-feature-settings: "rlig" 1, "calt" 1;
-    overflow-x: hidden;
+    overflow-x: clip;
   }
 
   ::selection {
@@ -446,7 +446,7 @@
   }
   body {
     @apply bg-background text-foreground;
-    overflow-x: hidden;
+    overflow-x: clip;
   }
 
   /* Utility to hide elements when any modal is open */
@@ -604,3 +604,20 @@ html, body, * {
 .bg-book-gradient { background-image: var(--ds-book-gradient); }
 .book-rotate { transition: transform 0.5s ease-out; transform: rotateY(0deg); transform-style: preserve-3d; }
 .book-rotate:hover { transform: rotateY(-25deg); }
+
+/* Lenis Recommended CSS */
+html.lenis, html.lenis body {
+  height: auto;
+}
+.lenis.lenis-smooth {
+  scroll-behavior: auto !important;
+}
+.lenis.lenis-smooth [data-lenis-prevent] {
+  overscroll-behavior: contain;
+}
+.lenis.lenis-stopped {
+  overflow: hidden;
+}
+.lenis.lenis-scrolling iframe {
+  pointer-events: none;
+}

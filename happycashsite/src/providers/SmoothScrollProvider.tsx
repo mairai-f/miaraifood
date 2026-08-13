@@ -1,34 +1,42 @@
 'use client';
 
-import { ReactLenis, useLenis } from 'lenis/react';
-import { useEffect, useRef } from "react";
-import gsap from "gsap";
-import { ScrollTrigger } from "gsap/ScrollTrigger";
+import { ReactLenis } from 'lenis/react';
+import { useEffect, useState } from 'react';
+import gsap from 'gsap';
+import { ScrollTrigger } from 'gsap/ScrollTrigger';
+
+gsap.registerPlugin(ScrollTrigger);
+
+if (typeof window !== 'undefined') {
+    ScrollTrigger.config({
+        ignoreMobileResize: true,
+    });
+    ScrollTrigger.normalizeScroll(false);
+}
 
 export function SmoothScrollProvider({ children }: { children: React.ReactNode }) {
-    const lenis = useLenis(ScrollTrigger.update);
+    const [isMobile, setIsMobile] = useState(false);
 
     useEffect(() => {
-        function update(time: number) {
-            lenis?.raf(time * 1000);
-        }
-        
-        gsap.ticker.add(update);
-        gsap.ticker.lagSmoothing(0);
-        
-        return () => {
-            gsap.ticker.remove(update);
+        const checkMobile = () => {
+            setIsMobile(window.innerWidth < 1024 || ('ontouchstart' in window) || navigator.maxTouchPoints > 0);
         };
-    }, [lenis]);
+        
+        checkMobile();
+        window.addEventListener('resize', checkMobile);
+        return () => window.removeEventListener('resize', checkMobile);
+    }, []);
 
     return (
         <ReactLenis root options={{
             lerp: 0.1,
             duration: 1.5,
-            smoothWheel: true,
-            // smoothTouch is causing TS error in this version's types
+            smoothWheel: !isMobile,
+            syncTouch: false,
             // @ts-ignore
-            smoothTouch: false
+            smoothTouch: false,
+            touchMultiplier: 0,
+            wheelMultiplier: isMobile ? 0 : 1,
         }}>
             {children}
         </ReactLenis>
