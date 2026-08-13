@@ -37,6 +37,7 @@ import {
   isPaidPlanAllowedForProductContext,
   normalizeProductContext,
   resolveProductContextFromPlanId,
+  getProductContextLabel,
   type ProductContext,
 } from "@/shared/productContext";
 import { retryAsync } from "@/shared/network/retry";

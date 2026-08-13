@@ -35,9 +35,9 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     .select('slug, published_at');
 
   // Fallback to portfolioData if Supabase fails or is empty
-  const dynamicBlogs = (blogs && blogs.length > 0 ? blogs : portfolioData.blogs).map((blog) => ({
+  const dynamicBlogs = (blogs && blogs.length > 0 ? blogs : portfolioData.blogs).map((blog: any) => ({
     url: `${baseUrl}/conteudos/${blog.slug}`,
-    lastModified: blog.published_at ? new Date(blog.published_at) : new Date(),
+    lastModified: blog.published_at ? new Date(blog.published_at) : (blog.date ? new Date(blog.date) : new Date()),
     changeFrequency: 'weekly' as const,
     priority: 0.9,
   }));

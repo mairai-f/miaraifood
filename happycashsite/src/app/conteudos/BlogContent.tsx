@@ -49,7 +49,7 @@ export function BlogContent({ initialPosts }: { initialPosts: any[] }) {
         .filter((post) => {
             const matchesSearch = post.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
                 post.excerpt.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                post.tags.some(tag => tag.toLowerCase().includes(searchQuery.toLowerCase()));
+                post.tags.some((tag: string) => tag.toLowerCase().includes(searchQuery.toLowerCase()));
 
             const matchesCategory = selectedCategory === 'all' || post.category === selectedCategory;
 
