@@ -31,60 +31,12 @@ export const HeroParallax = ({
     offset: ["start start", "end start"],
   });
 
-  // Spring smooths ONLY the rotation to prevent aliasing jitter ("shaking")
-  const rotateSpringConfig = { stiffness: 200, damping: 20 };
-
-  const translateX = useTransform(scrollYProgress, [0, 1], [0, isLowPowerMode ? 200 : 800]);
-  const translateXReverse = useTransform(scrollYProgress, [0, 1], [0, isLowPowerMode ? -200 : -800]);
-
-  const rotateXRaw = useTransform(scrollYProgress, [0, 0.2], [isLowPowerMode ? 0 : 5, 0]);
-  const rotateX = useSpring(rotateXRaw, rotateSpringConfig);
-
-  const opacity = useTransform(scrollYProgress, [0, 0.2], [isLowPowerMode ? 0.8 : 0.2, 1]);
-
-  const rotateZRaw = useTransform(scrollYProgress, [0, 0.2], [isLowPowerMode ? 0 : 5, 0]);
-  const rotateZ = useSpring(rotateZRaw, rotateSpringConfig);
-  const translateY = useTransform(scrollYProgress, [0, 0.2], [isLowPowerMode ? -100 : -500, isLowPowerMode ? 100 : 500]);
   return (
     <div
       ref={ref}
-      className={cn(
-        "pt-10 pb-20 sm:pb-40 overflow-hidden antialiased relative flex flex-col self-auto",
-        isLowPowerMode
-          ? "h-[100svh] sm:h-[120vh]"
-          : "h-[120vh] md:h-[200vh] lg:h-[250vh] [perspective:2000px] [transform-style:preserve-3d]"
-      )}
+      className="pt-10 pb-20 sm:pb-32 overflow-hidden antialiased relative flex flex-col self-auto h-auto"
     >
       <Header />
-      <motion.div
-        style={{
-          translateY,
-          opacity,
-          backfaceVisibility: 'hidden',
-        }}
-        className=""
-      >
-        <motion.div className={cn("flex flex-row-reverse space-x-reverse space-x-20 mb-20", isLowPowerMode && "mb-10 space-x-10")}>
-          {firstRow.map((product) => (
-            <ProductCard
-              product={product}
-              translate={translateX}
-              key={product.title}
-              isLowPowerMode={isLowPowerMode}
-            />
-          ))}
-        </motion.div>
-        <motion.div className={cn("flex flex-row mb-20 space-x-20", isLowPowerMode && "mb-10 space-x-10")}>
-          {secondRow.map((product) => (
-            <ProductCard
-              product={product}
-              translate={translateXReverse}
-              key={product.title}
-              isLowPowerMode={isLowPowerMode}
-            />
-          ))}
-        </motion.div>
-      </motion.div>
     </div>
   );
 };
@@ -149,7 +101,7 @@ export const ProductCard = ({
       key={product.title}
       className={cn(
         "group/product relative shrink-0",
-        isLowPowerMode ? "h-48 w-[12rem] md:h-64 md:w-[20rem]" : "h-64 w-[16rem] md:h-96 md:w-[30rem]"
+        isLowPowerMode ? "h-32 w-full max-w-[20rem] mb-4 mx-2" : "h-64 w-[16rem] md:h-96 md:w-[30rem]"
       )}
     >
       <a

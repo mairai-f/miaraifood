@@ -17,6 +17,8 @@ import { Label } from '@/components/ui/label';
 import { PasswordInput } from '@/components/ui/password-input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+
 import { Checkbox } from '@/components/ui/checkbox';
 import { AlertTriangle, CalendarClock, Edit, Plus, Search, Trash2, TrendingUp } from 'lucide-react';
 import { toast } from 'sonner';
@@ -430,19 +432,17 @@ export default function Products() {
     data.control_stock = controlStock;
     data.block_sale_without_stock = productBlocksSaleWithoutStock;
 
-    if (canEditFiscalProductData) {
-      Object.assign(data, {
-        fiscal_ncm: fiscalNcm.replace(/\D/g, '').slice(0, 8) || null,
-        fiscal_cfop: fiscalCfop.replace(/\D/g, '').slice(0, 4) || null,
-        fiscal_origin: fiscalOrigin.trim() === '' ? null : Math.max(0, Math.min(8, Number.parseInt(fiscalOrigin, 10) || 0)),
-        fiscal_csosn: fiscalCsosn.replace(/\D/g, '').slice(0, 3) || null,
-        fiscal_pis_cst: fiscalPisCst.replace(/\D/g, '').slice(0, 2) || null,
-        fiscal_cofins_cst: fiscalCofinsCst.replace(/\D/g, '').slice(0, 2) || null,
-        fiscal_unit: toProductUppercase(fiscalUnit.trim() || 'UN').slice(0, 6),
-        fiscal_gtin: toProductUppercase(fiscalGtin.trim() || 'SEM GTIN'),
-        fiscal_cest: fiscalCest.replace(/\D/g, '').slice(0, 7) || null,
-      });
-    }
+    Object.assign(data, {
+      fiscal_ncm: fiscalNcm.replace(/\D/g, '').slice(0, 8) || null,
+      fiscal_cfop: fiscalCfop.replace(/\D/g, '').slice(0, 4) || null,
+      fiscal_origin: fiscalOrigin.trim() === '' ? null : Math.max(0, Math.min(8, Number.parseInt(fiscalOrigin, 10) || 0)),
+      fiscal_csosn: fiscalCsosn.replace(/\D/g, '').slice(0, 3) || null,
+      fiscal_pis_cst: fiscalPisCst.replace(/\D/g, '').slice(0, 2) || null,
+      fiscal_cofins_cst: fiscalCofinsCst.replace(/\D/g, '').slice(0, 2) || null,
+      fiscal_unit: toProductUppercase(fiscalUnit.trim() || 'UN').slice(0, 6),
+      fiscal_gtin: toProductUppercase(fiscalGtin.trim() || 'SEM GTIN'),
+      fiscal_cest: fiscalCest.replace(/\D/g, '').slice(0, 7) || null,
+    });
 
     if ((data.price ?? 0) < (data.cost_price ?? 0)) {
       toast.error('O preço de venda não pode ficar abaixo do custo real.');
@@ -619,7 +619,17 @@ export default function Products() {
             <DialogTrigger asChild><Button size="sm" data-tour-id="products-new"><Plus className="h-4 w-4 mr-1" />Novo</Button></DialogTrigger>
             <DialogContent className="grid max-h-[calc(100dvh-1rem)] w-[calc(100vw-1rem)] max-w-5xl grid-rows-[auto_minmax(0,1fr)_auto] gap-3 overflow-hidden p-3 sm:max-h-[calc(100dvh-2rem)] sm:w-[calc(100vw-2rem)] sm:gap-4 sm:p-6">
               <DialogHeader><DialogTitle>{editId ? 'Editar Produto' : 'Cadastrar Produto'}</DialogTitle></DialogHeader>
-              <div className="min-h-0 min-w-0 space-y-3 overflow-y-auto overflow-x-hidden pr-1 pb-1 sm:pr-2">
+              <Tabs defaultValue="geral" className="flex-1 flex flex-col min-h-0 min-w-0 overflow-hidden">
+                <TabsList className="w-full justify-start overflow-x-auto shrink-0 mb-2 flex-nowrap rounded-none border-b bg-transparent p-0">
+                  <TabsTrigger value="geral" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent">Geral</TabsTrigger>
+                  <TabsTrigger value="estoque" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent">Estoque</TabsTrigger>
+                  {isAdmin && <TabsTrigger value="embalagens" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent">Embalagens</TabsTrigger>}
+                  <TabsTrigger value="comercial" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent">Comercial</TabsTrigger>
+                  {canManagePricing && priceTables.length > 0 && <TabsTrigger value="atacado" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent">Atacado</TabsTrigger>}
+                  <TabsTrigger value="fiscal" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent text-primary font-bold">Fiscal (NFC-e)</TabsTrigger>
+                </TabsList>
+                <div className="flex-1 overflow-y-auto overflow-x-hidden pr-1 pb-1 sm:pr-2">
+                  <TabsContent value="geral" className="mt-0 space-y-3">
                 <div className="space-y-1"><Label>Nome / Marca</Label><Input value={name} onChange={e => setName(toProductUppercase(e.target.value))} placeholder="Ex: Skol 600ml" /></div>
                 <div className="space-y-3 rounded-md border p-3">
                   <div className="flex items-start gap-3">
@@ -717,7 +727,9 @@ export default function Products() {
                   <datalist id="product-suppliers">{suppliers.map((supplier) => <option key={supplier.id} value={supplier.name} />)}</datalist>
                   {supplierName && !supplierId && <p className="text-xs text-amber-600">Cadastre ou selecione este fornecedor em Operações para criar o vínculo.</p>}
                 </div>
-                <div className="flex items-center justify-between rounded-md border p-3">
+                </TabsContent>
+                  <TabsContent value="estoque" className="mt-0 space-y-3">
+                  <div className="flex items-center justify-between rounded-md border p-3">
                   <div><Label htmlFor="control-stock">Controlar estoque</Label><p className="text-xs text-muted-foreground">Controla saldo, baixa e validade. A trava de venda segue a configuracao global da loja.</p></div>
                   <Switch id="control-stock" checked={controlStock} onCheckedChange={setControlStock} />
                 </div>
@@ -749,7 +761,9 @@ export default function Products() {
                     Na filial {operationalScope?.location.name}, altere quantidades pelo modulo Estoque.
                   </p>
                 )}
-                {isAdmin && (
+                </TabsContent>
+                  <TabsContent value="embalagens" className="mt-0 space-y-3">
+                  {isAdmin && (
                   <div className="space-y-3 rounded-md border p-3">
                     <div className="flex items-start justify-between gap-3">
                       <div>
@@ -776,7 +790,9 @@ export default function Products() {
                     {packagingRows.length === 0 && <p className="text-xs text-muted-foreground">Nenhuma embalagem. O produto sera vendido somente na unidade-base.</p>}
                   </div>
                 )}
-                <div className="space-y-3 rounded-md border p-3">
+                </TabsContent>
+                  <TabsContent value="comercial" className="mt-0 space-y-3">
+                  <div className="space-y-3 rounded-md border p-3">
                   <div><p className="text-sm font-semibold">Política comercial</p><p className="text-xs text-muted-foreground">Limites aplicados ao produto em qualquer filial.</p></div>
                   <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                     <div className="space-y-1"><Label>Desconto máximo (%)</Label><Input inputMode="decimal" value={maxDiscount} onChange={e => setMaxDiscount(e.target.value)} /></div>
@@ -785,7 +801,9 @@ export default function Products() {
                     <div className="space-y-1"><Label>Transportadora preferencial</Label><Select value={transportCompanyId || '__none'} onValueChange={(value) => setTransportCompanyId(value === '__none' ? '' : value)}><SelectTrigger><SelectValue placeholder="Sem preferência" /></SelectTrigger><SelectContent><SelectItem value="__none">Sem preferência</SelectItem>{transportCompanies.map((row) => <SelectItem key={row.id} value={row.id}>{row.name}</SelectItem>)}</SelectContent></Select></div>
                   </div>
                 </div>
-                {canManagePricing && priceTables.length > 0 && (
+                </TabsContent>
+                  <TabsContent value="atacado" className="mt-0 space-y-3">
+                  {canManagePricing && priceTables.length > 0 && (
                   <div className="space-y-3 rounded-md border p-3">
                     <div className="flex items-start justify-between gap-3"><div><p className="text-sm font-semibold">Tabelas e faixas de preço</p><p className="text-xs text-muted-foreground">O preço Varejo para uma unidade é o preço principal acima.</p></div><Button type="button" size="sm" variant="outline" onClick={addPriceRow}><Plus className="mr-1 h-3 w-3" /> Faixa</Button></div>
                     {priceRows.map((row) => (
@@ -799,12 +817,13 @@ export default function Products() {
                     {priceRows.length === 0 && <p className="text-xs text-muted-foreground">Nenhuma faixa adicional. Use “Faixa” para atacado ou quantidade mínima.</p>}
                   </div>
                 )}
-                {canEditFiscalProductData && (
-                  <div className="space-y-3 rounded-md border p-3">
-                    <div>
-                      <p className="text-sm font-semibold">Fiscal para NFC-e</p>
-                      <p className="text-xs text-muted-foreground">Disponivel somente no HappyCash Desktop PRO. Preencha com apoio do contador.</p>
-                    </div>
+                </TabsContent>
+                  <TabsContent value="fiscal" className="mt-0 space-y-3">
+                    <div className="space-y-3 rounded-md border p-3">
+                      <div>
+                        <p className="text-sm font-semibold">Dados Fiscais (NFC-e)</p>
+                        <p className="text-xs text-muted-foreground">Deixe tudo engatilhado para quando precisar emitir notas fiscais. Preencha com o apoio do seu contador.</p>
+                      </div>
                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                       <div className="space-y-1"><Label>NCM</Label><Input inputMode="numeric" value={fiscalNcm} onChange={e => setFiscalNcm(e.target.value.replace(/\D/g, '').slice(0, 8))} placeholder="Ex: 22030000" /></div>
                       <div className="space-y-1"><Label>CFOP</Label><Input inputMode="numeric" value={fiscalCfop} onChange={e => setFiscalCfop(e.target.value.replace(/\D/g, '').slice(0, 4))} placeholder="Ex: 5102" /></div>
@@ -817,7 +836,7 @@ export default function Products() {
                       <div className="space-y-1"><Label>CEST</Label><Input inputMode="numeric" value={fiscalCest} onChange={e => setFiscalCest(e.target.value.replace(/\D/g, '').slice(0, 7))} placeholder="Opcional" /></div>
                     </div>
                   </div>
-                )}
+                </TabsContent>
                 {!editId && (
                   <div className="space-y-3 rounded-md border p-3">
                     <div><p className="text-sm font-semibold">Validade opcional</p><p className="text-xs text-muted-foreground">Preencha somente quando o produto tiver lote com vencimento.</p></div>
@@ -830,6 +849,7 @@ export default function Products() {
                   </div>
                 )}
               </div>
+              </Tabs>
               <DialogFooter className="shrink-0 border-t border-border pt-3 pb-[max(0.25rem,env(safe-area-inset-bottom))]">
                 <Button onClick={handleSave} className="w-full sm:w-auto">{editId ? 'Salvar' : 'Cadastrar'}</Button>
               </DialogFooter>

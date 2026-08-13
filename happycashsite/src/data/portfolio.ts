@@ -77,7 +77,7 @@ export const portfolioData: PortfolioData = {
 
   customTimeline: "2026",
 
-  team: "HappyCash ERP",
+  team: "Equipe HappyCash",
 
   highlights: [
     "Venda rápida no caixa",
@@ -144,26 +144,26 @@ export const portfolioData: PortfolioData = {
         "A Caderneta Fiado Digital do HappyCash transforma a operação de lojas que vivem de fiado. Elimina a necessidade de cadernos físicos oferecendo controle digital completo: clientes identificados, saldo sempre visível, histórico organizado e mensagens de cobrança prontas para enviar via WhatsApp. Ideal para pequenas e médias lojas que precisam gerenciar crédito com segurança.",
 
       techStack: [
-        "Vue.js 3",
-        "Vite 5",
-        "TypeScript",
-        "Tailwind CSS 3",
-        "GSAP 3",
-        "Python",
-        "Flask",
-        "Pydantic v2",
-        "Groq API",
-        "Llama 3.3 70B",
-        "FPDF2",
+        "Venda Rápida",
+        "Controle Seguro",
+        "Fácil de Usar",
+        "Gestão Visual",
+        "Sincronização Online",
+        "Análise de Dados",
+        "Relatórios Rápidos",
+        "Cobrança via WhatsApp",
+        "Histórico de Clientes",
+        "Fechamento Automático",
+        "Exportação de Dados",
       ],
-      tools: ["VS Code", "Vercel", "Postman", "GitHub"],
+      tools: ["Painel Administrativo", "Servidor Nuvem", "Integração", "Backup Diário"],
       status: "completed",
       repoUrl: "https://github.com/Arfazrll/Swarm-Agent-Orchestrator",
       demoUrl: "https://swarmagentblog.vercel.app/",
       startDate: "2025-03-01",
-      role: "AI Engineer & Full Stack Developer",
+      role: "Módulo ERP",
       customTimeline: "March 2025",
-      team: "Personal Project",
+      team: "Equipe HappyCash",
 
       highlights: [
         "Multi-Agent Orchestration",
@@ -327,7 +327,7 @@ repoUrl: "#",
       demoUrl: "#",
       startDate: "2025-01-01",
      customTimeline: "2026",
-    team: "HappyCash ERP",
+    team: "Equipe HappyCash",
      highlights: [
   "Decisões baseadas em dados",
   "Visão completa do negócio",
@@ -417,9 +417,9 @@ repoUrl: "#",
   startDate: "2026-01-01",
   customTimeline: "2026",
 
-  team: "HappyCash",
+  team: "Equipe HappyCash",
 
-  role: "ERP Financeiro",
+  role: "Módulo ERP",
 
 
   highlights: [
@@ -526,16 +526,16 @@ repoUrl: "#",
     "O modo Offline-First do HappyCash foi desenvolvido para empresas que não podem parar suas operações. Mesmo em momentos sem conexão com a internet, o sistema continua permitindo vendas, consultas e registros normalmente. Quando a conexão é restabelecida, os dados são sincronizados automaticamente, garantindo segurança e continuidade para o negócio.",
 
   techStack: [
-    "React",
-    "TypeScript",
-    "Electron",
+    "Tecnologia Ágil",
+    "Fácil de Usar",
+    "Sistema Desktop",
     "SQLite",
-    "Supabase",
+    "Banco de Dados Nuvem",
   ],
 
   tools: [
-    "VS Code",
-    "GitHub",
+    "Painel Administrativo",
+    "Backup Diário",
   ],
 
   status: "completed",
@@ -545,11 +545,11 @@ repoUrl: "#",
 
   startDate: "2026-01-01",
 
-  role: "Full Stack Developer",
+  role: "Módulo ERP",
 
   customTimeline: "2026",
 
-  team: "HappyCash Development",
+  team: "Equipe HappyCash",
 
   highlights: [
     "Venda mesmo sem internet",
@@ -650,16 +650,16 @@ repoUrl: "#",
     "O módulo de Gestão de Usuários e Permissões do HappyCash permite controlar quem pode acessar cada recurso do sistema. Defina funções, limite acessos e organize a operação de acordo com a responsabilidade de cada colaborador. Mais segurança para a empresa e mais controle sobre todas as atividades realizadas no sistema.",
 
   techStack: [
-    "React",
-    "TypeScript",
-    "Supabase",
-    "Tailwind CSS",
+    "Tecnologia Ágil",
+    "Fácil de Usar",
+    "Banco de Dados Nuvem",
+    "Relatórios",
   ],
 
   tools: [
-    "VS Code",
-    "GitHub",
-    "Figma",
+    "Painel Administrativo",
+    "Backup Diário",
+    "Interface Simples",
   ],
 
   status: "completed",
@@ -669,11 +669,11 @@ repoUrl: "#",
 
   startDate: "2026-01-01",
 
-  role: "Full Stack Developer",
+  role: "Módulo ERP",
 
   customTimeline: "2026",
 
-  team: "HappyCash Development",
+  team: "Equipe HappyCash",
 
   highlights: [
     "Controle de acesso por usuário",
@@ -773,16 +773,16 @@ repoUrl: "#",
     "O módulo de Integrações de Pagamento do HappyCash facilita o recebimento das vendas conectando diferentes formas de pagamento ao sistema. Tenha mais agilidade no caixa, organize recebimentos e acompanhe as movimentações financeiras de forma centralizada.",
 
   techStack: [
-    "React",
-    "TypeScript",
-    "Supabase",
+    "Tecnologia Ágil",
+    "Fácil de Usar",
+    "Banco de Dados Nuvem",
     "APIs de Pagamento",
   ],
 
   tools: [
-    "VS Code",
-    "GitHub",
-    "Figma",
+    "Painel Administrativo",
+    "Backup Diário",
+    "Interface Simples",
   ],
 
   status: "completed",
@@ -792,11 +792,11 @@ repoUrl: "#",
 
   startDate: "2026-01-01",
 
-  role: "Full Stack Developer",
+  role: "Módulo ERP",
 
   customTimeline: "2026",
 
-  team: "HappyCash Development",
+  team: "Equipe HappyCash",
 
   highlights: [
     "Múltiplas formas de pagamento",
@@ -893,13 +893,13 @@ repoUrl: "#",
     longDescription: "O módulo de Produtos do HappyCash facilita o cadastro e gerenciamento dos itens vendidos pela empresa. Controle informações importantes como preço, estoque, categorias, códigos de barras e detalhes de cada produto em uma estrutura organizada.",
 
     techStack: [
-        "React",
-        "TypeScript",
-        "Supabase",
-        "PostgreSQL",
+        "Tecnologia Ágil",
+        "Fácil de Usar",
+        "Banco de Dados Nuvem",
+        "Estoque Integrado",
     ],
 
-    tools: ["VS Code", "GitHub"],
+    tools: ["Painel Administrativo", "Backup Diário"],
 
     status: "completed",
 
@@ -949,13 +949,13 @@ repoUrl: "#",
        longDescription: "O módulo de Compras e Fornecedores do HappyCash ajuda empresas a organizar todo o processo de aquisição de mercadorias. Controle fornecedores, registre compras, acompanhe entradas de produtos e mantenha o estoque sempre atualizado para evitar falta de produtos e melhorar o planejamento do negócio.",
 
        techStack: [
-           "React",
-           "TypeScript",
-           "Supabase",
-           "PostgreSQL",
+           "Tecnologia Ágil",
+           "Fácil de Usar",
+           "Banco de Dados Nuvem",
+           "Estoque Integrado",
        ],
 
-       tools: ["VS Code", "GitHub"],
+       tools: ["Painel Administrativo", "Backup Diário"],
 
        status: "completed",
 
@@ -1063,7 +1063,7 @@ repoUrl: "#",
 
   customTimeline: "2026",
 
-  team: "HappyCash ERP",
+  team: "Equipe HappyCash",
 
   highlights: [
     "Cadastro completo de clientes",
@@ -1136,10 +1136,10 @@ repoUrl: "#",
     "O módulo de Gestão de Clientes da HappyCash permite organizar todas as informações dos consumidores em um único lugar. Tenha acesso ao histórico de compras, dados cadastrais, movimentações e relacionamento com cada cliente, facilitando o atendimento e ajudando seu negócio a criar melhores oportunidades de venda.",
 
   techStack: [
-    "React",
-    "TypeScript",
-    "Supabase",
-    "PostgreSQL",
+    "Tecnologia Ágil",
+    "Fácil de Usar",
+    "Banco de Dados Nuvem",
+    "Estoque Integrado",
     "Offline Sync",
     "Responsive Design",
   ],
@@ -1159,11 +1159,11 @@ repoUrl: "#",
 
   startDate: "2025-01-01",
 
-  role: "HappyCash ERP Module",
+  role: "Módulo ERP",
 
   customTimeline: "2025",
 
-  team: "HappyCash Technology",
+  team: "Equipe HappyCash",
 
   highlights: [
     "Cadastro completo de clientes",
@@ -1272,10 +1272,10 @@ repoUrl: "#",
     "O módulo de Relatórios Gerenciais da HappyCash foi desenvolvido para oferecer uma visão completa da operação da empresa. Através de informações organizadas sobre vendas, produtos, movimentações e resultados, o sistema ajuda empresários a entenderem melhor o funcionamento do negócio e tomarem decisões mais eficientes.",
 
   techStack: [
-    "React",
-    "TypeScript",
-    "Supabase",
-    "PostgreSQL",
+    "Tecnologia Ágil",
+    "Fácil de Usar",
+    "Banco de Dados Nuvem",
+    "Estoque Integrado",
     "Charts & Analytics",
     "Responsive Design",
   ],
@@ -1295,11 +1295,11 @@ repoUrl: "#",
 
   startDate: "2025-01-01",
 
-  role: "HappyCash ERP Module",
+  role: "Módulo ERP",
 
   customTimeline: "2025",
 
-  team: "HappyCash Technology",
+  team: "Equipe HappyCash",
 
   highlights: [
     "Indicadores de desempenho",
@@ -1411,10 +1411,10 @@ repoUrl: "#",
     "O módulo de Controle de Estoque da HappyCash permite acompanhar produtos, entradas, saídas e movimentações em tempo real. Desenvolvido para facilitar a rotina de comerciantes, o sistema ajuda a evitar perdas, melhorar o controle de mercadorias e manter o negócio sempre organizado.",
 
   techStack: [
-    "React",
-    "TypeScript",
-    "Supabase",
-    "PostgreSQL",
+    "Tecnologia Ágil",
+    "Fácil de Usar",
+    "Banco de Dados Nuvem",
+    "Estoque Integrado",
     "Barcode Integration",
     "Offline Sync",
   ],
@@ -1434,11 +1434,11 @@ repoUrl: "#",
 
   startDate: "2025-01-01",
 
-  role: "HappyCash ERP Module",
+  role: "Módulo ERP",
 
   customTimeline: "2025",
 
-  team: "HappyCash Technology",
+  team: "Equipe HappyCash",
 
   highlights: [
     "Controle de estoque em tempo real",
@@ -1552,10 +1552,10 @@ repoUrl: "#",
     "O módulo de Controle de Usuários da HappyCash permite administrar quem pode acessar cada área do sistema. Com permissões personalizadas, empresas conseguem organizar equipes, limitar acessos e garantir maior segurança durante a operação diária.",
 
   techStack: [
-    "React",
-    "TypeScript",
+    "Tecnologia Ágil",
+    "Fácil de Usar",
     "Supabase Auth",
-    "PostgreSQL",
+    "Estoque Integrado",
     "Role Based Access Control",
   ],
 
@@ -1574,11 +1574,11 @@ repoUrl: "#",
 
   startDate: "2025-01-01",
 
-  role: "HappyCash ERP Module",
+  role: "Módulo ERP",
 
   customTimeline: "2025",
 
-  team: "HappyCash Technology",
+  team: "Equipe HappyCash",
 
   highlights: [
     "Controle de permissões",
@@ -1690,11 +1690,11 @@ repoUrl: "#",
     "A tecnologia Offline da HappyCash foi desenvolvida para garantir continuidade na operação dos estabelecimentos. Mesmo em ambientes com internet instável, o sistema permite realizar vendas e acessar informações essenciais, sincronizando os dados automaticamente quando a conexão é restabelecida. Uma solução criada para evitar interrupções e manter o comércio sempre funcionando.",
 
   techStack: [
-    "React",
-    "TypeScript",
-    "Electron",
+    "Tecnologia Ágil",
+    "Fácil de Usar",
+    "Sistema Desktop",
     "Local Database",
-    "Supabase",
+    "Banco de Dados Nuvem",
     "Data Synchronization",
   ],
 
@@ -1713,11 +1713,11 @@ repoUrl: "#",
 
   startDate: "2025-01-01",
 
-  role: "HappyCash ERP Solution",
+  role: "Módulo ERP",
 
   customTimeline: "2025",
 
-  team: "HappyCash Technology",
+  team: "Equipe HappyCash",
 
   highlights: [
     "Operação sem interrupções",
@@ -1829,10 +1829,10 @@ repoUrl: "#",
     "O módulo de Gestão Financeira da HappyCash foi desenvolvido para ajudar empresas a organizarem suas movimentações financeiras de forma simples e eficiente. Com controle de receitas, despesas, vendas e indicadores do negócio, o sistema oferece uma visão mais clara da saúde financeira da empresa, auxiliando empresários no planejamento e na tomada de decisões.",
 
   techStack: [
-    "React",
-    "TypeScript",
-    "Supabase",
-    "PostgreSQL",
+    "Tecnologia Ágil",
+    "Fácil de Usar",
+    "Banco de Dados Nuvem",
+    "Estoque Integrado",
     "Financial Analytics",
     "Responsive Design",
   ],
@@ -1852,11 +1852,11 @@ repoUrl: "#",
 
   startDate: "2025-01-01",
 
-  role: "HappyCash ERP Module",
+  role: "Módulo ERP",
 
   customTimeline: "2025",
 
-  team: "HappyCash Technology",
+  team: "Equipe HappyCash",
 
   highlights: [
     "Controle financeiro simplificado",
@@ -1968,10 +1968,10 @@ repoUrl: "#",
     "A Caderneta Fiado da HappyCash foi desenvolvida para facilitar o controle de vendas realizadas a prazo. O sistema permite registrar compras dos clientes, acompanhar valores em aberto e manter um histórico organizado de pagamentos. Uma solução criada para pequenos e médios comerciantes que precisam oferecer crédito aos seus clientes com mais segurança e organização.",
 
   techStack: [
-    "React",
-    "TypeScript",
-    "Supabase",
-    "PostgreSQL",
+    "Tecnologia Ágil",
+    "Fácil de Usar",
+    "Banco de Dados Nuvem",
+    "Estoque Integrado",
     "Offline Sync",
     "Responsive Design",
   ],
@@ -1991,11 +1991,11 @@ repoUrl: "#",
 
   startDate: "2025-01-01",
 
-  role: "HappyCash ERP Module",
+  role: "Módulo ERP",
 
   customTimeline: "2025",
 
-  team: "HappyCash Technology",
+  team: "Equipe HappyCash",
 
   highlights: [
     "Controle de vendas a prazo",
@@ -2441,12 +2441,12 @@ repoUrl: "#",
   ],
   techStack: [
     {
-      name: "React",
+      name: "Tecnologia Ágil",
       icon: "https://cdn.simpleicons.org/react",
       category: "framework",
     },
     {
-      name: "TypeScript",
+      name: "Fácil de Usar",
       icon: "https://cdn.simpleicons.org/typescript",
       category: "language",
     },
@@ -2456,22 +2456,22 @@ repoUrl: "#",
       category: "tool",
     },
     {
-      name: "Electron",
+      name: "Sistema Desktop",
       icon: "https://cdn.simpleicons.org/electron",
       category: "framework",
     },
     {
-      name: "Supabase",
+      name: "Banco de Dados Nuvem",
       icon: "https://cdn.simpleicons.org/supabase",
       category: "database",
     },
     {
-      name: "PostgreSQL",
+      name: "Estoque Integrado",
       icon: "https://cdn.simpleicons.org/postgresql",
       category: "database",
     },
     {
-      name: "Docker",
+      name: "Segurança",
       icon: "https://cdn.simpleicons.org/docker",
       category: "tool",
     },

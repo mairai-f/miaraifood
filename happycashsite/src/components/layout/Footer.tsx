@@ -171,7 +171,7 @@ export function Footer() {
                                             >
                                                 {copyrightIndex === 0
                                                     ? `${portfolioData.personal.name}.`
-                                                    : "All rights reserved."}
+                                                    : "Todos os direitos reservados."}
                                             </motion.span>
                                         )}
                                     </AnimatePresence>

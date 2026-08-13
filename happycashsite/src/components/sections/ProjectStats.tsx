@@ -142,7 +142,7 @@ export function ProjectStats({ isLowPowerMode }: { isLowPowerMode?: boolean }) {
                     >
                         <Sparkles className="w-4 h-4 text-primary" />
                         <span className="text-xs sm:text-sm font-semibold text-primary uppercase tracking-wider">
-                            Project Impact
+                            Estrutura do HappyCash
                         </span>
                     </motion.div>
 

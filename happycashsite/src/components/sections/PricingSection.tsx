@@ -44,6 +44,22 @@ const PricingSection = () => {
             Teste o HappyCash completo por 3 dias sem compromisso. Depois, escolha a assinatura que melhor atende à sua operação, com pagamento prático via Pix ou Cartão.
           </motion.p>
 
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ delay: 0.25 }}
+            className="flex items-center justify-center gap-3 mt-8 bg-blue-500/10 border border-blue-500/20 rounded-2xl p-4 max-w-xl mx-auto"
+          >
+            <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center shrink-0 shadow-sm">
+              <span className="text-red-500 font-bold text-xl leading-none">A</span>
+            </div>
+            <div className="text-left">
+              <h4 className="text-sm font-bold text-foreground">Não sabe instalar sistemas? Deixe com a gente!</h4>
+              <p className="text-xs text-muted-foreground mt-0.5">Nossa equipe configura seu caixa e balança à distância via <strong>AnyDesk</strong>. É rápido, seguro e sem dor de cabeça.</p>
+            </div>
+          </motion.div>
+
           {/* Toggle Mensal / Anual */}
           <motion.div 
             initial={{ opacity: 0, y: 20 }}
@@ -75,8 +91,8 @@ const PricingSection = () => {
           </motion.div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 xl:gap-8 max-w-7xl mx-auto">
-          {publicPlanList.map((plan, idx) => {
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 xl:gap-8 max-w-6xl mx-auto">
+          {publicPlanList.filter(p => p.id !== "demo").map((plan, idx) => {
             const isDemo = plan.id === "demo";
             const isPro = plan.id === "pro";
             
