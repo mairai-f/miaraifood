@@ -81,17 +81,9 @@ export default function HomePage() {
             setIsLoading(false);
         }
 
-        if (typeof window === 'undefined' || !('ResizeObserver' in window)) return;
-        const refreshLayout = () => {
-            window.dispatchEvent(new Event('resize'));
-            ScrollTrigger.refresh();
-        };
-        const resizeObserver = new ResizeObserver(() => { refreshLayout(); });
-        resizeObserver.observe(document.body);
-        window.addEventListener('load', refreshLayout);
+        if (typeof window === 'undefined') return;
+        
         return () => {
-            resizeObserver.disconnect();
-            window.removeEventListener('load', refreshLayout);
             ScrollTrigger.getAll().forEach(t => t.kill());
         };
     }, []);
