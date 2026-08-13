@@ -354,93 +354,51 @@ export default function Login() {
   };
 
   return (
-    <div className="h-[100dvh] overflow-hidden bg-[#eef3fb]">
-      <div className="grid h-full lg:grid-cols-[minmax(0,0.98fr)_minmax(0,1.02fr)]">
-        <motion.div
-          initial={{ opacity: 0, scale: 0.97, y: 20 }}
-          animate={{ opacity: 1, scale: 1, y: 0 }}
-          transition={{ duration: 0.45, type: 'spring' }}
-          className="relative hidden overflow-hidden bg-[linear-gradient(180deg,#5e79ff_0%,#5571f4_48%,#4d69e8_100%)] px-8 py-8 text-white lg:flex lg:items-start lg:justify-center xl:px-14"
-        >
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(255,255,255,0.18),_transparent_34%),radial-gradient(circle_at_bottom_right,_rgba(23,37,84,0.16),_transparent_40%)]" />
-          <div className="relative flex w-full max-w-[32rem] flex-col items-center pt-6 text-center xl:pt-8">
-            <motion.img
-              src={happyCashLogo}
-              alt="HappyCash"
-              className="h-auto w-full max-w-[22rem] object-contain xl:max-w-[25rem]"
-              loading="eager"
-              decoding="async"
-              animate={{ y: [0, -8, 0] }}
-              transition={{ duration: 4.2, repeat: Infinity, ease: 'easeInOut' }}
-            />
-            <div className="mt-8 grid w-full max-w-[27rem] grid-cols-2 gap-x-8 gap-y-6 xl:mt-10 xl:gap-y-7">
-              {loginFeatureCards.map((feature) => (
-                <div key={feature.label} className="flex flex-col items-center gap-1 text-center">
-                  <div className="flex h-[6.25rem] w-[8.75rem] items-center justify-center overflow-visible xl:h-[6.75rem] xl:w-[9.25rem]">
-                    <img
-                      src={feature.image}
-                      alt={feature.label}
-                      className={cn(
-                        'h-auto max-w-none object-contain drop-shadow-[0_18px_30px_rgba(21,41,113,0.22)]',
-                        feature.imageClassName,
-                      )}
-                      loading="eager"
-                      decoding="async"
-                    />
-                  </div>
-                  <span className="w-[9rem] text-center text-[1.18rem] font-medium leading-tight tracking-[-0.02em] text-white/96 xl:text-[1.28rem]">
-                    {feature.label}
-                  </span>
-                </div>
-              ))}
+    <div className="relative min-h-[100dvh] flex items-center justify-center bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-[#0b64d3] via-[#054397] to-[#011c47] overflow-hidden px-4">
+      {/* Background 3D/Glass Blobs (CSS Simulation) */}
+      <div className="absolute top-[10%] left-[20%] w-64 h-64 bg-cyan-400/20 rounded-full blur-3xl mix-blend-screen pointer-events-none" />
+      <div className="absolute bottom-[20%] right-[15%] w-80 h-80 bg-blue-500/30 rounded-full blur-3xl mix-blend-screen pointer-events-none" />
+      <div className="absolute top-[40%] right-[30%] w-32 h-32 border-[16px] border-white/10 rounded-full backdrop-blur-sm pointer-events-none" />
+      <div className="absolute bottom-[30%] left-[25%] w-48 h-48 border-[24px] border-white/5 rounded-full backdrop-blur-md pointer-events-none" />
+
+      <motion.div
+        initial={{ opacity: 0, scale: 0.97, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        transition={{ duration: 0.45, type: 'spring' }}
+        className="w-full max-w-[32rem] relative z-10 max-[360px]:origin-center max-[360px]:scale-[0.94] px-0 sm:px-4"
+      >
+        <div className="rounded-none sm:rounded-3xl border-y border-x-0 sm:border-x border-white/20 bg-white/10 backdrop-blur-xl px-4 py-6 shadow-[0_8px_32px_0_rgba(0,0,0,0.37)] sm:px-10 sm:py-8 w-full">
+          
+          <div className="space-y-1 text-center mb-6">
+            <div className="flex flex-col items-center justify-center">
+              <motion.img
+                src={happyCashLogo}
+                alt="HappyCash"
+                className="h-auto w-full max-w-[15.25rem] object-contain sm:max-w-[16rem] brightness-0 invert"
+                loading="eager"
+                decoding="async"
+                animate={{ y: [0, -5, 0] }}
+                transition={{ duration: 4.2, repeat: Infinity, ease: 'easeInOut' }}
+              />
+              <p className="text-[14px] font-medium text-white/80 tracking-wide mt-2 sm:text-[15px]">
+                Gestão inteligente, negócios mais simples.
+              </p>
             </div>
           </div>
-        </motion.div>
-
-        <main className="relative flex h-full items-center justify-center overflow-hidden bg-[#f8fbff] px-4 py-4 sm:px-6 sm:py-6 lg:px-10 lg:py-8 xl:px-16">
-          <div className="absolute inset-y-0 left-0 hidden w-px bg-[linear-gradient(180deg,rgba(77,105,232,0.16),rgba(77,105,232,0.05),transparent)] lg:block" />
-          <motion.div
-            initial={{ opacity: 0, scale: 0.97, y: 20 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            transition={{ duration: 0.45, type: 'spring' }}
-            className="w-full max-w-[28rem] max-[360px]:origin-center max-[360px]:scale-[0.93]"
-          >
-            <div className="rounded-[28px] border border-[#d7e0ef] bg-white/88 px-4 py-3 shadow-[0_26px_70px_rgba(29,78,216,0.12)] backdrop-blur-xl sm:p-6">
-              <div className="space-y-1.5 pb-0 text-center lg:hidden">
-                <img
-                  src={happyCashLogo}
-                  alt="HappyCash"
-                  className="mx-auto h-auto w-full max-w-[15.25rem] object-contain sm:max-w-[16rem]"
-                  loading="eager"
-                  decoding="async"
-                />
-                <p className="mx-auto max-w-[17rem] text-[14px] font-semibold leading-snug tracking-[-0.02em] text-[#1f56a5] sm:max-w-[17rem] sm:text-[15px]">
-                  Tecnologia simples para sua empresa.
-                </p>
-              </div>
-
-              <div className="mt-2.5 sm:mt-3">
-                <h1 className="text-[1.68rem] font-bold leading-none tracking-[-0.04em] text-[#1f56a5] sm:text-[2.2rem]">
-                  Bem-vindo de volta
-                </h1>
-                <p className="mt-1 text-[14px] text-[#64748b] sm:mt-1.5 sm:text-base">
-                  Faça login para continuar
-                </p>
-              </div>
 
               {desktopActivation && (
-                <div className="mt-4 rounded-[20px] border border-[#d9e3f2] bg-[#f4f7fc] px-4 py-3 text-left text-[13px] leading-5 text-[#5f6f86] sm:text-sm sm:leading-6">
-                  <p className="font-semibold text-[#24324a]">{desktopActivation.companyName}</p>
+                <div className="mt-2 rounded-[20px] border border-white/10 bg-black/20 px-4 py-3 text-left text-[13px] leading-5 text-white/80 sm:text-sm sm:leading-6">
+                  <p className="font-semibold text-white">{desktopActivation.companyName}</p>
                   {isLocalRuntime && (
-                    <p className="mt-1.5">
+                    <p className="mt-1.5 text-white/70">
                       {offlineAdminAvailable
-                        ? `Empresa reconhecida ${localDeviceReference}. Ao entrar online, o ${localRuntimeLabel} baixa os dados da loja e atualiza a copia local para uso offline.`
-                        : `Empresa reconhecida ${localDeviceReference}. No primeiro acesso, entre como administrador com email e senha para cadastrar o usuario admin offline ${localDeviceSetupReference}.`}
+                        ? `Empresa reconhecida ${localDeviceReference}. Ao entrar online, o ${localRuntimeLabel} baixa os dados da loja e atualiza a cópia local para uso offline.`
+                        : `Empresa reconhecida ${localDeviceReference}. No primeiro acesso, entre como administrador com email e senha para cadastrar o usuário admin offline ${localDeviceSetupReference}.`}
                     </p>
                   )}
                   <button
                     type="button"
-                    className="mt-2 text-sm font-semibold text-[#1f56a5] transition-colors hover:text-[#194788]"
+                    className="mt-2 text-sm font-semibold text-white transition-colors hover:text-white/60"
                     onClick={() => {
                       clearDesktopActivation();
                       window.location.reload();
@@ -451,23 +409,23 @@ export default function Login() {
                 </div>
               )}
               {!isOnline && !offlineAdminAvailable && (
-                <div className="mt-4 rounded-[20px] border border-red-200 bg-red-50 px-4 py-3 text-[13px] leading-5 text-red-700 sm:text-sm sm:leading-6">
+                <div className="mt-2 rounded-[20px] border border-red-500/30 bg-red-500/20 px-4 py-3 text-[13px] leading-5 text-red-100 sm:text-sm sm:leading-6">
                   {isMobileApp ? 'Este aparelho' : 'Esta maquina'} ainda nao tem usuario admin offline configurado. Conecte a internet, entre com email e senha e finalize o cadastro local.
                 </div>
               )}
 
-              <Tabs value={loginMode} onValueChange={value => setLoginMode(value as LoginMode)} className="mt-3.5 w-full sm:mt-5">
-                <TabsList className="grid h-10 w-full grid-cols-2 rounded-[18px] bg-[#eef2f8] p-1 text-[#7b879d] sm:h-11">
+              <Tabs value={loginMode} onValueChange={value => setLoginMode(value as LoginMode)} className="mt-4 w-full">
+                <TabsList className="grid h-10 w-full grid-cols-2 rounded-[18px] bg-black/20 p-1 text-white/50 sm:h-11 border border-white/10">
                   <TabsTrigger
                     value="admin"
-                    className="rounded-[14px] text-[13px] font-semibold data-[state=active]:bg-[#1f56a5] data-[state=active]:text-white data-[state=active]:shadow-none sm:text-sm"
+                    className="rounded-[14px] text-[13px] font-semibold data-[state=active]:bg-white/20 data-[state=active]:text-white data-[state=active]:shadow-none sm:text-sm transition-colors hover:text-white/80"
                   >
                     Administrador
                   </TabsTrigger>
                   <TabsTrigger
                     value="operator"
                     disabled={Boolean(desktopActivation && !offlineAdminAvailable)}
-                    className="rounded-[14px] text-[13px] font-semibold data-[state=active]:bg-[#1f56a5] data-[state=active]:text-white data-[state=active]:shadow-none sm:text-sm"
+                    className="rounded-[14px] text-[13px] font-semibold data-[state=active]:bg-white/20 data-[state=active]:text-white data-[state=active]:shadow-none sm:text-sm transition-colors hover:text-white/80"
                   >
                     Operacional
                   </TabsTrigger>
@@ -476,16 +434,16 @@ export default function Login() {
                 <TabsContent value="admin" className="mt-3.5 sm:mt-5">
                   <form onSubmit={handleAdminSubmit} className="space-y-3 sm:space-y-4" autoComplete="off">
                     {offlineAdminAvailable && (
-                      <div className="rounded-[20px] border border-[#d9e3f2] bg-[#f4f7fc] p-3">
+                      <div className="rounded-[20px] border border-white/20 bg-white/5 p-3 mb-4 backdrop-blur-md">
                         <div className="grid grid-cols-2 gap-3">
                           <Button
                             type="button"
                             variant="ghost"
                             className={cn(
-                              'h-10 rounded-2xl border text-sm font-semibold shadow-none',
+                              'h-10 rounded-2xl border text-sm font-semibold shadow-none transition-colors',
                               adminAccessMode === 'online'
-                                ? 'border-[#1f56a5] bg-[#1f56a5] text-white hover:bg-[#194788] hover:text-white'
-                                : 'border-[#d6deec] bg-white text-[#5f6f86] hover:bg-[#edf3fb] hover:text-[#24324a]',
+                                ? 'border-transparent bg-white/20 text-white'
+                                : 'border-white/10 bg-transparent text-white/60 hover:bg-white/10 hover:text-white',
                             )}
                             onClick={() => setAdminAccessMode('online')}
                           >
@@ -511,7 +469,7 @@ export default function Login() {
                     {adminAccessMode === 'offline' ? (
                       <>
                         <div className="space-y-2">
-                          <Label className="text-[15px] font-medium text-[#24324a]">Usuário admin</Label>
+                          <Label className="text-[14px] font-medium text-white/90">Usuário admin</Label>
                           <Input
                             id="happycash-admin-offline-username"
                             name="happycash-admin-offline-username"
@@ -524,11 +482,11 @@ export default function Login() {
                             autoCorrect="off"
                             data-lpignore="true"
                             data-1p-ignore="true"
-                            className="h-10 rounded-2xl border-[#d8e1ef] bg-white px-4 text-[15px] text-[#24324a] placeholder:text-[#9aa6b8] focus-visible:ring-[#1f56a5]/25 focus-visible:ring-offset-0 sm:h-11"
+                            className="h-10 rounded-2xl border-white/20 bg-white/10 px-4 text-[15px] text-white placeholder:text-white/40 focus-visible:ring-white/30 focus-visible:ring-offset-0 sm:h-12 backdrop-blur-md transition-colors hover:bg-white/20"
                           />
                         </div>
                         <div className="space-y-2">
-                          <Label className="text-[15px] font-medium text-[#24324a]">PIN offline</Label>
+                          <Label className="text-[14px] font-medium text-white/90">PIN offline</Label>
                           <div className="relative">
                             <Input
                               id="happycash-admin-offline-pin"
@@ -542,12 +500,12 @@ export default function Login() {
                               inputMode="numeric"
                               data-lpignore="true"
                               data-1p-ignore="true"
-                              className="h-10 rounded-2xl border-[#d8e1ef] bg-white px-4 pr-12 text-[15px] text-[#24324a] placeholder:text-[#9aa6b8] focus-visible:ring-[#1f56a5]/25 focus-visible:ring-offset-0 sm:h-11"
+                              className="h-10 rounded-2xl border-white/20 bg-white/10 px-4 pr-12 text-[15px] text-white placeholder:text-white/40 focus-visible:ring-white/30 focus-visible:ring-offset-0 sm:h-12 backdrop-blur-md transition-colors hover:bg-white/20"
                             />
                             <button
                               type="button"
                               onClick={() => setShowAdminPassword(current => !current)}
-                              className="absolute right-4 top-1/2 -translate-y-1/2 text-[#7f8ea5] transition-colors hover:text-[#24324a]"
+                              className="absolute right-4 top-1/2 -translate-y-1/2 text-white/50 transition-colors hover:text-white"
                               aria-label={showAdminPassword ? 'Ocultar PIN' : 'Mostrar PIN'}
                             >
                               {showAdminPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -558,7 +516,7 @@ export default function Login() {
                     ) : (
                       <>
                         <div className="space-y-2">
-                          <Label className="text-[15px] font-medium text-[#24324a]">E-mail</Label>
+                          <Label className="text-[14px] font-medium text-white/90">E-mail</Label>
                           <Input
                             id="happycash-admin-email"
                             name="happycash-admin-email"
@@ -578,22 +536,22 @@ export default function Login() {
                             spellCheck={false}
                             data-lpignore="true"
                             data-1p-ignore="true"
-                            className="h-10 rounded-2xl border-[#d8e1ef] bg-white px-4 text-[15px] text-[#24324a] placeholder:text-[#9aa6b8] focus-visible:ring-[#1f56a5]/25 focus-visible:ring-offset-0 sm:h-11"
+                            className="h-10 rounded-2xl border-white/20 bg-white/10 px-4 text-[15px] text-white placeholder:text-white/40 focus-visible:ring-white/30 focus-visible:ring-offset-0 sm:h-12 backdrop-blur-md transition-colors hover:bg-white/20"
                           />
                         </div>
                         <div className="space-y-2">
                           <div className="flex items-center justify-between gap-3">
-                            <Label className="text-[15px] font-medium text-[#24324a]">Senha</Label>
+                            <Label className="text-[14px] font-medium text-white/90">Senha</Label>
                             <a
                               href={HAPPY_CASH_SITE_RECOVERY_URL}
                               target="_blank"
                               rel="noreferrer"
-                              className="shrink-0 text-sm font-medium text-[#64748b] transition-colors hover:text-[#1f56a5]"
+                              className="shrink-0 text-sm font-medium text-white/60 transition-colors hover:text-white"
                             >
                               Recuperar no site
                             </a>
                           </div>
-                          <div className="relative">
+                          <div className="relative mt-2">
                             <Input
                               id="happycash-admin-password"
                               name="happycash-admin-password"
@@ -609,12 +567,12 @@ export default function Login() {
                               autoComplete="new-password"
                               data-lpignore="true"
                               data-1p-ignore="true"
-                              className="h-10 rounded-2xl border-[#d8e1ef] bg-white px-4 pr-12 text-[15px] text-[#24324a] placeholder:text-[#9aa6b8] focus-visible:ring-[#1f56a5]/25 focus-visible:ring-offset-0 sm:h-11"
+                              className="h-10 rounded-2xl border-white/20 bg-white/10 px-4 pr-12 text-[15px] text-white placeholder:text-white/40 focus-visible:ring-white/30 focus-visible:ring-offset-0 sm:h-12 backdrop-blur-md transition-colors hover:bg-white/20"
                             />
                             <button
                               type="button"
                               onClick={() => setShowAdminPassword(current => !current)}
-                              className="absolute right-4 top-1/2 -translate-y-1/2 text-[#7f8ea5] transition-colors hover:text-[#24324a]"
+                              className="absolute right-4 top-1/2 -translate-y-1/2 text-white/50 transition-colors hover:text-white"
                               aria-label={showAdminPassword ? 'Ocultar senha' : 'Mostrar senha'}
                             >
                               {showAdminPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -623,7 +581,7 @@ export default function Login() {
                         </div>
                         {adminLoginVerificationRequired && (
                           <div className="space-y-2">
-                            <Label className="text-[15px] font-medium text-[#24324a]">Chave de acesso</Label>
+                            <Label className="text-[14px] font-medium text-white/90">Chave de acesso</Label>
                             <Input
                               id="happycash-admin-access-code"
                               name="happycash-admin-access-code"
@@ -636,15 +594,15 @@ export default function Login() {
                               placeholder="00000000"
                               autoComplete="one-time-code"
                               inputMode="numeric"
-                              className="h-10 rounded-2xl border-[#d8e1ef] bg-white px-4 text-center text-[15px] font-bold tracking-[0.35em] text-[#24324a] placeholder:text-[#9aa6b8] focus-visible:ring-[#1f56a5]/25 focus-visible:ring-offset-0 sm:h-11"
+                              className="h-10 rounded-2xl border-white/20 bg-white/10 px-4 text-center text-[15px] font-bold tracking-[0.35em] text-white placeholder:text-white/40 focus-visible:ring-white/30 focus-visible:ring-offset-0 sm:h-12 backdrop-blur-md"
                             />
-                            <p className="text-xs leading-5 text-[#64748b]">
+                            <p className="text-xs leading-5 text-white/60">
                               Enviamos uma chave para reconhecer esta tentativa de entrada.
                             </p>
                           </div>
                         )}
                         {adminLoginAlert && (
-                          <p className="rounded-2xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold leading-5 text-red-700">
+                          <p className="rounded-2xl border-none bg-red-500/20 px-3 py-2 text-xs font-semibold leading-5 text-red-100 backdrop-blur-md">
                             {adminLoginAlert}
                           </p>
                         )}
@@ -657,9 +615,9 @@ export default function Login() {
                           id="remember-admin-account"
                           checked={rememberAccount}
                           onCheckedChange={checked => setRememberAccount(checked === true)}
-                          className="h-5 w-5 rounded-md border-[#a7b3c7] data-[state=checked]:border-[#1f56a5] data-[state=checked]:bg-[#1f56a5] data-[state=checked]:text-white"
+                          className="h-5 w-5 rounded-md border-white/20 data-[state=checked]:border-white data-[state=checked]:bg-white data-[state=checked]:text-black"
                         />
-                        <Label htmlFor="remember-admin-account" className="cursor-pointer text-[13px] leading-none text-[#334155] sm:text-sm">
+                        <Label htmlFor="remember-admin-account" className="cursor-pointer text-[13px] leading-none text-white/60 sm:text-sm transition-colors hover:text-white">
                           Lembrar minha conta
                         </Label>
                       </div>
@@ -668,9 +626,9 @@ export default function Login() {
                           id="keep-admin-connected"
                           checked={keepConnected}
                           onCheckedChange={checked => setKeepConnected(checked === true)}
-                          className="h-5 w-5 rounded-md border-[#a7b3c7] data-[state=checked]:border-[#1f56a5] data-[state=checked]:bg-[#1f56a5] data-[state=checked]:text-white"
+                          className="h-5 w-5 rounded-md border-white/20 data-[state=checked]:border-white data-[state=checked]:bg-white data-[state=checked]:text-black"
                         />
-                        <Label htmlFor="keep-admin-connected" className="cursor-pointer text-[13px] leading-none text-[#334155] sm:text-sm">
+                        <Label htmlFor="keep-admin-connected" className="cursor-pointer text-[13px] leading-none text-white/60 sm:text-sm transition-colors hover:text-white">
                           Manter conectado
                         </Label>
                       </div>
@@ -678,7 +636,7 @@ export default function Login() {
 
                     <Button
                       type="submit"
-                      className="h-10 w-full rounded-2xl bg-[#1f56a5] px-4 text-base font-semibold text-white hover:bg-[#194788] sm:h-11"
+                      className="h-10 w-full rounded-2xl bg-white text-base font-semibold text-black hover:bg-white/90 sm:h-12 shadow-[0_4px_14px_0_rgba(0,0,0,0.39)] transition-colors"
                       disabled={submitting || oauthSubmitting || (adminAccessMode === 'offline' && !offlineAdminAvailable)}
                     >
                       {submitting ? (
@@ -695,7 +653,7 @@ export default function Login() {
                       <Button
                         type="button"
                         variant="outline"
-                        className="h-10 w-full rounded-2xl border-[#d6deec] bg-white text-sm font-semibold text-[#1f56a5] hover:bg-[#edf4ff]"
+                        className="h-10 w-full rounded-2xl border-white/20 bg-white/10 text-sm font-semibold text-white hover:bg-white/20 sm:h-12 backdrop-blur-md transition-colors shadow-none"
                         disabled={submitting || oauthSubmitting}
                         onClick={() => void handleGoogleLogin()}
                       >
@@ -715,7 +673,7 @@ export default function Login() {
                 <TabsContent value="operator" className="mt-3.5 sm:mt-5">
                   <form onSubmit={handleOperatorSubmit} className="space-y-3 sm:space-y-4" autoComplete="off">
                     <div className="space-y-2">
-                      <Label className="text-[15px] font-medium text-[#24324a]">Usuário</Label>
+                      <Label className="text-[14px] font-medium text-white/90">Usuário</Label>
                       <Input
                         id="happycash-operator-username"
                         name="happycash-operator-username"
@@ -729,16 +687,16 @@ export default function Login() {
                         spellCheck={false}
                         data-lpignore="true"
                         data-1p-ignore="true"
-                        className="h-10 rounded-2xl border-[#d8e1ef] bg-white px-4 text-[15px] text-[#24324a] placeholder:text-[#9aa6b8] focus-visible:ring-[#1f56a5]/25 focus-visible:ring-offset-0 sm:h-11"
+                        className="h-10 rounded-2xl border-white/20 bg-white/10 px-4 text-[15px] text-white placeholder:text-white/40 focus-visible:ring-white/30 focus-visible:ring-offset-0 sm:h-12 backdrop-blur-md transition-colors hover:bg-white/20"
                       />
                     </div>
                     <div className="space-y-2">
                       <div className="flex items-center justify-between gap-3">
-                        <Label className="text-[15px] font-medium text-[#24324a]">Senha ou PIN</Label>
+                        <Label className="text-[14px] font-medium text-white/90">Senha ou PIN</Label>
                         <button
                           type="button"
                           onClick={() => setOperatorRecoveryOpen(true)}
-                          className="shrink-0 text-sm font-medium text-[#64748b] transition-colors hover:text-[#1f56a5]"
+                          className="shrink-0 text-sm font-medium text-white/60 transition-colors hover:text-white"
                         >
                           Esqueci usuário ou PIN
                         </button>
@@ -755,12 +713,12 @@ export default function Login() {
                           autoComplete="new-password"
                           data-lpignore="true"
                           data-1p-ignore="true"
-                          className="h-10 rounded-2xl border-[#d8e1ef] bg-white px-4 pr-12 text-[15px] text-[#24324a] placeholder:text-[#9aa6b8] focus-visible:ring-[#1f56a5]/25 focus-visible:ring-offset-0 sm:h-11"
+                          className="h-10 rounded-2xl border-white/20 bg-white/10 px-4 pr-12 text-[15px] text-white placeholder:text-white/40 focus-visible:ring-white/30 focus-visible:ring-offset-0 sm:h-12 backdrop-blur-md transition-colors hover:bg-white/20"
                         />
                         <button
                           type="button"
                           onClick={() => setShowOperatorPassword(current => !current)}
-                          className="absolute right-4 top-1/2 -translate-y-1/2 text-[#7f8ea5] transition-colors hover:text-[#24324a]"
+                          className="absolute right-4 top-1/2 -translate-y-1/2 text-white/50 transition-colors hover:text-white"
                           aria-label={showOperatorPassword ? 'Ocultar senha' : 'Mostrar senha'}
                         >
                           {showOperatorPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -773,9 +731,9 @@ export default function Login() {
                           id="remember-operator-account"
                           checked={rememberAccount}
                           onCheckedChange={checked => setRememberAccount(checked === true)}
-                          className="h-5 w-5 rounded-md border-[#a7b3c7] data-[state=checked]:border-[#1f56a5] data-[state=checked]:bg-[#1f56a5] data-[state=checked]:text-white"
+                          className="h-5 w-5 rounded-md border-white/20 data-[state=checked]:border-white data-[state=checked]:bg-white data-[state=checked]:text-black"
                         />
-                        <Label htmlFor="remember-operator-account" className="cursor-pointer text-[13px] leading-none text-[#334155] sm:text-sm">
+                        <Label htmlFor="remember-operator-account" className="cursor-pointer text-[13px] leading-none text-white/60 sm:text-sm transition-colors hover:text-white">
                           Lembrar minha conta
                         </Label>
                       </div>
@@ -784,16 +742,16 @@ export default function Login() {
                           id="keep-operator-connected"
                           checked={keepConnected}
                           onCheckedChange={checked => setKeepConnected(checked === true)}
-                          className="h-5 w-5 rounded-md border-[#a7b3c7] data-[state=checked]:border-[#1f56a5] data-[state=checked]:bg-[#1f56a5] data-[state=checked]:text-white"
+                          className="h-5 w-5 rounded-md border-white/20 data-[state=checked]:border-white data-[state=checked]:bg-white data-[state=checked]:text-black"
                         />
-                        <Label htmlFor="keep-operator-connected" className="cursor-pointer text-[13px] leading-none text-[#334155] sm:text-sm">
+                        <Label htmlFor="keep-operator-connected" className="cursor-pointer text-[13px] leading-none text-white/60 sm:text-sm transition-colors hover:text-white">
                           Manter conectado
                         </Label>
                       </div>
                     </div>
                     <Button
                       type="submit"
-                      className="h-10 w-full rounded-2xl bg-[#1f56a5] px-4 text-base font-semibold text-white hover:bg-[#194788] sm:h-11"
+                      className="h-10 w-full rounded-2xl bg-white px-4 text-base font-semibold text-black hover:bg-white/90 sm:h-12 shadow-[0_4px_14px_0_rgba(0,0,0,0.39)] transition-colors"
                       disabled={submitting}
                     >
                       {submitting ? (
@@ -810,8 +768,6 @@ export default function Login() {
               </Tabs>
             </div>
           </motion.div>
-        </main>
-      </div>
 
       <Dialog open={operatorRecoveryOpen} onOpenChange={handleOperatorRecoveryOpenChange}>
         <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-md">

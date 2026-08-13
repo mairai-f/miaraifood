@@ -48,10 +48,10 @@ export function QuantumError({ type = '404', reset }: QuantumErrorProps) {
     }, [mouseX, mouseY, isLowPowerMode]);
 
     const title = type === '404' ? '404' : 'ERROR';
-    const subtitle = type === '404' ? 'YOU ARE LOST!?' : 'EXCEPTION_CAUGHT';
+    const subtitle = type === '404' ? 'VOCE SE PERDEU!?' : 'EXCEPTION_CAUGHT';
     const description = type === '404'
-        ? "The page you're looking for is missing."
-        : "An internal technical error has occurred.";
+        ? "A página que você está procurando não existe."
+        : "Um erro técnico interno ocorreu.";
 
     const formattedDate = currentTime.toLocaleDateString('id-ID', {
         weekday: 'long',
@@ -147,7 +147,7 @@ export function QuantumError({ type = '404', reset }: QuantumErrorProps) {
                             className="flex items-center gap-3 text-muted-foreground hover:text-foreground font-bold text-sm tracking-wide transition-colors"
                         >
                             <MoveLeft size={18} />
-                            <span>Step Back</span>
+                            <span>Voltar</span>
                         </button>
                     )}
                 </motion.div>

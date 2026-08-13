@@ -1422,10 +1422,9 @@ const createMainWindow = async () => {
     }
   });
 
-  mainWindow.webContents.once('did-finish-load', () => {
-    if (mainWindow.isDestroyed()) return;
-    mainWindow.show();
-  });
+  // Instead of showing immediately when loaded, 
+  // we let the splash screen coordinate the show() call.
+  // We just resolve the promise.
 
   const rendererEntry = resolveRendererEntry();
   if (rendererEntry.startsWith('http://') || rendererEntry.startsWith('https://')) {
@@ -1576,6 +1575,33 @@ ipcMain.handle('offline:get-status', (_event, payload) => {
   return getOfflineStatus(payload || {});
 });
 
+const getSplashHtmlPath = () => {
+  if (isDevelopment) {
+    return path.join(__dirname, '..', 'public', 'splash.html');
+  }
+  return path.join(__dirname, '..', RENDERER_DIR, 'splash.html');
+};
+
+const createSplashWindow = () => {
+  const splashWindow = new BrowserWindow({
+    width: 800,
+    height: 600,
+    transparent: false,
+    frame: false,
+    fullscreen: true,
+    alwaysOnTop: true,
+    backgroundColor: '#000000',
+    icon: getWindowIconPath(),
+    webPreferences: {
+      nodeIntegration: false,
+      contextIsolation: true,
+    },
+  });
+
+  splashWindow.loadFile(getSplashHtmlPath());
+  return splashWindow;
+};
+
 app.whenReady().then(() => {
   try {
     getOfflineDb();
@@ -1583,12 +1609,29 @@ app.whenReady().then(() => {
     console.error('Erro ao iniciar banco offline do desktop:', error);
   }
 
+  const splashWindow = createSplashWindow();
+
+  // Load the main window in background
   createMainWindow()
     .then((mainWindow) => {
       setupAutoUpdates(mainWindow);
+      
+      // Wait exactly 5 seconds for the cinematic splash screen, 
+      // regardless of when the mainWindow finishes loading.
+      setTimeout(() => {
+        if (!splashWindow.isDestroyed()) {
+          splashWindow.close();
+        }
+        if (!mainWindow.isDestroyed()) {
+          mainWindow.show();
+        }
+      }, 5000);
     })
     .catch((error) => {
       console.error('Erro ao iniciar app desktop:', error);
+      if (!splashWindow.isDestroyed()) {
+        splashWindow.close();
+      }
     });
 
   app.on('activate', () => {
@@ -1596,6 +1639,7 @@ app.whenReady().then(() => {
       createMainWindow()
         .then((mainWindow) => {
           setupAutoUpdates(mainWindow);
+          mainWindow.show();
         })
         .catch((error) => {
           console.error('Erro ao reabrir app desktop:', error);
