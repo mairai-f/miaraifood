@@ -1,6 +1,24 @@
 'use client';
 
-import { ReactLenis } from 'lenis/react';
+import { ReactLenis, useLenis } from 'lenis/react';
+import { useIsMobile } from "@/hooks/useIsMobile";
+import { useEffect } from "react";
+
+function LenisController() {
+    const isMobile = useIsMobile();
+    const lenis = useLenis();
+    
+    useEffect(() => {
+        if (!lenis) return;
+        if (isMobile) {
+            lenis.stop();
+        } else {
+            lenis.start();
+        }
+    }, [isMobile, lenis]);
+    
+    return null;
+}
 
 export function SmoothScrollProvider({ children }: { children: React.ReactNode }) {
     return (
@@ -12,6 +30,7 @@ export function SmoothScrollProvider({ children }: { children: React.ReactNode }
             // @ts-ignore
             smoothTouch: false
         }}>
+            <LenisController />
             {children}
         </ReactLenis>
     );

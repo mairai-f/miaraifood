@@ -9,6 +9,12 @@ const config: Config = {
 	darkMode: 'class',
 	theme: {
 		extend: {
+			height: {
+				screen: '100dvh',
+			},
+			minHeight: {
+				screen: '100dvh',
+			},
 			colors: {
 				background: 'hsl(var(--background))',
 				foreground: 'hsl(var(--foreground))',

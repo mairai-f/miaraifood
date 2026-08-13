@@ -19,6 +19,7 @@ import { DeferredMount } from '@/components/ui/DeferredMount';
 
 if (typeof window !== 'undefined') {
     gsap.registerPlugin(ScrollTrigger);
+    ScrollTrigger.config({ ignoreMobileResize: true });
 }
 
 const Hyperspeed = dynamic(() => import('@/components/ui/Hyperspeed'), { ssr: false });
