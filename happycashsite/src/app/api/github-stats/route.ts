@@ -63,8 +63,8 @@ export async function GET() {
     const repos = data.repositories.nodes;
 
     // Calculate Total Stars
-    const totalStars = repos.reduce((acc: number, repo: any) => acc + repo.stargazerCount, 0);
-    const totalForks = repos.reduce((acc: number, repo: any) => acc + repo.forkCount, 0);
+    const totalStars = repos.reduce((acc: number, repo: { stargazerCount: number }) => acc + repo.stargazerCount, 0);
+    const totalForks = repos.reduce((acc: number, repo: { forkCount: number }) => acc + repo.forkCount, 0);
 
     // Contributions
     const contributions = data.contributionsCollection;
@@ -74,17 +74,29 @@ export async function GET() {
 
     // Calculate "This Week" and "Best Day" from calendar
     const weeks = contributions.contributionCalendar.weeks;
-    const flatDays = weeks.flatMap((w: any) => w.contributionDays);
+    const flatDays = weeks.flatMap((w: { contributionDays: { date: string; contributionCount: number }[] }) => w.contributionDays);
 
     const today = new Date();
     const oneWeekAgo = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
     const thisWeekContributions = flatDays
-      .filter((d: any) => new Date(d.date) >= oneWeekAgo)
-      .reduce((acc: number, d: any) => acc + d.contributionCount, 0);
+      .filter((d: { date: string; contributionCount: number }) => new Date(d.date) >= oneWeekAgo)
+      .reduce((acc: number, d: { date: string; contributionCount: number }) => acc + d.contributionCount, 0);
 
-    const bestDay = flatDays.reduce((max: number, d: any) => Math.max(max, d.contributionCount), 0);
+    const bestDay = flatDays.reduce((max: number, d: { contributionCount: number }) => Math.max(max, d.contributionCount), 0);
 
     // --- FETCH RECENT ACTIVITY (REST API) ---
+    interface GithubEvent {
+      type: string;
+      repo: { name: string };
+      payload: {
+        ref?: string;
+        commits?: { message: string }[];
+        pull_request?: { title: string; html_url: string; merged: boolean };
+        action?: string;
+      };
+      created_at: string;
+    }
+
     let recentActivity = [];
     try {
       const eventsRes = await fetch(`https://api.github.com/users/${username}/events?per_page=20`, {
@@ -97,9 +109,9 @@ export async function GET() {
       if (eventsRes.ok) {
         const events = await eventsRes.json();
         recentActivity = events
-          .filter((e: any) => e.type === 'PushEvent' || e.type === 'PullRequestEvent')
+          .filter((e: { type: string }) => e.type === 'PushEvent' || e.type === 'PullRequestEvent')
           .slice(0, 6)
-          .map((e: any) => {
+          .map((e: GithubEvent) => {
             if (e.type === 'PushEvent') {
               return {
                 type: 'push',

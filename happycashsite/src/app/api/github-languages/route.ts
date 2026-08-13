@@ -49,9 +49,12 @@ export async function GET() {
     const languageStats: Record<string, { size: number, color: string }> = {};
     let totalSize = 0;
 
-    repos.forEach((repo: any) => {
+    interface RepoEdge { size: number; node: { name: string; color: string } }
+    interface RepoNode { languages: { edges: RepoEdge[] } }
+
+    repos.forEach((repo: RepoNode) => {
       if (repo.languages.edges) {
-        repo.languages.edges.forEach((edge: any) => {
+        repo.languages.edges.forEach((edge: RepoEdge) => {
           const { size, node } = edge;
           const { name, color } = node;
 
