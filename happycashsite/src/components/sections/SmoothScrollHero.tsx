@@ -37,7 +37,7 @@ const Hero = ({ isLowPowerMode }: { isLowPowerMode: boolean }) => {
 
     return (
         <div
-            style={{ height: `calc(${SECTION_HEIGHT}px + 100vh)` }}
+            style={{ height: `calc(${SECTION_HEIGHT}px + 100svh)` }}
             className="relative w-full"
         >
             <CenterImage scrollY={smoothScrollY} />

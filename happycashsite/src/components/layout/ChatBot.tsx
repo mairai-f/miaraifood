@@ -491,7 +491,7 @@ function ChatWindow({ onClose, origin }: { onClose: () => void, origin?: { x: nu
                         ? "top-1/2 left-1/2"
                         : (isExpanded ? "bottom-4 sm:bottom-12 right-4 sm:right-12" : "bottom-24 right-4 md:right-16"),
                     isExpanded
-                        ? "w-[calc(100vw-2rem)] sm:w-[600px] md:w-[700px] lg:w-[800px] h-[calc(100vh-2rem)] sm:h-[80vh] max-h-[800px]"
+                        ? "w-[calc(100vw-2rem)] sm:w-[600px] md:w-[700px] lg:w-[800px] h-[calc(100svh-2rem)] sm:h-[80vh] max-h-[800px]"
                         : "w-[calc(100vw-2rem)] sm:w-[420px] h-[600px] max-h-[85vh]",
                     "rounded-2xl shadow-2xl overflow-hidden",
                     "bg-background border border-foreground/10",

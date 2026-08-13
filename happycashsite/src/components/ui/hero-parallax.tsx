@@ -51,7 +51,7 @@ export const HeroParallax = ({
       className={cn(
         "pt-10 pb-20 sm:pb-40 overflow-hidden antialiased relative flex flex-col self-auto",
         isLowPowerMode
-          ? "h-[100vh] sm:h-[120vh]"
+          ? "h-[100svh] sm:h-[120vh]"
           : "h-[180vh] sm:h-[200vh] lg:h-[250vh] [perspective:2000px] [transform-style:preserve-3d]"
       )}
     >

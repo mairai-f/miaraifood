@@ -396,16 +396,16 @@ export default function ContactPage() {
                 </div>
 
                 {/* FAQ TRIGGER ZONE: Positioned after the form to initiate the cover */}
-                {/* Massive 100vh runway for the most natural transition trip possible */}
-                <div ref={faqTriggerRef} className="h-[100vh] w-full pointer-events-none" />
+                {/* Massive 100svh runway for the most natural transition trip possible */}
+                <div ref={faqTriggerRef} className="h-[100svh] w-full pointer-events-none" />
             </motion.div >
 
             {/* 4. FAQ SECTION: The "Full Viewport Cover" Layer */}
             < motion.section
                 className="relative z-50 bg-background overflow-hidden"
                 style={{
-                    y: useTransform(showFAQ, [0, 1], ["100vh", "0vh"]),
-                    marginTop: "-100vh",
+                    y: useTransform(showFAQ, [0, 1], ["100svh", "0vh"]),
+                    marginTop: "-100svh",
                 }
                 }
             >
