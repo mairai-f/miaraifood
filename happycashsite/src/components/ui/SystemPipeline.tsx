@@ -42,7 +42,7 @@ export const SystemPipeline = ({ tools, className }: SystemPipelineProps) => {
     })), []);
 
     return (
-        <section ref={targetRef} className={`relative h-[400vh] ${className}`}>
+        <section ref={targetRef} className={`relative h-[150vh] md:h-[400vh] ${className}`}>
             <div className="sticky top-0 h-screen flex items-center overflow-hidden bg-black/20">
 
                 {/* Background Schematic Layer (Static Grid) */}

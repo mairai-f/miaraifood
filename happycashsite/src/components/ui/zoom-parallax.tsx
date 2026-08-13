@@ -30,7 +30,7 @@ export function ZoomParallax({ images, children }: ZoomParallaxProps) {
 	const scales: MotionValue<number>[] = [scale4, scale5, scale6, scale5, scale6, scale8, scale9];
 
 	return (
-		<div ref={container} className="relative h-[300vh] z-[1]">
+		<div ref={container} className="relative h-[150vh] md:h-[300vh] z-[1]">
 			<div className="sticky top-0 h-screen overflow-hidden">
 				{images.slice(0, 7).map(({ src, alt }, index) => {
 					const scale = scales[index % scales.length];

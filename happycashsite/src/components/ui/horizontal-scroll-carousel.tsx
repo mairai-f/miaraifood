@@ -55,7 +55,7 @@ export const HorizontalScrollCarousel = () => {
   return (
     <section
       ref={targetRef}
-      className="relative h-[350vh] bg-background"
+      className="relative h-[150vh] md:h-[350vh] bg-background"
     >
       <div className="sticky top-0 flex flex-col h-screen overflow-hidden pb-8 md:pb-12">
 
