@@ -15,28 +15,13 @@ if (typeof window !== 'undefined') {
 }
 
 export function SmoothScrollProvider({ children }: { children: React.ReactNode }) {
-    const [isMobile, setIsMobile] = useState(false);
-
-    useEffect(() => {
-        const checkMobile = () => {
-            setIsMobile(window.innerWidth < 1024 || ('ontouchstart' in window) || navigator.maxTouchPoints > 0);
-        };
-        
-        checkMobile();
-        window.addEventListener('resize', checkMobile);
-        return () => window.removeEventListener('resize', checkMobile);
-    }, []);
-
     return (
         <ReactLenis root options={{
             lerp: 0.1,
             duration: 1.5,
-            smoothWheel: !isMobile,
-            syncTouch: false,
+            smoothWheel: true,
             // @ts-ignore
             smoothTouch: false,
-            touchMultiplier: 0,
-            wheelMultiplier: isMobile ? 0 : 1,
         }}>
             {children}
         </ReactLenis>
