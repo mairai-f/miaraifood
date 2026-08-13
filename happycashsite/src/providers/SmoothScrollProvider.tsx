@@ -28,8 +28,7 @@ export function SmoothScrollProvider({ children }: { children: React.ReactNode }
             smoothWheel: true,
             // smoothTouch is causing TS error in this version's types
             // @ts-ignore
-            smoothTouch: false,
-            syncTouch: true // Helps sync native touch scroll with Lenis for GSAP
+            smoothTouch: false
         }}>
             {children}
         </ReactLenis>

@@ -1616,16 +1616,26 @@ app.whenReady().then(() => {
     .then((mainWindow) => {
       setupAutoUpdates(mainWindow);
       
-      // Wait exactly 5 seconds for the cinematic splash screen, 
-      // regardless of when the mainWindow finishes loading.
+      // When the splash window closes (video ends), show the main window.
+      // If there is a pending update, the React app will naturally overlay the UpdateManager.
+      let hasShownMain = false;
+      const showMain = () => {
+        if (hasShownMain) return;
+        hasShownMain = true;
+        if (!mainWindow.isDestroyed()) {
+          mainWindow.show();
+        }
+      };
+
+      splashWindow.on('closed', showMain);
+      
+      // Fallback de segurança máxima de 10s caso a API de vídeo falhe
       setTimeout(() => {
         if (!splashWindow.isDestroyed()) {
           splashWindow.close();
         }
-        if (!mainWindow.isDestroyed()) {
-          mainWindow.show();
-        }
-      }, 5000);
+        showMain();
+      }, 10000);
     })
     .catch((error) => {
       console.error('Erro ao iniciar app desktop:', error);

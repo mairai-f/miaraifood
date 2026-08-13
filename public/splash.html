@@ -23,13 +23,26 @@
             width: 100%;
             height: 100%;
             object-fit: cover; /* Faz o video preencher 100% da tela preservando a proporcao */
+            object-position: center;
             pointer-events: none;
+            /* Força renderização acelerada por hardware (GPU) para rodar liso em 1080p, 2K, 4K */
+            transform: translateZ(0);
+            will-change: transform;
+            -webkit-transform-style: preserve-3d;
+            backface-visibility: hidden;
+            image-rendering: high-quality;
         }
     </style>
 </head>
 <body>
-    <video autoplay muted playsinline>
+    <video autoplay muted playsinline id="splash-video">
         <source src="HappyCash_splash_screen_video_202608121950.mp4" type="video/mp4">
     </video>
+    <script>
+        const video = document.getElementById('splash-video');
+        video.addEventListener('ended', () => {
+            window.close(); // Fecha a janela do Electron assim que o vídeo acaba
+        });
+    </script>
 </body>
 </html>
