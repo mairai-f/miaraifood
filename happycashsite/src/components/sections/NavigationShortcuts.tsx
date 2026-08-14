@@ -125,7 +125,7 @@ export const NavigationShortcuts = () => {
             ref={containerRef}
             className={cn(
                 "w-full max-w-full px-0 relative flex flex-col justify-center pt-0 pb-4 transition-all duration-700",
-                isOpen ? "min-h-screen" : "min-h-[15vh]"
+                isOpen ? "min-h-screen" : "max-md:!min-h-0 max-md:!transform-none "
             )}
             onMouseLeave={handleMouseLeave}
         >

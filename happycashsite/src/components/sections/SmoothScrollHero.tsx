@@ -82,7 +82,7 @@ const CenterImage = ({ scrollY }: { scrollY: MotionValue<number> }) => {
     const subtitleY = useTransform(scrollY, [0, 150], [0, 20]);
 
     return (
-        <div className="sticky top-0 h-screen w-full flex items-center justify-center overflow-hidden z-0">
+        <div className="max-md:!static max-md:!h-auto max-md:!transform-none sticky top-0  w-full flex items-center justify-center overflow-hidden z-0">
             <motion.div
                 style={{
                     scale,

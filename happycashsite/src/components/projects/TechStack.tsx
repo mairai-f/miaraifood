@@ -206,10 +206,10 @@ export function TechStack({ techStack, tools, isLowPowerMode }: TechStackProps &
     };
 
     return (
-        <div className="relative min-h-[160vh]"> {/* Increased scroll height */}
+        <div className="relative max-md:!min-h-0 max-md:!transform-none "> {/* Increased scroll height */}
 
             {/* Sticky Physics Header */}
-            <div className="sticky top-0 h-[80vh] w-full z-0 overflow-hidden dark:mix-blend-lighten"> {/* Taller sticky area */}
+            <div className="sticky top-0 max-md:!h-auto max-md:!transform-none  w-full z-0 overflow-hidden dark:mix-blend-lighten"> {/* Taller sticky area */}
                 <div
                     ref={containerRef}
                     onMouseMove={handleMouseMove}

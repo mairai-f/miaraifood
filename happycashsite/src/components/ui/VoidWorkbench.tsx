@@ -18,7 +18,7 @@ export const VoidWorkbench = ({ tools, className }: VoidWorkbenchProps) => {
     const containerRef = useRef<HTMLDivElement>(null);
 
     return (
-        <div ref={containerRef} className={`relative min-h-[150vh] py-64 flex flex-col items-center bg-black overflow-hidden ${className}`}>
+        <div ref={containerRef} className={`relative max-md:!min-h-0 max-md:!transform-none  py-64 flex flex-col items-center bg-black overflow-hidden ${className}`}>
 
             {/* Shadow Smoke & Light Beams */}
             <div className="absolute inset-0 z-0 pointer-events-none">
@@ -27,8 +27,8 @@ export const VoidWorkbench = ({ tools, className }: VoidWorkbenchProps) => {
                 <div className="absolute top-0 right-1/4 w-px h-full bg-gradient-to-b from-white/[0.05] via-transparent to-transparent opacity-20" />
 
                 {/* Deep Void Fog */}
-                <div className="absolute top-0 left-0 right-0 h-[50vh] bg-gradient-to-b from-background to-transparent" />
-                <div className="absolute bottom-0 left-0 right-0 h-[50vh] bg-gradient-to-t from-background to-transparent" />
+                <div className="absolute top-0 left-0 right-0 max-md:!h-auto max-md:!transform-none  bg-gradient-to-b from-background to-transparent" />
+                <div className="absolute bottom-0 left-0 right-0 max-md:!h-auto max-md:!transform-none  bg-gradient-to-t from-background to-transparent" />
             </div>
 
             {/* Header Transition */}

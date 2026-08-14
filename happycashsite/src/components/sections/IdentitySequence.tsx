@@ -205,7 +205,7 @@ export const IdentitySequence = ({ scrollYProgress, isVisible }: IdentitySequenc
                     </div>
 
                     {/* Phase 2: The Large Portrait (The "Explore" area) */}
-                    <div className="relative w-full h-[60vh] md:h-[100vh] flex flex-col items-center flex-shrink-0 px-4 md:px-10 lg:px-20">
+                    <div className="relative w-full max-md:!h-auto max-md:!transform-none  md:h-[100vh] flex flex-col items-center flex-shrink-0 px-4 md:px-10 lg:px-20">
                         {/* Sizing wrapper - not clipped */}
                         <div
                             onMouseEnter={() => setIsHovered(true)}

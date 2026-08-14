@@ -537,7 +537,7 @@ export default function CleanFilmGrid({ isLowPowerMode }: { isLowPowerMode?: boo
                                 "relative w-full transition-all duration-500",
                                 isLightboxMaximized
                                     ? "h-screen w-screen px-0 py-0"
-                                    : "max-w-5xl px-6 h-[70vh] aspect-video"
+                                    : "max-w-5xl px-6 max-md:!h-auto max-md:!transform-none  aspect-video"
                             )}
                             onClick={(e) => e.stopPropagation()}
                         >

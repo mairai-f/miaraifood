@@ -589,7 +589,7 @@ export function ProjectPageContent({ project, isLowPowerMode }: { project: Proje
                             layoutId={`project-img-${selectedImage}`}
                             src={selectedImage}
                             alt="Lightbox View"
-                            className="max-w-full max-h-[90vh] object-contain rounded-lg shadow-2xl"
+                            className="max-w-full max-max-md:!h-auto max-md:!transform-none  object-contain rounded-lg shadow-2xl"
                         />
                         <button className="absolute top-4 right-4 p-3 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors">
                             <X className="w-6 h-6" />

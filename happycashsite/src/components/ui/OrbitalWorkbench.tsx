@@ -39,7 +39,7 @@ export const OrbitalWorkbench = ({ tools, className }: OrbitalWorkbenchProps) =>
     }, [tools]);
 
     return (
-        <div ref={containerRef} className={`relative min-h-[250vh] py-64 flex items-center justify-center bg-black overflow-hidden ${className}`}>
+        <div ref={containerRef} className={`relative max-md:!min-h-0 max-md:!transform-none  py-64 flex items-center justify-center bg-black overflow-hidden ${className}`}>
 
             {/* The Infinite Void Space */}
             <div className="absolute inset-0 z-0 pointer-events-none">
@@ -65,7 +65,7 @@ export const OrbitalWorkbench = ({ tools, className }: OrbitalWorkbenchProps) =>
             </div>
 
             {/* Sticky Kinetic Stage */}
-            <div className="sticky top-0 h-screen w-full flex items-center justify-center overflow-hidden transform-gpu">
+            <div className="max-md:!static max-md:!h-auto max-md:!transform-none sticky top-0  w-full flex items-center justify-center overflow-hidden transform-gpu">
 
                 {/* Central Energy Core */}
                 <div className="relative z-10 flex flex-col items-center will-change-transform">

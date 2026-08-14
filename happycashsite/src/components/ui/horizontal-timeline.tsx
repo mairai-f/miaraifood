@@ -120,7 +120,7 @@ export const HorizontalTimeline = ({ data }: { data: TimelineEntry[] }) => {
         </motion.div>
       </div>
 
-      <div className="sticky top-0 h-screen flex flex-col justify-center overflow-hidden w-full max-w-[100vw] z-40">
+      <div className="max-md:!static max-md:!h-auto max-md:!transform-none sticky top-0  flex flex-col justify-center overflow-hidden w-full max-w-[100vw] z-40">
         {/* The horizontal track */}
         <div className="relative w-full flex items-center justify-center h-full">
           {/* Background Line - Faded at edges */}

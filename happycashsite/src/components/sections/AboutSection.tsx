@@ -319,7 +319,7 @@ const ClosingCard = ({ title, subtitle, desc, index, direction }: { title: strin
         whileInView={{ opacity: 1, y: 0 }}
         viewport={{ once: true, margin: "-100px" }}
         transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
-        className={`group relative h-[50vh] flex flex-col justify-center ${direction === 'right' ? 'items-end text-right' : 'items-start text-left'}`}
+        className={`group relative max-md:!h-auto max-md:!transform-none  flex flex-col justify-center ${direction === 'right' ? 'items-end text-right' : 'items-start text-left'}`}
     >
         <div className={`flex flex-col gap-6 relative z-10 w-full px-4 ${direction === 'right' ? 'items-end' : 'items-start'}`}>
             {/* Minimalist Index & Role Indicator */}
@@ -349,7 +349,7 @@ const ClosingCard = ({ title, subtitle, desc, index, direction }: { title: strin
 const ViewMoreCard = ({ href, title }: { href: string, title: string }) => {
     const t = useTranslations('about');
     return (
-        <Link href={href} className="group block h-[50vh] flex flex-col justify-center">
+        <Link href={href} className="group block max-md:!h-auto max-md:!transform-none  flex flex-col justify-center">
             <motion.div
                 initial={{ opacity: 0 }}
                 whileInView={{ opacity: 1 }}
@@ -438,7 +438,7 @@ const AuditFunnel = () => {
     }, []);
 
     return (
-        <div ref={sectionRef} className="relative overflow-visible group min-h-[80vh] md:min-h-[120vh] flex items-center justify-center bg-background z-10 pb-10 md:pb-32">
+        <div ref={sectionRef} className="relative overflow-visible group max-md:!min-h-0 max-md:!transform-none  md:min-h-[120vh] flex items-center justify-center bg-background z-10 pb-10 md:pb-32">
             <div className="flex flex-col items-center text-center py-20 md:py-40 space-y-12 md:space-y-16 pointer-events-none w-full origin-top">
                 <motion.div
                     style={{ y: yExit, scale: scaleExit, opacity: opacityExit }}
@@ -519,8 +519,8 @@ const ScrollHijackSection = () => {
     const exitBorderRadius = useTransform(exitProgress, [0, 1], ["0px", "40px"]);
 
     return (
-        <div ref={sectionRef} className="relative h-[600vh]">
-            <div className="sticky top-0 h-screen w-full overflow-hidden z-10">
+        <div ref={sectionRef} className="relative max-md:!h-auto max-md:!transform-none ">
+            <div className="max-md:!static max-md:!h-auto max-md:!transform-none sticky top-0  w-full overflow-hidden z-10">
                 <motion.div
                     style={{ scale: exitScale, opacity: exitOpacity, borderRadius: exitBorderRadius }}
                     className="w-full h-full relative origin-center"
@@ -582,7 +582,7 @@ export default function AboutSection() {
             className="relative bg-background text-foreground dark:bg-black dark:text-white transition-colors duration-500"
         >
             {/* 1. STICKY PLANE - Lead-in */}
-            <div className="sticky top-0 h-screen w-full flex items-center justify-center z-0 overflow-hidden pointer-events-none">
+            <div className="max-md:!static max-md:!h-auto max-md:!transform-none sticky top-0  w-full flex items-center justify-center z-0 overflow-hidden pointer-events-none">
                 <motion.div
                     style={{ scale, opacity, y: yLeadIn }}
                     className="relative px-4 md:px-6 w-full max-w-[1700px] mx-auto"

@@ -18,7 +18,7 @@ export const MonolithStack = ({ tools, className }: MonolithStackProps) => {
     const containerRef = useRef<HTMLDivElement>(null);
 
     return (
-        <div ref={containerRef} className={`relative min-h-[200vh] py-64 flex flex-col items-center ${className}`}>
+        <div ref={containerRef} className={`relative max-md:!min-h-0 max-md:!transform-none  py-64 flex flex-col items-center ${className}`}>
 
             {/* Shadow Smoke Transitions */}
             <div className="absolute inset-0 z-0 pointer-events-none">

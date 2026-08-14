@@ -14,7 +14,7 @@ export default function Hero() {
   return (
     <div className="mx-2 mt-10 mb-160 overflow-hidden rounded-4xl bg-white">
       <div
-        className="relative flex h-[80vh] items-center justify-center overflow-hidden bg-white"
+        className="relative flex max-md:!h-auto max-md:!transform-none  items-center justify-center overflow-hidden bg-white"
         ref={container}
         style={{ clipPath: "polygon(0% 0, 100% 0%, 100% 100%, 0 100%)" }}
       >
@@ -27,7 +27,7 @@ export default function Hero() {
             Background Parallax
           </p>
         </div>
-        <div className="fixed top-[-10vh] left-0 h-[120vh] w-full">
+        <div className="fixed top-[-10vh] left-0 max-md:!h-auto max-md:!transform-none  w-full">
           <motion.div className="relative h-full w-full" style={{ y }}>
             <Image
               alt="image"

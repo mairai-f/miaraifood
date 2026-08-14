@@ -55,7 +55,7 @@ export const HorizontalScrollCarousel = () => {
   return (
     <section
       ref={targetRef}
-      className="relative h-[350vh] bg-background"
+      className="relative max-md:!h-auto max-md:!transform-none  bg-background"
     >
       <div className="sticky top-0 flex flex-col h-screen overflow-hidden pb-8 md:pb-12">
 
@@ -95,7 +95,7 @@ const Card = ({ card }: { card: typeof allCards[0] }) => {
   return (
     <div
       key={card.id}
-      className="group relative h-[320px] w-[240px] sm:h-[360px] sm:w-[280px] md:h-[400px] md:w-[320px] lg:h-[440px] lg:w-[380px] overflow-hidden bg-card/10 hover:bg-card/30 border border-border/80 shadow-sm flex-shrink-0 transition-colors duration-500 rounded-none max-h-[50vh] lg:max-h-[60vh]"
+      className="group relative h-[320px] w-[240px] sm:h-[360px] sm:w-[280px] md:h-[400px] md:w-[320px] lg:h-[440px] lg:w-[380px] overflow-hidden bg-card/10 hover:bg-card/30 border border-border/80 shadow-sm flex-shrink-0 transition-colors duration-500 rounded-none max-max-md:!h-auto max-md:!transform-none  lg:max-max-md:!h-auto max-md:!transform-none "
     >
       {/* Sci-fi Corner Brackets (On Hover) */}
       <div className="absolute top-0 left-0 w-3 h-3 sm:w-4 sm:h-4 border-t-[2px] border-l-[2px] border-blue-600 dark:border-blue-400 opacity-0 group-hover:opacity-100 transition-all duration-300 z-30 transform -translate-x-1 -translate-y-1 group-hover:translate-x-0 group-hover:translate-y-0" />

@@ -89,10 +89,10 @@ export default function ScrollAdventure() {
     const enterBorderRadius = useTransform(enterProgress, [0, 1], ["40px", "0px"]);
 
     return (
-        <div ref={containerRef} className="relative h-[800vh] w-full pointer-events-none">
+        <div ref={containerRef} className="relative max-md:!h-auto max-md:!transform-none  w-full pointer-events-none">
             <motion.div
                 style={{ scale: enterScale, opacity: enterOpacity, borderRadius: enterBorderRadius }}
-                className="sticky top-0 h-screen w-full overflow-hidden bg-background dark:bg-black pointer-events-auto origin-center"
+                className="max-md:!static max-md:!h-auto max-md:!transform-none sticky top-0  w-full overflow-hidden bg-background dark:bg-black pointer-events-auto origin-center"
             >
                 {pages.map((page, i) => {
                     if ('isBridge' in page) {

@@ -31,7 +31,7 @@ export const SkillsClosing = () => {
     return (
         <section
             ref={containerRef}
-            className="group relative w-full bg-background overflow-hidden flex flex-col items-center justify-center min-h-[90vh] py-24 md:py-32 select-none"
+            className="group relative w-full bg-background overflow-hidden flex flex-col items-center justify-center max-md:!min-h-0 max-md:!transform-none  py-24 md:py-32 select-none"
         >
             {/* 0. SECTION FRAME: Curved Top Line (Fades out at edges) */}
             <div className="absolute top-0 inset-x-0 h-24 pointer-events-none px-4 md:px-8 lg:px-12">

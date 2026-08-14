@@ -33,8 +33,8 @@ export default function ManifestoHero({ isLowPowerMode }: { isLowPowerMode?: boo
     const yPrompt = isLowPowerMode ? 0 : yPromptTransform;
 
     return (
-        <section ref={containerRef} className="relative h-[150vh] text-foreground">
-            <div className="sticky top-0 h-screen overflow-hidden flex flex-col items-center justify-center">
+        <section ref={containerRef} className="relative max-md:!h-auto max-md:!transform-none  text-foreground">
+            <div className="max-md:!static max-md:!h-auto max-md:!transform-none sticky top-0  overflow-hidden flex flex-col items-center justify-center">
 
                 {/* Background Noise/Grain for Cinema Feel - Hidden in Dark Mode for Pitch Black & Low Power Mode */}
                 {!isLowPowerMode && (

@@ -26,7 +26,7 @@ export const ToolsSection = () => {
     return (
         <section
             id="tools"
-            className="py-32 relative bg-background min-h-[80vh] flex flex-col items-center justify-center overflow-hidden"
+            className="py-32 relative bg-background max-md:!min-h-0 max-md:!transform-none  flex flex-col items-center justify-center overflow-hidden"
         >
             {/* BACKGROUND AMBIENCE */}
             <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--background)_0%,_#050505_100%)] z-0" />

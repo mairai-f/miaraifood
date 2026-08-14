@@ -255,7 +255,7 @@ const CertificateHeroScroll: FC<CertificateHeroScrollProps> = ({ onDownloadClick
     return (
         <>
             {/* SPACER: Takes up space in the document flow to allow scrolling */}
-            <div ref={spacerRef} className="h-[350vh] w-full relative z-10 pointer-events-none" />
+            <div ref={spacerRef} className="max-md:!h-auto max-md:!transform-none  w-full relative z-10 pointer-events-none" />
 
             {/* FIXED HERO: Stays behind content. z-10 ensures it sits ABOVE particles (z-0), but transparent to see them. */}
             <div ref={fixedContainerRef} className="fixed inset-0 z-10 h-screen w-full overflow-hidden bg-transparent pointer-events-none">

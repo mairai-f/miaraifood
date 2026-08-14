@@ -31,12 +31,56 @@ export const HeroParallax = ({
     offset: ["start start", "end start"],
   });
 
+  const translateX = useTransform(scrollYProgress, [0, 1], [0, isLowPowerMode ? 200 : 800]);
+  const translateXReverse = useTransform(scrollYProgress, [0, 1], [0, isLowPowerMode ? -200 : -800]);
+
+  const rotateXRaw = useTransform(scrollYProgress, [0, 0.2], [isLowPowerMode ? 0 : 5, 0]);
+  const rotateX = useSpring(rotateXRaw, { stiffness: 200, damping: 20 });
+  const opacity = useTransform(scrollYProgress, [0, 0.2], [isLowPowerMode ? 0.8 : 0.2, 1]);
+  const rotateZRaw = useTransform(scrollYProgress, [0, 0.2], [isLowPowerMode ? 0 : 5, 0]);
+  const rotateZ = useSpring(rotateZRaw, { stiffness: 200, damping: 20 });
+  const translateY = useTransform(scrollYProgress, [0, 0.2], [isLowPowerMode ? -100 : -500, isLowPowerMode ? 100 : 500]);
+
   return (
     <div
       ref={ref}
-      className="pt-10 pb-20 sm:pb-32 overflow-hidden antialiased relative flex flex-col self-auto h-auto"
+      className={cn(
+        "pt-10 pb-20 sm:pb-40 overflow-hidden antialiased relative flex flex-col self-auto",
+        "h-auto md:h-[180vh] lg:max-md:!h-auto max-md:!transform-none  md:[perspective:2000px] md:[transform-style:preserve-3d]"
+      )}
     >
       <Header />
+      <motion.div
+        style={{
+          translateY,
+          opacity,
+          backfaceVisibility: 'hidden',
+        }}
+        className="max-md:!transform-none max-md:!opacity-100 flex flex-col gap-10 mt-10 md:mt-0"
+      >
+        <div className="flex flex-row space-x-10 md:space-x-20 overflow-x-auto pb-4 snap-x snap-mandatory hide-scrollbar md:flex-row-reverse md:space-x-reverse mb-10 md:mb-20">
+          {firstRow.map((product) => (
+            <div key={product.title} className="snap-center shrink-0">
+              <ProductCard
+                product={product}
+                translate={translateX}
+                isLowPowerMode={isLowPowerMode}
+              />
+            </div>
+          ))}
+        </div>
+        <div className="flex flex-row space-x-10 md:space-x-20 overflow-x-auto pb-4 snap-x snap-mandatory hide-scrollbar mb-10 md:mb-20">
+          {secondRow.map((product) => (
+            <div key={product.title} className="snap-center shrink-0">
+              <ProductCard
+                product={product}
+                translate={translateXReverse}
+                isLowPowerMode={isLowPowerMode}
+              />
+            </div>
+          ))}
+        </div>
+      </motion.div>
     </div>
   );
 };
@@ -100,7 +144,7 @@ export const ProductCard = ({
       }}
       key={product.title}
       className={cn(
-        "group/product relative shrink-0",
+        "group/product relative shrink-0 max-md:!transform-none",
         isLowPowerMode ? "h-32 w-full max-w-[20rem] mb-4 mx-2" : "h-64 w-[16rem] md:h-96 md:w-[30rem]"
       )}
     >

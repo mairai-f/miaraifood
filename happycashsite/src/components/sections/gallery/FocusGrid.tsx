@@ -30,7 +30,7 @@ export default function FocusGrid() {
             id="focus-grid"
             ref={containerRef}
             onMouseMove={handleMouseMove}
-            className="relative min-h-[150vh] bg-background py-32 px-4 md:px-12 overflow-hidden cursor-crosshair"
+            className="relative max-md:!min-h-0 max-md:!transform-none  bg-background py-32 px-4 md:px-12 overflow-hidden cursor-crosshair"
         >
             {/* The blurry "Fog" Overlay using CSS Masking for the Lens Effect */}
             <div

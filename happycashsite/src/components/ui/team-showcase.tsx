@@ -148,7 +148,7 @@ export default function TeamShowcase({ members = DEFAULT_MEMBERS }: TeamShowcase
             className="relative w-full"
             style={{ height: `${members.length * 80}vh` }} 
         >
-            <div className="sticky top-0 h-screen flex flex-col justify-center overflow-hidden min-h-[600px]">
+            <div className="max-md:!static max-md:!h-auto max-md:!transform-none sticky top-0  flex flex-col justify-center overflow-hidden min-h-[600px]">
                 <div className="flex flex-col md:flex-row items-center justify-evenly select-none w-full max-w-[95vw] 2xl:max-w-[1700px] mx-auto py-4 md:py-8 px-4 md:px-6 font-sans">
                     {/* Left Side: Photo Grid - Equidistant Alignment */}
                     <div className="relative flex justify-center items-center perspective-1000 w-fit">
@@ -198,7 +198,7 @@ export default function TeamShowcase({ members = DEFAULT_MEMBERS }: TeamShowcase
                     </div>
 
                     {/* Right Side: Narrative List - Equidistant Alignment */}
-                    <div className="relative flex flex-col items-start pt-4 md:pt-10 max-h-[70vh] md:max-h-none overflow-visible w-full md:w-[450px] lg:w-[500px] xl:w-[600px]">
+                    <div className="relative flex flex-col items-start pt-4 md:pt-10 max-max-md:!h-auto max-md:!transform-none  md:max-h-none overflow-visible w-full md:w-[450px] lg:w-[500px] xl:w-[600px]">
                         {/* Continuous Timeline Background Line */}
                         <div 
                             className="absolute w-[1.5px] bg-foreground/10 pointer-events-none z-0" 
