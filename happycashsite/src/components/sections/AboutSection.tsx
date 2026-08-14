@@ -568,7 +568,7 @@ export default function AboutSection() {
         offset: ["start start", "end end"]
     });
 
-    // REALIGNED TIMING: Parent is ~900vh long. The first 100svh delay = ~11% (0.11) of total scroll.
+    // REALIGNED TIMING: Parent is ~900vh long. The first 100vh delay = ~11% (0.11) of total scroll.
     const scale = useTransform(scrollYProgress, [0, 0.12], [1, 0.92]);
     const opacity = useTransform(scrollYProgress, [0.03, 0.12], [1, 0]);
     const yLeadIn = useTransform(scrollYProgress, [0, 0.12], [0, -80]);

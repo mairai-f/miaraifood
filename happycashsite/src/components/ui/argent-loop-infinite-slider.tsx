@@ -103,7 +103,7 @@ export function ArgentLoopInfiniteSlider() {
             position: sticky;
             top: 0;
             width: 100%;
-            height: 100svh;
+            height: 100vh;
             overflow: hidden;
             background: hsl(var(--background));
             z-index: 20;

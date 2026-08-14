@@ -165,7 +165,7 @@ export function CertificateShowcase() {
       <div className="w-full max-w-[1800px] mx-auto px-4 md:px-8 lg:px-12">
         <div
           ref={gallery}
-          className="relative box-border flex h-[100svh] md:h-[130vh] gap-4 md:gap-6 overflow-hidden rounded-none"
+          className="relative box-border flex h-[100vh] md:h-[130vh] gap-4 md:gap-6 overflow-hidden rounded-none"
         >
           {/* Fill each column with more images so they don't run out during the scroll */}
           <Column images={[certificates[0], certificates[1], certificates[2], certificates[3], certificates[4], certificates[5]]} y={y} />
