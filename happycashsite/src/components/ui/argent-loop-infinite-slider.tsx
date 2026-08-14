@@ -97,7 +97,7 @@ export function ArgentLoopInfiniteSlider() {
   const imageY = useTransform(smoothProgress, [0, 1], ["-12%", "12%"]);
 
   return (
-    <div ref={containerRef} className="relative h-[200vh] md:h-[500vh]">
+    <div ref={containerRef} className="relative h-[500vh]">
       <style>{`
         .argent-slider-wrapper {
             position: sticky;

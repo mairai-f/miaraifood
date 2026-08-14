@@ -89,7 +89,7 @@ export default function ScrollAdventure() {
     const enterBorderRadius = useTransform(enterProgress, [0, 1], ["40px", "0px"]);
 
     return (
-        <div ref={containerRef} className="relative h-[250vh] md:h-[800vh] w-full pointer-events-none">
+        <div ref={containerRef} className="relative h-[800vh] w-full pointer-events-none">
             <motion.div
                 style={{ scale: enterScale, opacity: enterOpacity, borderRadius: enterBorderRadius }}
                 className="sticky top-0 h-screen w-full overflow-hidden bg-background dark:bg-black pointer-events-auto origin-center"

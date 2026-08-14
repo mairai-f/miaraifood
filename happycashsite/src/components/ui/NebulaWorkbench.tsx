@@ -33,7 +33,7 @@ export const NebulaWorkbench = ({ tools, className }: NebulaWorkbenchProps) => {
     })), []);
 
     return (
-        <div ref={containerRef} className={`relative min-h-[100svh] md:min-h-[150vh] flex flex-col items-center justify-center py-48 overflow-hidden ${className}`}>
+        <div ref={containerRef} className={`relative min-h-[150vh] flex flex-col items-center justify-center py-48 overflow-hidden ${className}`}>
 
             {/* Volumetric Fog Layer (Optimized Gradient instead of heavy blurs) */}
             <div className="absolute inset-0 z-0 pointer-events-none bg-[radial-gradient(circle_at_center,rgba(var(--primary-rgb),0.05)_0%,transparent_70%)] opacity-50" />

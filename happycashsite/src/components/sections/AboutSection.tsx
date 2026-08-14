@@ -519,7 +519,7 @@ const ScrollHijackSection = () => {
     const exitBorderRadius = useTransform(exitProgress, [0, 1], ["0px", "40px"]);
 
     return (
-        <div ref={sectionRef} className="relative h-[250vh] md:h-[600vh]">
+        <div ref={sectionRef} className="relative h-[600vh]">
             <div className="sticky top-0 h-screen w-full overflow-hidden z-10">
                 <motion.div
                     style={{ scale: exitScale, opacity: exitOpacity, borderRadius: exitBorderRadius }}

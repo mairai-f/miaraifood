@@ -18,7 +18,7 @@ export const VoidWorkbench = ({ tools, className }: VoidWorkbenchProps) => {
     const containerRef = useRef<HTMLDivElement>(null);
 
     return (
-        <div ref={containerRef} className={`relative min-h-[100svh] md:min-h-[150vh] py-64 flex flex-col items-center bg-black overflow-hidden ${className}`}>
+        <div ref={containerRef} className={`relative min-h-[150vh] py-64 flex flex-col items-center bg-black overflow-hidden ${className}`}>
 
             {/* Shadow Smoke & Light Beams */}
             <div className="absolute inset-0 z-0 pointer-events-none">

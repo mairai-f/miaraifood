@@ -39,7 +39,7 @@ export const OrbitalWorkbench = ({ tools, className }: OrbitalWorkbenchProps) =>
     }, [tools]);
 
     return (
-        <div ref={containerRef} className={`relative min-h-[120vh] md:min-h-[250vh] py-64 flex items-center justify-center bg-black overflow-hidden ${className}`}>
+        <div ref={containerRef} className={`relative min-h-[250vh] py-64 flex items-center justify-center bg-black overflow-hidden ${className}`}>
 
             {/* The Infinite Void Space */}
             <div className="absolute inset-0 z-0 pointer-events-none">
