@@ -6,6 +6,7 @@ const withNextIntl = createNextIntlPlugin('./src/i18n/request.ts');
 const nextConfig: NextConfig = {
     reactStrictMode: true,
     transpilePackages: ['three'],
+    allowedDevOrigins: ['happycash-teste.loca.lt', '192.168.100.228'],
     images: {
         remotePatterns: [
             { protocol: 'https', hostname: 'cdn.jsdelivr.net' },
