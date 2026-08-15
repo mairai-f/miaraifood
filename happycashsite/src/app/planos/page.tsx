@@ -7,7 +7,7 @@ import { Send, CheckCircle, AlertCircle, Loader2, Disc, Music, ArrowUpRight, Spa
 import { cn } from '@/lib/utils';
 import { portfolioData } from '@/data/portfolio';
 import dynamic from 'next/dynamic';
-
+import PricingSection from '@/components/sections/PricingSection';
 
 const DynamicScrollVelocity = dynamic(() => import('@/components/ui/ScrollVelocity'), { ssr: false });
 const Meteors = dynamic(() => import('@/components/ui/meteors').then(mod => mod.Meteors), { ssr: false });
@@ -326,6 +326,11 @@ export default function ContactPage() {
 
     return (
         <div ref={containerRef} className="relative bg-background selection:bg-primary/20">
+            {/* ── PLANOS DE PREÇO ── */}
+            <div className="pt-24">
+                <PricingSection />
+            </div>
+
             {/* 2. HEADER & BACKGROUNDS */}
             <div className="fixed inset-0 bg-[url('/grid.svg')] bg-center [mask-image:linear-gradient(180deg,white,rgba(255,255,255,0))] pointer-events-none z-0" />
             <div className="fixed inset-0 bg-background/60 backdrop-blur-[2px] pointer-events-none z-0" />

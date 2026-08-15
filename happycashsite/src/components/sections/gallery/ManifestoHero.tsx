@@ -45,18 +45,18 @@ export default function ManifestoHero({ isLowPowerMode }: { isLowPowerMode?: boo
 
                     {/* The Narrative (Kinetic Typography) */}
                     <div className="flex flex-col gap-2 md:gap-6">
-                        <motion.div style={{ y: yTitle1 }} className="overflow-hidden">
+                        <motion.div style={{ y: yTitle1 }} className="overflow-hidden w-full">
                             <motion.h1
                                 initial={isLowPowerMode ? { opacity: 0 } : { y: 100, opacity: 0 }}
                                 animate={isLowPowerMode ? { opacity: 1 } : { y: 0, opacity: 1 }}
                                 transition={{ duration: 1, ease: [0.22, 1, 0.36, 1] }}
-                                className="text-6xl md:text-9xl font-black tracking-tighter uppercase leading-[0.8] text-transparent bg-clip-text bg-gradient-to-br from-foreground/80 to-foreground/20 [-webkit-text-stroke:1px_rgba(0,0,0,0.1)] dark:[-webkit-text-stroke:1px_rgba(255,255,255,0.1)]"
+                                className="text-5xl sm:text-6xl md:text-9xl font-black tracking-tighter uppercase leading-[0.8] text-transparent bg-clip-text bg-gradient-to-br from-foreground/80 to-foreground/20 [-webkit-text-stroke:1px_rgba(0,0,0,0.1)] dark:[-webkit-text-stroke:1px_rgba(255,255,255,0.1)] break-words"
                             >
                                 <span className="font-serif italic font-light opacity-80 text-foreground/60">A</span> Tecnologia
                             </motion.h1>
                         </motion.div>
 
-                        <motion.div style={{ y: ySubtitle }} className="flex items-center justify-center gap-4 md:gap-8 overflow-hidden">
+                        <motion.div style={{ y: ySubtitle }} className="flex items-center justify-center gap-4 md:gap-8 overflow-hidden w-full">
                             <motion.div
                                 initial={{ scaleX: 0 }}
                                 animate={{ scaleX: 1 }}
@@ -67,7 +67,7 @@ export default function ManifestoHero({ isLowPowerMode }: { isLowPowerMode?: boo
                                 initial={{ opacity: 0 }}
                                 animate={{ opacity: 1 }}
                                 transition={{ duration: 1, delay: 0.8 }}
-                                className="font-mono text-xs md:text-sm uppercase tracking-widest text-muted-foreground"
+                                className="font-mono text-[10px] md:text-sm uppercase tracking-widest text-muted-foreground whitespace-nowrap"
                             >
                                 É apenas uma ferramenta para
                             </motion.p>
@@ -79,14 +79,14 @@ export default function ManifestoHero({ isLowPowerMode }: { isLowPowerMode?: boo
                             />
                         </motion.div>
 
-                        <motion.div style={{ y: yTitle2 }} className="overflow-hidden">
+                        <motion.div style={{ y: yTitle2 }} className="overflow-hidden w-full">
                             <motion.h1
                                 initial={isLowPowerMode ? { opacity: 0 } : { y: -100, opacity: 0 }}
                                 animate={isLowPowerMode ? { opacity: 1 } : { y: 0, opacity: 1 }}
                                 transition={{ duration: 1, delay: isLowPowerMode ? 0 : 0.2, ease: [0.22, 1, 0.36, 1] }}
-                                className="text-6xl md:text-9xl font-black tracking-tighter uppercase leading-[0.8] text-transparent bg-clip-text bg-gradient-to-br from-foreground/80 to-foreground/20 [-webkit-text-stroke:1px_rgba(0,0,0,0.1)] dark:[-webkit-text-stroke:1px_rgba(255,255,255,0.1)]"
+                                className="text-5xl sm:text-6xl md:text-9xl font-black tracking-tighter uppercase leading-[0.8] text-transparent bg-clip-text bg-gradient-to-br from-foreground/80 to-foreground/20 [-webkit-text-stroke:1px_rgba(0,0,0,0.1)] dark:[-webkit-text-stroke:1px_rgba(255,255,255,0.1)] break-words"
                             >
-                                Transformar  <span className="font-serif italic font-light text-primary/80">Negócios.</span>
+                                Transformar <br className="md:hidden" /> <span className="font-serif italic font-light text-primary/80">Negócios.</span>
                             </motion.h1>
                         </motion.div>
                     </div>

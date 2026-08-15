@@ -89,15 +89,27 @@ export default function ScrollAdventure() {
     const enterBorderRadius = useTransform(enterProgress, [0, 1], ["40px", "0px"]);
 
     return (
-        <div ref={containerRef} className="relative h-[250vh] md:h-[800vh] w-full pointer-events-none">
-            <motion.div
-                style={{ scale: enterScale, opacity: enterOpacity, borderRadius: enterBorderRadius }}
-                className="sticky top-0 h-screen w-full overflow-hidden bg-background dark:bg-black pointer-events-auto origin-center"
-            >
-                {pages.map((page, i) => {
-                    if ('isBridge' in page) {
+        <>
+            {/* Desktop View (Scroll Parallax) */}
+            <div ref={containerRef} className="relative hidden md:block h-[250vh] md:h-[800vh] w-full pointer-events-none">
+                <motion.div
+                    style={{ scale: enterScale, opacity: enterOpacity, borderRadius: enterBorderRadius }}
+                    className="sticky top-0 h-screen w-full overflow-hidden bg-background dark:bg-black pointer-events-auto origin-center"
+                >
+                    {pages.map((page, i) => {
+                        if ('isBridge' in page) {
+                            return (
+                                <BridgeSlide
+                                    key={i}
+                                    page={page}
+                                    isActive={currentPage === i + 1}
+                                    scrollProgress={smoothProgress}
+                                    index={i}
+                                />
+                            );
+                        }
                         return (
-                            <BridgeSlide
+                            <PageSlide
                                 key={i}
                                 page={page}
                                 isActive={currentPage === i + 1}
@@ -105,21 +117,57 @@ export default function ScrollAdventure() {
                                 index={i}
                             />
                         );
+                    })}
+                </motion.div>
+            </div>
+
+            {/* Mobile View (Static Cards) */}
+            <div className="md:hidden flex flex-col gap-8 px-4 py-16 bg-background dark:bg-black w-full overflow-hidden">
+                {pages.map((page: any, i: number) => {
+                    if ('isBridge' in page) {
+                        return (
+                            <div key={i} className="py-12 flex flex-col items-center text-center px-4">
+                                <h2 className="text-3xl font-medium tracking-tight text-foreground dark:text-white leading-[1.2] mb-6">
+                                    {page.heading || "Explore as soluções que tornam a gestão mais simples e eficiente"}
+                                </h2>
+                                <span className="text-[10px] font-mono font-bold tracking-[0.5em] uppercase text-foreground/50 dark:text-white/50">
+                                    {page.subheading}
+                                </span>
+                            </div>
+                        );
                     }
+
+                    const content = page.leftContent || page.rightContent;
+                    if (!content) return null;
+
                     return (
-                        <PageSlide
-                            key={i}
-                            page={page}
-                            isActive={currentPage === i + 1}
-                            scrollProgress={smoothProgress}
-                            index={i}
-                        />
+                        <div key={i} className="flex flex-col bg-foreground/[0.02] dark:bg-white/[0.02] border border-foreground/5 rounded-3xl p-6 md:p-8 gap-6 overflow-hidden">
+                            <div className="flex items-center gap-4">
+                                <span className="text-[10px] font-mono font-black tracking-[0.3em] text-primary uppercase">
+                                    0{i + 1}
+                                </span>
+                                <div className="h-[1px] flex-1 bg-primary/20" />
+                            </div>
+                            <h2 className="text-2xl font-bold uppercase tracking-tight text-foreground leading-tight">
+                                {content.heading}
+                            </h2>
+                            <p className="text-sm text-muted-foreground leading-relaxed">
+                                {content.description}
+                            </p>
+                            {content.skills && (
+                                <div className="flex flex-wrap gap-2 mt-2">
+                                    {content.skills.map((skill: string, idx: number) => (
+                                        <div key={skill} className="px-3 py-1.5 rounded-md bg-foreground/5 border border-foreground/10 text-[10px] font-bold uppercase tracking-wider text-foreground/70">
+                                            {skill}
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
                     );
                 })}
-
-                {/* Global Progress Line Removed */}
-            </motion.div>
-        </div>
+            </div>
+        </>
     );
 }
 

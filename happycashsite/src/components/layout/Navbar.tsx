@@ -51,6 +51,16 @@ const useNavItems = () => {
                     label: t('blog'),
                     href: "/conteudos",
                     description: t('blogDesc')
+                },
+                {
+                    label: "Telas do Sistema",
+                    href: "/telas",
+                    description: "Demonstração visual do HappyCash"
+                },
+                {
+                    label: "Termos e Privacidade",
+                    href: "/termos",
+                    description: "Condições de uso e segurança"
                 }
             ]
         }

@@ -91,7 +91,7 @@ const PricingSection = () => {
           </motion.div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 xl:gap-8 max-w-6xl mx-auto">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 xl:gap-8 max-w-6xl mx-auto items-start pt-4">
           {publicPlanList.filter(p => p.id !== "demo").map((plan, idx) => {
             const isDemo = plan.id === "demo";
             const isPro = plan.id === "pro";
@@ -113,31 +113,31 @@ const PricingSection = () => {
                 viewport={{ once: true }}
                 transition={{ duration: 0.5, delay: idx * 0.1 }}
                 className={cn(
-                  "relative flex flex-col p-6 rounded-3xl overflow-hidden transition-all duration-300",
+                  "relative flex flex-col p-6 rounded-3xl transition-all duration-300",
                   "border bg-card/40 backdrop-blur-sm",
                   isPro 
-                    ? "border-primary/50 shadow-2xl shadow-primary/20 scale-105 z-10" 
+                    ? "border-primary/50 shadow-2xl shadow-primary/20 md:scale-105 md:z-10" 
                     : "border-border/50 hover:border-border hover:shadow-xl hover:-translate-y-1"
                 )}
               >
-                {/* Meteors Effect for PRO Plan */}
+                {/* Meteors + gradient inside its own overflow-hidden container */}
                 {isPro && (
-                  <>
+                  <div className="absolute inset-0 rounded-3xl overflow-hidden pointer-events-none">
                     <Meteors number={15} />
-                    <div className="absolute inset-0 bg-gradient-to-b from-primary/10 via-transparent to-transparent pointer-events-none" />
-                  </>
+                    <div className="absolute inset-0 bg-gradient-to-b from-primary/10 via-transparent to-transparent" />
+                  </div>
                 )}
 
-                {/* Badges */}
+                {/* Badges — inside flow, not translated above card */}
                 {isPro && (
-                  <div className="absolute top-0 right-6 -translate-y-1/2">
+                  <div className="flex justify-end mb-4 relative z-10">
                     <span className="flex items-center gap-1 bg-primary text-primary-foreground text-xs font-bold px-3 py-1 rounded-full shadow-lg">
                       <Crown size={12} /> MAIS ASSINADO
                     </span>
                   </div>
                 )}
                 {isDemo && (
-                  <div className="absolute top-0 right-6 -translate-y-1/2">
+                  <div className="flex justify-end mb-4 relative z-10">
                     <span className="flex items-center gap-1 bg-secondary text-secondary-foreground text-xs font-bold px-3 py-1 rounded-full shadow-lg">
                       <Zap size={12} /> GRÁTIS
                     </span>

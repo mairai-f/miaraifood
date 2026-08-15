@@ -46,7 +46,9 @@ const MetricCTAHijack = () => {
     return (
         <>
             <StatsSection showOnly="top" />
-            <section className="relative">
+            
+            {/* Desktop View (Sticky Scroll Parallax) */}
+            <section className="relative hidden md:block">
                 {/* Layer 1: The Blog/Book Slider (Sticky) */}
                 <div className="sticky top-0 z-0 overflow-hidden">
                     <StatsSection showOnly="bottom" />
@@ -60,6 +62,18 @@ const MetricCTAHijack = () => {
                     <div className="h-[10vh]" />
                     <CTASection />
                     <div className="h-20" />
+                </div>
+            </section>
+
+            {/* Mobile View (Standard Flow) */}
+            <section className="block md:hidden flex flex-col w-full relative z-20 bg-background dark:bg-black">
+                <div className="w-full relative z-0">
+                    <StatsSection showOnly="bottom" />
+                </div>
+                <div className="w-full relative z-20">
+                    <div className="h-10" />
+                    <CTASection />
+                    <div className="h-16" />
                 </div>
             </section>
         </>

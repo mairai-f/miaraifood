@@ -97,7 +97,7 @@ export function ArgentLoopInfiniteSlider() {
   const imageY = useTransform(smoothProgress, [0, 1], ["-12%", "12%"]);
 
   return (
-    <div ref={containerRef} className="relative h-[200vh] md:h-[500vh]">
+    <div ref={containerRef} className="relative h-auto md:h-[500vh]">
       <style>{`
         .argent-slider-wrapper {
             position: sticky;
@@ -320,7 +320,8 @@ export function ArgentLoopInfiniteSlider() {
         }
       `}</style>
       
-      <div className="argent-slider-wrapper">
+      {/* Desktop View (Scroll Timeline) */}
+      <div className="hidden md:block argent-slider-wrapper">
         <motion.div style={{ opacity: bgOpacity }}>
           <div className="mist-overlay" />
           <motion.div className="project-list" style={{ y: currentY }}>
@@ -437,6 +438,44 @@ export function ArgentLoopInfiniteSlider() {
              })}
            </motion.span>
         </motion.div>
+      </div>
+
+      {/* Mobile View (Static Flow) */}
+      <div className="md:hidden flex flex-col px-4 py-16 gap-12 bg-background dark:bg-black w-full overflow-hidden relative z-10">
+        <div className="text-center mb-4">
+            <h2 className="text-3xl font-bold uppercase tracking-tight text-foreground">Nossas Funcionalidades</h2>
+            <p className="text-sm text-muted-foreground mt-2">Explore as soluções do HappyCash.</p>
+        </div>
+        {PROJECT_DATA.map((data, i) => {
+          const num = (i + 1).toString().padStart(2, "0");
+          return (
+            <div key={i} className="flex flex-col bg-white dark:bg-zinc-950 rounded-2xl overflow-hidden shadow-xl border border-neutral-200 dark:border-zinc-800">
+              <div className="w-full bg-neutral-100 dark:bg-zinc-900">
+                <img src={data.image} alt={data.title} className="w-full h-auto object-contain" />
+              </div>
+              <div className="p-6 flex flex-col gap-4">
+                <div className="flex justify-between items-start">
+                  <span className="font-mono text-[10px] font-bold text-neutral-400">{num}</span>
+                  <span className="text-[10px] uppercase font-bold tracking-widest text-primary">{data.category}</span>
+                </div>
+                <h3 className="text-2xl font-black uppercase tracking-tight leading-tight">{data.title}</h3>
+                <p className="text-sm text-muted-foreground leading-relaxed">{data.description}</p>
+                <Link 
+                  href={`/funcionalidades/${data.slug}`}
+                  className="mt-4 flex items-center justify-between w-full p-4 bg-neutral-100 dark:bg-zinc-900 rounded-xl group/btn"
+                >
+                  <span className="text-xs font-bold uppercase tracking-widest">Ver Detalhes</span>
+                  <ArrowRight className="w-4 h-4 group-hover/btn:translate-x-1 transition-transform" />
+                </Link>
+              </div>
+            </div>
+          );
+        })}
+        <div className="flex items-center justify-center mt-8 gap-4">
+            <Link href="/funcionalidades" className="px-8 py-4 bg-primary text-primary-foreground font-bold uppercase text-xs tracking-widest rounded-full shadow-lg">
+                Ver Todas
+            </Link>
+        </div>
       </div>
     </div>
   );
