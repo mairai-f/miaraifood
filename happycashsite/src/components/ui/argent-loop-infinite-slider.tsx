@@ -1,10 +1,21 @@
-import * as React from "react";
-import { motion, useScroll, useTransform, useSpring } from "framer-motion";
-import { ArrowRight, ChevronDown, Instagram, ArrowUpRight } from "lucide-react";
-import Link from "next/link";
-import { cn } from "@/lib/utils";
-import MagneticEffect from "@/components/ui/MagneticEffect";
+// ============================================================
+// SLIDER DE FUNCIONALIDADES — src/components/ui/argent-loop-infinite-slider.tsx
+// Responsabilidade: Exibe os 5 módulos do HappyCash de forma interativa.
+//   - Desktop: timeline com scroll-hijacking (cada produto ocupa 100vh ao rolar)
+//   - Mobile:  lista vertical de cards estáticos (sem scroll-hijacking, sem lag)
+// Usado em: src/components/sections/AboutSection.tsx
+// ATENÇÃO: nunca adicione scroll sticky neste componente sem o bloco 'hidden md:block'
+// ============================================================
 
+import * as React from "react";
+import { motion, useScroll, useTransform, useSpring } from "framer-motion"; // Animações e mapeamento de scroll
+import { ArrowRight, ChevronDown, Instagram, ArrowUpRight } from "lucide-react"; // Ícones dos cards
+import Link from "next/link";
+import { cn } from "@/lib/utils"; // Utilitário para mesclar classes CSS
+import MagneticEffect from "@/components/ui/MagneticEffect"; // Efeito magnético nos botões (desktop)
+
+// --- Interface do dado de cada projeto/módulo ---
+// Define a estrutura de cada card exibido no slider
 interface ProjectData {
   title: string;
   image: string;
@@ -12,8 +23,12 @@ interface ProjectData {
   year: string;
   description: string;
   slug: string;
+
 }
 
+// --- PROJECT_DATA: Dados dos 5 módulos do HappyCash ---
+// Para adicionar ou editar um módulo, basta alterar este array.
+// O campo 'slug' é usado para gerar a URL da página de detalhes em /funcionalidades/[slug]
 const PROJECT_DATA: ProjectData[] = [
   {
     title: "PDV e Caixa",
@@ -57,44 +72,65 @@ const PROJECT_DATA: ProjectData[] = [
   },
 ];
 
+// ─── Componente: ArgentLoopInfiniteSlider ────────────────────────────────────
 export function ArgentLoopInfiniteSlider() {
+  // Ref para o container externo — usado pelo useScroll para rastrear posição
   const containerRef = React.useRef<HTMLDivElement>(null);
   
+  // scrollYProgress: valor de 0 a 1 representando o progresso de scroll dentro do container
+  // 0 = topo do container, 1 = fundo do container
   const { scrollYProgress } = useScroll({
     target: containerRef,
-    offset: ["start start", "end end"]
+    offset: ["start start", "end end"] // começa a contar quando o container entra, termina quando sai
   });
 
+  // smoothProgress: versão suavizada do scrollYProgress (evita movimentos bruscos)
+  // stiffness/damping/mass controlam a "inércia" da animação
   const smoothProgress = useSpring(scrollYProgress, { stiffness: 60, damping: 30, mass: 1 });
 
+  // --- Cálculo do mapeamento de scroll para cada projeto ---
+  // projectArea: proporção do scroll total dedicada à navegação entre projetos (85%)
+  // Os últimos 15% são usados para a transição de saída
   const projectArea = 0.85;
-  const projectStep = projectArea / PROJECT_DATA.length; 
-  const transWindow = 0.05; 
 
+  // projectStep: fração do scroll que cada projeto ocupa
+  // Ex: 5 projetos → cada um ocupa 17% do scroll total
+  const projectStep = projectArea / PROJECT_DATA.length;
+
+  // transWindow: janela de transição suave entre um projeto e o próximo
+  const transWindow = 0.05;
+
+  // scrollMap: pontos de progresso de scroll onde a animação muda de estado
+  // yMap: posições verticais (em vh) correspondentes a cada ponto do scrollMap
+  // internalYMap: posições da miniatura (em px) para o painel lateral
   const scrollMap = [0];
   const yMap = ["0vh"];
   const internalYMap = ["0px"];
 
+  // Constrói o mapeamento dinâmico para cada projeto (exceto o primeiro)
   PROJECT_DATA.forEach((_, i) => {
-    if (i === 0) return;
-    const boundary = i * projectStep;
+    if (i === 0) return; // O primeiro projeto começa na posição 0 (já incluída acima)
+    const boundary = i * projectStep; // Ponto de transição para o projeto i
+    // Adiciona dois pontos por transição: antes e depois da janela de transição
     scrollMap.push(boundary - transWindow / 2, boundary + transWindow / 2);
-    yMap.push(`-${(i-1)*100}vh`, `-${i*100}vh`);
-    internalYMap.push(`-${(i-1)*250}px`, `-${i*250}px`);
+    yMap.push(`-${(i-1)*100}vh`, `-${i*100}vh`); // Desloca a lista de projetos verticalmente
+    internalYMap.push(`-${(i-1)*250}px`, `-${i*250}px`); // Desloca a miniatura lateral
   });
 
+  // Adiciona o estado final: mantém o último projeto fixo até o scroll terminar
   scrollMap.push(projectArea, 1);
   yMap.push(`-${(PROJECT_DATA.length-1)*100}vh`, `-${(PROJECT_DATA.length-1)*100}vh`);
   internalYMap.push(`-${(PROJECT_DATA.length-1)*250}px`, `-${(PROJECT_DATA.length-1)*250}px`);
 
-  const currentY = useTransform(smoothProgress, scrollMap, yMap);
-  const contentInternalY = useTransform(smoothProgress, scrollMap, internalYMap);
+  // --- Valores animados derivados do scroll ---
+  const currentY = useTransform(smoothProgress, scrollMap, yMap);         // Posição Y da lista de projetos
+  const contentInternalY = useTransform(smoothProgress, scrollMap, internalYMap); // Posição Y da miniatura
 
-  const bgOpacity = useTransform(smoothProgress, [0, 0.05, projectArea, 1], [0, 1, 1, 0]);
-  const mainUIOpacity = useTransform(smoothProgress, [0, 0.05, projectArea, 1], [0, 1, 1, 0]);
-  const buttonOpacity = useTransform(smoothProgress, [projectArea, projectArea + 0.05], [0, 1]);
-  const finalContainerY = useTransform(smoothProgress, [projectArea, projectArea + 0.05], ["0px", "-250px"]);
-  const imageY = useTransform(smoothProgress, [0, 1], ["-12%", "12%"]);
+  const bgOpacity = useTransform(smoothProgress, [0, 0.05, projectArea, 1], [0, 1, 1, 0]);    // Fundo aparece/some
+  const mainUIOpacity = useTransform(smoothProgress, [0, 0.05, projectArea, 1], [0, 1, 1, 0]); // UI aparece/some
+  const buttonOpacity = useTransform(smoothProgress, [projectArea, projectArea + 0.05], [0, 1]); // Botão "Ver Todas" aparece no final
+  const finalContainerY = useTransform(smoothProgress, [projectArea, projectArea + 0.05], ["0px", "-250px"]); // Slide final de saída
+  const imageY = useTransform(smoothProgress, [0, 1], ["-12%", "12%"]); // Efeito parallax leve na imagem de fundo
 
   return (
     <div ref={containerRef} className="relative h-auto md:h-[500vh]">
