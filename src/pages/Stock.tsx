@@ -19,6 +19,8 @@ import { formatProductCode } from '@/lib/productCode';
 import { filterProductsBySearch, toProductUppercase } from '@/lib/productSearch';
 import { buildNextBatchByProductId, compareProductsByOperationalPriority, getProductPriorityState } from '@/lib/productOperationalPriority';
 import { calculateStockMovement, STOCK_MOVEMENT_REASONS, type StockMovementType } from '@/lib/stockMovement';
+import { usePaginatedList } from '@/hooks/usePaginatedList';
+import { DataPaginationBar } from '@/components/DataPaginationBar';
 import { getRedactedLogValue } from '../../shared/security/redaction';
 
 export default function Stock() {
@@ -51,6 +53,7 @@ export default function Stock() {
   const lowStock = activeProducts.filter((product) => priorityByProductId.get(product.id)?.lowStock);
   const filteredProducts = [...filterProductsBySearch(visibleProducts, search)]
     .sort((left, right) => compareProductsByOperationalPriority(left, right, nextBatchByProductId, todayKey));
+  const pagination = usePaginatedList(filteredProducts, { pageSize: 24 });
   const hasStockToClear = activeProducts.some((product) => product.stock > 0);
   const selectedProductRecord = activeProducts.find((product) => product.id === selectedProduct) ?? null;
   const movementProductResults = filterProductsBySearch(activeProducts, movementProductSearch).slice(0, 8);
@@ -321,7 +324,7 @@ export default function Stock() {
       </div>
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {filteredProducts.map((product) => {
+        {pagination.pageItems.map((product) => {
           const priority = priorityByProductId.get(product.id) ?? getProductPriorityState(product, nextBatchByProductId.get(product.id), todayKey);
           const nextBatch = priority.batch;
           const borderClass = priority.expired
@@ -394,6 +397,8 @@ export default function Stock() {
           </CardContent>
         </Card>
       )}
+
+      <DataPaginationBar pagination={pagination} />
     </div>
   );
 }

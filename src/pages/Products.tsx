@@ -33,6 +33,8 @@ import { getLocalIsoDate } from '@/lib/clientDebtDueDate';
 import { readDesktopActivation } from '@/lib/desktopActivation';
 import { canUseDesktopFiscalModule } from '@/lib/fiscalAccess';
 import { useProductBatches } from '@/hooks/useProductBatches';
+import { usePaginatedList } from '@/hooks/usePaginatedList';
+import { DataPaginationBar } from '@/components/DataPaginationBar';
 import { supabase } from '@/integrations/supabase/client';
 import { getPublicErrorMessage, getRedactedLogValue } from '../../shared/security/redaction';
 import type { SupplierRecord } from '@/types/operations';
@@ -232,6 +234,8 @@ export default function Products() {
     [...filterProductsBySearch(activeProducts, search)]
       .sort((left, right) => compareProductsByOperationalPriority(left, right, nextBatchByProductId, todayKey))
   ), [activeProducts, nextBatchByProductId, search, todayKey]);
+
+  const pagination = usePaginatedList(filtered, { pageSize: 24 });
 
   const numericPrice = parseDecimalInput(price);
   const numericCostPrice = parseDecimalInput(costPrice);
@@ -919,7 +923,7 @@ export default function Products() {
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3" data-tour-id="products-list">
-        {filtered.map(p => {
+        {pagination.pageItems.map(p => {
           const markup = getMarkupPercent(p.price, p.cost_price);
           const margin = getMarginPercent(p.price, p.cost_price);
           const unitProfit = getUnitProfit(p.price, p.cost_price);
@@ -990,6 +994,7 @@ export default function Products() {
         })}
       </div>
       {filtered.length === 0 && <p className="text-center text-muted-foreground mt-8 text-sm">Nenhum produto encontrado.</p>}
+      <DataPaginationBar pagination={pagination} />
     </div>
   );
 }
