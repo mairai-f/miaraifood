@@ -1524,8 +1524,20 @@ const createMainWindow = async () => {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
+      devTools: isDevelopment,
     },
   });
+
+  // Em produção (packaged build), bloqueia atalhos para abrir DevTools (F12, Ctrl+Shift+I, etc.)
+  if (!isDevelopment) {
+    mainWindow.webContents.on('before-input-event', (event, input) => {
+      const isF12 = input.key === 'F12';
+      const isDevShortcut = (input.control || input.meta) && input.shift && ['I', 'i', 'J', 'j', 'C', 'c'].includes(input.key);
+      if (isF12 || isDevShortcut) {
+        event.preventDefault();
+      }
+    });
+  }
 
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     if (isHttpUrl(url)) {
