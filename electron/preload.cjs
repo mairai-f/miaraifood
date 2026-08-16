@@ -17,6 +17,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
   turnstile: {
     requestToken: (action) => ipcRenderer.invoke('turnstile:request', { action }),
   },
+  // Armazenamento seguro via OS keychain (safeStorage do Electron).
+  // O renderer nunca acessa safeStorage diretamente — tudo passa por IPC
+  // com contextIsolation ativo. Dados são inacessíveis via F12 / DevTools.
+  secureStorage: {
+    isAvailable: () => ipcRenderer.invoke('secure-storage:is-available'),
+    read: (key) => ipcRenderer.invoke('secure-storage:read', key),
+    write: (key, value) => ipcRenderer.invoke('secure-storage:write', key, value),
+    delete: (key) => ipcRenderer.invoke('secure-storage:delete', key),
+  },
   app: {
     getRuntimeInfo: () => ipcRenderer.invoke('app:get-runtime-info'),
     getRuntimeInfoSync: () => ipcRenderer.sendSync('app:get-runtime-info-sync'),

@@ -1,4 +1,5 @@
 import { supabase } from '@/integrations/supabase/client';
+import { secureStorage } from '@/lib/secureStorage';
 import { getPublicErrorMessage } from '../../shared/security/redaction';
 import {
   LEGAL_LGPD_VERSION,
@@ -54,6 +55,12 @@ const notifyDesktopActivationChanged = () => {
   window.dispatchEvent(new Event(DESKTOP_ACTIVATION_CHANGED_EVENT));
 };
 
+/**
+ * Cache em memória do registro de ativação para chamadas síncronas.
+ * Atualizado sempre que loadDesktopActivation() é chamado na inicialização.
+ */
+let _activationCache: DesktopActivationRecord | null | undefined = undefined;
+
 const normalizeInstallerToken = (value?: string | null) => {
   const normalized = value?.trim();
   return normalized ? normalized : null;
@@ -73,6 +80,13 @@ export const isDesktopActivationRequired = () =>
   typeof window !== 'undefined' && Boolean(window.electronAPI);
 
 export const readDesktopActivation = (): DesktopActivationRecord | null => {
+  // Retorna o cache em memória para chamadas síncronas (compatibilidade).
+  // Na inicialização, loadDesktopActivation() deve ser chamado uma vez para
+  // popular o cache a partir do secureStorage.
+  if (_activationCache !== undefined) return _activationCache;
+
+  // Fallback: leitura síncrona do localStorage para o primeiro acesso
+  // antes da migração assíncrona ser concluída.
   if (!isBrowser()) return null;
 
   try {
@@ -86,23 +100,71 @@ export const readDesktopActivation = (): DesktopActivationRecord | null => {
       return null;
     }
 
+    // Dado encontrado no localStorage legado — registrar no cache.
+    _activationCache = activation;
     return activation;
   } catch {
     return null;
   }
 };
 
+/**
+ * Carrega o registro de ativação do secureStorage (assíncrono).
+ * Deve ser chamado na inicialização do app para popular o cache em memória
+ * e migrar dados legados do localStorage.
+ */
+export const loadDesktopActivation = async (): Promise<DesktopActivationRecord | null> => {
+  if (!isBrowser()) return null;
+
+  try {
+    const stored = await secureStorage.getItem(activationStorageKey);
+    if (!stored) {
+      _activationCache = null;
+      return null;
+    }
+
+    const activation = JSON.parse(stored) as DesktopActivationRecord;
+    const runtimeInstallerToken = readRuntimeInstallerToken();
+
+    if (runtimeInstallerToken && activation.installerToken !== runtimeInstallerToken) {
+      await clearDesktopActivationAsync({ clearInstallationId: true });
+      return null;
+    }
+
+    _activationCache = activation;
+    return activation;
+  } catch {
+    _activationCache = null;
+    return null;
+  }
+};
+
 export const writeDesktopActivation = (payload: DesktopActivationRecord) => {
   if (!isBrowser()) return;
-  window.localStorage.setItem(activationStorageKey, JSON.stringify(payload));
+  // Atualiza o cache em memória imediatamente para leituras síncronas.
+  _activationCache = payload;
+  // Persiste no secureStorage de forma assíncrona (OS keychain).
+  void secureStorage.setItem(activationStorageKey, JSON.stringify(payload));
   notifyDesktopActivationChanged();
 };
 
 export const clearDesktopActivation = (options?: { clearInstallationId?: boolean }) => {
   if (!isBrowser()) return;
-  window.localStorage.removeItem(activationStorageKey);
+  _activationCache = null;
+  void secureStorage.removeItem(activationStorageKey);
   if (options?.clearInstallationId) {
-    window.localStorage.removeItem(installationIdStorageKey);
+    void secureStorage.removeItem(installationIdStorageKey);
+  }
+  notifyDesktopActivationChanged();
+};
+
+/** Versão assíncrona de clearDesktopActivation para uso interno. */
+const clearDesktopActivationAsync = async (options?: { clearInstallationId?: boolean }) => {
+  if (!isBrowser()) return;
+  _activationCache = null;
+  await secureStorage.removeItem(activationStorageKey);
+  if (options?.clearInstallationId) {
+    await secureStorage.removeItem(installationIdStorageKey);
   }
   notifyDesktopActivationChanged();
 };
@@ -117,6 +179,7 @@ export const getDesktopInstallationId = () => {
     ? crypto.randomUUID()
     : `desktop-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 
+  // Installation ID não é dado pessoal — pode permanecer no localStorage.
   window.localStorage.setItem(installationIdStorageKey, nextValue);
   return nextValue;
 };

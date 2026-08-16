@@ -4,6 +4,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { clearDesktopActivation, readDesktopActivation } from '@/lib/desktopActivation';
 import { isProbablyOfflineError } from '@/lib/offlineConcentrator';
+import { secureStorage } from '@/lib/secureStorage';
 import { getPublicErrorMessage } from '../../shared/security/redaction';
 
 interface DesktopLicenseResponse {
@@ -42,9 +43,6 @@ const isLocalRuntime = isDesktopRuntime || isMobileAppRuntime;
 const localRuntimeKind = isMobileAppRuntime ? 'mobile' : 'desktop';
 const localRuntimeLabel = isMobileAppRuntime ? 'app Android' : 'desktop';
 const licenseCacheKey = (userId: string) => `happycash:${localRuntimeKind}:license:${userId}`;
-const OFFLINE_VALIDATION_GRACE_HOURS = 24;
-const OFFLINE_VALIDATION_GRACE_MS = OFFLINE_VALIDATION_GRACE_HOURS * 60 * 60 * 1000;
-const OFFLINE_VALIDATION_GRACE_LABEL = '24 horas';
 
 const toTimestamp = (value: string | null | undefined) => {
   if (!value) return null;
@@ -52,22 +50,19 @@ const toTimestamp = (value: string | null | undefined) => {
   return Number.isFinite(parsed) ? parsed : null;
 };
 
+// A permissão offline agora é baseada na validade real do plano (validUntil).
+// Se o plano não tem data de expiração definida (vitalício/ilimitado), a licença offline não expira por tempo.
 const buildValidationExpiresAt = (payload: {
   validUntil: string | null;
   validatedAt?: string | null;
 }) => {
-  const validatedAt = toTimestamp(payload.validatedAt) ?? Date.now();
-  const planValidUntil = toTimestamp(payload.validUntil);
-  const offlineGraceUntil = validatedAt + OFFLINE_VALIDATION_GRACE_MS;
-  const expiresAt = planValidUntil ? Math.min(planValidUntil, offlineGraceUntil) : offlineGraceUntil;
-  return new Date(expiresAt).toISOString();
+  if (!payload.validUntil) return null;
+  return new Date(payload.validUntil).toISOString();
 };
 
-const readCachedLicense = (userId: string) => {
-  if (typeof window === 'undefined') return null;
-
+const readCachedLicense = async (userId: string) => {
   try {
-    const stored = window.localStorage.getItem(licenseCacheKey(userId));
+    const stored = await secureStorage.getItem(licenseCacheKey(userId));
     if (!stored) return null;
     return JSON.parse(stored) as {
       planId: string | null;
@@ -89,13 +84,7 @@ const writeCachedLicense = (
     validatedAt: string;
   },
 ) => {
-  if (typeof window === 'undefined') return;
-
-  try {
-    window.localStorage.setItem(licenseCacheKey(userId), JSON.stringify(payload));
-  } catch {
-    // Ignore local cache write failures and keep runtime validation.
-  }
+  void secureStorage.setItem(licenseCacheKey(userId), JSON.stringify(payload));
 };
 
 export function DesktopRuntimeProvider({ children }: { children: ReactNode }) {
@@ -138,8 +127,8 @@ export function DesktopRuntimeProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    const readRuntimeCachedLicense = () => {
-      const primaryLicense = readCachedLicense(user.id);
+    const readRuntimeCachedLicense = async () => {
+      const primaryLicense = await readCachedLicense(user.id);
       if (primaryLicense || !ownerUserId || ownerUserId === user.id) {
         return primaryLicense;
       }
@@ -147,13 +136,12 @@ export function DesktopRuntimeProvider({ children }: { children: ReactNode }) {
       return readCachedLicense(ownerUserId);
     };
 
-    const applyCachedOfflineLicense = () => {
-      const cachedLicense = readRuntimeCachedLicense();
+    const applyCachedOfflineLicense = async () => {
+      const cachedLicense = await readRuntimeCachedLicense();
       const cachedValidationExpiresAt = cachedLicense ? buildValidationExpiresAt(cachedLicense) : null;
       const cachedLicenseStillValid = Boolean(
-        cachedValidationExpiresAt
-        && toTimestamp(cachedValidationExpiresAt)
-        && toTimestamp(cachedValidationExpiresAt)! > Date.now()
+        !cachedValidationExpiresAt
+        || (toTimestamp(cachedValidationExpiresAt) && toTimestamp(cachedValidationExpiresAt)! > Date.now())
       );
 
       if (cachedLicense && cachedLicenseStillValid) {
@@ -179,8 +167,8 @@ export function DesktopRuntimeProvider({ children }: { children: ReactNode }) {
       }
 
       const expiredMessage = cachedValidationExpiresAt
-        ? `A validacao offline expirou. Conecte o HappyCash a internet para renovar o acesso apos ${OFFLINE_VALIDATION_GRACE_LABEL}.`
-        : `Este ${localRuntimeLabel} ainda nao possui uma validacao offline pronta para uso.`;
+        ? `A licença do plano expirou. Conecte o HappyCash à internet para renovar a assinatura do ${localRuntimeLabel}.`
+        : `Este ${localRuntimeLabel} ainda não possui uma validação de licença pronta para uso.`;
 
       setLicensed(false);
       setOfflineEnabled(Boolean(cachedLicense?.offlineEnabled));
@@ -196,7 +184,7 @@ export function DesktopRuntimeProvider({ children }: { children: ReactNode }) {
 
     if (!session?.access_token) {
       if (isLocalOfflineSession) {
-        applyCachedOfflineLicense();
+        await applyCachedOfflineLicense();
         return;
       }
 
@@ -227,12 +215,11 @@ export function DesktopRuntimeProvider({ children }: { children: ReactNode }) {
     });
 
     if (invokeError || !data?.licensed) {
-      const cachedLicense = readRuntimeCachedLicense();
+      const cachedLicense = await readRuntimeCachedLicense();
       const cachedValidationExpiresAt = cachedLicense ? buildValidationExpiresAt(cachedLicense) : null;
       const cachedLicenseStillValid = Boolean(
-        cachedValidationExpiresAt
-        && toTimestamp(cachedValidationExpiresAt)
-        && toTimestamp(cachedValidationExpiresAt)! > Date.now()
+        !cachedValidationExpiresAt
+        || (toTimestamp(cachedValidationExpiresAt) && toTimestamp(cachedValidationExpiresAt)! > Date.now())
       );
       const canUseCachedLicense = Boolean(cachedLicenseStillValid) && (
         (typeof navigator !== 'undefined' && navigator.onLine === false)
@@ -272,7 +259,7 @@ export function DesktopRuntimeProvider({ children }: { children: ReactNode }) {
         && toTimestamp(cachedValidationExpiresAt)
         && toTimestamp(cachedValidationExpiresAt)! <= Date.now()
       ) {
-        message = `A validacao offline expirou. Conecte o HappyCash a internet para renovar o acesso apos ${OFFLINE_VALIDATION_GRACE_LABEL}.`;
+        message = `A licença do plano expirou. Conecte o HappyCash à internet para renovar a assinatura do ${localRuntimeLabel}.`;
         nextCode = 'OFFLINE_VALIDATION_EXPIRED';
       }
 

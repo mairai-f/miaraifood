@@ -18,6 +18,7 @@ import {
   getLocalLoginBlockMessage,
   recordLocalLoginFailure,
 } from '@/lib/localLoginAttemptLimiter';
+import { secureStorage } from '@/lib/secureStorage';
 import { requestTurnstileToken } from '../../shared/security/turnstile';
 import { getPasswordPolicyError } from '../../shared/security/passwordPolicy';
 import { getPublicAuthErrorMessage, getPublicErrorMessage, getRedactedLogValue } from '../../shared/security/redaction';
@@ -167,11 +168,12 @@ const OPERATOR_ACCESS_REMOVED = 'OPERATOR_ACCESS_REMOVED';
 const SYSTEM_PRODUCT_CONTEXT_MISMATCH_MESSAGE = 'Email ou senha incorretos.';
 const PROFILE_NOT_FOUND_MESSAGE = 'Este acesso foi removido. Entre com outro usuário ou fale com o administrador.';
 const getLocalActivationLabel = () => isMobileAppRuntime() ? 'app Android' : 'desktop';
-const readCachedProfile = (userId: string): UserProfile | null => {
-  if (typeof window === 'undefined') return null;
 
+// Cache de perfil protegido via secureStorage (OS keychain no Electron).
+// Evita dados pessoais (email, role) em texto puro no localStorage.
+const readCachedProfile = async (userId: string): Promise<UserProfile | null> => {
   try {
-    const stored = window.localStorage.getItem(profileCacheKey(userId));
+    const stored = await secureStorage.getItem(profileCacheKey(userId));
     if (!stored) return null;
     return JSON.parse(stored) as UserProfile;
   } catch {
@@ -180,23 +182,11 @@ const readCachedProfile = (userId: string): UserProfile | null => {
 };
 
 const writeCachedProfile = (userId: string, profile: UserProfile) => {
-  if (typeof window === 'undefined') return;
-
-  try {
-    window.localStorage.setItem(profileCacheKey(userId), JSON.stringify(profile));
-  } catch {
-    // Keep auth usable even when localStorage is unavailable.
-  }
+  void secureStorage.setItem(profileCacheKey(userId), JSON.stringify(profile));
 };
 
 const deleteCachedProfile = (userId: string) => {
-  if (typeof window === 'undefined') return;
-
-  try {
-    window.localStorage.removeItem(profileCacheKey(userId));
-  } catch {
-    // Cache cleanup should never block sign-out.
-  }
+  void secureStorage.removeItem(profileCacheKey(userId));
 };
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -289,7 +279,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       const profile = (data ?? null) as ProfileQueryRow | null;
       if (!profile) {
-        const cachedProfile = readCachedProfile(currentUser.id);
+        const cachedProfile = await readCachedProfile(currentUser.id);
         if (cachedProfile?.owner_user_id && cachedProfile.username && cachedProfile.role !== 'admin') {
           deleteOfflineOperatorAccess(cachedProfile.owner_user_id, cachedProfile.username);
         }
@@ -333,7 +323,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       console.error('Erro inesperado ao carregar perfil do usuário:', getRedactedLogValue(error));
 
-      const cachedProfile = readCachedProfile(currentUser.id);
+      const cachedProfile = await readCachedProfile(currentUser.id);
       if (cachedProfile && isLocalAppRuntime() && isProbablyOfflineError(error)) {
         return cachedProfile;
       }

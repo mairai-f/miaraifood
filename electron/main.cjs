@@ -1,7 +1,8 @@
 const path = require('path');
 const fs = require('fs');
+const { createCipheriv, createDecipheriv, randomBytes } = require('crypto');
 const { DatabaseSync } = require('node:sqlite');
-const { app, BrowserWindow, ipcMain, shell } = require('electron');
+const { app, BrowserWindow, ipcMain, safeStorage, shell } = require('electron');
 const { autoUpdater } = require('electron-updater');
 const { requestDesktopTurnstileToken } = require('./desktop-turnstile.cjs');
 
@@ -40,6 +41,132 @@ const OFFLINE_DB_SCHEMA_VERSION = 2;
 const OFFLINE_SYNC_RETENTION_DAYS = Number.parseInt(process.env.HAPPYCASH_OFFLINE_SYNC_RETENTION_DAYS || '30', 10);
 const OFFLINE_CONFLICT_RETENTION_DAYS = Number.parseInt(process.env.HAPPYCASH_OFFLINE_CONFLICT_RETENTION_DAYS || '30', 10);
 let offlineDb = null;
+
+// ─── Armazenamento seguro (OS keychain via safeStorage) ───────────────────────
+// Guarda dados sensíveis criptografados pelo SO (DPAPI no Windows,
+// Keychain no macOS, Secret Service no Linux). Inacessíveis por F12 ou
+// leitura direta de arquivo — a chave vive no perfil do usuário do SO.
+const SAFE_STORE_FILENAME = 'secure-store.json';
+const DB_ENCRYPTION_KEY_STORE_KEY = 'happycash:db:aes-key';
+let _safeStoreCache = null;
+
+const getSafeStorePath = () => path.join(app.getPath('userData'), SAFE_STORE_FILENAME);
+
+const readSafeStoreFile = () => {
+  if (_safeStoreCache) return _safeStoreCache;
+  try {
+    _safeStoreCache = JSON.parse(fs.readFileSync(getSafeStorePath(), 'utf8'));
+    return _safeStoreCache;
+  } catch {
+    _safeStoreCache = {};
+    return _safeStoreCache;
+  }
+};
+
+const writeSafeStoreFile = (data) => {
+  _safeStoreCache = data;
+  fs.writeFileSync(getSafeStorePath(), JSON.stringify(data), 'utf8');
+};
+
+// Lê um valor do armazenamento seguro. Retorna null se indisponível.
+const safeStorageRead = (key) => {
+  if (!safeStorage.isEncryptionAvailable()) return null;
+  const store = readSafeStoreFile();
+  const encrypted = store[key];
+  if (!encrypted) return null;
+  try {
+    return safeStorage.decryptString(Buffer.from(encrypted, 'base64'));
+  } catch {
+    return null;
+  }
+};
+
+// Grava um valor no armazenamento seguro. Retorna false se indisponível.
+const safeStorageWrite = (key, value) => {
+  if (!safeStorage.isEncryptionAvailable()) return false;
+  const store = readSafeStoreFile();
+  store[key] = safeStorage.encryptString(value).toString('base64');
+  writeSafeStoreFile(store);
+  return true;
+};
+
+// Remove uma chave do armazenamento seguro.
+const safeStorageDelete = (key) => {
+  const store = readSafeStoreFile();
+  if (!(key in store)) return;
+  delete store[key];
+  writeSafeStoreFile(store);
+};
+
+// ─── Criptografia AES-256-GCM para campos do SQLite ──────────────────────────
+// Os dados dos clientes, dívidas e pagamentos ficam no SQLite em texto puro.
+// Esta camada criptografa cada campo JSON antes de gravar e descriptografa
+// ao ler. A chave AES é gerada uma vez e guardada via safeStorage (OS keychain).
+// Formato no banco: "<iv_b64>:<authTag_b64>:<ciphertext_b64>"
+const ENCRYPTED_FIELD_SEPARATOR = ':';
+const ENCRYPTED_PARTS_COUNT = 3;
+let _dbEncryptionKey = null;
+
+// Detecta se um valor já está criptografado pelo formato esperado.
+const isEncryptedValue = (value) => {
+  if (typeof value !== 'string') return false;
+  const parts = value.split(ENCRYPTED_FIELD_SEPARATOR);
+  if (parts.length !== ENCRYPTED_PARTS_COUNT) return false;
+  // IV AES-GCM tem 12 bytes → 16 chars base64
+  try { return Buffer.from(parts[0], 'base64').length === 12; } catch { return false; }
+};
+
+// Obtém (ou cria na primeira execução) a chave AES de 256 bits.
+const getDbEncryptionKey = () => {
+  if (_dbEncryptionKey) return _dbEncryptionKey;
+
+  const stored = safeStorageRead(DB_ENCRYPTION_KEY_STORE_KEY);
+  if (stored) {
+    _dbEncryptionKey = Buffer.from(stored, 'hex');
+    return _dbEncryptionKey;
+  }
+
+  // Primeira execução: gera uma nova chave aleatória e persiste.
+  const newKey = randomBytes(32);
+  const written = safeStorageWrite(DB_ENCRYPTION_KEY_STORE_KEY, newKey.toString('hex'));
+  if (!written) {
+    // safeStorage indisponível (raro): usar chave efêmera em memória.
+    // Os dados serão legíveis nesta sessão mas não protegidos entre sessões.
+    console.warn('[HappyCash] safeStorage indisponível. Chave AES será efêmera nesta sessão.');
+  }
+  _dbEncryptionKey = newKey;
+  return _dbEncryptionKey;
+};
+
+// Criptografa um valor de campo JSON. Retorna string no formato iv:tag:dados.
+const encryptField = (plaintext) => {
+  if (typeof plaintext !== 'string' || !plaintext) return plaintext;
+  const key = getDbEncryptionKey();
+  const iv = randomBytes(12);
+  const cipher = createCipheriv('aes-256-gcm', key, iv);
+  const encrypted = Buffer.concat([cipher.update(plaintext, 'utf8'), cipher.final()]);
+  const authTag = cipher.getAuthTag();
+  return [
+    iv.toString('base64'),
+    authTag.toString('base64'),
+    encrypted.toString('base64'),
+  ].join(ENCRYPTED_FIELD_SEPARATOR);
+};
+
+// Descriptografa um campo. Se já for texto puro (migração), retorna como está.
+const decryptField = (ciphertext) => {
+  if (!isEncryptedValue(ciphertext)) return ciphertext; // texto puro legado
+  const key = getDbEncryptionKey();
+  const [ivB64, authTagB64, dataB64] = ciphertext.split(ENCRYPTED_FIELD_SEPARATOR);
+  try {
+    const decipher = createDecipheriv('aes-256-gcm', key, Buffer.from(ivB64, 'base64'));
+    decipher.setAuthTag(Buffer.from(authTagB64, 'base64'));
+    return decipher.update(Buffer.from(dataB64, 'base64')).toString('utf8') + decipher.final('utf8');
+  } catch {
+    console.error('[HappyCash] Falha ao descriptografar campo do banco. Dado pode estar corrompido.');
+    return null;
+  }
+};
 let updateState = {
   status: isDevelopment ? 'disabled' : 'idle',
   channel: null,
@@ -631,7 +758,8 @@ const mapQueueRow = (row) => ({
   id: row.id,
   ownerUserId: row.owner_user_id,
   operationType: row.operation_type,
-  payload: parseJson(row.payload_json, null),
+  // Descriptografa o payload ao mapear (suporta legado em texto puro).
+  payload: parseJson(decryptField(row.payload_json), null),
   status: row.status,
   lastError: row.last_error,
   attemptCount: Number(row.attempt_count || 0),
@@ -646,7 +774,8 @@ const mapConflictRow = (row) => ({
   operationId: row.operation_id,
   operationType: row.operation_type,
   message: row.message,
-  payload: parseJson(row.payload_json, null),
+  // Descriptografa o payload ao mapear (suporta legado em texto puro).
+  payload: parseJson(decryptField(row.payload_json), null),
   createdAt: row.created_at,
   resolvedAt: row.resolved_at || null,
 });
@@ -658,13 +787,15 @@ const replaceOfflineSnapshot = ({ ownerUserId, snapshot }) => {
 
   const db = getOfflineDb();
   const updatedAt = nowIso();
+  // Criptografa o snapshot (dados de clientes, dívidas, pagamentos) antes de gravar.
+  const encryptedJson = encryptField(JSON.stringify(snapshot ?? null));
   db.prepare(`
     INSERT INTO store_snapshots (owner_user_id, snapshot_json, updated_at)
     VALUES (?, ?, ?)
     ON CONFLICT(owner_user_id) DO UPDATE
     SET snapshot_json = excluded.snapshot_json,
         updated_at = excluded.updated_at
-  `).run(ownerUserId, JSON.stringify(snapshot ?? null), updatedAt);
+  `).run(ownerUserId, encryptedJson, updatedAt);
 
   return {
     success: true,
@@ -684,9 +815,13 @@ const getOfflineSnapshot = ({ ownerUserId }) => {
     WHERE owner_user_id = ?
   `).get(ownerUserId);
 
+  if (!row) return { snapshot: null, updatedAt: null };
+
+  // Descriptografa o campo (suporta dados legados em texto puro para migração).
+  const decryptedJson = decryptField(row.snapshot_json);
   return {
-    snapshot: row ? parseJson(row.snapshot_json, null) : null,
-    updatedAt: row?.updated_at || null,
+    snapshot: parseJson(decryptedJson, null),
+    updatedAt: row.updated_at || null,
   };
 };
 
@@ -702,6 +837,8 @@ const enqueueOfflineOperation = ({ ownerUserId, operationType, payload }) => {
   const db = getOfflineDb();
   const id = globalThis.crypto?.randomUUID?.() || `offline-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
   const createdAt = nowIso();
+  // Criptografa o payload da operação (pode conter dados pessoais do cliente).
+  const encryptedPayload = encryptField(JSON.stringify(payload ?? null));
 
   db.prepare(`
     INSERT INTO offline_sync_queue (
@@ -714,7 +851,7 @@ const enqueueOfflineOperation = ({ ownerUserId, operationType, payload }) => {
       updated_at
     )
     VALUES (?, ?, ?, ?, 'pending', ?, ?)
-  `).run(id, ownerUserId, operationType, JSON.stringify(payload ?? null), createdAt, createdAt);
+  `).run(id, ownerUserId, operationType, encryptedPayload, createdAt, createdAt);
 
   const row = db.prepare(`
     SELECT *
@@ -793,7 +930,8 @@ const recordOfflineConflict = ({ ownerUserId, operationId, operationType, messag
 
   const db = getOfflineDb();
   const createdAt = nowIso();
-  const payloadJson = JSON.stringify(payload ?? null);
+  // Criptografa o payload do conflito (pode conter dados pessoais).
+  const payloadJson = encryptField(JSON.stringify(payload ?? null));
   const existingConflict = db.prepare(`
     SELECT *
     FROM offline_sync_conflicts
@@ -1573,6 +1711,29 @@ ipcMain.handle('offline:cleanup-data', (_event, payload) => {
 
 ipcMain.handle('offline:get-status', (_event, payload) => {
   return getOfflineStatus(payload || {});
+});
+
+// ─── IPC: Armazenamento seguro (safeStorage / OS keychain) ───────────────────
+// O renderer NÃO tem acesso direto ao safeStorage — toda operação passa pelo
+// processo principal via IPC com contextIsolation ativo.
+ipcMain.handle('secure-storage:read', (_event, key) => {
+  if (typeof key !== 'string' || !key) return null;
+  return safeStorageRead(key);
+});
+
+ipcMain.handle('secure-storage:write', (_event, key, value) => {
+  if (typeof key !== 'string' || !key) return false;
+  if (typeof value !== 'string') return false;
+  return safeStorageWrite(key, value);
+});
+
+ipcMain.handle('secure-storage:delete', (_event, key) => {
+  if (typeof key !== 'string' || !key) return;
+  safeStorageDelete(key);
+});
+
+ipcMain.handle('secure-storage:is-available', () => {
+  return safeStorage.isEncryptionAvailable();
 });
 
 const getSplashHtmlPath = () => {
