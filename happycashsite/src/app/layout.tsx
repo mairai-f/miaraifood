@@ -58,6 +58,14 @@ export const metadata: Metadata = {
         description:
             'Simplifique sua empresa com um ERP completo para vendas, estoque, clientes e gestão financeira.',
         siteName: 'HappyCash ERP',
+        images: [
+            {
+                url: '/assets/happycashlogonovo.png',
+                width: 1200,
+                height: 630,
+                alt: 'HappyCash ERP - Gestão Inteligente para Negócios',
+            },
+        ],
     },
     twitter: {
         card: 'summary_large_image',
@@ -65,6 +73,7 @@ export const metadata: Metadata = {
         description:
             'Controle sua empresa de forma simples, rápida e inteligente.',
         creator: '@happycasherp',
+        images: ['/assets/happycashlogonovo.png'],
     },
     robots: {
         index: true,
