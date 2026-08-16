@@ -1,10 +1,18 @@
+// ============================================================
+// SEÇÃO DE PLANOS — src/components/sections/PricingSection.tsx
+// Responsabilidade: Exibe os cards de planos de assinatura do HappyCash
+// Usado em: src/app/page.tsx (página inicial) e src/app/planos/page.tsx
+// Planos exibidos: Demo (grátis 3 dias), Completo (mensal/anual), PRO (mensal/anual)
+// Os dados dos planos (preço, features) vêm de: src/lib/subscriptionPlans.ts
+// ============================================================
+
 import React, { useState } from "react";
-import { motion } from "framer-motion";
-import { Check, Crown, Zap } from "lucide-react";
+import { motion } from "framer-motion"; // Animações de entrada (fade + slide) ao rolar a página
+import { Check, Crown, Zap } from "lucide-react"; // Ícones dos badges e checkmarks
 import Link from "next/link";
-import { publicPlanList } from "@/lib/subscriptionPlans";
-import { Meteors } from "@/components/ui/meteors";
-import { cn } from "@/lib/utils";
+import { publicPlanList } from "@/lib/subscriptionPlans"; // Lista de planos públicos (sem dados sensíveis)
+import { Meteors } from "@/components/ui/meteors"; // Efeito visual de meteoros no card PRO
+import { cn } from "@/lib/utils"; // Utilitário para mesclar classes CSS condicionalmente
 
 const PricingSection = () => {
   const [isAnnual, setIsAnnual] = useState(false);
