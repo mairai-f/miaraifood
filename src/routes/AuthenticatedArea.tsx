@@ -176,7 +176,7 @@ function ProtectedRoute({
 
   if (shouldBlockAccess) {
     if (shouldShowSplash) {
-      return <SplashScreen progress={100} />;
+      return <SplashScreen />;
     }
 
     return <FullScreenLoader />;

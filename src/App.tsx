@@ -185,12 +185,7 @@ function AppRoutes() {
   }, [desktopUpdateAutoInstallStarted, desktopUpdateStatus?.status, isDesktop, showSplash]);
 
   if ((showSplash && !isAuthenticated) || mustShowDesktopStartupSplash) {
-    return (
-      <SplashScreen
-        progress={progress}
-        updateStatus={desktopUpdateSplashSummary}
-      />
-    );
+    return <SplashScreen />;
   }
 
   return (
