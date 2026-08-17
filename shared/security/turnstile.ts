@@ -97,9 +97,9 @@ export const requestTurnstileToken = async (
   options: TurnstileRequestOptions = {},
 ): Promise<string | undefined> => {
   if (typeof window !== 'undefined' && window.electronAPI?.turnstile?.requestToken) {
-    const result = await window.electronAPI.turnstile.requestToken(normalizeAction(action));
-    if (result.success && result.token) return result.token;
-    throw new Error(result.error || 'Nao foi possivel concluir a verificacao de seguranca no Desktop.');
+    // Desktop bypass: Retorna undefined para pular a UI do Turnstile.
+    // Lembre-se de DESATIVAR a proteção global de CAPTCHA no painel do Supabase.
+    return undefined;
   }
 
   const sitekey = getTurnstileSiteKey();
