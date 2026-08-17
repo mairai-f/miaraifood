@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+!<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
@@ -32,17 +32,72 @@
             backface-visibility: hidden;
             image-rendering: high-quality;
         }
+        .skip-hint {
+            position: absolute;
+            bottom: 40px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: rgba(255, 255, 255, 0.85);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            font-size: 16px;
+            font-weight: 500;
+            letter-spacing: 0.5px;
+            pointer-events: none;
+            opacity: 0;
+            animation: fadeIn 1s ease-in-out 1.5s forwards;
+            background: rgba(0, 0, 0, 0.4);
+            padding: 10px 20px;
+            border-radius: 8px;
+            backdrop-filter: blur(4px);
+        }
+        .skip-hint kbd {
+            background-color: rgba(255, 255, 255, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 4px;
+            padding: 3px 8px;
+            font-family: monospace;
+            font-size: 15px;
+            margin: 0 4px;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translate(-50%, 10px); }
+            to { opacity: 1; transform: translate(-50%, 0); }
+        }
     </style>
 </head>
-<body>
-    <video autoplay muted playsinline id="splash-video">
+<body tabindex="0">
+    <video autoplay playsinline id="splash-video">
         <source src="HappyCash_splash_screen_video_202608121950.mp4" type="video/mp4">
     </video>
+    <div class="skip-hint">Pressione <kbd>Espaço</kbd> para pular</div>
     <script>
         const video = document.getElementById('splash-video');
         video.addEventListener('ended', () => {
             window.close(); // Fecha a janela do Electron assim que o vídeo acaba
         });
+
+        const skipSplash = (e) => {
+            if (e && e.type && e.type.startsWith('key')) {
+                // Verifica se foi a barra de espaço
+                if (e.key !== " " && e.code !== "Space" && e.keyCode !== 32) {
+                    return;
+                }
+            }
+            if (e) {
+                e.preventDefault();
+                e.stopPropagation();
+            }
+            window.close();
+        };
+
+        // Usa 'true' para o Capture Phase, pegando o evento antes de qualquer elemento
+        window.addEventListener('keydown', skipSplash, true);
+        window.addEventListener('keyup', skipSplash, true);
+        window.addEventListener('click', skipSplash, true);
+        
+        // Garante que o body possa receber eventos de teclado
+        document.body.focus();
+        window.focus();
     </script>
 </body>
 </html>

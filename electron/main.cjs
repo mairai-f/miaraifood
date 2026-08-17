@@ -2,7 +2,7 @@ const path = require('path');
 const fs = require('fs');
 const { createCipheriv, createDecipheriv, randomBytes } = require('crypto');
 const { DatabaseSync } = require('node:sqlite');
-const { app, BrowserWindow, ipcMain, safeStorage, shell } = require('electron');
+const { app, BrowserWindow, ipcMain, safeStorage, shell, globalShortcut } = require('electron');
 const { autoUpdater } = require('electron-updater');
 const { requestDesktopTurnstileToken } = require('./desktop-turnstile.cjs');
 
@@ -1768,6 +1768,7 @@ const createSplashWindow = () => {
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
+      autoplayPolicy: 'no-user-gesture-required',
     },
   });
 
@@ -1784,6 +1785,29 @@ app.whenReady().then(() => {
 
   const splashWindow = createSplashWindow();
 
+  // Força o foco para a janela no sistema operacional
+  if (splashWindow.show) splashWindow.show();
+  if (splashWindow.focus) splashWindow.focus();
+  
+  const skipSplashNative = () => {
+    if (!splashWindow.isDestroyed()) {
+      splashWindow.close();
+    }
+  };
+
+  // 1. Tenta atalho global (pode falhar no Wayland)
+  try {
+    globalShortcut.register('Space', skipSplashNative);
+  } catch (e) {}
+
+  // 2. Intercepta o teclado nativamente antes mesmo de chegar no HTML
+  splashWindow.webContents.on('before-input-event', (event, input) => {
+    if (input.code === 'Space' || input.key === ' ' || input.key === 'Space') {
+      event.preventDefault();
+      skipSplashNative();
+    }
+  });
+
   // Load the main window in background
   createMainWindow()
     .then((mainWindow) => {
@@ -1795,11 +1819,11 @@ app.whenReady().then(() => {
       const showMain = () => {
         if (hasShownMain) return;
         hasShownMain = true;
+        globalShortcut.unregister('Space');
         if (!mainWindow.isDestroyed()) {
           mainWindow.show();
         }
       };
-
       splashWindow.on('closed', showMain);
       
       // Fallback de segurança máxima de 10s caso a API de vídeo falhe
