@@ -50,14 +50,23 @@ const toTimestamp = (value: string | null | undefined) => {
   return Number.isFinite(parsed) ? parsed : null;
 };
 
-// A permissão offline agora é baseada na validade real do plano (validUntil).
-// Se o plano não tem data de expiração definida (vitalício/ilimitado), a licença offline não expira por tempo.
+// A permissão offline agora usa uma "Janela Deslizante" de 14 dias para forçar a sincronização,
+// garantindo que o sistema seja validado periodicamente (mitigando fraudes/estornos),
+// sendo limitada pela validade real do plano (validUntil).
 const buildValidationExpiresAt = (payload: {
   validUntil: string | null;
   validatedAt?: string | null;
 }) => {
-  if (!payload.validUntil) return null;
-  return new Date(payload.validUntil).toISOString();
+  const validatedAtTime = payload.validatedAt ? new Date(payload.validatedAt).getTime() : Date.now();
+  const slidingWindowEnd = validatedAtTime + 14 * 24 * 60 * 60 * 1000;
+
+  if (!payload.validUntil) {
+    return new Date(slidingWindowEnd).toISOString();
+  }
+
+  const validUntilTime = new Date(payload.validUntil).getTime();
+  const actualExpiration = Math.min(validUntilTime, slidingWindowEnd);
+  return new Date(actualExpiration).toISOString();
 };
 
 const readCachedLicense = async (userId: string) => {
