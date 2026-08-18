@@ -1,3 +1,10 @@
+/*
+  Login.tsx – página de autenticação principal do HappyCash.
+  - Gerencia login de Administrador (online/offline) e Operador.
+  - Utiliza o hook useAuth (AuthContext) para realizar chamadas ao Supabase.
+  - Integração com Electron via IPC (offline/online status, licença).
+  - Fluxos de login e recuperação de credenciais são detalhados nos diagramas UML.
+*/
 import { useEffect, useState, type FormEvent } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { useAuth } from '@/contexts/AuthContext';
@@ -68,6 +75,10 @@ const loginFeatureCards = [
 
 const HAPPY_CASH_SITE_RECOVERY_URL = 'https://www.happycashsite.com.br/login?recovery=1';
 
+/*
+  Componente Login – ponto de entrada da UI de autenticação.
+  Inicializa estados de preferência, modo de login e verifica status online/offline.
+*/
 export default function Login() {
   const initialPreferences = getSystemLoginPreferences();
   const desktopActivation = readDesktopActivation();
@@ -139,7 +150,13 @@ export default function Login() {
     }
   }, [isOnline, offlineAdminAvailable]);
 
-  const handleAdminSubmit = async (e: FormEvent) => {
+  /*
+  handleAdminSubmit – trata o envio do formulário de login do Administrador.
+  - Salva preferências de login.
+  - Executa login offline (PIN) ou online (email/senha) via Supabase.
+  - Em caso de verificação adicional, solicita código de acesso.
+*/
+const handleAdminSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (submitting) return;
 
@@ -184,7 +201,12 @@ export default function Login() {
     }
   };
 
-  const handleOperatorSubmit = async (e: FormEvent) => {
+  /*
+  handleOperatorSubmit – trata o envio do formulário de login do Operador.
+  - Usa loginOperator do AuthContext para autenticação via Supabase.
+  - Aplica preferências de manter conectado.
+*/
+const handleOperatorSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (submitting) return;
 
@@ -353,7 +375,12 @@ export default function Login() {
     toast.success(`Acesso de ${data.operator.username} recuperado. Informe o novo PIN para entrar.`);
   };
 
-  return (
+  /*
+  Renderiza a interface de login com animações, tabs para Admin/Operador,
+  e botões de login Google/OAuth.
+  O layout inclui efeitos de glassmorphism e background dinâmico.
+*/
+return (
     <div className="relative min-h-[100dvh] flex items-center justify-center bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-[#0b64d3] via-[#054397] to-[#011c47] overflow-hidden px-4">
       {/* Background 3D/Glass Blobs (CSS Simulation) */}
       <div className="absolute top-[10%] left-[20%] w-64 h-64 bg-cyan-400/20 rounded-full blur-3xl mix-blend-screen pointer-events-none" />
