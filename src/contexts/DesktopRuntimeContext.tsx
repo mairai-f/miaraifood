@@ -2,7 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useState, type React
 
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
-import { clearDesktopActivation, readDesktopActivation } from '@/lib/desktopActivation';
+import { clearDesktopActivation, readDesktopActivation, loadDesktopActivation } from '@/lib/desktopActivation';
 import { isProbablyOfflineError } from '@/lib/offlineConcentrator';
 import { secureStorage } from '@/lib/secureStorage';
 import { getPublicErrorMessage } from '../../shared/security/redaction';
@@ -276,7 +276,11 @@ export function DesktopRuntimeProvider({ children }: { children: ReactNode }) {
   }, [authLoading, isLocalOfflineSession, ownerUserId, resetState, session?.access_token, user]);
 
   useEffect(() => {
-    void refresh();
+    let active = true;
+    void loadDesktopActivation().then(() => {
+      if (active) void refresh();
+    });
+    return () => { active = false; };
   }, [refresh]);
 
   return (
