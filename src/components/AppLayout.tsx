@@ -383,7 +383,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (
-      !isMobileApp
+      !isLocalRuntime
       || !user?.id
       || !ownerUserId
       || !session?.access_token
