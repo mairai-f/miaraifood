@@ -50,15 +50,13 @@ const toTimestamp = (value: string | null | undefined) => {
   return Number.isFinite(parsed) ? parsed : null;
 };
 
-// A permissão offline agora usa uma "Janela Deslizante" de 14 dias para forçar a sincronização,
-// garantindo que o sistema seja validado periodicamente (mitigando fraudes/estornos),
-// sendo limitada pela validade real do plano (validUntil).
 const buildValidationExpiresAt = (payload: {
   validUntil: string | null;
   validatedAt?: string | null;
 }) => {
   const validatedAtTime = payload.validatedAt ? new Date(payload.validatedAt).getTime() : Date.now();
-  const slidingWindowEnd = validatedAtTime + 14 * 24 * 60 * 60 * 1000;
+  // 30 days plan + 5 days tolerance = 35 days
+  const slidingWindowEnd = validatedAtTime + 35 * 24 * 60 * 60 * 1000;
 
   if (!payload.validUntil) {
     return new Date(slidingWindowEnd).toISOString();
@@ -156,7 +154,7 @@ export function DesktopRuntimeProvider({ children }: { children: ReactNode }) {
       if (cachedLicense && cachedLicenseStillValid) {
         const validatedAt = cachedLicense.validatedAt || new Date().toISOString();
         setLicensed(true);
-        setOfflineEnabled(Boolean(cachedLicense.offlineEnabled));
+        setOfflineEnabled(true);
         setValidUntil(cachedLicense.validUntil ?? null);
         setValidationExpiresAt(cachedValidationExpiresAt);
         setUsingOfflineValidationCache(true);
@@ -168,7 +166,7 @@ export function DesktopRuntimeProvider({ children }: { children: ReactNode }) {
           writeCachedLicense(user.id, {
             planId: cachedLicense.planId ?? null,
             validUntil: cachedLicense.validUntil ?? null,
-            offlineEnabled: Boolean(cachedLicense.offlineEnabled),
+            offlineEnabled: true,
             validatedAt,
           });
         }
@@ -176,11 +174,11 @@ export function DesktopRuntimeProvider({ children }: { children: ReactNode }) {
       }
 
       const expiredMessage = cachedValidationExpiresAt
-        ? `A licença do plano expirou. Conecte o HappyCash à internet para renovar a assinatura do ${localRuntimeLabel}.`
+        ? `Não foi possível validar sua assinatura há 35 dias. Conecte este computador à internet para continuar utilizando o HappyCash.`
         : `Este ${localRuntimeLabel} ainda não possui uma validação de licença pronta para uso.`;
 
       setLicensed(false);
-      setOfflineEnabled(Boolean(cachedLicense?.offlineEnabled));
+      setOfflineEnabled(true);
       setValidUntil(cachedLicense?.validUntil ?? null);
       setValidationExpiresAt(cachedValidationExpiresAt);
       setUsingOfflineValidationCache(false);
@@ -192,7 +190,7 @@ export function DesktopRuntimeProvider({ children }: { children: ReactNode }) {
     };
 
     if (!session?.access_token) {
-      if (isLocalOfflineSession) {
+      if (isLocalOfflineSession || typeof navigator !== 'undefined' && navigator.onLine === false) {
         await applyCachedOfflineLicense();
         return;
       }
@@ -211,7 +209,12 @@ export function DesktopRuntimeProvider({ children }: { children: ReactNode }) {
 
     setChecking(true);
 
+    // Online verification: update local cache, but don't block based on desktop-license RPC alone
+    // if we are running in the desktop/app, we consider it licensed and offlineEnabled permanently
     const desktopActivation = isDesktopRuntime ? readDesktopActivation() : null;
+    let validatedAt = new Date().toISOString();
+    
+    // We can still optionally check with the server just to update the validUntil date
     const { data, error: invokeError } = await supabase.functions.invoke<DesktopLicenseResponse>('desktop-license', {
       headers: {
         Authorization: `Bearer ${session.access_token}`,
@@ -221,106 +224,53 @@ export function DesktopRuntimeProvider({ children }: { children: ReactNode }) {
         desktopStoreAccountId: desktopActivation?.storeAccountId ?? null,
         desktopAppContext: isMobileAppRuntime ? 'mobile' : desktopActivation?.appContext ?? 'happycash',
       },
-    });
+    }).catch(() => ({ data: null, error: new Error('Network error') }));
 
-    if (invokeError || !data?.licensed) {
-      const cachedLicense = await readRuntimeCachedLicense();
-      const cachedValidationExpiresAt = cachedLicense ? buildValidationExpiresAt(cachedLicense) : null;
-      const cachedLicenseStillValid = Boolean(
-        !cachedValidationExpiresAt
-        || (toTimestamp(cachedValidationExpiresAt) && toTimestamp(cachedValidationExpiresAt)! > Date.now())
-      );
-      const canUseCachedLicense = Boolean(cachedLicenseStillValid) && (
-        (typeof navigator !== 'undefined' && navigator.onLine === false)
-        || isProbablyOfflineError(invokeError)
-      );
+    if (invokeError) {
+      // If server check fails due to network, trust our offline logic
+      // up to 35 days from the last successful validation
+      const offlineResult = await applyCachedOfflineLicense();
+      if (offlineResult) return;
+    }
 
-      if (canUseCachedLicense && cachedLicenseStillValid) {
-        const validatedAt = cachedLicense?.validatedAt || new Date().toISOString();
-        setLicensed(true);
-        setOfflineEnabled(Boolean(cachedLicense.offlineEnabled));
-        setValidUntil(cachedLicense.validUntil ?? null);
-        setValidationExpiresAt(cachedValidationExpiresAt);
-        setUsingOfflineValidationCache(true);
-        setPlanId(cachedLicense.planId ?? null);
-        setError(null);
-        setCode('OFFLINE_LICENSE_CACHE');
-        setChecking(false);
-        if (!cachedLicense.validatedAt) {
-          writeCachedLicense(user.id, {
-            planId: cachedLicense.planId ?? null,
-            validUntil: cachedLicense.validUntil ?? null,
-            offlineEnabled: Boolean(cachedLicense.offlineEnabled),
-            validatedAt,
-          });
-        }
-        return;
-      }
-
-      let message = data?.error || `Nao foi possivel validar sua licenca do ${localRuntimeLabel} agora.`;
-      let nextCode = data?.code || null;
-      const shouldPreferOfflineValidationMessage = Boolean(cachedLicense)
-        && (((typeof navigator !== 'undefined' && navigator.onLine === false) || isProbablyOfflineError(invokeError)));
-
-      if (
-        shouldPreferOfflineValidationMessage
-        && cachedValidationExpiresAt
-        && toTimestamp(cachedValidationExpiresAt)
-        && toTimestamp(cachedValidationExpiresAt)! <= Date.now()
-      ) {
-        message = `A licença do plano expirou. Conecte o HappyCash à internet para renovar a assinatura do ${localRuntimeLabel}.`;
-        nextCode = 'OFFLINE_VALIDATION_EXPIRED';
-      }
-
-      if (invokeError && typeof invokeError === 'object' && 'context' in invokeError && invokeError.context instanceof Response) {
-        try {
-          const errorPayload = await invokeError.context.clone().json() as DesktopLicenseResponse;
-          message = errorPayload.error || message;
-          nextCode = errorPayload.code || nextCode;
-          setPlanId(errorPayload.planId ?? null);
-          setValidUntil(errorPayload.validUntil ?? null);
-          setOfflineEnabled(Boolean(errorPayload.offlineEnabled));
-        } catch {
-          message = invokeError.context.status === 401
-            ? 'Sua sessao expirou. Entre novamente para continuar.'
-            : message;
-        }
-      } else {
-        setPlanId(data?.planId ?? null);
-        setValidUntil(data?.validUntil ?? null);
-        setOfflineEnabled(Boolean(data?.offlineEnabled));
-      }
-
-      if (nextCode === 'DESKTOP_ACTIVATION_REVOKED') {
-        clearDesktopActivation();
-      }
-
+    if (!data?.licensed) {
+      // Server explicitly rejected (plan expired, revoked, etc): block immediately
       setLicensed(false);
-      setError(getPublicErrorMessage(message, `Nao foi possivel validar sua licenca do ${localRuntimeLabel} agora.`));
-      setCode(nextCode);
-      setValidationExpiresAt(cachedValidationExpiresAt);
+      setOfflineEnabled(false);
+      setValidUntil(data?.validUntil ?? null);
+      setValidationExpiresAt(null);
       setUsingOfflineValidationCache(false);
+      setPlanId(data?.planId ?? null);
+      let message = data?.error || `Nao foi possivel validar sua licenca do ${localRuntimeLabel} agora.`;
+      setError(message);
+      setCode(data?.code || 'LICENSE_REJECTED');
       setChecking(false);
+      // Clear offline cache to prevent offline evasion
+      writeCachedLicense(user.id, {
+        planId: null,
+        validUntil: null,
+        offlineEnabled: false,
+        validatedAt: null,
+      });
       return;
     }
 
-    const validatedAt = new Date().toISOString();
     setLicensed(true);
-    setOfflineEnabled(Boolean(data.offlineEnabled));
-    setValidUntil(data.validUntil ?? null);
+    setOfflineEnabled(true);
+    setValidUntil(data?.validUntil ?? null);
     setValidationExpiresAt(buildValidationExpiresAt({
-      validUntil: data.validUntil ?? null,
+      validUntil: data?.validUntil ?? null,
       validatedAt,
     }));
     setUsingOfflineValidationCache(false);
-    setPlanId(data.planId ?? null);
+    setPlanId(data?.planId ?? null);
     setError(null);
     setCode(null);
     setChecking(false);
     writeCachedLicense(user.id, {
-      planId: data.planId ?? null,
-      validUntil: data.validUntil ?? null,
-      offlineEnabled: Boolean(data.offlineEnabled),
+      planId: data?.planId ?? null,
+      validUntil: data?.validUntil ?? null,
+      offlineEnabled: true,
       validatedAt,
     });
   }, [authLoading, isLocalOfflineSession, ownerUserId, resetState, session?.access_token, user]);

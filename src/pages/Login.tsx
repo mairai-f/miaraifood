@@ -9,6 +9,7 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { useAuth } from '@/contexts/AuthContext';
 import { motion } from 'framer-motion';
+import { NeuroNoise } from '@paper-design/shaders-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -381,12 +382,20 @@ const handleOperatorSubmit = async (e: FormEvent) => {
   O layout inclui efeitos de glassmorphism e background dinâmico.
 */
 return (
-    <div className="relative min-h-[100dvh] flex items-center justify-center bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-[#0b64d3] via-[#054397] to-[#011c47] overflow-hidden px-4">
-      {/* Background 3D/Glass Blobs (CSS Simulation) */}
-      <div className="absolute top-[10%] left-[20%] w-64 h-64 bg-cyan-400/20 rounded-full blur-3xl mix-blend-screen pointer-events-none" />
-      <div className="absolute bottom-[20%] right-[15%] w-80 h-80 bg-blue-500/30 rounded-full blur-3xl mix-blend-screen pointer-events-none" />
-      <div className="absolute top-[40%] right-[30%] w-32 h-32 border-[16px] border-white/10 rounded-full backdrop-blur-sm pointer-events-none" />
-      <div className="absolute bottom-[30%] left-[25%] w-48 h-48 border-[24px] border-white/5 rounded-full backdrop-blur-md pointer-events-none" />
+    <div className="relative min-h-[100dvh] flex items-center justify-center overflow-hidden px-4 bg-black">
+      <div className="absolute inset-0 z-0 pointer-events-none">
+        <NeuroNoise
+          width="100vw"
+          height="100vh"
+          colorFront="#ffffff"
+          colorMid="#47a6ff"
+          colorBack="#000000"
+          brightness={0.04}
+          contrast={0.86}
+          speed={1}
+          scale={1.16}
+        />
+      </div>
 
       <motion.div
         initial={{ opacity: 0, scale: 0.97, y: 20 }}

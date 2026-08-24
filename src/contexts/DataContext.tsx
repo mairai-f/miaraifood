@@ -4079,6 +4079,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
     const ticket = serviceTickets.find(currentTicket => currentTicket.id === ticketId);
     if (!ticket) throw new Error('Comanda nao encontrada.');
 
+    const hasItems = serviceTicketItems.some(item => item.ticket_id === ticketId);
+    if (hasItems) {
+      throw new Error('Não é possível excluir uma comanda que possui itens vinculados.');
+    }
+
     const { error } = await db
       .from('service_tickets')
       .delete()

@@ -179,15 +179,11 @@ function AppRoutes() {
   useEffect(() => {
     if (!isDesktop || !desktopUpdateStatus) return;
     
-    if (desktopUpdateStatus.status === 'checking') {
-      toast.loading('Buscando atualizações...', { id: 'desktop-update', duration: 30000 });
-    } else if (desktopUpdateStatus.status === 'downloading') {
-      toast.loading('Baixando nova versão em segundo plano...', { id: 'desktop-update', duration: 60000 });
-    } else if (desktopUpdateStatus.status === 'downloaded' || desktopUpdateStatus.status === 'installing') {
+    if (desktopUpdateStatus.status === 'downloaded' || desktopUpdateStatus.status === 'installing') {
       toast.loading('Atualização pronta! Instalando e reiniciando...', { id: 'desktop-update', duration: 10000 });
     } else if (desktopUpdateStatus.status === 'error' || desktopUpdateStatus.status === 'download-failed') {
       toast.error('Não foi possível baixar a atualização. O sistema continuará na versão atual.', { id: 'desktop-update', duration: 5000 });
-    } else if (desktopUpdateStatus.status === 'up-to-date') {
+    } else if (desktopUpdateStatus.status === 'up-to-date' || desktopUpdateStatus.status === 'idle') {
       toast.dismiss('desktop-update');
     }
   }, [desktopUpdateStatus?.status, isDesktop]);

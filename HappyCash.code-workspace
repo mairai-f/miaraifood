@@ -11,6 +11,9 @@
 		{
 			"name": "skills-main",
 			"path": "../Downloads/skills-main"
+		},
+		{
+			"path": "../Documentos/petclinics-main"
 		}
 	],
 	"settings": {}
