@@ -1,0 +1,54 @@
+version: "3.9"
+
+services:
+  # Frontend compiled with Dockerfile (serves via Nginx)
+  frontend:
+    build:
+      context: ./docker
+      dockerfile: Dockerfile
+    ports:
+      - "8080:80"
+    environment:
+      - VITE_SUPABASE_URL=${SUPABASE_URL}
+      - VITE_SUPABASE_KEY=${SUPABASE_KEY}
+    volumes:
+      - ./md/images:/usr/share/nginx/html/images   # serve diagram images
+    restart: unless-stopped
+
+  # Mock Supabase (PostgreSQL) for local dev/testing
+  supabase:
+    image: supabase/postgres:14
+    environment:
+      POSTGRES_PASSWORD: secret
+      POSTGRES_DB: happycash
+    ports:
+      - "5432:5432"
+    restart: unless-stopped
+
+  # Mock TEF provider (simple Node Express server)
+  tef-mock:
+    image: node:20-alpine
+    working_dir: /app
+    volumes:
+      - ./tef-mock:/app
+    command: "node server.js"
+    ports:
+      - "3001:3001"
+    restart: unless-stopped
+
+  # Electron development (uses host display, so runs on host, not container in CI)
+  # Provided for completeness – optional.
+  electron:
+    image: node:20-alpine
+    working_dir: /app
+    volumes:
+      - ./:/app
+    command: "npm run electron:dev"
+    environment:
+      - ELECTRON_ENABLE_LOGGING=1
+    stdin_open: true
+    tty: true
+
+networks:
+  default:
+    driver: bridge

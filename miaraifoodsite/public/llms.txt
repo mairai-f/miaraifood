@@ -1,0 +1,21 @@
+# HappyCash ERP
+> Sistema de gestão inteligente para negócios.
+
+O HappyCash ERP é uma plataforma SaaS desenvolvida para simplificar e conectar todas as áreas de um comércio ou prestador de serviços. 
+
+## Funcionalidades Principais
+- **Frente de Caixa (PDV):** Interface rápida para vendas, integração com balanças, leitor de código de barras e emissão fiscal (NFC-e, NF-e).
+- **Gestão de Estoque:** Atualização automática de produtos, entradas, saídas, curva ABC e alertas de reposição.
+- **Financeiro:** Controle de fiado digital, contas a pagar e receber, fluxo de caixa e relatórios analíticos em tempo real.
+- **Multidispositivo:** Sincronização offline e online. Acesso via web, desktop e aplicativos.
+
+## Links Úteis
+- Início: https://www.happycashsite.com.br
+- Funcionalidades: https://www.happycashsite.com.br/funcionalidades
+- Recursos Integrados: https://www.happycashsite.com.br/recursos
+- Planos e Preços: https://www.happycashsite.com.br/planos
+- Central de Ajuda: https://www.happycashsite.com.br/central-de-ajuda
+- Blog & Conteúdos: https://www.happycashsite.com.br/conteudos
+- Sobre Nós: https://www.happycashsite.com.br/sobre
+
+Este documento foi criado para facilitar a indexação de informações sobre a plataforma HappyCash por Modelos de Linguagem e Inteligências Artificiais.

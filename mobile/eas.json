@@ -1,0 +1,33 @@
+{
+  "cli": {
+    "version": ">= 13.0.0",
+    "appVersionSource": "remote"
+  },
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "env": {
+        "EXPO_PUBLIC_HAPPYCASH_WEB_URL": "https://app.happycashsite.com.br"
+      }
+    },
+    "preview": {
+      "android": {
+        "buildType": "apk"
+      },
+      "distribution": "internal",
+      "env": {
+        "EXPO_PUBLIC_HAPPYCASH_WEB_URL": "https://app.happycashsite.com.br"
+      }
+    },
+    "production": {
+      "autoIncrement": true,
+      "env": {
+        "EXPO_PUBLIC_HAPPYCASH_WEB_URL": "https://app.happycashsite.com.br"
+      }
+    }
+  },
+  "submit": {
+    "production": {}
+  }
+}

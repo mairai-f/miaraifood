@@ -1,0 +1,52 @@
+const OPERATOR_PIN_PATTERN = /^\d{6,8}$/;
+const LEGACY_OPERATOR_AUTH_PIN_PREFIX = "happycash-operator-pin-v1";
+
+export const operatorCredentialHint = "Use somente numeros, com PIN de 6 a 8 digitos.";
+
+export const isOperatorPin = (value: string) => OPERATOR_PIN_PATTERN.test(value.trim());
+
+const normalizeOperatorCredentialUsername = (value: string) => value.trim().toLowerCase();
+
+const resolveLegacyOperatorAuthPassword = (username: string, value: string) =>
+  `${LEGACY_OPERATOR_AUTH_PIN_PREFIX}:${normalizeOperatorCredentialUsername(username)}:${value}`;
+
+export const resolveOperatorAuthPassword = (username: string, value: string) => {
+  const normalizedValue = value.trim();
+  if (!isOperatorPin(normalizedValue)) {
+    return normalizedValue;
+  }
+
+  return normalizedValue;
+};
+
+export const buildOperatorAuthPasswordCandidates = (username: string, value: string) => {
+  const normalizedValue = value.trim();
+  if (!normalizedValue) return [];
+
+  if (!isOperatorPin(normalizedValue)) {
+    return [normalizedValue];
+  }
+
+  return [
+    resolveOperatorAuthPassword(username, normalizedValue),
+    resolveLegacyOperatorAuthPassword(username, normalizedValue),
+  ];
+};
+
+export const getOperatorCredentialError = (value: string) => {
+  const normalizedValue = value.trim();
+
+  if (!normalizedValue) {
+    return "Informe o PIN do operador.";
+  }
+
+  if (isOperatorPin(normalizedValue)) {
+    return null;
+  }
+
+  if (!/^\d+$/.test(normalizedValue)) {
+    return "O PIN do operador deve ter somente numeros.";
+  }
+
+  return "O PIN do operador deve ter de 6 a 8 digitos.";
+};

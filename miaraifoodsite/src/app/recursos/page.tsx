@@ -1,0 +1,274 @@
+'use client';
+
+import { useRef, useState, useEffect } from 'react';
+import { motion, useScroll, useTransform, useMotionValue } from 'framer-motion';
+import { useTranslations } from 'next-intl';
+import { HardSkills } from '@/components/sections/skills/HardSkills';
+import { cn } from '@/lib/utils';
+import { DeferredMount } from '@/components/ui/DeferredMount';
+
+
+
+function TechSchematic() {
+    return (
+        <div className="absolute inset-0 z-0 pointer-events-none">
+            {/* Minimal atmospheric overlay instead of grid */}
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(var(--primary-rgb),0.05)_0%,transparent_50%)]" />
+            {/* Architectural Callouts */}
+            <motion.div
+                initial={{ opacity: 0, x: 20 }}
+                whileInView={{ opacity: 0.2, x: 0 }}
+                viewport={{ once: true }}
+                transition={{ duration: 1, delay: 0.5 }}
+                className="absolute top-20 right-20 font-mono text-[8px] uppercase tracking-[0.5em] text-primary/20 rotate-90 origin-right select-none"
+            >
+
+            </motion.div>
+        </div>
+    );
+}
+
+function Bubble({ b, mouseX, mouseY }: { b: any, mouseX: any, mouseY: any }) {
+    const ref = useRef<HTMLDivElement>(null);
+    const [center, setCenter] = useState({ x: 0, y: 0 });
+
+    useEffect(() => {
+        const updateCenter = () => {
+            if (!ref.current) return;
+            const rect = ref.current.getBoundingClientRect();
+            setCenter({ x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 });
+        };
+        updateCenter();
+        window.addEventListener('resize', updateCenter);
+        window.addEventListener('scroll', updateCenter);
+        return () => {
+            window.removeEventListener('resize', updateCenter);
+            window.removeEventListener('scroll', updateCenter);
+        };
+    }, []);
+
+    const proximity = useTransform([mouseX, mouseY], ([x, y]) => {
+        const d = Math.sqrt(Math.pow((x as number) - center.x, 2) + Math.pow((y as number) - center.y, 2));
+        return Math.max(0, Math.min(1, (250 - d) / 250));
+    });
+
+    const grayscale = useTransform(proximity, [0, 1], [100, 0]);
+    const scaleFactor = useTransform(proximity, [0, 1], [1, 1.2]);
+    const opacityFactor = useTransform(proximity, [0, 1], [0.3, 0.8]);
+
+    return (
+        <motion.div
+            ref={ref}
+            initial={{ opacity: 0, scale: 0.8 }}
+            animate={{
+                y: [0, -35, 0],
+            }}
+            style={{
+                position: 'absolute',
+                top: b.top,
+                left: 'left' in b ? b.left : undefined,
+                right: 'right' in b ? b.right : undefined,
+                opacity: opacityFactor,
+                scale: scaleFactor
+            }}
+            transition={{
+                duration: 8 + Math.random() * 4,
+                repeat: Infinity,
+                delay: b.delay,
+                ease: "easeInOut"
+            }}
+            className="flex items-center justify-center w-14 h-14 md:w-20 md:h-20 rounded-full bg-foreground/[0.05] dark:bg-white/5 backdrop-blur-2xl border border-foreground/10 dark:border-white/10 shadow-[0_0_40px_rgba(0,0,0,0.05)] transition-colors duration-500"
+        >
+            <motion.img
+                src={b.icon.startsWith('http') ? b.icon : `https://cdn.jsdelivr.net/gh/devicons/devicon/icons/${b.icon}/${b.icon}-original.svg`}
+                className="w-7 h-7 md:w-10 md:h-10 object-contain"
+                style={{
+                    filter: useTransform(grayscale, (v) => `grayscale(${v}%)`),
+                }}
+                alt={b.icon}
+            />
+        </motion.div>
+    );
+}
+
+function FloatingTechBubbles({ mouseX, mouseY }: { mouseX: any, mouseY: any }) {
+    const bubbles = [
+        // LEFT SIDE
+        { icon: "https://cdn.simpleicons.org/mercadopago/00B1EA", top: "15%", left: "8%", delay: 0.2 },
+        { icon: "https://upload.wikimedia.org/wikipedia/commons/a/a8/Logo-Stone.svg", top: "35%", left: "20%", delay: 1.5 },
+        { icon: "https://cdn.simpleicons.org/visa/1434CB", top: "55%", left: "6%", delay: 0.7 },
+        { icon: "https://cdn.simpleicons.org/mastercard/EB001B", top: "75%", left: "18%", delay: 2.4 },
+
+        // RIGHT SIDE
+        { icon: "https://upload.wikimedia.org/wikipedia/commons/0/08/Cielo_S.A._logo.svg", top: "20%", right: "12%", delay: 0.4 },
+        { icon: "https://cdn.simpleicons.org/pix/32BCAD", top: "40%", right: "22%", delay: 1.8 },
+        { icon: "https://cdn.simpleicons.org/picpay/21C25E", top: "60%", right: "10%", delay: 1.3 },
+        { icon: "https://cdn.simpleicons.org/nubank/8A05BE", top: "80%", right: "20%", delay: 2.8 },
+    ];
+
+    return (
+        <div className="absolute inset-0 z-10 pointer-events-none overflow-hidden">
+            {bubbles.map((b, i) => (
+                <Bubble key={i} b={b} mouseX={mouseX} mouseY={mouseY} />
+            ))}
+        </div>
+    );
+}
+
+function VaporFog({ className }: { className?: string }) {
+    return (
+        <div className={cn("absolute inset-0 z-0 pointer-events-none overflow-hidden opacity-30", className)}>
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(var(--primary-rgb),0.1)_0%,transparent_70%)]" />
+        </div>
+    );
+}
+
+
+export default function SkillsPage() {
+    const t = useTranslations('skills');
+    const containerRef = useRef<HTMLDivElement>(null);
+
+    // Mouse values
+    const mouseX = useMotionValue(0);
+    const mouseY = useMotionValue(0);
+
+    const handleMouseMove = (e: React.MouseEvent) => {
+        const { clientX, clientY } = e;
+        mouseX.set(clientX);
+        mouseY.set(clientY);
+    };
+
+    // Parallax values based on global scroll position
+    const { scrollY } = useScroll();
+    const yHeroText = useTransform(scrollY, [0, 800], [0, 350]);
+    const opacityHero = useTransform(scrollY, [0, 600], [1, 0]);
+
+    const yHeroSpline = useTransform(scrollY, [0, 1000], [0, 200]);
+    const scaleSpline = useTransform(scrollY, [0, 800], [1, 1.05]);
+
+    return (
+        <div
+            ref={containerRef}
+            onMouseMove={handleMouseMove}
+            className="min-h-screen bg-background relative selection:bg-primary/20"
+        >
+            <TechSchematic />
+
+            <section className="relative h-screen flex items-end justify-center overflow-hidden pb-16">
+                <motion.div
+                    className="absolute inset-0 z-0"
+                    style={{ y: yHeroSpline, scale: scaleSpline, willChange: 'transform' }}
+                >
+                    <div className="w-full h-full bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-primary/10 via-background to-background" />
+                    <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 brightness-100 contrast-150 mix-blend-overlay"></div>
+                    <div className="absolute inset-0 bg-gradient-to-b from-transparent via-background/60 to-background pointer-events-none" />
+                </motion.div>
+
+                {/* Atmospheric Effects */}
+                <VaporFog className="mix-blend-overlay" />
+                <FloatingTechBubbles mouseX={mouseX} mouseY={mouseY} />
+                <div className="relative z-10 text-center px-6 w-full pointer-events-none select-none">
+                    <motion.div
+                        initial={{ opacity: 0, scale: 0.95 }}
+                        whileInView={{ opacity: 1, scale: 1 }}
+                        viewport={{ once: true }}
+                        transition={{ duration: 1.5, ease: [0.16, 1, 0.3, 1] }}
+                        style={{ willChange: 'transform, opacity', y: yHeroText, opacity: opacityHero }}
+                        className="flex flex-col items-center"
+                    >
+                        {/* REFINED: Sleek Minimalist Typography with Elegant Hover */}
+                        <motion.div 
+                            className="relative group px-10 cursor-default pointer-events-auto"
+                            initial="rest"
+                            whileHover="hover"
+                            animate="rest"
+                        >
+                            <motion.h1
+                                variants={{
+                                    rest: { scale: 1, textShadow: "0px 0px 0px rgba(255,255,255,0)" },
+                                    hover: { scale: 1.02, textShadow: "0px 0px 25px rgba(255,255,255,0.2)" }
+                                }}
+                                transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
+                                className="relative z-10 text-[9vw] md:text-[7vw] font-semibold uppercase leading-[0.9] tracking-tight text-zinc-800 dark:text-zinc-400 group-hover:text-black dark:group-hover:text-white select-none transition-colors duration-500"
+                            >
+                                RECURSOS INTEGRADOS
+
+                                {/* Crystalline Sheen (Subtle) */}
+                                <div className="absolute inset-x-0 inset-y-0 flex justify-center pointer-events-none overflow-hidden">
+                                    {/* Left-ward Sheen */}
+                                    <motion.div
+                                        animate={{
+                                            left: ["50%", "2%"],
+                                            opacity: [0, 0.15, 0],
+                                            scale: [0.8, 1.1, 0.8]
+                                        }}
+                                        transition={{
+                                            duration: 5,
+                                            repeat: Infinity,
+                                            repeatDelay: 4,
+                                            ease: "easeInOut"
+                                        }}
+                                        className="absolute top-0 bottom-0 w-[40%] bg-[radial-gradient(ellipse_at_center,rgba(255,255,255,0.2)_0%,transparent_70%)] blur-md rounded-[100%]"
+                                    />
+                                    {/* Right-ward Sheen */}
+                                    <motion.div
+                                        animate={{
+                                            left: ["50%", "98%"],
+                                            opacity: [0, 0.15, 0],
+                                            scale: [0.8, 1.1, 0.8]
+                                        }}
+                                        transition={{
+                                            duration: 5,
+                                            repeat: Infinity,
+                                            repeatDelay: 4,
+                                            ease: "easeInOut"
+                                        }}
+                                        style={{ translateX: "-100%" }}
+                                        className="absolute top-0 bottom-0 w-[40%] bg-[radial-gradient(ellipse_at_center,rgba(255,255,255,0.2)_0%,transparent_70%)] blur-md rounded-[100%]"
+                                    />
+                                </div>
+                            </motion.h1>
+                        </motion.div>
+
+                        {/* Subtitle - Modern Minimalist */}
+                        <motion.p
+                            initial={{ opacity: 0, y: 15 }}
+                            whileInView={{ opacity: 1, y: 0 }}
+                            viewport={{ once: true }}
+                            transition={{ duration: 0.8, delay: 0.3 }}
+                            className="max-w-4xl mx-auto mt-6 text-muted-foreground font-mono leading-relaxed uppercase tracking-[0.3em] md:tracking-[0.5em] text-[10px] md:text-[11px] font-medium pointer-events-auto"
+                        >
+                            {t('subtitle')}
+                        </motion.p>
+                    </motion.div>
+                </div>
+
+                <motion.div
+                    initial={{ opacity: 0 }}
+                    whileInView={{ opacity: 0.05 }}
+                    viewport={{ once: true }}
+                    transition={{ duration: 1, delay: 1 }}
+                    className="absolute bottom-6 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2"
+                >
+                    <motion.div
+                        animate={{ y: [0, 8, 0] }}
+                        transition={{ duration: 4, repeat: Infinity }}
+                        className="w-[1px] h-24 bg-gradient-to-b from-foreground to-transparent"
+                    />
+                </motion.div>
+            </section>
+
+            {/* VAPOR TRANSITION */}
+            <div className="relative h-64 -mt-32 z-20 pointer-events-none">
+                <div className="absolute inset-0 bg-gradient-to-b from-transparent via-background/80 to-background" />
+                <VaporFog className="opacity-30" />
+            </div>
+
+            <DeferredMount>
+                <HardSkills />
+            </DeferredMount>
+
+
+        </div>
+    );
+}

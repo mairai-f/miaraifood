@@ -1,0 +1,218 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root,
+  .light {
+    color-scheme: light;
+    --background: 148 20% 98%;
+    --foreground: 148 40% 10%;
+    --card: 0 0% 100%;
+    --card-foreground: 148 40% 10%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 148 40% 10%;
+    --primary: 148 100% 15%; /* #004B23 Dark Spruce */
+    --primary-foreground: 0 0% 100%;
+    --secondary: 120 100% 20%; /* #006400 Green */
+    --secondary-foreground: 0 0% 100%;
+    --muted: 148 15% 94%;
+    --muted-foreground: 148 15% 40%;
+    --accent: 75 100% 60%; /* #CCFF33 Chartreuse */
+    --accent-foreground: 148 100% 15%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 148 15% 88%;
+    --input: 148 15% 88%;
+    --ring: 120 100% 22%; /* #007200 Ação */
+    --radius: 0.75rem;
+    --success: 120 100% 25%; /* #008000 */
+    --success-foreground: 0 0% 100%;
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 0%;
+    --sidebar-background: 148 100% 8%; /* Deep Spruce */
+    --sidebar-foreground: 148 15% 90%;
+    --sidebar-primary: 120 100% 22%; /* #007200 */
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 148 100% 15%; /* #004B23 */
+    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-border: 148 30% 15%;
+    --sidebar-ring: 83 89% 52%; /* #9EF01A */
+
+    --miar-spruce: #004B23;
+    --miar-dark: #006400;
+    --miar-action: #007200;
+    --miar-support: #008000;
+    --miar-fern: #38B000;
+    --miar-radioactive: #70E000;
+    --miar-neon: #9EF01A;
+    --miar-chartreuse: #CCFF33;
+  }
+
+  .dark {
+    color-scheme: dark;
+    --background: 148 40% 5%;
+    --foreground: 148 15% 92%;
+    --card: 148 35% 8%;
+    --card-foreground: 148 15% 92%;
+    --popover: 148 35% 9%;
+    --popover-foreground: 148 15% 92%;
+    --primary: 120 100% 22%; /* #007200 Ação */
+    --primary-foreground: 0 0% 100%;
+    --secondary: 148 100% 15%; /* #004B23 Dark Spruce */
+    --secondary-foreground: 0 0% 95%;
+    --muted: 148 20% 14%;
+    --muted-foreground: 148 15% 60%;
+    --accent: 83 89% 52%; /* #9EF01A Neon */
+    --accent-foreground: 148 100% 10%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 148 25% 16%;
+    --input: 148 25% 16%;
+    --ring: 90 100% 44%; /* #70E000 Radioactive */
+    --success: 120 100% 25%; /* #008000 */
+    --success-foreground: 0 0% 100%;
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 0%;
+    --sidebar-background: 148 100% 7%;
+    --sidebar-foreground: 148 15% 90%;
+    --sidebar-primary: 120 100% 22%; /* #007200 */
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 148 100% 15%; /* #004B23 */
+    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-border: 148 25% 15%;
+    --sidebar-ring: 83 89% 52%;
+
+    --miar-spruce: #004B23;
+    --miar-dark: #006400;
+    --miar-action: #007200;
+    --miar-support: #008000;
+    --miar-fern: #38B000;
+    --miar-radioactive: #70E000;
+    --miar-neon: #9EF01A;
+    --miar-chartreuse: #CCFF33;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  html, body {
+    width: 100%;
+    overflow-x: hidden;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    min-height: 100vh;
+    min-height: 100dvh;
+    overscroll-behavior: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  #root {
+    width: 100%;
+    overflow-x: hidden;
+    min-height: 100vh;
+    min-height: 100dvh;
+  }
+
+  @keyframes floatHint {
+    0%, 100% {
+      transform: translateY(0);
+      opacity: 0.82;
+    }
+    50% {
+      transform: translateY(4px);
+      opacity: 1;
+    }
+  }
+}
+
+@layer components {
+  .page-header {
+    @apply mb-8;
+  }
+
+  .page-title {
+    @apply text-3xl font-bold tracking-tight mb-2;
+  }
+
+  .page-subtitle {
+    @apply text-muted-foreground text-lg;
+  }
+
+  .card-tight {
+    @apply p-4;
+  }
+
+  .money-value {
+    @apply font-mono text-lg font-semibold;
+  }
+
+  .item-row-responsive {
+    @apply flex justify-between items-center gap-4;
+  }
+
+  @media (max-width: 640px) {
+    .item-row-responsive {
+      @apply flex-col items-start gap-2;
+    }
+
+    .page-title {
+      @apply text-2xl;
+    }
+
+    .page-subtitle {
+      @apply text-base;
+    }
+
+    .money-value {
+      @apply text-base;
+    }
+  }
+}
+
+@layer utilities {
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .page-header {
+    @apply mb-6;
+  }
+
+  .page-title {
+    @apply text-2xl font-bold leading-tight tracking-tight;
+  }
+
+  .page-subtitle {
+    @apply mt-1 text-sm font-medium leading-relaxed text-muted-foreground/90;
+  }
+
+  .card-tight {
+    @apply p-4 sm:p-5;
+  }
+
+  .meta-text {
+    @apply text-xs font-medium leading-relaxed text-muted-foreground/85;
+  }
+
+  .money-value {
+    @apply whitespace-nowrap tabular-nums;
+  }
+
+  .item-row-responsive {
+    @apply flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between;
+  }
+
+  .mobile-full-btn {
+    @apply w-full sm:w-auto;
+  }
+}

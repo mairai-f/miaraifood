@@ -1,0 +1,30 @@
+{
+  "appId": "com.miar.gestor",
+  "productName": "MIAR_Gestor",
+  "executableName": "miar-gestor",
+  "directories": {
+    "output": "../../releases/v2.4.0",
+    "buildResources": "public"
+  },
+  "files": [
+    "dist/public/**/*",
+    "electron/**/*",
+    "package.json"
+  ],
+  "icon": "public/icon.png",
+  "linux": {
+    "icon": "public/icon.png",
+    "target": [
+      {
+        "target": "AppImage",
+        "arch": ["x64"]
+      },
+      {
+        "target": "deb",
+        "arch": ["x64"]
+      }
+    ],
+    "category": "Office",
+    "artifactName": "MIAR_Gestor_v2.4.0_${arch}.${ext}"
+  }
+}

@@ -1,0 +1,101 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap');
+
+/*
+ * Paleta MIAR Representante (05/09/2026, pedido explícito) — substitui o
+ * tema verde "verde medicina" que era resquício de outro protótipo, sem
+ * relação com este app.
+ *   Deep Space Blue #004B23 — estrutura (sidebar, títulos, botão secundário)
+ *   Steel Blue      #006400 — texto/ícones secundários, informação
+ *   Papaya Whip     #F7F9F7 — fundo geral / ambiente
+ *   Flag Red        #C1121F — CTA, ação, conversão (item ativo, botão principal)
+ *   Molten Lava     #780000 — hover, alerta crítico
+ */
+:root { font-family: 'DM Sans', sans-serif; color: #004B23; background: #F7F9F7; }
+* { box-sizing: border-box; }
+body { margin: 0; min-width: 320px; }
+h1, h2 { font-family: 'Space Grotesk', sans-serif; margin: 0; }
+button, input { font: inherit; }
+button { cursor: pointer; border: 0; }
+.rep-login { position: relative; min-height: 100vh; display: grid; place-items: center; padding: 24px; overflow: hidden; background: #06100A; }
+.rep-login-veil { position: absolute; inset: 0; z-index: 0; }
+.rep-login-card { position: relative; z-index: 1; width: min(100%, 430px); padding: 42px; background: #FFFFFF; border: 1px solid #DCE7DC; box-shadow: 0 24px 70px #004B231c; }
+
+/* Cartão glassmorphism sobre o shader GhostFibers (05/09/2026, pedido
+   explícito) — vidro fosco com texto claro, já que o fundo aqui é sempre
+   escuro (o shader), diferente do resto do app (tema claro Papaya Whip). */
+.rep-login-card--glass {
+  background: rgba(20, 14, 53, 0.45);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  color: #F5F3FF;
+}
+.rep-login-card--glass .eyebrow,
+.rep-login-card--glass .muted,
+.rep-login-card--glass label,
+.rep-login-card--glass .security-note {
+  color: rgba(245, 243, 255, 0.75);
+}
+.rep-login-card--glass h1 { color: #FFFFFF; }
+.rep-login-card--glass input {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.18);
+  color: #FFFFFF;
+}
+.rep-login-card--glass .password-toggle { color: rgba(245, 243, 255, 0.65); }
+.rep-login-card--glass .link-button { color: rgba(245, 243, 255, 0.75); }
+.rep-mark { width: 46px; height: 46px; display: grid; place-items: center; background: #004B23; color: #F7F9F7; font: 700 24px 'Space Grotesk'; margin-bottom: 22px; }
+.rep-mark.small { width: 34px; height: 34px; margin: 0; font-size: 17px; }
+.eyebrow { color: #006400; letter-spacing: .12em; font-size: 11px; font-weight: 700; margin: 0 0 8px; }
+.muted { color: #5A7D68; margin: 8px 0 0; }
+form { display: grid; gap: 16px; margin-top: 28px; }
+label { display: grid; gap: 7px; color: #004B23; font-size: 13px; font-weight: 600; }
+input { width: 100%; padding: 12px 13px; border: 1px solid #C7DDCD; background: #fff; color: #004B23; outline: none; }
+input:focus { border-color: #006400; box-shadow: 0 0 0 3px #00640033; }
+.password-field { position: relative; display: flex; }
+.password-field input { padding-right: 40px; }
+.password-toggle { position: absolute; right: 4px; top: 50%; transform: translateY(-50%); display: grid; place-items: center; width: 32px; height: 32px; background: transparent; color: #006400; }
+.password-toggle:hover { color: #004B23; }
+.primary { display: inline-flex; gap: 8px; align-items: center; justify-content: center; padding: 12px 16px; background: #C1121F; color: #FFFFFF; font-weight: 700; }
+.primary:hover { background: #780000; }
+.security-note { display: flex; gap: 7px; align-items: center; color: #006400; font-size: 12px; margin: 24px 0 0; }
+.link-button { background: transparent; color: #004B23; font-size: 13px; font-weight: 700; text-decoration: none; display: inline-block; }
+.link-button:hover { color: #C1121F; }
+.error { color: #780000; background: #fbe4e0; border: 1px solid #eab8ae; padding: 10px 12px; font-size: 13px; margin: 0; }
+.banner { margin-bottom: 18px; }
+.rep-shell { min-height: 100vh; display: grid; grid-template-columns: 248px 1fr; background: #F7F9F7; }
+aside { display: flex; flex-direction: column; padding: 28px 20px; background: #004B23; color: #006400; }
+.brand { display: flex; align-items: center; gap: 11px; font-size: 12px; line-height: 1.1; margin-bottom: 54px; color: #006400; }
+.brand strong { color: #F7F9F7; font-size: 16px; }
+nav { display: grid; gap: 7px; }
+nav button, .logout { display: flex; align-items: center; gap: 11px; padding: 12px; text-align: left; background: transparent; color: #006400; }
+nav button.active { background: #C1121F; color: #FFFFFF; }
+nav button:hover:not(.active) { background: #780000; color: #FFFFFF; }
+.logout { margin-top: auto; color: #006400; }
+.logout:hover { color: #F7F9F7; }
+.rep-content { width: min(1180px, 100%); padding: 48px clamp(24px, 5vw, 72px); }
+header { display: flex; align-items: end; justify-content: space-between; gap: 24px; margin-bottom: 34px; }
+header h1 { font-size: clamp(28px, 4vw, 42px); color: #004B23; }
+.metrics { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 18px; }
+.metrics article, .panel { border: 1px solid #DCE7DC; background: #FFFFFF; padding: 22px; }
+.metrics article { display: grid; grid-template-columns: auto 1fr; gap: 8px 12px; color: #006400; }
+.metrics strong { color: #004B23; font: 700 25px 'Space Grotesk'; }
+.metrics span { grid-column: 2; color: #5A7D68; font-size: 12px; }
+.panel { margin-top: 18px; }
+.panel-heading { display: flex; justify-content: space-between; align-items: start; margin-bottom: 20px; }
+.panel h2 { font-size: 21px; color: #004B23; }
+.icon-button { padding: 9px; color: #004B23; background: #EAF5EC; }
+.table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th { color: #006400; font-size: 11px; text-transform: uppercase; letter-spacing: .08em; text-align: left; padding: 11px 8px; border-bottom: 1px solid #DCE7DC; }
+td { padding: 15px 8px; border-bottom: 1px solid #EAF0E8; color: #004B23; }
+td strong, td small { display: block; } td small { color: #5A7D68; margin-top: 3px; }
+.table-action { display: inline-flex; align-items: center; gap: 6px; padding: 8px 10px; color: #004B23; background: #EAF5EC; font-size: 12px; font-weight: 700; }
+.table-action:hover { background: #D7ECDC; }
+.status { color: #004B23; background: #D7ECDC; padding: 5px 8px; font-size: 12px; }
+.code-panel { display: flex; justify-content: space-between; align-items: center; gap: 24px; }
+.code-box { display: grid; gap: 12px; text-align: center; } code { color: #C1121F; font-size: 20px; letter-spacing: .15em; }
+.modal-backdrop { position: fixed; inset: 0; display: grid; place-items: center; padding: 24px; background: #004B23b3; }
+.modal { width: min(100%, 470px); margin: 0; padding: 30px; background: #FFFFFF; }
+.modal-actions { display: flex; justify-content: end; gap: 10px; margin-top: 4px; } .modal-actions button:not(.primary) { padding: 12px 16px; background: #EAF5EC; color: #004B23; }
+@media (max-width: 760px) { .rep-shell { grid-template-columns: 1fr; } aside { padding: 18px; } .brand { margin-bottom: 18px; } nav { grid-template-columns: repeat(3, 1fr); } nav button { justify-content: center; font-size: 12px; } .logout { position: absolute; top: 18px; right: 18px; } .rep-content { padding: 32px 18px; } header, .code-panel { align-items: stretch; flex-direction: column; } .metrics { grid-template-columns: 1fr; } }

@@ -1,0 +1,293 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root,
+  .light {
+    color-scheme: light;
+    --background: 214 48% 98%;
+    --foreground: 219 41% 18%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 219 41% 18%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 219 41% 18%;
+
+    --primary: 215 68% 38%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 190 78% 45%;
+    --secondary-foreground: 0 0% 100%;
+
+    --muted: 214 42% 93%;
+    --muted-foreground: 216 18% 44%;
+
+    --accent: 202 92% 95%;
+    --accent-foreground: 215 68% 38%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 216 32% 86%;
+    --input: 216 32% 86%;
+    --ring: 215 68% 38%;
+
+    --radius: 0.75rem;
+
+    --sidebar-background: 0 0% 100%;
+    --sidebar-foreground: 219 41% 18%;
+    --sidebar-primary: 215 68% 38%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 214 42% 93%;
+    --sidebar-accent-foreground: 219 41% 18%;
+    --sidebar-border: 216 32% 86%;
+    --sidebar-ring: 215 68% 38%;
+  }
+
+  .dark {
+    color-scheme: dark;
+    --background: 222 25% 6%;
+    --foreground: 210 15% 90%;
+
+    --card: 222 20% 10%;
+    --card-foreground: 210 15% 90%;
+
+    --popover: 222 20% 12%;
+    --popover-foreground: 210 15% 90%;
+
+    --primary: 217 91% 60%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 190 78% 45%;
+    --secondary-foreground: 0 0% 100%;
+
+    --muted: 222 15% 20%;
+    --muted-foreground: 215 15% 65%;
+
+    --accent: 222 20% 14%;
+    --accent-foreground: 210 15% 90%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 222 15% 18%;
+    --input: 222 15% 15%;
+    --ring: 217 91% 60%;
+
+    --sidebar-background: 222 25% 8%;
+    --sidebar-foreground: 210 15% 85%;
+    --sidebar-primary: 217 91% 60%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 222 20% 14%;
+    --sidebar-accent-foreground: 210 15% 90%;
+    --sidebar-border: 222 15% 16%;
+    --sidebar-ring: 217 91% 60%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html, body {
+    width: 100%;
+    overflow-x: hidden;
+  }
+
+  body {
+    @apply bg-background text-foreground font-body;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+
+  #root {
+    width: 100%;
+    overflow-x: hidden;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: "Avenir Next Condensed", "Trebuchet MS", "Arial Narrow", sans-serif;
+  }
+
+  /* Smooth scroll */
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
+@layer utilities {
+  /* Custom scrollbar */
+  ::-webkit-scrollbar {
+    width: 8px;
+  }
+  ::-webkit-scrollbar-track {
+    background: hsl(var(--background));
+  }
+  ::-webkit-scrollbar-thumb {
+    background: hsl(var(--border));
+    border-radius: 4px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: hsl(215 68% 38% / 0.55);
+  }
+
+  /* Bounce slow for floating elements */
+  @keyframes bounce-slow {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-8px); }
+  }
+  .animate-bounce-slow {
+    animation: bounce-slow 3s ease-in-out infinite;
+  }
+
+  @keyframes tech-marquee {
+    0% { transform: translateX(0); }
+    100% { transform: translateX(-50%); }
+  }
+
+  .tech-marquee {
+    animation: tech-marquee 26s linear infinite;
+  }
+
+  .tech-marquee:hover {
+    animation-play-state: paused;
+  }
+
+  @keyframes footer-beam {
+    0% { transform: translateX(-35%); opacity: 0.18; }
+    45% { opacity: 0.78; }
+    100% { transform: translateX(35%); opacity: 0.18; }
+  }
+
+  @keyframes footer-chip-pulse {
+    0%, 100% { transform: translateY(0); border-color: rgb(255 255 255 / 0.15); }
+    50% { transform: translateY(-2px); border-color: rgb(103 232 249 / 0.36); }
+  }
+
+  @keyframes screenshot-scan {
+    0% { transform: translateX(-120%) skewX(-16deg); opacity: 0; }
+    18% { opacity: 0.72; }
+    100% { transform: translateX(320%) skewX(-16deg); opacity: 0; }
+  }
+
+  .footer-light-beam {
+    background: linear-gradient(90deg, transparent, rgb(103 232 249 / 0.26), transparent);
+    animation: footer-beam 6.5s ease-in-out infinite;
+  }
+
+  .footer-chip:nth-child(2n) {
+    animation: footer-chip-pulse 3.2s ease-in-out infinite;
+  }
+
+  .footer-chip:nth-child(2n + 1) {
+    animation: footer-chip-pulse 3.8s ease-in-out infinite;
+  }
+
+  .feature-hover-lift {
+    position: relative;
+    isolation: isolate;
+  }
+
+  .feature-hover-lift::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    border-radius: inherit;
+    background: linear-gradient(135deg, rgb(255 255 255 / 0.72), transparent 42%, rgb(34 211 238 / 0.16));
+    opacity: 0;
+    transition: opacity 320ms ease;
+  }
+
+  .feature-hover-lift:hover::before {
+    opacity: 1;
+  }
+
+  .screenshot-hover-frame::after {
+    content: "";
+    position: absolute;
+    top: -18%;
+    bottom: -18%;
+    left: 0;
+    width: 22%;
+    pointer-events: none;
+    background: linear-gradient(90deg, transparent, rgb(255 255 255 / 0.32), transparent);
+    opacity: 0;
+  }
+
+  .screenshot-hover-frame:hover::after,
+  .group:hover .screenshot-hover-frame::after {
+    animation: screenshot-scan 1.1s ease;
+  }
+
+  .plan-hover-glow {
+    transform-style: preserve-3d;
+  }
+
+  .plan-hover-glow:hover {
+    filter: saturate(1.08);
+    outline: 2px solid hsl(190 95% 48% / 0.38);
+    outline-offset: 3px;
+    box-shadow:
+      0 30px 90px hsl(215 80% 45% / 0.28),
+      0 0 0 1px hsl(190 95% 48% / 0.32),
+      inset 0 1px 0 rgb(255 255 255 / 0.5);
+  }
+
+  .plan-hover-glow::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    border-radius: inherit;
+    background:
+      radial-gradient(circle at 50% 0%, hsl(190 90% 50% / 0.32), transparent 38%),
+      radial-gradient(circle at 0% 100%, hsl(215 74% 44% / 0.2), transparent 34%);
+    opacity: 0;
+    transition: opacity 420ms ease;
+  }
+
+  .plan-hover-glow::after {
+    content: "";
+    position: absolute;
+    top: -20%;
+    left: -42%;
+    z-index: 1;
+    width: 34%;
+    height: 140%;
+    pointer-events: none;
+    transform: skewX(-18deg);
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.62), transparent);
+    opacity: 0;
+  }
+
+  .plan-hover-glow:hover::before {
+    opacity: 1;
+  }
+
+  .plan-hover-glow:hover::after {
+    left: 122%;
+    opacity: 1;
+    transition: left 820ms ease, opacity 180ms ease;
+  }
+
+  .plan-hover-glow > * {
+    position: relative;
+    z-index: 2;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .animate-bounce-slow,
+    .tech-marquee,
+    .footer-chip,
+    .footer-light-beam,
+    .screenshot-hover-frame:hover::after,
+    .group:hover .screenshot-hover-frame::after,
+    .plan-hover-glow::after {
+      animation: none;
+      transition: none;
+    }
+  }
+}

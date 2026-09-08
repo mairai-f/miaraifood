@@ -1,0 +1,15 @@
+{
+  "expo": {
+    "extra": {
+      "eas": {
+        "projectId": "916cb699-1b65-44a4-91ee-ac61f4c6c10f"
+      }
+    },
+    "ios": {
+      "bundleIdentifier": "com.celioot777.happycash",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    }
+  }
+}

@@ -1,0 +1,188 @@
+project_id = "ucxbmxwonkkkpkqkevdc"
+
+[storage.vector]
+enabled = false
+
+[auth]
+enabled = true
+site_url = "https://www.happycashsite.com.br"
+minimum_password_length = 6
+password_requirements = ""
+additional_redirect_urls = [
+  "https://www.happycashsite.com.br/**",
+  "https://app.happycashsite.com.br/**",
+  "https://food.happycashsite.com.br/**",
+  "https://agenda.happycashsite.com.br/**",
+  "http://localhost:8080/**",
+  "http://localhost:8081/**",
+  "http://localhost:8082/**",
+  "http://127.0.0.1:8080/**",
+  "http://127.0.0.1:8081/**",
+  "http://127.0.0.1:8082/**",
+]
+
+[auth.mfa.totp]
+enroll_enabled = true
+verify_enabled = true
+
+[auth.email]
+enable_signup = true
+double_confirm_changes = true
+enable_confirmations = true
+secure_password_change = false
+max_frequency = "1m0s"
+otp_length = 8
+otp_expiry = 3600
+
+[auth.email.smtp]
+enabled = true
+host = "smtp.resend.com"
+port = 465
+user = "resend"
+pass = "env(RESEND_API_KEY)"
+admin_email = "no-reply@auth.happycashsite.com.br"
+sender_name = "HappyCash"
+
+[auth.email.template.invite]
+subject = "Convite para acessar o HappyCash"
+content_path = "./templates/invite.html"
+
+[auth.email.template.confirmation]
+subject = "Confirme sua conta HappyCash"
+content_path = "./templates/confirmation.html"
+
+[auth.email.template.recovery]
+subject = "Codigo de recuperacao HappyCash"
+content_path = "./templates/recovery.html"
+
+[auth.email.template.magic_link]
+subject = "Codigo de acesso HappyCash"
+content_path = "./templates/magic-link.html"
+
+[auth.email.template.email_change]
+subject = "Confirme a troca de e-mail HappyCash"
+content_path = "./templates/email-change.html"
+
+[auth.email.template.reauthentication]
+subject = "{{ .Token }} e seu codigo HappyCash"
+content_path = "./templates/reauthentication.html"
+
+[auth.email.notification.password_changed]
+enabled = true
+subject = "Senha alterada na sua conta HappyCash"
+content_path = "./templates/password-changed.html"
+
+[auth.email.notification.email_changed]
+enabled = true
+subject = "E-mail alterado na sua conta HappyCash"
+content_path = "./templates/email-changed.html"
+
+[auth.email.notification.phone_changed]
+enabled = true
+subject = "Telefone alterado na sua conta HappyCash"
+content_path = "./templates/phone-changed.html"
+
+[auth.email.notification.mfa_factor_enrolled]
+enabled = true
+subject = "Novo metodo de verificacao no HappyCash"
+content_path = "./templates/mfa-factor-enrolled.html"
+
+[auth.email.notification.mfa_factor_unenrolled]
+enabled = true
+subject = "Metodo de verificacao removido no HappyCash"
+content_path = "./templates/mfa-factor-unenrolled.html"
+
+[auth.email.notification.identity_linked]
+enabled = true
+subject = "Novo metodo de login vinculado no HappyCash"
+content_path = "./templates/identity-linked.html"
+
+[auth.email.notification.identity_unlinked]
+enabled = true
+subject = "Metodo de login removido no HappyCash"
+content_path = "./templates/identity-unlinked.html"
+
+[auth.captcha]
+enabled = true
+provider = "turnstile"
+secret = "env(SUPABASE_AUTH_CAPTCHA_SECRET)"
+
+[auth.passkey]
+enabled = true
+
+[auth.webauthn]
+rp_display_name = "HappyCash"
+rp_id = "happycashsite.com.br"
+rp_origins = [
+  "https://www.happycashsite.com.br",
+  "https://app.happycashsite.com.br",
+]
+
+[auth.external.apple]
+skip_nonce_check = true
+email_optional = true
+
+[auth.external.google]
+enabled = true
+client_id = "env(SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_ID)"
+secret = "env(SUPABASE_AUTH_EXTERNAL_GOOGLE_SECRET)"
+
+[functions.register-account]
+verify_jwt = false
+
+[functions.admin-login]
+verify_jwt = false
+
+[functions.food-qrmenu]
+verify_jwt = false
+
+# Estas funcoes validam o Bearer token manualmente com auth.getUser().
+# Mantemos verify_jwt desativado para evitar falha do gateway com JWTs
+# assinados de forma assimetrica, como ES256.
+[functions.activate-plan]
+verify_jwt = false
+
+[functions.create-plan-charge]
+verify_jwt = false
+
+[functions.asaas-webhook]
+verify_jwt = false
+
+[functions.desktop-download]
+verify_jwt = false
+
+[functions.desktop-license]
+verify_jwt = false
+
+[functions.desktop-activation-status]
+verify_jwt = false
+
+[functions.desktop-activate]
+verify_jwt = false
+
+[functions.finalize-site-registration]
+verify_jwt = false
+
+[functions.track-access]
+verify_jwt = false
+
+[functions.manage-operators]
+verify_jwt = false
+
+[functions.manage-fiscal-documents]
+verify_jwt = false
+
+[functions.send-cash-close-report]
+verify_jwt = false
+
+[functions.send-fiscal-document-email]
+verify_jwt = false
+
+[functions.operator-login]
+verify_jwt = false
+
+[functions.authorize-pricing-manager]
+verify_jwt = false
+
+[functions.authorize-store-admin]
+verify_jwt = false

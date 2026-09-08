@@ -1,0 +1,30 @@
+packages:
+  - 'api-client-react'
+  - 'i18n'
+  - 'menu-theme'
+  - 'cliente'
+  - 'entregador'
+  - 'gestor-representante'
+  - 'supergestora'
+allowBuilds:
+  '@swc/core': set this to true or false
+  electron: set this to true or false
+  electron-winstaller: set this to true or false
+  esbuild: set this to true or false
+catalog:
+  '@tailwindcss/vite': '^4.1.7'
+  '@tanstack/react-query': '^5.83.0'
+  '@types/node': '^22.15.0'
+  '@types/react': '^19.1.0'
+  '@types/react-dom': '^19.1.0'
+  '@vitejs/plugin-react': '^4.4.1'
+  'class-variance-authority': '^0.7.1'
+  'clsx': '^2.1.1'
+  'framer-motion': '^12.38.0'
+  'lucide-react': '^0.511.0'
+  'react': '^19.1.0'
+  'react-dom': '^19.1.0'
+  'tailwind-merge': '^3.3.0'
+  'tailwindcss': '^4.1.7'
+  'vite': '^6.3.5'
+  'zod': '^3.25.0'

@@ -1,0 +1,2 @@
+ALTER TABLE public.payments
+ADD COLUMN IF NOT EXISTS details JSONB NOT NULL DEFAULT '[]'::jsonb;

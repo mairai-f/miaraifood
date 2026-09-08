@@ -1,0 +1,597 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap');
+@import 'tailwindcss';
+@import 'tw-animate-css';
+@plugin "@tailwindcss/typography";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-ink-black: #06100A;
+  --color-prussian-blue: #0B1A10;
+  --color-oxford-navy: #16301F;
+  --color-school-yellow: #008000;
+  --color-miar-gold: #38B000;
+  --color-text-primary: #F2F7F3;
+  --color-text-secondary: #8FA396;
+  --color-text-tertiary: #7A8F7E;
+
+  --color-background: #06100A;
+  --color-foreground: #F2F7F3;
+  --color-card: #0B1A10;
+  --color-card-foreground: #F2F7F3;
+  --color-border: #16301F;
+  --color-primary: #008000;
+  --color-primary-foreground: #06100A;
+  --color-secondary: #16301F;
+  --color-secondary-foreground: #F2F7F3;
+
+  --font-sans: 'Inter', sans-serif;
+  --font-display: 'Manrope', sans-serif;
+  --font-mono: 'Space Mono', monospace;
+}
+
+:root {
+  --background: 213 100% 4%;    /* #06100A */
+  --foreground: 210 40% 98%;    /* #F2F7F3 */
+  --card: 212 100% 12%;         /* #0B1A10 */
+  --card-foreground: 210 40% 98%;
+  --card-border: 209 100% 20%;  /* #16301F */
+  --border: 209 100% 20%;       /* #16301F */
+  --input: 212 100% 12%;        /* #0B1A10 */
+  --primary: 46 100% 50%;       /* #008000 */
+  --primary-foreground: 213 100% 4%; /* #06100A */
+  --secondary: 209 100% 20%;    /* #16301F */
+  --secondary-foreground: 210 40% 98%;
+  --muted: 214 15% 25%;
+  --muted-foreground: 214 18% 71%; /* #8FA396 */
+  --accent: 48 100% 52%;        /* #38B000 */
+  --accent-foreground: 213 100% 4%;
+  --ring: 46 100% 50%;
+
+  --app-font-sans: 'Inter', sans-serif;
+  --app-font-display: 'Manrope', sans-serif;
+  --app-font-mono: 'Space Mono', monospace;
+
+  --radius: 0.5rem; /* 8px */
+  --shadow-2xs: 0px 2px 0px 0px hsl(202.8169 89.1213% 53.1373% / 0);
+  --shadow-xs: 0px 2px 0px 0px hsl(202.8169 89.1213% 53.1373% / 0);
+  --shadow-sm:
+    0px 2px 0px 0px hsl(202.8169 89.1213% 53.1373% / 0),
+    0px 1px 2px -1px hsl(202.8169 89.1213% 53.1373% / 0);
+  --shadow:
+    0px 2px 0px 0px hsl(202.8169 89.1213% 53.1373% / 0),
+    0px 1px 2px -1px hsl(202.8169 89.1213% 53.1373% / 0);
+  --shadow-md:
+    0px 2px 0px 0px hsl(202.8169 89.1213% 53.1373% / 0),
+    0px 2px 4px -1px hsl(202.8169 89.1213% 53.1373% / 0);
+  --shadow-lg:
+    0px 2px 0px 0px hsl(202.8169 89.1213% 53.1373% / 0),
+    0px 4px 6px -1px hsl(202.8169 89.1213% 53.1373% / 0);
+  --shadow-xl:
+    0px 2px 0px 0px hsl(202.8169 89.1213% 53.1373% / 0),
+    0px 8px 10px -1px hsl(202.8169 89.1213% 53.1373% / 0);
+  --shadow-2xl: 0px 2px 0px 0px hsl(202.8169 89.1213% 53.1373% / 0);
+  --tracking-normal: 0em;
+  --spacing: 0.25rem;
+
+  /* Automatically computed borders - intensity can be controlled by the user by the --opaque-button-border-intensity setting */
+
+  /* Fallback for older browsers */
+  --sidebar-primary-border: hsl(var(--sidebar-primary));
+  --sidebar-primary-border: hsl(
+    from hsl(var(--sidebar-primary)) h s
+      calc(l + var(--opaque-button-border-intensity)) / alpha
+  );
+
+  /* Fallback for older browsers */
+  --sidebar-accent-border: hsl(var(--sidebar-accent));
+  --sidebar-accent-border: hsl(
+    from hsl(var(--sidebar-accent)) h s
+      calc(l + var(--opaque-button-border-intensity)) / alpha
+  );
+
+  /* Fallback for older browsers */
+  --primary-border: hsl(var(--primary));
+  --primary-border: hsl(
+    from hsl(var(--primary)) h s
+      calc(l + var(--opaque-button-border-intensity)) / alpha
+  );
+
+  /* Fallback for older browsers */
+  --secondary-border: hsl(var(--secondary));
+  --secondary-border: hsl(
+    from hsl(var(--secondary)) h s
+      calc(l + var(--opaque-button-border-intensity)) / alpha
+  );
+
+  /* Fallback for older browsers */
+  --muted-border: hsl(var(--muted));
+  --muted-border: hsl(
+    from hsl(var(--muted)) h s calc(l + var(--opaque-button-border-intensity)) /
+      alpha
+  );
+
+  /* Fallback for older browsers */
+  --accent-border: hsl(var(--accent));
+  --accent-border: hsl(
+    from hsl(var(--accent)) h s
+      calc(l + var(--opaque-button-border-intensity)) / alpha
+  );
+
+  /* Fallback for older browsers */
+  --destructive-border: hsl(var(--destructive));
+  --destructive-border: hsl(
+    from hsl(var(--destructive)) h s
+      calc(l + var(--opaque-button-border-intensity)) / alpha
+  );
+}
+
+.font-manrope {
+  font-family: 'Manrope', sans-serif;
+}
+.font-inter {
+  font-family: 'Inter', sans-serif;
+}
+
+.dark {
+  --button-outline: rgba(255, 255, 255, 0.1);
+  --badge-outline: rgba(255, 255, 255, 0.05);
+
+  --opaque-button-border-intensity: 9; /* In terms of percentages */
+
+  /* Backgrounds applied on top of other backgrounds when hovered/active */
+  --elevate-1: rgba(255, 255, 255, 0.04);
+  --elevate-2: rgba(255, 255, 255, 0.09);
+
+  --background: 222 23% 6%;
+  --foreground: 39 45% 94%;
+  --border: 222 16% 19%;
+  --card: 222 22% 11%;
+  --card-foreground: 39 45% 94%;
+  --card-border: 222 16% 19%;
+  --sidebar: 222 24% 8%;
+  --sidebar-foreground: 39 36% 92%;
+  --sidebar-border: 222 17% 16%;
+  --sidebar-primary: 155 47% 56%;
+  --sidebar-primary-foreground: 14 35% 8%;
+  --sidebar-accent: 222 18% 14%;
+  --sidebar-accent-foreground: 39 30% 88%;
+  --sidebar-ring: 155 47% 56%;
+  --popover: 222 23% 8%;
+  --popover-foreground: 39 45% 94%;
+  --popover-border: 222 16% 19%;
+  --primary: 155 47% 56%;
+  --primary-foreground: 14 35% 8%;
+  --secondary: 222 18% 15%;
+  --secondary-foreground: 39 45% 94%;
+  --muted: 222 18% 13%;
+  --muted-foreground: 214 14% 70%;
+  --accent: 186 83% 68%;
+  --accent-foreground: 222 30% 8%;
+  --destructive: 0 59% 61%;
+  --destructive-foreground: 0 0% 100%;
+  --input: 222 18% 18%;
+  --ring: 155 47% 56%;
+  --chart-1: 155 47% 56%;
+  --chart-2: 186 83% 68%;
+  --chart-3: 45 96% 63%;
+  --chart-4: 153 55% 63%;
+  --chart-5: 0 59% 61%;
+
+  --shadow-2xs: 0px 2px 0px 0px hsl(202.8169 89.1213% 53.1373% / 0);
+  --shadow-xs: 0px 2px 0px 0px hsl(202.8169 89.1213% 53.1373% / 0);
+  --shadow-sm:
+    0px 2px 0px 0px hsl(202.8169 89.1213% 53.1373% / 0),
+    0px 1px 2px -1px hsl(202.8169 89.1213% 53.1373% / 0);
+  --shadow:
+    0px 2px 0px 0px hsl(202.8169 89.1213% 53.1373% / 0),
+    0px 1px 2px -1px hsl(202.8169 89.1213% 53.1373% / 0);
+  --shadow-md:
+    0px 2px 0px 0px hsl(202.8169 89.1213% 53.1373% / 0),
+    0px 2px 4px -1px hsl(202.8169 89.1213% 53.1373% / 0);
+  --shadow-lg:
+    0px 2px 0px 0px hsl(202.8169 89.1213% 53.1373% / 0),
+    0px 4px 6px -1px hsl(202.8169 89.1213% 53.1373% / 0);
+  --shadow-xl:
+    0px 2px 0px 0px hsl(202.8169 89.1213% 53.1373% / 0),
+    0px 8px 10px -1px hsl(202.8169 89.1213% 53.1373% / 0);
+  --shadow-2xl: 0px 2px 0px 0px hsl(202.8169 89.1213% 53.1373% / 0);
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply font-sans antialiased bg-background text-foreground;
+  }
+}
+
+/**
+ * Using the elevate system.
+ * Automatic contrast adjustment.
+ *
+ * <element className="hover-elevate" />
+ * <element className="active-elevate-2" />
+ *
+ * // Using the tailwind utility when a data attribute is "on"
+ * <element className="toggle-elevate data-[state=on]:toggle-elevated" />
+ * // Or manually controlling the toggle state
+ * <element className="toggle-elevate toggle-elevated" />
+ *
+ * Elevation systems have to handle many states.
+ * - not-hovered, vs. hovered vs. active  (three mutually exclusive states)
+ * - toggled or not
+ * - focused or not (this is not handled with these utilities)
+ *
+ * Even without handling focused or not, this is six possible combinations that
+ * need to be distinguished from eachother visually.
+ */
+@layer utilities {
+  /* Hide ugly search cancel button in Chrome until we can style it properly */
+  input[type='search']::-webkit-search-cancel-button {
+    @apply hidden;
+  }
+
+  /* Placeholder styling for contentEditable div */
+  [contenteditable][data-placeholder]:empty::before {
+    content: attr(data-placeholder);
+    color: hsl(var(--muted-foreground));
+    pointer-events: none;
+  }
+
+  /* .no-default-hover-elevate/no-default-active-elevate is an escape hatch so consumers of
+   * buttons/badges can remove the automatic brightness adjustment on interactions
+   * and program their own. */
+  .no-default-hover-elevate {
+  }
+
+  .no-default-active-elevate {
+  }
+
+  /**
+   * Toggleable backgrounds go behind the content. Hoverable/active goes on top.
+   * This way they can stack/compound. Both will overlap the parent's borders!
+   * So borders will be automatically adjusted both on toggle, and hover/active,
+   * and they will be compounded.
+   */
+  .toggle-elevate::before,
+  .toggle-elevate-2::before {
+    content: '';
+    pointer-events: none;
+    position: absolute;
+    inset: 0px;
+    /*border-radius: inherit;   match rounded corners */
+    border-radius: inherit;
+    z-index: -1;
+    /* sits behind content but above backdrop */
+  }
+
+  .toggle-elevate.toggle-elevated::before {
+    background-color: var(--elevate-2);
+  }
+
+  /* If there's a 1px border, adjust the inset so that it covers that parent's border */
+  .border.toggle-elevate::before {
+    inset: -1px;
+  }
+
+  /* Does not work on elements with overflow:hidden! */
+  .hover-elevate:not(.no-default-hover-elevate),
+  .active-elevate:not(.no-default-active-elevate),
+  .hover-elevate-2:not(.no-default-hover-elevate),
+  .active-elevate-2:not(.no-default-active-elevate) {
+    position: relative;
+    z-index: 0;
+  }
+
+  .hover-elevate:not(.no-default-hover-elevate)::after,
+  .active-elevate:not(.no-default-active-elevate)::after,
+  .hover-elevate-2:not(.no-default-hover-elevate)::after,
+  .active-elevate-2:not(.no-default-active-elevate)::after {
+    content: '';
+    pointer-events: none;
+    position: absolute;
+    inset: 0px;
+    /*border-radius: inherit;   match rounded corners */
+    border-radius: inherit;
+    z-index: 999;
+    /* sits in front of content */
+  }
+
+  .hover-elevate:hover:not(.no-default-hover-elevate)::after,
+  .active-elevate:active:not(.no-default-active-elevate)::after {
+    background-color: var(--elevate-1);
+  }
+
+  .hover-elevate-2:hover:not(.no-default-hover-elevate)::after,
+  .active-elevate-2:active:not(.no-default-active-elevate)::after {
+    background-color: var(--elevate-2);
+  }
+
+  /* If there's a 1px border, adjust the inset so that it covers that parent's border */
+  .border.hover-elevate:not(.no-hover-interaction-elevate)::after,
+  .border.active-elevate:not(.no-active-interaction-elevate)::after,
+  .border.hover-elevate-2:not(.no-hover-interaction-elevate)::after,
+  .border.active-elevate-2:not(.no-active-interaction-elevate)::after,
+  .border.hover-elevate:not(.no-hover-interaction-elevate)::after {
+    inset: -1px;
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   MIAR AI/FOOD — identidade visual única
+   Tecnologia que organiza. Inteligência que multiplica.
+   Paleta de referência: Azul Noite, Azul Petróleo, Verde MIAR, Areia, Terracota.
+   ───────────────────────────────────────────────────────────────────────────── */
+:root {
+  --miar-night: #0F1F2E;
+  --miar-petrol: #0D3B4E;
+  --miar-green: #68AA4A;
+  --miar-green-soft: #A8C96E;
+  --miar-sand: #F5F2EB;
+  --miar-terracotta: #DB683A;
+  --miar-cyan: #55C7C4;
+  --miar-ink: #122535;
+  --miar-line: rgba(104, 170, 74, 0.18);
+  --miar-shadow: 0 20px 60px rgba(5, 19, 29, 0.18);
+  --miar-ease: cubic-bezier(0.23, 1, 0.32, 1);
+  --miar-radius: 1rem;
+  --app-font-sans: 'Manrope', ui-sans-serif, system-ui, sans-serif;
+  --app-font-serif: 'Manrope', ui-sans-serif, system-ui, sans-serif;
+  --app-font-mono: 'Space Mono', ui-monospace, monospace;
+}
+
+:root {
+  --background: 40 33% 95%;
+  --foreground: 207 35% 12%;
+  --border: 35 22% 84%;
+  --input: 35 22% 84%;
+  --card: 40 44% 98%;
+  --card-foreground: 207 35% 12%;
+  --card-border: 35 22% 84%;
+  --popover: 40 44% 98%;
+  --popover-foreground: 207 35% 12%;
+  --popover-border: 35 22% 84%;
+  --primary: 93 39% 47%;
+  --primary-foreground: 40 44% 98%;
+  --secondary: 191 39% 91%;
+  --secondary-foreground: 207 35% 12%;
+  --muted: 35 24% 89%;
+  --muted-foreground: 203 18% 38%;
+  --accent: 15 68% 54%;
+  --accent-foreground: 40 44% 98%;
+  --destructive: 4 71% 54%;
+  --destructive-foreground: 40 44% 98%;
+  --ring: 93 39% 47%;
+  --sidebar: 207 41% 15%;
+  --sidebar-foreground: 40 44% 98%;
+  --sidebar-border: 194 50% 24%;
+  --sidebar-primary: 93 39% 47%;
+  --sidebar-primary-foreground: 207 41% 15%;
+  --sidebar-accent: 194 50% 24%;
+  --sidebar-accent-foreground: 40 44% 98%;
+  --sidebar-ring: 93 39% 47%;
+  --radius: 0.875rem;
+}
+
+.dark {
+  --background: 207 41% 15%;
+  --foreground: 40 33% 96%;
+  --border: 194 50% 24%;
+  --input: 194 38% 27%;
+  --card: 201 43% 19%;
+  --card-foreground: 40 33% 96%;
+  --card-border: 194 50% 24%;
+  --popover: 201 43% 17%;
+  --popover-foreground: 40 33% 96%;
+  --popover-border: 194 50% 24%;
+  --primary: 93 39% 47%;
+  --primary-foreground: 207 41% 15%;
+  --secondary: 194 41% 24%;
+  --secondary-foreground: 40 33% 96%;
+  --muted: 198 35% 22%;
+  --muted-foreground: 194 21% 72%;
+  --accent: 15 68% 54%;
+  --accent-foreground: 40 33% 96%;
+  --destructive: 4 71% 60%;
+  --destructive-foreground: 40 33% 96%;
+  --ring: 93 39% 57%;
+  --sidebar: 207 48% 10%;
+  --sidebar-foreground: 40 33% 96%;
+  --sidebar-border: 194 50% 20%;
+  --sidebar-primary: 93 39% 57%;
+  --sidebar-primary-foreground: 207 48% 10%;
+  --sidebar-accent: 194 50% 20%;
+  --sidebar-accent-foreground: 40 33% 96%;
+  --sidebar-ring: 93 39% 57%;
+}
+
+html {
+  background: var(--miar-night);
+  font-family: var(--app-font-sans);
+}
+
+body {
+  min-width: 320px;
+  background-color: hsl(var(--background));
+  background-image:
+    radial-gradient(circle at 8% 0%, rgba(104, 170, 74, 0.10), transparent 32rem),
+    radial-gradient(circle at 96% 10%, rgba(85, 199, 196, 0.08), transparent 28rem);
+  color: hsl(var(--foreground));
+  letter-spacing: -0.01em;
+}
+
+::selection {
+  background: rgba(104, 170, 74, 0.32);
+  color: inherit;
+}
+
+button,
+a,
+input,
+select,
+textarea {
+  transition: color 180ms var(--miar-ease), background-color 180ms var(--miar-ease), border-color 180ms var(--miar-ease), box-shadow 180ms var(--miar-ease), transform 180ms var(--miar-ease), opacity 180ms var(--miar-ease);
+}
+
+button:active:not(:disabled),
+a:active {
+  transform: scale(0.98);
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 3px solid rgba(104, 170, 74, 0.30);
+  outline-offset: 2px;
+}
+
+input,
+select,
+textarea {
+  border-radius: calc(var(--miar-radius) - 0.2rem);
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: rgba(164, 183, 183, 0.72);
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(104, 170, 74, 0.34);
+  border: 3px solid transparent;
+  border-radius: 999px;
+  background-clip: padding-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(104, 170, 74, 0.58);
+  background-clip: padding-box;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}
+
+/* Shell de produto: profundidade, leitura e hierarquia operacional. */
+.miar-app-shell {
+  min-height: 100vh;
+  background-image:
+    radial-gradient(circle at 100% 0%, rgba(85, 199, 196, 0.09), transparent 28rem),
+    linear-gradient(135deg, rgba(13, 59, 78, 0.10), transparent 42%);
+}
+
+.miar-topbar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  backdrop-filter: blur(18px);
+  box-shadow: 0 1px 0 rgba(168, 201, 110, 0.08), 0 18px 40px rgba(5, 19, 29, 0.10);
+}
+
+.miar-brand-lockup {
+  background: linear-gradient(135deg, rgba(13, 59, 78, 0.96), rgba(15, 31, 46, 0.96));
+  box-shadow: 0 14px 34px rgba(5, 19, 29, 0.18), inset 0 1px 0 rgba(245, 242, 235, 0.09);
+}
+
+.miar-brand-lockup img {
+  filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.18));
+}
+
+.miar-card,
+[data-miar-card='true'] {
+  border: 1px solid rgba(168, 201, 110, 0.16);
+  border-radius: var(--miar-radius);
+  box-shadow: 0 16px 42px rgba(5, 19, 29, 0.12);
+}
+
+.dark .miar-card,
+.dark [data-miar-card='true'] {
+  background: linear-gradient(150deg, rgba(21, 51, 68, 0.94), rgba(13, 59, 78, 0.78));
+  border-color: rgba(168, 201, 110, 0.16);
+}
+
+.miar-kicker {
+  color: var(--miar-green-soft);
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.miar-status-dot {
+  display: inline-block;
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 999px;
+  background: var(--miar-green);
+  box-shadow: 0 0 0 4px rgba(104, 170, 74, 0.15);
+}
+
+@media (max-width: 720px) {
+  .miar-topbar {
+    position: relative;
+  }
+
+  .miar-brand-lockup {
+    width: 11rem;
+  }
+}
+
+
+
+.miar-auth-stage {
+  min-height: calc(100vh - 88px);
+  padding: 2.75rem clamp(1rem, 4vw, 4rem) 3.5rem;
+  background-image: radial-gradient(circle at 50% 0%, rgba(104, 170, 74, 0.12), transparent 36rem);
+}
+
+.miar-auth-card {
+  background: linear-gradient(145deg, rgba(21, 51, 68, 0.96), rgba(13, 59, 78, 0.82));
+  border-color: rgba(168, 201, 110, 0.20);
+}
+
+@media (max-width: 640px) {
+  .miar-auth-stage {
+    min-height: calc(100vh - 72px);
+    padding: 1rem 0.75rem 2rem;
+  }
+}
+
+/* Entrada e autenticação: foco, respiro e sensação de produto premium. */
+.miar-auth-stage {
+  min-height: calc(100vh - 88px);
+  padding: 2.75rem clamp(1rem, 4vw, 4rem) 3.5rem;
+  background-image: radial-gradient(circle at 50% 0%, rgba(104, 170, 74, 0.12), transparent 36rem);
+}
+
+.miar-auth-card {
+  background: linear-gradient(145deg, rgba(21, 51, 68, 0.96), rgba(13, 59, 78, 0.82));
+  border-color: rgba(168, 201, 110, 0.20);
+}
+
+@media (max-width: 640px) {
+  .miar-auth-stage {
+    min-height: calc(100vh - 72px);
+    padding: 1rem 0.75rem 2rem;
+  }
+}
+

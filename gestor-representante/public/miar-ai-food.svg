@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 180" role="img" aria-labelledby="title desc">
+  <title id="title">MIAR AI/FOOD</title>
+  <desc id="desc">Marca MIAR AI/FOOD, inteligência que organiza resultados no setor de alimentação.</desc>
+  <defs>
+    <linearGradient id="flow" x1="56" y1="34" x2="305" y2="132" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0D3B4E"/>
+      <stop offset="0.64" stop-color="#123142"/>
+      <stop offset="1" stop-color="#1C2635"/>
+    </linearGradient>
+    <linearGradient id="bowl" x1="68" y1="134" x2="302" y2="164" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#B84D2A"/>
+      <stop offset="1" stop-color="#DB683A"/>
+    </linearGradient>
+    <linearGradient id="word" x1="354" y1="70" x2="725" y2="112" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F5F2EB"/>
+      <stop offset="1" stop-color="#DAE5DF"/>
+    </linearGradient>
+  </defs>
+  <g transform="translate(14 6)">
+    <path d="M30 118C39 76 45 42 70 40c24-2 42 23 64 54 25 36 40 48 64 47 28-2 38-31 54-61 14-26 30-42 49-38 19 4 32 26 50 55" fill="none" stroke="url(#flow)" stroke-width="27" stroke-linecap="round"/>
+    <path d="M28 132c45 25 103 35 163 35 57 0 115-11 159-37-11 30-77 48-159 48-79 0-148-17-163-46z" fill="url(#bowl)"/>
+    <path d="M335 50v22m22-35v28m21-17v14" stroke="#68AA4A" stroke-width="10" stroke-linecap="round"/>
+    <circle cx="335" cy="92" r="6" fill="#68AA4A"/>
+  </g>
+  <g font-family="Manrope, Arial, sans-serif">
+    <text x="358" y="91" fill="url(#word)" font-size="56" font-weight="800" letter-spacing="5">MIAR</text>
+    <text x="535" y="91" fill="#A8C96E" font-size="40" font-weight="700" letter-spacing="3">AI/FOOD</text>
+    <text x="362" y="128" fill="#A8C96E" font-size="13" font-weight="700" letter-spacing="3.2">INTELIGÊNCIA QUE ORGANIZA</text>
+  </g>
+</svg>

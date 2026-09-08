@@ -1,0 +1,586 @@
+/*
+ * Paleta da Supergestora (05/09/2026) — identidade própria, separada do
+ * Gestor/Cliente: azul-escuro = poder/controle, azul-médio = tecnologia/
+ * dados, dourado = autoridade/resultado (reservado a métricas/destaques,
+ * não usado em excesso). Definida pelo dono do produto.
+ */
+:root {
+  color-scheme: light;
+  font-family: 'Space Grotesk', 'Segoe UI', sans-serif;
+  --imperial-blue: #00296B;
+  --french-blue: #003F88;
+  --steel-azure: #00509D;
+  --school-bus-yellow: #FDC500;
+  --gold: #FFD500;
+
+  --bg: #F5F7FA;
+  --panel: #FFFFFF;
+  --panel-soft: #EAF1FB;
+  --panel-strong: var(--imperial-blue);
+  --line: #E2E8F0;
+  --accent: var(--steel-azure);
+  --accent-strong: var(--french-blue);
+  --text: #0B1220;
+  --muted: #64748B;
+  --danger: #DC2626;
+  --success: #16A34A;
+  --warning: #F59E0B;
+  --cta: var(--school-bus-yellow);
+}
+
+* { box-sizing: border-box; }
+html, body, #root { height: 100%; margin: 0; }
+body {
+  background: linear-gradient(135deg, #F5F7FA 0%, #EAF1FB 55%, #E4EDFB 100%);
+  color: var(--text);
+}
+button, input { font: inherit; }
+button { cursor: pointer; }
+.review-heading,.review-tabs,.modal-actions{display:flex;align-items:center;justify-content:space-between;gap:12px}.review-tabs{justify-content:flex-start;margin:16px 0}.review-tabs button{padding:10px 14px;border:1px solid var(--line);border-radius:12px;background:var(--panel-soft)}.review-tabs button.active{background:var(--accent);color:#fff}.review-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}.review-card{text-align:left;display:grid;gap:5px;padding:16px;border:1px solid var(--line);border-radius:18px;background:linear-gradient(145deg,#fff,#eef5ff);box-shadow:0 8px 24px #00296b12}.review-card span,.review-card small{color:var(--muted)}.review-modal-backdrop{position:fixed;inset:0;z-index:30;display:grid;place-items:center;background:#00112dcc;backdrop-filter:blur(10px)}.review-modal{position:relative;width:min(560px,calc(100vw - 32px));padding:28px;border:1px solid #ffffff44;border-radius:24px;background:#ffffffee;box-shadow:0 24px 80px #0008}.modal-close{position:absolute;right:16px;top:12px;border:0;background:none;font-size:28px}.success-button,.warning-button,.danger-button{border:0;border-radius:10px;padding:10px 14px;font-weight:700}.success-button{background:#16a34a;color:#fff}.warning-button{background:#f59e0b;color:#111}.danger-button{background:#dc2626;color:#fff}
+
+.auth-shell {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  position: relative;
+  overflow: hidden;
+  background: #050311;
+}
+
+.auth-veil {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+}
+
+.auth-shell::before {
+  content: '';
+  position: absolute;
+  width: 420px;
+  height: 420px;
+  border-radius: 50%;
+  background: rgba(0, 80, 157, 0.12);
+  top: -180px;
+  right: -120px;
+}
+
+.auth-card {
+  width: min(560px, 100%);
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid var(--line);
+  border-radius: 24px;
+  box-shadow: 0 24px 70px rgba(0, 41, 107, 0.16);
+  padding: 28px;
+}
+
+/* Cartão glassmorphism por cima do shader DarkVeil (05/09/2026, pedido
+   explícito) — vidro fosco com borda clara, texto sempre branco/claro
+   porque o fundo aqui é sempre escuro (o shader), diferente do resto do
+   app (tema claro). CORRIGIDO logo em seguida no mesmo dia: este bloco
+   tinha sido colocado ANTES de ".auth-card" no arquivo — com a mesma
+   especificidade, quem vem depois no CSS ganha, então ".auth-card" (fundo
+   branco) sempre vencia e o cartão ficava branco com texto branco por
+   cima, ilegível. Precisa ficar DEPOIS de ".auth-card". */
+.auth-card--glass {
+  background: rgba(20, 16, 40, 0.45);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  color: #F5F3FF;
+  position: relative;
+  z-index: 1;
+}
+
+.auth-card--glass .eyebrow,
+.auth-card--glass label,
+.auth-card--glass .checkbox-row {
+  color: rgba(245, 243, 255, 0.75);
+}
+
+.auth-card--glass h1,
+.auth-card--glass h2 {
+  color: #FFFFFF;
+}
+
+.auth-card--glass input {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.18);
+  color: #FFFFFF;
+}
+
+.auth-card--glass input::placeholder {
+  color: rgba(245, 243, 255, 0.45);
+}
+
+.auth-card--glass .password-wrap {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.auth-card--glass .link-button,
+.auth-card--glass .ghost-button {
+  color: rgba(245, 243, 255, 0.75);
+}
+
+.brand-wrap {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 20px;
+}
+
+.brand-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  background: var(--panel-strong);
+  color: var(--gold);
+  font-weight: 800;
+  font-size: 1.3rem;
+}
+
+.brand-badge.small {
+  width: 32px;
+  height: 32px;
+  font-size: 1rem;
+}
+
+.eyebrow {
+  margin: 0;
+  font-size: 0.76rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+h1, h2, h3 { margin: 0; }
+
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.auth-form h2 { font-size: 1.7rem; }
+
+label {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 0.94rem;
+}
+
+input {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #FFFFFF;
+  color: var(--text);
+  padding: 12px 14px;
+  outline: none;
+}
+
+input:focus {
+  border-color: rgba(0, 80, 157, 0.9);
+  box-shadow: 0 0 0 3px rgba(0, 80, 157, 0.15);
+}
+
+.password-wrap {
+  display: flex;
+  align-items: center;
+  border-radius: 12px;
+  background: #FFFFFF;
+  border: 1px solid var(--line);
+  overflow: hidden;
+}
+
+.password-wrap input {
+  border: none;
+  background: transparent;
+  flex: 1;
+}
+
+.ghost-button,
+.link-button,
+.logout-button,
+.danger-button,
+.primary-button {
+  border: none;
+  border-radius: 12px;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.ghost-button {
+  background: transparent;
+  color: var(--muted);
+  padding: 0 12px;
+}
+
+.primary-button {
+  background: var(--accent);
+  color: #FFFFFF;
+  padding: 12px 18px;
+  font-weight: 700;
+}
+
+/*
+ * Convenção de cor de botão (05/09/2026, pedido explícito): qualquer ação
+ * grave/irreversível (excluir, apagar, banir, suspender, bloquear) usa
+ * fundo sólido e texto branco bem legível — nada de tom translúcido/pastel
+ * que passe despercebido. Suspender usa amarelo (reversível, é um alerta);
+ * excluir/banir/bloquear usam vermelho (mais sério).
+ */
+.danger-button {
+  background: var(--danger);
+  color: #FFFFFF;
+  font-weight: 700;
+  padding: 10px 16px;
+}
+
+.warning-button {
+  background: var(--warning);
+  color: #1F1300;
+  font-weight: 700;
+  padding: 10px 16px;
+}
+
+.link-button {
+  background: transparent;
+  color: var(--accent);
+  padding: 0;
+  font-weight: 600;
+}
+
+.checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-direction: row !important;
+}
+
+.inline-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.two-col {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+/*
+ * CORRIGIDO 05/09/2026: essas cores foram feitas pra um fundo escuro (tema
+ * antigo) — texto quase branco sobre um verde/vermelho quase transparente.
+ * Depois que o app virou tema claro (paleta nova da Supergestora), isso
+ * ficou ilegível: texto claro sobre fundo claro. Agora usa tom sólido e
+ * texto escuro de alto contraste, como qualquer alerta em fundo claro.
+ */
+.message {
+  margin-top: 16px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid transparent;
+  text-align: center;
+  font-weight: 600;
+}
+
+.message.success {
+  background: #DCFCE7;
+  border-color: #86EFAC;
+  color: #14532D;
+}
+
+.message.error {
+  background: #FEE2E2;
+  border-color: #FCA5A5;
+  color: #7F1D1D;
+}
+
+.dashboard-shell {
+  display: flex;
+  min-height: 100vh;
+  background: var(--bg);
+}
+
+.sidebar {
+  width: 244px;
+  /* Travado: acompanha o scroll da página (sticky) e nunca cresce além da
+     tela — se a lista de seções não couber, rola só o menu (overflow-y),
+     sem levar o resto do layout junto. */
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
+  background: var(--panel-strong);
+  border-right: 1px solid var(--line);
+  padding: 18px 12px;
+  display: flex;
+  flex-direction: column;
+  transition: width 0.2s ease;
+}
+
+.sidebar.collapsed {
+  width: 78px;
+}
+
+.sidebar-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px 20px;
+  color: #FFFFFF;
+  font-weight: 700;
+}
+
+.sidebar nav {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 10px;
+  border-radius: 12px;
+  background: transparent;
+  border: 1px solid transparent;
+  color: rgba(255, 255, 255, 0.82);
+  text-align: left;
+}
+
+.nav-item.active {
+  background: rgba(255, 213, 0, 0.14);
+  border-color: rgba(255, 213, 0, 0.35);
+  color: #FFFFFF;
+}
+
+.nav-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--gold);
+  font-weight: 700;
+}
+
+/* Pronto pra sub-itens (dropdown) dentro de uma seção do menu, se algum dia
+   uma seção precisar agrupar páginas relacionadas — não usado ainda hoje. */
+.nav-dropdown {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-left: 12px;
+  margin-top: 2px;
+  border-left: 1px solid rgba(255, 255, 255, 0.14);
+}
+
+.logout-button {
+  margin-top: auto;
+  padding: 12px 14px;
+  background: rgba(248, 113, 113, 0.12);
+  color: #fecaca;
+}
+
+.content-panel {
+  flex: 1;
+  padding: 24px;
+  max-width: 1500px;
+}
+
+.topbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 18px;
+  margin-bottom: 16px;
+}
+
+.user-pill {
+  padding: 10px 14px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.02);
+  color: var(--muted);
+}
+
+.panel-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.panel-card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  padding: 18px 20px;
+}
+
+.panel-card h3 {
+  margin-bottom: 16px;
+}
+
+.full-width {
+  grid-column: 1 / -1;
+}
+
+/* Overlays de modal — "ver detalhes" e confirmações de ação grave abrem por
+   cima da tela, em vez de expandir uma lista/painel embutido na página. */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(11, 18, 32, 0.55);
+  backdrop-filter: blur(4px);
+}
+
+.modal-card {
+  width: min(720px, 100%);
+  max-height: 88vh;
+  overflow-y: auto;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  padding: 24px;
+  box-shadow: 0 30px 80px rgba(0, 41, 107, 0.28);
+}
+
+.confirm-modal-card {
+  width: min(440px, 100%);
+  max-height: none;
+  overflow: visible;
+}
+
+.confirm-modal-card.warning {
+  border-top: 4px solid var(--warning);
+}
+
+.confirm-modal-card.danger {
+  border-top: 4px solid var(--danger);
+}
+
+.stack-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.metrics {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.metric-box {
+  background: var(--panel-soft);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.metric-box span {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.metric-box strong {
+  font-size: 1.4rem;
+}
+
+.small-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  color: var(--text);
+}
+
+.panel-card:has(table) { overflow-x: auto; }
+
+th, td {
+  border-bottom: 1px solid var(--line);
+  padding: 12px 10px;
+  text-align: left;
+  vertical-align: middle;
+}
+
+th {
+  color: var(--muted);
+  font-size: 0.76rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.single-card {
+  max-width: 900px;
+}
+
+.primary-button.small {
+  padding: 8px 12px;
+  font-size: 0.8rem;
+}
+
+@media (max-width: 900px) {
+  .dashboard-shell { flex-direction: column; }
+  .sidebar { width: 100%; border-right: none; border-bottom: 1px solid var(--line); }
+  .sidebar.collapsed { width: 100%; }
+  .panel-grid, .two-col, .metrics { grid-template-columns: 1fr; }
+}
+
+.badge-ativa,
+.badge-suspensa {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+.badge-ativa { background: rgba(34, 197, 94, 0.16); color: #16a34a; }
+.badge-suspensa { background: rgba(248, 113, 113, 0.16); color: #dc2626; }
+
+.alert-line {
+  color: var(--danger);
+  font-weight: 600;
+  font-size: 0.85rem;
+  margin: 8px 0;
+}
+
+.muted-text {
+  color: var(--muted);
+  font-size: 0.85rem;
+  margin: 4px 0 12px;
+}
+
+.button-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+
+.audit-json {
+  font-size: 0.72rem;
+  color: var(--muted);
+  word-break: break-all;
+}

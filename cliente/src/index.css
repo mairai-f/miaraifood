@@ -1,0 +1,949 @@
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap');
+@import 'tailwindcss';
+@import 'tw-animate-css';
+@plugin "@tailwindcss/typography";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  /* Brand aliases: keep existing utility classes aligned with Midnight Appetite. */
+  --color-emerald-500: #68AA4A;
+  --color-emerald-400: #86C35A;
+  --color-emerald-300: #B4D989;
+  --color-emerald-200: #D7E9B5;
+  --color-violet-500: #55C7C4;
+  --color-violet-400: #84DEDA;
+  --color-violet-300: #B8EEEC;
+  --color-slate-950: #fffaf5;
+  --color-slate-900: #fff3e8;
+  --color-slate-800: #eadfd4;
+  --color-slate-700: #d7c8bb;
+  --color-slate-600: #8b7468;
+  --color-slate-500: #8d776b;
+  --color-slate-400: #6f625b;
+  --color-slate-300: #493f3a;
+  --color-slate-200: #3a302a;
+  --color-slate-100: #2c2521;
+  --color-background: hsl(var(--background));
+  --color-foreground: hsl(var(--foreground));
+  --color-border: hsl(var(--border));
+  --color-input: hsl(var(--input));
+  --color-ring: hsl(var(--ring));
+
+  --color-card: hsl(var(--card));
+  --color-card-foreground: hsl(var(--card-foreground));
+  --color-card-border: hsl(var(--card-border));
+
+  --color-popover: hsl(var(--popover));
+  --color-popover-foreground: hsl(var(--popover-foreground));
+  --color-popover-border: hsl(var(--popover-border));
+
+  --color-primary: hsl(var(--primary));
+  --color-primary-foreground: hsl(var(--primary-foreground));
+  --color-primary-border: var(--primary-border);
+
+  --color-secondary: hsl(var(--secondary));
+  --color-secondary-foreground: hsl(var(--secondary-foreground));
+  --color-secondary-border: var(--secondary-border);
+
+  --color-muted: hsl(var(--muted));
+  --color-muted-foreground: hsl(var(--muted-foreground));
+  --color-muted-border: var(--muted-border);
+
+  --color-accent: hsl(var(--accent));
+  --color-accent-foreground: hsl(var(--accent-foreground));
+  --color-accent-border: var(--accent-border);
+
+  --color-destructive: hsl(var(--destructive));
+  --color-destructive-foreground: hsl(var(--destructive-foreground));
+  --color-destructive-border: var(--destructive-border);
+
+  --color-chart-1: hsl(var(--chart-1));
+  --color-chart-2: hsl(var(--chart-2));
+  --color-chart-3: hsl(var(--chart-3));
+  --color-chart-4: hsl(var(--chart-4));
+  --color-chart-5: hsl(var(--chart-5));
+
+  --color-sidebar: hsl(var(--sidebar));
+  --color-sidebar-foreground: hsl(var(--sidebar-foreground));
+  --color-sidebar-border: hsl(var(--sidebar-border));
+  --color-sidebar-primary: hsl(var(--sidebar-primary));
+  --color-sidebar-primary-foreground: hsl(var(--sidebar-primary-foreground));
+  --color-sidebar-primary-border: var(--sidebar-primary-border);
+  --color-sidebar-accent: hsl(var(--sidebar-accent));
+  --color-sidebar-accent-foreground: hsl(var(--sidebar-accent-foreground));
+  --color-sidebar-accent-border: var(--sidebar-accent-border);
+  --color-sidebar-ring: hsl(var(--sidebar-ring));
+
+  --font-sans: var(--app-font-sans);
+  --font-serif: var(--app-font-serif);
+  --font-mono: var(--app-font-mono);
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+/* LIGHT MODE */
+:root {
+  --button-outline: rgba(0, 0, 0, 0.1);
+  --badge-outline: rgba(0, 0, 0, 0.05);
+
+  /* Automatic computation of border around primary / danger buttons */
+  --opaque-button-border-intensity: -8; /* In terms of percentages */
+
+  /* Backgrounds applied on top of other backgrounds when hovered/active */
+  --elevate-1: rgba(0, 0, 0, 0.03);
+  --elevate-2: rgba(0, 0, 0, 0.08);
+
+  /* ── Midnight Appetite: tecnologia sofisticada + apetite ───────────── */
+  --background: 30 100% 98%;
+  --foreground: 20 18% 16%;
+  --border: 29 30% 85%;
+  --card: 30 100% 96%;
+  --card-foreground: 20 18% 16%;
+  --card-border: 29 30% 85%;
+  --sidebar: 30 60% 97%;
+  --sidebar-foreground: 20 18% 16%;
+  --sidebar-border: 29 30% 85%;
+  --sidebar-primary: 155 47% 38%;
+  --sidebar-primary-foreground: 14 35% 8%;
+  --sidebar-accent: 30 50% 91%;
+  --sidebar-accent-foreground: 20 18% 16%;
+  --sidebar-ring: 155 47% 38%;
+  --popover: 30 100% 98%;
+  --popover-foreground: 20 18% 16%;
+  --popover-border: 29 30% 85%;
+  --primary: 155 47% 38%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 30 45% 91%;
+  --secondary-foreground: 20 18% 16%;
+  --muted: 30 45% 93%;
+  --muted-foreground: 24 12% 42%;
+  --accent: 186 83% 68%;
+  --accent-foreground: 20 18% 16%;
+  --destructive: 0 59% 61%;
+  --destructive-foreground: 0 0% 100%;
+  --input: 29 30% 85%;
+  --ring: 155 47% 38%;
+  --chart-1: 155 47% 38%;
+  --chart-2: 186 83% 68%;
+  --chart-3: 45 96% 63%;
+  --chart-4: 153 55% 63%;
+  --chart-5: 0 59% 61%;
+
+  --app-font-sans: 'Manrope', sans-serif;
+  --app-font-serif: 'Manrope', sans-serif;
+  --app-font-mono: 'Space Mono', monospace;
+  --radius: 0.5rem; /* 8px */
+  --shadow-2xs: 0px 2px 0px 0px hsl(202.8169 89.1213% 53.1373% / 0); /*replace with H S L */
+  --shadow-xs: 0px 2px 0px 0px hsl(202.8169 89.1213% 53.1373% / 0); /*replace with H S L */
+  --shadow-sm:
+    0px 2px 0px 0px hsl(202.8169 89.1213% 53.1373% / 0),
+    0px 1px 2px -1px hsl(202.8169 89.1213% 53.1373% / 0);
+  --shadow:
+    0px 2px 0px 0px hsl(202.8169 89.1213% 53.1373% / 0),
+    0px 1px 2px -1px hsl(202.8169 89.1213% 53.1373% / 0);
+  --shadow-md:
+    0px 2px 0px 0px hsl(202.8169 89.1213% 53.1373% / 0),
+    0px 2px 4px -1px hsl(202.8169 89.1213% 53.1373% / 0);
+  --shadow-lg:
+    0px 2px 0px 0px hsl(202.8169 89.1213% 53.1373% / 0),
+    0px 4px 6px -1px hsl(202.8169 89.1213% 53.1373% / 0);
+  --shadow-xl:
+    0px 2px 0px 0px hsl(202.8169 89.1213% 53.1373% / 0),
+    0px 8px 10px -1px hsl(202.8169 89.1213% 53.1373% / 0);
+  --shadow-2xl: 0px 2px 0px 0px hsl(202.8169 89.1213% 53.1373% / 0);
+  --tracking-normal: 0em;
+  --spacing: 0.25rem;
+
+  /* Automatically computed borders - intensity can be controlled by the user by the --opaque-button-border-intensity setting */
+
+  /* Fallback for older browsers */
+  --sidebar-primary-border: hsl(var(--sidebar-primary));
+  --sidebar-primary-border: hsl(
+    from hsl(var(--sidebar-primary)) h s
+      calc(l + var(--opaque-button-border-intensity)) / alpha
+  );
+
+  /* Fallback for older browsers */
+  --sidebar-accent-border: hsl(var(--sidebar-accent));
+  --sidebar-accent-border: hsl(
+    from hsl(var(--sidebar-accent)) h s
+      calc(l + var(--opaque-button-border-intensity)) / alpha
+  );
+
+  /* Fallback for older browsers */
+  --primary-border: hsl(var(--primary));
+  --primary-border: hsl(
+    from hsl(var(--primary)) h s
+      calc(l + var(--opaque-button-border-intensity)) / alpha
+  );
+
+  /* Fallback for older browsers */
+  --secondary-border: hsl(var(--secondary));
+  --secondary-border: hsl(
+    from hsl(var(--secondary)) h s
+      calc(l + var(--opaque-button-border-intensity)) / alpha
+  );
+
+  /* Fallback for older browsers */
+  --muted-border: hsl(var(--muted));
+  --muted-border: hsl(
+    from hsl(var(--muted)) h s calc(l + var(--opaque-button-border-intensity)) /
+      alpha
+  );
+
+  /* Fallback for older browsers */
+  --accent-border: hsl(var(--accent));
+  --accent-border: hsl(
+    from hsl(var(--accent)) h s
+      calc(l + var(--opaque-button-border-intensity)) / alpha
+  );
+
+  /* Fallback for older browsers */
+  --destructive-border: hsl(var(--destructive));
+  --destructive-border: hsl(
+    from hsl(var(--destructive)) h s
+      calc(l + var(--opaque-button-border-intensity)) / alpha
+  );
+}
+
+.dark {
+  --button-outline: rgba(255, 255, 255, 0.1);
+  --badge-outline: rgba(255, 255, 255, 0.05);
+
+  --opaque-button-border-intensity: 9; /* In terms of percentages */
+
+  /* Backgrounds applied on top of other backgrounds when hovered/active */
+  --elevate-1: rgba(255, 255, 255, 0.04);
+  --elevate-2: rgba(255, 255, 255, 0.09);
+
+  --background: 222 23% 6%;
+  --foreground: 39 45% 94%;
+  --border: 222 16% 19%;
+  --card: 222 22% 11%;
+  --card-foreground: 39 45% 94%;
+  --card-border: 222 16% 19%;
+  --sidebar: 222 24% 8%;
+  --sidebar-foreground: 39 36% 92%;
+  --sidebar-border: 222 17% 16%;
+  --sidebar-primary: 155 47% 56%;
+  --sidebar-primary-foreground: 14 35% 8%;
+  --sidebar-accent: 222 18% 14%;
+  --sidebar-accent-foreground: 39 30% 88%;
+  --sidebar-ring: 155 47% 56%;
+  --popover: 222 23% 8%;
+  --popover-foreground: 39 45% 94%;
+  --popover-border: 222 16% 19%;
+  --primary: 155 47% 56%;
+  --primary-foreground: 14 35% 8%;
+  --secondary: 222 18% 15%;
+  --secondary-foreground: 39 45% 94%;
+  --muted: 222 18% 13%;
+  --muted-foreground: 214 14% 70%;
+  --accent: 186 83% 68%;
+  --accent-foreground: 222 30% 8%;
+  --destructive: 0 59% 61%;
+  --destructive-foreground: 0 0% 100%;
+  --input: 222 18% 18%;
+  --ring: 155 47% 56%;
+  --chart-1: 155 47% 56%;
+  --chart-2: 186 83% 68%;
+  --chart-3: 45 96% 63%;
+  --chart-4: 153 55% 63%;
+  --chart-5: 0 59% 61%;
+
+  --shadow-2xs: 0px 2px 0px 0px hsl(202.8169 89.1213% 53.1373% / 0);
+  --shadow-xs: 0px 2px 0px 0px hsl(202.8169 89.1213% 53.1373% / 0);
+  --shadow-sm:
+    0px 2px 0px 0px hsl(202.8169 89.1213% 53.1373% / 0),
+    0px 1px 2px -1px hsl(202.8169 89.1213% 53.1373% / 0);
+  --shadow:
+    0px 2px 0px 0px hsl(202.8169 89.1213% 53.1373% / 0),
+    0px 1px 2px -1px hsl(202.8169 89.1213% 53.1373% / 0);
+  --shadow-md:
+    0px 2px 0px 0px hsl(202.8169 89.1213% 53.1373% / 0),
+    0px 2px 4px -1px hsl(202.8169 89.1213% 53.1373% / 0);
+  --shadow-lg:
+    0px 2px 0px 0px hsl(202.8169 89.1213% 53.1373% / 0),
+    0px 4px 6px -1px hsl(202.8169 89.1213% 53.1373% / 0);
+  --shadow-xl:
+    0px 2px 0px 0px hsl(202.8169 89.1213% 53.1373% / 0),
+    0px 8px 10px -1px hsl(202.8169 89.1213% 53.1373% / 0);
+  --shadow-2xl: 0px 2px 0px 0px hsl(202.8169 89.1213% 53.1373% / 0);
+}
+
+/* Base styles kept unwrapped for compatibility with the Vite/PostCSS pipeline. */
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply font-sans antialiased bg-background text-foreground;
+  }
+/**
+ * Using the elevate system.
+ * Automatic contrast adjustment.
+ *
+ * <element className="hover-elevate" />
+ * <element className="active-elevate-2" />
+ *
+ * // Using the tailwind utility when a data attribute is "on"
+ * <element className="toggle-elevate data-[state=on]:toggle-elevated" />
+ * // Or manually controlling the toggle state
+ * <element className="toggle-elevate toggle-elevated" />
+ *
+ * Elevation systems have to handle many states.
+ * - not-hovered, vs. hovered vs. active  (three mutually exclusive states)
+ * - toggled or not
+ * - focused or not (this is not handled with these utilities)
+ *
+ * Even without handling focused or not, this is six possible combinations that
+ * need to be distinguished from eachother visually.
+ */
+/* Utility styles kept unwrapped for compatibility with the Vite/PostCSS pipeline. */
+  /* Hide ugly search cancel button in Chrome until we can style it properly */
+  input[type='search']::-webkit-search-cancel-button {
+    @apply hidden;
+  }
+
+  /* Placeholder styling for contentEditable div */
+  [contenteditable][data-placeholder]:empty::before {
+    content: attr(data-placeholder);
+    color: hsl(var(--muted-foreground));
+    pointer-events: none;
+  }
+
+  /* .no-default-hover-elevate/no-default-active-elevate is an escape hatch so consumers of
+   * buttons/badges can remove the automatic brightness adjustment on interactions
+   * and program their own. */
+  .no-default-hover-elevate {
+  }
+
+  .no-default-active-elevate {
+  }
+
+  /**
+   * Toggleable backgrounds go behind the content. Hoverable/active goes on top.
+   * This way they can stack/compound. Both will overlap the parent's borders!
+   * So borders will be automatically adjusted both on toggle, and hover/active,
+   * and they will be compounded.
+   */
+  .toggle-elevate::before,
+  .toggle-elevate-2::before {
+    content: '';
+    pointer-events: none;
+    position: absolute;
+    inset: 0px;
+    /*border-radius: inherit;   match rounded corners */
+    border-radius: inherit;
+    z-index: -1;
+    /* sits behind content but above backdrop */
+  }
+
+  .toggle-elevate.toggle-elevated::before {
+    background-color: var(--elevate-2);
+  }
+
+  /* If there's a 1px border, adjust the inset so that it covers that parent's border */
+  .border.toggle-elevate::before {
+    inset: -1px;
+  }
+
+  /* Does not work on elements with overflow:hidden! */
+  .hover-elevate:not(.no-default-hover-elevate),
+  .active-elevate:not(.no-default-active-elevate),
+  .hover-elevate-2:not(.no-default-hover-elevate),
+  .active-elevate-2:not(.no-default-active-elevate) {
+    position: relative;
+    z-index: 0;
+  }
+
+  .hover-elevate:not(.no-default-hover-elevate)::after,
+  .active-elevate:not(.no-default-active-elevate)::after,
+  .hover-elevate-2:not(.no-default-hover-elevate)::after,
+  .active-elevate-2:not(.no-default-active-elevate)::after {
+    content: '';
+    pointer-events: none;
+    position: absolute;
+    inset: 0px;
+    /*border-radius: inherit;   match rounded corners */
+    border-radius: inherit;
+    z-index: 999;
+    /* sits in front of content */
+  }
+
+  .hover-elevate:hover:not(.no-default-hover-elevate)::after,
+  .active-elevate:active:not(.no-default-active-elevate)::after {
+    background-color: var(--elevate-1);
+  }
+
+  .hover-elevate-2:hover:not(.no-default-hover-elevate)::after,
+  .active-elevate-2:active:not(.no-default-active-elevate)::after {
+    background-color: var(--elevate-2);
+  }
+
+  /* If there's a 1px border, adjust the inset so that it covers that parent's border */
+  .border.hover-elevate:not(.no-hover-interaction-elevate)::after,
+  .border.active-elevate:not(.no-active-interaction-elevate)::after,
+  .border.hover-elevate-2:not(.no-hover-interaction-elevate)::after,
+  .border.active-elevate-2:not(.no-active-interaction-elevate)::after,
+  .border.hover-elevate:not(.no-hover-interaction-elevate)::after {
+    inset: -1px;
+  }
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   MIAR AI/FOOD — identidade visual única
+   Tecnologia que organiza. Inteligência que multiplica.
+   Paleta de referência: Azul Noite, Azul Petróleo, Verde MIAR, Areia, Terracota.
+   ───────────────────────────────────────────────────────────────────────────── */
+:root {
+  --miar-night: #0F1F2E;
+  --miar-petrol: #0D3B4E;
+  --miar-green: #68AA4A;
+  --miar-green-soft: #A8C96E;
+  --miar-sand: #F5F2EB;
+  --miar-terracotta: #DB683A;
+  --miar-cyan: #55C7C4;
+  --miar-ink: #122535;
+  --miar-line: rgba(104, 170, 74, 0.18);
+  --miar-shadow: 0 20px 60px rgba(5, 19, 29, 0.18);
+  --miar-ease: cubic-bezier(0.23, 1, 0.32, 1);
+  --miar-radius: 1rem;
+  --app-font-sans: 'Manrope', ui-sans-serif, system-ui, sans-serif;
+  --app-font-serif: 'Manrope', ui-sans-serif, system-ui, sans-serif;
+  --app-font-mono: 'Space Mono', ui-monospace, monospace;
+}
+
+:root {
+  --background: 40 33% 95%;
+  --foreground: 207 35% 12%;
+  --border: 35 22% 84%;
+  --input: 35 22% 84%;
+  --card: 40 44% 98%;
+  --card-foreground: 207 35% 12%;
+  --card-border: 35 22% 84%;
+  --popover: 40 44% 98%;
+  --popover-foreground: 207 35% 12%;
+  --popover-border: 35 22% 84%;
+  --primary: 93 39% 47%;
+  --primary-foreground: 40 44% 98%;
+  --secondary: 191 39% 91%;
+  --secondary-foreground: 207 35% 12%;
+  --muted: 35 24% 89%;
+  --muted-foreground: 203 18% 38%;
+  --accent: 15 68% 54%;
+  --accent-foreground: 40 44% 98%;
+  --destructive: 4 71% 54%;
+  --destructive-foreground: 40 44% 98%;
+  --ring: 93 39% 47%;
+  --sidebar: 207 41% 15%;
+  --sidebar-foreground: 40 44% 98%;
+  --sidebar-border: 194 50% 24%;
+  --sidebar-primary: 93 39% 47%;
+  --sidebar-primary-foreground: 207 41% 15%;
+  --sidebar-accent: 194 50% 24%;
+  --sidebar-accent-foreground: 40 44% 98%;
+  --sidebar-ring: 93 39% 47%;
+  --radius: 0.875rem;
+}
+
+.dark {
+  --background: 207 41% 15%;
+  --foreground: 40 33% 96%;
+  --border: 194 50% 24%;
+  --input: 194 38% 27%;
+  --card: 201 43% 19%;
+  --card-foreground: 40 33% 96%;
+  --card-border: 194 50% 24%;
+  --popover: 201 43% 17%;
+  --popover-foreground: 40 33% 96%;
+  --popover-border: 194 50% 24%;
+  --primary: 93 39% 47%;
+  --primary-foreground: 207 41% 15%;
+  --secondary: 194 41% 24%;
+  --secondary-foreground: 40 33% 96%;
+  --muted: 198 35% 22%;
+  --muted-foreground: 194 21% 72%;
+  --accent: 15 68% 54%;
+  --accent-foreground: 40 33% 96%;
+  --destructive: 4 71% 60%;
+  --destructive-foreground: 40 33% 96%;
+  --ring: 93 39% 57%;
+  --sidebar: 207 48% 10%;
+  --sidebar-foreground: 40 33% 96%;
+  --sidebar-border: 194 50% 20%;
+  --sidebar-primary: 93 39% 57%;
+  --sidebar-primary-foreground: 207 48% 10%;
+  --sidebar-accent: 194 50% 20%;
+  --sidebar-accent-foreground: 40 33% 96%;
+  --sidebar-ring: 93 39% 57%;
+}
+
+html {
+  background: var(--miar-night);
+  font-family: var(--app-font-sans);
+}
+
+body {
+  min-width: 320px;
+  background-color: hsl(var(--background));
+  background-image:
+    radial-gradient(circle at 8% 0%, rgba(104, 170, 74, 0.10), transparent 32rem),
+    radial-gradient(circle at 96% 10%, rgba(85, 199, 196, 0.08), transparent 28rem);
+  color: hsl(var(--foreground));
+  letter-spacing: -0.01em;
+}
+
+::selection {
+  background: rgba(104, 170, 74, 0.32);
+  color: inherit;
+}
+
+button,
+a,
+input,
+select,
+textarea {
+  transition: color 180ms var(--miar-ease), background-color 180ms var(--miar-ease), border-color 180ms var(--miar-ease), box-shadow 180ms var(--miar-ease), transform 180ms var(--miar-ease), opacity 180ms var(--miar-ease);
+}
+
+button:active:not(:disabled),
+a:active {
+  transform: scale(0.98);
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 3px solid rgba(104, 170, 74, 0.30);
+  outline-offset: 2px;
+}
+
+input,
+select,
+textarea {
+  border-radius: calc(var(--miar-radius) - 0.2rem);
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: rgba(164, 183, 183, 0.72);
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(104, 170, 74, 0.34);
+  border: 3px solid transparent;
+  border-radius: 999px;
+  background-clip: padding-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(104, 170, 74, 0.58);
+  background-clip: padding-box;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}
+
+/* Shell de produto: profundidade, leitura e hierarquia operacional. */
+.miar-app-shell {
+  min-height: 100vh;
+  background-image:
+    radial-gradient(circle at 100% 0%, rgba(85, 199, 196, 0.09), transparent 28rem),
+    linear-gradient(135deg, rgba(13, 59, 78, 0.10), transparent 42%);
+}
+
+.miar-topbar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  backdrop-filter: blur(18px);
+  box-shadow: 0 1px 0 rgba(168, 201, 110, 0.08), 0 18px 40px rgba(5, 19, 29, 0.10);
+}
+
+.miar-brand-lockup {
+  background: linear-gradient(135deg, rgba(13, 59, 78, 0.96), rgba(15, 31, 46, 0.96));
+  box-shadow: 0 14px 34px rgba(5, 19, 29, 0.18), inset 0 1px 0 rgba(245, 242, 235, 0.09);
+}
+
+.miar-brand-lockup img {
+  filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.18));
+}
+
+.miar-card,
+[data-miar-card='true'] {
+  border: 1px solid rgba(168, 201, 110, 0.16);
+  border-radius: var(--miar-radius);
+  box-shadow: 0 16px 42px rgba(5, 19, 29, 0.12);
+}
+
+.dark .miar-card,
+.dark [data-miar-card='true'] {
+  background: linear-gradient(150deg, rgba(21, 51, 68, 0.94), rgba(13, 59, 78, 0.78));
+  border-color: rgba(168, 201, 110, 0.16);
+}
+
+.miar-kicker {
+  color: var(--miar-green-soft);
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.miar-status-dot {
+  display: inline-block;
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 999px;
+  background: var(--miar-green);
+  box-shadow: 0 0 0 4px rgba(104, 170, 74, 0.15);
+}
+
+@media (max-width: 720px) {
+  .miar-topbar {
+    position: relative;
+  }
+
+  .miar-brand-lockup {
+    width: 11rem;
+  }
+}
+
+/* Cliente: uma experiência de descoberta, desejo e pedido sem fricção. */
+/* Cliente: Food Marketplace - Identidade Visual MIAR Dark */
+.client-app-shell {
+  --bg-dark: #06100A;
+  --card-dark: #16301F;
+  --category-red: #0B1A10;
+  --price-gold: #008000;
+  --button-orange: #38B000;
+  --badge-red: #38B000;
+  --hover-gold: #008000;
+
+  min-height: 100vh;
+  background-color: #06100A !important;
+  color: #FFFFFF !important;
+  font-family: 'Plus Jakarta Sans', sans-serif !important;
+}
+
+.client-home {
+  width: 100%;
+  max-width: 84rem; /* Wide container for PC/Desktop view */
+  margin: 0 auto;
+  background: transparent !important;
+}
+
+.client-home-header h1 {
+  color: #FFFFFF !important;
+  font-size: clamp(1.45rem, 5vw, 2.2rem);
+  font-weight: 800;
+  letter-spacing: -0.04em;
+}
+
+.client-home-header p,
+.client-home-header .text-slate-400 {
+  color: #D1D5DB !important;
+}
+
+.client-search {
+  min-height: 3.25rem;
+  border-color: rgba(255, 255, 255, 0.15) !important;
+  border-radius: 1.25rem !important;
+  background: rgba(55, 6, 23, 0.8) !important;
+  color: #FFFFFF !important;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.4);
+}
+
+.client-search::placeholder {
+  color: #9CA3AF !important;
+}
+
+.client-restaurant-card {
+  border-color: rgba(106, 4, 15, 0.4) !important;
+  border-radius: 1.35rem !important;
+  background: #16301F !important;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.3);
+  transition: transform 180ms var(--miar-ease), box-shadow 180ms var(--miar-ease), border-color 180ms var(--miar-ease);
+}
+
+.client-restaurant-card:hover {
+  border-color: #008000 !important;
+  box-shadow: 0 18px 36px rgba(255, 186, 8, 0.2);
+  transform: translateY(-2px);
+}
+
+.client-bottom-nav {
+  left: 50%;
+  right: auto;
+  bottom: 0.8rem;
+  width: min(calc(100% - 1.25rem), 32rem);
+  transform: translateX(-50%);
+  border: 1px solid rgba(106, 4, 15, 0.6) !important;
+  border-radius: 1.45rem;
+  background: rgba(3, 7, 30, 0.95) !important;
+  backdrop-filter: blur(12px);
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.6);
+}
+
+.client-bottom-nav > div {
+  max-width: none;
+  padding: 0.22rem;
+}
+
+.client-bottom-nav button {
+  color: rgba(255, 255, 255, 0.6) !important;
+  border-radius: 1.1rem;
+  transition: color 160ms var(--miar-ease), background 160ms var(--miar-ease), transform 160ms var(--miar-ease);
+}
+
+.client-bottom-nav button.text-emerald-400 {
+  color: #008000 !important;
+  background: rgba(106, 4, 15, 0.6);
+}
+
+.client-bottom-nav button:active {
+  transform: scale(0.96);
+}
+
+.client-login-overlay {
+  background: rgba(3, 7, 30, 0.85) !important;
+  backdrop-filter: blur(12px);
+}
+
+.client-login-overlay > div {
+  border-color: #0B1A10 !important;
+  background: #16301F !important;
+  color: #FFFFFF !important;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.6);
+}
+
+.client-login-overlay p.text-slate-100 {
+  color: var(--client-ink) !important;
+}
+
+@media (max-width: 640px) {
+  .client-home-header {
+    padding-top: 1.5rem;
+  }
+
+  .client-bottom-nav {
+    bottom: 0.55rem;
+  }
+}
+
+/* Menu/Tracking/Reservation usavam um tema creme claro próprio, diferente da
+ * Home — corrigido 05/09/2026: o pedido é que TUDO no Cliente siga a mesma
+ * paleta escura da Home (.client-dark-theme, definida mais abaixo). Aqui só
+ * sobra o que é estrutural (largura máxima, header fixo com blur) mais os
+ * dois seletores de classe própria (client-menu-header/search) que não são
+ * utilitário Tailwind e por isso não são cobertos pelo bloco .client-dark-theme. */
+.client-menu {
+  min-height: 100vh;
+}
+
+.client-menu-header {
+  border-color: #0B1A10 !important;
+  background: rgba(106, 4, 15, 0.92) !important;
+  color: #FFFFFF !important;
+  backdrop-filter: blur(10px);
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.35);
+}
+
+.client-menu-header button,
+.client-menu-header .bg-slate-800 {
+  background: rgba(255, 255, 255, 0.08) !important;
+  color: #FFFFFF !important;
+}
+
+.client-menu-search {
+  min-height: 3.2rem;
+  border-color: #0B1A10 !important;
+  background: rgba(3, 7, 30, 0.8) !important;
+  color: #FFFFFF !important;
+}
+
+.client-menu > .p-4 {
+  max-width: 48rem;
+  margin: 0 auto;
+  padding-bottom: 7rem;
+}
+
+.client-tracking > div,
+.client-reservation > div {
+  max-width: 48rem;
+}
+
+/* IA Cliente: uma conversa que parece orientação, não um formulário. */
+.client-ai-shell {
+  background:
+    radial-gradient(circle at 88% 4%, rgba(200, 90, 50, 0.16), transparent 20rem),
+    radial-gradient(circle at 8% 38%, rgba(104, 170, 74, 0.13), transparent 18rem),
+    #fffaf5 !important;
+  color: var(--client-ink) !important;
+}
+
+.client-ai-header {
+  border-color: rgba(23, 42, 50, 0.10) !important;
+  background: rgba(255, 250, 245, 0.88) !important;
+  box-shadow: 0 10px 28px rgba(74, 45, 29, 0.07);
+  color: var(--client-ink) !important;
+}
+
+.client-ai-header > button {
+  background: rgba(23, 42, 50, 0.08) !important;
+  color: var(--client-ink) !important;
+}
+
+.client-ai-header p.text-sm {
+  color: var(--client-ink) !important;
+}
+
+.client-ai-header p.text-\[10px\] {
+  color: #8f8178 !important;
+}
+
+.client-ai-orb {
+  position: relative;
+  background: linear-gradient(135deg, rgba(104, 170, 74, 0.20), rgba(85, 199, 196, 0.28)) !important;
+  color: var(--client-green) !important;
+  box-shadow: 0 0 0 6px rgba(104, 170, 74, 0.08), 0 8px 18px rgba(74, 45, 29, 0.12);
+}
+
+.client-ai-orb::after {
+  content: '';
+  position: absolute;
+  inset: -0.3rem;
+  border: 1px solid rgba(104, 170, 74, 0.28);
+  border-radius: inherit;
+  animation: client-ai-pulse 2.8s ease-in-out infinite;
+}
+
+.client-ai-messages {
+  width: min(100%, 44rem);
+  margin: 0 auto;
+  padding-top: 2rem !important;
+  background-image: linear-gradient(rgba(23, 42, 50, 0.025) 1px, transparent 1px), linear-gradient(90deg, rgba(23, 42, 50, 0.025) 1px, transparent 1px);
+  background-size: 28px 28px;
+}
+
+.client-ai-bubble {
+  box-shadow: 0 12px 26px rgba(74, 45, 29, 0.07);
+  border: 1px solid rgba(23, 42, 50, 0.08);
+}
+
+.client-ai-bubble.bg-emerald-600 {
+  background: var(--client-terracotta) !important;
+  border-color: rgba(200, 90, 50, 0.16);
+}
+
+.client-ai-bubble.bg-slate-800 {
+  background: rgba(255, 255, 255, 0.84) !important;
+  color: var(--client-ink) !important;
+  border-color: rgba(23, 42, 50, 0.09);
+}
+
+.client-ai-suggestions {
+  width: min(100%, 44rem);
+  margin: 0 auto;
+}
+
+.client-ai-suggestions button {
+  border-color: rgba(23, 42, 50, 0.12) !important;
+  background: rgba(255, 255, 255, 0.78) !important;
+  color: #6c625c !important;
+  border-radius: 999px !important;
+  box-shadow: 0 8px 18px rgba(74, 45, 29, 0.05);
+}
+
+.client-ai-suggestions button:hover {
+  border-color: rgba(200, 90, 50, 0.30) !important;
+  color: var(--client-terracotta) !important;
+  transform: translateY(-1px);
+}
+
+.client-ai-composer {
+  border-color: rgba(23, 42, 50, 0.10) !important;
+  background: rgba(255, 250, 245, 0.92) !important;
+  box-shadow: 0 -12px 30px rgba(74, 45, 29, 0.08);
+}
+
+.client-ai-input {
+  min-height: 3rem;
+  border-color: rgba(23, 42, 50, 0.12) !important;
+  background: rgba(255, 255, 255, 0.86) !important;
+  color: var(--client-ink) !important;
+  border-radius: 999px !important;
+}
+
+.client-ai-composer > button {
+  width: 3rem;
+  height: 3rem;
+  border-radius: 999px !important;
+  background: var(--client-green) !important;
+  box-shadow: 0 10px 20px rgba(94, 150, 63, 0.24);
+}
+
+@keyframes client-ai-pulse {
+  0%, 100% { opacity: 0.34; transform: scale(0.96); }
+  50% { opacity: 0.82; transform: scale(1.05); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .client-ai-orb::after { animation: none; }
+}
+
+
+/* ─── Tema escuro do MIAR (mesma paleta da Home) aplicado a telas que não
+   tinham classe de escopo própria (ProfileSetup, ProfileTab) — sem isso
+   elas herdavam a escala --color-slate-* "invertida" (950=claro, 100=escuro)
+   definida lá em cima pro tema creme do Menu/Tracking/Reservation, e
+   acabavam renderizando com fundo branco por acidente, sem nunca ter sido
+   essa a intenção de nenhum dos dois temas do app. */
+.client-dark-theme {
+  background: #06100A !important;
+  color: #FFFFFF !important;
+  min-height: 100vh;
+}
+
+.client-dark-theme .bg-slate-950 { background: #06100A !important; }
+.client-dark-theme .bg-slate-900,
+.client-dark-theme .bg-slate-800 { background: #16301F !important; }
+.client-dark-theme .bg-slate-700,
+.client-dark-theme .bg-slate-600 { background: #0B1A10 !important; }
+
+.client-dark-theme .border-slate-900,
+.client-dark-theme .border-slate-800,
+.client-dark-theme .border-slate-700,
+.client-dark-theme .border-slate-600 { border-color: #0B1A10 !important; }
+
+.client-dark-theme .text-slate-100,
+.client-dark-theme .text-slate-200,
+.client-dark-theme .text-slate-300 { color: #FFFFFF !important; }
+.client-dark-theme .text-slate-400,
+.client-dark-theme .text-slate-500 { color: #B9AFC4 !important; }
+.client-dark-theme .text-slate-600,
+.client-dark-theme .text-slate-700 { color: #8b8399 !important; }
+
+.client-dark-theme .placeholder-slate-400::placeholder,
+.client-dark-theme .placeholder-slate-500::placeholder { color: #8b8399 !important; }

@@ -1,0 +1,366 @@
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap');
+@import 'tailwindcss';
+@import 'tw-animate-css';
+@plugin "@tailwindcss/typography";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: hsl(var(--background));
+  --color-foreground: hsl(var(--foreground));
+  --color-border: hsl(var(--border));
+  --color-input: hsl(var(--input));
+  --color-ring: hsl(var(--ring));
+
+  --color-card: hsl(var(--card));
+  --color-card-foreground: hsl(var(--card-foreground));
+  --color-card-border: hsl(var(--card-border));
+
+  --color-popover: hsl(var(--popover));
+  --color-popover-foreground: hsl(var(--popover-foreground));
+  --color-popover-border: hsl(var(--popover-border));
+
+  --color-primary: hsl(var(--primary));
+  --color-primary-foreground: hsl(var(--primary-foreground));
+  --color-primary-border: var(--primary-border);
+
+  --color-secondary: hsl(var(--secondary));
+  --color-secondary-foreground: hsl(var(--secondary-foreground));
+  --color-secondary-border: var(--secondary-border);
+
+  --color-muted: hsl(var(--muted));
+  --color-muted-foreground: hsl(var(--muted-foreground));
+  --color-muted-border: var(--muted-border);
+
+  --color-accent: hsl(var(--accent));
+  --color-accent-foreground: hsl(var(--accent-foreground));
+  --color-accent-border: var(--accent-border);
+
+  --color-destructive: hsl(var(--destructive));
+  --color-destructive-foreground: hsl(var(--destructive-foreground));
+  --color-destructive-border: var(--destructive-border);
+
+  --font-sans: 'Manrope', sans-serif;
+  --font-serif: 'Manrope', sans-serif;
+  --font-mono: 'Space Mono', monospace;
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+:root {
+  /* Racing Light Mode */
+  --background: 0 0% 98%;
+  --foreground: 220 20% 10%;
+  --border: 220 15% 90%;
+  --input: 220 15% 90%;
+  --ring: 21 100% 55%;
+
+  --card: 0 0% 100%;
+  --card-foreground: 220 20% 10%;
+  --card-border: 220 15% 90%;
+
+  --popover: 0 0% 100%;
+  --popover-foreground: 220 20% 10%;
+  --popover-border: 220 15% 90%;
+
+  /* Neon Orange Primary */
+  --primary: 21 100% 55%;
+  --primary-foreground: 0 0% 100%;
+
+  --secondary: 220 15% 94%;
+  --secondary-foreground: 220 20% 20%;
+
+  --muted: 220 15% 94%;
+  --muted-foreground: 220 10% 45%;
+
+  --accent: 21 100% 95%;
+  --accent-foreground: 21 100% 45%;
+
+  --destructive: 0 84% 60%;
+  --destructive-foreground: 0 0% 100%;
+
+  --radius: 0.75rem;
+
+  --shadow-xs: 0px 1px 2px rgba(0,0,0,0.05);
+  --shadow-sm: 0px 2px 4px rgba(0,0,0,0.05);
+}
+
+.dark {
+  --background: 220 25% 6%;
+  --foreground: 0 0% 98%;
+  --border: 220 25% 15%;
+  --input: 220 25% 15%;
+  --ring: 21 100% 55%;
+
+  --card: 220 25% 10%;
+  --card-foreground: 0 0% 98%;
+  --card-border: 220 25% 15%;
+
+  --popover: 220 25% 10%;
+  --popover-foreground: 0 0% 98%;
+  --popover-border: 220 25% 15%;
+
+  --primary: 21 100% 55%;
+  --primary-foreground: 0 0% 100%;
+
+  --secondary: 220 25% 15%;
+  --secondary-foreground: 220 10% 80%;
+
+  --muted: 220 25% 15%;
+  --muted-foreground: 220 10% 60%;
+
+  --accent: 21 100% 15%;
+  --accent-foreground: 21 100% 65%;
+
+  --destructive: 0 84% 60%;
+  --destructive-foreground: 0 0% 100%;
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply font-sans antialiased bg-background text-foreground;
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   MIAR AI/FOOD — identidade visual única
+   Tecnologia que organiza. Inteligência que multiplica.
+   Paleta de referência: Azul Noite, Azul Petróleo, Verde MIAR, Areia, Terracota.
+   ───────────────────────────────────────────────────────────────────────────── */
+:root {
+  --miar-night: #0F1F2E;
+  --miar-petrol: #0D3B4E;
+  --miar-green: #68AA4A;
+  --miar-green-soft: #A8C96E;
+  --miar-sand: #F5F2EB;
+  --miar-terracotta: #DB683A;
+  --miar-cyan: #55C7C4;
+  --miar-ink: #122535;
+  --miar-line: rgba(104, 170, 74, 0.18);
+  --miar-shadow: 0 20px 60px rgba(5, 19, 29, 0.18);
+  --miar-ease: cubic-bezier(0.23, 1, 0.32, 1);
+  --miar-radius: 1rem;
+  --app-font-sans: 'Manrope', ui-sans-serif, system-ui, sans-serif;
+  --app-font-serif: 'Manrope', ui-sans-serif, system-ui, sans-serif;
+  --app-font-mono: 'Space Mono', ui-monospace, monospace;
+}
+
+:root {
+  --background: 40 33% 95%;
+  --foreground: 207 35% 12%;
+  --border: 35 22% 84%;
+  --input: 35 22% 84%;
+  --card: 40 44% 98%;
+  --card-foreground: 207 35% 12%;
+  --card-border: 35 22% 84%;
+  --popover: 40 44% 98%;
+  --popover-foreground: 207 35% 12%;
+  --popover-border: 35 22% 84%;
+  --primary: 93 39% 47%;
+  --primary-foreground: 40 44% 98%;
+  --secondary: 191 39% 91%;
+  --secondary-foreground: 207 35% 12%;
+  --muted: 35 24% 89%;
+  --muted-foreground: 203 18% 38%;
+  --accent: 15 68% 54%;
+  --accent-foreground: 40 44% 98%;
+  --destructive: 4 71% 54%;
+  --destructive-foreground: 40 44% 98%;
+  --ring: 93 39% 47%;
+  --sidebar: 207 41% 15%;
+  --sidebar-foreground: 40 44% 98%;
+  --sidebar-border: 194 50% 24%;
+  --sidebar-primary: 93 39% 47%;
+  --sidebar-primary-foreground: 207 41% 15%;
+  --sidebar-accent: 194 50% 24%;
+  --sidebar-accent-foreground: 40 44% 98%;
+  --sidebar-ring: 93 39% 47%;
+  --radius: 0.875rem;
+}
+
+.dark {
+  --background: 207 41% 15%;
+  --foreground: 40 33% 96%;
+  --border: 194 50% 24%;
+  --input: 194 38% 27%;
+  --card: 201 43% 19%;
+  --card-foreground: 40 33% 96%;
+  --card-border: 194 50% 24%;
+  --popover: 201 43% 17%;
+  --popover-foreground: 40 33% 96%;
+  --popover-border: 194 50% 24%;
+  --primary: 93 39% 47%;
+  --primary-foreground: 207 41% 15%;
+  --secondary: 194 41% 24%;
+  --secondary-foreground: 40 33% 96%;
+  --muted: 198 35% 22%;
+  --muted-foreground: 194 21% 72%;
+  --accent: 15 68% 54%;
+  --accent-foreground: 40 33% 96%;
+  --destructive: 4 71% 60%;
+  --destructive-foreground: 40 33% 96%;
+  --ring: 93 39% 57%;
+  --sidebar: 207 48% 10%;
+  --sidebar-foreground: 40 33% 96%;
+  --sidebar-border: 194 50% 20%;
+  --sidebar-primary: 93 39% 57%;
+  --sidebar-primary-foreground: 207 48% 10%;
+  --sidebar-accent: 194 50% 20%;
+  --sidebar-accent-foreground: 40 33% 96%;
+  --sidebar-ring: 93 39% 57%;
+}
+
+html {
+  background: var(--miar-night);
+  font-family: var(--app-font-sans);
+}
+
+body {
+  min-width: 320px;
+  background-color: hsl(var(--background));
+  background-image:
+    radial-gradient(circle at 8% 0%, rgba(104, 170, 74, 0.10), transparent 32rem),
+    radial-gradient(circle at 96% 10%, rgba(85, 199, 196, 0.08), transparent 28rem);
+  color: hsl(var(--foreground));
+  letter-spacing: -0.01em;
+}
+
+::selection {
+  background: rgba(104, 170, 74, 0.32);
+  color: inherit;
+}
+
+button,
+a,
+input,
+select,
+textarea {
+  transition: color 180ms var(--miar-ease), background-color 180ms var(--miar-ease), border-color 180ms var(--miar-ease), box-shadow 180ms var(--miar-ease), transform 180ms var(--miar-ease), opacity 180ms var(--miar-ease);
+}
+
+button:active:not(:disabled),
+a:active {
+  transform: scale(0.98);
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 3px solid rgba(104, 170, 74, 0.30);
+  outline-offset: 2px;
+}
+
+input,
+select,
+textarea {
+  border-radius: calc(var(--miar-radius) - 0.2rem);
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: rgba(164, 183, 183, 0.72);
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(104, 170, 74, 0.34);
+  border: 3px solid transparent;
+  border-radius: 999px;
+  background-clip: padding-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(104, 170, 74, 0.58);
+  background-clip: padding-box;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}
+
+/* Shell de produto: profundidade, leitura e hierarquia operacional. */
+.miar-app-shell {
+  min-height: 100vh;
+  background-image:
+    radial-gradient(circle at 100% 0%, rgba(85, 199, 196, 0.09), transparent 28rem),
+    linear-gradient(135deg, rgba(13, 59, 78, 0.10), transparent 42%);
+}
+
+.miar-topbar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  backdrop-filter: blur(18px);
+  box-shadow: 0 1px 0 rgba(168, 201, 110, 0.08), 0 18px 40px rgba(5, 19, 29, 0.10);
+}
+
+.miar-brand-lockup {
+  background: linear-gradient(135deg, rgba(13, 59, 78, 0.96), rgba(15, 31, 46, 0.96));
+  box-shadow: 0 14px 34px rgba(5, 19, 29, 0.18), inset 0 1px 0 rgba(245, 242, 235, 0.09);
+}
+
+.miar-brand-lockup img {
+  filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.18));
+}
+
+.miar-card,
+[data-miar-card='true'] {
+  border: 1px solid rgba(168, 201, 110, 0.16);
+  border-radius: var(--miar-radius);
+  box-shadow: 0 16px 42px rgba(5, 19, 29, 0.12);
+}
+
+.dark .miar-card,
+.dark [data-miar-card='true'] {
+  background: linear-gradient(150deg, rgba(21, 51, 68, 0.94), rgba(13, 59, 78, 0.78));
+  border-color: rgba(168, 201, 110, 0.16);
+}
+
+.miar-kicker {
+  color: var(--miar-green-soft);
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.miar-status-dot {
+  display: inline-block;
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 999px;
+  background: var(--miar-green);
+  box-shadow: 0 0 0 4px rgba(104, 170, 74, 0.15);
+}
+
+@media (max-width: 720px) {
+  .miar-topbar {
+    position: relative;
+  }
+
+  .miar-brand-lockup {
+    width: 11rem;
+  }
+}
+

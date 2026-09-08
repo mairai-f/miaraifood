@@ -1,0 +1,466 @@
+{
+  "navigation": {
+    "home": "Home",
+    "about": "About MIAR AI/FOOD",
+    "projects": "Features",
+    "experience": "Ecosystem",
+    "skills": "Integrations",
+    "achievements": "Benefits",
+    "blog": "Contents",
+    "gallery": "System Screens",
+    "contact": "Plans",
+    "resume": "Terms & Privacy",
+    "tools": "Tools",
+    "menu": {
+      "achievements": "Benefits",
+      "achievementsDesc": "Why choose MIAR AI/FOOD",
+      "skills": "Integrations",
+      "skillsDesc": "Technology connected to your food business",
+      "experience": "MIAR Ecosystem",
+      "experienceDesc": "From table to delivery, your whole operation connected",
+      "projects": "Features",
+      "projectsDesc": "Everything your restaurant needs in one place",
+      "blog": "Contents",
+      "blogDesc": "Content hub about gastronomy and food management"
+    },
+    "shortcuts": {
+      "volume1": "Volume I: Management",
+      "volume2": "Volume II: Features",
+      "volume3": "Volume III: Resources",
+      "volume4": "Volume IV: Experience",
+      "preview": "Demo Mode",
+      "idRef": "MIAR_REF"
+    }
+  },
+  "hero": {
+    "greeting": "Welcome to MIAR AI/FOOD",
+    "subtitle": "POS • Tables & Orders • QR Menu • KDS Kitchen • AI • Financial • Delivery",
+    "cta": {
+      "primary": "Explore System",
+      "secondary": "Contact Us",
+      "exploreMore": "Explore Features"
+    },
+    "badge": "From table to delivery, your whole operation connected.",
+    "scroll": "Scroll",
+    "role": "Food Service Ecosystem & AI",
+    "description": "Transforming your restaurant management through <span class='text-primary font-semibold'>smart sales</span>, <span class='text-secondary font-semibold'>connected kitchen & inventory</span> and <span class='text-accent font-semibold'>Artificial Intelligence</span>."
+  },
+  "about": {
+    "title": "About MIAR AI/FOOD",
+    "subtitle": "Complete technology for modern food service",
+    "description": "MIAR AI/FOOD is a complete ecosystem for restaurants, bars and food service, integrating POS, tables, commandas, QR Menu, KDS kitchen, inventory, delivery, AI, and financial control.",
+    "stats": {
+      "experience": "Years of Evolution",
+      "projects": "Connected Modules",
+      "certifications": "Available Tools",
+      "competitions": "Operations Empowered"
+    },
+    "identity": "Connected Ecosystem",
+    "architecting": "Building",
+    "digitalReality": "Smart Management",
+    "leadIn": {
+      "label": "WHAT WE DO",
+      "tagline": "MAIN FOCUS",
+      "headlineAI": "Smart Sales & Orders.",
+      "headlineData": "Connected Kitchen & Inventory.",
+      "headlineSoftware": "Complete Food Ecosystem",
+      "thesis": "We built a unified platform that connects tables, waiter app, QR menu, kitchen KDS, delivery, inventory, and AI.",
+      "scope": "Complete solution for POS, tables, commandas, waiters, kitchen display, inventory, customers, and financial management.",
+      "bridging": "Connecting every step from the guest table to final delivery.",
+      "integration": "MIAR AI/FOOD connects sales, orders, kitchen, stock, payments and reports seamlessly.",
+      "signature": "MIAR AI/FOOD",
+      "role": "Complete Food Service & Gastronomy Ecosystem",
+      "aboutMe": "About the Ecosystem",
+      "scroll": "Explore Ecosystem",
+      "shortStory": "Our Story"
+    },
+    "profile": {
+      "title": "Simplifying Food Operations <br /> Where Technology Meets Gastronomy.",
+      "narrativeLabel": "Our Vision",
+      "narrative": "MIAR AI/FOOD was created to help food service businesses gain total control over their operation, offering a modern, connected, and intelligent platform.",
+      "narrative2": "Our ecosystem combines fast sales, intuitive waiter apps, digital menus, kitchen displays, and AI to elevate customer experience and boost profitability.",
+      "pillars": {
+        "reliable": {
+          "title": "Reliable & Fast",
+          "desc": "Built to withstand high-volume service during peak rush hours without stopping."
+        },
+        "optimized": {
+          "title": "Ready for Food Operations",
+          "desc": "From table orders to kitchen preparation and payment, everything flows instantly."
+        },
+        "maintainable": {
+          "title": "Continuous Evolution",
+          "desc": "Constantly updating with new features, integrations, and AI models for food service."
+        },
+        "evolvable": {
+          "title": "AI & Data-Driven Insights",
+          "desc": "Real-time reports, demand forecasting, and artificial intelligence for strategic management."
+        }
+      }
+    }
+  },
+  "coreEngineering": {
+    "label": "System Architecture",
+    "title": "A <span class='text-primary italic font-serif font-light lowercase'>complete.</span> ecosystem <br /> <span class='italic font-serif font-light text-foreground'>connected</span> gastronomy.",
+    "p1": "MIAR AI/FOOD uses modern, high-performance technology to deliver speed, reliability, and security for restaurants, bars, cafes, and delivery operations of all sizes.",
+    "p2": "The platform unifies POS, table service, waiter apps, QR menu, KDS kitchen displays, inventory, financial tracking, and AI into one seamless interface.",
+    "p3": "Engineered with a scalable architecture that allows real-time synchronization across devices and continuous feature rollouts.",
+    "gpa": "Restaurants & Bars",
+    "projects": "Modules Built",
+    "years": "Years of Innovation"
+  },
+  "emergingResearch": {
+    "label": "Ecosystem Evolution",
+    "title": "FOOD INNOVATION <span class='italic font-serif font-light text-primary lowercase'>&</span> AI",
+    "agentic": {
+      "title": "ARTIFICIAL INTELLIGENCE",
+      "desc": "We integrate artificial intelligence to optimize menu pricing, predict ingredient consumption, streamline sales, and automate customer service."
+    },
+    "web3": {
+      "title": "CONTINUOUS EXPANSION",
+      "desc": "MIAR AI/FOOD is constantly growing with new integrations, delivery channels, marketplace tools, and kitchen workflow enhancements."
+    }
+  },
+  "closing": {
+    "experience": {
+      "label": "SOLUTIONS",
+      "title1": "HOW",
+      "title2": "MIAR AI/FOOD WORKS",
+      "viewMore": "Explore Solutions"
+    },
+    "projects": {
+      "label": "MODULES",
+      "title1": "FOOD",
+      "title2": "ECOSYSTEM",
+      "viewMore": "View Modules"
+    },
+    "experiencesList": [
+      {
+        "company": "MIAR AI/FOOD",
+        "role": "FOOD ECOSYSTEM",
+        "desc": "Complete platform connecting POS, tables, commandas, QR menu, kitchen KDS, inventory, delivery, and AI."
+      },
+      {
+        "company": "Fast POS & Cashier",
+        "role": "FRONT OF HOUSE",
+        "desc": "High-speed point of sale designed for quick service, table management, split payments, and instant receipts."
+      },
+      {
+        "company": "Table & Commandas",
+        "role": "WAITER & GUEST ORDERING",
+        "desc": "Instant table order entry via waiter app or guest QR Menu directly synchronized with kitchen."
+      },
+      {
+        "company": "Kitchen KDS",
+        "role": "KITCHEN DISPLAY SYSTEM",
+        "desc": "Digital production screens organizing preparation stages, order times, and cook alerts in real time."
+      },
+      {
+        "company": "AI & Analytics",
+        "role": "MANAGEMENT INTELLIGENCE",
+        "desc": "Automated financial insights, stock depletion tracking, waste control, and AI sales consultant."
+      }
+    ],
+    "projectsList": [
+      {
+        "title": "MIAR AI/FOOD",
+        "desc": "Unified ecosystem for food service that connects your entire restaurant from table to kitchen and delivery."
+      },
+      {
+        "title": "Omnichannel POS",
+        "desc": "Agile order entry for counter, dine-in, drive-thru, and delivery orders with zero lag."
+      },
+      {
+        "title": "Kitchen KDS Display",
+        "desc": "Eliminate paper tickets with interactive kitchen monitors displaying orders by preparation station."
+      },
+      {
+        "title": "QR Digital Menu",
+        "desc": "Allow guests to view menus, place orders, and pay directly from their smartphone."
+      },
+      {
+        "title": "MIAR Delivery & AI",
+        "desc": "Integrated delivery dispatch, driver routing, customer communication, and AI management analytics."
+      }
+    ],
+    "discoverMore": "Learn More"
+  },
+  "experience": {
+    "title": "Solutions",
+    "subtitle": "See how MIAR AI/FOOD helps restaurants and food service operations connect every stage and grow with higher efficiency",
+    "showDetail": "View Details",
+    "hideDetail": "Hide Details",
+    "tasks": "MODULES",
+    "learned": "BENEFITS",
+    "impact": "RESULTS",
+    "present": "Current",
+    "responsibilities": "Capabilities",
+    "skills": "Resources Used",
+    "month": "month",
+    "months": "months",
+    "year": "year",
+    "years": "years",
+    "type": {
+      "full-time": "Available",
+      "part-time": "Flexible",
+      "internship": "Trial",
+      "freelance": "Custom",
+      "contract": "Plan",
+      "apprenticeship": "Learning",
+      "volunteer": "Support"
+    },
+    "filters": {
+      "all": "All",
+      "latest": "Newest",
+      "oldest": "Oldest",
+      "ongoing": "Evolving"
+    },
+    "education": {
+      "title": "Explore the Ecosystem"
+    }
+  },
+  "expertise": {
+    "title": "Key Capabilities",
+    "subtitle": "Modern features designed to elevate food service operations and streamline daily restaurant workflow",
+    "dragHint": "Drag or scroll to explore"
+  },
+  "skills": {
+    "title": "Features & Technologies",
+    "subtitle": "Technologies and tools that make MIAR AI/FOOD the complete food service ecosystem",
+    "hard": "Modules",
+    "soft": "Benefits",
+    "technical": "Ecosystem Tech",
+    "tools": "Integrations",
+    "pillars": "System Pillars",
+    "achievements": "Platform Advantages",
+    "level": {
+      "beginner": "Basic",
+      "intermediate": "Intermediate",
+      "advanced": "Advanced",
+      "expert": "Specialized"
+    }
+  },
+  "achievements": {
+    "title": "Advantages",
+    "subtitle": "Features and advantages that make MIAR AI/FOOD the ultimate platform for restaurants",
+    "search": "Search advantages...",
+    "viewCredential": "View Details",
+    "category": {
+      "all": "All",
+      "certification": "Technology",
+      "award": "Benefit",
+      "publication": "Module",
+      "competition": "Solution"
+    },
+    "sort": {
+      "newest": "Newest",
+      "oldest": "Oldest"
+    },
+    "stats": {
+      "total": "Total Features",
+      "awards": "Advantages",
+      "certifications": "Available Modules"
+    }
+  },
+  "contact": {
+    "title": "Get in Touch",
+    "subtitle": "Discover MIAR AI/FOOD and learn how to connect your entire food service operation",
+    "form": {
+      "name": "Your Name",
+      "email": "Your Email",
+      "subject": "Subject",
+      "message": "Your Message",
+      "messagePlaceholder": "Tell us about your restaurant or food service operation...",
+      "send": "Send Message",
+      "submit": "REQUEST A DEMO",
+      "sending": "SENDING...",
+      "sent": "SENT!",
+      "success": "Message sent successfully!",
+      "error": "An error occurred. Please try again."
+    },
+    "social": {
+      "title": "Follow MIAR AI/FOOD"
+    },
+    "faq": {
+      "title": "Frequently Asked Questions"
+    },
+    "info": {
+      "email": "Email",
+      "phone": "Phone",
+      "location": "Location",
+      "availability": "Available for support"
+    },
+    "hero": {
+      "title": "TALK TO US",
+      "subtitle": "Want to transform your restaurant management? Our team is ready to introduce you to MIAR AI/FOOD.",
+      "ticker": {
+        "build": "From table to delivery, your whole operation connected · ",
+        "freelance": "Discover MIAR AI/FOOD · "
+      }
+    },
+    "faqData": [
+      {
+        "q": "What is MIAR AI/FOOD?",
+        "a": "MIAR AI/FOOD is a complete food service ecosystem connecting POS, tables, commandas, QR digital menu, kitchen KDS, inventory, delivery, and artificial intelligence on a single unified platform."
+      },
+      {
+        "q": "What types of establishments is MIAR AI/FOOD designed for?",
+        "a": "The system is tailored for restaurants, bars, cafes, pizzerias, dark kitchens, bakeries, food trucks, and food service operations of any scale."
+      },
+      {
+        "q": "What modules are included in the ecosystem?",
+        "a": "MIAR AI/FOOD includes Front-of-House POS, Table & Waiter App, QR Digital Menu, Kitchen Display (KDS), Stock & Recipe Control, Delivery Management, Financial Tracking, and AI Sales Analytics."
+      },
+      {
+        "q": "Does MIAR AI/FOOD work offline?",
+        "a": "Yes, our local POS resilience allows cashiers and waiters to continue taking orders even if internet connectivity drops temporarily."
+      },
+      {
+        "q": "How can I start using MIAR AI/FOOD?",
+        "a": "Contact our team to request a demo and choose the ideal plan for your establishment."
+      }
+    ]
+  },
+  "footer": {
+    "copyright": "All rights reserved.",
+    "madeWith": "Built with",
+    "more": "More",
+    "marquee": [
+      "Connected Food Service",
+      "Smart POS",
+      "Table & QR Menu",
+      "Kitchen KDS",
+      "Food Inventory & CMV",
+      "Artificial Intelligence"
+    ],
+    "cta": {
+      "title": "Connect your whole",
+      "titleHighlight": "Operation",
+      "subtitle": "From table to delivery, gain full control, speed, and profitability with MIAR AI/FOOD."
+    },
+    "links": "LINKS",
+    "socials": "SOCIAL MEDIA",
+    "localTime": "SUPPORT",
+    "version": "VERSION",
+    "versionEdition": "2026 © MIAR AI/FOOD"
+  },
+  "ctaSection": {
+    "title": "Transform Your Restaurant Management",
+    "together": "Today",
+    "subtitle": "Have a complete ecosystem to control sales, tables, kitchen, inventory, and finances. MIAR AI/FOOD connects processes and helps your food business grow.",
+    "start": "Get Started",
+    "work": "Explore Ecosystem",
+    "words": {
+      "amazing": "Connected",
+      "innovative": "Smart",
+      "intelligent": "Agile",
+      "creative": "Complete"
+    },
+    "ribbon1": "POS • Tables • Commandas • QR Menu • Kitchen KDS • Stock • Delivery • AI",
+    "ribbon2": "MIAR AI/FOOD • Gastronomy Ecosystem • Smart POS • Connected Kitchen • Technology • Productivity"
+  },
+  "stats": {
+    "systemStatus": "System Status: Active Operation",
+    "portfolio": "Ecosystem Metrics",
+    "totalPulse": "Total Orders",
+    "peakActivity": "Peak Rush Hour",
+    "dailyAverage": "Daily Average",
+    "currentSprint": "Current Version",
+    "engageFlow": "Operational Flow",
+    "weeklyEffort": "Weekly Usage",
+    "processSpeed": "Order Speed",
+    "avgPerf": "Average Performance",
+    "latency": "LATENCY: OPTIMIZED",
+    "system": "SYSTEM: MIAR_FOOD_ECOSYSTEM_STABLE",
+    "scanning": "MONITORING_ACTIVE_MODULES",
+    "engineering": "TECHNOLOGY",
+    "metrics": "METRICS",
+    "analyticsSub": "POS / TABLES / KITCHEN / INVENTORY / AI",
+    "statusOnline": "STATUS: ONLINE",
+    "loadStable": "SYSTEM: STABLE"
+  },
+  "projectHeader": {
+    "title": "Empowering Restaurants with Technology & AI",
+    "subtitle": "A complete food service ecosystem created to streamline kitchen production, connect waitstaff, optimize inventory and boost restaurant profitability through <span class='font-bold text-foreground'>smart sales</span>, digital menus, KDS, and Artificial Intelligence."
+  },
+  "common": {
+    "loading": "Loading...",
+    "error": "Something went wrong",
+    "notFound": "Page not found",
+    "backHome": "Back to Home",
+    "viewMore": "View More",
+    "readMore": "Read More",
+    "close": "Close",
+    "download": "Download",
+    "share": "Share",
+    "scrollAudit": "Scroll to explore"
+  },
+  "technical": {
+    "github": {
+      "title": "Ecosystem Development",
+      "description": "Follow the technical evolution and updates of MIAR AI/FOOD.",
+      "total": "Total",
+      "thisWeek": "This Week",
+      "best": "Best",
+      "average": "Average",
+      "less": "Less",
+      "more": "More"
+    },
+    "wakatime": {
+      "title": "Development Statistics",
+      "description": "Follow key insights about platform performance and updates.",
+      "lastUpdate": "Last Update",
+      "startDate": "Start Date",
+      "endDate": "End Date",
+      "dailyAverage": "Daily Average",
+      "totalWeek": "Weekly Total",
+      "bestDay": "Best Day",
+      "totalSince": "Total Since Start",
+      "topLanguages": "Top Technologies"
+    }
+  },
+  "blog": {
+    "title": "Content & Food Service Insights",
+    "subtitle": "Articles and guides about restaurant management, kitchen efficiency, food delivery, and technology with MIAR AI/FOOD.",
+    "sectionBadge": "Knowledge Hub",
+    "search": "Search articles...",
+    "readTime": "min read",
+    "readMore": "Read Article",
+    "back": "Back to Contents",
+    "noResults": "No articles found",
+    "categories": {
+      "applied-ai": "Technology & AI",
+      "software-development": "Food Management",
+      "about-me": "About MIAR AI/FOOD",
+      "more": "More"
+    }
+  },
+  "gallery": {
+    "title": "Ecosystem Gallery",
+    "subtitle": "Explore the POS, waiter screens, QR menus, kitchen KDS, and management dashboards of MIAR AI/FOOD.",
+    "filter": {
+      "all": "All Media",
+      "image": "Images",
+      "video": "Videos"
+    },
+    "viewMedia": "View Media"
+  },
+  "chatbot": {
+    "title": "MIAR AI/FOOD Assistant",
+    "subtitle": "Get answers to your questions about our food ecosystem",
+    "placeholder": "Type your message...",
+    "greeting": "Hello! I am the official AI assistant for **MIAR AI/FOOD**. 🍽️🤖\n\nI can help you with:\n- POS, table & commanda management\n- QR Menu & Waiter App\n- Kitchen KDS & preparation tracking\n- Stock, recipes & CMV control\n- Plans, pricing & live demos\n\nHow can I help your establishment today?",
+    "suggestions": [
+      "What are the main modules of MIAR AI/FOOD?",
+      "How does the Kitchen KDS work?",
+      "Does it support table orders & QR menus?",
+      "How can I schedule a live demo?"
+    ],
+    "error": "An error occurred. Please try again.",
+    "invalidResponse": "Invalid server response.",
+    "unknownError": "An unknown error occurred.",
+    "retry": "Try again",
+    "inputHint": "Press Enter to send, Shift+Enter for line break",
+    "close": "Close assistant"
+  }
+}

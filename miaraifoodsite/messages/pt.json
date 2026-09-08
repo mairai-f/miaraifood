@@ -1,0 +1,551 @@
+{
+  "navigation": {
+    "home": "Início",
+    "about": "Sobre o MIAR AI/FOOD",
+    "projects": "Funcionalidades",
+    "experience": "Sobre Nós",
+    "skills": "Recursos Integrados",
+    "achievements": "Central de Ajuda",
+    "blog": "Conteúdos MIAR AI/FOOD",
+    "gallery": "Telas do Sistema",
+    "contact": "Planos",
+    "resume": "Termos e Privacidade",
+    "tools": "Ferramentas",
+    "menu": {
+      "achievements": "Central de Ajuda",
+      "achievementsDesc": "Como usar o sistema",
+      "skills": "Recursos Integrados",
+      "skillsDesc": "Tecnologia conectada aos equipamentos",
+      "experience": "Sobre Nós",
+      "experienceDesc": "Nossa missão e a história do MIAR AI/FOOD",
+      "projects": "Funcionalidades",
+      "projectsDesc": "Tudo o que você precisa em um só lugar",
+      "blog": "Conteúdos MIAR AI/FOOD",
+      "blogDesc": "Hub de conteúdo sobre gestão e food service"
+    },
+    "shortcuts": {
+      "volume1": "Volume I: Operação Conectada",
+      "volume2": "Volume II: Funcionalidades",
+      "volume3": "Volume III: Recursos",
+      "volume4": "Volume IV: Experiência",
+      "preview": "Modo Demonstração",
+      "idRef": "MIAR_REF"
+    }
+  },
+
+  "hero": {
+    "greeting": "Bem-vindo ao universo MIAR AI/FOOD",
+    "subtitle": "Da mesa à entrega, toda a operação conectada • Salão, Cozinha, Caixa e Delivery",
+    "cta": {
+      "primary": "Conhecer Ecossistema",
+      "secondary": "Entrar em Contato",
+      "exploreMore": "Explorar Recursos"
+    },
+    "badge": "Ecossistema completo para restaurantes e food service",
+    "scroll": "Rolar",
+    "role": "Ecossistema Completo para Food Service",
+    "description": "Transformando a operação do seu restaurante através de <span class='text-primary font-semibold'>PDV e KDS conectados</span>, <span class='text-secondary font-semibold'>mesas, comandas e QR Menu</span> e <span class='text-accent font-semibold'>inteligência artificial para gestão e delivery</span>."
+  },
+
+  "about": {
+    "title": "Sobre o MIAR AI/FOOD",
+    "subtitle": "Da mesa à entrega, toda a operação conectada",
+    "description": "O MIAR AI/FOOD é um ecossistema completo para restaurantes e food service, integrando PDV, caixa, mesas, comandas, QR Menu, KDS, cozinha, estoque, financeiro, garçons, delivery e inteligência artificial.",
+
+    "stats": {
+      "experience": "Anos de Inovação",
+      "projects": "Módulos Conectados",
+      "certifications": "Recursos Integrados",
+      "competitions": "Operações Atendidas"
+    },
+
+    "identity": "Operação Conectada",
+    "architecting": "Transformando",
+    "digitalReality": "O Food Service Inteligente",
+
+    "leadIn": {
+      "label": "O QUE FAZEMOS",
+      "tagline": "FOCO PRINCIPAL",
+      "headlineAI": "Salão e Cozinha.",
+      "headlineData": "Caixa e Delivery.",
+      "headlineSoftware": "Ecossistema MIAR AI/FOOD",
+
+      "thesis": "Criamos um ecossistema completo que conecta salão, cozinha, caixa e delivery com inteligência artificial.",
+
+      "scope": "Solução completa para PDV, mesas, comandas, KDS, garçons, estoque, financeiro, delivery e inteligência artificial.",
+
+      "bridging": "Conectando toda a operação do restaurante da mesa à entrega.",
+
+      "integration": "O MIAR AI/FOOD conecta garçons, cozinha, caixa, delivery e gestão para simplificar toda a operação.",
+
+      "signature": "MIAR AI/FOOD",
+
+      "role": "Ecossistema para Restaurantes e Food Service",
+
+      "aboutMe": "Sobre o Sistema",
+
+      "scroll": "Explorar Sistema",
+
+      "shortStory": "Nossa História"
+    },
+
+    "profile": {
+      "title": "Conectando Restaurantes <br /> Da Mesa à Entrega com Inteligência.",
+      "narrativeLabel": "Nossa Visão",
+      "narrative": "O MIAR AI/FOOD foi criado para apresentar um ecossistema completo para restaurantes e operações de food service, garantindo agilidade e controle total.",
+      "narrative2": "Nossa plataforma combina inteligência artificial, agilidade no salão, sincronização em tempo real com a cozinha e gestão completa do delivery.",
+
+      "pillars": {
+        "reliable": {
+          "title": "Operação Conectada",
+          "desc": "Salão, cozinha, caixa e delivery trabalhando juntos sem ruídos ou atrasos."
+        },
+        "optimized": {
+          "title": "Do QR Menu ao KDS",
+          "desc": "Pedidos feitos na mesa chegam na hora certa na tela da cozinha para preparo imediato."
+        },
+        "maintainable": {
+          "title": "Gestão Inteligente",
+          "desc": "Estoque, financeiro, garçons e colaboradores monitorados com inteligência artificial."
+        },
+        "evolvable": {
+          "title": "Decisões Baseadas em Dados",
+          "desc": "Relatórios detalhados da operação para aumentar seu faturamento e margem."
+        }
+      }
+    }
+  },
+
+  "coreEngineering": {
+    "label": "Tecnologia da Plataforma",
+    "title": "Um ecossistema <span class='text-primary italic font-serif font-light lowercase'>completo.</span> <br /> Operação <span class='italic font-serif font-light text-foreground'>conectada.</span>",
+    "p1": "O MIAR AI/FOOD utiliza inteligência artificial e sincronização em tempo real para oferecer desempenho e agilidade em restaurantes e food service.",
+    "p2": "A plataforma conecta PDV, mesas, comandas, QR Menu, KDS, estoque, financeiro e delivery em um único ambiente.",
+    "p3": "Desenvolvido para escalar com a sua operação, suportando alto fluxo de vendas e múltiplos terminais.",
+    "gpa": "Restaurantes Atendidos",
+    "projects": "Módulos Integrados",
+    "years": "Anos de Evolução"
+  },
+
+  "emergingResearch": {
+    "label": "Evolução da Plataforma",
+    "title": "INTELIGÊNCIA ARTIFICIAL <span class='italic font-serif font-light text-primary lowercase'>&</span> FOOD SERVICE",
+    "agentic": {
+      "title": "AUTOMAÇÃO COM IA",
+      "desc": "IA integrada para previsão de demanda, recomendação de pedidos, controle de estoque e otimização do atendimento."
+    },
+    "web3": {
+      "title": "CRESCIMENTO CONTÍNUO",
+      "desc": "O MIAR AI/FOOD evolui constantemente, recebendo novas integrações com marketplaces de delivery e novas ferramentas de gestão."
+    }
+  },
+ 
+  "closing": {
+    "experience": {
+      "label": "RECURSOS",
+      "title1": "COMO O",
+      "title2": "MIAR AI/FOOD FUNCIONA",
+      "viewMore": "Conhecer Soluções"
+    },
+    "projects": {
+      "label": "MÓDULOS",
+      "title1": "SOLUÇÕES",
+      "title2": "DO ECOSSISTEMA",
+      "viewMore": "Ver Funcionalidades"
+    },
+
+    "experiencesList": [
+      {
+        "company": "MIAR AI/FOOD",
+        "role": "ECOSSISTEMA COMPLETO",
+        "desc": "Da mesa à entrega, toda a operação conectada: PDV, salão, cozinha, estoque e delivery."
+      },
+      {
+        "company": "PDV & Caixa",
+        "role": "FRENTE DE CAIXA RÁPIDA",
+        "desc": "Abertura e fechamento de caixa, pagamentos integrados e emissão ágil de comprovantes."
+      },
+      {
+        "company": "Mesas & Comandas",
+        "role": "GESTÃO DE SALÃO",
+        "desc": "Controle em tempo real de mesas ocupadas, comandas individuais e pedidos via garçom."
+      },
+      {
+        "company": "KDS & Cozinha",
+        "role": "DISPLAY DE PREPARO",
+        "desc": "Telas digitais na cozinha substituindo comandas de papel para preparo organizado e veloz."
+      },
+      {
+        "company": "Delivery & QR Menu",
+        "role": "CANAL DIRETO DE VENDAS",
+        "desc": "Cardápio digital via QR Code nas mesas e módulo de pedidos para entregadores e delivery."
+      }
+    ],
+
+    "projectsList": [
+      {
+        "title": "MIAR AI/FOOD",
+        "desc": "Ecossistema completo para restaurantes, bares, lanchonetes e food service."
+      },
+      {
+        "title": "PDV & Caixa",
+        "desc": "Frente de caixa intuitiva e rápida com suporte a NFC-e e impressão instantânea."
+      },
+      {
+        "title": "KDS Cozinha",
+        "desc": "Gestão visual de pedidos na cozinha com tempos de preparo e status em tempo real."
+      },
+      {
+        "title": "QR Menu & Mesas",
+        "desc": "Cardápio interativo via QR Code para o cliente pedir na mesa com envio direto para a cozinha."
+      },
+      {
+        "title": "Inteligência Artificial",
+        "desc": "Análise preditiva de vendas, comportamento dos clientes e sugestões para o gestor."
+      }
+    ],
+
+    "discoverMore": "Conhecer Mais"
+  },
+  "experience": {
+    "title": "Soluções",
+    "subtitle": "Conheça como o MIAR AI/FOOD conecta todas as etapas do seu restaurante com inteligência",
+    "showDetail": "Ver Detalhes",
+    "hideDetail": "Ocultar Detalhes",
+    "tasks": "RECURSOS",
+    "learned": "BENEFÍCIOS",
+    "impact": "RESULTADOS",
+    "present": "Atual",
+    "responsibilities": "Funcionalidades",
+    "skills": "Recursos Utilizados",
+    "month": "mês",
+    "months": "meses",
+    "year": "ano",
+    "years": "anos",
+
+    "type": {
+      "full-time": "Disponível",
+      "part-time": "Flexível",
+      "internship": "Teste",
+      "freelance": "Personalizado",
+      "contract": "Plano",
+      "apprenticeship": "Aprendizado",
+      "volunteer": "Suporte"
+    },
+
+    "filters": {
+      "all": "Todos",
+      "latest": "Mais Recentes",
+      "oldest": "Mais Antigos",
+      "ongoing": "Em Evolução"
+    },
+
+    "education": {
+      "title": "Conheça o Sistema"
+    }
+  },
+  "expertise": {
+    "title": "Principais Capacidades",
+    "subtitle": "Recursos modernos desenvolvidos para transformar a gestão de food service",
+    "dragHint": "Arraste ou role para explorar"
+  },
+  "skills": {
+    "title": "Recursos & Tecnologias",
+    "subtitle": "Tecnologias e funcionalidades que tornam o MIAR AI/FOOD um ecossistema completo",
+    "hard": "Funcionalidades",
+    "soft": "Benefícios",
+    "technical": "Tecnologia da Plataforma",
+    "tools": "Ferramentas & Integrações",
+    "pillars": "Pilares do Sistema",
+    "achievements": "Diferenciais da Plataforma",
+
+    "level": {
+      "beginner": "Básico",
+      "intermediate": "Intermediário",
+      "advanced": "Avançado",
+      "expert": "Especializado"
+    }
+  },
+  "achievements": {
+    "title": "Diferenciais",
+    "subtitle": "Recursos e vantagens do ecossistema MIAR AI/FOOD",
+    "search": "Buscar diferenciais...",
+    "viewCredential": "Ver Detalhes",
+
+    "category": {
+      "all": "Todos",
+      "certification": "Tecnologia",
+      "award": "Benefício",
+      "publication": "Recurso",
+      "competition": "Solução"
+    },
+
+    "sort": {
+      "newest": "Mais Recentes",
+      "oldest": "Mais Antigos"
+    },
+
+    "stats": {
+      "total": "Total de Recursos",
+      "awards": "Diferenciais",
+      "certifications": "Módulos Disponíveis"
+    }
+  },
+  "contact": {
+    "title": "Entre em Contato",
+    "subtitle": "Conheça o MIAR AI/FOOD e descubra a força de uma operação conectada da mesa à entrega",
+
+    "form": {
+      "name": "Seu Nome",
+      "email": "Seu E-mail",
+      "subject": "Assunto",
+      "message": "Sua Mensagem",
+      "messagePlaceholder": "Conte sobre o seu restaurante ou operação...",
+      "send": "Enviar Mensagem",
+      "submit": "SOLICITAR DEMONSTRAÇÃO",
+      "sending": "ENVIANDO...",
+      "sent": "ENVIADO!",
+      "success": "Mensagem enviada com sucesso!",
+      "error": "Ocorreu um erro. Tente novamente."
+    },
+
+    "social": {
+      "title": "Siga o MIAR AI/FOOD"
+    },
+
+    "faq": {
+      "title": "Perguntas Frequentes"
+    },
+
+    "info": {
+      "email": "E-mail",
+      "phone": "Telefone",
+      "location": "Localização",
+      "availability": "Disponível para atendimento"
+    },
+
+    "hero": {
+      "title": "FALE COM A GENTE",
+      "subtitle": "Quer conectar a operação do seu restaurante? Nossa equipe está pronta para apresentar o MIAR AI/FOOD.",
+      "ticker": {
+        "build": "Da mesa à entrega, toda a operação conectada · ",
+        "freelance": "Conheça o MIAR AI/FOOD · "
+      }
+    },
+
+    "faqData": [
+      {
+        "q": "O que é o MIAR AI/FOOD?",
+        "a": "O MIAR AI/FOOD é um ecossistema completo para restaurantes e food service que integra PDV, caixas, mesas, comandas, QR Menu, KDS, cozinha, estoque, garçons, delivery e inteligência artificial."
+      },
+      {
+        "q": "Para quais tipos de negócios o MIAR AI/FOOD é indicado?",
+        "a": "Foi desenvolvido especialmente para restaurantes, lanchonetes, bares, pizzarias, hamburguerias, adegas e operações de delivery que precisam de salão e cozinha conectados."
+      },
+      {
+        "q": "Como funciona a integração entre Salão e Cozinha (KDS)?",
+        "a": "Os pedidos lançados pelos garçons no PDV ou direto pelo cliente via QR Menu na mesa são enviados instantaneamente para as telas do KDS na cozinha, eliminando comandas de papel."
+      },
+      {
+        "q": "O MIAR AI/FOOD possui inteligência artificial?",
+        "a": "Sim! A inteligência artificial auxilia no controle de estoque, previsão de demanda de insumos, relatórios gerenciais e sugestões de vendas para garçons e delivery."
+      },
+      {
+        "q": "Como começar a usar o MIAR AI/FOOD?",
+        "a": "Entre em contato com nossa equipe comercial para agendar uma demonstração ou escolher o plano ideal para seu estabelecimento."
+      }
+    ]
+  },
+  "footer": {
+    "copyright": "Todos os direitos reservados.",
+    "madeWith": "Desenvolvido com",
+    "more": "Mais",
+
+    "marquee": [
+      "Da Mesa à Entrega",
+      "Operação Conectada",
+      "KDS Cozinha",
+      "PDV & Caixa",
+      "QR Menu & Mesas",
+      "Inteligência Artificial"
+    ],
+
+    "cta": {
+      "title": "Conecte sua",
+      "titleHighlight": "Operação",
+      "subtitle": "Tenha salão, cozinha, caixa e delivery trabalhando juntos com o ecossistema MIAR AI/FOOD."
+    },
+
+    "links": "LINKS",
+    "socials": "REDES SOCIAIS",
+    "localTime": "ATENDIMENTO",
+    "version": "VERSÃO",
+    "versionEdition": "2026 © MIAR AI/FOOD"
+  },
+  "ctaSection": {
+    "title": "Transforme seu Restaurante",
+    "together": "Hoje",
+    "subtitle": "Da mesa à entrega, toda a operação conectada. O MIAR AI/FOOD simplifica processos e impulsiona seu faturamento.",
+    "start": "Começar Agora",
+    "work": "Conhecer o Ecossistema",
+
+    "words": {
+      "amazing": "Conectada",
+      "innovative": "Inteligente",
+      "intelligent": "Rápida",
+      "creative": "Completa"
+    },
+
+    "ribbon1": "PDV • Mesas • Comandas • KDS • Cozinha • QR Menu • Garçons • Delivery • Estoque • IA",
+
+    "ribbon2": "MIAR AI/FOOD • Ecossistema para Restaurantes • Da Mesa à Entrega • Toda a Operação Conectada"
+  },
+  "stats": {
+    "systemStatus": "Status do Sistema: Operação Ativa",
+    "portfolio": "Métricas da Plataforma",
+    "totalPulse": "Total de Pedidos",
+    "peakActivity": "Maior Atividade",
+    "dailyAverage": "Média Diária",
+    "currentSprint": "Atualizações Atuais",
+    "engageFlow": "Fluxo da Operação",
+    "weeklyEffort": "Uso Semanal",
+    "processSpeed": "Velocidade do Sistema",
+    "avgPerf": "Desempenho Médio",
+    "latency": "LATÊNCIA: OTIMIZADA",
+    "system": "SISTEMA: MIAR_AIFOOD_STABLE",
+    "scanning": "MONITORANDO_OPERACOES_ATIVAS",
+    "engineering": "TECNOLOGIA",
+    "metrics": "MÉTRICAS",
+    "analyticsSub": "SALÃO / COZINHA / CAIXA / DELIVERY / IA",
+    "statusOnline": "STATUS: ONLINE",
+    "loadStable": "SISTEMA: ESTÁVEL"
+  },
+  "projectHeader": {
+    "title": "Conectando o Food Service com Tecnologia",
+    "subtitle": "Um ecossistema completo criado para simplificar processos, conectar salão e cozinha e transformar a rotina do seu restaurante através de <span class='font-bold text-foreground'>PDV</span>, KDS, mesas, delivery e inteligência artificial."
+  },
+  "common": {
+    "loading": "Carregando...",
+    "error": "Algo deu errado",
+    "notFound": "Página não encontrada",
+    "backHome": "Voltar ao Início",
+    "viewMore": "Ver Mais",
+    "readMore": "Ler Mais",
+    "close": "Fechar",
+    "download": "Baixar",
+    "share": "Compartilhar",
+    "scrollAudit": "Role para explorar"
+  },
+  "technical": {
+    "github": {
+      "title": "Desenvolvimento da Plataforma",
+      "description": "Acompanhe a evolução técnica e melhorias realizadas no MIAR AI/FOOD.",
+      "total": "Total",
+      "thisWeek": "Esta Semana",
+      "best": "Melhor",
+      "average": "Média",
+      "less": "Menos",
+      "more": "Mais"
+    },
+
+    "wakatime": {
+      "title": "Estatísticas de Desenvolvimento",
+      "description": "Acompanhe informações sobre evolução e desenvolvimento do sistema.",
+      "lastUpdate": "Última Atualização",
+      "startDate": "Data Inicial",
+      "endDate": "Data Final",
+      "dailyAverage": "Média Diária",
+      "totalWeek": "Total da Semana",
+      "bestDay": "Melhor Dia",
+      "totalSince": "Total Desde o Início",
+      "topLanguages": "Principais Tecnologias"
+    }
+  },
+  "blog": {
+    "title": "Conteúdos & Novidades",
+    "subtitle": "Informações sobre gestão de restaurantes, tecnologia e soluções para otimizar sua operação com o MIAR AI/FOOD.",
+    "sectionBadge": "Central de Conhecimento",
+    "search": "Buscar conteúdos...",
+    "readTime": "min de leitura",
+    "readMore": "Ler Conteúdo",
+    "back": "Voltar aos Conteúdos",
+    "noResults": "Nenhum conteúdo encontrado",
+
+    "categories": {
+      "gestao": "Gestão de Restaurantes",
+      "vendas": "Vendas & Atendimento",
+      "pdv": "Frente de Caixa (PDV)",
+      "estoque": "Estoque & Insumos",
+      "financeiro": "Financeiro",
+      "novidades": "Novidades MIAR AI/FOOD"
+    }
+  },
+  "projects": {
+    "title": "Funcionalidades",
+    "subtitle": "Conheça todas as soluções do ecossistema MIAR AI/FOOD",
+    "filters": {
+      "all": "Todas as Soluções",
+      "ongoing": "Em Atualização",
+      "completed": "Disponíveis"
+    },
+    "status": {
+      "ongoing": "Em Atualização",
+      "completed": "Disponível"
+    },
+    "sections": {
+      "backToProjects": "Voltar às Funcionalidades",
+      "missionBrief": "Visão Geral da Funcionalidade",
+      "keyFeatures": "Recursos Principais",
+      "engineeringChronicles": "Soluções Desenvolvidas",
+      "solution": "Solução",
+      "visualGallery": "Galeria Visual",
+      "installation": "Integração e Uso",
+      "projectAccess": "Acesso ao Módulo",
+      "liveDemo": "Solicitar Demonstração",
+      "sourceCode": "Código Fonte",
+      "technologies": "Tecnologias Integradas",
+      "contents": "Nesta Página",
+      "moreProjects": "Outras Funcionalidades",
+      "viewMore": "Ver Mais Imagens",
+      "viewLess": "Ver Menos"
+    },
+    "metadata": {
+      "role": "Módulo",
+      "roleValue": "Recurso Nativo",
+      "timeline": "Atualização",
+      "team": "Suporte",
+      "teamValue": "Equipe MIAR AI/FOOD",
+      "techStack": "Tecnologia",
+      "techStackValue": "{count} tecnologias"
+    }
+  },
+  "gallery": {
+    "title": "Galeria do Sistema",
+    "subtitle": "Conheça visualmente os recursos, módulos e telas do MIAR AI/FOOD.",
+    "filter": {
+      "all": "Todas as Mídias",
+      "image": "Imagens",
+      "video": "Vídeos"
+    },
+    "viewMedia": "Ver Mídia"
+  },
+  "chatbot": {
+    "title": "Assistente MIAR AI/FOOD",
+    "subtitle": "Tire suas dúvidas sobre o ecossistema",
+    "placeholder": "Digite uma mensagem...",
+    "greeting": "Olá! Eu sou o Consultor Especialista do **MIAR AI/FOOD**. 🍕🍔\n\nEstou aqui para ajudar a conectar toda a operação do seu restaurante: da mesa à entrega!\n\nComo posso ajudar seu estabelecimento hoje?",
+    "suggestions": [
+      "Quero conectar o salão com a cozinha (KDS)!",
+      "Como funciona o QR Menu na mesa?",
+      "Quero ver os preços e planos.",
+      "Como integrar o delivery?"
+    ],
+
+    "error": "Ocorreu um erro. Tente novamente.",
+    "invalidResponse": "Resposta inválida do servidor.",
+    "unknownError": "Ocorreu um erro desconhecido.",
+    "retry": "Tentar novamente",
+    "inputHint": "Pressione Enter para enviar, Shift+Enter para nova linha",
+    "close": "Fechar atendimento"
+  }
+}

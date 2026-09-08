@@ -1,0 +1,185 @@
+/* MIAR AI — tokens de tema dia / noite
+   Raiz do ecossistema: verde medicina. Aplica junto do index.css do app.
+   Noite = assinatura escura + neon. Dia = claro, verde medicina na moldura. */
+
+:root {
+  /* cores fixas do ecossistema (nao mudam com o tema) */
+  --miar-verde: #38B000;        /* verde medicina — raiz MIAR AI */
+  --miar-verde-forte: #00875A;
+  --miar-ciano: #9EF01A;        /* marca / acao no FOOD */
+  --miar-magenta: #E70B5F;      /* apetite — sotaque do FOOD */
+  --miar-turquesa: #00E0A8;     /* estado liberado — reservado */
+  --miar-alerta: #FFB020;       /* pendencia */
+}
+
+/* NOITE — assinatura */
+html.dark {
+  --miar-base: #06100A;
+  --miar-surface: #0B1A10;
+  --miar-line: #16301F;
+  --miar-text: #F2F7F3;
+  --miar-muted: #8FA396;
+  --miar-brand: var(--miar-ciano);
+  --miar-action: var(--miar-verde);
+  color-scheme: dark;
+}
+
+/* DIA — claro, verde medicina na moldura */
+html.light {
+  --miar-base: #F4FBF7;
+  --miar-surface: #FFFFFF;
+  --miar-line: #DCEAE3;
+  --miar-text: #0E1B15;
+  --miar-muted: #5B6B63;
+  --miar-brand: var(--miar-verde);
+  --miar-action: var(--miar-verde);
+  color-scheme: light;
+}
+
+html.dark body, html.light body {
+  background: var(--miar-base);
+  color: var(--miar-text);
+}
+
+/* Workspace IA — centro de pensamento da MIAR. */
+.miar-ai-workspace {
+  background:
+    radial-gradient(circle at 75% 12%, rgba(158, 240, 26, 0.08), transparent 24rem),
+    radial-gradient(circle at 30% 85%, rgba(56, 176, 0, 0.09), transparent 28rem),
+    #06100A !important;
+  color: #F2F7F3 !important;
+}
+
+.miar-ai-workspace aside {
+  background: linear-gradient(180deg, rgba(9, 27, 37, 0.98), rgba(5, 15, 25, 0.98)) !important;
+  border-color: rgba(204, 255, 51, 0.13) !important;
+  box-shadow: 18px 0 50px rgba(0, 0, 0, 0.16);
+}
+
+.miar-ai-workspace main,
+.miar-ai-workspace section {
+  background: transparent;
+}
+
+.miar-ai-workspace header {
+  border-color: rgba(204, 255, 51, 0.13) !important;
+  background: rgba(5, 15, 25, 0.72) !important;
+  backdrop-filter: blur(18px);
+}
+
+.miar-ai-workspace textarea,
+.miar-ai-workspace input {
+  border-color: rgba(204, 255, 51, 0.16) !important;
+  background: rgba(13, 31, 42, 0.86) !important;
+  color: #F2F7F3 !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03), 0 12px 30px rgba(0, 0, 0, 0.14);
+}
+
+.miar-ai-workspace textarea:focus,
+.miar-ai-workspace input:focus {
+  border-color: rgba(158, 240, 26, 0.58) !important;
+  box-shadow: 0 0 0 3px rgba(158, 240, 26, 0.10), 0 14px 34px rgba(0, 0, 0, 0.18);
+}
+
+.miar-ai-workspace [class*="bg-slate-800/90"] {
+  background: linear-gradient(145deg, rgba(18, 47, 59, 0.96), rgba(13, 31, 42, 0.94)) !important;
+  border-color: rgba(158, 240, 26, 0.16) !important;
+  box-shadow: 0 14px 28px rgba(0, 0, 0, 0.18);
+}
+
+.miar-ai-workspace [class*="bg-[#38B000]/20"] {
+  background: linear-gradient(145deg, rgba(56, 176, 0, 0.22), rgba(158, 240, 26, 0.10)) !important;
+  border-color: rgba(158, 240, 26, 0.26) !important;
+}
+
+.miar-ai-workspace .text-slate-600 {
+  color: rgba(169, 159, 178, 0.72) !important;
+}
+
+.miar-ai-workspace .text-slate-500 {
+  color: rgba(169, 159, 178, 0.84) !important;
+}
+
+.miar-ai-workspace button[class*="bg-[#38B000]"],
+.miar-ai-workspace button[class*="bg-\[#38B000\]"] {
+  box-shadow: 0 10px 24px rgba(56, 176, 0, 0.20);
+}
+
+@media (max-width: 760px) {
+  .miar-ai-workspace aside {
+    position: absolute;
+    inset: 0 auto 0 0;
+    z-index: 30;
+  }
+}
+
+.miar-floating-launcher {
+  box-shadow: 0 0 0 5px rgba(158, 240, 26, 0.10), 0 18px 38px rgba(0, 0, 0, 0.28) !important;
+}
+
+.miar-floating-chat {
+  background: linear-gradient(160deg, #091b25, #06100A) !important;
+  border-color: rgba(204, 255, 51, 0.20) !important;
+  box-shadow: 0 28px 70px rgba(0, 0, 0, 0.38) !important;
+}
+
+.miar-floating-chat-header {
+  background: linear-gradient(90deg, rgba(56, 176, 0, 0.18), rgba(158, 240, 26, 0.10)) !important;
+  border-color: rgba(204, 255, 51, 0.16) !important;
+}
+
+.miar-floating-chat-header img {
+  box-shadow: 0 0 0 3px rgba(158, 240, 26, 0.14);
+}
+
+.miar-floating-bubble {
+  border: 1px solid rgba(204, 255, 51, 0.12);
+  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.16);
+}
+
+.miar-floating-composer {
+  background: rgba(5, 15, 25, 0.86) !important;
+  border-color: rgba(204, 255, 51, 0.15) !important;
+}
+
+.miar-ai-intro {
+  background: radial-gradient(circle at 50% 10%, rgba(158, 240, 26, 0.10), transparent 28rem), #06100A !important;
+}
+
+.miar-ai-intro section {
+  background: transparent;
+}
+
+.miar-ai-intro button[class*="bg-[#38B000]"] {
+  box-shadow: 0 14px 32px rgba(56, 176, 0, 0.22);
+}
+
+.miar-ai-intro .text-slate-400 { color: #8FA396 !important; }
+
+.miar-ai-edit,
+.miar-ai-demand {
+  background: radial-gradient(circle at 78% 4%, rgba(158, 240, 26, 0.08), transparent 24rem), #06100A !important;
+}
+
+.miar-ai-edit aside,
+.miar-ai-edit section > div,
+.miar-ai-demand > div {
+  border-color: rgba(204, 255, 51, 0.14) !important;
+}
+
+.miar-ai-edit aside,
+.miar-ai-edit section > aside {
+  background: rgba(13, 31, 42, 0.76) !important;
+  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.16);
+}
+
+.miar-ai-demand button,
+.miar-ai-demand > div > div > div {
+  transition: transform 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
+}
+
+.miar-ai-demand > div > div > div:hover {
+  transform: translateY(-2px);
+  border-color: rgba(158, 240, 26, 0.34) !important;
+  box-shadow: 0 16px 32px rgba(0, 0, 0, 0.18);
+}
