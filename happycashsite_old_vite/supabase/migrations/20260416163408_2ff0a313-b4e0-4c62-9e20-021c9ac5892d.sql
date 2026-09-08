@@ -1,5 +1,0 @@
--- Esta migration existia no projeto standalone do site antigo.
--- O projeto integrado HappyCash usa o diretório canonico /supabase, com
--- store_accounts/store_subscriptions no lugar da tabela legada empresas.
--- Mantemos este arquivo como no-op para evitar criar schema divergente caso
--- algum comando seja executado a partir de /happycashsite por engano.

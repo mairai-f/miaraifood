@@ -46,7 +46,7 @@ const plans = [
     planId: "demo",
     email: `teste-demo@${demoEmailDomain}`,
     nomeCliente: "Cliente Teste Demo",
-    nomeEstabelecimento: "Loja Demo HappyCash",
+    nomeEstabelecimento: "Bistrô Miar Demo",
     cnpj: "91000000000100",
     tipoEstabelecimento: "Loja de bairro",
     telefone: "11991000000",

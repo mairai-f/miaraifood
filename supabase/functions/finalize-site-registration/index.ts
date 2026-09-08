@@ -527,14 +527,16 @@ Deno.serve(async (request) => {
 
     if (!currentSubscription) {
       const trialStartedAt = new Date();
-      const resolvedTrialEndsAt = new Date(trialStartedAt.getTime() + 72 * 60 * 60 * 1000).toISOString();
+      // Todo novo estabelecimento recebe todos os recursos durante 30 dias.
+      // O bloqueio só acontece quando esse período termina sem pagamento.
+      const resolvedTrialEndsAt = new Date(trialStartedAt.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString();
 
       const { error: subscriptionError } = await serviceClient
         .from("store_subscriptions")
         .insert({
           store_account_id: storeAccountId,
           owner_user_id: user.id,
-          plan_id: "demo",
+          plan_id: "inicial",
           provider: "asaas",
           status: "trialing",
           billing_type: "PIX",
@@ -546,7 +548,7 @@ Deno.serve(async (request) => {
           current_period_ends_at: resolvedTrialEndsAt,
           external_reference: user.id,
           metadata: {
-            created_via: "happycashsite",
+            created_via: "miar-site",
             asaas_customer_id: asaasCustomerId,
             asaas_pending_setup: !isAsaasConfigured(),
             finalized_after_email_confirmation: true,

@@ -320,10 +320,19 @@ function App() {
 
   // Carregar CSRF token na inicialização
   useEffect(() => {
+    // A Supergestora usa Supabase diretamente em produção. O endpoint REST
+    // legado só deve ser consultado quando uma API explícita foi configurada;
+    // sem isso o Vercel devolve o index.html e o parse JSON falha.
+    if (!API_URL) return;
     fetch(`${API_URL}/api/csrf-token`, { credentials: 'include' })
-      .then((res) => res.json())
+      .then((res) => {
+        if (!res.ok) throw new Error(`CSRF HTTP ${res.status}`);
+        return res.json();
+      })
       .then((data) => {
-        window.localStorage.setItem('csrf-token', data.token);
+        if (typeof data?.token === 'string' && data.token.length > 0) {
+          window.localStorage.setItem('csrf-token', data.token);
+        }
       })
       .catch((err) => {
         console.error('Erro ao carregar CSRF token:', err);
@@ -348,7 +357,7 @@ function App() {
   const loadRepresentatives = async () => {
     if (!token) return;
     const result = await apiFetch<Representative[]>('/supergestora/representatives', {}, token);
-    setRepresentatives(result);
+    setRepresentatives(Array.isArray(result) ? result : []);
   };
 
   const loadRealRepresentatives = async () => {
@@ -773,8 +782,9 @@ function App() {
   };
 
   const quickSummary = useMemo(() => {
-    const totalRevenue = representatives.reduce((sum, rep) => sum + Number(rep.revenue || 0), 0);
-    const totalManagers = representatives.reduce((sum, rep) => sum + Number(rep.managers || 0), 0);
+    const safeRepresentatives = Array.isArray(representatives) ? representatives : [];
+    const totalRevenue = safeRepresentatives.reduce((sum, rep) => sum + Number(rep.revenue || 0), 0);
+    const totalManagers = safeRepresentatives.reduce((sum, rep) => sum + Number(rep.managers || 0), 0);
     return {
       totalRevenue,
       totalManagers,

@@ -3,7 +3,7 @@ import { portfolioData } from '@/data/portfolio';
 import { supabase } from '@/lib/supabase';
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const baseUrl = 'https://www.miaraifood.com.br';
+  const baseUrl = 'https://miar-site.vercel.app';
 
   const staticRoutes = [
     '',
@@ -15,6 +15,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     '/termos',
     '/conteudos', 
     '/telas',
+    '/entregador',
+    '/representante',
+    '/login',
+    '/cadastro',
+    '/dashboard',
+    '/downloads'
   ].map((route) => ({
     url: `${baseUrl}${route}`,
     lastModified: new Date(),

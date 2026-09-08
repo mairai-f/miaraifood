@@ -65,7 +65,7 @@ export const metadata: Metadata = {
         siteName: 'MIAR AI/FOOD',
         images: [
             {
-                url: '/assets/miaraifoodlogonovo.png',
+                url: '/miar-logo-bg-white.svg',
                 width: 1200,
                 height: 630,
                 alt: 'MIAR AI/FOOD - Da mesa à entrega, toda a operação conectada',
@@ -78,7 +78,7 @@ export const metadata: Metadata = {
         description:
             'Da mesa à entrega, toda a operação conectada.',
         creator: '@miaraifood',
-        images: ['/assets/miaraifoodlogonovo.png'],
+        images: ['/miar-logo-bg-white.svg'],
     },
     robots: {
         index: true,
@@ -120,9 +120,9 @@ export default async function RootLayout({
     return (
         <html lang={locale} data-scroll-behavior="smooth" suppressHydrationWarning>
             <head>
-                <link rel="icon" type="image/svg+xml" href="/miafavico.svg" />
-                <link rel="shortcut icon" href="/miafavico.svg" />
-                <link rel="apple-touch-icon" href="/miafavico.svg" />
+                <link rel="icon" type="image/svg+xml" href="/miar-collapsed-icon.svg" />
+                <link rel="shortcut icon" href="/miar-collapsed-icon.svg" />
+                <link rel="apple-touch-icon" href="/miar-collapsed-icon.svg" />
                 <script
                     type="application/ld+json"
                     dangerouslySetInnerHTML={{

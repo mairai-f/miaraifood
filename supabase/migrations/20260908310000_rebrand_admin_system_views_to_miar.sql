@@ -48,77 +48,23 @@ LEFT JOIN LATERAL (
   LIMIT 1
 ) AS latest_subscription ON true;
 
-DO $$
-DECLARE
-  has_store_account_id boolean;
-  has_product_context boolean;
-  client_context_expression text;
-BEGIN
-  SELECT EXISTS (
-    SELECT 1
-    FROM information_schema.columns
-    WHERE table_schema = 'public'
-      AND table_name = 'clients'
-      AND column_name = 'store_account_id'
-  ) INTO has_store_account_id;
-
-  SELECT EXISTS (
-    SELECT 1
-    FROM information_schema.columns
-    WHERE table_schema = 'public'
-      AND table_name = 'clients'
-      AND column_name = 'product_context'
-  ) INTO has_product_context;
-
-  client_context_expression := CASE
-    WHEN has_product_context THEN 'COALESCE(client.product_context, ''happycash'')'
-    ELSE '''happycash''::text'
-  END;
-
-  IF has_store_account_id THEN
-    EXECUTE format($view$
-      CREATE OR REPLACE VIEW public.admin_system_clients AS
-      SELECT
-        %s AS product_context,
-        'MIAR AI/FOOD'::text AS system_name,
-        'clients'::text AS client_source,
-        client.id AS client_id,
-        client.name AS client_name,
-        client.email AS client_email,
-        client.phone AS client_phone,
-        client.deleted,
-        COALESCE(account.owner_user_id, client.user_id) AS owner_user_id,
-        account.id AS store_account_id,
-        account.email AS store_account_email,
-        account.nome_estabelecimento AS store_name,
-        client.created_at,
-        client.updated_at
-      FROM public.clients AS client
-      LEFT JOIN public.store_accounts AS account
-        ON account.id = client.store_account_id
-    $view$, client_context_expression);
-  ELSE
-    EXECUTE format($view$
-      CREATE OR REPLACE VIEW public.admin_system_clients AS
-      SELECT
-        %s AS product_context,
-        'MIAR AI/FOOD'::text AS system_name,
-        'clients'::text AS client_source,
-        client.id AS client_id,
-        client.name AS client_name,
-        client.email AS client_email,
-        client.phone AS client_phone,
-        client.deleted,
-        client.user_id AS owner_user_id,
-        NULL::uuid AS store_account_id,
-        NULL::text AS store_account_email,
-        NULL::text AS store_name,
-        client.created_at,
-        client.updated_at
-      FROM public.clients AS client
-    $view$, client_context_expression);
-  END IF;
-END $$;
+CREATE OR REPLACE VIEW public.admin_system_clients AS
+SELECT
+  'happycash'::text AS product_context,
+  'MIAR AI/FOOD'::text AS system_name,
+  'clients'::text AS client_source,
+  client.id AS client_id,
+  client.name AS client_name,
+  NULL::text AS client_email,
+  client.phone AS client_phone,
+  client.deleted,
+  client.user_id AS owner_user_id,
+  NULL::uuid AS store_account_id,
+  NULL::text AS store_account_email,
+  NULL::text AS store_name,
+  client.created_at,
+  client.updated_at
+FROM public.clients AS client;
 
 REVOKE ALL ON TABLE public.admin_system_emails FROM anon, authenticated;
 REVOKE ALL ON TABLE public.admin_system_clients FROM anon, authenticated;

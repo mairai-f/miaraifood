@@ -225,7 +225,7 @@ export function KitchenView() {
     const response = await fetch('/api/operational-workflow/orders');
     if (response.ok) {
       const data = await response.json();
-      setOrders(data);
+      setOrders(Array.isArray(data) ? data : []);
     }
   };
 
@@ -268,7 +268,7 @@ export function CashierView() {
     const response = await fetch('/api/operational-workflow/orders');
     if (response.ok) {
       const data = await response.json();
-      setOrders(data);
+      setOrders(Array.isArray(data) ? data : []);
     }
   };
 
@@ -312,7 +312,7 @@ export function DeliveryView() {
     const response = await fetch('/api/operational-workflow/orders');
     if (response.ok) {
       const data = await response.json();
-      setOrders(data.filter((order: WorkflowOrder) => order.status === 'ready' || order.status === 'delivering'));
+      setOrders((Array.isArray(data) ? data : []).filter((order: WorkflowOrder) => order.status === 'ready' || order.status === 'delivering'));
     }
   };
 

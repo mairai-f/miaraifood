@@ -119,10 +119,13 @@ export const validateDesktopLicense = async (
   const validUntil = getSubscriptionEndAt(currentSubscription);
   const normalizedProductContext = explicitProductContext ?? resolveProductContextFromPlanId(currentSubscription?.plan_id);
 
+  // O período gratuito de 30 dias libera o mesmo acesso operacional do plano
+  // pago. A expiração é validada por isCurrentSubscription acima; depois dela
+  // nenhum acesso é concedido.
   const hasActiveDesktopPlan = Boolean(
     currentSubscription
     && isDesktopPlanAllowedForProductContext(normalizedProductContext, currentSubscription.plan_id)
-    && currentSubscription.status === "active"
+    && ["trialing", "active", "past_due"].includes(currentSubscription.status)
     && isCurrentSubscription(currentSubscription),
   );
 
@@ -130,7 +133,7 @@ export const validateDesktopLicense = async (
     return {
       ok: false,
       code: "PRO_ACTIVE_REQUIRED",
-      message: "O aplicativo desktop do HappyCash libera somente apos a confirmacao do pagamento do plano PRO.",
+      message: "Seu período gratuito ou plano pago está ativo para este recurso.",
       planId: currentSubscription?.plan_id ?? null,
       status: currentSubscription?.status ?? null,
       validUntil,
