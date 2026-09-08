@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 220 160" fill="none">
+  <!-- Top Right Exclamation Mark (!) -->
+  <path d="M172 26 L188 56" stroke="#9EF01A" stroke-width="14" stroke-linecap="round" />
+  <circle cx="193" cy="80" r="7.5" fill="#9EF01A" />
+
+  <!-- Double Arch "M" (Cat Ears / Wave) -->
+  <path
+    d="M 18 108 C 28 108, 38 90, 48 58 C 58 26, 70 20, 80 20 C 90 20, 98 42, 108 70 C 118 42, 126 20, 136 20 C 146 20, 158 26, 168 58 C 178 90, 188 108, 198 108"
+    stroke="#ffffff"
+    stroke-width="16"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+
+  <!-- Bottom Smile Curve -->
+  <path
+    d="M 60 110 C 75 142, 141 142, 156 110"
+    stroke="#ff6b4a"
+    stroke-width="16"
+    stroke-linecap="round"
+  />
+</svg>
