@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { Send, Bot, Loader2, ChevronLeft } from 'lucide-react';
-import { getUser, getClientToken } from '../lib/storage';
+import { getUser } from '../lib/storage';
 import type { Restaurant, ChatMsg } from '../types';
 import { useTranslation } from '../i18n/IdiomaContext';
 
@@ -33,26 +33,6 @@ export default function AIChat({
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  const buildSystemPrompt = (confirmedResults = '') => {
-    const restList = restaurants.map(r => `${r.name} (${r.segment ?? r.cuisine ?? 'restaurante'}${r.address ? ', ' + r.address : ''})`).join('; ');
-    const parts = [
-      `Você é a assistente IA do Miar AI/FOOD. Restaurantes disponíveis: ${restList || 'nenhum cadastrado'}.`,
-      'Ajude o usuário a escolher restaurantes, pratos, planejar saídas e descobrir lugares.',
-      'Seja amigável, conciso e use emojis moderadamente. Responda em português brasileiro.',
-      confirmedResults ? `Resultados confirmados pela busca normal para esta solicitação: ${confirmedResults}. Não invente informações além desses dados.` : '',
-    ];
-    if (user) {
-      if (user.communicationStyle === 'formal') parts.push('Use comunicação formal e clássica.');
-      if (user.communicationStyle === 'doutor') parts.push(`Trate o usuário como Doutor/Doutora.`);
-      if (user.communicationStyle === 'objetiva') parts.push('Seja direto e objetivo, sem rodeios.');
-      if (user.communicationStyle === 'detalhada') parts.push('Dê explicações detalhadas.');
-      if (user.communicationStyle === 'curta') parts.push('Respostas curtas e resumidas.');
-      if (user.nutritionGoals.length) parts.push(`Objetivos alimentares do usuário: ${user.nutritionGoals.join(', ')}.`);
-      if (user.dislikedIngredients.length) parts.push(`O usuário não gosta de: ${user.dislikedIngredients.join(', ')}.`);
-    }
-    return parts.join('\n');
-  };
-
   const send = async (text?: string) => {
     const msg = (text ?? input).trim();
     if (!msg || loading) return;
@@ -60,36 +40,17 @@ export default function AIChat({
     const newMessages: ChatMsg[] = [...messages, { role: 'user', content: msg }];
     setMessages(newMessages);
     setLoading(true);
-    let confirmedResults = '';
-    try {
-      const searchResponse = await fetch(`/api/search?q=${encodeURIComponent(msg)}`);
-      if (searchResponse.ok) {
-        const searchData = await searchResponse.json() as { results?: Array<{ restaurant: Restaurant; matchingItems: Array<{ name: string }> }> };
-        confirmedResults = (searchData.results ?? []).slice(0, 8).map(result => {
-          const items = result.matchingItems.slice(0, 3).map(item => item.name).join(', ');
-          return `${result.restaurant.name} (${result.restaurant.cuisine ?? 'restaurante'}${items ? `; itens: ${items}` : ''})`;
-        }).join('; ');
-      }
-    } catch {
-      // A IA pode responder sem o enriquecimento opcional da busca.
-    }
-    try {
-      const res = await fetch('/api/chat', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(getClientToken() ? { Authorization: `Bearer ${getClientToken()}` } : {}),
-        },
-        body: JSON.stringify({
-          messages: [{ role: 'system', content: buildSystemPrompt(confirmedResults) }, ...newMessages],
-          language: idioma,
-        }),
-      });
-      const d = await res.json() as { message: string };
-      setMessages(prev => [...prev, { role: 'assistant', content: d.message }]);
-    } catch {
-      setMessages(prev => [...prev, { role: 'assistant', content: 'A busca normal está disponível, mas a IA está indisponível neste momento. Tente pesquisar pelo nome do produto, restaurante ou cidade.' }]);
-    } finally { setLoading(false); }
+    const needle = msg.toLocaleLowerCase('pt-BR');
+    const matches = restaurants.filter((restaurant) =>
+      [restaurant.name, restaurant.segment, restaurant.cuisine, restaurant.address]
+        .filter(Boolean).join(' ').toLocaleLowerCase('pt-BR').includes(needle),
+    ).slice(0, 4);
+    const greeting = idioma === 'en' ? 'I found' : 'Encontrei';
+    const response = matches.length
+      ? `${greeting} ${matches.length === 1 ? 'esta opção' : 'estas opções'} para você:\n${matches.map((restaurant) => `• ${restaurant.name}${restaurant.segment ? ` — ${restaurant.segment}` : ''}${restaurant.address ? ` (${restaurant.address})` : ''}`).join('\n')}\n\nToque em Buscar para ver o cardápio e os detalhes.`
+      : `Ainda não encontrei uma opção confirmada para “${msg}”. Use Buscar para procurar por produto, restaurante ou cidade — os resultados vêm diretamente do catálogo publicado.`;
+    setMessages(prev => [...prev, { role: 'assistant', content: response }]);
+    setLoading(false);
   };
 
   return (

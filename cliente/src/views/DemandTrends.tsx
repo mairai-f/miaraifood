@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { ChevronLeft, TrendingUp, AlertCircle, Search } from 'lucide-react';
+import { getSupabaseClient } from '@workspace/api-client-react';
 
 interface DemandTrend {
   term: string; count: number; state: string; lastSeen: string;
@@ -10,9 +11,12 @@ function useGetDemandTrends() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<any>(null);
   useEffect(() => {
-    fetch('/api/demanda/painel')
-      .then(r => r.ok ? r.json() : Promise.reject(r))
-      .then(d => { setData(d); setIsLoading(false); })
+    getSupabaseClient().from('marketplace_demand_trends').select('term,count,state,last_seen').limit(100)
+      .then(({ data, error: queryError }) => {
+        if (queryError) throw queryError;
+        setData((data ?? []).map((row: any) => ({ term: row.term, count: Number(row.count), state: row.state === 'not_found' ? 'nao_encontrada' : 'encontrada', lastSeen: row.last_seen })));
+        setIsLoading(false);
+      })
       .catch(e => { setError(e); setIsLoading(false); });
   }, []);
   return { data, isLoading, error };

@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { useAuth } from '@/contexts/AuthContext';
 import { useDesktopRuntime } from '@/contexts/DesktopRuntimeContext';
 
-const SALES_PAGE_URL = 'https://www.happycashsite.com.br/#planos';
+const SALES_PAGE_URL = 'https://miar-site.vercel.app/#planos';
 
 export function DesktopLicenseBlocked() {
   const { logout } = useAuth();

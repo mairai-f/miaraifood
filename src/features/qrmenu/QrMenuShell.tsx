@@ -20,7 +20,7 @@ function BottomNav({ activeTab, onTabChange }: { activeTab: QrMenuTab; onTabChan
   ];
 
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-40 flex items-stretch justify-around border-t border-slate-800/80 bg-[#0d1726]/95 backdrop-blur-lg px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2">
+    <nav className="fixed inset-x-0 bottom-0 z-40 flex items-stretch justify-around border-t border-slate-800/80 bg-[var(--menu-card-bg)]/95 backdrop-blur-lg px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2">
       {items.map(({ id, label, icon: Icon, badge }) => {
         const active = activeTab === id;
         return (
@@ -57,7 +57,7 @@ function InnerShell() {
 
   if (session.error) {
     return (
-      <div className="flex min-h-screen items-center justify-center p-6 text-center bg-[#050b14] text-slate-100">
+      <div className="flex min-h-screen items-center justify-center p-6 text-center bg-transparent text-[var(--menu-text)]">
         <div className="max-w-sm space-y-3 rounded-2xl bg-slate-900 border border-slate-800 p-6 shadow-2xl">
           <p className="text-lg font-bold text-slate-200">Não foi possível abrir a mesa</p>
           <p className="text-sm text-slate-400">{session.error}</p>
@@ -75,7 +75,7 @@ function InnerShell() {
 
   if (!session.ready) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[#050b14] text-slate-400 text-sm">
+      <div className="flex min-h-screen items-center justify-center bg-transparent text-[var(--menu-text)] opacity-80 text-sm">
         <div className="flex items-center gap-3">
           <div className="h-5 w-5 animate-spin rounded-full border-2 border-emerald-500 border-t-transparent" />
           <span>Abrindo sua mesa…</span>
@@ -96,7 +96,7 @@ function InnerShell() {
   }
 
   return (
-    <div className="min-h-screen bg-[#050b14] text-slate-100 pb-20">
+    <div className="min-h-screen bg-transparent text-[var(--menu-text)] pb-20">
       {activeTab === 'menu' && <MenuScreen onOpenCart={() => setActiveTab('cart')} />}
       {activeTab === 'cart' && (
         <CartScreen onBackToMenu={() => setActiveTab('menu')} onGoToBill={() => setActiveTab('bill')} />

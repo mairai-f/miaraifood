@@ -100,6 +100,7 @@ type Plataforma = {
 
 const SECTIONS = [
   'Empresas',
+  'Delivery',
   'Representante',
   'Taxas & Logística',
   'Colaboradores',
@@ -117,6 +118,7 @@ type SectionName = (typeof SECTIONS)[number];
 
 const SECTION_ICONS: Record<SectionName, typeof Building2> = {
   'Empresas': Building2,
+  'Delivery': Truck,
   'Representante': Handshake,
   'Taxas & Logística': Truck,
   'Colaboradores': Users,
@@ -247,6 +249,7 @@ function App() {
   const [user, setUser] = useState<SupergestoraUser | null>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
   const [activeSection, setActiveSection] = useState<SectionName>('Representante');
+  const [deliveryRows, setDeliveryRows] = useState<any[]>([]);
   const [baseFee, setBaseFee] = useState<number>(5.0);
   const [kmFee, setKmFee] = useState<number>(0.8);
   const [miarCommissionPercent, setMiarCommissionPercent] = useState<number>(10.0);
@@ -553,6 +556,19 @@ function App() {
     if (activeSection === 'Empresas' || activeSection === 'Gestor suspenso') void loadCompanies();
     if (activeSection === 'Banidos') void loadBannedEmails();
     if (activeSection === 'Auditoria') void loadAuditLogs();
+    if (activeSection === 'Delivery') {
+      void supabase.from('deliveries').select('id,status,store_account_id,driver_id,customer_name,delivery_address,created_at,delivery_offers(status,driver_id),delivery_incidents(reason,note,created_at)').order('created_at', { ascending: false }).limit(100)
+        .then(({ data }) => setDeliveryRows(data ?? []));
+      const refreshDelivery = () => {
+        void supabase.from('deliveries').select('id,status,store_account_id,driver_id,customer_name,delivery_address,created_at,delivery_offers(status,driver_id),delivery_incidents(reason,note,created_at)').order('created_at', { ascending: false }).limit(100)
+          .then(({ data }) => setDeliveryRows(data ?? []));
+      };
+      const channel = supabase.channel('supergestora-delivery-realtime')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'deliveries' }, refreshDelivery)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'delivery_offers' }, refreshDelivery)
+        .subscribe();
+      return () => { void supabase.removeChannel(channel); };
+    }
   }, [token, activeSection]);
 
   const handleLogin = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -1188,6 +1204,13 @@ function App() {
               </div>
               </div>
             )}
+          </section>
+        )}
+
+        {activeSection === 'Delivery' && (
+          <section className="panel-card full-width">
+            <div className="section-heading"><div><h2>Operação de delivery</h2><p className="muted-text">Acompanhamento global de entregas e ofertas em tempo real.</p></div><button className="ghost-button" onClick={() => setActiveSection('Delivery')}>Atualizar</button></div>
+            <div className="table-wrap"><table><thead><tr><th>Entrega</th><th>Status</th><th>Cliente</th><th>Endereço</th><th>Entregador</th><th>Ocorrências</th><th>Data</th></tr></thead><tbody>{deliveryRows.length === 0 ? <tr><td colSpan={7}>Nenhuma entrega registrada.</td></tr> : deliveryRows.map(row => <tr key={row.id}><td>{row.id.slice(0, 8)}</td><td>{row.status}</td><td>{row.customer_name || '—'}</td><td>{row.delivery_address || '—'}</td><td>{row.driver_id ? row.driver_id.slice(0, 8) : 'Aguardando'}</td><td>{row.delivery_incidents?.length ? row.delivery_incidents.map((i: any) => i.reason).join(', ') : '—'}</td><td>{new Date(row.created_at).toLocaleString('pt-BR')}</td></tr>)}</tbody></table></div>
           </section>
         )}
 

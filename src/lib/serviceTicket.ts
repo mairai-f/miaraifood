@@ -1,9 +1,12 @@
 import type { ServiceTicket } from '@/types';
 
-export const SERVICE_TICKET_BARCODE_PREFIX = 'HC';
+// Novas comandas usam a marca MIAR. Os formatos HappyCash continuam válidos
+// somente para localizar comandas já impressas antes da migração.
+export const SERVICE_TICKET_BARCODE_PREFIX = 'MR';
 export const SERVICE_TICKET_BARCODE_MIN_DIGITS = 3;
 export const SERVICE_TICKET_BARCODE_MAX_DIGITS = 4;
 const LEGACY_SERVICE_TICKET_BARCODE_PREFIX = 'HC-CMD-';
+const LEGACY_SERVICE_TICKET_SHORT_PREFIX = 'HC';
 
 export const normalizeServiceTicketLookup = (value: string) => value.trim().toUpperCase();
 
@@ -19,7 +22,9 @@ const parseServiceTicketBarcodeNumber = (value: string) => {
 
   const digits = normalized.startsWith(LEGACY_SERVICE_TICKET_BARCODE_PREFIX)
     ? normalized.slice(LEGACY_SERVICE_TICKET_BARCODE_PREFIX.length)
-    : normalized.slice(SERVICE_TICKET_BARCODE_PREFIX.length);
+    : normalized.startsWith(LEGACY_SERVICE_TICKET_SHORT_PREFIX)
+      ? normalized.slice(LEGACY_SERVICE_TICKET_SHORT_PREFIX.length)
+      : normalized.slice(SERVICE_TICKET_BARCODE_PREFIX.length);
   const parsed = Number.parseInt(digits, 10);
   return isValidServiceTicketNumber(parsed) ? parsed : null;
 };
@@ -38,12 +43,12 @@ export const isServiceTicketBarcode = (value: string) => {
   const currentFormat = isCurrentServiceTicketBarcode(normalized);
   if (currentFormat) return true;
 
-  return /^HC-CMD-\d{4}$/.test(normalized);
+  return /^HC(?:-CMD-\d{4}|\d{3,4})$/.test(normalized);
 };
 
 export const normalizeServiceTicketBarcode = (number: number, barcode?: string | null) => {
   const normalized = normalizeServiceTicketLookup(barcode ?? '');
-  if (isCurrentServiceTicketBarcode(normalized)) {
+  if (isServiceTicketBarcode(normalized)) {
     return normalized;
   }
 

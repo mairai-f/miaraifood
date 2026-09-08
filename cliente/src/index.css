@@ -1,9 +1,10 @@
 @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap');
-@import 'tailwindcss';
-@import 'tw-animate-css';
-@plugin "@tailwindcss/typography";
-
-@custom-variant dark (&:is(.dark *));
+/* Este app usa Tailwind 3 pelo PostCSS compartilhado do monorepo. As
+   diretivas v4 (@import tailwindcss/@plugin) faziam o compilador procurar
+   @layer base inexistente e derrubavam o Vite antes de renderizar a tela. */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
 @theme inline {
   /* Brand aliases: keep existing utility classes aligned with Midnight Appetite. */

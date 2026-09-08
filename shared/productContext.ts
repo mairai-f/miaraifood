@@ -33,4 +33,4 @@ export const getPublicPlanIdsForProductContext = (productContext: ProductContext
   ["demo", "fiado", "completo", "pro"] as const;
 
 export const getProductContextLabel = (productContext: ProductContext) =>
-  "HappyCash";
+  "MIAR AI/FOOD";

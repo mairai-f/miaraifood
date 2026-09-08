@@ -247,8 +247,8 @@ export default function Home({
     setLoading(true);
     Promise.all([
       getSupabaseClient().from('miaifood_public_menu').select('*').order('sort_order', { ascending: true }),
-      fetch('/api/feed').then((r) => (r.ok ? r.json() : [])).catch(() => []),
-    ]).then(([restaurantResult, feedData]) => {
+      getSupabaseClient().from('feed_posts').select('*').order('published_at', { ascending: false }).limit(50),
+    ]).then(([restaurantResult, feedResult]) => {
       const rows = restaurantResult.data ?? [];
       const byRestaurant = new Map<string, any>();
       for (const row of rows) {
@@ -264,9 +264,18 @@ export default function Home({
         byRestaurant.set(row.restaurant_id, current);
       }
       setRestaurants(Array.from(byRestaurant.values()) as Restaurant[]);
-      setFeed(feedData as FeedPost[]);
+      setFeed((feedResult.data ?? []).map((post: any) => ({ id: post.id, restaurantId: post.store_account_id, restaurantName: post.title || 'MIAR', mediaType: post.media_type, caption: post.body, mediaUrl: post.media_url, createdAt: post.published_at })) as FeedPost[]);
       setLoading(false);
     });
+  }, []);
+
+  useEffect(() => {
+    const channel = getSupabaseClient().channel('marketplace-feed-realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'feed_posts' }, async () => {
+        const { data } = await getSupabaseClient().from('feed_posts').select('*').order('published_at', { ascending: false }).limit(50);
+        setFeed((data ?? []).map((post: any) => ({ id: post.id, restaurantId: post.store_account_id, restaurantName: post.title || 'MIAR', mediaType: post.media_type, caption: post.body, mediaUrl: post.media_url, createdAt: post.published_at })) as FeedPost[]);
+      }).subscribe();
+    return () => { void getSupabaseClient().removeChannel(channel); };
   }, []);
 
   // Banner Carousel auto-play

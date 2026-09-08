@@ -1,8 +1,8 @@
 {
-  "name": "happycash",
+  "name": "miar-ai-food",
   "private": true,
   "version": "0.1.80",
-  "description": "HappyCash POS e gestao com desktop comercial e concentrador offline.",
+  "description": "MIAR AI/FOOD: operação completa para food service, PDV e atendimento.",
   "author": "Celio Antonio <celioantonio7@users.noreply.github.com>",
   "main": "electron/main.cjs",
   "type": "module",
@@ -142,7 +142,7 @@
   },
   "build": {
     "appId": "com.happycash.desktop",
-    "productName": "HappyCash",
+    "productName": "MIAR AI/FOOD",
     "electronUpdaterCompatibility": ">=2.16",
     "generateUpdatesFilesForAllChannels": true,
     "directories": {
@@ -166,7 +166,7 @@
     ],
     "win": {
       "icon": "build/icon.ico",
-      "artifactName": "HappyCash-Setup-${version}.${ext}",
+      "artifactName": "MIAR-AI-FOOD-Setup-${version}.${ext}",
       "target": [
         "nsis",
         "portable"
@@ -184,7 +184,7 @@
     },
     "linux": {
       "icon": "build/icon.png",
-      "artifactName": "HappyCash-${version}.${ext}",
+      "artifactName": "MIAR-AI-FOOD-${version}.${ext}",
       "target": [
         "AppImage",
         "deb"

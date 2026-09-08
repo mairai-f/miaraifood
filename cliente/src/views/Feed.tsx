@@ -3,6 +3,7 @@ import { ChevronLeft, Flag, Loader2, Newspaper, X } from 'lucide-react';
 import type { FeedPost, UserProfile } from '../types';
 import { getColors } from './Home';
 import { getClientToken } from '../lib/storage';
+import { getSupabaseClient } from '@workspace/api-client-react';
 
 export default function Feed({ user, onRequireLogin, onBack }: {
   user: UserProfile | null;
@@ -18,9 +19,8 @@ export default function Feed({ user, onRequireLogin, onBack }: {
   const [sending, setSending] = useState(false);
 
   useEffect(() => {
-    fetch('/api/feed')
-      .then(response => response.ok ? response.json() : [])
-      .then(data => setPosts(data as FeedPost[]))
+    getSupabaseClient().from('feed_posts').select('*').order('published_at', { ascending: false }).limit(50)
+      .then(({ data }) => setPosts((data ?? []).map((post: any) => ({ id: post.id, restaurantId: post.store_account_id, restaurantName: post.title || 'MIAR', title: post.title, content: post.body, mediaType: post.media_type, mediaUrl: post.media_url, createdAt: post.published_at })) as FeedPost[]))
       .finally(() => setLoading(false));
   }, []);
 
@@ -94,14 +94,9 @@ export default function Feed({ user, onRequireLogin, onBack }: {
               if (!token || !reportingPost) { onRequireLogin(); return; }
               setSending(true); setReportError('');
               try {
-                const response = await fetch(`/api/feed/${reportingPost.id}/report`, {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-                  body: JSON.stringify({ reason: reason.trim() }),
-                });
-                const data = await response.json().catch(() => ({})) as { message?: string; error?: string };
-                if (!response.ok) throw new Error(data.error ?? 'Não foi possível registrar a denúncia.');
-                setReportSent(data.message ?? 'Denúncia registrada e encaminhada para análise.');
+                const { error } = await getSupabaseClient().from('feed_post_reports').insert({ post_id: reportingPost.id, reporter_user_id: user?.id, reason: reason.trim() });
+                if (error) throw error;
+                setReportSent('Denúncia registrada e encaminhada para análise.');
               } catch (error) {
                 setReportError(error instanceof Error ? error.message : 'Não foi possível registrar a denúncia.');
               } finally { setSending(false); }

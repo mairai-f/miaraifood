@@ -3,6 +3,7 @@ import QRCode from 'qrcode';
 import { Building2, CircleDollarSign, Copy, Eye, EyeOff, KeyRound, LogIn, Plus, ShieldCheck, Users, WalletCards, Link2, Send } from 'lucide-react';
 import GhostFibers from './components/GhostFibers';
 import './representante.css';
+import { getSupabaseClient } from '@workspace/api-client-react';
 
 type Establishment = { id: string; name: string; city: string; company_id?: string | null };
 type TeamMember = { id: string; name: string; slug: string; created_at: string; childCount: number };
@@ -160,7 +161,7 @@ export default function App() {
   // backend agora exige). Este app é só login de quem já tem conta.
   const login = async (event: FormEvent) => {
     event.preventDefault(); setLoading(true); setError('');
-    try { const data = await request<{ token: string }>('/representantes/login', { method: 'POST', body: JSON.stringify({ email, password }) }); window.localStorage.setItem(tokenKey, data.token); setToken(data.token); setPassword(''); } catch (loginError) { setError(loginError instanceof Error ? loginError.message : 'Falha no acesso.'); } finally { setLoading(false); }
+    try { const { data, error: authError } = await getSupabaseClient().auth.signInWithPassword({ email, password }); if (authError || !data.session) throw authError ?? new Error('Sessão não criada.'); window.localStorage.setItem(tokenKey, data.session.access_token); setToken(data.session.access_token); setPassword(''); } catch (loginError) { setError(loginError instanceof Error ? loginError.message : 'Falha no acesso.'); } finally { setLoading(false); }
   };
   const addEstablishment = async (event: FormEvent) => {
     event.preventDefault(); setLoading(true); setError('');

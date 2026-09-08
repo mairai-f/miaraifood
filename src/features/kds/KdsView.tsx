@@ -54,7 +54,7 @@ export default function KdsView() {
 
   if (loading) {
     return (
-      <div className="flex h-full min-h-[600px] items-center justify-center bg-[#050b14] text-zinc-400">
+      <div className="flex h-full min-h-[600px] items-center justify-center bg-background text-zinc-400">
         <div className="flex items-center gap-3">
           <Loader2 className="h-6 w-6 animate-spin text-[#70E000]" />
           <span className="text-sm font-medium">Carregando tela da cozinha (KDS)...</span>
@@ -65,8 +65,8 @@ export default function KdsView() {
 
   if (error) {
     return (
-      <div className="flex h-full min-h-[600px] items-center justify-center bg-[#050b14] text-zinc-300">
-        <div className="text-center max-w-md p-6 bg-[#0c192c] border border-[#006400]/30 rounded-2xl">
+      <div className="flex h-full min-h-[600px] items-center justify-center bg-background text-zinc-300">
+        <div className="text-center max-w-md p-6 bg-card border border-border/30 rounded-2xl">
           <AlertCircle className="h-10 w-10 text-rose-500 mx-auto mb-3" />
           <h2 className="text-lg font-bold text-white">Erro no KDS</h2>
           <p className="text-sm text-zinc-400 mt-1 mb-4">{error}</p>
@@ -83,7 +83,7 @@ export default function KdsView() {
   }
 
   return (
-    <div className="flex flex-col h-full min-h-screen bg-[#050b14] text-white font-sans">
+    <div className="flex flex-col h-full min-h-screen bg-background text-white font-sans">
       <KdsHeader
         orders={orders}
         soundEnabled={soundEnabled}
@@ -95,7 +95,7 @@ export default function KdsView() {
 
       <main className="flex-1 p-6 grid grid-cols-1 lg:grid-cols-3 gap-6 items-start overflow-x-auto">
         {/* Column 1: Aguardando */}
-        <section className="bg-[#0c192c]/80 border border-[#006400]/30 rounded-2xl p-4 flex flex-col min-h-[500px] shadow-xl">
+        <section className="bg-card/80 border border-border/30 rounded-2xl p-4 flex flex-col min-h-[500px] shadow-xl">
           <div className="flex items-center justify-between pb-3 border-b border-white/10 mb-4">
             <div className="flex items-center gap-2">
               <span className="h-3 w-3 rounded-full bg-amber-400 animate-pulse" />
@@ -121,7 +121,7 @@ export default function KdsView() {
         </section>
 
         {/* Column 2: Em Preparo */}
-        <section className="bg-[#0c192c]/80 border border-[#006400]/30 rounded-2xl p-4 flex flex-col min-h-[500px] shadow-xl">
+        <section className="bg-card/80 border border-border/30 rounded-2xl p-4 flex flex-col min-h-[500px] shadow-xl">
           <div className="flex items-center justify-between pb-3 border-b border-white/10 mb-4">
             <div className="flex items-center gap-2">
               <span className="h-3 w-3 rounded-full bg-sky-400 animate-pulse" />
@@ -147,7 +147,7 @@ export default function KdsView() {
         </section>
 
         {/* Column 3: Prontos */}
-        <section className="bg-[#0c192c]/80 border border-[#006400]/30 rounded-2xl p-4 flex flex-col min-h-[500px] shadow-xl">
+        <section className="bg-card/80 border border-border/30 rounded-2xl p-4 flex flex-col min-h-[500px] shadow-xl">
           <div className="flex items-center justify-between pb-3 border-b border-white/10 mb-4">
             <div className="flex items-center gap-2">
               <span className="h-3 w-3 rounded-full bg-[#70E000]" />

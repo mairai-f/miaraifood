@@ -84,6 +84,7 @@ const Notes = lazy(loadNotes);
 const Settings = lazy(loadSettings);
 const AuditLog = lazy(loadAuditLog);
 const FoodTables = lazy(() => import('@/pages/FoodTables'));
+const SettingsTables = lazy(() => import('@/pages/SettingsTables'));
 const FoodMenuSettings = lazy(() => import('@/pages/FoodMenuSettings'));
 const KdsPage = lazy(() => import('@/pages/KdsPage'));
 
@@ -297,6 +298,7 @@ const AuthenticatedArea = () => {
           <Route path="/pdv" element={<ProtectedRoute requiredPermission="pdv.use" requiredFeature="pdv.use"><LazyPage><PDV /></LazyPage></ProtectedRoute>} />
           <Route path="/comandas" element={<ProtectedRoute requiredPermission="service_tickets.use" requiredFeature="service_tickets.use"><LazyPage><ServiceTickets /></LazyPage></ProtectedRoute>} />
           <Route path="/mesas" element={<ProtectedRoute requiredPermission="food.tables.view" requiredFeature="food.tables"><LazyPage><FoodTables /></LazyPage></ProtectedRoute>} />
+          <Route path="/configuracoes/mesas" element={<ProtectedRoute requiredPermission="food.tables.manage" requiredFeature="food.tables"><LazyPage><SettingsTables /></LazyPage></ProtectedRoute>} />
           <Route path="/kds" element={<ProtectedRoute requiredPermission="food.kds.use" requiredFeature="food.kds"><LazyPage><KdsPage /></LazyPage></ProtectedRoute>} />
           <Route path="/configuracoes/qrmenu" element={<ProtectedRoute requiredPermission="food.qrmenu.manage" requiredFeature="food.qrmenu" runtimeScope="web"><LazyPage><FoodMenuSettings /></LazyPage></ProtectedRoute>} />
           <Route path="/clientes" element={<ProtectedRoute requiredPermission="clients.view" requiredFeature="clients.manage"><LazyPage><Clients /></LazyPage></ProtectedRoute>} />

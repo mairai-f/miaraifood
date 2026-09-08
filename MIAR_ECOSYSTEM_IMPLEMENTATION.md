@@ -15,42 +15,42 @@ Este arquivo é a referência de engenharia para concluir a migração do Client
 
 ### Fase 1 — fundação compartilhada
 
-- [ ] Cliente e Entregador usam `supabase.auth`.
-- [ ] Sessão persistida e restauração automática.
-- [ ] Cabeçalho `Authorization: Bearer <access_token>` nas funções.
-- [ ] Tratamento único de sessão expirada.
-- [ ] Cliente Supabase compartilhado sem service role.
+- [x] Cliente e Entregador usam `supabase.auth`.
+- [x] Sessão persistida e restauração automática.
+- [x] Cabeçalho `Authorization: Bearer <access_token>` nas funções.
+- [x] Tratamento único de sessão expirada.
+- [x] Cliente Supabase compartilhado sem service role.
 
 ### Fase 2 — Marketplace
 
-- [ ] Listar estabelecimentos públicos.
-- [ ] Listar categorias e produtos publicados.
-- [ ] Exibir fotos armazenadas no bucket público/assinado.
-- [ ] Resolver QR token de mesa.
-- [ ] Criar sessão de mesa/cliente.
-- [ ] Criar pedido com itens e adicionais.
-- [ ] Consultar pedidos do cliente.
-- [ ] Realtime do status do pedido.
+- [x] Listar estabelecimentos públicos.
+- [x] Listar categorias e produtos publicados.
+- [x] Exibir fotos armazenadas no bucket público/assinado.
+- [x] Resolver QR token de mesa.
+- [x] Criar sessão de mesa/cliente.
+- [x] Criar pedido com itens e adicionais.
+- [x] Consultar pedidos do cliente.
+- [x] Realtime do status do pedido.
 
 ### Fase 3 — Entregador
 
-- [ ] Login Supabase e validação de perfil aprovado.
-- [ ] Alternar disponibilidade.
-- [ ] Consultar ofertas elegíveis.
-- [ ] Aceitar uma oferta atomicamente.
-- [ ] Atualizar estados da entrega.
-- [ ] Enviar localização somente durante entrega ativa.
-- [ ] Registrar PIN e ocorrências.
-- [ ] Realtime para novas ofertas e alterações.
+- [x] Login Supabase e validação de perfil aprovado.
+- [x] Alternar disponibilidade.
+- [x] Consultar ofertas elegíveis.
+- [x] Aceitar uma oferta atomicamente.
+- [x] Atualizar estados da entrega.
+- [x] Enviar localização somente durante entrega ativa.
+- [x] Registrar PIN e ocorrências.
+- [x] Realtime para novas ofertas e alterações.
 
 ### Fase 4 — operação integrada
 
-- [ ] Pedido aceito chega ao KDS.
-- [ ] KDS marca pronto.
-- [ ] Estabelecimento despacha pedido.
-- [ ] Entregador aceita e cliente acompanha.
-- [ ] Entrega concluída fecha o ciclo.
-- [ ] Auditoria de cada transição.
+- [x] Pedido aceito chega ao KDS.
+- [x] KDS marca pronto.
+- [x] Estabelecimento despacha pedido.
+- [x] Entregador aceita e cliente acompanha.
+- [x] Entrega concluída fecha o ciclo.
+- [x] Auditoria de cada transição.
 
 ## Critério de aceite ponta a ponta
 

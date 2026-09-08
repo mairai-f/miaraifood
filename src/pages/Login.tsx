@@ -1,5 +1,5 @@
 /*
-  Login.tsx – página de autenticação principal do HappyCash.
+  Login.tsx – página de autenticação principal da MIAR AI/FOOD.
   - Gerencia login de Administrador (online/offline) e Operador.
   - Utiliza o hook useAuth (AuthContext) para realizar chamadas ao Supabase.
   - Integração com Electron via IPC (offline/online status, licença).
@@ -20,7 +20,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Eye, EyeOff, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
-import happyCashLogo from '@/assets/login/happycash.webp';
 import loginPdvRapido from '@/assets/login/pdvrapido.webp';
 import loginRelatorios from '@/assets/login/relatorios.webp';
 import loginErp from '@/assets/login/erp.webp';
@@ -74,7 +73,7 @@ const loginFeatureCards = [
   { label: 'Estoque', image: loginEstoque, imageClassName: 'w-full scale-[1.28]' },
 ];
 
-const HAPPY_CASH_SITE_RECOVERY_URL = 'https://www.happycashsite.com.br/login?recovery=1';
+const MIAR_SITE_RECOVERY_URL = 'https://miar-site.vercel.app/login?recovery=1';
 
 /*
   Componente Login – ponto de entrada da UI de autenticação.
@@ -594,7 +593,7 @@ return (
                           <div className="flex items-center justify-between gap-3">
                             <Label className="text-[14px] font-medium text-white/90">Senha</Label>
                             <a
-                              href={HAPPY_CASH_SITE_RECOVERY_URL}
+                              href={MIAR_SITE_RECOVERY_URL}
                               target="_blank"
                               rel="noreferrer"
                               className="shrink-0 text-sm font-medium text-white/60 transition-colors hover:text-white"

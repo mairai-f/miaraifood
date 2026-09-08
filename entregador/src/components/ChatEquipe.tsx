@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { X, Send, Hash, Users, UserRound, MessageCircle } from 'lucide-react';
+import { getSupabaseClient } from '@workspace/api-client-react';
 
 type Channel = { id: string; name: string; type: 'general' | 'group' | 'direct'; createdAt: string };
 type Message = {
@@ -22,17 +23,18 @@ export function ChatEquipe({ token, onClose }: { token: string; onClose: () => v
   const authHeaders = { Authorization: `Bearer ${token}` };
 
   const loadChannels = useCallback(async () => {
-    const r = await fetch('/api/chat/channels', { headers: authHeaders });
-    if (!r.ok) return;
-    const data: Channel[] = await r.json();
+    const { data: dataUser } = await getSupabaseClient().auth.getUser();
+    if (!dataUser.user) return;
+    const { data: memberships } = await getSupabaseClient().from('chat_channel_members').select('channel_id,chat_channels(id,name,channel_type,created_at)').eq('user_id', dataUser.user.id);
+    const data: Channel[] = (memberships ?? []).map((row: any) => ({ id: row.chat_channels.id, name: row.chat_channels.name, type: row.chat_channels.channel_type === 'direct' ? 'direct' : row.chat_channels.channel_type === 'team' ? 'group' : 'general', createdAt: row.chat_channels.created_at }));
     setChannels(data);
     setActiveChannelId((prev) => prev ?? data[0]?.id ?? null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
   const loadMessages = useCallback(async (channelId: string) => {
-    const r = await fetch(`/api/chat/channels/${channelId}/messages`, { headers: authHeaders });
-    if (r.ok) setMessages(await r.json());
+    const { data } = await getSupabaseClient().from('chat_messages').select('id,sender_user_id,body,created_at').eq('channel_id', channelId).order('created_at', { ascending: true });
+    if (data) setMessages(data.map((row: any) => ({ id: row.id, sender_type: row.sender_user_id ? 'employee' : 'owner', sender_name: row.sender_user_id ?? 'Equipe', content: row.body, created_at: row.created_at })));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
@@ -42,7 +44,8 @@ export function ChatEquipe({ token, onClose }: { token: string; onClose: () => v
     if (!activeChannelId) return;
     void loadMessages(activeChannelId);
     const interval = setInterval(() => void loadMessages(activeChannelId), 4000);
-    return () => clearInterval(interval);
+    const channel = getSupabaseClient().channel(`chat-${activeChannelId}`).on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_messages', filter: `channel_id=eq.${activeChannelId}` }, () => { void loadMessages(activeChannelId); }).subscribe();
+    return () => { clearInterval(interval); void getSupabaseClient().removeChannel(channel); };
   }, [activeChannelId, loadMessages]);
 
   useEffect(() => {
@@ -53,12 +56,9 @@ export function ChatEquipe({ token, onClose }: { token: string; onClose: () => v
     if (!activeChannelId || !draft.trim()) return;
     setSending(true);
     try {
-      const r = await fetch(`/api/chat/channels/${activeChannelId}/messages`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...authHeaders },
-        body: JSON.stringify({ content: draft.trim() }),
-      });
-      if (r.ok) { setDraft(''); await loadMessages(activeChannelId); }
+      const { data: userData } = await getSupabaseClient().auth.getUser();
+      const { error } = await getSupabaseClient().from('chat_messages').insert({ channel_id: activeChannelId, sender_user_id: userData.user?.id, body: draft.trim() });
+      if (!error) { setDraft(''); await loadMessages(activeChannelId); }
     } finally {
       setSending(false);
     }

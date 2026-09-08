@@ -12,7 +12,7 @@ const planLabels: Record<string, string> = {
   pro: 'Plano PRO - 30 dias',
 };
 
-const HAPPY_CASH_SITE_PAYMENT_URL = 'https://www.happycashsite.com.br/dashboard';
+const MIAR_SITE_PAYMENT_URL = 'https://miar-site.vercel.app/dashboard';
 
 export function FeatureLocked() {
   const { planId } = usePlanAccess();
@@ -54,7 +54,7 @@ export function FeatureLocked() {
             {demoExpired ? (
               <>
                 <Button asChild className="sm:flex-1">
-                  <a href={HAPPY_CASH_SITE_PAYMENT_URL} target="_blank" rel="noreferrer">
+                  <a href={MIAR_SITE_PAYMENT_URL} target="_blank" rel="noreferrer">
                     Ativar plano no site
                   </a>
                 </Button>

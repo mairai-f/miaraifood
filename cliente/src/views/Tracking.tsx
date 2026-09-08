@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronLeft, Bot, Loader2, Package, CheckCircle2, ChefHat, Bike, X, Star, Send, HelpCircle } from 'lucide-react';
 import type { OrderMode, OrderStatus } from '../types';
+import { getSupabaseClient } from '@workspace/api-client-react';
 
 type OrderData = {
   id: string; status: OrderStatus; mode: string;
@@ -67,10 +68,21 @@ export default function Tracking({
 
   useEffect(() => {
     const poll = async () => {
-      try {
-        const res = await fetch(`/api/orders/${orderId}/public-status`);
-        if (res.ok) setOrder(await res.json() as OrderData);
-      } catch {}
+      const { data } = await getSupabaseClient()
+        .from('food_orders')
+        .select('id,status,source,created_at,total,food_order_items(product_name,quantity,status)')
+        .eq('id', orderId)
+        .maybeSingle();
+      if (!data) return;
+      const statusMap: Record<string, OrderStatus> = { submitted: 'pending', confirmed: 'confirmed', preparing: 'preparing', ready: 'ready', delivered: 'delivered', closed: 'paid', cancelled: 'cancelled' };
+      setOrder({
+        id: data.id,
+        status: statusMap[data.status] ?? 'pending',
+        mode: data.source,
+        createdAt: data.created_at,
+        total: Number(data.total),
+        items: (data.food_order_items ?? []).map((item: any) => ({ name: item.product_name, quantity: Number(item.quantity), status: item.status })),
+      });
     };
     poll();
     const iv = setInterval(poll, 5000);
@@ -78,22 +90,33 @@ export default function Tracking({
   }, [orderId]);
 
   useEffect(() => {
+    const channel = getSupabaseClient().channel(`client-order-${orderId}`)
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'food_orders', filter: `id=eq.${orderId}` }, (payload: any) => {
+        const row = payload.new;
+        const statusMap: Record<string, OrderStatus> = { submitted: 'pending', preparing: 'preparing', ready: 'ready', delivered: 'delivered', closed: 'paid', cancelled: 'cancelled' };
+        setOrder((previous) => ({ ...(previous ?? { id: orderId, items: [], mode, createdAt: new Date().toISOString(), total: Number(row.total ?? 0) }), id: orderId, status: statusMap[row.status] ?? 'pending', total: Number(row.total ?? previous?.total ?? 0) }));
+      }).subscribe();
+    channel.on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'deliveries', filter: `order_id=eq.${orderId}` }, (payload: any) => {
+      const map: Record<string, OrderStatus> = { waiting: 'pending', offered: 'confirmed', accepted: 'confirmed', pickup: 'preparing', in_transit: 'delivered', delivered: 'delivered', cancelled: 'cancelled' };
+      setOrder((previous) => previous ? { ...previous, status: map[payload.new.status] ?? previous.status } : previous);
+    });
+    return () => { void getSupabaseClient().removeChannel(channel); };
+  }, [orderId, mode]);
+
+  useEffect(() => {
     if (!order || aiEstimate || prevStatus.current === order.status) return;
     prevStatus.current = order.status;
     setLoadingEst(true);
     const pending = (order.items ?? []).map(i => `${i.quantity}x ${i.name}`).join(', ');
-    fetch('/api/chat', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        messages: [{
-          role: 'user',
-          content: `Você é o assistente Miar. Pedido ${mode === 'delivery' ? 'delivery' : 'mesa'} em "${restaurantName}": ${pending}. Status: ${order.status}. Dê uma estimativa curta e animada (2-3 frases).`,
-        }],
-      }),
-    }).then(r => r.ok ? r.json() : null)
-      .then(d => { if (d?.message) setAiEstimate(d.message); })
-      .catch(() => {})
-      .finally(() => setLoadingEst(false));
+    const messageByStatus: Partial<Record<OrderStatus, string>> = {
+      pending: `Seu pedido${pending ? ` (${pending})` : ''} foi recebido e aguarda a confirmação da cozinha.`,
+      confirmed: 'A cozinha confirmou seu pedido e já vai iniciar o preparo.',
+      preparing: 'Seu pedido está sendo preparado com carinho pela cozinha.',
+      ready: 'Seu pedido está pronto. Aproveite!',
+      delivered: 'Pedido entregue. Esperamos que aproveite sua refeição!',
+    };
+    setAiEstimate(messageByStatus[order.status] ?? 'Estamos acompanhando seu pedido em tempo real.');
+    setLoadingEst(false);
   }, [order?.status]);
 
   const sendQuestion = async () => {
@@ -102,29 +125,10 @@ export default function Tracking({
     const q = questionInput.trim();
     setQuestionInput('');
     try {
-      const token = localStorage.getItem('miar_client_token');
-      const res = await fetch('/api/complaints', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-        body: JSON.stringify({
-          userId,
-          orderId,
-          restaurantId,
-          restaurantName,
-          type: complaintType,
-          description: q,
-        }),
+      const { error } = await getSupabaseClient().rpc('create_customer_order_issue', {
+        p_order_id: orderId, p_issue_type: complaintType, p_description: q,
       });
-      const d = await res.json().catch(() => ({})) as { message?: string; error?: string };
-      if (!res.ok) throw new Error(d.error ?? 'Não foi possível registrar a reclamação.');
-      const verifyResponse = await fetch('/api/complaints/mine', {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
-      const complaints = await verifyResponse.json().catch(() => []) as Array<{ id?: string; order_id?: string; orderId?: string }>;
-      const persisted = complaints.some(complaint =>
-        complaint.id === (d as { id?: string }).id && (complaint.order_id ?? complaint.orderId) === orderId,
-      );
-      if (!verifyResponse.ok || !persisted) throw new Error('A reclamação não foi encontrada após o envio.');
+      if (error) throw error;
       setQuestionResponse('Reclamação registrada e confirmada no servidor.');
     } catch {
       setQuestionResponse('Não foi possível registrar a reclamação. Tente novamente.');
@@ -135,19 +139,17 @@ export default function Tracking({
     if (!ratingStars) return;
     setSubmittingRating(true);
     try {
-      await fetch('/api/feedback', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          restaurantId,
-          foodRating: ratingStars,
-          foodComment: ratingComment || undefined,
-          waiterRating: waiterStars || undefined,
-          waiterName: waiterName.trim() || undefined,
-          waiterComment: waiterComment || undefined,
-          customerName: isAnonymous ? undefined : (customerName.trim() || undefined),
-          isAnonymous,
-        }),
+      const { error } = await getSupabaseClient().rpc('create_customer_order_feedback', {
+        p_order_id: orderId,
+        p_food_rating: ratingStars,
+        p_food_comment: ratingComment || '',
+        p_waiter_rating: waiterStars || null,
+        p_waiter_name: waiterName.trim() || '',
+        p_waiter_comment: waiterComment || '',
+        p_customer_name: isAnonymous ? '' : customerName.trim(),
+        p_is_anonymous: isAnonymous,
       });
+      if (error) throw error;
       onRate(orderId);
       setRatingDone(true);
     } catch {
@@ -228,11 +230,7 @@ export default function Tracking({
           <div className="mb-4 flex gap-3">
             <button
               onClick={() => {
-                fetch('/api/waiter-calls', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ type: 'bill_request', orderId }),
-                }).catch(() => {});
+                void getSupabaseClient().rpc('request_food_table_bill', { p_order_id: orderId });
               }}
               className="flex-1 rounded-2xl border border-slate-600 bg-slate-800 py-3 text-sm font-semibold text-slate-200 hover:bg-slate-700 transition"
             >

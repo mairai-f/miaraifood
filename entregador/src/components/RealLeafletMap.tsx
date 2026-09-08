@@ -21,7 +21,7 @@ declare global {
   }
 }
 
-export function RealLeafletMap({ origin, destination, driverPos, token, className = "h-full w-full" }: RealLeafletMapProps) {
+export function RealLeafletMap({ origin, destination, driverPos, className = "h-full w-full" }: RealLeafletMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<any>(null);
   const driverMarkerRef = useRef<any>(null);
@@ -113,52 +113,14 @@ export function RealLeafletMap({ origin, destination, driverPos, token, classNam
     }).addTo(map);
     driverMarkerRef.current = driverMarker;
 
-    // Fetch Route from Valhalla Engine API
-    const fetchValhallaRoute = async () => {
-      try {
-        const authHeaders: Record<string, string> = { 'Content-Type': 'application/json' };
-        if (token) authHeaders['Authorization'] = `Bearer ${token}`;
-
-        const res = await fetch('/api/delivery/route', {
-          method: 'POST',
-          headers: authHeaders,
-          body: JSON.stringify({
-            origin: { lat: origin.lat, lng: origin.lng },
-            destination: { lat: destination.lat, lng: destination.lng },
-          }),
-        });
-
-        if (res.ok) {
-          const data = await res.json();
-          const routeCoords = data.route?.coordinates;
-          if (Array.isArray(routeCoords) && routeCoords.length > 0) {
-            if (polylineRef.current) map.removeLayer(polylineRef.current);
-            const polyline = L.polyline(routeCoords, {
-              color: '#f97316',
-              weight: 5,
-              opacity: 0.9,
-              dashArray: '8, 8',
-            }).addTo(map);
-            polylineRef.current = polyline;
-            map.fitBounds(polyline.getBounds(), { padding: [40, 40] });
-            return;
-          }
-        }
-      } catch (e) {
-        console.warn('Erro ao buscar rota Valhalla:', e);
-      }
-
-      // Fallback straight route line if API is offline
-      const fallbackCoords = [
-        [origin.lat, origin.lng],
-        [destination.lat, destination.lng],
-      ];
-      const polyline = L.polyline(fallbackCoords, { color: '#f97316', weight: 4, opacity: 0.8 }).addTo(map);
-      polylineRef.current = polyline;
-      map.fitBounds(polyline.getBounds(), { padding: [40, 40] });
-    };
-
-    void fetchValhallaRoute();
+    // A rota não consulta mais a API REST/Valhalla. O mapa mostra o trajeto
+    // operacional entre origem e destino; a posição do entregador chega pelo
+    // Realtime do Supabase no componente pai.
+    const route = L.polyline([[origin.lat, origin.lng], [destination.lat, destination.lng]], {
+      color: '#f97316', weight: 4, opacity: 0.8, dashArray: '8, 8',
+    }).addTo(map);
+    polylineRef.current = route;
+    map.fitBounds(route.getBounds(), { padding: [40, 40] });
 
     return () => {
       if (mapRef.current) {
@@ -166,7 +128,7 @@ export function RealLeafletMap({ origin, destination, driverPos, token, classNam
         mapRef.current = null;
       }
     };
-  }, [leafletLoaded, origin.lat, origin.lng, destination.lat, destination.lng, token]);
+  }, [leafletLoaded, origin.lat, origin.lng, destination.lat, destination.lng]);
 
   // Update Driver Marker on Live Location GPS event
   useEffect(() => {

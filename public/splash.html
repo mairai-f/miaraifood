@@ -1,9 +1,9 @@
-!<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>HappyCash</title>
+    <title>MIAR AI/FOOD</title>
     <style>
         * {
             margin: 0;
@@ -19,18 +19,26 @@
             align-items: center;
             justify-content: center;
         }
-        video {
-            width: 100%;
-            height: 100%;
-            object-fit: cover; /* Faz o video preencher 100% da tela preservando a proporcao */
-            object-position: center;
-            pointer-events: none;
-            /* Força renderização acelerada por hardware (GPU) para rodar liso em 1080p, 2K, 4K */
-            transform: translateZ(0);
-            will-change: transform;
-            -webkit-transform-style: preserve-3d;
-            backface-visibility: hidden;
-            image-rendering: high-quality;
+        .brand {
+            display: grid;
+            justify-items: center;
+            gap: 18px;
+            color: #fff;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            text-align: center;
+            animation: reveal .45s ease-out both;
+        }
+        .brand img {
+            width: 116px;
+            height: 116px;
+            filter: drop-shadow(0 0 28px rgba(112,224,0,.34));
+        }
+        .brand strong { font-size: 32px; letter-spacing: -.06em; }
+        .brand span { color: #70e000; }
+        .brand small { color: #b9d7c4; font-size: 14px; letter-spacing: .03em; }
+        @keyframes reveal {
+            from { opacity: 0; transform: scale(.94); }
+            to { opacity: 1; transform: scale(1); }
         }
         .skip-hint {
             position: absolute;
@@ -66,15 +74,14 @@
     </style>
 </head>
 <body tabindex="0">
-    <video autoplay playsinline id="splash-video">
-        <source src="HappyCash_splash_screen_video_202608121950.mp4" type="video/mp4">
-    </video>
+    <div class="brand">
+        <img src="miafavico.svg" alt="MIAR AI/FOOD">
+        <strong>MIAR <span>AI/FOOD</span></strong>
+        <small>Da mesa à entrega, toda a operação conectada.</small>
+    </div>
     <div class="skip-hint">Pressione <kbd>Espaço</kbd> para pular</div>
     <script>
-        const video = document.getElementById('splash-video');
-        video.addEventListener('ended', () => {
-            window.close(); // Fecha a janela do Electron assim que o vídeo acaba
-        });
+        window.setTimeout(() => window.close(), 2200);
 
         const skipSplash = (e) => {
             if (e && e.type && e.type.startsWith('key')) {

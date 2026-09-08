@@ -27,4 +27,4 @@ export const isDesktopPlanAllowedForProductContext = (
   planId?: string | null,
 ) => HAPPYCASH_DESKTOP_PLAN_IDS.has((planId || "").trim().toLowerCase());
 
-export const getProductContextLabel = () => "HappyCash";
+export const getProductContextLabel = () => "MIAR AI/FOOD";

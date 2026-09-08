@@ -24,7 +24,6 @@ export function HeroVisual({ isExiting = false }: { isExiting?: boolean }) {
 
   const githubRef = useRef(null);
   const linkedinRef = useRef(null);
-  const instagramRef = useRef(null);
   const zapRef = useRef(null);
   const zapSmallRef = useRef(null);
   const botRef = useRef(null);
@@ -67,28 +66,6 @@ export function HeroVisual({ isExiting = false }: { isExiting?: boolean }) {
             gsap.to(linkedinRef.current, {
               y: 10,
               duration: 2.5,
-              repeat: -1,
-              yoyo: true,
-              ease: "sine.inOut",
-              force3D: true
-            });
-          }
-        }
-      );
-
-      // Reveal + Loop for Instagram
-      gsap.fromTo(instagramRef.current,
-        { opacity: 0, y: 40 },
-        {
-          opacity: 1,
-          y: 0,
-          duration: 1,
-          delay: 0.2,
-          ease: "power3.out",
-          onComplete: () => {
-            gsap.to(instagramRef.current, {
-              x: 10,
-              duration: 3,
               repeat: -1,
               yoyo: true,
               ease: "sine.inOut",
@@ -222,15 +199,7 @@ export function HeroVisual({ isExiting = false }: { isExiting?: boolean }) {
           {/* Line 2: SOFT [ICON] WARE */}
           <div className="md:flex gap-8 items-center relative">
             <div className="relative">
-              <div ref={instagramRef} className="absolute -bottom-12 right-24 md:right-36 text-primary/60 hover:text-primary z-20 opacity-0">
-                <a
-                  href={personal.socialLinks.find(s => s.platform === 'Instagram')?.url}
-                  target="_blank"
-                  className="block"
-                >
-                  <Instagram size={32} />
-                </a>
-              </div>
+
               <motion.h1
                 initial={{ opacity: 0, y: 30 }}
                 animate={{ opacity: 1, y: 0 }}

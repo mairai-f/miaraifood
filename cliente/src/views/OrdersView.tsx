@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { Receipt, Clock, ArrowRight, Loader2, Star, CheckCircle, RefreshCw, ShoppingBag } from 'lucide-react';
 import { getHistory, getActiveOrder, markRated } from '../lib/storage';
 import type { UserProfile, ActiveOrder, HistoryRecord, Restaurant } from '../types';
+import { getSupabaseClient } from '@workspace/api-client-react';
 
 interface OrdersViewProps {
   user: UserProfile | null;
@@ -151,12 +152,14 @@ export default function OrdersView({
 
                       <button
                         onClick={() => {
-                          fetch('/api/restaurants')
-                            .then((r) => r.json())
-                            .then((rests: Restaurant[]) => {
-                              const match = rests.find((x) => x.id === record.restaurantId || x.name === record.restaurantName);
-                              if (match) onSelectRestaurant(match);
-                              else if (rests.length > 0) onSelectRestaurant(rests[0]);
+                          void getSupabaseClient().from('miaifood_public_menu')
+                            .select('restaurant_id,restaurant_name,segment,city,state')
+                            .eq('restaurant_id', record.restaurantId)
+                            .limit(1)
+                            .then(({ data }) => {
+                              const row = data?.[0];
+                              if (!row) return;
+                              onSelectRestaurant({ id: row.restaurant_id, name: row.restaurant_name, segment: row.segment ?? undefined, address: [row.city, row.state].filter(Boolean).join(' - ') || undefined });
                             });
                         }}
                         className="flex items-center gap-1 bg-[#008000] hover:bg-[#70E000] text-[#06100A] font-extrabold text-xs px-3.5 py-1.5 rounded-full shadow-xs transition"

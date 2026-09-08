@@ -21,13 +21,15 @@ const makeTicket = (overrides: Partial<ServiceTicket> = {}): ServiceTicket => ({
 });
 
 describe('service ticket helpers', () => {
-  it('builds the happycash barcode with HC prefix', () => {
-    expect(buildServiceTicketBarcode(1)).toBe('HC001');
-    expect(buildServiceTicketBarcode(25)).toBe('HC025');
-    expect(buildServiceTicketBarcode(1000)).toBe('HC1000');
+  it('builds new MIAR barcodes with the MR prefix', () => {
+    expect(buildServiceTicketBarcode(1)).toBe('MR001');
+    expect(buildServiceTicketBarcode(25)).toBe('MR025');
+    expect(buildServiceTicketBarcode(1000)).toBe('MR1000');
   });
 
-  it('accepts only HC barcodes as commanda lookup', () => {
+  it('accepts MIAR and legacy barcodes as commanda lookup', () => {
+    expect(isServiceTicketLookup('MR001')).toBe(true);
+    expect(isServiceTicketLookup('mr025')).toBe(true);
     expect(isServiceTicketLookup('HC001')).toBe(true);
     expect(isServiceTicketLookup('hc025')).toBe(true);
     expect(isServiceTicketLookup('HC-CMD-0001')).toBe(true);
@@ -37,7 +39,9 @@ describe('service ticket helpers', () => {
     expect(isServiceTicketLookup('10000')).toBe(false);
   });
 
-  it('validates supported commanda barcode formats', () => {
+  it('validates MIAR and legacy commanda barcode formats', () => {
+    expect(isServiceTicketBarcode('MR001')).toBe(true);
+    expect(isServiceTicketBarcode('MR9999')).toBe(true);
     expect(isServiceTicketBarcode('HC001')).toBe(true);
     expect(isServiceTicketBarcode('HC9999')).toBe(true);
     expect(isServiceTicketBarcode('HC-CMD-0001')).toBe(true);
@@ -45,9 +49,10 @@ describe('service ticket helpers', () => {
     expect(isServiceTicketBarcode('HC00001')).toBe(false);
   });
 
-  it('finds commanda only by HC barcode', () => {
+  it('finds a commanda by MIAR or legacy barcode', () => {
     const tickets = [makeTicket(), makeTicket({ id: 'ticket-2', number: 12, barcode: 'HC012' })];
 
+    expect(findServiceTicketByLookup(tickets, 'MR012')?.id).toBe('ticket-2');
     expect(findServiceTicketByLookup(tickets, 'HC012')?.id).toBe('ticket-2');
     expect(findServiceTicketByLookup(tickets, '12')?.id).toBe('ticket-2');
   });
@@ -55,7 +60,7 @@ describe('service ticket helpers', () => {
   it('falls back to the ticket number when the base still has an old barcode', () => {
     const tickets = [makeTicket({ number: 7, barcode: '00007' })];
 
-    expect(findServiceTicketByLookup(tickets, 'HC007')?.number).toBe(7);
+    expect(findServiceTicketByLookup(tickets, 'MR007')?.number).toBe(7);
   });
 
   it('opens legacy HC-CMD ticket barcodes', () => {

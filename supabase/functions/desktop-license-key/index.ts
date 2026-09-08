@@ -141,7 +141,7 @@ Deno.serve(async (request) => {
   const accountProductContext = normalizeProductContext(account.product_context);
 
   if (accountProductContext !== requestedProductContext) {
-    return jsonResponse(request, { error: "Esta chave pertence a outro produto HappyCash." }, 403);
+    return jsonResponse(request, { error: "Esta chave pertence a outro produto MIAR AI/FOOD." }, 403);
   }
 
   const license = await validateDesktopLicense(serviceClient, user.id, accountProductContext);

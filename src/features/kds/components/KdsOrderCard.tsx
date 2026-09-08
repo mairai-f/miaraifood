@@ -38,7 +38,7 @@ export default function KdsOrderCard({ order, onUpdateStatus }: KdsOrderCardProp
 
   return (
     <div
-      className={`rounded-2xl border bg-[#0d1726] p-4 shadow-xl flex flex-col justify-between transition ${
+      className={`rounded-2xl border bg-card p-4 shadow-xl flex flex-col justify-between transition ${
         isDelayed
           ? 'border-rose-500/80 shadow-rose-500/10'
           : order.status === 'ready'

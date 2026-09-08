@@ -324,6 +324,9 @@ importers:
 
   api-client-react:
     dependencies:
+      '@supabase/supabase-js':
+        specifier: ^2.109.0
+        version: 2.115.0
       react:
         specifier: '*'
         version: 18.3.1
@@ -6006,7 +6009,7 @@ snapshots:
       fs-extra: 10.1.0
       isbinaryfile: 4.0.10
       minimist: 1.2.8
-      plist: 3.1.0
+      plist: 3.1.1
     transitivePeerDependencies:
       - supports-color
 
@@ -6029,7 +6032,7 @@ snapshots:
       dir-compare: 4.2.0
       fs-extra: 11.4.0
       minimatch: 9.0.9
-      plist: 3.1.0
+      plist: 3.1.1
     transitivePeerDependencies:
       - supports-color
 
@@ -9976,11 +9979,11 @@ snapshots:
 
   node-abi@4.35.0:
     dependencies:
-      semver: 7.7.4
+      semver: 7.8.5
 
   node-api-version@0.2.1:
     dependencies:
-      semver: 7.7.4
+      semver: 7.8.5
 
   node-gyp@12.4.0:
     dependencies:
@@ -9989,7 +9992,7 @@ snapshots:
       graceful-fs: 4.2.11
       nopt: 9.0.0
       proc-log: 6.1.0
-      semver: 7.7.4
+      semver: 7.8.5
       tar: 7.5.22
       tinyglobby: 0.2.17
       undici: 6.28.1

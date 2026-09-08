@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { ChevronLeft, CalendarDays, Users, Clock, CheckCircle2, Loader2, AlertTriangle } from 'lucide-react';
 import type { Restaurant } from '../types';
 import { useTranslation } from '../i18n/IdiomaContext';
+import { getSupabaseClient } from '@workspace/api-client-react';
 
 const TIMES = ['11:00','11:30','12:00','12:30','13:00','13:30','18:00','18:30','19:00','19:30','20:00','20:30','21:00','21:30'];
 
@@ -32,47 +33,12 @@ export default function Reservation({
     setError('');
     setLoading(true);
     try {
-      const arrivalDate = new Date(`${date}T${time}:00`);
-      const minutesUntil = Math.max(0, Math.floor((arrivalDate.getTime() - Date.now()) / 60000));
-
-      // Mesas disponíveis do restaurante (API real); sem mesa válida não há reserva.
-      const tablesRes = await fetch(`/api/restaurants/${restaurant.id}/tables`);
-      if (!tablesRes.ok) {
-        throw new Error(t('reserva.erro_servidor'));
-      }
-      const tables = (await tablesRes.json()) as { id: string }[];
-      const tableId = tables[0]?.id;
-      if (!tableId) {
-        throw new Error(t('reserva.erro_semmais'));
-      }
-
-      // O backend exige ao menos um item de cardápio válido no pré-pedido;
-      // usa-se o primeiro item disponível do restaurante para registrar a
-      // reserva de forma real (mesa marcada como reservada).
-      const menuRes = await fetch(`/api/restaurants/${restaurant.id}/menu`);
-      const menuItems = menuRes.ok ? (await menuRes.json()) as { id: string }[] : [];
-      const menuItemId = menuItems[0]?.id;
-      if (!menuItemId) {
-        throw new Error(t('reserva.erro_semmais'));
-      }
-
-      const createRes = await fetch('/api/pre-orders', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          restaurantId: restaurant.id,
-          tableId,
-          items: [{ menuItemId, quantity: 1, notes: `Reserva: ${name.trim()}${note.trim() ? ` — ${note.trim()}` : ''}` }],
-          payNow: false,
-          expectedArrivalMinutes: minutesUntil,
-          customerName: name.trim(),
-          customerPhone: phone.trim() || undefined,
-          persons: guests,
-        }),
-      });
-      if (!createRes.ok) {
-        const body = await createRes.json().catch(() => ({}));
-        throw new Error((body as { error?: string }).error ?? t('reserva.erro_servidor'));
-      }
+      const { data: auth } = await getSupabaseClient().auth.getUser();
+      if (!auth.user) throw new Error('Faça login para solicitar uma reserva.');
+      const { data: location } = await getSupabaseClient().from('store_locations').select('id').eq('store_account_id', restaurant.id).eq('active', true).limit(1).maybeSingle();
+      if (!location) throw new Error(t('reserva.erro_semmais'));
+      const { error: reservationError } = await getSupabaseClient().from('food_reservations').insert({ store_account_id: restaurant.id, location_id: location.id, customer_user_id: auth.user.id, customer_name: name.trim(), customer_phone: phone.trim(), starts_at: new Date(`${date}T${time}:00`).toISOString(), party_size: guests, notes: note.trim() });
+      if (reservationError) throw reservationError;
       setDone(true);
     } catch (failure) {
       setDone(false);

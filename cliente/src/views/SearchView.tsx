@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { ArrowLeft, Clock3, MapPin, Search, Star, Tag, Truck, X } from 'lucide-react';
-import { getClientToken, getSavedAddresses } from '../lib/storage';
+import { getSavedAddresses } from '../lib/storage';
 import type { Restaurant, SavedAddress, SearchResult, UserProfile } from '../types';
+import { getSupabaseClient } from '@workspace/api-client-react';
 
 type Sort = 'relevance' | 'distance' | 'free_delivery' | 'quality' | 'price' | 'speed' | 'promotions';
 
@@ -39,15 +40,32 @@ export default function SearchView({ user, onBack, onSelectRestaurant }: {
   const runSearch = async () => {
     setLoading(true);
     setSearched(true);
-    const params = new URLSearchParams({ q: query, sort });
-    if (location.trim()) params.set('location', location.trim());
     try {
-      const token = getClientToken();
-      const response = await fetch(`/api/search?${params}`, token ? { headers: { Authorization: `Bearer ${token}` } } : undefined);
-      const data = await response.json() as { results?: SearchResult[] };
-      setResults(data.results ?? []);
+      const { data } = await getSupabaseClient().from('miaifood_public_menu')
+        .select('restaurant_id,restaurant_name,segment,city,state,product_id,name,category,price')
+        .limit(500);
+      const needle = query.trim().toLocaleLowerCase('pt-BR');
+      const grouped = new Map<string, { restaurant: Restaurant; items: Array<{ id: string; name: string; price: number }> }>();
+      for (const row of data ?? []) {
+        const text = [row.restaurant_name, row.name, row.category, row.segment, row.city].filter(Boolean).join(' ').toLocaleLowerCase('pt-BR');
+        if (needle && !text.includes(needle)) continue;
+        const current = grouped.get(row.restaurant_id) ?? {
+          restaurant: { id: row.restaurant_id, name: row.restaurant_name, segment: row.segment ?? undefined, address: [row.city, row.state].filter(Boolean).join(' - ') || undefined, openNow: true },
+          items: [],
+        };
+        current.items.push({ id: row.product_id, name: row.name, price: Number(row.price) });
+        grouped.set(row.restaurant_id, current);
+      }
+      const next = [...grouped.values()].map(({ restaurant, items }) => ({
+        kind: 'restaurant' as const,
+        restaurant,
+        matchingItems: items.slice(0, 3).map((item) => ({ id: item.id, name: item.name, price: item.price })),
+        highlights: sort === 'relevance' ? ['quality'] : [sort],
+        score: items.length,
+      })).sort((a, b) => b.score - a.score);
+      setResults(next);
       if (query.trim().length >= 3) {
-        void fetch('/api/demanda/sinal', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ termo: query.trim(), regiao: location.trim() || undefined, resultados: data.results?.length ?? 0, estado: (data.results?.length ?? 0) > 0 ? 'encontrada' : 'nao_encontrada' }) });
+        void getSupabaseClient().from('marketplace_search_signals').insert({ term: query.trim(), region: location.trim() || null, result_count: next.length, state: next.length ? 'found' : 'not_found' });
       }
     } catch {
       setResults([]);

@@ -7,7 +7,7 @@ export const LEGAL_MODAL_DOCUMENTS = {
   privacy: {
     title: "Política de Privacidade",
     path: LEGAL_PATHS.privacy,
-    description: "Como o HappyCash trata dados pessoais no site, cadastro, área do cliente, PDV, fiado, estoque, RH e recursos relacionados.",
+    description: "Como a MIAR AI/FOOD trata dados pessoais no site, cadastro, área do cliente, PDV, cardápio, mesas, delivery e recursos relacionados.",
     sections: [
       {
         title: "Dados tratados",
@@ -26,26 +26,26 @@ export const LEGAL_MODAL_DOCUMENTS = {
   terms: {
     title: "Termos de Uso",
     path: LEGAL_PATHS.terms,
-    description: "Condições principais para uso do HappyCash, incluindo planos, teste gratuito, conta, suporte, desktop, offline, relatórios e responsabilidades do usuário.",
+    description: "Condições principais para uso da MIAR AI/FOOD, incluindo planos, teste gratuito, conta, suporte, desktop, offline, relatórios e responsabilidades do usuário.",
     sections: [
       {
         title: "Uso da conta",
-        text: "Ao criar conta, contratar plano, usar teste grátis ou acessar produtos HappyCash, o usuário concorda em manter dados verdadeiros, proteger senha, PINs, operadores e dispositivos.",
+        text: "Ao criar conta, contratar plano, usar teste grátis ou acessar produtos MIAR AI/FOOD, o usuário concorda em manter dados verdadeiros, proteger senha, PINs, operadores e dispositivos.",
       },
       {
         title: "Dados e operação",
-        text: "O uso do HappyCash pode envolver dados do responsável e da empresa, como nome, email, telefone, CPF ou CNPJ e endereço do estabelecimento, além de dados operacionais inseridos pela loja, como cadastro de clientes e terceiros, CPF ou CNPJ quando informados, vendas, fiado, pagamentos, produtos, estoque, despesas, relatórios e observações.",
+        text: "O uso da MIAR AI/FOOD pode envolver dados do responsável e da empresa, como nome, email, telefone, CPF ou CNPJ e endereço do estabelecimento, além de dados operacionais inseridos pela loja, como cadastro de clientes e terceiros, CPF ou CNPJ quando informados, vendas, fiado, pagamentos, produtos, estoque, despesas, relatórios e observações.",
       },
       {
         title: "Responsabilidades",
-        text: "O usuário deve usar o sistema conforme a lei, obter autorização para cadastrar dados de terceiros e não utilizar o HappyCash para fraude, abuso, atividade ilegal ou violação de direitos.",
+        text: "O usuário deve usar o sistema conforme a lei, obter autorização para cadastrar dados de terceiros e não utilizar a MIAR AI/FOOD para fraude, abuso, atividade ilegal ou violação de direitos.",
       },
     ],
   },
   lgpd: {
     title: "LGPD",
     path: LEGAL_PATHS.lgpd,
-    description: "Compromissos práticos do HappyCash para tratamento de dados, direitos dos titulares, segregação por empresa e responsabilização conforme a LGPD.",
+    description: "Compromissos práticos da MIAR AI/FOOD para tratamento de dados, direitos dos titulares, segregação por empresa e responsabilização conforme a LGPD.",
     sections: [
       {
         title: "Compromisso operacional",

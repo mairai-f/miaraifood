@@ -1,9 +1,9 @@
 {
-  "name": "happycash-mobile",
+  "name": "miar-ai-food-mobile",
   "private": true,
   "version": "0.1.61",
   "main": "expo/AppEntry.js",
-  "description": "App Android Expo do HappyCash.",
+  "description": "App Android da MIAR AI/FOOD.",
   "scripts": {
     "start": "expo start",
     "android": "expo start --android",

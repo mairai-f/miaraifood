@@ -151,7 +151,7 @@ Deno.serve(async (request) => {
   if (accountProductContext !== appContext) {
     return jsonResponse(
       request,
-      { error: "Esta chave pertence a outro produto. Use uma chave do HappyCash." },
+      { error: "Esta chave pertence a outro produto. Use uma chave da MIAR AI/FOOD." },
       403,
     );
   }

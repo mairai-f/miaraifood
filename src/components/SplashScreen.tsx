@@ -1,5 +1,4 @@
 import { motion } from "framer-motion";
-import hccashLogo from "@/assets/login/hccash.png";
 
 export function SplashScreen() {
   return (
@@ -36,7 +35,7 @@ export function SplashScreen() {
           />
           
           <img
-            src={hccashLogo}
+            src="/miafavico.svg?v=miar-20260908"
             alt="MIAR AI/FOOD Logo"
             className="relative z-10 h-28 w-28 object-contain drop-shadow-[0_0_15px_rgba(0,200,255,0.3)]"
           />

@@ -1,5 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState, type ChangeEvent } from 'react';
-import { BarChart3, Building2, Calculator, ChevronRight, ClipboardList, Clock3, DatabaseBackup, Download, FileText, Gift, Laptop, Loader2, MapPinned, PackageSearch, Settings as SettingsIcon, ShieldAlert, Trash2, UserCog, WalletCards } from 'lucide-react';
+import { BarChart3, Building2, Calculator, ChevronRight, ClipboardList, Clock3, CreditCard, DatabaseBackup, Download, FileText, Gift, Laptop, Loader2, MapPinned, PackageSearch, Settings as SettingsIcon, ShieldAlert, Trash2, UserCog, WalletCards } from 'lucide-react';
 import { Link, useLocation, useParams } from 'react-router-dom';
 import { DataRouteLoader } from '@/components/DataRouteLoader';
 import { useAuth } from '@/contexts/AuthContext';
@@ -44,6 +44,7 @@ import { getPublicErrorMessage, getRedactedLogValue } from '../../shared/securit
 import { isRuntimeScopeAllowed, type ErpPermissionKey, type RuntimeScope } from '@/lib/permissions';
 import { canUseDesktopFiscalModule } from '@/lib/fiscalAccess';
 import { readDesktopActivation } from '@/lib/desktopActivation';
+import { StorePaymentSettingsPanel } from '@/components/StorePaymentSettingsPanel';
 
 const CompanyProfileCard = lazy(() =>
   import('@/components/CompanyProfileCard').then((module) => ({
@@ -84,7 +85,7 @@ const CatalogConfigurationPanel = lazy(() =>
 const RESET_CONFIRM_TEXT = 'ZERAR';
 const RESTORE_CONFIRM_TEXT = 'RESTAURAR';
 type ResetTarget = 'financial' | 'reports';
-type SettingsSection = 'empresa' | 'backup' | 'colaboradores' | 'filiais' | 'catalogo' | 'desktop' | 'risco';
+type SettingsSection = 'empresa' | 'backup' | 'colaboradores' | 'filiais' | 'catalogo' | 'desktop' | 'risco' | 'pagamentos' | 'mesas';
 
 interface SettingsNavigationItem {
   path: string;
@@ -106,6 +107,9 @@ const settingsNavigationItems: SettingsNavigationItem[] = [
   { path: '/configuracoes/catalogo', section: 'catalogo', title: 'Catalogo avancado', description: 'Marcas, grupos, unidades e tabelas.', icon: PackageSearch, featureKey: 'settings.manage', permissionKey: 'products.manage', runtimeScope: 'web' },
   { path: '/configuracoes/desktop', section: 'desktop', title: 'Desktop e offline', description: 'Atualizacoes, sincronizacao e conflitos.', icon: Laptop, featureKey: 'settings.manage', permissionKey: 'settings.manage', runtimeScope: 'desktop' },
   { path: '/configuracoes/risco', section: 'risco', title: 'Zona de risco', description: 'Limpeza protegida de dados operacionais.', icon: ShieldAlert, featureKey: 'settings.manage', permissionKey: 'settings.manage', runtimeScope: 'both' },
+  { path: '/configuracoes/pagamentos', section: 'pagamentos', title: 'Pagamentos', description: 'Pix e provedores de pagamento do estabelecimento.', icon: CreditCard, featureKey: 'settings.manage', permissionKey: 'settings.manage', runtimeScope: 'web' },
+  { path: '/configuracoes/mesas', section: 'mesas', title: 'Mesas e QR Codes', description: 'Gerencie mesas e imprima QR Codes.', icon: ClipboardList, featureKey: 'food.tables', permissionKey: 'food.tables.manage', runtimeScope: 'web' },
+  { path: '/configuracoes/qrmenu', title: 'QR Menu', description: 'Cardápio, categorias, fotos e disponibilidade.', icon: ClipboardList, featureKey: 'food.qrmenu', permissionKey: 'food.qrmenu.manage', runtimeScope: 'web' },
   { path: '/financeiro', title: 'Financeiro', description: 'Despesas, fiados e fluxo financeiro.', icon: WalletCards, featureKey: 'financial.manage', permissionKey: 'financial.view', runtimeScope: 'both' },
   { path: '/notas', title: 'Notas', description: 'Configuracao e emissao fiscal.', icon: FileText, featureKey: 'notes.manage', permissionKey: 'fiscal.view', runtimeScope: 'both', fiscalDesktopAccess: true },
   { path: '/relatorios', title: 'Relatorios', description: 'Vendas, caixa, estoque e indicadores.', icon: BarChart3, featureKey: 'reports.view', permissionKey: 'reports.view', runtimeScope: 'both' },
@@ -807,6 +811,8 @@ export default function Settings() {
           })}
         </div>
       </section>}
+
+      {activeSettingsSection === 'pagamentos' && <StorePaymentSettingsPanel />}
 
       {activeSettingsSection === 'desktop' && isDesktop && (
         <Card>

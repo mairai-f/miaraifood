@@ -2,8 +2,8 @@ const defaultProjectId = '644bdd5c-af8c-4e44-a395-36a71e68f57e';
 
 module.exports = {
   expo: {
-    name: 'HappyCash Mobile',
-    slug: 'happycash-mobile',
+    name: 'MIAR AI/FOOD',
+    slug: 'miar-ai-food-mobile',
     version: '0.1.61',
     orientation: 'portrait',
     scheme: 'happycash',

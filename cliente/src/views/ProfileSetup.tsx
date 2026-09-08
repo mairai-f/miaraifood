@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronRight, ChevronLeft, Check } from 'lucide-react';
 import { getUser, setUser, setSetupDone } from '../lib/storage';
 import type { DiscoveryPreference } from '../types';
+import { getSupabaseClient } from '@workspace/api-client-react';
 
 type Step = 'health' | 'goals' | 'dislikes' | 'likes' | 'discovery' | 'meat' | 'comm' | 'privacy' | 'done';
 const STEPS: Step[] = ['health', 'goals', 'dislikes', 'likes', 'discovery', 'meat', 'comm', 'privacy', 'done'];
@@ -78,6 +79,16 @@ export default function ProfileSetup({ onDone }: { onDone: () => void }) {
     setVal('');
   };
 
+  const persistPreferences = async (extra: Record<string, unknown> = {}) => {
+    await getSupabaseClient().auth.updateUser({ data: {
+      share_data_with_restaurants: shareData,
+      allow_ai_memory: aiMemory,
+      discovery_preferences: discoveryPreferences,
+      onboarding_completed: true,
+      ...extra,
+    } }).catch(() => {});
+  };
+
   const save = async () => {
     const nextUser = {
       ...user,
@@ -90,36 +101,13 @@ export default function ProfileSetup({ onDone }: { onDone: () => void }) {
       discoveryPreferences,
     };
     setUser(nextUser);
-    const token = localStorage.getItem('miar_client_token');
-    if (token) {
-      await fetch('/api/auth/client/preferences', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({
-          shareDataWithRestaurants: nextUser.shareDataWithRestaurants,
-          allowAIMemory: nextUser.allowAIMemory,
-          discoveryPreferences,
-          onboardingCompleted: true,
-        }),
-      }).catch(() => {});
-    }
+    await persistPreferences();
     setSetupDone();
     setShowAccessibilityPrompt(true);
   };
 
   const saveAccessibilityAndFinish = async () => {
-    const token = localStorage.getItem('miar_client_token');
-    if (token && accessibilityNeeds.length > 0) {
-      try {
-        await fetch('/api/client/accessibility-preferences', {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-          body: JSON.stringify({ dificuldades: accessibilityNeeds }),
-        });
-      } catch {
-        // Não bloqueia o acesso por isso — a preferência pode ser enviada depois em Perfil.
-      }
-    }
+    if (accessibilityNeeds.length > 0) await persistPreferences({ accessibility_needs: accessibilityNeeds });
     setShowAccessibilityPrompt(false);
     onDone();
   };
@@ -131,14 +119,7 @@ export default function ProfileSetup({ onDone }: { onDone: () => void }) {
   const back = () => { if (stepIdx > 0) setStepIdx(s => s - 1); };
   const skip = async () => {
     setSetupDone();
-    const token = localStorage.getItem('miar_client_token');
-    if (token) {
-      await fetch('/api/auth/client/preferences', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ shareDataWithRestaurants: shareData, allowAIMemory: aiMemory, discoveryPreferences, onboardingCompleted: true }),
-      }).catch(() => {});
-    }
+    await persistPreferences();
     setShowAccessibilityPrompt(true);
   };
 

@@ -26,7 +26,7 @@ import { INTERNET_REQUIRED_MESSAGE, isInternetUnavailable, openExternalUrl } fro
 import { normalizePhone } from '@/lib/phone';
 import { openRetailCouponPrintWindow } from '@/lib/retailCoupon';
 import { supabase } from '@/integrations/supabase/client';
-import happyCashLogo from '@/assets/login/happycash.webp';
+import miarLogo from '@/assets/miar-logo.svg';
 import { roleLabel } from '@/lib/access';
 import { useCompanyDisplayName } from '@/hooks/use-company-display-name';
 import { useStoreReceiptProfile } from '@/hooks/use-store-receipt-profile';
@@ -1581,7 +1581,7 @@ export default function PDV() {
         </head>
         <body>
           <main class="receipt">
-            <img src="${happyCashLogo}" alt="MIAR AI/FOOD" />
+            <img src="${miarLogo}" alt="MIAR AI/FOOD" />
             <pre>${compactReceiptHtml}</pre>
           </main>
           <script>
@@ -2393,7 +2393,7 @@ export default function PDV() {
             <article class="receipt-sheet">
               <header class="receipt-header">
                 <div class="brand-badge">
-                  <img src="${happyCashLogo}" alt="MIAR AI/FOOD" />
+                  <img src="${miarLogo}" alt="MIAR AI/FOOD" />
                 </div>
                 <p class="eyebrow">MIAR AI/FOOD</p>
                 <h1 class="receipt-title">Recibo de Fechamento do Caixa</h1>
@@ -2853,7 +2853,7 @@ export default function PDV() {
     const shouldOpenTicketFirst = Boolean(
       matchingTicket
       && (
-        query.startsWith('HC')
+        /^(?:MR|HC)/i.test(query)
         || (isPureNumericQuery && query.length <= 4)
       )
     );
@@ -4744,7 +4744,7 @@ export default function PDV() {
               ref={searchInputRef}
               className="h-11 pl-11 text-base"
               disabled={showCheckout || showFinalizeConfirm || showCreditInstallmentsDialog || showScannerNotFoundDialog}
-              placeholder="Escaneie produto, nome, numero da comanda ou comanda HC."
+              placeholder="Escaneie produto, nome, numero ou código da comanda."
               value={search}
               onChange={e => {
                 const nextValue = toProductUppercase(e.target.value);
@@ -4809,7 +4809,7 @@ export default function PDV() {
                   CAIXA LIVRE!
                 </p>
                 <p className="mx-auto max-w-lg text-sm leading-7 text-muted-foreground sm:text-base">
-                  Escaneie um produto ou digite a comanda pelo numero ou codigo HC para carregar os itens e finalizar a venda.
+                  Escaneie um produto ou informe o número ou código da comanda para carregar os itens e finalizar a venda.
                 </p>
               </div>
             </div>

@@ -24,18 +24,6 @@ export const portfolioData: PortfolioData = {
         icon: "whatsapp",
         username: "MIAR AI/FOOD Support",
       },
-      {
-        platform: "Instagram",
-        url: "#",
-        icon: "instagram",
-        username: "miaraifood",
-      },
-      {
-        platform: "Facebook",
-        url: "#",
-        icon: "facebook",
-        username: "MIAR AI/FOOD",
-      },
     ],
   },
   projects: [

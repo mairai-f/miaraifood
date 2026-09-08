@@ -1,9 +1,15 @@
-export const HAPPYCASH_DEFAULT_FROM_EMAIL = "HappyCash <no-reply@auth.happycashsite.com.br>";
-export const HAPPYCASH_SUPPORT_EMAIL = "happycashsupport@gmail.com";
-export const HAPPYCASH_BRAND_LOGO_URL = Deno.env.get("HAPPYCASH_BRAND_LOGO_URL")?.trim()
-  || "https://www.happycashsite.com.br/happycash-logo.webp";
-export const HAPPYCASH_BRAND_FAVICON_URL = Deno.env.get("HAPPYCASH_BRAND_FAVICON_URL")?.trim()
-  || "https://www.happycashsite.com.br/favicon.webp";
+// Os nomes HAPPYCASH_* permanecem apenas para não invalidar secrets já
+// configurados. A marca exibida e os novos secrets usam MIAR AI/FOOD.
+export const HAPPYCASH_DEFAULT_FROM_EMAIL = Deno.env.get("MIAR_FROM_EMAIL")?.trim()
+  || "MIAR AI/FOOD <no-reply@auth.happycashsite.com.br>";
+export const HAPPYCASH_SUPPORT_EMAIL = Deno.env.get("MIAR_SUPPORT_EMAIL")?.trim()
+  || "suporte@miaraifood.com.br";
+export const HAPPYCASH_BRAND_LOGO_URL = Deno.env.get("MIAR_BRAND_LOGO_URL")?.trim()
+  || Deno.env.get("HAPPYCASH_BRAND_LOGO_URL")?.trim()
+  || "https://miar-site.vercel.app/miar-logo-white.svg";
+export const HAPPYCASH_BRAND_FAVICON_URL = Deno.env.get("MIAR_BRAND_FAVICON_URL")?.trim()
+  || Deno.env.get("HAPPYCASH_BRAND_FAVICON_URL")?.trim()
+  || "https://miar-site.vercel.app/miafavico.svg";
 
 export const escapeHtml = (value: string | number | null | undefined) =>
   String(value ?? "")
@@ -77,14 +83,14 @@ const metricColor = (tone: Metric["tone"] = "default") => {
 };
 
 export const renderHappyCashEmail = ({
-  eyebrow = "HappyCash",
+  eyebrow = "MIAR AI/FOOD",
   title,
   preview,
   intro,
   metrics = [],
   action,
   contentHtml = "",
-  footerNote = "Se voce nao reconhece esta mensagem, ignore este e-mail ou fale com o suporte HappyCash.",
+  footerNote = "Se você não reconhece esta mensagem, ignore este e-mail ou fale com o suporte MIAR AI/FOOD.",
 }: HappyCashEmailOptions) => {
   const metricsHtml = metrics.length > 0
     ? `
@@ -137,9 +143,9 @@ export const renderHappyCashEmail = ({
                     <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
                       <tr>
                         <td>
-                          <img src="${HAPPYCASH_BRAND_LOGO_URL}" width="150" alt="HappyCash" style="display:block;width:150px;max-width:150px;height:auto;border:0;outline:none;text-decoration:none;">
-                          <p style="margin:8px 0 0;color:#ffffff;font-size:18px;line-height:24px;font-weight:900;letter-spacing:0;">Happy<span style="color:#22c55e;">Cash</span></p>
-                          <p style="margin:8px 0 0;color:#b9c9df;font-size:13px;line-height:19px;font-weight:600;">Sistema de gestao, PDV e controle financeiro</p>
+                          <img src="${HAPPYCASH_BRAND_LOGO_URL}" width="150" alt="MIAR AI/FOOD" style="display:block;width:150px;max-width:150px;height:auto;border:0;outline:none;text-decoration:none;">
+                          <p style="margin:8px 0 0;color:#ffffff;font-size:18px;line-height:24px;font-weight:900;letter-spacing:0;">MIAR <span style="color:#70e000;">AI/FOOD</span></p>
+                          <p style="margin:8px 0 0;color:#b9c9df;font-size:13px;line-height:19px;font-weight:600;">Ecossistema para food service</p>
                         </td>
                         <td align="right" style="width:56px;">
                           <img src="${HAPPYCASH_BRAND_FAVICON_URL}" width="44" height="44" alt="" style="display:inline-block;width:44px;height:44px;border:0;border-radius:14px;background:#ffffff;outline:none;text-decoration:none;">

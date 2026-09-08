@@ -7,10 +7,11 @@ import { Toaster } from '@/components/ui/toaster';
 import {
   getUser, setUser, isOnboarded, isSetupDone, setSetupDone as setSetupDoneStored, clearSetupDone,
   getActiveOrder, setActiveOrder, addHistory, replaceHistory, clearHistory, addPoints, markRated, lsGet, lsSet,
-  clearClientToken, getClientToken,
+  clearClientToken,
   setSavedAddresses,
 } from './lib/storage';
 import type { UserProfile, Restaurant, CartItem, OrderMode, ActiveOrder, AppTab } from './types';
+import { getSupabaseClient } from '@workspace/api-client-react';
 
 import Onboarding from './views/Onboarding';
 import ProfileSetup from './views/ProfileSetup';
@@ -130,26 +131,30 @@ function AppInner() {
   }, [tab, subView]);
 
   useEffect(() => {
-    fetch('/api/restaurants').then(r => r.ok ? r.json() : []).then(setRestaurants).catch(() => {});
+    void getSupabaseClient().from('miaifood_public_menu').select('restaurant_id,restaurant_name,segment,city,state').then(({ data }) => {
+      const unique = new Map<string, Restaurant>();
+      (data ?? []).forEach((row: any) => unique.set(row.restaurant_id, {
+        id: row.restaurant_id,
+        name: row.restaurant_name || 'Estabelecimento',
+        segment: row.segment ?? undefined,
+        address: [row.city, row.state].filter(Boolean).join(' - ') || undefined,
+      }));
+      setRestaurants([...unique.values()]);
+    });
   }, []);
 
-  // QR público de mesa: /cliente?qr=<qrToken>. O token identifica a mesa
-  // pela API; o pedido recebe o tableId real, sem escolher uma mesa arbitrária.
+  // QR público de mesa: o token só é resolvido pelo Edge Function. O UUID
+  // interno da mesa nunca é deduzido pelo navegador.
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const token = params.get('qr') ?? params.get('qrToken');
     if (!token) return;
     setQrToken(token);
-    fetch(`/api/tables/by-token/${encodeURIComponent(token)}`)
-      .then(r => r.ok ? r.json() : null)
-      .then((payload: { table?: { id: string; restaurantId: string }; id?: string; restaurantId?: string } | null) => {
-        // A API persistente devolve a mesa diretamente; aceitamos também o
-        // formato envelopado { table } para manter compatibilidade com versões
-        // anteriores do endpoint.
-        const table = payload?.table ?? (payload?.id && payload?.restaurantId ? payload : null);
-        if (!table) return;
-        setQrTableId(table.id);
-        setQrRestaurantId(table.restaurantId);
+    void getSupabaseClient().functions.invoke('food-qrmenu', { body: { action: 'resolve', token } })
+      .then(({ data }) => {
+        if (!data?.table?.id) return;
+        setQrTableId(data.table.id);
+        if (data.restaurantId) setQrRestaurantId(data.restaurantId);
       })
       .catch(() => {});
   }, []);
@@ -159,16 +164,14 @@ function AppInner() {
     const guestStorageKey = `miar_table_guest_${qrToken}`;
     const rememberedGuestId = lsGet<string | null>(guestStorageKey, null);
     let cancelled = false;
-    fetch(`/api/tables/by-token/${encodeURIComponent(qrToken)}/session/join`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ guestName: user?.name?.trim() || 'Comandante', ...(rememberedGuestId ? { guestId: rememberedGuestId } : {}) }),
-    }).then(async response => {
-      if (!response.ok) throw new Error('Não foi possível abrir a sessão da mesa.');
-      const payload = await response.json() as { guestId?: string };
-      if (cancelled || !payload.guestId) return;
-      setQrGuestId(payload.guestId);
-      lsSet(guestStorageKey, payload.guestId);
+    if (rememberedGuestId) {
+      setQrGuestId(rememberedGuestId);
+      return () => { cancelled = true; };
+    }
+    getSupabaseClient().functions.invoke('food-qrmenu', { body: { action: 'start_guest', token: qrToken } }).then(({ data }) => {
+      if (cancelled || !data?.guestToken) return;
+      setQrGuestId(data.guestToken);
+      lsSet(guestStorageKey, data.guestToken);
     }).catch(() => {
       if (!cancelled) setQrGuestId(undefined);
     });
@@ -185,16 +188,10 @@ function AppInner() {
   }, [onboarded, qrRestaurantId, restaurants]);
 
   useEffect(() => {
-    const token = getClientToken();
-    if (!onboarded || !token || !user || user.isGuest) return;
-    const headers = { Authorization: `Bearer ${token}` };
-    fetch('/api/auth/client/me', { headers }).then(async meResponse => {
-      if (!meResponse.ok) return;
-      const me = await meResponse.json() as {
-        id: string; name: string; email: string; phone?: string | null;
-        shareDataWithRestaurants?: boolean; allowAIMemory?: boolean; onboardingCompleted?: boolean;
-        discoveryPreferences?: unknown; savedAddresses?: unknown;
-      };
+    if (!onboarded || !user || user.isGuest) return;
+    getSupabaseClient().auth.getUser().then(({ data }) => {
+      if (!data.user) return;
+      const me = { id: data.user.id, name: String(data.user.user_metadata?.full_name ?? data.user.email ?? ''), email: data.user.email ?? '', phone: data.user.user_metadata?.phone, onboardingCompleted: false };
       const currentUser = getUser();
       if (me.onboardingCompleted) setSetupDoneStored();
       else clearSetupDone();
@@ -214,12 +211,8 @@ function AppInner() {
       }
       if (Array.isArray(me.savedAddresses)) setSavedAddresses((me.savedAddresses as UserProfile['savedAddresses']) ?? []);
     }).catch(() => {});
-    fetch('/api/orders/mine', { headers }).then(async ordersResponse => {
-      if (!ordersResponse.ok) return;
-      const serverOrders = await ordersResponse.json() as Array<{
-        id: string; restaurantId?: string; mode?: OrderMode; total: number; createdAt: string;
-        items: Array<{ name: string; quantity: number; menuItemId: string; price: number }>;
-      }>;
+    getSupabaseClient().from('food_orders').select('id,store_account_id,source,status,total,created_at,food_order_items(product_id,product_name,quantity,unit_price)').eq('customer_user_id', user?.id ?? '').order('created_at', { ascending: true }).then(({ data: rows }) => {
+      const serverOrders = (rows ?? []).map((row: any) => ({ id: row.id, restaurantId: row.store_account_id, mode: row.source === 'delivery' ? 'delivery' : row.source === 'pickup' ? 'pickup' : 'dine-in', total: Number(row.total), createdAt: row.created_at, items: (row.food_order_items ?? []).map((item: any) => ({ name: item.product_name, quantity: Number(item.quantity), menuItemId: item.product_id ?? '', price: Number(item.unit_price) })) }));
       const records = serverOrders.map(order => ({
         id: order.id,
         restaurantName: restaurants.find(r => r.id === order.restaurantId)?.name ?? 'Restaurante',
@@ -242,6 +235,20 @@ function AppInner() {
         setActiveOrder(restored);
       }
     }).catch(() => {});
+  }, [onboarded, user?.id, restaurants]);
+
+  useEffect(() => {
+    if (!user?.id || !onboarded) return;
+    const refreshOrders = async () => {
+      const { data: rows } = await getSupabaseClient().from('food_orders').select('id,store_account_id,source,status,total,created_at,food_order_items(product_id,product_name,quantity,unit_price)').eq('customer_user_id', user.id).order('created_at', { ascending: true });
+      if (!rows) return;
+      replaceHistory(rows.map((row: any) => ({ id: row.id, restaurantName: restaurants.find(r => r.id === row.store_account_id)?.name ?? 'Restaurante', restaurantId: row.store_account_id, mode: row.source === 'delivery' ? 'delivery' : row.source === 'pickup' ? 'pickup' : 'dine-in', total: Number(row.total), createdAt: row.created_at, items: (row.food_order_items ?? []).map((item: any) => ({ name: item.product_name, quantity: Number(item.quantity), menuItemId: item.product_id ?? '', price: Number(item.unit_price) })) })));
+    };
+    const channel = getSupabaseClient().channel(`client-orders-${user.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'food_orders', filter: `customer_user_id=eq.${user.id}` }, () => { void refreshOrders(); })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'food_order_items' }, () => { void refreshOrders(); })
+      .subscribe();
+    return () => { void getSupabaseClient().removeChannel(channel); };
   }, [onboarded, user?.id, restaurants]);
 
   // ── Auth ──────────────────────────────────────────────────────────────
@@ -270,6 +277,7 @@ function AppInner() {
   };
 
   const doLogout = () => {
+    void getSupabaseClient().auth.signOut().catch(() => {});
     clearClientToken();
     localStorage.removeItem('miar_user');
     localStorage.removeItem('miar_onboarded');
@@ -305,16 +313,9 @@ function AppInner() {
       createdAt: new Date().toISOString(),
       items: items.map(i => ({ name: i.name, quantity: i.qty, menuItemId: i.id, price: i.price })),
     });
-    // Salva pontos localmente e sincroniza com o servidor (se logado)
+    // Pontos locais continuam disponíveis offline. A pontuação definitiva será
+    // calculada no banco junto do programa de fidelidade do estabelecimento.
     addPoints(total);
-    const clientToken = getClientToken();
-    if (clientToken) {
-      fetch('/api/loyalty/me/add', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${clientToken}` },
-        body: JSON.stringify({ points: Math.floor(total) }),
-      }).catch(() => {});
-    }
     setSubView('tracking');
   };
 

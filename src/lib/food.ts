@@ -98,3 +98,14 @@ export async function splitFoodTableBill(tableSessionId: string, peopleCount: nu
   if (error) throw error;
   return data ?? [];
 }
+
+export async function closeFoodTableSession(tableSessionId: string): Promise<void> {
+  const { error } = await db.rpc('close_food_table_session', { p_session_id: tableSessionId });
+  if (error) throw error;
+}
+
+export async function listFoodTableConsumption(tableSessionId: string): Promise<Array<{ id: string; product_name: string; quantity: number; unit_price: number; line_total: number }>> {
+  const { data, error } = await db.from('food_order_items').select('id, product_name, quantity, unit_price, total, order:food_orders!inner(table_session_id)').eq('order.table_session_id', tableSessionId).order('created_at');
+  if (error) throw error;
+  return (data ?? []).map((item: any) => ({ id: item.id, product_name: item.product_name, quantity: Number(item.quantity), unit_price: Number(item.unit_price), line_total: Number(item.total ?? Number(item.quantity) * Number(item.unit_price)) }));
+}

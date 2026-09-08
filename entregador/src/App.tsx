@@ -165,7 +165,7 @@ function DeliveryBoard({ token, name, onLogout }: { token: string; name: string;
       setStatus(statusMap[driver.availability] ?? 'OFFLINE');
       const { data: offers } = await supabase.from('delivery_offers').select('id,status,delivery_id,deliveries(*)').eq('driver_id', driver.id).eq('status', 'offered').order('offered_at', { ascending: false }).limit(1);
       const current: any = offers?.[0];
-      setOffer(current ? { id: current.id, orderId: current.deliveries?.order_id ?? '', restaurantId: current.deliveries?.store_account_id ?? '', status: current.deliveries?.status ?? 'OFERTADA', customerName: current.deliveries?.customer_name ?? '', deliveryAddress: current.deliveries?.delivery_address ?? '' } : null);
+      setOffer(current ? { id: current.id, deliveryId: current.delivery_id, orderId: current.deliveries?.order_id ?? '', restaurantId: current.deliveries?.store_account_id ?? '', status: current.deliveries?.status ?? 'OFERTADA', customerName: current.deliveries?.customer_name ?? '', deliveryAddress: current.deliveries?.delivery_address ?? '' } : null);
       setStats((prev) => ({ ...(prev ?? {}), status: statusMap[driver.availability] ?? 'OFFLINE' } as DriverStats));
     } catch (err) {
       console.error("Erro ao carregar dados do entregador:", err);
@@ -227,9 +227,9 @@ function DeliveryBoard({ token, name, onLogout }: { token: string; name: string;
   const acceptOffer = async () => {
     if (!offer) return;
     try {
-      const { data: accepted } = await supabase.from('delivery_offers').update({ status: 'accepted', responded_at: new Date().toISOString() }).eq('id', offer.id).eq('status', 'offered').select('delivery_id').maybeSingle();
+      const { data: accepted, error: acceptError } = await supabase.rpc('accept_delivery_offer', { p_offer_id: offer.id });
+      if (acceptError) throw acceptError;
       if (accepted) {
-        await supabase.from('deliveries').update({ status: 'accepted', driver_id: (await supabase.from('delivery_offers').select('driver_id').eq('id', offer.id).single()).data?.driver_id, accepted_at: new Date().toISOString() }).eq('id', accepted.delivery_id).eq('status', 'waiting');
         setSelectedRouteModal(true); // Open route map immediately!
         await loadData();
       }
@@ -256,7 +256,7 @@ function DeliveryBoard({ token, name, onLogout }: { token: string; name: string;
     try {
       const { data: current } = await supabase.from('delivery_offers').select('delivery_id').eq('id', offer.id).maybeSingle();
       const statusMap: Record<string, string> = { A_CAMINHO_DA_COLETA: 'pickup', PEDIDO_COLETADO: 'in_transit', A_CAMINHO_DO_CLIENTE: 'in_transit', ENTREGUE: 'delivered' };
-      if (current) { await supabase.from('deliveries').update({ status: statusMap[nextStatus] ?? 'in_transit', delivered_at: nextStatus === 'ENTREGUE' ? new Date().toISOString() : null }).eq('id', current.delivery_id); await supabase.from('delivery_events').insert({ delivery_id: current.delivery_id, event_type: nextStatus, actor_user_id: (await supabase.auth.getUser()).data.user?.id }); await loadData(); }
+      if (current) { const { error } = await supabase.rpc('advance_delivery_status', { p_delivery_id: current.delivery_id, p_status: statusMap[nextStatus] ?? 'in_transit' }); if (error) throw error; await loadData(); }
     } catch (e) {
       console.error("Erro ao avançar FSM:", e);
     }
@@ -267,16 +267,8 @@ function DeliveryBoard({ token, name, onLogout }: { token: string; name: string;
     if (!offer) return;
     setPinError('');
     try {
-      const res = await fetch(`/api/delivery/offers/${offer.id}/confirm-pin`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...authHeaders.current },
-        body: JSON.stringify({ pin: pinInput, lat: -23.55052, lng: -46.633308 }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setPinError(data.error ?? 'Código PIN incorreto.');
-        return;
-      }
+      const { error } = await supabase.rpc('confirm_delivery_pin', { p_delivery_id: (offer as any).deliveryId, p_pin: pinInput });
+      if (error) { setPinError(error.message ?? 'Código PIN incorreto.'); return; }
       setPinInput('');
       await loadData();
     } catch (e) {
@@ -288,11 +280,8 @@ function DeliveryBoard({ token, name, onLogout }: { token: string; name: string;
   const submitIncident = async () => {
     if (!offer) return;
     try {
-      await fetch(`/api/delivery/offers/${offer.id}/incident`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...authHeaders.current },
-        body: JSON.stringify({ reason: incidentReason, note: incidentNote, lat: -23.55052, lng: -46.633308 }),
-      });
+      const { error } = await supabase.rpc('report_delivery_incident', { p_delivery_id: (offer as any).deliveryId, p_reason: incidentReason, p_note: incidentNote });
+      if (error) throw error;
       setIsIncidentModalOpen(false);
       await loadData();
     } catch (e) {

@@ -31,7 +31,7 @@ export default function KdsHeader({
   };
 
   return (
-    <header className="bg-[#050b14]/90 backdrop-blur-md border-b border-[#006400]/30 px-6 py-4 flex flex-col md:flex-row items-center justify-between gap-4">
+    <header className="bg-background/90 backdrop-blur-md border-b border-border/30 px-6 py-4 flex flex-col md:flex-row items-center justify-between gap-4">
       <div className="flex items-center gap-3">
         <div className="p-2.5 rounded-2xl bg-[#70E000]/10 border border-[#70E000]/30 text-[#70E000]">
           <ChefHat className="h-6 w-6" />
@@ -46,19 +46,19 @@ export default function KdsHeader({
 
       {/* Metrics Badges */}
       <div className="flex items-center gap-3">
-        <div className="flex items-center gap-2 bg-[#0c192c] border border-white/10 px-3 py-1.5 rounded-xl">
+        <div className="flex items-center gap-2 bg-card border border-white/10 px-3 py-1.5 rounded-xl">
           <span className="h-2 w-2 rounded-full bg-amber-400 animate-pulse" />
           <span className="text-xs font-medium text-zinc-300">Aguardando:</span>
           <span className="text-sm font-black text-amber-400">{submittedCount}</span>
         </div>
 
-        <div className="flex items-center gap-2 bg-[#0c192c] border border-white/10 px-3 py-1.5 rounded-xl">
+        <div className="flex items-center gap-2 bg-card border border-white/10 px-3 py-1.5 rounded-xl">
           <span className="h-2 w-2 rounded-full bg-sky-400 animate-pulse" />
           <span className="text-xs font-medium text-zinc-300">Em Preparo:</span>
           <span className="text-sm font-black text-sky-400">{preparingCount}</span>
         </div>
 
-        <div className="flex items-center gap-2 bg-[#0c192c] border border-white/10 px-3 py-1.5 rounded-xl">
+        <div className="flex items-center gap-2 bg-card border border-white/10 px-3 py-1.5 rounded-xl">
           <span className="h-2 w-2 rounded-full bg-[#70E000]" />
           <span className="text-xs font-medium text-zinc-300">Prontos:</span>
           <span className="text-sm font-black text-[#70E000]">{readyCount}</span>
@@ -68,7 +68,7 @@ export default function KdsHeader({
       {/* Controls */}
       <div className="flex items-center gap-2">
         {/* Source Filter */}
-        <div className="flex items-center bg-[#0c192c] border border-white/10 p-1 rounded-xl text-xs font-medium">
+        <div className="flex items-center bg-card border border-white/10 p-1 rounded-xl text-xs font-medium">
           <button
             type="button"
             onClick={() => onSourceFilterChange('all')}
@@ -114,7 +114,7 @@ export default function KdsHeader({
           className={`p-2.5 rounded-xl border transition ${
             soundEnabled
               ? 'bg-[#70E000]/10 border-[#70E000]/30 text-[#70E000] hover:bg-[#70E000]/20'
-              : 'bg-[#0c192c] border-white/10 text-zinc-500 hover:text-zinc-300'
+              : 'bg-card border-white/10 text-zinc-500 hover:text-zinc-300'
           }`}
         >
           {soundEnabled ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
@@ -125,7 +125,7 @@ export default function KdsHeader({
           type="button"
           onClick={onRefresh}
           title="Atualizar Pedidos"
-          className="p-2.5 rounded-xl bg-[#0c192c] border border-white/10 text-zinc-300 hover:bg-white/10 transition"
+          className="p-2.5 rounded-xl bg-card border border-white/10 text-zinc-300 hover:bg-white/10 transition"
         >
           <RefreshCw className="h-4 w-4" />
         </button>
@@ -135,7 +135,7 @@ export default function KdsHeader({
           type="button"
           onClick={toggleFullscreen}
           title="Modo Tela Cheia"
-          className="p-2.5 rounded-xl bg-[#0c192c] border border-white/10 text-zinc-300 hover:bg-white/10 transition"
+          className="p-2.5 rounded-xl bg-card border border-white/10 text-zinc-300 hover:bg-white/10 transition"
         >
           <Maximize2 className="h-4 w-4" />
         </button>

@@ -32,7 +32,7 @@ ${projectList}
 5. **Contexto Exclusivo (REGRA DE OURO):** Você SÓ trabalha e fala sobre o MIAR AI/FOOD, Gastronomia, Restaurantes, Food Service, Vendas, etc. Se perguntarem sobre política, código, receitas de bolo ou coisas nada a ver, negue educadamente dizendo que sua especialidade é ajudar o restaurante do usuário a lucrar mais com o MIAR AI/FOOD. Nunca fuja desse personagem.`;
 }
 
-function getLocalMIAR AI/FOODReply(userQuery: string): string {
+function getLocalMiarFoodReply(userQuery: string): string {
     const query = userQuery.toLowerCase();
     
     if (query.includes("pdv") || query.includes("venda") || query.includes("caixa")) {
@@ -182,7 +182,7 @@ export async function POST(req: NextRequest) {
             } catch (geminiError) {
                 console.warn('[Chat] Gemini also failed, using local MIAR AI/FOOD fallback');
                 const lastUserMessage = messages.filter(m => m.role === 'user').pop()?.content || '';
-                reply = getLocalMIAR AI/FOODReply(lastUserMessage);
+                reply = getLocalMiarFoodReply(lastUserMessage);
                 provider = 'local-fallback';
             }
         }

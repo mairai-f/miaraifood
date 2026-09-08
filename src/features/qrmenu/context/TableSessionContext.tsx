@@ -269,6 +269,16 @@ export function TableSessionProvider({
       const { data, error: err } = await supabase.functions.invoke('food-qrmenu', {
         body: { action: 'submit', token: qrToken, guestToken, items },
       });
+      if (!err && data?.code === 'GUEST_SESSION_REFRESH') {
+        const { data: renewed } = await supabase.functions.invoke('food-qrmenu', { body: { action: 'start_guest', token: qrToken } });
+        if (renewed?.guestToken) {
+          setGuestToken(renewed.guestToken);
+          lsSet(guestKey(qrToken), renewed.guestToken);
+          const retry = await supabase.functions.invoke('food-qrmenu', { body: { action: 'submit', token: qrToken, guestToken: renewed.guestToken, items } });
+          if (!retry.error && retry.data?.success) { updateCart([]); await resolveSession(); return { success: true, orderId: retry.data.orderId }; }
+          return { success: false, error: retry.data?.error || 'Não foi possível enviar o pedido.' };
+        }
+      }
       if (err || !data || !data.success) {
         return { success: false, error: data?.error || 'Erro ao registrar o pedido.' };
       }

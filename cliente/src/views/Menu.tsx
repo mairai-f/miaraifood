@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ShoppingCart, Trash2, ChevronLeft, X, Loader2, ChefHat, Bike, Store } from 'lucide-react';
-import { lsGet, lsSet, cartKey, getClientToken } from '../lib/storage';
+import { lsGet, lsSet, cartKey } from '../lib/storage';
 import type { Restaurant, MenuItem, CartItem, OrderMode } from '../types';
 import { getSupabaseClient } from '@workspace/api-client-react';
 import PagamentoPix from '../components/PagamentoPix';
@@ -91,12 +91,9 @@ export default function Menu({
         setLoading(false);
       })
       .catch(() => setLoading(false));
-    fetch(`/api/restaurants/${restaurant.id}/menu-theme`)
-      .then((r) => (r.ok ? r.json() : null))
-      .then((t) => {
-        if (t) setTheme(mergeMenuTheme(t));
-      })
-      .catch(() => {});
+    // O tema padrão é aplicado até o tema publicado do estabelecimento ser
+    // disponibilizado na configuração pública do Supabase.
+    setTheme(mergeMenuTheme(DEFAULT_MENU_THEME));
   }, [restaurant.id]);
 
   const setCart = (c: CartItem[]) => {
@@ -147,7 +144,10 @@ export default function Menu({
     .filter((m) => !activeCategory || (m.category ?? 'Cardápio') === activeCategory);
 
   const checkout = async (mode: OrderMode, paymentMethod?: string, paymentId?: string) => {
-    if (isGuest) {
+    // Quem escaneou uma mesa pode pedir anonimamente: a autorização vem do
+    // token público + sessão temporária da mesa, não de uma conta Marketplace.
+    const isTableGuestOrder = mode === 'dine-in' && Boolean(tableToken && guestId);
+    if (isGuest && !isTableGuestOrder) {
       onRequireLogin();
       return;
     }
@@ -159,52 +159,48 @@ export default function Menu({
     setOrdering(true);
     setShowModeModal(false);
     try {
-      const clientToken = getClientToken();
-      const orderHeaders: Record<string, string> = { 'Content-Type': 'application/json' };
-      if (clientToken) orderHeaders['Authorization'] = `Bearer ${clientToken}`;
-
       const itemsSnap = [...cart];
       const totalSnap = totalPrice;
-      const isQrSessionOrder =
-        mode === 'dine-in' && Boolean(tableToken && guestId) && !paymentMethod && !paymentId;
-      const res = isQrSessionOrder
-        ? await getSupabaseClient().rpc('submit_food_order_for_guest', {
-            p_guest_session_id: guestId,
-            p_items: cart.map((c) => ({ product_id: c.id, product_name: c.name, quantity: c.qty, unit_price: c.price, notes: c.note || '' })),
-          }).then(({ data, error }) => ({ ok: !error, json: async () => ({ orderId: data, error: error?.message }) }))
-        : await fetch('/api/orders', {
-            method: 'POST',
-            headers: orderHeaders,
-            body: JSON.stringify({
-              restaurantId: restaurant.id,
-              items: cart.map((c) => ({
-                menuItemId: c.id,
-                quantity: c.qty,
-                notes: c.note || undefined,
-              })),
-              mode,
-              ...(mode === 'pickup' && vehiclePlate.trim()
-                ? { vehiclePlate: vehiclePlate.trim() }
-                : {}),
-              ...(mode === 'dine-in' && tableId ? { tableId } : {}),
-              ...(paymentMethod ? { paymentMethod } : {}),
-              ...(paymentId ? { paymentId } : {}),
-            }),
-          });
-      if (res.ok) {
-        const order = (await res.json()) as { id?: string; orderId?: string };
-        const resolvedOrderId = order.orderId ?? order.id;
+      const isQrSessionOrder = isTableGuestOrder && !paymentMethod && !paymentId;
+      const result = isQrSessionOrder
+        ? await getSupabaseClient().functions.invoke('food-qrmenu', {
+            body: {
+              action: 'submit', token: tableToken, guestToken: guestId,
+              items: cart.map((c) => ({ productId: c.id, quantity: c.qty, notes: c.note || '' })),
+            },
+          }).then(({ data, error }) => ({ data, error: error?.message }))
+        : await getSupabaseClient().rpc('submit_marketplace_food_order', {
+            p_store_account_id: restaurant.id,
+            p_items: cart.map((c) => ({ product_id: c.id, quantity: c.qty, notes: c.note || '' })),
+            p_source: mode === 'pickup' ? 'pickup' : 'delivery',
+            p_customer_name: '',
+            p_customer_phone: '',
+            p_delivery_address: '',
+          }).then(({ data, error }) => ({ data: { orderId: data }, error: error?.message }));
+      if (!result.error && result.data?.success !== false) {
+        const resolvedOrderId = result.data?.orderId;
         if (!resolvedOrderId) {
           setSuccess('O servidor não confirmou a criação do pedido. O carrinho foi mantido.');
           return;
+        }
+        if (paymentMethod && resolvedOrderId) {
+          const provider = paymentMethod === 'pix' ? 'pix_manual' : paymentMethod;
+          const { error: paymentError } = await getSupabaseClient().rpc('create_store_payment_transaction', {
+            p_order_id: resolvedOrderId,
+            p_provider: provider,
+            p_amount: totalSnap,
+            p_method: paymentMethod,
+          });
+          if (paymentError) {
+            setSuccess(`Pedido criado, mas o pagamento precisa ser configurado pelo estabelecimento: ${paymentError.message}`);
+          }
         }
         setCart([]);
         setShowCart(false);
         setVehiclePlate('');
         setPlacedOrder({ orderId: resolvedOrderId, mode, items: itemsSnap, total: totalSnap });
       } else {
-        const data = (await res.json().catch(() => ({}))) as { error?: string };
-        setSuccess(data.error ?? 'Não foi possível registrar o pedido. O carrinho foi mantido.');
+        setSuccess(result.data?.error ?? result.error ?? 'Não foi possível registrar o pedido. O carrinho foi mantido.');
       }
     } catch {
       setSuccess('Não foi possível conectar ao servidor. O pedido não foi criado.');

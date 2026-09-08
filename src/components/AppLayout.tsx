@@ -8,7 +8,6 @@ import { useDesktopRuntime } from '@/contexts/DesktopRuntimeContext';
 import { usePermissions } from '@/contexts/usePermissions';
 import { useOperationalScope } from '@/contexts/useOperationalScope';
 import { usePlanAccess } from '@/contexts/PlanContext';
-import happyCashLogo from '@/assets/login/happycash.webp';
 import { roleLabel } from '@/lib/access';
 import { getDesktopInstallationId, readDesktopActivation, writeDesktopActivation } from '@/lib/desktopActivation';
 import { isGuidedTourEligiblePlan, requestGuidedTourStart } from '@/lib/guidedTour';
@@ -49,7 +48,6 @@ const navItems: NavigationItem[] = [
   { path: '/comandas', label: 'Comandas', icon: ClipboardList, shortcut: '3', featureKey: 'service_tickets.use', permissionKey: 'service_tickets.use', runtimeScope: 'both', tourId: 'nav-service-tickets' },
   { path: '/mesas', label: 'Mesas', icon: Armchair, featureKey: 'food.tables', permissionKey: 'food.tables.view', runtimeScope: 'both', tourId: 'nav-food-tables' },
   { path: '/kds', label: 'Cozinha (KDS)', icon: ChefHat, featureKey: 'food.kds', permissionKey: 'food.kds.use', runtimeScope: 'both', tourId: 'nav-kds' },
-  { path: '/configuracoes/qrmenu', label: 'QR Menu', icon: ClipboardList, featureKey: 'food.qrmenu', permissionKey: 'food.qrmenu.manage', runtimeScope: 'web', tourId: 'nav-qrmenu' },
   { path: '/clientes', label: 'Clientes', icon: Users, shortcut: '4', featureKey: 'clients.manage', permissionKey: 'clients.view', runtimeScope: 'both', tourId: 'nav-clients' },
   { path: '/produtos', label: 'Produtos', icon: Package, shortcut: '5', featureKey: 'products.manage', permissionKey: 'products.view', runtimeScope: 'both', tourId: 'nav-products' },
   { path: '/estoque', label: 'Estoque', icon: Boxes, shortcut: '6', featureKey: 'stock.manage', permissionKey: 'stock.view', runtimeScope: 'both', tourId: 'nav-stock' },
@@ -666,18 +664,6 @@ export function AppLayout({ children }: { children: ReactNode }) {
                   decoding="async"
                 />
               </div>
-            )}
-
-            {!sidebarCollapsed && (
-              <button
-                type="button"
-                onClick={toggleSidebarCollapsed}
-                className="hidden lg:flex p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition shrink-0"
-                title="Esconder menu lateral"
-                aria-label="Esconder menu lateral"
-              >
-                <PanelLeftClose className="h-5 w-5" />
-              </button>
             )}
 
             <button className="lg:hidden text-muted-foreground" onClick={() => setOpen(false)}>

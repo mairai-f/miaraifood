@@ -21,7 +21,7 @@ Deno.serve(async (request) => {
   if (!credential) return reply(request, { error: "Esta mesa não está disponível." }, 404);
   const { data: table } = await db.from("food_tables").select("id,code,name,owner_user_id,store_account_id,location_id,store_accounts(nome_estabelecimento)").eq("id", credential.table_id).eq("active", true).maybeSingle();
   if (!table) return reply(request, { error: "Esta mesa não está disponível." }, 404);
-  const { data: session } = await db.from("food_table_sessions").select("id,guest_count").eq("table_id", table.id).in("status", ["open", "awaiting_payment"]).order("opened_at", { ascending: false }).limit(1).maybeSingle();
+  const { data: session } = await db.from("food_table_sessions").select("id,guest_count,status").eq("table_id", table.id).not("status", "in", "(closed,cancelled)").order("opened_at", { ascending: false }).limit(1).maybeSingle();
   const { data: products, error: productError } = await db.from("products").select("id,name,price,category").eq("user_id", table.owner_user_id).eq("deleted", false).order("category").order("name");
   if (productError) return reply(request, { error: "Não foi possível carregar o cardápio." }, 500);
   const { data: menuEntries } = await db.from("food_menu_products").select("product_id,description,image_url,featured,sort_order").eq("store_account_id", table.store_account_id).eq("active", true).order("sort_order");
@@ -35,9 +35,9 @@ Deno.serve(async (request) => {
   if (body.action === "resolve") {
     const guest = await getGuest(); let tableTotal = 0; let ownOrders: unknown[] = [];
     if (session) { const { data: orders } = await db.from("food_orders").select("id,total,status,guest_session_id,created_at,food_order_items(product_name,quantity,total,notes,status)").eq("table_session_id", session.id).neq("status", "cancelled").order("created_at", { ascending: false }); tableTotal = (orders ?? []).reduce((sum, order) => sum + Number(order.total), 0); if (guest) ownOrders = (orders ?? []).filter((order) => order.guest_session_id === guest.id).map((order) => ({ id: order.id, total: order.total, status: order.status, createdAt: order.created_at, items: (order.food_order_items ?? []).filter((item: { status: string }) => item.status !== "cancelled") })); }
-    return reply(request, { establishmentName: (table.store_accounts as { nome_estabelecimento?: string } | null)?.nome_estabelecimento || "Miaifood", table: { code: table.code, name: table.name }, products: menuProducts, sessionOpen: Boolean(session), sessionGuestCount: session?.guest_count ?? null, guest, ownOrders, tableTotal });
+    return reply(request, { establishmentName: (table.store_accounts as { nome_estabelecimento?: string } | null)?.nome_estabelecimento || "Miaifood", restaurantId: table.store_account_id, table: { id: table.id, code: table.code, name: table.name }, products: menuProducts, sessionOpen: Boolean(session), sessionGuestCount: session?.guest_count ?? null, guest, ownOrders, tableTotal });
   }
-  if (!session) return reply(request, { error: "A mesa ainda não foi aberta pela equipe." }, 409);
+  if (!session) return reply(request, { success: false, code: "TABLE_NOT_OPEN", error: "A mesa ainda não foi aberta pela equipe." }, 200);
   if (body.action === "start_guest") {
     const appetite = body.appetiteLevel ?? null, mode = body.experienceMode ?? null, party = body.partySizeHint ?? null;
     if (appetite && !["low", "moderate", "high"].includes(appetite) || mode && !["calm", "fast", "suggestions"].includes(mode) || party !== null && (!Number.isInteger(party) || party < 1 || party > 20)) return reply(request, { error: "Preferências inválidas." }, 400);
@@ -46,7 +46,7 @@ Deno.serve(async (request) => {
     return error || !guest ? reply(request, { error: "Não foi possível iniciar sua sessão." }, 500) : reply(request, { guestToken, guest });
   }
   const guest = await getGuest();
-  if (!guest) return reply(request, { error: "Sua sessão expirou. Refaça o início rápido." }, 409);
+  if (!guest) return reply(request, { success: false, code: "GUEST_SESSION_REFRESH", error: "Sua sessão foi renovada. Continue para enviar o pedido." }, 200);
   if (body.action === "update_guest") {
     const appetite = body.appetiteLevel ?? null, mode = body.experienceMode ?? null, party = body.partySizeHint ?? null;
     if (appetite && !["low", "moderate", "high"].includes(appetite) || mode && !["calm", "fast", "suggestions"].includes(mode) || party !== null && (!Number.isInteger(party) || party < 1 || party > 20)) return reply(request, { error: "Preferências inválidas." }, 400);

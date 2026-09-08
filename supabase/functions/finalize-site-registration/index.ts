@@ -205,17 +205,17 @@ const sendWelcomeEmail = async (
   const establishmentName = registration.nome_estabelecimento || registration.nome_cliente || "sua loja";
   const html = renderHappyCashEmail({
     eyebrow: "Bem-vindo",
-    title: "Sua conta HappyCash esta pronta",
-    preview: `A conta de ${establishmentName} ja pode acessar o HappyCash.`,
+    title: "Sua conta MIAR AI/FOOD está pronta",
+    preview: `A conta de ${establishmentName} já pode acessar a MIAR AI/FOOD.`,
     intro:
       `O cadastro de ${establishmentName} foi ativado com sucesso. ` +
-      `Agora voce ja pode acessar o HappyCash e configurar sua operacao.`,
+      `Agora você já pode acessar a MIAR AI/FOOD e configurar sua operação.`,
     metrics: [
       { label: "Produto", value: productLabel, tone: "primary" },
       { label: "Demo ate", value: trialEndsAt, tone: "success" },
     ],
     action: {
-      label: "Acessar HappyCash",
+      label: "Acessar MIAR AI/FOOD",
       href: appUrl,
     },
     contentHtml: `
@@ -227,10 +227,10 @@ const sendWelcomeEmail = async (
         </p>
       </div>
     `,
-    footerNote: "Este e-mail confirma a ativacao da sua conta HappyCash.",
+    footerNote: "Este e-mail confirma a ativação da sua conta MIAR AI/FOOD.",
   });
   const text = [
-    "Sua conta HappyCash esta pronta",
+    "Sua conta MIAR AI/FOOD está pronta",
     "",
     `Conta: ${registration.email}`,
     `Loja: ${establishmentName}`,
@@ -242,7 +242,7 @@ const sendWelcomeEmail = async (
   await sendHappyCashEmail({
     from: getHappyCashFromEmail("WELCOME_FROM_EMAIL"),
     to: [registration.email],
-    subject: "Bem-vindo ao HappyCash",
+    subject: "Bem-vindo à MIAR AI/FOOD",
     html,
     text,
   });

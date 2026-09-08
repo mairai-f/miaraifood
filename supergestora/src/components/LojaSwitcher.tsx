@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Store, Plus, Pencil, Trash2, ChevronDown } from "lucide-react";
 import { getLojaAtivaId, setLojaAtivaId, type Loja } from "@/lib/loja";
+import { supabase } from "@/lib/supabase";
 
 function getToken() {
   return window.localStorage.getItem("miar-owner-token")
@@ -31,13 +32,11 @@ export function LojaSwitcher({ compact = false }: { compact?: boolean }) {
         setLojas([]);
         return;
       }
-      const r = await fetch("/api/lojas", { headers: { Authorization: `Bearer ${token}` } });
-      if (!r.ok) {
-        const data = await r.json().catch(() => ({})) as { error?: string };
-        setErro(data.error ?? `Não foi possível carregar as lojas (HTTP ${r.status}).`);
-        return;
-      }
-      const data: Loja[] = await r.json();
+      const { data: userData } = await supabase.auth.getUser();
+      if (!userData.user) { setLojas([]); return; }
+      const { data: stores, error: storeError } = await supabase.from('store_accounts').select('id,nome_estabelecimento,active').eq('owner_user_id', userData.user.id).order('created_at');
+      if (storeError) throw storeError;
+      const data: Loja[] = (stores ?? []).map((store: any) => ({ id: store.id, nome: store.nome_estabelecimento || 'Estabelecimento', ativa: store.active !== false }));
       setLojas(data.filter((loja) => loja.ativa));
       const atual = getLojaAtivaId();
       if (!atual && data.length > 0) setLojaAtivaId(data[0].id);
