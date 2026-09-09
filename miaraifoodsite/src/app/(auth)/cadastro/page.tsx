@@ -196,6 +196,7 @@ const Cadastro = () => {
   const [estado, setEstado] = useState("SP");
   const [segmento, setSegmento] = useState("restaurante");
   const [quantidadeMesas, setQuantidadeMesas] = useState(10);
+  const [cepLoading, setCepLoading] = useState(false);
 
   // Checkbox resources
   const [modalidades, setModalidades] = useState<string[]>([
@@ -256,18 +257,39 @@ const Cadastro = () => {
   const fetchCep = async (value: string) => {
     setCep(value);
     const clean = value.replace(/\D/g, "");
-    if (clean.length === 8) {
-      try {
-        const res = await fetch(`https://viacep.com.br/ws/${clean}/json/`);
-        const data = await res.json();
-        if (!data.erro) {
-          setNomeRua(data.logradouro || "");
-          setBairro(data.bairro || "");
-          setCidade(data.localidade || "");
-          setEstado(data.uf || "SP");
-          toast({ title: "CEP Encontrado!", description: `${data.logradouro}, ${data.bairro} - ${data.localidade}/${data.uf}` });
-        }
-      } catch { /* ignore */ }
+    if (clean.length !== 8 || cepLoading) return;
+
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), 8_000);
+    setCepLoading(true);
+
+    try {
+      const res = await fetch(`https://viacep.com.br/ws/${clean}/json/`, {
+        signal: controller.signal,
+        headers: { Accept: "application/json" },
+      });
+      if (!res.ok) throw new Error("CEP_SERVICE_UNAVAILABLE");
+
+      const data = await res.json();
+      if (data.erro) {
+        toast({ title: "CEP não encontrado", description: "Confira os números ou preencha o endereço manualmente.", variant: "destructive" });
+        return;
+      }
+
+      setNomeRua(data.logradouro || "");
+      setBairro(data.bairro || "");
+      setCidade(data.localidade || "");
+      setEstado(data.uf || "SP");
+      toast({ title: "CEP encontrado", description: `${data.logradouro}, ${data.bairro} - ${data.localidade}/${data.uf}` });
+    } catch {
+      toast({
+        title: "Busca de CEP indisponível",
+        description: "O serviço de CEP não respondeu. Você pode preencher o endereço manualmente.",
+        variant: "destructive",
+      });
+    } finally {
+      window.clearTimeout(timeout);
+      setCepLoading(false);
     }
   };
 
@@ -636,8 +658,8 @@ const Cadastro = () => {
                         onChange={e => fetchCep(e.target.value)} 
                         className="h-10 rounded-xl border-white/20 bg-white/10 px-3 text-sm text-white placeholder:text-zinc-400 focus-visible:ring-[#70E000]" 
                       />
-                      <Button type="button" onClick={() => fetchCep(cep)} className="h-10 bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-3">
-                        <Search className="h-4 w-4" />
+                      <Button type="button" disabled={cepLoading} onClick={() => fetchCep(cep)} className="h-10 bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-3">
+                        {cepLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
                       </Button>
                     </div>
                   </div>
