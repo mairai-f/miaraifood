@@ -420,6 +420,25 @@ Deno.serve(async (request) => {
 
   try {
     const registrationProductContext = normalizeProductContext(registration.product_context);
+
+    // O perfil, a conta da loja e a assinatura sempre pertencem ao mesmo
+    // usuário autenticado. Isso também corrige perfis legados que possam ter
+    // ficado apontando para outro proprietário antes da conclusão do cadastro.
+    const { error: profileSyncError } = await serviceClient
+      .from("profiles")
+      .upsert({
+        user_id: user.id,
+        username: user.user_metadata?.username || user.email || registration.email,
+        email: user.email || registration.email,
+        role: "admin",
+        owner_user_id: user.id,
+        created_by_user_id: null,
+      }, { onConflict: "user_id" });
+
+    if (profileSyncError) {
+      throw new Error(profileSyncError.message || "Nao foi possivel sincronizar o perfil da conta.");
+    }
+
     const { data: existingStoreAccountData, error: existingStoreAccountError } = await serviceClient
       .from("store_accounts")
       .select("id, product_context")
