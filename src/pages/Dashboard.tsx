@@ -201,7 +201,11 @@ export default function Dashboard() {
             </Button>
           </CardHeader>
           <CardContent className="space-y-3">
-            {liveOrders.map((order) => (
+            {liveOrders.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-border/70 p-8 text-center text-sm text-muted-foreground">
+                Nenhum pedido em andamento nesta filial.
+              </div>
+            ) : liveOrders.map((order) => (
               <div
                 key={order.id}
                 onClick={() => navigate('/comandas')}
