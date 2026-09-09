@@ -82,6 +82,15 @@ export const ERP_PERMISSION_KEYS = [
   'food.delivery.manage',
   'chat.view',
   'chat.manage',
+  'chat.group.create',
+  'chat.group.edit',
+  'chat.group.photo.edit',
+  'chat.group.members.manage',
+  'chat.group.archive',
+  'chat.group.delete',
+  'chat.message.edit',
+  'chat.message.delete',
+  'chat.audit.view',
 ] as const;
 
 export type ErpPermissionKey = (typeof ERP_PERMISSION_KEYS)[number];

@@ -5,7 +5,22 @@ import reactRefresh from "eslint-plugin-react-refresh";
 import tseslint from "typescript-eslint";
 
 export default tseslint.config(
-  { ignores: ["dist", "happycashsite", "happycashsite_old_vite", "mobile", "release", "release-builds"] },
+  {
+    // Saída de build e apps com ciclo próprio. O site Next mantém o próprio
+    // lint; "happycashsite" virou "miaraifoodsite" no rebrand.
+    ignores: [
+      "**/node_modules",
+      "**/dist",
+      "**/build",
+      "**/.next",
+      "dist-site",
+      "miaraifoodsite",
+      "mobile",
+      "release",
+      "release-builds",
+      "garçomtelas",
+    ],
+  },
   {
     extends: [js.configs.recommended, ...tseslint.configs.recommended],
     files: ["**/*.{ts,tsx}"],

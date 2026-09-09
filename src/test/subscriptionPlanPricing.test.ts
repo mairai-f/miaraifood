@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { publicPlanContent } from "../../happycashsite/src/lib/subscriptionPlans";
+import { publicPlanContent } from "../../miaraifoodsite/src/lib/subscriptionPlans";
 import { commercialPaidPlanPricing } from "../../shared/subscriptionPlanPricing";
 
 describe("commercial paid plan pricing", () => {

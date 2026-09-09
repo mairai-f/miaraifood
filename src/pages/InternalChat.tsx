@@ -13,6 +13,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePermissions } from "@/contexts/usePermissions";
+import type { ErpPermissionKey } from "@/lib/permissions";
 
 type Conversation = {
   id: string;
@@ -78,7 +79,7 @@ export default function InternalChat() {
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const groupPhotoInputRef = useRef<HTMLInputElement>(null);
   const owner = ownerUserId === user?.id;
-  const can = (key: string) => isAdmin || owner || hasPermission(key);
+  const can = (key: ErpPermissionKey) => isAdmin || owner || hasPermission(key);
   const uploadMyAvatar = async (file?: File) => {
     if (!file || !user) return;
     if (!file.type.startsWith("image/") || file.size > 5 * 1024 * 1024) {

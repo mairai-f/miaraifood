@@ -1,3 +1,4 @@
+import { DEFAULT_COMPANY_NAME } from '@/lib/company';
 import { describe, expect, it } from 'vitest';
 
 import { buildClientCrmWhatsAppUrl, buildItemWhatsAppUrl, buildPaymentWhatsAppUrl, buildSupplierOrderWhatsAppUrl, buildWhatsAppUrl } from '@/lib/whatsapp';
@@ -110,8 +111,8 @@ describe('whatsapp messages', () => {
       0,
     ));
 
-    expect(itemMessage).toContain('HappyCash');
-    expect(paymentMessage).toContain('HappyCash');
+    expect(itemMessage).toContain(DEFAULT_COMPANY_NAME);
+    expect(paymentMessage).toContain(DEFAULT_COMPANY_NAME);
   });
 
   it('monta mensagem de CRM com saldo em aberto', () => {

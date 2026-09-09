@@ -1,3 +1,4 @@
+import { DEFAULT_COMPANY_NAME } from "@/lib/company";
 import { describe, expect, it } from "vitest";
 
 import { getDesktopUpdateSplashSummary } from "@/lib/desktopUpdateSplash";
@@ -57,7 +58,7 @@ describe("desktopUpdateSplash", () => {
       ),
     ).toEqual({
       label: "Atualizando para a nova versão 0.1.48",
-      detail: "Download concluído. Reiniciando o HappyCash para instalar a atualização.",
+      detail: `Download concluído. Reiniciando o ${DEFAULT_COMPANY_NAME} para instalar a atualização.`,
       progress: 100,
       tone: "default",
       primary: true,

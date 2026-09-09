@@ -24,10 +24,24 @@ describe('ERP permissions', () => {
     expect(disabled.size).toBe(0);
   });
 
-  it('limits the waiter fallback to service tickets', () => {
+  it('keeps the waiter fallback inside the dining room', () => {
     const permissions = getDefaultPermissionsForRole('waiter');
 
-    expect([...permissions]).toEqual(['service_tickets.use']);
+    // O garcom atende mesa, comanda e chamado, e conversa com a equipe.
+    expect(permissions.has('service_tickets.use')).toBe(true);
+    expect(permissions.has('food.tables.view')).toBe(true);
+    expect(permissions.has('food.orders.create')).toBe(true);
+    expect(permissions.has('food.waiter_calls.handle')).toBe(true);
+    expect(permissions.has('chat.view')).toBe(true);
+
+    // Nada de caixa, cadastro, estoque, financeiro ou administracao.
+    expect(permissions.has('pdv.use')).toBe(false);
+    expect(permissions.has('products.manage')).toBe(false);
+    expect(permissions.has('stock.manage')).toBe(false);
+    expect(permissions.has('financial.manage')).toBe(false);
+    expect(permissions.has('clients.manage')).toBe(false);
+    expect(permissions.has('rbac.manage')).toBe(false);
+    expect(permissions.has('multi_store.manage')).toBe(false);
   });
 
   it('keeps the HR fallback isolated from commercial modules', () => {

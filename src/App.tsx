@@ -183,9 +183,9 @@ function AppRoutes() {
     
     if (desktopUpdateStatus.status === 'downloaded' || desktopUpdateStatus.status === 'installing') {
       toast.loading('Atualização pronta! Instalando e reiniciando...', { id: 'desktop-update', duration: 10000 });
-    } else if (desktopUpdateStatus.status === 'error' || desktopUpdateStatus.status === 'download-failed') {
+    } else if (desktopUpdateStatus.status === 'error') {
       toast.error('Não foi possível baixar a atualização. O sistema continuará na versão atual.', { id: 'desktop-update', duration: 5000 });
-    } else if (desktopUpdateStatus.status === 'up-to-date' || desktopUpdateStatus.status === 'idle') {
+    } else if (desktopUpdateStatus.status === 'idle') {
       toast.dismiss('desktop-update');
     }
   }, [desktopUpdateStatus?.status, isDesktop]);

@@ -3717,6 +3717,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
   const cancelSale = async (saleId: string, reason: string) => {
     const buildCancelSaleState = () => {
+      const cancelledSale = sales.find(item => item.id === saleId);
       const itemsToRestore = saleItems.filter(item => item.sale_id === saleId && item.product_id);
       const cancelledAt = nowIso();
       const changes = {
@@ -3732,7 +3733,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         quantity: item.quantity,
         reason: `Cancelamento venda: ${reason}`,
         date: cancelledAt,
-        location_id: sale.location_id ?? operationalLocationId,
+        location_id: cancelledSale?.location_id ?? operationalLocationId,
       } as StockMovement));
       const stockRestores = itemsToRestore.map(item => ({
         productId: item.product_id!,
