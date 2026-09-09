@@ -77,6 +77,7 @@ export default function InternalChat() {
   const [dialogValue, setDialogValue] = useState("");
   const [groupMembers, setGroupMembers] = useState<string[]>([]);
   const [audit, setAudit] = useState<AuditEntry[]>([]);
+  const messagesRef = useRef<HTMLDivElement>(null);
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const groupPhotoInputRef = useRef<HTMLInputElement>(null);
   const owner = ownerUserId === user?.id;
@@ -339,6 +340,11 @@ export default function InternalChat() {
       void supabase.removeChannel(c);
     };
   }, [load, selected, user]);
+  useEffect(() => {
+    const node = messagesRef.current;
+    if (!node) return;
+    node.scrollTop = node.scrollHeight;
+  }, [messages, selected]);
   const current = conversations.find((x) => x.id === selected);
   const visible = useMemo(
     () =>
@@ -734,7 +740,7 @@ export default function InternalChat() {
             </div>
           )}
         </header>
-        <div className="flex-1 overflow-auto bg-muted/20 p-5">
+        <div ref={messagesRef} className="flex-1 overflow-auto bg-muted/20 p-5">
           {messages.map((m) => (
             <div
               key={m.id}

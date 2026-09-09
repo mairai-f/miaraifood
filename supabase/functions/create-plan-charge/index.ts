@@ -22,6 +22,9 @@ import {
   type ProductContext,
 } from "../_shared/productContext.ts";
 import { checkRedisRateLimit, readRateLimitEnv } from "../_shared/rateLimit.ts";
+// A tabela canonica manda no valor cobrado e sobrepoe o preco gravado em
+// subscription_plans. Alterar shared/subscriptionPlanPricing.ts exige
+// republicar esta function: o CLI nao detecta mudanca fora da pasta dela.
 import { getCommercialPaidPlanPricing } from "../../../shared/subscriptionPlanPricing.ts";
 
 type SupportedPaidPlan = "fiado" | "completo" | "pro";
