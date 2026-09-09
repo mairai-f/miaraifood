@@ -40,6 +40,7 @@ interface RegisterAccountRequest {
 interface RegisterAccountResponse {
   success: boolean;
   requiresEmailConfirmation?: boolean;
+  resumeExistingRegistration?: boolean;
   existingAccountEmailSent?: boolean;
   existingAccountRecoverySent?: boolean;
   email?: string;
@@ -66,11 +67,14 @@ const registrationCorsOptions = {
 
 const MAX_IP_ATTEMPTS_PER_15_MIN = 5;
 const MAX_EMAIL_ATTEMPTS_PER_HOUR = 3;
-const DEFAULT_CONFIRM_REDIRECT = "https://www.happycashsite.com.br/auth/callback?plan=demo";
-const DEFAULT_RECOVERY_REDIRECT = "https://www.happycashsite.com.br/login?recovery=1";
+const DEFAULT_CONFIRM_REDIRECT = "https://miar-site.vercel.app/auth/callback";
+const DEFAULT_RECOVERY_REDIRECT = "https://miar-site.vercel.app/login?recovery=1";
 const DEFAULT_CONFIRM_REDIRECT_ORIGINS = [
   "https://www.happycashsite.com.br",
   "https://happycashsite.com.br",
+  "https://miar-site.vercel.app",
+  "https://www.miaraifood.com.br",
+  "https://miaraifood.com.br",
 ];
 const EXISTING_ACCOUNT_EMAIL_MESSAGE =
   "Se esse email ja estiver cadastrado, enviamos instrucoes para recuperar o acesso ou continuar o cadastro.";
@@ -455,6 +459,102 @@ Deno.serve(async (request) => {
     }
 
     if (existingProfile?.user_id) {
+      // Versões anteriores do site criavam somente o login. Se a pessoa
+      // autenticou com a própria senha e ainda não possui loja nem cadastro
+      // pendente, retomamos o mesmo cadastro em vez de deixar um auth.uid()
+      // órfão ou criar outra identidade.
+      const [existingStoreByOwnerResult, existingPendingByOwnerResult] = await Promise.all([
+        serviceClient
+          .from("store_accounts")
+          .select("id")
+          .eq("owner_user_id", existingProfile.user_id)
+          .limit(1)
+          .maybeSingle(),
+        serviceClient
+          .from("site_pending_registrations")
+          .select("owner_user_id")
+          .eq("owner_user_id", existingProfile.user_id)
+          .eq("status", "pending")
+          .limit(1)
+          .maybeSingle(),
+      ]);
+
+      if (existingStoreByOwnerResult.error || existingPendingByOwnerResult.error) {
+        throw new Error("Nao foi possivel verificar o cadastro existente.");
+      }
+
+      if (!existingStoreByOwnerResult.data && !existingPendingByOwnerResult.data) {
+        const { data: verifiedLogin, error: verifiedLoginError } = await anonClient.auth.signInWithPassword({
+          email: data.email,
+          password: data.password,
+        });
+
+        if (!verifiedLogin.user || verifiedLoginError) {
+          await sendExistingAccountRecoveryEmail(anonClient, {
+            email: data.email,
+            redirectTo: resolveRecoveryRedirectTo(data.email),
+            captchaToken: data.captchaToken,
+          });
+          await logAttempt(serviceClient, {
+            emailHash,
+            ipHash,
+            origin,
+            status: "invalid",
+            userAgent,
+          });
+          return existingAccountEmailResponse(request, data.email, true);
+        }
+
+        const { error: resumeRegistrationError } = await serviceClient
+          .from("site_pending_registrations")
+          .upsert(
+            {
+              owner_user_id: existingProfile.user_id,
+              email: data.email,
+              nome_cliente: data.nomeCliente,
+              telefone: data.telefone,
+              cpf_cnpj: data.cpfCnpj,
+              nome_estabelecimento: data.nomeEstabelecimento,
+              tipo_estabelecimento: data.tipoEstabelecimento,
+              cep: data.cep,
+              endereco: data.endereco,
+              nome_rua: data.nomeRua,
+              numero: data.numero,
+              complemento: data.complemento,
+              bairro: data.bairro,
+              cidade: data.cidade,
+              estado: data.estado,
+              failure_reason: null,
+              status: "pending",
+              completed_at: null,
+              store_account_id: null,
+              trial_ends_at: null,
+              product_context: data.productContext,
+              ...data.legalAcceptance,
+            },
+            { onConflict: "owner_user_id" },
+          );
+
+        if (resumeRegistrationError) {
+          throw new Error("Nao foi possivel retomar seu cadastro agora.");
+        }
+
+        await logAttempt(serviceClient, {
+          emailHash,
+          ipHash,
+          origin,
+          status: "created",
+          userAgent,
+        });
+
+        return jsonResponse(request, {
+          success: true,
+          requiresEmailConfirmation: false,
+          resumeExistingRegistration: true,
+          email: data.email,
+        });
+      }
+
       await sendExistingAccountRecoveryEmail(anonClient, {
         email: data.email,
         redirectTo: resolveRecoveryRedirectTo(data.email),

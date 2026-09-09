@@ -19,6 +19,11 @@ const DEFAULT_ALLOWED_ORIGINS = [
   "https://happycashsite.com.br",
   "https://app.happycashsite.com.br",
   "https://menu.happycashsite.com.br",
+  "https://miar-site.vercel.app",
+  "https://www.miaraifood.com.br",
+  "https://miaraifood.com.br",
+  "https://miar-ai-food-khaki.vercel.app",
+  "https://miar-ai-food-miaraifood-1654.vercel.app",
 ];
 
 const DEFAULT_ALLOWED_HEADERS = [

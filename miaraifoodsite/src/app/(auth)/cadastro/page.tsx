@@ -233,6 +233,18 @@ const Cadastro = () => {
 
   const passwordStrength = getPasswordStrength(password);
 
+  const getFunctionErrorMessage = async (error: unknown) => {
+    if (error instanceof FunctionsHttpError) {
+      try {
+        const payload = await error.context.clone().json() as { error?: string; message?: string };
+        return payload.error || payload.message || "Não foi possível concluir o cadastro.";
+      } catch {
+        return "Não foi possível concluir o cadastro.";
+      }
+    }
+    return error instanceof Error && error.message ? error.message : "Não foi possível concluir o cadastro.";
+  };
+
   const toggleItem = (list: string[], setList: (val: string[]) => void, item: string) => {
     if (list.includes(item)) {
       setList(list.filter(i => i !== item));
@@ -301,61 +313,59 @@ const Cadastro = () => {
 
     setLoading(true);
     try {
-      const { data, error } = await supabase.auth.signUp({
-        email: email.trim(),
-        password,
-        options: {
-          data: {
-            full_name: nomeCliente.trim(),
-            phone: telefone.trim(),
-            company_name: nomeEstabelecimento.trim(),
-            cnpj_cpf: cnpj.trim(),
-            segment: segmento,
-            tables_count: quantidadeMesas,
-            address: `${nomeRua}, ${numero} - ${bairro}, ${cidade}/${estado}`,
-          }
-        }
+      const { data, error } = await supabase.functions.invoke<{
+        success?: boolean;
+        error?: string;
+        email?: string;
+        resumeExistingRegistration?: boolean;
+      }>("register-account", {
+        body: {
+          email: email.trim(),
+          password,
+          nomeCliente: nomeCliente.trim(),
+          telefone: telefone.trim(),
+          cnpj: cnpj.trim(),
+          nomeEstabelecimento: nomeEstabelecimento.trim(),
+          tipoEstabelecimento: segmento,
+          cep,
+          endereco: `${nomeRua}, ${numero} - ${bairro}, ${cidade}/${estado}`,
+          nomeRua,
+          numero,
+          complemento,
+          bairro,
+          cidade,
+          estado,
+          planId: selectedPlanId,
+          redirectTo: `${window.location.origin}/auth/callback`,
+          termsAccepted: legalDecision === "accepted",
+          termsVersion: LEGAL_TERMS_VERSION,
+          privacyAccepted: legalDecision === "accepted",
+          privacyVersion: LEGAL_PRIVACY_VERSION,
+          lgpdAccepted: legalDecision === "accepted",
+          lgpdVersion: LEGAL_LGPD_VERSION,
+          legalAcceptanceSource: LEGAL_ACCEPTANCE_SOURCES.siteSignup,
+        },
       });
 
-      if (error) {
-        toast({ title: "Erro no cadastro", description: error.message, variant: "destructive" });
-        setLoading(false);
+      if (error || !data?.success) {
+        throw new Error(data?.error || await getFunctionErrorMessage(error));
+      }
+
+      if (data.resumeExistingRegistration) {
+        const { error: signInError } = await supabase.auth.signInWithPassword({
+          email: email.trim(),
+          password,
+        });
+        if (signInError) throw signInError;
+
+        router.replace("/dashboard");
         return;
       }
 
-      // O cadastro já cria o estabelecimento pelo trigger de usuário. Quando
-      // a confirmação de e-mail está desativada, ativamos imediatamente o
-      // trial escolhido; o RPC garante que ele só possa ser usado uma vez.
-      if (data.user) {
-        const { data: sessionData } = await supabase.auth.getSession();
-        if (sessionData.session) {
-          const { data: account } = await supabase
-            .from("store_accounts")
-            .select("id")
-            .eq("owner_user_id", data.user.id)
-            .order("created_at", { ascending: true })
-            .limit(1)
-            .maybeSingle();
-
-          if (account?.id) {
-            const trialPlan = selectedPlanId ?? "inicial";
-            const { error: trialError } = await supabase.rpc(
-              "start_miaifood_one_month_trial",
-              { p_store_account_id: account.id, p_plan_id: trialPlan },
-            );
-            if (trialError && !trialError.message.includes("já foi utilizado")) {
-              console.warn("Não foi possível iniciar o trial automaticamente", trialError);
-            }
-          }
-        }
-      }
-
-      setConfirmationEmail(email);
-      toast({ title: "Conta criada com sucesso!", description: "Seu teste de 1 mês grátis foi ativado." });
+      setConfirmationEmail(data.email || email);
+      toast({ title: "Confirme seu e-mail", description: "Após a confirmação, sua empresa e o teste de 30 dias serão ativados." });
     } catch (err) {
-      console.error(err);
-      toast({ title: "Sucesso!", description: "Redirecionando para o seu dashboard..." });
-      router.push(demoDashboardPath);
+      toast({ title: "Não foi possível concluir", description: err instanceof Error ? err.message : "Tente novamente.", variant: "destructive" });
     } finally {
       setLoading(false);
     }
