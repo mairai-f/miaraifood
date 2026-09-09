@@ -172,7 +172,7 @@ Deno.serve(async (request) => {
 
   if (!license.ok) {
     const runtimeLicenseError = license.code === "PRO_ACTIVE_REQUIRED"
-      ? `O ${runtimeLabel} do HappyCash libera somente apos a confirmacao do pagamento do plano PRO.`
+      ? `O ${runtimeLabel} do MIAR AI/FOOD libera somente apos a confirmacao do pagamento do plano PRO.`
       : `Nao foi possivel validar sua licenca do ${runtimeLabel} agora.`;
 
     return jsonResponse(

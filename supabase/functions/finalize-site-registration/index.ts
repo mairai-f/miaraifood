@@ -199,7 +199,9 @@ const sendWelcomeEmail = async (
     return;
   }
 
-  const appUrl = Deno.env.get("HAPPYCASH_APP_URL")?.trim() || "https://app.happycashsite.com.br";
+  const appUrl = Deno.env.get("MIAR_APP_URL")?.trim()
+    || Deno.env.get("HAPPYCASH_APP_URL")?.trim()
+    || "https://app.miaraifood.com.br";
   const productLabel = getProductContextLabel(details.productContext);
   const trialEndsAt = formatDate(details.trialEndsAt);
   const establishmentName = registration.nome_estabelecimento || registration.nome_cliente || "sua loja";

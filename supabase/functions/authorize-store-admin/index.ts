@@ -175,7 +175,7 @@ Deno.serve(async (request) => {
       console.error('signInWithPassword failed:', approvalError.message, 'user:', approvalSession.user);
       return jsonResponse(
         request,
-        { error: 'Login ou senha do administrador invalidos. Use a senha cadastrada na conta do HappyCash.' },
+        { error: 'Login ou senha do administrador invalidos. Use a senha cadastrada na conta MIAR AI/FOOD.' },
         401,
       );
     }
@@ -183,7 +183,7 @@ Deno.serve(async (request) => {
     if (!approvalSession.user) {
       return jsonResponse(
         request,
-        { error: 'Login ou senha do administrador invalidos. Use a senha cadastrada na conta do HappyCash.' },
+        { error: 'Login ou senha do administrador invalidos. Use a senha cadastrada na conta MIAR AI/FOOD.' },
         401,
       );
     }

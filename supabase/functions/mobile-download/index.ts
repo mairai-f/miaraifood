@@ -232,7 +232,7 @@ Deno.serve(async (request) => {
     return jsonResponse(request, {
       success: true,
       downloadUrl: apkUrl,
-      assetName: "HappyCash-Mobile.apk",
+      assetName: "MIAR-AI-FOOD-Mobile.apk",
       validUntil: license.validUntil,
     });
   }

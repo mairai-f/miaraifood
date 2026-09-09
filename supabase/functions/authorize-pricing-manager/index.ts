@@ -158,7 +158,7 @@ Deno.serve(async (request) => {
 
     return jsonResponse(
       request,
-      { error: 'Login ou senha do gerente inválidos. Use a senha cadastrada na conta do HappyCash.' },
+      { error: 'Login ou senha do gerente inválidos. Use a senha cadastrada na conta MIAR AI/FOOD.' },
       401,
     );
   }
@@ -166,7 +166,7 @@ Deno.serve(async (request) => {
   if (!approvalSession.user) {
     return jsonResponse(
       request,
-      { error: 'Login ou senha do gerente inválidos. Use a senha cadastrada na conta do HappyCash.' },
+      { error: 'Login ou senha do gerente inválidos. Use a senha cadastrada na conta MIAR AI/FOOD.' },
       401,
     );
   }

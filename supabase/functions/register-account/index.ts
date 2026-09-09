@@ -70,8 +70,6 @@ const MAX_EMAIL_ATTEMPTS_PER_HOUR = 3;
 const DEFAULT_CONFIRM_REDIRECT = "https://miar-site.vercel.app/auth/callback";
 const DEFAULT_RECOVERY_REDIRECT = "https://miar-site.vercel.app/login?recovery=1";
 const DEFAULT_CONFIRM_REDIRECT_ORIGINS = [
-  "https://www.happycashsite.com.br",
-  "https://happycashsite.com.br",
   "https://miar-site.vercel.app",
   "https://www.miaraifood.com.br",
   "https://miaraifood.com.br",

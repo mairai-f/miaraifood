@@ -5,5 +5,3 @@ Disallow: /login
 Disallow: /pix
 Disallow: /reset-password
 Disallow: /downloads/
-
-Sitemap: https://www.happycashsite.com.br/sitemap.xml

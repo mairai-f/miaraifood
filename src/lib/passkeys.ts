@@ -8,7 +8,7 @@ export interface PasskeyEntry {
 }
 
 const isDesktopShell = () => typeof window !== 'undefined' && Boolean(window.electronAPI);
-const PASSKEY_RP_ID = 'happycashsite.com.br';
+const PASSKEY_RP_ID = 'miaraifood.com.br';
 const isLoopbackHost = (hostname: string) =>
   hostname === 'localhost'
   || hostname === '127.0.0.1'

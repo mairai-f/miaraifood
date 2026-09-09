@@ -153,7 +153,7 @@ const parseUrlOrNull = (value: string | null | undefined) => {
   }
 };
 
-const getHappyCashAuthOrigin = () => {
+const getSystemAuthOrigin = () => {
   const parsed = parseUrlOrNull(SUPABASE_AUTH_URL);
   if (!parsed || !/^https?:$/.test(parsed.protocol)) return null;
   return parsed.origin;
@@ -662,7 +662,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return 'Login com Google disponivel apenas na versao web.';
     }
 
-    const happyCashAuthOrigin = getHappyCashAuthOrigin();
+    const systemAuthOrigin = getSystemAuthOrigin();
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
@@ -687,8 +687,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const providerUrl = new URL(data.url);
 
       // Only rewrite the auth URL when a custom auth proxy was configured explicitly.
-      if (happyCashAuthOrigin) {
-        const authOrigin = new URL(happyCashAuthOrigin);
+      if (systemAuthOrigin) {
+        const authOrigin = new URL(systemAuthOrigin);
         providerUrl.protocol = authOrigin.protocol;
         providerUrl.host = authOrigin.host;
       }

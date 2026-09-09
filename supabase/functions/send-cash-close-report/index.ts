@@ -425,7 +425,7 @@ const buildPrintableReceiptLines = (
     : ['SEM SAIDAS REGISTRADAS'];
 
   return [
-    centerReceiptLine('HappyCash ERP'),
+    centerReceiptLine('MIAR AI/FOOD'),
     centerReceiptLine(storeIdentity.tradeName),
     ...wrapReceiptText(storeIdentity.legalName),
     ...wrapReceiptText(`CPF/CNPJ: ${storeIdentity.taxId}`),
@@ -637,7 +637,7 @@ const buildEmailContent = (
         </p>
       </div>
     `,
-    footerNote: 'Este fechamento foi enviado automaticamente pelo HappyCash.',
+    footerNote: 'Este fechamento foi enviado automaticamente pelo MIAR AI/FOOD.',
   });
 
   const paymentText = paymentBreakdown.length > 0

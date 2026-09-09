@@ -48,7 +48,7 @@ const LOGIN_VERIFICATION_INVALID_MESSAGE = "Codigo de autorizacao invalido ou ex
 const LOGIN_VERIFICATION_SEND_LIMIT_MESSAGE = "Ja enviamos um codigo recentemente. Verifique seu e-mail antes de pedir outro.";
 const LOGIN_ATTEMPT_WINDOW_SECONDS = 15 * 60;
 const LOGIN_VERIFICATION_WINDOW_SECONDS = 10 * 60;
-const DEFAULT_HAPPYCASH_SITE_ORIGIN = "https://www.happycashsite.com.br";
+const DEFAULT_HAPPYCASH_SITE_ORIGIN = "https://www.miaraifood.com.br";
 
 const jsonResponse = (request: Request, body: Record<string, unknown>, status = 200) =>
   new Response(JSON.stringify(body), {
@@ -90,7 +90,9 @@ const buildVerificationIdentifier = (email: string) => email;
 const buildVerificationDigest = (email: string, code: string) =>
   sha256(`admin-login-verification:${email}:${code}`);
 const getHappyCashSiteOrigin = () =>
-  Deno.env.get("HAPPYCASH_SITE_URL")?.trim().replace(/\/+$/, "") || DEFAULT_HAPPYCASH_SITE_ORIGIN;
+  Deno.env.get("MIAR_SITE_URL")?.trim().replace(/\/+$/, "")
+  || Deno.env.get("HAPPYCASH_SITE_URL")?.trim().replace(/\/+$/, "")
+  || DEFAULT_HAPPYCASH_SITE_ORIGIN;
 
 const buildPasswordResetUrl = (email: string) => {
   const url = new URL("/login", getHappyCashSiteOrigin());
@@ -168,7 +170,7 @@ const clearFailedAttempts = async (request: Request, email: string) => {
 };
 
 const getSurfaceLabel = (loginSurface: string) =>
-  loginSurface === "happycashsite" ? "HappyCash Site" : "HappyCash Web";
+  loginSurface === "happycashsite" ? "MIAR Site" : "MIAR AI/FOOD";
 
 const sendLoginVerificationCode = async (
   request: Request,
@@ -213,23 +215,23 @@ const sendLoginVerificationCode = async (
     const html = renderHappyCashEmail({
       eyebrow: "Acesso protegido",
       title: "Reconheca esta tentativa de entrada",
-      preview: "Use a chave de acesso para liberar sua entrada HappyCash.",
+      preview: "Use a chave de acesso para liberar sua entrada no MIAR AI/FOOD.",
       intro: `Detectamos tentativas incorretas de login para ${email} no ${surfaceLabel}. Se foi voce, use a chave abaixo para autorizar a entrada.`,
       contentHtml: `
         <div style="margin:28px 0;border:1px solid #d8e2ef;border-radius:14px;background:#f8fbff;padding:18px;text-align:center;">
           <p style="margin:0 0 8px;color:#5b6b83;font-size:12px;line-height:18px;">Chave de acesso</p>
           <p style="margin:0;color:#14213d;font-size:34px;line-height:40px;font-weight:900;letter-spacing:7px;">${escapeHtml(code)}</p>
         </div>
-        <p style="margin:18px 0 0;color:#42526a;font-size:14px;line-height:22px;">Esta chave expira em 10 minutos. Se voce esqueceu a senha, use o botao abaixo para abrir a redefinicao no HappyCash Site.</p>
+        <p style="margin:18px 0 0;color:#42526a;font-size:14px;line-height:22px;">Esta chave expira em 10 minutos. Se voce esqueceu a senha, use o botao abaixo para abrir a redefinicao no MIAR Site.</p>
       `,
       action: {
         label: "Redefinir senha",
         href: passwordResetUrl,
       },
-      footerNote: "HappyCash nunca pede sua senha por e-mail. Use esta chave somente na tela oficial de login.",
+      footerNote: "O MIAR AI/FOOD nunca pede sua senha por e-mail. Use esta chave somente na tela oficial de login.",
     });
     const text = [
-      "Reconheca esta tentativa de entrada HappyCash.",
+      "Reconheca esta tentativa de entrada no MIAR AI/FOOD.",
       `Detectamos tentativas incorretas de login para ${email} no ${surfaceLabel}.`,
       `Chave de acesso: ${code}`,
       "Esta chave expira em 10 minutos.",
@@ -240,7 +242,7 @@ const sendLoginVerificationCode = async (
     await sendHappyCashEmail({
       from: getHappyCashFromEmail("LOGIN_VERIFICATION_FROM_EMAIL"),
       to: [email],
-      subject: "Chave de acesso HappyCash",
+      subject: "Chave de acesso MIAR AI/FOOD",
       html,
       text,
     });

@@ -24,11 +24,11 @@ const loadPackagedMetadata = () => {
 
 const packagedMetadata = loadPackagedMetadata();
 const PRODUCT_CONTEXT = 'happycash';
-const APP_DISPLAY_NAME = 'HappyCash';
+const APP_DISPLAY_NAME = 'MIAR AI/FOOD';
 let autoUpdatesConfigured = false;
 const APP_USER_MODEL_ID = 'com.happycash.desktop';
-const HAPPYCASH_SITE_ORIGIN = (process.env.HAPPYCASH_SITE_ORIGIN || 'https://www.happycashsite.com.br').replace(/\/+$/, '');
-const HAPPYCASH_APP_ORIGIN = (process.env.HAPPYCASH_APP_ORIGIN || 'https://app.happycashsite.com.br').replace(/\/+$/, '');
+const HAPPYCASH_SITE_ORIGIN = (process.env.MIAR_SITE_ORIGIN || process.env.HAPPYCASH_SITE_ORIGIN || 'https://www.miaraifood.com.br').replace(/\/+$/, '');
+const HAPPYCASH_APP_ORIGIN = (process.env.MIAR_APP_ORIGIN || process.env.HAPPYCASH_APP_ORIGIN || 'https://app.miaraifood.com.br').replace(/\/+$/, '');
 const DESKTOP_TURNSTILE_TIMEOUT_MS = 130_000;
 const VALID_UPDATE_CHANNELS = new Set(['latest', 'beta', 'alpha']);
 const OFFLINE_DB_FILENAME = 'happycash-concentrator.sqlite';
@@ -132,7 +132,7 @@ const getDbEncryptionKey = () => {
   if (!written) {
     // safeStorage indisponível (raro): usar chave efêmera em memória.
     // Os dados serão legíveis nesta sessão mas não protegidos entre sessões.
-    console.warn('[HappyCash] safeStorage indisponível. Chave AES será efêmera nesta sessão.');
+    console.warn('[MIAR AI/FOOD] safeStorage indisponível. Chave AES será efêmera nesta sessão.');
   }
   _dbEncryptionKey = newKey;
   return _dbEncryptionKey;
@@ -163,7 +163,7 @@ const decryptField = (ciphertext) => {
     decipher.setAuthTag(Buffer.from(authTagB64, 'base64'));
     return decipher.update(Buffer.from(dataB64, 'base64')).toString('utf8') + decipher.final('utf8');
   } catch {
-    console.error('[HappyCash] Falha ao descriptografar campo do banco. Dado pode estar corrompido.');
+    console.error('[MIAR AI/FOOD] Falha ao descriptografar campo do banco. Dado pode estar corrompido.');
     return null;
   }
 };
@@ -497,7 +497,7 @@ const clearPendingUpdateForceQuit = () => {
 };
 
 const getUpdateInstallFailureMessage = () =>
-  'A atualização foi baixada, mas o instalador não conseguiu reiniciar o HappyCash automaticamente. Abra Configurações > Desktop e offline para tentar novamente ou baixe a atualização manualmente.';
+  'A atualização foi baixada, mas o instalador não conseguiu reiniciar o MIAR AI/FOOD automaticamente. Abra Configurações > Desktop e offline para tentar novamente ou baixe a atualização manualmente.';
 
 const markUpdateInstallFailed = (errorMessage = getUpdateInstallFailureMessage()) => {
   const state = getUpdateState();
@@ -1649,7 +1649,7 @@ ipcMain.handle('printer:test', async () => printHtml(`
     strong { display: block; font-size: 21px; margin-bottom: 8px; }
   </style></head><body>
     <main data-receipt-root>
-      <strong>HappyCash</strong>
+      <strong>MIAR AI/FOOD</strong>
       <div>Teste de impressao concluido</div>
       <div>${new Date().toLocaleString('pt-BR')}</div>
     </main>

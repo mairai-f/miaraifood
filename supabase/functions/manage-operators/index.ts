@@ -827,7 +827,7 @@ Deno.serve(async (request): Promise<Response> => {
     }
 
     if (requestedPermissionKeys.some(isEnterpriseOnlyPermissionKey)) {
-      return jsonResponse(request, { error: 'Permissoes de RH Enterprise e Portal nao fazem parte do cadastro de colaboradores do HappyCash.' }, 400);
+      return jsonResponse(request, { error: 'Permissoes de RH Enterprise e Portal nao fazem parte do cadastro de colaboradores do MIAR AI/FOOD.' }, 400);
     }
 
     if (commissionSettings.error) {
@@ -1010,7 +1010,7 @@ Deno.serve(async (request): Promise<Response> => {
     }
 
     if (requestedPermissionKeys.some(isEnterpriseOnlyPermissionKey)) {
-      return jsonResponse(request, { error: 'Permissoes de RH Enterprise e Portal nao fazem parte do cadastro de colaboradores do HappyCash.' }, 400);
+      return jsonResponse(request, { error: 'Permissoes de RH Enterprise e Portal nao fazem parte do cadastro de colaboradores do MIAR AI/FOOD.' }, 400);
     }
 
     if (commissionSettings?.error) {

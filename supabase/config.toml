@@ -5,14 +5,15 @@ enabled = false
 
 [auth]
 enabled = true
-site_url = "https://www.happycashsite.com.br"
+site_url = "https://miar-site.vercel.app"
 minimum_password_length = 6
 password_requirements = ""
 additional_redirect_urls = [
-  "https://www.happycashsite.com.br/**",
-  "https://app.happycashsite.com.br/**",
-  "https://food.happycashsite.com.br/**",
-  "https://agenda.happycashsite.com.br/**",
+  "https://miar-site.vercel.app/**",
+  "https://www.miaraifood.com.br/**",
+  "https://miaraifood.com.br/**",
+  "https://app.miaraifood.com.br/**",
+  "https://miar-ai-food-khaki.vercel.app/**",
   "http://localhost:8080/**",
   "http://localhost:8081/**",
   "http://localhost:8082/**",
@@ -40,66 +41,66 @@ host = "smtp.resend.com"
 port = 465
 user = "resend"
 pass = "env(RESEND_API_KEY)"
-admin_email = "no-reply@auth.happycashsite.com.br"
-sender_name = "HappyCash"
+admin_email = "no-reply@auth.miaraifood.com.br"
+sender_name = "MIAR AI/FOOD"
 
 [auth.email.template.invite]
-subject = "Convite para acessar o HappyCash"
+subject = "Convite para acessar o MIAR AI/FOOD"
 content_path = "./templates/invite.html"
 
 [auth.email.template.confirmation]
-subject = "Confirme sua conta HappyCash"
+subject = "Confirme sua conta MIAR AI/FOOD"
 content_path = "./templates/confirmation.html"
 
 [auth.email.template.recovery]
-subject = "Codigo de recuperacao HappyCash"
+subject = "Codigo de recuperacao MIAR AI/FOOD"
 content_path = "./templates/recovery.html"
 
 [auth.email.template.magic_link]
-subject = "Codigo de acesso HappyCash"
+subject = "Codigo de acesso MIAR AI/FOOD"
 content_path = "./templates/magic-link.html"
 
 [auth.email.template.email_change]
-subject = "Confirme a troca de e-mail HappyCash"
+subject = "Confirme a troca de e-mail MIAR AI/FOOD"
 content_path = "./templates/email-change.html"
 
 [auth.email.template.reauthentication]
-subject = "{{ .Token }} e seu codigo HappyCash"
+subject = "{{ .Token }} e seu codigo MIAR AI/FOOD"
 content_path = "./templates/reauthentication.html"
 
 [auth.email.notification.password_changed]
 enabled = true
-subject = "Senha alterada na sua conta HappyCash"
+subject = "Senha alterada na sua conta MIAR AI/FOOD"
 content_path = "./templates/password-changed.html"
 
 [auth.email.notification.email_changed]
 enabled = true
-subject = "E-mail alterado na sua conta HappyCash"
+subject = "E-mail alterado na sua conta MIAR AI/FOOD"
 content_path = "./templates/email-changed.html"
 
 [auth.email.notification.phone_changed]
 enabled = true
-subject = "Telefone alterado na sua conta HappyCash"
+subject = "Telefone alterado na sua conta MIAR AI/FOOD"
 content_path = "./templates/phone-changed.html"
 
 [auth.email.notification.mfa_factor_enrolled]
 enabled = true
-subject = "Novo metodo de verificacao no HappyCash"
+subject = "Novo metodo de verificacao no MIAR AI/FOOD"
 content_path = "./templates/mfa-factor-enrolled.html"
 
 [auth.email.notification.mfa_factor_unenrolled]
 enabled = true
-subject = "Metodo de verificacao removido no HappyCash"
+subject = "Metodo de verificacao removido no MIAR AI/FOOD"
 content_path = "./templates/mfa-factor-unenrolled.html"
 
 [auth.email.notification.identity_linked]
 enabled = true
-subject = "Novo metodo de login vinculado no HappyCash"
+subject = "Novo metodo de login vinculado no MIAR AI/FOOD"
 content_path = "./templates/identity-linked.html"
 
 [auth.email.notification.identity_unlinked]
 enabled = true
-subject = "Metodo de login removido no HappyCash"
+subject = "Metodo de login removido no MIAR AI/FOOD"
 content_path = "./templates/identity-unlinked.html"
 
 [auth.captcha]
@@ -111,11 +112,11 @@ secret = "env(SUPABASE_AUTH_CAPTCHA_SECRET)"
 enabled = true
 
 [auth.webauthn]
-rp_display_name = "HappyCash"
-rp_id = "happycashsite.com.br"
+rp_display_name = "MIAR AI/FOOD"
+rp_id = "miaraifood.com.br"
 rp_origins = [
-  "https://www.happycashsite.com.br",
-  "https://app.happycashsite.com.br",
+  "https://www.miaraifood.com.br",
+  "https://app.miaraifood.com.br",
 ]
 
 [auth.external.apple]

@@ -247,7 +247,7 @@ const validateDesktopFiscalAccess = async (
       ok: false,
       status: 403,
       code: license.code ?? 'PRO_DESKTOP_REQUIRED',
-      message: license.message || 'A NFC-e fica disponivel somente para lojas com Plano PRO ativo no HappyCash Desktop.',
+      message: license.message || 'A NFC-e fica disponivel somente para lojas com Plano PRO ativo no MIAR AI/FOOD Desktop.',
     };
   }
 
@@ -256,7 +256,7 @@ const validateDesktopFiscalAccess = async (
       ok: false,
       status: 403,
       code: 'PRO_DESKTOP_REQUIRED',
-      message: 'A NFC-e fica disponivel somente para lojas com Plano PRO ativo no HappyCash Desktop.',
+      message: 'A NFC-e fica disponivel somente para lojas com Plano PRO ativo no MIAR AI/FOOD Desktop.',
     };
   }
 
@@ -268,7 +268,7 @@ const validateDesktopFiscalAccess = async (
       ok: false,
       status: 403,
       code: 'DESKTOP_INSTALLATION_REQUIRED',
-      message: 'A NFC-e deve ser emitida por uma instalacao ativada do HappyCash Desktop PRO.',
+      message: 'A NFC-e deve ser emitida por uma instalacao ativada do MIAR AI/FOOD Desktop PRO.',
     };
   }
 
@@ -294,7 +294,7 @@ const validateDesktopFiscalAccess = async (
       ok: false,
       status: 403,
       code: 'DESKTOP_INSTALLATION_NOT_FOUND',
-      message: 'Esta maquina ainda nao esta ativada para emitir NFC-e pelo HappyCash Desktop PRO.',
+      message: 'Esta maquina ainda nao esta ativada para emitir NFC-e pelo MIAR AI/FOOD Desktop PRO.',
     };
   }
 
@@ -719,7 +719,7 @@ const buildNuvemFiscalIssuePayload = (
         indFinal: 1,
         indPres: 1,
         procEmi: 0,
-        verProc: 'HappyCash',
+        verProc: 'MIAR AI/FOOD',
       },
       emit: {
         CNPJ: digitsOnly(settings.issuer_cnpj),

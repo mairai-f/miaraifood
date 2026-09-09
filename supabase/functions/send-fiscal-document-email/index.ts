@@ -168,7 +168,7 @@ const buildItemsRows = (items: Record<string, unknown>[]) => {
 const buildFiscalDocumentEmail = (document: FiscalDocumentRow, timezone: string) => {
   const { issuer, customer, sale, items } = getFiscalParts(document);
   const total = toNumber(sale.total);
-  const tradeName = toOptionalText(issuer.tradeName) || toOptionalText(issuer.legalName) || 'HappyCash';
+  const tradeName = toOptionalText(issuer.tradeName) || toOptionalText(issuer.legalName) || 'MIAR AI/FOOD';
   const emittedAt = formatDateTime(document.emitted_at, timezone);
   const saleDate = formatDateTime(toOptionalText(sale.date), timezone);
   const statusLabel = fiscalStatusLabel(document.status);
@@ -233,7 +233,7 @@ const buildFiscalDocumentEmail = (document: FiscalDocumentRow, timezone: string)
         </div>
       ` : ''}
     `,
-    footerNote: 'Este e-mail foi enviado automaticamente pelo HappyCash.',
+    footerNote: 'Este e-mail foi enviado automaticamente pelo MIAR AI/FOOD.',
   });
 
   const text = [
@@ -255,7 +255,7 @@ const buildFiscalDocumentEmail = (document: FiscalDocumentRow, timezone: string)
 
 const buildDanfeAttachmentHtml = (document: FiscalDocumentRow, timezone: string) => {
   const { issuer, customer, sale, items, payload } = getFiscalParts(document);
-  const tradeName = toOptionalText(issuer.tradeName) || toOptionalText(issuer.legalName) || 'HappyCash';
+  const tradeName = toOptionalText(issuer.tradeName) || toOptionalText(issuer.legalName) || 'MIAR AI/FOOD';
   const addressParts = [
     issuer.addressStreet,
     issuer.addressNumber,
@@ -481,7 +481,7 @@ Deno.serve(async (request) => {
     const timezone = body?.timezone?.trim() || 'America/Sao_Paulo';
     const { html, text } = buildFiscalDocumentEmail(document, timezone);
     const danfeHtml = buildDanfeAttachmentHtml(document, timezone);
-    const subject = `NFC-e HappyCash ${document.number}/${document.series}`;
+    const subject = `NFC-e MIAR AI/FOOD ${document.number}/${document.series}`;
     const fromEmail = getHappyCashFromEmail('FISCAL_DOCUMENT_FROM_EMAIL');
 
     await sendHappyCashEmail({

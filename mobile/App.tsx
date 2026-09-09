@@ -4,9 +4,11 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
 
 const runtimeEnv = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env ?? {};
-const productShortLabel = 'HappyCash';
-const defaultPublicSystemUrl = 'https://app.happycashsite.com.br';
-const envConfiguredUrl = runtimeEnv.EXPO_PUBLIC_HAPPYCASH_WEB_URL?.trim() || '';
+const productShortLabel = 'MIAR AI/FOOD';
+const defaultPublicSystemUrl = 'https://app.miaraifood.com.br';
+const envConfiguredUrl = runtimeEnv.EXPO_PUBLIC_MIAR_WEB_URL?.trim()
+  || runtimeEnv.EXPO_PUBLIC_HAPPYCASH_WEB_URL?.trim()
+  || '';
 
 const isValidHttpUrl = (value: string) => {
   try {
@@ -331,7 +333,7 @@ export default function App() {
           )}
           renderError={() => (
             <View style={styles.errorContainer}>
-              <Text style={styles.errorTitle}>Nao foi possivel abrir o HappyCash.</Text>
+              <Text style={styles.errorTitle}>Nao foi possivel abrir o MIAR AI/FOOD.</Text>
               <Text style={styles.errorText}>
                 Conecte a internet para o primeiro acesso. Depois da validacao online, o modo offline local fica disponivel por 24 horas.
               </Text>

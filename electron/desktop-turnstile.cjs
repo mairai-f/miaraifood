@@ -12,7 +12,7 @@ const normalizeAction = (value) => {
 const buildChallengeUrl = ({ action, appOrigin, callbackUrl, state }) => {
   const url = new URL('/desktop-turnstile', appOrigin);
   if (url.protocol !== 'https:') {
-    throw new Error('A verificacao do Desktop exige o dominio HTTPS oficial do HappyCash.');
+    throw new Error('A verificacao do Desktop exige o dominio HTTPS oficial do MIAR AI/FOOD.');
   }
   url.searchParams.set('action', normalizeAction(action));
   url.searchParams.set('callback', callbackUrl);
@@ -28,12 +28,12 @@ const matchesState = (receivedState, expectedState) => {
 
 const responsePage = (kind) => {
   if (kind === 'success') {
-    return '<!doctype html><meta charset="utf-8"><title>HappyCash</title><body style="font-family:system-ui;background:#050505;color:#fff;text-align:center;padding:64px"><h1>Verificacao concluida</h1><p>Volte ao HappyCash. Esta aba ja pode ser fechada.</p></body>';
+    return '<!doctype html><meta charset="utf-8"><title>MIAR AI/FOOD</title><body style="font-family:system-ui;background:#050505;color:#fff;text-align:center;padding:64px"><h1>Verificacao concluida</h1><p>Volte ao MIAR AI/FOOD. Esta aba ja pode ser fechada.</p></body>';
   }
   if (kind === 'failure') {
-    return '<!doctype html><meta charset="utf-8"><title>HappyCash</title><body style="font-family:system-ui;background:#050505;color:#fff;text-align:center;padding:64px"><h1>Verificacao nao concluida</h1><p>Volte ao HappyCash e tente novamente.</p></body>';
+    return '<!doctype html><meta charset="utf-8"><title>MIAR AI/FOOD</title><body style="font-family:system-ui;background:#050505;color:#fff;text-align:center;padding:64px"><h1>Verificacao nao concluida</h1><p>Volte ao MIAR AI/FOOD e tente novamente.</p></body>';
   }
-  return '<!doctype html><meta charset="utf-8"><title>HappyCash</title><body style="font-family:system-ui;background:#050505;color:#fff;text-align:center;padding:64px"><h1>Retorno invalido</h1><p>Feche esta aba e tente novamente pelo HappyCash.</p></body>';
+  return '<!doctype html><meta charset="utf-8"><title>MIAR AI/FOOD</title><body style="font-family:system-ui;background:#050505;color:#fff;text-align:center;padding:64px"><h1>Retorno invalido</h1><p>Feche esta aba e tente novamente pelo MIAR AI/FOOD.</p></body>';
 };
 
 const requestDesktopTurnstileToken = ({
