@@ -207,6 +207,10 @@ const SITE_REGISTRATION_FUNCTION_MISSING_MESSAGE =
   "A funcao finalize-site-registration nao esta publicada ou acessivel neste projeto. Publique a function para abrir o dashboard.";
 const SITE_REGISTRATION_FETCH_MESSAGE =
   "Nao foi possivel conectar ao bootstrap da conta. Se o navegador mostrar CORS em localhost, confira se a function finalize-site-registration foi publicada no projeto.";
+const REGISTRATION_INCOMPLETE_MESSAGE = "Nenhum cadastro pendente foi encontrado para esta conta.";
+
+const isRegistrationIncompleteError = (error: unknown) =>
+  error instanceof Error && error.message.includes(REGISTRATION_INCOMPLETE_MESSAGE);
 
 const formatDateTime = (value?: string | null) => {
   if (!value) return "Sem data";
@@ -256,6 +260,7 @@ const Dashboard = () => {
   const [activatingCheckout, setActivatingCheckout] = useState<string | null>(null);
   const [loggingOut, setLoggingOut] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [registrationIncomplete, setRegistrationIncomplete] = useState(false);
   const [checkoutDialogOpen, setCheckoutDialogOpen] = useState(false);
   const [planCheckout, setPlanCheckout] = useState<PlanCheckoutState | null>(null);
   const [deleteAccountDialogOpen, setDeleteAccountDialogOpen] = useState(false);
@@ -445,6 +450,13 @@ const Dashboard = () => {
           router.push(`/login${querySuffix}`);
           return;
         }
+        if (isRegistrationIncompleteError(error)) {
+          setRegistrationIncomplete(true);
+          setLoadError(null);
+          setRefreshing(false);
+          setLoading(false);
+          return;
+        }
         setLoadError(error instanceof Error ? error.message : "Nao foi possivel preparar sua conta agora.");
         setRefreshing(false);
         setLoading(false);
@@ -482,6 +494,13 @@ const Dashboard = () => {
             router.push(`/login${querySuffix}`);
             return;
           }
+          if (isRegistrationIncompleteError(error)) {
+            setRegistrationIncomplete(true);
+            setLoadError(null);
+            setRefreshing(false);
+            setLoading(false);
+            return;
+          }
           setLoadError(error instanceof Error ? error.message : "Nao foi possivel preparar sua conta agora.");
           setRefreshing(false);
           setLoading(false);
@@ -504,6 +523,7 @@ const Dashboard = () => {
   const currentSubscription = compatibleSubscriptions.find(isCurrentSubscription) || compatibleSubscriptions[0] || null;
   const currentPlanId = currentSubscription?.plan_id || null;
   const currentPlanContent = currentPlanId ? publicPlanContent[currentPlanId] : null;
+  const trialLabel = registrationIncomplete ? "Trial de 30 dias reservado" : null;
   const countdown = getSubscriptionCountdown(currentSubscription);
   const currentDeadline = getSubscriptionEndAt(currentSubscription);
   const isCurrentProPlan = currentPlanId === "pro" && isCurrentSubscription(currentSubscription);
@@ -1102,18 +1122,27 @@ const Dashboard = () => {
             <div>
               <h1 className="font-heading text-2xl font-bold sm:text-3xl">Central da conta MIAR AI/FOOD</h1>
               <p className="text-sm text-muted-foreground">
-                A mesma conta serve no site e no MIAR AI/FOOD. Demo com 3 dias e planos pagos com ciclo de 30 dias.
+                A mesma conta serve no site e no MIAR AI/FOOD. Todo novo estabelecimento recebe 30 dias completos de trial.
               </p>
             </div>
           </div>
 
           <div className="flex flex-wrap gap-3">
-            <Button asChild className="gap-2">
-              <a href={activeSystemUrl} target="_blank" rel="noreferrer">
-                <ExternalLink className="h-4 w-4" />
-                {activeSystemLabel}
-              </a>
-            </Button>
+            {registrationIncomplete ? (
+              <Button asChild className="gap-2">
+                <Link href="/cadastro?resume=1">
+                  <Sparkles className="h-4 w-4" />
+                  Concluir dados do trial
+                </Link>
+              </Button>
+            ) : (
+              <Button asChild className="gap-2">
+                <a href={activeSystemUrl} target="_blank" rel="noreferrer">
+                  <ExternalLink className="h-4 w-4" />
+                  {activeSystemLabel}
+                </a>
+              </Button>
+            )}
             <Button asChild variant="outline" className="gap-2">
               <Link href="/">
                 <ArrowLeft className="h-4 w-4" />
@@ -1133,20 +1162,35 @@ const Dashboard = () => {
             <AlertTitle>{publicPlanContent[selectedPlanId].name} selecionado</AlertTitle>
             <AlertDescription>
               {selectedPlanId === "demo"
-                ? "Sua demo de 3 dias ja comeca no cadastro."
+                ? "Seu trial de 30 dias começa após a conclusão do cadastro da empresa."
                 : "Esse plano fica liberado por 30 dias. Escolha Pix ou debito / credito logo abaixo."}
             </AlertDescription>
           </Alert>
         )}
 
-        {loadError && (
+        {registrationIncomplete && (
+          <Alert className="border-primary/40 bg-primary/5">
+            <Sparkles className="h-4 w-4" />
+            <AlertTitle>Seu trial de 30 dias está reservado</AlertTitle>
+            <AlertDescription className="space-y-3">
+              <p>
+                Seu login já está confirmado. Conclua os dados da empresa para vinculá-lo ao estabelecimento e iniciar o trial.
+              </p>
+              <Button asChild size="sm">
+                <Link href="/cadastro?resume=1">Concluir dados da empresa</Link>
+              </Button>
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {loadError && !registrationIncomplete && (
           <Alert variant="destructive">
             <AlertTitle>Falha ao carregar sua conta</AlertTitle>
             <AlertDescription>{loadError}</AlertDescription>
           </Alert>
         )}
 
-        {!billingCustomer?.provider_customer_id && (
+        {!registrationIncomplete && !billingCustomer?.provider_customer_id && (
           <Alert className="border-secondary/40 bg-secondary/10">
             <ShieldCheck className="h-4 w-4" />
             <AlertTitle>Cliente de cobranca sera criado na primeira cobranca</AlertTitle>
@@ -1193,8 +1237,8 @@ const Dashboard = () => {
             <Card className="rounded-3xl border-border/70">
               <CardHeader className="space-y-4">
                 <div className="flex flex-wrap items-center gap-3">
-                  <Badge variant={countdown.badgeVariant}>
-                    {getSubscriptionStatusLabel(currentSubscription)}
+                  <Badge variant={registrationIncomplete ? "secondary" : countdown.badgeVariant}>
+                    {trialLabel || getSubscriptionStatusLabel(currentSubscription)}
                   </Badge>
                   {currentPlanContent && (
                     <Badge variant="outline">
@@ -1203,9 +1247,13 @@ const Dashboard = () => {
                   )}
                 </div>
                 <div>
-                  <CardTitle className="text-2xl">Sua conta esta pronta</CardTitle>
+                  <CardTitle className="text-2xl">
+                    {registrationIncomplete ? "Finalize seu acesso MIAR" : "Sua conta esta pronta"}
+                  </CardTitle>
                   <CardDescription className="mt-2 text-sm">
-                    {storeAccount?.nome_estabelecimento || "Estabelecimento"} com acesso pelo email {user.email || storeAccount?.email || "sem email"}.
+                    {registrationIncomplete
+                      ? `O trial será ativado para ${user.email || "este e-mail"} assim que os dados da empresa forem concluídos.`
+                      : `${storeAccount?.nome_estabelecimento || "Estabelecimento"} com acesso pelo email ${user.email || storeAccount?.email || "sem email"}.`}
                   </CardDescription>
                 </div>
               </CardHeader>
@@ -1213,17 +1261,19 @@ const Dashboard = () => {
                 <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
                   <div className="rounded-2xl border border-border bg-background/70 p-4">
                     <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Responsavel</p>
-                    <p className="mt-2 font-semibold">{storeAccount?.nome_cliente || "Nao informado"}</p>
+                    <p className="mt-2 font-semibold">{storeAccount?.nome_cliente || (registrationIncomplete ? "Dados pendentes" : "Nao informado")}</p>
                   </div>
                   <div className="rounded-2xl border border-border bg-background/70 p-4">
                     <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Plano atual</p>
-                    <p className="mt-2 font-semibold">{currentPlanContent?.name || "Sem plano ativo"}</p>
+                    <p className="mt-2 font-semibold">{trialLabel || currentPlanContent?.name || "Sem plano ativo"}</p>
                   </div>
                   <div className="rounded-2xl border border-border bg-background/70 p-4">
                     <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Validade</p>
                     <p className="mt-2 font-semibold">
-                      {currentSubscription?.status === "trialing"
-                        ? "3 dias"
+                      {registrationIncomplete
+                        ? "Aguardando conclusão"
+                        : currentSubscription?.status === "trialing"
+                        ? "30 dias"
                         : currentPlanContent?.id
                         ? "30 dias"
                         : "Sem ciclo"}
@@ -1234,18 +1284,22 @@ const Dashboard = () => {
                 <div className="rounded-2xl border border-primary/20 bg-primary/5 p-5">
                   <div className="flex flex-wrap items-center gap-2 text-sm font-medium text-primary">
                     <Clock3 className="h-4 w-4" />
-                    {currentDeadline
+                    {registrationIncomplete
+                      ? "Complete os dados para iniciar a contagem"
+                      : currentDeadline
                       ? `Valido ate ${formatDateTime(currentDeadline)}`
                       : "Sem vencimento definido"}
-                    {countdown.markerLabel && (
+                    {!registrationIncomplete && countdown.markerLabel && (
                       <Badge variant={countdown.badgeVariant}>{countdown.markerLabel}</Badge>
                     )}
                   </div>
-                  {countdown.remainingLabel && (
+                  {!registrationIncomplete && countdown.remainingLabel && (
                     <p className="mt-2 text-sm text-muted-foreground">{countdown.remainingLabel}</p>
                   )}
                   <p className="mt-3 text-sm text-muted-foreground">
-                    {currentPlanContent?.summary || "Escolha um plano abaixo para liberar seu acesso."}
+                    {registrationIncomplete
+                      ? "Isso não cria outro usuário: apenas vincula seu login confirmado à empresa e inicia o trial de 30 dias."
+                      : currentPlanContent?.summary || "Escolha um plano abaixo para liberar seu acesso."}
                   </p>
                 </div>
 
@@ -1673,4 +1727,3 @@ export default function DashboardPage() {
     </Suspense>
   )
 }
-
