@@ -19,6 +19,8 @@ type Conversation = {
   name: string;
   kind: "direct" | "group";
   updated_at: string;
+  photo_url?: string | null;
+  archived_at?: string | null;
   peer_name?: string | null;
   peer_role_label?: string | null;
   peer_photo_url?: string | null;
@@ -45,7 +47,15 @@ type Dialog =
   | { kind: "edit-message"; message: Message }
   | { kind: "delete-message"; message: Message }
   | { kind: "rename-group"; conversation: Conversation }
-  | { kind: "delete-conversation"; conversation: Conversation };
+  | { kind: "delete-conversation"; conversation: Conversation }
+  | { kind: "group-members"; conversation: Conversation }
+  | { kind: "group-audit"; conversation: Conversation };
+type AuditEntry = {
+  id: string;
+  action: string;
+  created_at: string;
+  actor_name: string | null;
+};
 
 export default function InternalChat() {
   const { user, ownerUserId, isAdmin } = useAuth();
@@ -63,7 +73,10 @@ export default function InternalChat() {
   const [members, setMembers] = useState<string[]>([]);
   const [dialog, setDialog] = useState<Dialog | null>(null);
   const [dialogValue, setDialogValue] = useState("");
+  const [groupMembers, setGroupMembers] = useState<string[]>([]);
+  const [audit, setAudit] = useState<AuditEntry[]>([]);
   const avatarInputRef = useRef<HTMLInputElement>(null);
+  const groupPhotoInputRef = useRef<HTMLInputElement>(null);
   const owner = ownerUserId === user?.id;
   const can = (key: string) => isAdmin || owner || hasPermission(key);
   const uploadMyAvatar = async (file?: File) => {
@@ -95,6 +108,96 @@ export default function InternalChat() {
       setMenu(false);
       void load();
     }
+  };
+  const uploadGroupPhoto = async (file?: File) => {
+    if (!file || !current || current.kind !== "group") return;
+    if (!file.type.startsWith("image/") || file.size > 5 * 1024 * 1024) {
+      setError("Escolha uma imagem de até 5 MB.");
+      return;
+    }
+    if (!user) return;
+    const extension = file.name.split(".").pop() || "jpg";
+    const path = `${user.id}/grupo-${current.id}-${Date.now()}.${extension}`;
+    const { error: uploadError } = await supabase.storage
+      .from("internal-chat-media")
+      .upload(path, file, { upsert: false });
+    if (uploadError) {
+      setError(uploadError.message);
+      return;
+    }
+    const { data } = supabase.storage
+      .from("internal-chat-media")
+      .getPublicUrl(path);
+    const { error: groupError } = await supabase.rpc(
+      "update_internal_chat_group",
+      {
+        p_conversation_id: current.id,
+        p_name: null,
+        p_photo_url: data.publicUrl,
+        p_clear_photo: false,
+      },
+    );
+    if (groupError) setError(groupError.message);
+    else {
+      setMenu(false);
+      void load();
+    }
+  };
+  const clearGroupPhoto = async (conversation: Conversation) => {
+    setMenu(false);
+    const { error: groupError } = await supabase.rpc(
+      "update_internal_chat_group",
+      {
+        p_conversation_id: conversation.id,
+        p_name: null,
+        p_photo_url: null,
+        p_clear_photo: true,
+      },
+    );
+    if (groupError) setError(groupError.message);
+    else void load();
+  };
+  const toggleArchive = async (conversation: Conversation) => {
+    setMenu(false);
+    const { error: archiveError } = await supabase.rpc(
+      "archive_internal_chat_group",
+      {
+        p_conversation_id: conversation.id,
+        p_archive: !conversation.archived_at,
+      },
+    );
+    if (archiveError) setError(archiveError.message);
+    else void load();
+  };
+  const openGroupMembers = async (conversation: Conversation) => {
+    setMenu(false);
+    const { data, error: membersError } = await supabase.rpc(
+      "list_internal_chat_group_members",
+      { p_conversation_id: conversation.id },
+    );
+    if (membersError) {
+      setError(membersError.message);
+      return;
+    }
+    setGroupMembers(
+      ((data || []) as { user_id: string }[])
+        .map((member) => member.user_id)
+        .filter((id) => id !== ownerUserId),
+    );
+    setDialog({ kind: "group-members", conversation });
+  };
+  const openAudit = async (conversation: Conversation) => {
+    setMenu(false);
+    const { data, error: auditError } = await supabase.rpc(
+      "list_internal_chat_audit",
+      { p_conversation_id: conversation.id },
+    );
+    if (auditError) {
+      setError(auditError.message);
+      return;
+    }
+    setAudit((data || []) as AuditEntry[]);
+    setDialog({ kind: "group-audit", conversation });
   };
   const load = useCallback(async () => {
     if (!user) return;
@@ -326,6 +429,16 @@ export default function InternalChat() {
       else void load();
       return;
     }
+    if (dialog.kind === "group-audit") return;
+    if (dialog.kind === "group-members") {
+      const { error } = await supabase.rpc("set_internal_chat_group_members", {
+        p_conversation_id: dialog.conversation.id,
+        p_member_ids: groupMembers,
+      });
+      if (error) setError(error.message);
+      else void load();
+      return;
+    }
     const { error } = await supabase.rpc("delete_internal_chat_conversation", {
       p_conversation_id: dialog.conversation.id,
     });
@@ -384,10 +497,13 @@ export default function InternalChat() {
                 className={`flex w-full items-center gap-3 border-b p-3 text-left ${selected === c.id ? "bg-muted" : ""}`}
                 onClick={() => setSelected(c.id)}
               >
-                {c.kind === "direct" && c.peer_photo_url ? (
+                {(c.kind === "direct" ? c.peer_photo_url : c.photo_url) ? (
                   <img
                     className="h-9 w-9 rounded-full object-cover"
-                    src={c.peer_photo_url}
+                    src={
+                      (c.kind === "direct" ? c.peer_photo_url : c.photo_url) ??
+                      undefined
+                    }
                     alt=""
                   />
                 ) : (
@@ -402,7 +518,9 @@ export default function InternalChat() {
                   <small className="text-muted-foreground">
                     {c.kind === "direct"
                       ? c.peer_role_label || "Conversa direta"
-                      : "Grupo da equipe"}
+                      : c.archived_at
+                        ? "Grupo arquivado"
+                        : "Grupo da equipe"}
                   </small>
                 </span>
                 {c.unread ? (
@@ -458,10 +576,17 @@ export default function InternalChat() {
       <main className="flex min-w-0 flex-1 flex-col">
         <header className="relative flex items-center justify-between border-b p-4">
           <div className="flex items-center gap-3">
-            {current?.kind === "direct" && current.peer_photo_url ? (
+            {current &&
+            (current.kind === "direct"
+              ? current.peer_photo_url
+              : current.photo_url) ? (
               <img
                 className="h-10 w-10 rounded-full object-cover"
-                src={current.peer_photo_url}
+                src={
+                  (current.kind === "direct"
+                    ? current.peer_photo_url
+                    : current.photo_url) ?? undefined
+                }
                 alt=""
               />
             ) : current ? (
@@ -480,7 +605,9 @@ export default function InternalChat() {
               <p className="text-xs text-muted-foreground">
                 {current?.kind === "direct"
                   ? current.peer_role_label || "Conversa direta"
-                  : "Mensagens protegidas pelas permissões da equipe"}
+                  : current?.archived_at
+                    ? "Grupo arquivado"
+                    : "Mensagens protegidas pelas permissões da equipe"}
               </p>
             </div>
           </div>
@@ -499,6 +626,16 @@ export default function InternalChat() {
             className="hidden"
             onChange={(event) => {
               void uploadMyAvatar(event.target.files?.[0]);
+              event.currentTarget.value = "";
+            }}
+          />
+          <input
+            ref={groupPhotoInputRef}
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            className="hidden"
+            onChange={(event) => {
+              void uploadGroupPhoto(event.target.files?.[0]);
               event.currentTarget.value = "";
             }}
           />
@@ -526,10 +663,10 @@ export default function InternalChat() {
             </div>
           )}
           {menu && current && (
-            <div className="absolute right-3 top-14 z-20 w-48 rounded border bg-card p-1 shadow">
+            <div className="absolute right-3 top-14 z-20 w-56 rounded border bg-card p-1 shadow">
               {current.kind === "group" && can("chat.group.edit") && (
                 <button
-                  className="w-full p-2 text-left"
+                  className="w-full rounded p-2 text-left hover:bg-muted"
                   onClick={() =>
                     openDialog({ kind: "rename-group", conversation: current })
                   }
@@ -537,9 +674,51 @@ export default function InternalChat() {
                   Alterar nome
                 </button>
               )}
+              {current.kind === "group" && can("chat.group.members.manage") && (
+                <button
+                  className="w-full rounded p-2 text-left hover:bg-muted"
+                  onClick={() => void openGroupMembers(current)}
+                >
+                  Participantes
+                </button>
+              )}
+              {current.kind === "group" && can("chat.group.photo.edit") && (
+                <button
+                  className="w-full rounded p-2 text-left hover:bg-muted"
+                  onClick={() => groupPhotoInputRef.current?.click()}
+                >
+                  Alterar foto do grupo
+                </button>
+              )}
+              {current.kind === "group" &&
+                can("chat.group.photo.edit") &&
+                current.photo_url && (
+                  <button
+                    className="w-full rounded p-2 text-left hover:bg-muted"
+                    onClick={() => void clearGroupPhoto(current)}
+                  >
+                    Remover foto do grupo
+                  </button>
+                )}
+              {current.kind === "group" && can("chat.group.archive") && (
+                <button
+                  className="w-full rounded p-2 text-left hover:bg-muted"
+                  onClick={() => void toggleArchive(current)}
+                >
+                  {current.archived_at ? "Restaurar grupo" : "Arquivar grupo"}
+                </button>
+              )}
+              {can("chat.audit.view") && (
+                <button
+                  className="w-full rounded p-2 text-left hover:bg-muted"
+                  onClick={() => void openAudit(current)}
+                >
+                  Ver auditoria
+                </button>
+              )}
               {owner && (
                 <button
-                  className="w-full p-2 text-left text-destructive"
+                  className="w-full rounded p-2 text-left text-destructive hover:bg-muted"
                   onClick={() =>
                     openDialog({
                       kind: "delete-conversation",
@@ -627,7 +806,11 @@ export default function InternalChat() {
                   ? "Remover mensagem"
                   : dialog.kind === "rename-group"
                     ? "Alterar nome do grupo"
-                    : "Excluir conversa"}
+                    : dialog.kind === "group-members"
+                      ? "Participantes do grupo"
+                      : dialog.kind === "group-audit"
+                        ? "Auditoria da conversa"
+                        : "Excluir conversa"}
             </h3>
             {dialog.kind === "edit-message" || dialog.kind === "rename-group" ? (
               <input
@@ -639,6 +822,44 @@ export default function InternalChat() {
                   if (e.key === "Enter") void confirmDialog();
                 }}
               />
+            ) : dialog.kind === "group-members" ? (
+              <div className="my-4 max-h-72 overflow-y-auto">
+                {profiles
+                  .filter((p) => p.user_id !== user?.id)
+                  .map((p) => (
+                    <label key={p.user_id} className="block p-2">
+                      <input
+                        type="checkbox"
+                        checked={groupMembers.includes(p.user_id)}
+                        onChange={() =>
+                          setGroupMembers((ids) =>
+                            ids.includes(p.user_id)
+                              ? ids.filter((id) => id !== p.user_id)
+                              : [...ids, p.user_id],
+                          )
+                        }
+                      />{" "}
+                      {p.username || "Colaborador"}
+                    </label>
+                  ))}
+              </div>
+            ) : dialog.kind === "group-audit" ? (
+              <div className="my-4 max-h-72 overflow-y-auto text-sm">
+                {audit.length === 0 && (
+                  <p className="text-muted-foreground">
+                    Nenhum registro de auditoria para esta conversa.
+                  </p>
+                )}
+                {audit.map((entry) => (
+                  <div key={entry.id} className="border-b py-2 last:border-b-0">
+                    <strong className="block">{entry.action}</strong>
+                    <small className="text-muted-foreground">
+                      {entry.actor_name || "Sistema"} ·{" "}
+                      {new Date(entry.created_at).toLocaleString("pt-BR")}
+                    </small>
+                  </div>
+                ))}
+              </div>
             ) : (
               <p className="my-4 text-sm text-muted-foreground">
                 {dialog.kind === "delete-message"
@@ -647,27 +868,31 @@ export default function InternalChat() {
               </p>
             )}
             <div className="mt-4 flex justify-end gap-2">
-              <button onClick={() => setDialog(null)}>Cancelar</button>
-              <button
-                disabled={
-                  (dialog.kind === "edit-message" ||
-                    dialog.kind === "rename-group") &&
-                  !dialogValue.trim()
-                }
-                className={`rounded px-3 py-2 ${
-                  dialog.kind === "delete-message" ||
-                  dialog.kind === "delete-conversation"
-                    ? "bg-destructive text-white"
-                    : "bg-primary text-primary-foreground"
-                }`}
-                onClick={() => void confirmDialog()}
-              >
-                {dialog.kind === "delete-message"
-                  ? "Remover"
-                  : dialog.kind === "delete-conversation"
-                    ? "Excluir"
-                    : "Salvar"}
+              <button onClick={() => setDialog(null)}>
+                {dialog.kind === "group-audit" ? "Fechar" : "Cancelar"}
               </button>
+              {dialog.kind !== "group-audit" && (
+                <button
+                  disabled={
+                    (dialog.kind === "edit-message" ||
+                      dialog.kind === "rename-group") &&
+                    !dialogValue.trim()
+                  }
+                  className={`rounded px-3 py-2 ${
+                    dialog.kind === "delete-message" ||
+                    dialog.kind === "delete-conversation"
+                      ? "bg-destructive text-white"
+                      : "bg-primary text-primary-foreground"
+                  }`}
+                  onClick={() => void confirmDialog()}
+                >
+                  {dialog.kind === "delete-message"
+                    ? "Remover"
+                    : dialog.kind === "delete-conversation"
+                      ? "Excluir"
+                      : "Salvar"}
+                </button>
+              )}
             </div>
           </div>
         </div>
