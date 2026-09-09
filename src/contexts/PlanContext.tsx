@@ -135,11 +135,21 @@ export function PlanProvider({ children }: { children: ReactNode }) {
       return true;
     };
 
-    const { data: currentPlanId, error: planError } = await settleSupabaseQuery(
+    let { data: currentPlanId, error: planError } = await settleSupabaseQuery(
       db.rpc('get_current_store_plan_id'),
       null,
     );
     if (!isCurrentRequest()) return;
+
+    // Auto-reparo do cadastro: se a loja foi criada pelo Site mas a assinatura
+    // ainda não apareceu na primeira consulta, o banco cria o trial único e
+    // devolve o plano antes de bloquear a tela.
+    if (!planError && !currentPlanId) {
+      const repaired = await settleSupabaseQuery(db.rpc('ensure_current_owner_trial'), null);
+      if (!isCurrentRequest()) return;
+      currentPlanId = repaired.data;
+      planError = repaired.error;
+    }
 
     if (planError || !currentPlanId) {
       if (applyCachedPlanAccess(planError)) return;
