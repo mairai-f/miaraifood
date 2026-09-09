@@ -26,6 +26,16 @@ const escapeHtml = (value: string) => value.replace(/[&<>'"]/g, (character) => (
   '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;',
 })[character] ?? character);
 
+// method e provider sao campos distintos no banco: method alimenta o CHECK de
+// store_payment_transactions, provider aponta para o provedor habilitado.
+// Dinheiro nao tem provedor -- e recebido na mao.
+const PAYMENT_OPTIONS = {
+  pix: { label: 'Pix', method: 'pix', provider: 'pix_manual' },
+  card: { label: 'Cartão', method: 'credit_card', provider: 'mercado_pago' },
+  cash: { label: 'Dinheiro', method: 'cash', provider: null },
+} as const;
+type PaymentOptionId = keyof typeof PAYMENT_OPTIONS;
+
 export default function FoodTables() {
   const { scope, loading: scopeLoading } = useOperationalScope();
   const { hasPermission } = usePermissions();
@@ -40,10 +50,10 @@ export default function FoodTables() {
   const [consumption, setConsumption] = useState<Array<{ id: string; product_name: string; quantity: number; unit_price: number; line_total: number }>>([]);
   const [tableOrders, setTableOrders] = useState<Array<{ id: string; status: string; created_at: string }>>([]);
   const [paymentCalls, setPaymentCalls] = useState<any[]>([]);
-  const [paymentParts, setPaymentParts] = useState<Array<{ method: string; provider: string; amount: number }>>([]);
+  const [paymentParts, setPaymentParts] = useState<Array<{ method: string; provider: string | null; amount: number; label?: string }>>([]);
   const [paymentConfirmed, setPaymentConfirmed] = useState(false);
   const [confirmedPaid, setConfirmedPaid] = useState(0);
-  const [paymentMethod, setPaymentMethod] = useState('pix');
+  const [paymentMethod, setPaymentMethod] = useState<PaymentOptionId>('pix');
   const [paymentAmount, setPaymentAmount] = useState('');
   const [splitting, setSplitting] = useState(false);
   const [qrDataUrl, setQrDataUrl] = useState('');
@@ -205,16 +215,21 @@ export default function FoodTables() {
   const closeTable = async () => {
     if (!selectedTable?.activeSession || !hasPermission('food.tables.close')) return;
     try { await closeFoodTableSession(selectedTable.activeSession.id); toast.success('Mesa fechada com sucesso.'); setSelectedTable(null); await refresh(); }
-    catch { toast.error('Não foi possível fechar a mesa. Verifique o pagamento e suas permissões.'); }
+    catch (error) {
+      const reason = error instanceof Error ? error.message : String(error ?? '');
+      if (reason.includes('payment_pending')) toast.error('Ainda há pagamento aguardando confirmação do provedor.');
+      else toast.error('Não foi possível fechar a mesa. Verifique o pagamento e suas permissões.');
+    }
   };
   const money = (value: number) => value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
   const paymentTotal = consumption.reduce((sum, item) => sum + item.line_total, 0);
   const paidParts = paymentParts.reduce((sum, part) => sum + part.amount, 0);
   const paymentRemaining = Math.max(0, paymentTotal - paidParts);
   const buildPaymentPart = (amount: number) => ({
-    method: paymentMethod,
-    provider: paymentMethod === 'pix' ? 'pix_manual' : paymentMethod,
+    method: PAYMENT_OPTIONS[paymentMethod].method,
+    provider: PAYMENT_OPTIONS[paymentMethod].provider,
     amount,
+    label: PAYMENT_OPTIONS[paymentMethod].label,
   });
   // O caixa digita em pt-BR: "18,00" precisa valer 18. Number() devolveria NaN.
   const readPaymentAmount = () => parseDecimalInput(paymentAmount, Number.NaN);
@@ -238,7 +253,8 @@ export default function FoodTables() {
     if (plan.status === 'short') { toast.error(`Faltam ${money(plan.missing)} para fechar a conta.`); return; }
     const parts = Number.isFinite(pending) && pending > 0 ? [...paymentParts, buildPaymentPart(pending)] : paymentParts;
     const paid = plan.confirmedTotal;
-    const { error } = await (supabase as any).rpc('create_split_payment_group', { p_order_id: selectedTable.activeSession.id, p_parts: parts });
+    const payload = parts.map(({ method, provider, amount }) => ({ method, provider, amount }));
+    const { error } = await (supabase as any).rpc('create_split_payment_group', { p_order_id: selectedTable.activeSession.id, p_parts: payload });
     if (error) { toast.error(error.message); return; }
     toast.success('Todos os pagamentos foram registrados.');
     setPaymentParts([]);
@@ -370,7 +386,7 @@ export default function FoodTables() {
                 <div className="rounded-lg border p-3"><p className="mb-2 text-sm font-semibold">Consumo da mesa</p>{groupedConsumption.length === 0 ? <p className="text-sm text-muted-foreground">Nenhum item lançado.</p> : <div className={`space-y-2 ${groupedConsumption.length > 4 ? 'max-h-48 overflow-y-auto pr-1' : ''}`}>{groupedConsumption.map((item) => <div key={item.id} className="flex items-center justify-between text-sm"><span>{item.quantity}x {item.product_name}</span><strong>{item.line_total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</strong></div>)}</div>}</div>
                 <div className="rounded-lg border p-3"><p className="mb-2 flex items-center gap-2 text-sm font-semibold"><ChefHat className="h-4 w-4 text-primary" />Pedidos da mesa</p>{tableOrders.length === 0 ? <p className="text-sm text-muted-foreground">Nenhum pedido enviado à cozinha.</p> : <div className="space-y-2">{tableOrders.map((order, index) => { const label: Record<string, string> = { submitted: 'Enviado à cozinha', preparing: 'Em preparo', ready: 'Pronto para servir', delivered: 'Entregue', cancelled: 'Cancelado' }; return <div key={order.id} className="flex items-center justify-between gap-3 text-sm"><span>Pedido {tableOrders.length - index}</span><span className="rounded-full bg-muted px-2 py-1 text-xs font-medium">{label[order.status] || order.status}</span></div>; })}</div>}</div>
                 <div className="flex items-center justify-between rounded-lg bg-primary/10 p-3"><span className="font-semibold">Total da mesa</span><strong className="text-lg text-primary">{consumption.reduce((sum, item) => sum + item.line_total, 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</strong></div>
-                <div className="space-y-2 rounded-lg border p-3"><p className="text-sm font-semibold">Pagamentos</p>{confirmedPaid >= paymentTotal - 0.01 ? <p className="text-sm font-medium text-primary">Pagamento confirmado pelo provedor</p> : <><div className="flex gap-2"><select className="rounded border bg-background px-2 text-sm" value={paymentMethod} onChange={e=>setPaymentMethod(e.target.value)}><option value="pix">Pix</option><option value="mercado_pago">Cartão</option><option value="cash">Dinheiro</option></select><Input type="text" inputMode="decimal" placeholder="Valor" value={paymentAmount} onChange={e=>setPaymentAmount(e.target.value)} /><Button type="button" variant="outline" onClick={addPaymentPart}>Adicionar</Button></div>{paymentParts.map((part,i)=><div key={i} className="flex items-center justify-between text-sm"><span>{part.method}</span><span className="flex items-center gap-2"><strong>{money(part.amount)}</strong><button type="button" className="text-muted-foreground hover:text-destructive" aria-label={`Remover pagamento de ${money(part.amount)}`} onClick={()=>removePaymentPart(i)}><X className="h-3.5 w-3.5" /></button></span></div>)}{paymentParts.length>0&&<div className="flex justify-between border-t pt-2 text-sm"><span>Saldo restante</span><strong>{money(paymentRemaining)}</strong></div>}<Button type="button" className="w-full" disabled={!paymentParts.length} onClick={() => void confirmSplitPayment()}>Confirmar pagamentos</Button></>}</div>
+                <div className="space-y-2 rounded-lg border p-3"><p className="text-sm font-semibold">Pagamentos</p>{confirmedPaid >= paymentTotal - 0.01 ? <p className="text-sm font-medium text-primary">Pagamento confirmado pelo provedor</p> : <><div className="flex gap-2"><select className="rounded border bg-background px-2 text-sm" value={paymentMethod} onChange={e=>setPaymentMethod(e.target.value as PaymentOptionId)}>{Object.entries(PAYMENT_OPTIONS).map(([id,option])=><option key={id} value={id}>{option.label}</option>)}</select><Input type="text" inputMode="decimal" placeholder="Valor" value={paymentAmount} onChange={e=>setPaymentAmount(e.target.value)} /><Button type="button" variant="outline" onClick={addPaymentPart}>Adicionar</Button></div>{paymentParts.map((part,i)=><div key={i} className="flex items-center justify-between text-sm"><span>{part.label ?? part.method}</span><span className="flex items-center gap-2"><strong>{money(part.amount)}</strong><button type="button" className="text-muted-foreground hover:text-destructive" aria-label={`Remover pagamento de ${money(part.amount)}`} onClick={()=>removePaymentPart(i)}><X className="h-3.5 w-3.5" /></button></span></div>)}{paymentParts.length>0&&<div className="flex justify-between border-t pt-2 text-sm"><span>Saldo restante</span><strong>{money(paymentRemaining)}</strong></div>}<Button type="button" className="w-full" disabled={!paymentParts.length} onClick={() => void confirmSplitPayment()}>Confirmar pagamentos</Button></>}</div>
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
                   <label className="grid flex-1 gap-1 text-sm font-medium">
                     Pessoas na conta
