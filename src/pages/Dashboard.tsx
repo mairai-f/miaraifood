@@ -1,3 +1,4 @@
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -17,18 +18,63 @@ import {
   Bike,
   Sparkles,
 } from 'lucide-react';
+import { useData } from '@/contexts/DataContext';
+import { useOperationalScope } from '@/contexts/useOperationalScope';
+import { useKdsOrders } from '@/features/kds/hooks/useKdsOrders';
+import { supabase } from '@/integrations/supabase/client';
 
 const container = { hidden: {}, show: { transition: { staggerChildren: 0.08 } } };
 const item = { hidden: { opacity: 0, y: 15 }, show: { opacity: 1, y: 0 } };
 
 export default function Dashboard() {
   const navigate = useNavigate();
+  const { sales } = useData();
+  const { scope } = useOperationalScope();
+  const { orders: kdsOrders } = useKdsOrders(scope?.location.id);
+  const [tableSummary, setTableSummary] = useState({ total: 0, occupied: 0 });
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadTables = async () => {
+      if (!scope?.location.id) {
+        setTableSummary({ total: 0, occupied: 0 });
+        return;
+      }
+      const db = supabase as any;
+      const { data: tables, error } = await db.from('food_tables').select('id').eq('location_id', scope.location.id).eq('active', true);
+      if (error || cancelled) return;
+      const tableIds = (tables ?? []).map((table: { id: string }) => table.id);
+      const { data: sessions } = tableIds.length
+        ? await db.from('food_table_sessions').select('table_id').in('table_id', tableIds).in('status', ['open', 'awaiting_payment'])
+        : { data: [] };
+      if (!cancelled) setTableSummary({ total: tableIds.length, occupied: new Set((sessions ?? []).map((session: { table_id: string }) => session.table_id)).size });
+    };
+    void loadTables();
+    return () => { cancelled = true; };
+  }, [scope?.location.id]);
+
+  const todayStart = useMemo(() => { const date = new Date(); date.setHours(0, 0, 0, 0); return date.getTime(); }, []);
+  const todayOrders = useMemo(() => kdsOrders.filter(order => new Date(order.createdAt).getTime() >= todayStart), [kdsOrders, todayStart]);
+  const todaySales = useMemo(() => sales.filter(sale => !['cancelled', 'canceled'].includes(String(sale.status ?? '').toLowerCase()) && new Date(sale.date).getTime() >= todayStart), [sales, todayStart]);
+  const queueOrders = useMemo(() => kdsOrders.filter(order => ['submitted', 'preparing'].includes(order.status)), [kdsOrders]);
+  const delayedOrders = useMemo(() => queueOrders.filter(order => Date.now() - new Date(order.createdAt).getTime() > 30 * 60_000), [queueOrders]);
+  const liveOrders = useMemo(() => [...kdsOrders].filter(order => !['closed', 'cancelled', 'delivered'].includes(order.status)).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).slice(0, 4).map(order => ({
+    id: `#${order.id.slice(0, 8).toUpperCase()}`,
+    location: order.tableCode ? `Mesa ${order.tableCode}` : order.source === 'qrmenu' ? 'QR Menu' : 'Pedido',
+    itemsCount: `${order.items.length} ${order.items.length === 1 ? 'item' : 'itens'}`,
+    itemsList: order.items.map(item => `${item.quantity}x ${item.productName}`).join(', ') || 'Sem itens',
+    status: order.status === 'preparing' ? 'EM PREPARO' : order.status === 'ready' ? 'PRONTO' : 'AGUARDANDO COZINHA',
+    statusType: order.status === 'preparing' ? 'preparo' : order.status === 'ready' ? 'ready' : 'waiting',
+    price: order.total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }),
+    timeAgo: `Há ${Math.max(0, Math.floor((Date.now() - new Date(order.createdAt).getTime()) / 60000))} min`,
+    type: order.source === 'delivery' ? 'delivery' : 'table',
+  })), [kdsOrders]);
 
   const metrics = [
     {
       label: 'Pedidos Hoje',
-      value: '42',
-      detail: '+12% vs. ontem',
+      value: String(todayOrders.length),
+      detail: 'Pedidos recebidos hoje',
       icon: ShoppingBag,
       color: 'text-emerald-400',
       bgColor: 'bg-emerald-500/10 border-emerald-500/20',
@@ -36,8 +82,8 @@ export default function Dashboard() {
     },
     {
       label: 'Mesas Ocupadas',
-      value: '8',
-      detail: 'De 18 mesas totais',
+      value: String(tableSummary.occupied),
+      detail: `De ${tableSummary.total} mesas ativas`,
       icon: Armchair,
       color: 'text-amber-400',
       bgColor: 'bg-amber-500/10 border-amber-500/20',
@@ -45,8 +91,8 @@ export default function Dashboard() {
     },
     {
       label: 'Em Preparo',
-      value: '5',
-      detail: 'Fila do KDS',
+      value: String(queueOrders.length),
+      detail: 'Pedidos na fila do KDS',
       icon: ChefHat,
       color: 'text-cyan-400',
       bgColor: 'bg-cyan-500/10 border-cyan-500/20',
@@ -54,59 +100,12 @@ export default function Dashboard() {
     },
     {
       label: 'Vendas Hoje',
-      value: 'R$ 3.842,90',
-      detail: 'Faturamento acumulado',
+      value: todaySales.reduce((total, sale) => total + Number(sale.total || 0), 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }),
+      detail: 'Vendas registradas hoje',
       icon: DollarSign,
       color: 'text-emerald-400',
       bgColor: 'bg-emerald-500/10 border-emerald-500/20',
       route: '/pdv',
-    },
-  ];
-
-  const liveOrders = [
-    {
-      id: '#1048',
-      location: 'Mesa 08',
-      itemsCount: '3 itens',
-      itemsList: '2x Smash Burger, 1x Coca-Cola Zero',
-      status: 'EM PREPARO',
-      statusType: 'preparo',
-      price: 'R$ 92,50',
-      timeAgo: 'Há 6 min',
-      type: 'table',
-    },
-    {
-      id: '#1049',
-      location: 'Mesa 12',
-      itemsCount: '5 itens',
-      itemsList: '1x Pizza Peperoni G, 2x Chope 500ml, 2x Pudim',
-      status: 'AGUARDANDO COZINHA',
-      statusType: 'waiting',
-      price: 'R$ 147,80',
-      timeAgo: 'Há 2 min',
-      type: 'table',
-    },
-    {
-      id: '#1050',
-      location: 'Delivery',
-      itemsCount: '2 itens',
-      itemsList: '1x Combo Picanha Gourmet, 1x Suco Natural',
-      status: 'PRONTO PARA RETIRADA',
-      statusType: 'ready',
-      price: 'R$ 68,90',
-      timeAgo: 'Há 12 min',
-      type: 'delivery',
-    },
-    {
-      id: '#1051',
-      location: 'Mesa 04',
-      itemsCount: '4 itens',
-      itemsList: '1x Feijoada Completa, 2x Caipirinha, 1x Porção de Torresmo',
-      status: 'EM PREPARO',
-      statusType: 'preparo',
-      price: 'R$ 184,00',
-      timeAgo: 'Há 8 min',
-      type: 'table',
     },
   ];
 
@@ -290,21 +289,23 @@ export default function Dashboard() {
                 <span className="text-xs font-semibold text-muted-foreground flex items-center gap-2">
                   <ShoppingBag className="h-4 w-4 text-cyan-400" /> Pedidos na fila
                 </span>
-                <span className="text-base font-black text-foreground">12</span>
+                <span className="text-base font-black text-foreground">{queueOrders.length}</span>
               </div>
 
               <div className="flex items-center justify-between p-3 rounded-xl bg-rose-500/10 border border-rose-500/20">
                 <span className="text-xs font-bold text-rose-400 flex items-center gap-2">
                   <AlertCircle className="h-4 w-4 text-rose-400" /> Atrasados
                 </span>
-                <span className="text-base font-black text-rose-400">4</span>
+                <span className="text-base font-black text-rose-400">{delayedOrders.length}</span>
               </div>
 
               <div className="flex items-center justify-between p-3 rounded-xl bg-muted/40 border border-border/50">
                 <span className="text-xs font-semibold text-muted-foreground flex items-center gap-2">
                   <Clock className="h-4 w-4 text-emerald-400" /> Tempo médio de preparo
                 </span>
-                <span className="text-base font-black text-emerald-400">14 min</span>
+                <span className="text-base font-black text-emerald-400">
+                  {queueOrders.length ? `${Math.max(1, Math.round(queueOrders.reduce((sum, order) => sum + (Date.now() - new Date(order.createdAt).getTime()) / 60000, 0) / queueOrders.length))} min` : '—'}
+                </span>
               </div>
             </CardContent>
           </Card>
@@ -330,19 +331,19 @@ export default function Dashboard() {
               <div className="grid grid-cols-2 gap-3">
                 <div className="p-3 rounded-xl bg-muted/40 border border-border/50 text-center">
                   <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Total</p>
-                  <p className="text-xl font-black mt-0.5 text-foreground">18</p>
+                  <p className="text-xl font-black mt-0.5 text-foreground">{tableSummary.total}</p>
                 </div>
                 <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-center">
                   <p className="text-[10px] font-bold uppercase tracking-wider text-amber-400">Ocupadas</p>
-                  <p className="text-xl font-black mt-0.5 text-amber-400">8</p>
+                  <p className="text-xl font-black mt-0.5 text-amber-400">{tableSummary.occupied}</p>
                 </div>
                 <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-center">
                   <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-400">Livres</p>
-                  <p className="text-xl font-black mt-0.5 text-emerald-400">7</p>
+                  <p className="text-xl font-black mt-0.5 text-emerald-400">{Math.max(0, tableSummary.total - tableSummary.occupied)}</p>
                 </div>
                 <div className="p-3 rounded-xl bg-cyan-500/10 border border-cyan-500/30 text-center">
                   <p className="text-[10px] font-bold uppercase tracking-wider text-cyan-400">Atendimento</p>
-                  <p className="text-xl font-black mt-0.5 text-cyan-400">3</p>
+                  <p className="text-xl font-black mt-0.5 text-cyan-400">{todayOrders.filter(order => order.tableSessionId).length}</p>
                 </div>
               </div>
             </CardContent>
