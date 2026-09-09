@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import QRCode from 'qrcode';
-import { Armchair, Bell, BellOff, Calculator, ChefHat, Copy, Download, Loader2, Play, Plus, Printer, QrCode, UsersRound, CheckCircle2 } from 'lucide-react';
+import { Armchair, Bell, BellOff, Calculator, ChefHat, Copy, Download, Loader2, Play, Plus, Printer, QrCode, UsersRound, CheckCircle2, X } from 'lucide-react';
 import { toast } from 'sonner';
+import { parseDecimalInput } from '@/lib/numberInput';
+import { planTablePaymentConfirmation } from '@/lib/tablePayments';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -205,8 +207,46 @@ export default function FoodTables() {
     try { await closeFoodTableSession(selectedTable.activeSession.id); toast.success('Mesa fechada com sucesso.'); setSelectedTable(null); await refresh(); }
     catch { toast.error('Não foi possível fechar a mesa. Verifique o pagamento e suas permissões.'); }
   };
-  const addPaymentPart = () => { const amount = Number(paymentAmount); if (!amount || amount <= 0) return; setPaymentParts((parts) => [...parts, { method: paymentMethod, provider: paymentMethod === 'pix' ? 'pix_manual' : paymentMethod, amount }]); setPaymentAmount(''); };
-  const confirmSplitPayment = async () => { if (!selectedTable?.activeSession) return; const total = consumption.reduce((sum, item) => sum + item.line_total, 0); const amount = Number(paymentAmount); const paid = paymentParts.reduce((sum, part) => sum + part.amount, 0); const remaining = total - paid; if (!amount || amount <= 0 || amount > remaining + 0.01) { toast.error('Informe um valor válido para o saldo restante.'); return; } const nextParts = [...paymentParts, { method: paymentMethod, provider: paymentMethod === 'pix' ? 'pix_manual' : paymentMethod, amount }]; setPaymentParts(nextParts); setPaymentAmount(Math.max(0, remaining - amount).toFixed(2)); if (remaining - amount > 0.01) { toast.success(`Pagamento registrado. Saldo restante: ${(remaining - amount).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}`); return; } const { error } = await (supabase as any).rpc('create_split_payment_group', { p_order_id: selectedTable.activeSession.id, p_parts: nextParts }); if (error) toast.error(error.message); else { toast.success('Todos os pagamentos foram registrados.'); setPaymentParts([]); setPaymentAmount(''); } };
+  const money = (value: number) => value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  const paymentTotal = consumption.reduce((sum, item) => sum + item.line_total, 0);
+  const paidParts = paymentParts.reduce((sum, part) => sum + part.amount, 0);
+  const paymentRemaining = Math.max(0, paymentTotal - paidParts);
+  const buildPaymentPart = (amount: number) => ({
+    method: paymentMethod,
+    provider: paymentMethod === 'pix' ? 'pix_manual' : paymentMethod,
+    amount,
+  });
+  // O caixa digita em pt-BR: "18,00" precisa valer 18. Number() devolveria NaN.
+  const readPaymentAmount = () => parseDecimalInput(paymentAmount, Number.NaN);
+  const addPaymentPart = () => {
+    const amount = readPaymentAmount();
+    if (!Number.isFinite(amount) || amount <= 0) { toast.error('Informe o valor do pagamento.'); return; }
+    if (amount > paymentRemaining + 0.01) { toast.error(`Valor acima do saldo restante de ${money(paymentRemaining)}.`); return; }
+    setPaymentParts((parts) => [...parts, buildPaymentPart(amount)]);
+    setPaymentAmount('');
+  };
+  const removePaymentPart = (index: number) => setPaymentParts((parts) => parts.filter((_, position) => position !== index));
+  const confirmSplitPayment = async () => {
+    if (!selectedTable?.activeSession) return;
+    // Confirma o que já está na lista. Antes esta função exigia um valor novo
+    // no campo, então quem adicionava o total e clicava em confirmar era
+    // barrado com "saldo restante" e a mesa nunca era paga.
+    const pending = readPaymentAmount();
+    const plan = planTablePaymentConfirmation(paymentTotal, paymentParts.map((part) => part.amount), pending);
+    if (plan.status === 'over') { toast.error(`Valor acima do saldo restante de ${money(plan.remaining)}.`); return; }
+    if (plan.status === 'empty') { toast.error('Adicione ao menos um pagamento.'); return; }
+    if (plan.status === 'short') { toast.error(`Faltam ${money(plan.missing)} para fechar a conta.`); return; }
+    const parts = Number.isFinite(pending) && pending > 0 ? [...paymentParts, buildPaymentPart(pending)] : paymentParts;
+    const paid = plan.confirmedTotal;
+    const { error } = await (supabase as any).rpc('create_split_payment_group', { p_order_id: selectedTable.activeSession.id, p_parts: parts });
+    if (error) { toast.error(error.message); return; }
+    toast.success('Todos os pagamentos foram registrados.');
+    setPaymentParts([]);
+    setPaymentAmount('');
+    setPaymentConfirmed(true);
+    setConfirmedPaid(paid);
+    await refresh();
+  };
 
   const qrUrl = qrToken ? `${window.location.origin}/qrmenu/${qrToken}` : '';
   const groupedConsumption = Object.values(consumption.reduce<Record<string, { id: string; product_name: string; quantity: number; line_total: number }>>((acc, item) => {
@@ -330,7 +370,7 @@ export default function FoodTables() {
                 <div className="rounded-lg border p-3"><p className="mb-2 text-sm font-semibold">Consumo da mesa</p>{groupedConsumption.length === 0 ? <p className="text-sm text-muted-foreground">Nenhum item lançado.</p> : <div className={`space-y-2 ${groupedConsumption.length > 4 ? 'max-h-48 overflow-y-auto pr-1' : ''}`}>{groupedConsumption.map((item) => <div key={item.id} className="flex items-center justify-between text-sm"><span>{item.quantity}x {item.product_name}</span><strong>{item.line_total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</strong></div>)}</div>}</div>
                 <div className="rounded-lg border p-3"><p className="mb-2 flex items-center gap-2 text-sm font-semibold"><ChefHat className="h-4 w-4 text-primary" />Pedidos da mesa</p>{tableOrders.length === 0 ? <p className="text-sm text-muted-foreground">Nenhum pedido enviado à cozinha.</p> : <div className="space-y-2">{tableOrders.map((order, index) => { const label: Record<string, string> = { submitted: 'Enviado à cozinha', preparing: 'Em preparo', ready: 'Pronto para servir', delivered: 'Entregue', cancelled: 'Cancelado' }; return <div key={order.id} className="flex items-center justify-between gap-3 text-sm"><span>Pedido {tableOrders.length - index}</span><span className="rounded-full bg-muted px-2 py-1 text-xs font-medium">{label[order.status] || order.status}</span></div>; })}</div>}</div>
                 <div className="flex items-center justify-between rounded-lg bg-primary/10 p-3"><span className="font-semibold">Total da mesa</span><strong className="text-lg text-primary">{consumption.reduce((sum, item) => sum + item.line_total, 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</strong></div>
-                <div className="space-y-2 rounded-lg border p-3"><p className="text-sm font-semibold">Pagamentos</p>{confirmedPaid >= consumption.reduce((sum, item) => sum + item.line_total, 0) - 0.01 ? <p className="text-sm font-medium text-primary">Pagamento confirmado pelo provedor</p> : <><div className="flex gap-2"><select className="rounded border bg-background px-2 text-sm" value={paymentMethod} onChange={e=>setPaymentMethod(e.target.value)}><option value="pix">Pix</option><option value="mercado_pago">Cartão</option><option value="cash">Dinheiro</option></select><Input type="number" step="0.01" placeholder="Valor" value={paymentAmount} onChange={e=>setPaymentAmount(e.target.value)} /><Button type="button" variant="outline" onClick={addPaymentPart}>Adicionar</Button></div>{paymentParts.map((part,i)=><div key={i} className="flex justify-between text-sm"><span>{part.method}</span><strong>{part.amount.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</strong></div>)}<Button type="button" className="w-full" disabled={!paymentParts.length} onClick={() => void confirmSplitPayment()}>Confirmar pagamentos</Button></>}</div>
+                <div className="space-y-2 rounded-lg border p-3"><p className="text-sm font-semibold">Pagamentos</p>{confirmedPaid >= paymentTotal - 0.01 ? <p className="text-sm font-medium text-primary">Pagamento confirmado pelo provedor</p> : <><div className="flex gap-2"><select className="rounded border bg-background px-2 text-sm" value={paymentMethod} onChange={e=>setPaymentMethod(e.target.value)}><option value="pix">Pix</option><option value="mercado_pago">Cartão</option><option value="cash">Dinheiro</option></select><Input type="text" inputMode="decimal" placeholder="Valor" value={paymentAmount} onChange={e=>setPaymentAmount(e.target.value)} /><Button type="button" variant="outline" onClick={addPaymentPart}>Adicionar</Button></div>{paymentParts.map((part,i)=><div key={i} className="flex items-center justify-between text-sm"><span>{part.method}</span><span className="flex items-center gap-2"><strong>{money(part.amount)}</strong><button type="button" className="text-muted-foreground hover:text-destructive" aria-label={`Remover pagamento de ${money(part.amount)}`} onClick={()=>removePaymentPart(i)}><X className="h-3.5 w-3.5" /></button></span></div>)}{paymentParts.length>0&&<div className="flex justify-between border-t pt-2 text-sm"><span>Saldo restante</span><strong>{money(paymentRemaining)}</strong></div>}<Button type="button" className="w-full" disabled={!paymentParts.length} onClick={() => void confirmSplitPayment()}>Confirmar pagamentos</Button></>}</div>
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
                   <label className="grid flex-1 gap-1 text-sm font-medium">
                     Pessoas na conta
@@ -350,7 +390,7 @@ export default function FoodTables() {
                     ))}
                   </div>
                 )}
-                {hasPermission('food.tables.close') && <Button className="w-full" disabled={consumption.reduce((sum, item) => sum + item.line_total, 0) - paymentParts.reduce((sum, part) => sum + part.amount, 0) > 0.01} onClick={() => void closeTable()}><CheckCircle2 className="mr-2 h-4 w-4" />Fechar mesa</Button>}
+                {hasPermission('food.tables.close') && <Button className="w-full" disabled={paymentRemaining > 0.01} onClick={() => void closeTable()}><CheckCircle2 className="mr-2 h-4 w-4" />Fechar mesa</Button>}
               </div>
             )}
           </section>
