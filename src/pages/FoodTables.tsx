@@ -29,9 +29,13 @@ const escapeHtml = (value: string) => value.replace(/[&<>'"]/g, (character) => (
 // method e provider sao campos distintos no banco: method alimenta o CHECK de
 // store_payment_transactions, provider aponta para o provedor habilitado.
 // Dinheiro nao tem provedor -- e recebido na mao.
+//
+// Cartao fica fora ate existir integracao de verdade. Nada hoje cria a
+// cobranca no Mercado Pago, e o payment-webhook procura a transacao por
+// provider_transaction_id, campo que a criacao nunca preenche -- entao a
+// transacao ficaria 'pending' para sempre e a mesa jamais fecharia.
 const PAYMENT_OPTIONS = {
   pix: { label: 'Pix', method: 'pix', provider: 'pix_manual' },
-  card: { label: 'Cartão', method: 'credit_card', provider: 'mercado_pago' },
   cash: { label: 'Dinheiro', method: 'cash', provider: null },
 } as const;
 type PaymentOptionId = keyof typeof PAYMENT_OPTIONS;
