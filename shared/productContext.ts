@@ -1,6 +1,10 @@
+import { COMMERCIAL_PAID_PLAN_IDS } from "./subscriptionPlanPricing";
+
 export type ProductContext = "happycash";
 
-const HAPPYCASH_PAID_PLAN_IDS = new Set(["fiado", "completo", "pro"]);
+// Deriva da tabela canônica: uma lista paralela já bloqueou a compra dos
+// planos com os nomes novos, que respondiam 403 em create-plan-charge.
+const HAPPYCASH_PAID_PLAN_IDS = new Set<string>(COMMERCIAL_PAID_PLAN_IDS);
 
 export const normalizeProductContext = (value?: string | null): ProductContext => {
   return "happycash";
@@ -29,8 +33,8 @@ export const isCurrentSubscriptionPlanAllowedForProductContext = (
   return isPaidPlanAllowedForProductContext(productContext, normalizedPlanId);
 };
 
-export const getPublicPlanIdsForProductContext = (productContext: ProductContext) =>
-  ["demo", "fiado", "completo", "pro"] as const;
+export const getPublicPlanIdsForProductContext = (_productContext: ProductContext) =>
+  ["demo", ...COMMERCIAL_PAID_PLAN_IDS];
 
 export const getProductContextLabel = (productContext: ProductContext) =>
   "MIAR AI/FOOD";

@@ -1,7 +1,13 @@
+import { COMMERCIAL_PAID_PLAN_IDS } from "../../../shared/subscriptionPlanPricing.ts";
+
 export type ProductContext = "happycash";
 
-const HAPPYCASH_PAID_PLAN_IDS = new Set(["fiado", "completo", "pro"]);
-const HAPPYCASH_DESKTOP_PLAN_IDS = new Set(["pro"]);
+// Deriva da tabela canônica: uma lista paralela já bloqueou a compra dos
+// planos com os nomes novos, que respondiam 403 em create-plan-charge.
+const HAPPYCASH_PAID_PLAN_IDS = new Set<string>(COMMERCIAL_PAID_PLAN_IDS);
+// "intermediario" e "pro" sao o mesmo produto com nomes de geracoes
+// diferentes, entao liberam o Desktop igualmente.
+const HAPPYCASH_DESKTOP_PLAN_IDS = new Set(["pro", "intermediario"]);
 
 export const normalizeProductContext = (_value?: string | null): ProductContext => "happycash";
 
