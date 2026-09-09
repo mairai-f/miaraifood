@@ -16,10 +16,13 @@ import { ReportMetricCard } from '@/components/reports/ReportMetricCard';
 import { formatProductCode } from '@/lib/productCode';
 import { buildDreStatement, getPreviousPeriodRange, getVariationPct } from '@/lib/dre';
 import { supabase } from '@/integrations/supabase/client';
+import type { Database } from '@/integrations/supabase/types';
 import type { FinancialAccount } from '@/types/operations';
 import { getRedactedLogValue } from '../../shared/security/redaction';
 
-const fromTable = (table: string) => supabase.from(table as never);
+// O schema gerado cobre todas as tabelas: a consulta volta a ser verificada.
+const fromTable = <T extends keyof Database['public']['Tables']>(table: T) =>
+  supabase.from(table);
 const money = (value: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
 const variationLabel = (value: number) => `${value >= 0 ? '+' : ''}${value.toFixed(1)}%`;
 const isManualDeletedDebtEntry = (entry: { manual_deleted?: boolean }) => entry.manual_deleted === true;

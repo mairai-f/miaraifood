@@ -12,6 +12,7 @@ import { toast } from 'sonner';
 import { DataRouteLoader } from '@/components/DataRouteLoader';
 import { formatDateOnly } from '../../shared/locale/format';
 import { supabase } from '@/integrations/supabase/client';
+import type { Database } from '@/integrations/supabase/types';
 import { useOperationalScope } from '@/contexts/useOperationalScope';
 import { parseDecimalInput } from '@/lib/numberInput';
 import { getFinancialAccountRemainingAmount } from '@/lib/erpFinance';
@@ -19,7 +20,9 @@ import type { FinancialAccount } from '@/types/operations';
 import { getRedactedLogValue } from '../../shared/security/redaction';
 
 const money = (value: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
-const fromTable = (table: string) => supabase.from(table as never);
+// O schema gerado cobre todas as tabelas: a consulta volta a ser verificada.
+const fromTable = <T extends keyof Database['public']['Tables']>(table: T) =>
+  supabase.from(table);
 
 export default function Financial() {
   const { sales, expenses, addExpense, deleteExpense, clients, getClientBalance, loading } = useData();

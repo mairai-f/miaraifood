@@ -276,6 +276,8 @@ const webWarmPageLoaders = [
 ];
 
 const warmPageChunks = (isDesktop: boolean) => {
+  // O pré-carregamento é otimização de navegador: sem window não há o que fazer.
+  if (typeof window === 'undefined') return () => {};
   const runtimeLoaders = isDesktop ? desktopWarmPageLoaders : webWarmPageLoaders;
   const preloadTimers: number[] = [];
 
@@ -288,7 +290,11 @@ const warmPageChunks = (isDesktop: boolean) => {
     });
   };
 
-  if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
+  // Guardado num booleano: checar a chave direto no window faria o TypeScript
+  // estreitar o ramo alternativo para never, já que a lib DOM sempre declara
+  // requestIdleCallback -- mas navegador antigo pode não ter.
+  const supportsIdleCallback = typeof window.requestIdleCallback === 'function';
+  if (supportsIdleCallback) {
     const idleId = window.requestIdleCallback(loadPreferredPages, { timeout: 3500 });
     return () => {
       window.cancelIdleCallback(idleId);

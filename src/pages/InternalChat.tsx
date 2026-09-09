@@ -14,6 +14,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePermissions } from "@/contexts/usePermissions";
 import type { ErpPermissionKey } from "@/lib/permissions";
+import { chatErrorMessage } from "@/lib/chatErrors";
 
 type Conversation = {
   id: string;
@@ -92,7 +93,7 @@ export default function InternalChat() {
       .from("internal-chat-media")
       .upload(path, file, { upsert: false });
     if (uploadError) {
-      setError(uploadError.message);
+      setError(chatErrorMessage(uploadError.message));
       return;
     }
     const { data } = supabase.storage
@@ -104,7 +105,7 @@ export default function InternalChat() {
         p_avatar_url: data.publicUrl,
       },
     );
-    if (avatarError) setError(avatarError.message);
+    if (avatarError) setError(chatErrorMessage(avatarError.message));
     else {
       setMenu(false);
       void load();
@@ -123,7 +124,7 @@ export default function InternalChat() {
       .from("internal-chat-media")
       .upload(path, file, { upsert: false });
     if (uploadError) {
-      setError(uploadError.message);
+      setError(chatErrorMessage(uploadError.message));
       return;
     }
     const { data } = supabase.storage
@@ -138,7 +139,7 @@ export default function InternalChat() {
         p_clear_photo: false,
       },
     );
-    if (groupError) setError(groupError.message);
+    if (groupError) setError(chatErrorMessage(groupError.message));
     else {
       setMenu(false);
       void load();
@@ -155,7 +156,7 @@ export default function InternalChat() {
         p_clear_photo: true,
       },
     );
-    if (groupError) setError(groupError.message);
+    if (groupError) setError(chatErrorMessage(groupError.message));
     else void load();
   };
   const toggleArchive = async (conversation: Conversation) => {
@@ -167,7 +168,7 @@ export default function InternalChat() {
         p_archive: !conversation.archived_at,
       },
     );
-    if (archiveError) setError(archiveError.message);
+    if (archiveError) setError(chatErrorMessage(archiveError.message));
     else void load();
   };
   const openGroupMembers = async (conversation: Conversation) => {
@@ -177,7 +178,7 @@ export default function InternalChat() {
       { p_conversation_id: conversation.id },
     );
     if (membersError) {
-      setError(membersError.message);
+      setError(chatErrorMessage(membersError.message));
       return;
     }
     setGroupMembers(
@@ -194,7 +195,7 @@ export default function InternalChat() {
       { p_conversation_id: conversation.id },
     );
     if (auditError) {
-      setError(auditError.message);
+      setError(chatErrorMessage(auditError.message));
       return;
     }
     setAudit((data || []) as AuditEntry[]);
@@ -206,7 +207,7 @@ export default function InternalChat() {
       "list_my_internal_chat_conversations",
     );
     if (loadError) {
-      setError(loadError.message);
+      setError(chatErrorMessage(loadError.message));
       return;
     }
     const list = (rows || []) as Conversation[];
@@ -243,7 +244,7 @@ export default function InternalChat() {
     const { data: contacts, error: contactsError } = await supabase.rpc(
       "list_internal_chat_contacts",
     );
-    if (contactsError) setError(contactsError.message);
+    if (contactsError) setError(chatErrorMessage(contactsError.message));
     else
       setProfiles(
         (contacts || []).map((contact: any) => ({
@@ -301,7 +302,7 @@ export default function InternalChat() {
         "list_internal_chat_messages",
         { p_conversation_id: selected },
       );
-      if (messagesError) setError(messagesError.message);
+      if (messagesError) setError(chatErrorMessage(messagesError.message));
       else setMessages((data || []) as Message[]);
       await supabase
         .from("internal_chat_members")
@@ -357,7 +358,7 @@ export default function InternalChat() {
       .insert({ conversation_id: selected, sender_user_id: user.id, body });
     if (error) {
       setText(body);
-      setError(error.message);
+      setError(chatErrorMessage(error.message));
     }
   };
   const direct = async (p: Profile) => {
@@ -366,7 +367,7 @@ export default function InternalChat() {
       { p_target_user_id: p.user_id },
     );
     if (error || !data)
-      setError(error?.message || "Não foi possível abrir a conversa");
+      setError(chatErrorMessage(error?.message) || "Não foi possível abrir a conversa");
     else {
       setSelected(data);
       await load();
@@ -378,7 +379,7 @@ export default function InternalChat() {
       p_member_ids: members,
     });
     if (error || !data)
-      setError(error?.message || "Não foi possível criar o grupo");
+      setError(chatErrorMessage(error?.message) || "Não foi possível criar o grupo");
     else {
       setNewGroup(false);
       setGroupName("");
@@ -408,14 +409,14 @@ export default function InternalChat() {
         p_message_id: dialog.message.id,
         p_body: value,
       });
-      if (error) setError(error.message);
+      if (error) setError(chatErrorMessage(error.message));
       return;
     }
     if (dialog.kind === "delete-message") {
       const { error } = await supabase.rpc("delete_internal_chat_message", {
         p_message_id: dialog.message.id,
       });
-      if (error) setError(error.message);
+      if (error) setError(chatErrorMessage(error.message));
       return;
     }
     if (dialog.kind === "rename-group") {
@@ -426,7 +427,7 @@ export default function InternalChat() {
         p_photo_url: null,
         p_clear_photo: false,
       });
-      if (error) setError(error.message);
+      if (error) setError(chatErrorMessage(error.message));
       else void load();
       return;
     }
@@ -436,14 +437,14 @@ export default function InternalChat() {
         p_conversation_id: dialog.conversation.id,
         p_member_ids: groupMembers,
       });
-      if (error) setError(error.message);
+      if (error) setError(chatErrorMessage(error.message));
       else void load();
       return;
     }
     const { error } = await supabase.rpc("delete_internal_chat_conversation", {
       p_conversation_id: dialog.conversation.id,
     });
-    if (error) setError(error.message);
+    if (error) setError(chatErrorMessage(error.message));
     else {
       setSelected(null);
       void load();
@@ -746,20 +747,24 @@ export default function InternalChat() {
                 <div className="mt-1 flex justify-end gap-2 text-[10px] opacity-75">
                   {m.sender_user_id === user?.id && !m.deleted_at && (
                     <>
-                      <button
-                        onClick={() =>
-                          openDialog({ kind: "edit-message", message: m })
-                        }
-                      >
-                        <Pencil size={12} />
-                      </button>
-                      <button
-                        onClick={() =>
-                          openDialog({ kind: "delete-message", message: m })
-                        }
-                      >
-                        <Trash2 size={12} />
-                      </button>
+                      {can("chat.message.edit") && (
+                        <button
+                          onClick={() =>
+                            openDialog({ kind: "edit-message", message: m })
+                          }
+                        >
+                          <Pencil size={12} />
+                        </button>
+                      )}
+                      {can("chat.message.delete") && (
+                        <button
+                          onClick={() =>
+                            openDialog({ kind: "delete-message", message: m })
+                          }
+                        >
+                          <Trash2 size={12} />
+                        </button>
+                      )}
                     </>
                   )}
                   {m.sender_user_id === user?.id &&

@@ -214,7 +214,7 @@ describe('retail coupon', () => {
 
   it('does not fall back to a second browser print after an Electron failure', async () => {
     const printHtml = vi.fn().mockResolvedValue(false);
-    window.electronAPI = { printHtml } as Window['electronAPI'];
+    window.electronAPI = { printHtml } as unknown as Window['electronAPI'];
     const appendChild = vi.spyOn(document.body, 'appendChild');
 
     await expect(openRetailCouponPrintWindow(payload, {

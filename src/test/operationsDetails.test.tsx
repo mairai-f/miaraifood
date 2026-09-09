@@ -38,6 +38,7 @@ describe('OperationsDetailsDialog', () => {
           purchase_order_id: 'purchase-1',
           product_id: 'product-1',
           product_name: 'Refrigerante',
+          received_quantity: 0,
           quantity: 4,
           unit_cost: 20,
           total_cost: 80,

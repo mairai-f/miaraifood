@@ -9,6 +9,14 @@ interface Window {
   electronAPI?: {
     openExternal: (url: string) => boolean;
     printHtml: (html: string) => Promise<boolean>;
+    // Exposto por electron/preload.cjs: leitura e escrita passam pelo keychain
+    // do sistema via IPC, nunca pelo renderer.
+    secureStorage?: {
+      isAvailable: () => Promise<boolean>;
+      read: (key: string) => Promise<string | null>;
+      write: (key: string, value: string) => Promise<boolean>;
+      delete: (key: string) => Promise<boolean>;
+    };
     printer?: {
       list: () => Promise<{
         selectedName: string | null;

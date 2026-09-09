@@ -21,6 +21,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useData } from '@/contexts/DataContext';
 import { useOperationalScope } from '@/contexts/useOperationalScope';
 import { supabase } from '@/integrations/supabase/client';
+import type { Database } from '@/integrations/supabase/types';
 import { parseDecimalInput } from '@/lib/numberInput';
 import { getLocalIsoDate } from '@/lib/clientDebtDueDate';
 import { filterProductsBySearch, productMatchesSearch, toProductUppercase } from '@/lib/productSearch';
@@ -46,7 +47,9 @@ const SupplierOrderDialog = lazy(() =>
   })),
 );
 
-const fromTable = (table: string) => supabase.from(table as never);
+// O schema gerado cobre todas as tabelas: a consulta volta a ser verificada.
+const fromTable = <T extends keyof Database['public']['Tables']>(table: T) =>
+  supabase.from(table);
 const operationsRpc = supabase as unknown as {
   rpc: (name: string, args: Record<string, unknown>) => Promise<{ data: unknown; error: { message?: string } | null }>;
 };

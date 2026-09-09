@@ -11,6 +11,12 @@ const activation: DesktopActivationRecord = {
   appContext: 'happycash',
   ownerUserId: 'owner-123',
   activatedAt: '2026-06-23T12:00:00.000Z',
+  companyName: 'Empresa Teste',
+  cnpj: null,
+  planId: null,
+  validUntil: null,
+  storeAccountId: null,
+  installerToken: null,
 };
 
 describe('fiscal desktop access', () => {
