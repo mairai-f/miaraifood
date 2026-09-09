@@ -47,6 +47,7 @@ interface PendingRegistrationRow {
   lgpd_accepted_at: string | null;
   lgpd_version: string | null;
   legal_acceptance_source: string | null;
+  setup_config: Record<string, unknown>;
 }
 
 interface StoreAccountRow {
@@ -361,6 +362,7 @@ Deno.serve(async (request) => {
         "lgpd_accepted_at",
         "lgpd_version",
         "legal_acceptance_source",
+        "setup_config",
       ].join(", "),
     )
     .eq("owner_user_id", user.id)
@@ -501,6 +503,7 @@ Deno.serve(async (request) => {
           estado: registration.estado,
           product_context: accountProductContext,
           ...legalAcceptanceUpdate,
+          setup_config: registration.setup_config || {},
         })
         .select("id, product_context")
         .single();
@@ -512,6 +515,8 @@ Deno.serve(async (request) => {
       storeAccountId = (createdStoreAccountData as StoreAccountRow).id;
     }
 
+    if (!storeAccountId) throw new Error("Nao foi possivel identificar a conta da loja.");
+
     if (storeAccountId && shouldSyncLegalAcceptance) {
       const { error: legalSyncError } = await serviceClient
         .from("store_accounts")
@@ -520,6 +525,77 @@ Deno.serve(async (request) => {
 
       if (legalSyncError) {
         throw new Error(legalSyncError.message || "Nao foi possivel registrar o aceite legal da conta.");
+      }
+    }
+
+    // Materializa as escolhas feitas no cadastro: filial, mesas e cardápio
+    // inicial. A operação é idempotente para reprocessamentos após confirmação.
+    const setup = registration.setup_config || {};
+    const requestedTables = Math.min(100, Math.max(1, Number(setup.quantidadeMesas) || 1));
+    const { data: locationData, error: locationError } = await serviceClient
+      .from("store_locations")
+      .upsert({
+        store_account_id: storeAccountId,
+        owner_user_id: user.id,
+        code: "MATRIZ",
+        name: registration.nome_estabelecimento,
+        location_type: "headquarters",
+        is_headquarters: true,
+        active: true,
+        document: registration.cpf_cnpj,
+        phone: registration.telefone,
+        email: registration.email,
+        postal_code: registration.cep,
+        street: registration.nome_rua,
+        street_number: registration.numero || "",
+        complement: registration.complemento || "",
+        district: registration.bairro || "",
+        city: registration.cidade,
+        state: registration.estado,
+      }, { onConflict: "store_account_id,code" })
+      .select("id")
+      .single();
+    if (locationError || !locationData) throw new Error(locationError?.message || "Nao foi possivel criar a filial.");
+    const locationId = locationData.id as string;
+
+    const { data: existingTables } = await serviceClient
+      .from("food_tables").select("code").eq("location_id", locationId);
+    const existingCodes = new Set((existingTables || []).map((row) => row.code));
+    const tableRows = Array.from({ length: requestedTables }, (_, index) => ({
+      store_account_id: storeAccountId,
+      owner_user_id: user.id,
+      location_id: locationId,
+      code: `MESA ${String(index + 1).padStart(2, "0")}`,
+      name: `Mesa ${index + 1}`,
+      seats: 4,
+      active: true,
+    })).filter((row) => !existingCodes.has(row.code));
+    if (tableRows.length) {
+      const { error: tablesError } = await serviceClient.from("food_tables").insert(tableRows);
+      if (tablesError) throw new Error(tablesError.message || "Nao foi possivel criar as mesas.");
+    }
+
+    if (!setup.skipCatalog && Array.isArray(setup.catalog)) {
+      for (const item of setup.catalog as Array<Record<string, unknown>>) {
+        const name = String(item.name || "").trim();
+        if (!name) continue;
+        const price = Number(String(item.price || "0").replace(",", ".")) || 0;
+        const category = String(item.category || "Geral");
+        const { data: existingProduct } = await serviceClient
+          .from("products").select("id").eq("user_id", user.id).eq("name", name).eq("deleted", false).limit(1).maybeSingle();
+        const { data: productData, error: productError } = existingProduct
+          ? { data: existingProduct, error: null }
+          : await serviceClient.from("products")
+            .insert({ name, price, category, user_id: user.id, deleted: false })
+            .select("id").single();
+        if (productError || !productData) throw new Error(productError?.message || "Nao foi possivel criar o cardapio.");
+        const { error: menuError } = await serviceClient.from("food_menu_products").upsert({
+          store_account_id: storeAccountId,
+          owner_user_id: user.id,
+          product_id: productData.id,
+          active: true,
+        }, { onConflict: "store_account_id,product_id" });
+        if (menuError) throw new Error(menuError.message || "Nao foi possivel publicar o cardapio.");
       }
     }
 

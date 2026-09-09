@@ -70,6 +70,18 @@ interface OpenCashSession {
 
 type PaymentMethodKey = 'dinheiro' | 'pix' | 'cartao_debito' | 'cartao_credito';
 
+// Login do colaborador não é o nome exibido. Mantemos o nome livre (inclusive
+// com acentos) e convertemos o identificador técnico para algo que funcione no
+// PIN/login em qualquer aparelho.
+const normalizeStaffUsername = (value: string) => value
+  .normalize('NFD')
+  .replace(/[\u0300-\u036f]/g, '')
+  .toLowerCase()
+  .replace(/\s+/g, '')
+  .replace(/[^a-z0-9._-]/g, '');
+
+const isValidStaffUsername = (value: string) => /^[a-z0-9._-]{3,24}$/.test(value);
+
 interface OpenCashSummary {
   entriesTotal: number;
   cashOutTotal: number;
@@ -839,6 +851,11 @@ export function OperatorManagementPanel({
 
     if (!username.trim() || !password.trim() || !jobTitle.trim()) {
       toast.error('Preencha nome, funcao, usuario e PIN');
+      return false;
+    }
+
+    if (!isValidStaffUsername(username.trim())) {
+      toast.error('O usuário do colaborador deve ter 3 a 24 caracteres: letras sem acento, números, ponto, hífen ou underscore.');
       return false;
     }
 
@@ -1676,11 +1693,14 @@ export function OperatorManagementPanel({
                   <Label>Usuário</Label>
                   <Input
                     value={username}
-                    onChange={event => setUsername(event.target.value)}
+                    onChange={event => setUsername(normalizeStaffUsername(event.target.value))}
                     placeholder="Ex: colaborador.caixa"
                     readOnly={Boolean(editingOperator)}
                     autoComplete="username"
+                    maxLength={24}
+                    pattern="[a-z0-9._-]{3,24}"
                   />
+                  {!editingOperator && <p className="text-xs text-muted-foreground">Login usado junto com o PIN. Acentos e espaços são removidos automaticamente.</p>}
                 </div>
 
                 {!editingOperator && (

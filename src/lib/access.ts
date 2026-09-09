@@ -17,6 +17,10 @@ const operatorAllowedPaths = new Set([
 
 const waiterAllowedPaths = new Set([
   '/comandas',
+  '/mesas',
+  '/chamados',
+  '/conversas',
+  '/garcom/perfil',
 ]);
 
 const hrAllowedPaths = new Set<string>();

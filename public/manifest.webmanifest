@@ -1,0 +1,17 @@
+{
+  "name": "MIAR Garçom",
+  "short_name": "MIAR Garçom",
+  "description": "Operação de salão do MIAR AI/FOOD.",
+  "start_url": "/mesas",
+  "display": "standalone",
+  "background_color": "#071b12",
+  "theme_color": "#008f16",
+  "icons": [
+    {
+      "src": "/miar-collapsed-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

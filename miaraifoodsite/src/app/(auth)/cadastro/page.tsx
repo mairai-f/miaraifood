@@ -183,6 +183,7 @@ const Cadastro = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [confirmationEmail, setConfirmationEmail] = useState<string | null>(null);
+  const [emailStatus, setEmailStatus] = useState<"idle" | "checking" | "available" | "registered" | "resume">("idle");
 
   // Step 2 - Perfil do Estabelecimento
   const [nomeEstabelecimento, setNomeEstabelecimento] = useState("");
@@ -233,6 +234,20 @@ const Cadastro = () => {
   const [incompleteMessage, setIncompleteMessage] = useState("Por favor, preencha Nome, E-mail e Senha Master do Proprietário.");
 
   const passwordStrength = getPasswordStrength(password);
+
+  useEffect(() => {
+    const normalized = email.trim().toLowerCase();
+    if (!normalized.includes("@") || normalized.length < 5) { setEmailStatus("idle"); return; }
+    setEmailStatus("checking");
+    const timer = window.setTimeout(async () => {
+      try {
+        const { data, error } = await supabase.functions.invoke("check-registration-email", { body: { email: normalized, productContext: "happycash" } });
+        if (error) throw error;
+        setEmailStatus(data?.canResume ? "resume" : data?.available ? "available" : "registered");
+      } catch { setEmailStatus("idle"); }
+    }, 500);
+    return () => window.clearTimeout(timer);
+  }, [email]);
 
   const getFunctionErrorMessage = async (error: unknown) => {
     if (error instanceof FunctionsHttpError) {
@@ -341,7 +356,7 @@ const Cadastro = () => {
         email?: string;
         resumeExistingRegistration?: boolean;
       }>("register-account", {
-        body: {
+          body: {
           email: email.trim(),
           password,
           nomeCliente: nomeCliente.trim(),
@@ -365,8 +380,17 @@ const Cadastro = () => {
           privacyVersion: LEGAL_PRIVACY_VERSION,
           lgpdAccepted: legalDecision === "accepted",
           lgpdVersion: LEGAL_LGPD_VERSION,
-          legalAcceptanceSource: LEGAL_ACCEPTANCE_SOURCES.siteSignup,
-        },
+            legalAcceptanceSource: LEGAL_ACCEPTANCE_SOURCES.siteSignup,
+            setupConfig: {
+              segmento,
+              quantidadeMesas,
+              modalidades,
+              cobrancas,
+              pagamentos,
+              skipCatalog,
+              catalog: skipCatalog ? [] : (defaultPreCatalog[segmento] || defaultPreCatalog.restaurante),
+            },
+          },
       });
 
       if (error || !data?.success) {
@@ -527,6 +551,10 @@ const Cadastro = () => {
                     required 
                     className="h-10 sm:h-11 rounded-xl border-white/20 bg-white/10 px-3 text-sm text-white placeholder:text-zinc-400 focus-visible:ring-[#70E000]" 
                   />
+                  {emailStatus === "checking" && <p className="text-[11px] text-zinc-400">Verificando e-mail…</p>}
+                  {emailStatus === "available" && <p className="text-[11px] text-[#70E000]">E-mail disponível.</p>}
+                  {emailStatus === "resume" && <p className="text-[11px] text-amber-300">Este e-mail possui cadastro pendente. Você poderá continuar a ativação.</p>}
+                  {emailStatus === "registered" && <p className="text-[11px] text-rose-300">Este e-mail já está cadastrado. Entre na conta existente.</p>}
                 </div>
 
                 <div className="space-y-1">

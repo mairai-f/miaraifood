@@ -24,6 +24,7 @@ export const ERP_PERMISSION_KEYS = [
   'clients.view',
   'clients.manage',
   'products.view',
+  'chat.view',
   'products.manage',
   'stock.view',
   'stock.manage',
@@ -79,6 +80,8 @@ export const ERP_PERMISSION_KEYS = [
   'food.kds.use',
   'food.kds.manage',
   'food.delivery.manage',
+  'chat.view',
+  'chat.manage',
 ] as const;
 
 export type ErpPermissionKey = (typeof ERP_PERMISSION_KEYS)[number];
@@ -133,6 +136,8 @@ export const OPERATIONAL_MANAGER_PERMISSION_KEYS = [
   'food.kds.use',
   'food.kds.manage',
   'food.delivery.manage',
+  'chat.view',
+  'chat.manage',
 ] as const satisfies readonly ErpPermissionKey[];
 
 export const SENSITIVE_ADMIN_PERMISSION_KEYS = [
@@ -157,7 +162,19 @@ const operatorDefaults = new Set<ErpPermissionKey>([
   'products.view',
 ]);
 
-const waiterDefaults = new Set<ErpPermissionKey>(['service_tickets.use']);
+// Used only when an installed device is offline. Online access always comes
+// from the explicit permission group/overrides stored in Supabase.
+const waiterDefaults = new Set<ErpPermissionKey>([
+  'service_tickets.use',
+  'food.tables.view',
+  'food.orders.manage',
+  'food.orders.create',
+  'food.orders.edit',
+  'food.tables.close',
+  'food.payments.manage',
+  'food.waiter_calls.handle',
+  'chat.view',
+]);
 const hrDefaults = new Set<ErpPermissionKey>(['hr.view']);
 
 /** Mantem o comportamento anterior quando o Desktop estiver realmente offline. */
@@ -187,7 +204,7 @@ const permissionDependencies: Partial<Record<ErpPermissionKey, ErpPermissionKey[
   'employee_portal.profile.update': ['employee_portal.view'], 'employee_portal.time_clock': ['employee_portal.view'],
   'employee_portal.leave': ['employee_portal.view'], 'employee_portal.documents': ['employee_portal.view'],
   'employee_portal.payroll': ['employee_portal.view'], 'employee_portal.announcements': ['employee_portal.view'],
-  'food.tables.manage': ['food.tables.view'], 'food.orders.create': ['food.tables.view'],
+  'food.tables.manage': ['food.tables.view'], 'food.orders.create': ['food.tables.view'], 'chat.manage': ['chat.view'],
   'food.orders.edit': ['food.orders.create'], 'food.orders.cancel': ['food.orders.create'],
   'food.tables.close': ['food.tables.view'], 'food.payments.manage': ['food.tables.close'],
   'food.qr.manage': ['food.tables.manage'], 'food.qrmenu.manage': ['food.tables.view'],

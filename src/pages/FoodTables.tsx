@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import QRCode from 'qrcode';
-import { Armchair, Calculator, Copy, Download, Loader2, Play, Plus, Printer, QrCode, UsersRound, CheckCircle2 } from 'lucide-react';
+import { Armchair, Bell, BellOff, Calculator, ChefHat, Copy, Download, Loader2, Play, Plus, Printer, QrCode, UsersRound, CheckCircle2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -11,6 +11,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { usePermissions } from '@/contexts/usePermissions';
 import { closeFoodTableSession, createFoodTable, getFoodTableQrToken, listFoodTableBoard, listFoodTableConsumption, listFoodTablePaymentSplits, openFoodTableSession, splitFoodTableBill } from '@/lib/food';
 import type { FoodTableBoardItem, FoodTablePaymentSplit } from '@/types/food';
+import { enableWaiterNotifications, notifyWaiterCall, playWaiterCallAlert, readWaiterAlertPreferences, writeWaiterAlertPreferences } from '@/lib/waiterAlerts';
 
 const statusLabel = {
   open: 'Ocupada',
@@ -35,6 +36,7 @@ export default function FoodTables() {
   const [peopleCountByTable, setPeopleCountByTable] = useState<Record<string,string>>({});
   const [splits, setSplits] = useState<FoodTablePaymentSplit[]>([]);
   const [consumption, setConsumption] = useState<Array<{ id: string; product_name: string; quantity: number; unit_price: number; line_total: number }>>([]);
+  const [tableOrders, setTableOrders] = useState<Array<{ id: string; status: string; created_at: string }>>([]);
   const [paymentCalls, setPaymentCalls] = useState<any[]>([]);
   const [paymentParts, setPaymentParts] = useState<Array<{ method: string; provider: string; amount: number }>>([]);
   const [paymentConfirmed, setPaymentConfirmed] = useState(false);
@@ -48,6 +50,8 @@ export default function FoodTables() {
   const [seats, setSeats] = useState('4');
   const canManage = hasPermission('food.tables.manage');
   const canManageQr = hasPermission('food.qr.manage');
+  const [alertPreferences, setAlertPreferences] = useState(readWaiterAlertPreferences);
+  const initializedCallsRef = useRef(false);
 
   const refresh = useCallback(async () => {
     if (!scope?.location.id) {
@@ -69,6 +73,40 @@ export default function FoodTables() {
   }, [scope?.location.id]);
 
   useEffect(() => { void refresh(); }, [refresh]);
+  useEffect(() => {
+    if (!scope?.location.id) return;
+    const channel = supabase
+      .channel(`waiter-calls-${scope.location.id}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'food_waiter_calls' }, (payload) => {
+        const call = payload.new as { status?: string; table_session_id?: string };
+        if (call.status !== 'open') return;
+        const table = tables.find((item) => item.activeSession?.id === call.table_session_id);
+        const tableCode = table?.code ?? 'Uma mesa';
+        playWaiterCallAlert();
+        notifyWaiterCall(tableCode);
+        toast.info(`${tableCode} chamou o garçom pelo QR Menu.`);
+        void refresh();
+      })
+      .subscribe();
+    return () => { void supabase.removeChannel(channel); };
+  }, [refresh, scope?.location.id, tables]);
+  useEffect(() => {
+    // The initial load is not an alert: only calls that arrive after the waiter opened the page are audible.
+    if (!loading) initializedCallsRef.current = true;
+  }, [loading]);
+
+  const toggleSound = () => {
+    const next = { ...alertPreferences, soundEnabled: !alertPreferences.soundEnabled };
+    writeWaiterAlertPreferences(next);
+    setAlertPreferences(next);
+  };
+
+  const activateNotifications = async () => {
+    const enabled = await enableWaiterNotifications();
+    const next = { ...readWaiterAlertPreferences(), notificationsEnabled: enabled };
+    setAlertPreferences(next);
+    toast[enabled ? 'success' : 'warning'](enabled ? 'Notificações do garçom ativadas.' : 'Permita as notificações no navegador para ativá-las.');
+  };
   useEffect(() => {
     const sessionId = selectedTable?.activeSession?.id;
     const count = Number(peopleCount);
@@ -138,11 +176,11 @@ export default function FoodTables() {
 
   const openTableModal = async (table: FoodTableBoardItem) => {
     setSelectedTable(table);
-    setSplits([]); setConsumption([]);
+    setSplits([]); setConsumption([]); setTableOrders([]);
     setPaymentParts([]); setPaymentAmount(''); setPaymentConfirmed(false); setConfirmedPaid(0);
     setPeopleCount(peopleCountByTable[table.id] ?? String(table.activeSession?.guest_count ?? 1));
     if (!table.activeSession) return;
-    try { const [nextSplits, nextConsumption] = await Promise.all([listFoodTablePaymentSplits(table.activeSession.id), listFoodTableConsumption(table.activeSession.id)]); setSplits(nextSplits); setConsumption(nextConsumption); const db=supabase as any; const {data: orders}=await db.from('food_orders').select('id').eq('table_session_id', table.activeSession.id); const ids=(orders??[]).map((o:any)=>o.id); if(ids.length){ const {data: tx}=await db.from('store_payment_transactions').select('amount,status').in('order_id',ids).eq('status','paid'); setConfirmedPaid((tx??[]).reduce((sum:number,t:any)=>sum+Number(t.amount),0)); } }
+    try { const [nextSplits, nextConsumption] = await Promise.all([listFoodTablePaymentSplits(table.activeSession.id), listFoodTableConsumption(table.activeSession.id)]); setSplits(nextSplits); setConsumption(nextConsumption); const db=supabase as any; const {data: orders}=await db.from('food_orders').select('id,status,created_at').eq('table_session_id', table.activeSession.id).order('created_at', { ascending: false }); setTableOrders(orders ?? []); const ids=(orders??[]).map((o:any)=>o.id); if(ids.length){ const {data: tx}=await db.from('store_payment_transactions').select('amount,status').in('order_id',ids).eq('status','paid'); setConfirmedPaid((tx??[]).reduce((sum:number,t:any)=>sum+Number(t.amount),0)); } }
     catch { toast.error('Não foi possível carregar a divisão desta mesa.'); }
   };
 
@@ -203,7 +241,13 @@ export default function FoodTables() {
           <h1 className="text-2xl font-bold tracking-tight">Mesas</h1>
           <p className="text-sm text-muted-foreground">{scope ? `${scope.location.name} · Salão e comandas` : 'Selecione uma filial para operar o salão.'}</p>
         </div>
-        <Button variant="outline" onClick={() => void refresh()} disabled={loading}><QrCode className="mr-2 h-4 w-4" />Atualizar</Button>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" size="icon" onClick={toggleSound} title={alertPreferences.soundEnabled ? 'Silenciar alertas sonoros' : 'Ativar alertas sonoros'}>
+            {alertPreferences.soundEnabled ? <Bell className="h-4 w-4" /> : <BellOff className="h-4 w-4" />}
+          </Button>
+          {!alertPreferences.notificationsEnabled && <Button variant="outline" size="sm" onClick={() => void activateNotifications()}><Bell className="mr-2 h-4 w-4" />Ativar alertas</Button>}
+          <Button variant="outline" onClick={() => void refresh()} disabled={loading}><QrCode className="mr-2 h-4 w-4" />Atualizar</Button>
+        </div>
       </section>
       {paymentCalls.length > 0 && <Card className="border-primary/40"><CardContent className="space-y-2 p-4"><p className="font-semibold text-primary">Solicitações aguardando atendimento</p>{paymentCalls.map((call) => <div key={call.id} className="flex items-center justify-between rounded border p-2 text-sm"><span>{tables.find((table) => table.id === call.food_table_sessions?.table_id)?.code ?? 'Mesa'}</span><Button size="sm" variant="outline" onClick={async () => { const table = tables.find((item) => item.id === call.food_table_sessions?.table_id); if (table) await openTableModal(table); await (supabase as any).from('food_waiter_calls').update({ status: 'acknowledged', acknowledged_at: new Date().toISOString(), handled_by_user_id: (await supabase.auth.getUser()).data.user?.id }).eq('id', call.id); await refresh(); }}>Assumir</Button></div>)}</CardContent></Card>}
 
@@ -284,6 +328,7 @@ export default function FoodTables() {
             {selectedTable?.activeSession && (
               <div className="space-y-3 pt-2">
                 <div className="rounded-lg border p-3"><p className="mb-2 text-sm font-semibold">Consumo da mesa</p>{groupedConsumption.length === 0 ? <p className="text-sm text-muted-foreground">Nenhum item lançado.</p> : <div className={`space-y-2 ${groupedConsumption.length > 4 ? 'max-h-48 overflow-y-auto pr-1' : ''}`}>{groupedConsumption.map((item) => <div key={item.id} className="flex items-center justify-between text-sm"><span>{item.quantity}x {item.product_name}</span><strong>{item.line_total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</strong></div>)}</div>}</div>
+                <div className="rounded-lg border p-3"><p className="mb-2 flex items-center gap-2 text-sm font-semibold"><ChefHat className="h-4 w-4 text-primary" />Pedidos da mesa</p>{tableOrders.length === 0 ? <p className="text-sm text-muted-foreground">Nenhum pedido enviado à cozinha.</p> : <div className="space-y-2">{tableOrders.map((order, index) => { const label: Record<string, string> = { submitted: 'Enviado à cozinha', preparing: 'Em preparo', ready: 'Pronto para servir', delivered: 'Entregue', cancelled: 'Cancelado' }; return <div key={order.id} className="flex items-center justify-between gap-3 text-sm"><span>Pedido {tableOrders.length - index}</span><span className="rounded-full bg-muted px-2 py-1 text-xs font-medium">{label[order.status] || order.status}</span></div>; })}</div>}</div>
                 <div className="flex items-center justify-between rounded-lg bg-primary/10 p-3"><span className="font-semibold">Total da mesa</span><strong className="text-lg text-primary">{consumption.reduce((sum, item) => sum + item.line_total, 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</strong></div>
                 <div className="space-y-2 rounded-lg border p-3"><p className="text-sm font-semibold">Pagamentos</p>{confirmedPaid >= consumption.reduce((sum, item) => sum + item.line_total, 0) - 0.01 ? <p className="text-sm font-medium text-primary">Pagamento confirmado pelo provedor</p> : <><div className="flex gap-2"><select className="rounded border bg-background px-2 text-sm" value={paymentMethod} onChange={e=>setPaymentMethod(e.target.value)}><option value="pix">Pix</option><option value="mercado_pago">Cartão</option><option value="cash">Dinheiro</option></select><Input type="number" step="0.01" placeholder="Valor" value={paymentAmount} onChange={e=>setPaymentAmount(e.target.value)} /><Button type="button" variant="outline" onClick={addPaymentPart}>Adicionar</Button></div>{paymentParts.map((part,i)=><div key={i} className="flex justify-between text-sm"><span>{part.method}</span><strong>{part.amount.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</strong></div>)}<Button type="button" className="w-full" disabled={!paymentParts.length} onClick={() => void confirmSplitPayment()}>Confirmar pagamentos</Button></>}</div>
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-end">

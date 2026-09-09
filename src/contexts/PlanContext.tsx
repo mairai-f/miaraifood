@@ -7,6 +7,7 @@ interface PlanContextValue {
   features: string[];
   loading: boolean;
   hasActivePlan: boolean;
+  isTrialActive: boolean;
   hasFeature: (featureKey: string) => boolean;
   refresh: () => Promise<void>;
 }
@@ -63,6 +64,7 @@ export function PlanProvider({ children }: { children: ReactNode }) {
   const { user, ownerUserId, loading: authLoading, isLocalOfflineSession } = useAuth();
   const [planId, setPlanId] = useState<string | null>(null);
   const [features, setFeatures] = useState<string[]>([]);
+  const [isTrialActive, setIsTrialActive] = useState(false);
   const [loading, setLoading] = useState(true);
   const [resolvedPlanSubject, setResolvedPlanSubject] = useState<string | null>(null);
   const refreshRequestRef = useRef(0);
@@ -90,6 +92,7 @@ export function PlanProvider({ children }: { children: ReactNode }) {
     if (!user) {
       setPlanId(null);
       setFeatures([]);
+      setIsTrialActive(false);
       markPlanSubjectResolved(requestPlanSubject);
       setLoading(false);
       return;
@@ -101,6 +104,7 @@ export function PlanProvider({ children }: { children: ReactNode }) {
       if (!isCurrentRequest()) return;
       setPlanId(cachedPlanAccess?.planId ?? null);
       setFeatures(cachedPlanAccess?.features ?? []);
+      setIsTrialActive(false);
       markPlanSubjectResolved(requestPlanSubject);
       setLoading(false);
       return;
@@ -135,10 +139,25 @@ export function PlanProvider({ children }: { children: ReactNode }) {
       return true;
     };
 
-    const { data: currentPlanId, error: planError } = await settleSupabaseQuery(
-      db.rpc('get_current_store_plan_id'),
-      null,
-    );
+    const [planResult, subscriptionResult] = await Promise.all([
+      settleSupabaseQuery(db.rpc('get_current_store_plan_id'), null),
+      settleSupabaseQuery(
+        db.from('store_subscriptions')
+          .select('status, trial_ends_at, current_period_ends_at')
+          .eq('owner_user_id', ownerUserId ?? user.id)
+          .eq('product_context', 'happycash')
+          .in('status', ['trialing', 'active', 'past_due'])
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+        null,
+      ),
+    ]);
+    const { data: currentPlanId, error: planError } = planResult;
+    const subscription = subscriptionResult.data as { status?: string; trial_ends_at?: string | null; current_period_ends_at?: string | null } | null;
+    const trialEndsAt = subscription?.trial_ends_at ?? subscription?.current_period_ends_at ?? null;
+    const trialIsValid = subscription?.status === 'trialing' && Boolean(trialEndsAt) && new Date(trialEndsAt!).getTime() > Date.now();
+    if (isCurrentRequest()) setIsTrialActive(trialIsValid);
     if (!isCurrentRequest()) return;
 
     if (planError || !currentPlanId) {
@@ -146,6 +165,7 @@ export function PlanProvider({ children }: { children: ReactNode }) {
 
       setPlanId(null);
       setFeatures([]);
+      setIsTrialActive(false);
       markPlanSubjectResolved(requestPlanSubject);
       setLoading(false);
       return;
@@ -187,6 +207,9 @@ export function PlanProvider({ children }: { children: ReactNode }) {
   }, [refresh]);
 
   const hasFeature = useCallback((featureKey: string) => {
+    // The 30-day trial intentionally exposes the whole product. The plan id
+    // remains "inicial" for billing, but must not restrict an active trial.
+    if (isTrialActive) return true;
     if (features.includes(featureKey)) return true;
     if (featureKey.startsWith('food.')) {
       return (
@@ -195,7 +218,7 @@ export function PlanProvider({ children }: { children: ReactNode }) {
       );
     }
     return false;
-  }, [features]);
+  }, [features, isTrialActive]);
   const effectiveLoading = loading || resolvedPlanSubject !== planSubject;
 
   return (
@@ -205,6 +228,7 @@ export function PlanProvider({ children }: { children: ReactNode }) {
         features,
         loading: effectiveLoading,
         hasActivePlan: Boolean(planId),
+        isTrialActive,
         hasFeature,
         refresh,
       }}

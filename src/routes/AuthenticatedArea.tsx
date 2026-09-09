@@ -40,6 +40,7 @@ const pageLoaders = [
   () => import('@/pages/Notes'),
   () => import('@/pages/Settings'),
   () => import('@/pages/AuditLog'),
+  () => import('@/pages/InternalChat'),
 ];
 
 const [
@@ -62,6 +63,7 @@ const [
   loadNotes,
   loadSettings,
   loadAuditLog,
+  loadInternalChat,
 ] = pageLoaders;
 
 const Dashboard = lazy(loadDashboard);
@@ -83,7 +85,10 @@ const Operations = lazy(loadOperations);
 const Notes = lazy(loadNotes);
 const Settings = lazy(loadSettings);
 const AuditLog = lazy(loadAuditLog);
+const InternalChat = lazy(loadInternalChat);
 const FoodTables = lazy(() => import('@/pages/FoodTables'));
+const WaiterCalls = lazy(() => import('@/pages/WaiterCalls'));
+const WaiterProfile = lazy(() => import('@/pages/WaiterProfile'));
 const SettingsTables = lazy(() => import('@/pages/SettingsTables'));
 const FoodMenuSettings = lazy(() => import('@/pages/FoodMenuSettings'));
 const KdsPage = lazy(() => import('@/pages/KdsPage'));
@@ -170,9 +175,27 @@ class PageErrorBoundary extends Component<
 }
 
 const getDefaultAuthenticatedPath = (role: string) => {
-  if (role === 'waiter') return '/comandas';
-  return '/';
+  // The waiter starts where the work happens. The same FoodTables page is used;
+  // permissions decide which actions (open, order, payment, close) are exposed.
+  if (role === 'waiter') return '/acesso';
+  if (role === 'admin') return '/';
+  return '/acesso';
 };
+
+function AccessLanding() {
+  const { hasPermission, loading } = usePermissions();
+  // A collaborator lands on the first operational screen actually granted by
+  // the owner, rather than seeing a plan lock for an unrelated module.
+  const destination = [
+    ['food.tables.view', '/mesas'],
+    ['pdv.use', '/pdv'],
+    ['service_tickets.use', '/comandas'],
+    ['chat.view', '/conversas'],
+    ['clients.view', '/clientes'],
+  ].find(([permission]) => hasPermission(permission as ErpPermissionKey))?.[1];
+  if (loading) return <FullScreenLoader />;
+  return destination ? <Navigate to={destination} replace /> : <AppLayout><FeatureLocked /></AppLayout>;
+}
 
 function ProtectedRoute({
   children,
@@ -294,12 +317,16 @@ const AuthenticatedArea = () => {
           <LowStockNotifier />
           <GuidedTour />
           <Routes>
+          <Route path="/acesso" element={<AccessLanding />} />
           <Route path="/" element={<ProtectedRoute requiredPermission="dashboard.view" requiredFeature="dashboard.view"><LazyPage><Dashboard /></LazyPage></ProtectedRoute>} />
           <Route path="/pdv" element={<ProtectedRoute requiredPermission="pdv.use" requiredFeature="pdv.use"><LazyPage><PDV /></LazyPage></ProtectedRoute>} />
           <Route path="/comandas" element={<ProtectedRoute requiredPermission="service_tickets.use" requiredFeature="service_tickets.use"><LazyPage><ServiceTickets /></LazyPage></ProtectedRoute>} />
           <Route path="/mesas" element={<ProtectedRoute requiredPermission="food.tables.view" requiredFeature="food.tables"><LazyPage><FoodTables /></LazyPage></ProtectedRoute>} />
+          <Route path="/chamados" element={<ProtectedRoute requiredPermission="food.waiter_calls.handle" requiredFeature="food.tables"><LazyPage><WaiterCalls /></LazyPage></ProtectedRoute>} />
+          <Route path="/garcom/perfil" element={<ProtectedRoute requiredPermission="food.tables.view" requiredFeature="food.tables"><LazyPage><WaiterProfile /></LazyPage></ProtectedRoute>} />
           <Route path="/configuracoes/mesas" element={<ProtectedRoute requiredPermission="food.tables.manage" requiredFeature="food.tables"><LazyPage><SettingsTables /></LazyPage></ProtectedRoute>} />
           <Route path="/kds" element={<ProtectedRoute requiredPermission="food.kds.use" requiredFeature="food.kds"><LazyPage><KdsPage /></LazyPage></ProtectedRoute>} />
+          <Route path="/conversas" element={<ProtectedRoute requiredPermission="chat.view" requiredFeature="dashboard.view"><LazyPage><InternalChat /></LazyPage></ProtectedRoute>} />
           <Route path="/configuracoes/qrmenu" element={<ProtectedRoute requiredPermission="food.qrmenu.manage" requiredFeature="food.qrmenu" runtimeScope="web"><LazyPage><FoodMenuSettings /></LazyPage></ProtectedRoute>} />
           <Route path="/clientes" element={<ProtectedRoute requiredPermission="clients.view" requiredFeature="clients.manage"><LazyPage><Clients /></LazyPage></ProtectedRoute>} />
           <Route path="/produtos" element={<ProtectedRoute requiredPermission="products.view" requiredFeature="products.manage"><LazyPage><Products /></LazyPage></ProtectedRoute>} />

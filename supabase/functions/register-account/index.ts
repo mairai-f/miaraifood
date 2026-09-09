@@ -35,6 +35,7 @@ interface RegisterAccountRequest {
   lgpdAccepted?: boolean;
   lgpdVersion?: string;
   legalAcceptanceSource?: string | null;
+  setupConfig?: Record<string, unknown>;
 }
 
 interface RegisterAccountResponse {
@@ -755,6 +756,7 @@ Deno.serve(async (request) => {
           trial_ends_at: null,
           product_context: data.productContext,
           ...data.legalAcceptance,
+          setup_config: payload.setupConfig || {},
         },
         { onConflict: "owner_user_id" },
       );

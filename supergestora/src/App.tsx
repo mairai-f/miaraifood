@@ -64,6 +64,9 @@ type CompanyRow = {
   email: string;
   active: boolean;
   createdAt: string;
+  plan?: string | null;
+  subscriptionStatus?: string | null;
+  trialEndsAt?: string | null;
 };
 
 type CompanyDetail = {
@@ -133,7 +136,6 @@ const SECTION_ICONS: Record<SectionName, typeof Building2> = {
 };
 
 const TOKEN_KEY = 'miar-supergestora-token';
-const API_URL = (import.meta.env.VITE_API_URL ?? '').replace(/\/$/, '');
 
 function formatMoney(value: number): string {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
@@ -203,43 +205,10 @@ function maskCep(input: string): string {
   return input.replace(/\D/g, '').slice(0, 8).replace(/(\d{5})(\d)/, '$1-$2');
 }
 
-async function apiFetch<T>(path: string, init: RequestInit = {}, token?: string | null): Promise<T> {
-  const headers = new Headers(init.headers ?? {});
-  if (!(init.body instanceof FormData)) headers.set('Content-Type', 'application/json');
-  if (token) headers.set('Authorization', `Bearer ${token}`);
-
-  // Adicionar CSRF token em requisições mutantes
-  const method = (init.method || 'GET').toUpperCase();
-  if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
-    const csrfToken = window.localStorage.getItem('csrf-token');
-    if (csrfToken) {
-      headers.set('X-CSRF-Token', csrfToken);
-    }
-  }
-
-  const response = await fetch(`${API_URL}/api${path}`, {
-    ...init,
-    headers,
-    // Necessário pro cookie do double-submit CSRF (ver csrf-protection.ts)
-    // ser enviado quando API e frontend estão em domínios diferentes —
-    // cross-origin, fetch por padrão NÃO manda cookies sem isso.
-    credentials: 'include',
-  });
-
-  const rawText = await response.text();
-  let data: any = {};
-  if (rawText) {
-    try {
-      data = JSON.parse(rawText);
-    } catch {
-      data = { message: rawText };
-    }
-  }
-
-  if (!response.ok) {
-    throw new Error(data?.error || data?.message || `Erro na requisição (${response.status}).`);
-  }
-
+async function platformInvoke<T>(action: string, payload: Record<string, unknown> = {}): Promise<T> {
+  const { data, error } = await supabase.functions.invoke('supergestora-admin', { body: { action, payload } });
+  if (error) throw new Error(error.message || 'Não foi possível concluir a ação administrativa.');
+  if (data?.error) throw new Error(data.error);
   return data as T;
 }
 
@@ -318,101 +287,72 @@ function App() {
     }
   }, []);
 
-  // Carregar CSRF token na inicialização
-  useEffect(() => {
-    // A Supergestora usa Supabase diretamente em produção. O endpoint REST
-    // legado só deve ser consultado quando uma API explícita foi configurada;
-    // sem isso o Vercel devolve o index.html e o parse JSON falha.
-    if (!API_URL) return;
-    fetch(`${API_URL}/api/csrf-token`, { credentials: 'include' })
-      .then((res) => {
-        if (!res.ok) throw new Error(`CSRF HTTP ${res.status}`);
-        return res.json();
-      })
-      .then((data) => {
-        if (typeof data?.token === 'string' && data.token.length > 0) {
-          window.localStorage.setItem('csrf-token', data.token);
-        }
-      })
-      .catch((err) => {
-        console.error('Erro ao carregar CSRF token:', err);
-      });
-  }, []);
-
   useEffect(() => {
     if (!token) {
       setUser(null);
       return;
     }
-
-    apiFetch<{ supergestora: SupergestoraUser }>('/supergestora/me', {}, token)
-      .then((data) => setUser(data.supergestora))
-      .catch(() => {
+    supabase.auth.getUser().then(({ data, error: authError }) => {
+      if (authError || !data.user) {
         window.localStorage.removeItem(TOKEN_KEY);
         setToken(null);
         setPage('login');
-      });
+        return;
+      }
+      const current = data.user;
+      setUser({ id: current.id, name: String(current.user_metadata?.name || current.email || ''), email: current.email || '', cpf: String(current.user_metadata?.cpf || ''), cargo: 'Supergestora', phone: String(current.user_metadata?.phone || ''), cep: String(current.user_metadata?.cep || '') });
+    });
   }, [token]);
 
   const loadRepresentatives = async () => {
-    if (!token) return;
-    const result = await apiFetch<Representative[]>('/supergestora/representatives', {}, token);
+    const result = await platformInvoke<Representative[]>('representatives.list');
     setRepresentatives(Array.isArray(result) ? result : []);
   };
 
   const loadRealRepresentatives = async () => {
-    if (!token) return;
-    const result = await apiFetch<RealRepresentative[]>('/supergestora/representantes-reais', {}, token);
-    setRealRepresentatives(result);
+    const { data, error: repError } = await supabase.from('representative_applications').select('*').order('created_at', { ascending: false });
+    if (repError) throw repError;
+    setRealRepresentatives((data ?? []).map((row: any) => ({ id: row.id, name: row.full_name, email: row.email, slug: row.id, active: row.status === 'approved', createdAt: row.created_at, cpf: row.cpf, phone: row.phone, cep: row.cep ?? null, address: row.address ?? null, addressNumber: row.address_number ?? null, complement: row.complement ?? null, neighborhood: row.neighborhood ?? null, city: row.city, state: row.state, parentRepresentativeId: row.parent_representative_id ?? null, parentName: row.parent_name ?? null, clientCount: 0, teamSize: 0, commissionPendingCents: 0, commissionPaidCents: 0 })));
   };
 
   const loadSummary = async () => {
-    if (!token) return;
-    const result = await apiFetch<Summary>('/supergestora/summary', {}, token);
-    setSummary(result);
+    const result = await platformInvoke<ActivationCode[]>('activation.list');
+    const now = Date.now();
+    setSummary({ pending: result.filter((x) => x.status === 'pending' && (!x.expires_at || new Date(x.expires_at).getTime() > now)).length, used: result.filter((x) => x.status === 'used').length, revoked: result.filter((x) => x.status === 'revoked').length, expired: result.filter((x) => x.status === 'expired' || (!!x.expires_at && new Date(x.expires_at).getTime() <= now)).length, total: result.length });
   };
 
   const loadCodes = async () => {
-    if (!token) return;
-    const result = await apiFetch<ActivationCode[]>('/supergestora/activation-codes', {}, token);
+    const result = await platformInvoke<ActivationCode[]>('activation.list');
     setCodes(result);
   };
 
   const loadCompanies = async () => {
-    if (!token) return;
-    const [result, plataformaResult] = await Promise.all([
-      apiFetch<CompanyRow[]>('/supergestora/companies', {}, token),
-      apiFetch<Plataforma>('/supergestora/plataforma', {}, token),
-    ]);
+    const result = await platformInvoke<CompanyRow[]>('companies.list');
+    const now = Date.now(); const inThreeDays = now + 3 * 24 * 60 * 60 * 1000;
     setCompanies(result);
-    setPlataforma(plataformaResult);
+    setPlataforma({
+      empresas: { total: result.length, ativas: result.filter((row) => row.subscriptionStatus === 'active').length, trial: result.filter((row) => row.subscriptionStatus === 'trialing').length, suspensas: result.filter((row) => !row.active).length, excluidas: 0 },
+      alertas: { trialsEncerrando3Dias: result.filter((row) => row.subscriptionStatus === 'trialing' && row.trialEndsAt && new Date(row.trialEndsAt).getTime() <= inThreeDays).length },
+      servicos: { banco: 'Supabase', pagamentos: 'Asaas', email: 'Configurado' },
+    });
   };
 
   const loadBannedEmails = async () => {
-    if (!token) return;
-    const result = await apiFetch<BannedEmail[]>('/supergestora/banned-emails', {}, token);
+    const result = await platformInvoke<BannedEmail[]>('ban.list');
     setBannedEmails(result);
   };
 
   const loadAuditLogs = async () => {
-    if (!token) return;
-    const result = await apiFetch<AuditLogEntry[]>('/supergestora/audit-logs?limit=100', {}, token);
+    const result = await platformInvoke<AuditLogEntry[]>('audit.list');
     setAuditLogs(result);
   };
 
   const openCompany = async (id: string) => {
-    if (!token) return;
     setSelectedCompanyId(id);
     setCompanyStaffTab('funcionarios'); // sempre reseta ao trocar de empresa
-    const [detail, users, promos] = await Promise.all([
-      apiFetch<CompanyDetail>(`/supergestora/companies/${id}`, {}, token),
-      apiFetch<{ owners: CompanyOwnerUser[]; employees: CompanyEmployeeUser[] }>(`/supergestora/companies/${id}/users`, {}, token),
-      apiFetch<Promotion[]>(`/supergestora/companies/${id}/promotions`, {}, token),
-    ]);
-    setCompanyDetail(detail);
-    setCompanyOwners(users.owners);
-    setCompanyEmployees(users.employees);
-    setCompanyPromotions(promos);
+    const result = await platformInvoke<{ detail: CompanyDetail; owners: CompanyOwnerUser[]; employees: CompanyEmployeeUser[]; promotions: Promotion[] }>('company.detail', { id });
+    const { detail } = result;
+    setCompanyDetail(detail); setCompanyOwners(result.owners); setCompanyEmployees(result.employees); setCompanyPromotions(result.promotions);
     setCompanyEditForm({
       name: detail.name ?? '',
       ownerName: detail.owner_name ?? '',
@@ -430,10 +370,10 @@ function App() {
   };
 
   const saveCompanyEdit = async () => {
-    if (!token || !selectedCompanyId) return;
+    if (!selectedCompanyId) return;
     setBusy(true);
     try {
-      await apiFetch(`/supergestora/companies/${selectedCompanyId}`, { method: 'PATCH', body: JSON.stringify(companyEditForm) }, token);
+      await platformInvoke('company.update', { id: selectedCompanyId, changes: companyEditForm });
       setNotice('Empresa atualizada com sucesso.');
       await openCompany(selectedCompanyId);
       await loadCompanies();
@@ -455,7 +395,6 @@ function App() {
   };
 
   const suspendCompany = (id: string) => {
-    if (!token) return;
     setConfirmRequest({
       title: 'Suspender empresa',
       message: 'A empresa perde acesso ao Gestor até ser reativada. O histórico e os dados continuam intactos.',
@@ -463,7 +402,7 @@ function App() {
       confirmLabel: 'Suspender',
       reasonPlaceholder: 'Ex.: pagamento pendente',
       onConfirm: (reason) => runConfirmed(async () => {
-        await apiFetch(`/supergestora/companies/${id}/suspend`, { method: 'POST', body: JSON.stringify({ reason }) }, token);
+        await platformInvoke('company.control', { id, state: 'suspend', reason });
         setNotice('Empresa suspensa.');
         await loadCompanies();
         if (selectedCompanyId === id) await openCompany(id);
@@ -472,15 +411,13 @@ function App() {
   };
 
   const reactivateCompany = async (id: string) => {
-    if (!token) return;
-    await apiFetch(`/supergestora/companies/${id}/reactivate`, { method: 'POST' }, token);
+    await platformInvoke('company.control', { id, state: 'reactivate' });
     setNotice('Empresa reativada.');
     await loadCompanies();
     if (selectedCompanyId === id) await openCompany(id);
   };
 
   const deleteCompany = (id: string) => {
-    if (!token) return;
     setConfirmRequest({
       title: 'Excluir empresa',
       message: 'O histórico financeiro é preservado, mas o login e o acesso ao Gestor serão bloqueados permanentemente. Esta ação não pode ser desfeita.',
@@ -488,7 +425,7 @@ function App() {
       confirmLabel: 'Excluir empresa',
       reasonPlaceholder: 'Ex.: solicitação do cliente',
       onConfirm: (reason) => runConfirmed(async () => {
-        await apiFetch(`/supergestora/companies/${id}`, { method: 'DELETE', body: JSON.stringify({ reason }) }, token);
+        await platformInvoke('company.control', { id, state: 'delete', reason });
         setNotice('Empresa excluída.');
         closeCompany();
         await loadCompanies();
@@ -497,12 +434,12 @@ function App() {
   };
 
   const toggleOwnerBlock = (ownerId: string, ownerName: string, blocked: boolean) => {
-    if (!token || !selectedCompanyId) return;
+    if (!selectedCompanyId) return;
     // Desbloquear é restaurador, não precisa de confirmação — só bloquear
     // (restringe acesso de alguém) é que é a ação grave aqui.
     if (blocked) {
       void (async () => {
-        await apiFetch(`/supergestora/companies/${selectedCompanyId}/owners/${ownerId}/unblock`, { method: 'POST' }, token);
+        await platformInvoke('company.owner_block', { ownerId, blocked: false });
         await openCompany(selectedCompanyId);
       })();
       return;
@@ -513,21 +450,21 @@ function App() {
       variant: 'danger',
       confirmLabel: 'Bloquear',
       onConfirm: () => runConfirmed(async () => {
-        await apiFetch(`/supergestora/companies/${selectedCompanyId}/owners/${ownerId}/block`, { method: 'POST' }, token);
+        await platformInvoke('company.owner_block', { ownerId, blocked: true });
         await openCompany(selectedCompanyId);
       }),
     });
   };
 
   const removePromotion = (promoId: string) => {
-    if (!token || !selectedCompanyId) return;
+    if (!selectedCompanyId) return;
     setConfirmRequest({
       title: 'Remover promoção',
       message: 'A promoção some do marketplace imediatamente. Esta ação não pode ser desfeita.',
       variant: 'danger',
       confirmLabel: 'Remover',
       onConfirm: () => runConfirmed(async () => {
-        await apiFetch(`/supergestora/promotions/${promoId}`, { method: 'DELETE' }, token);
+        await platformInvoke('promotion.delete', { id: promoId });
         await openCompany(selectedCompanyId);
       }),
     });
@@ -535,10 +472,10 @@ function App() {
 
   const handleBanEmail = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!token || !banForm.email.trim()) return;
+    if (!banForm.email.trim()) return;
     setBusy(true);
     try {
-      await apiFetch('/supergestora/banned-emails', { method: 'POST', body: JSON.stringify(banForm) }, token);
+      await platformInvoke('ban.create', banForm);
       setBanForm({ email: '', reason: '' });
       setNotice('E-mail banido com sucesso.');
       await loadBannedEmails();
@@ -550,8 +487,7 @@ function App() {
   };
 
   const handleUnbanEmail = async (email: string) => {
-    if (!token) return;
-    await apiFetch(`/supergestora/banned-emails/${encodeURIComponent(email)}`, { method: 'DELETE' }, token);
+    await platformInvoke('ban.delete', { email });
     await loadBannedEmails();
   };
 
@@ -621,25 +557,10 @@ function App() {
     setNotice(null);
 
     try {
-      const response = await apiFetch<{ token: string; supergestora: SupergestoraUser }>('/supergestora/register', {
-        method: 'POST',
-        body: JSON.stringify({
-          name: registerForm.name,
-          email: registerForm.email,
-          cpf: registerForm.cpf,
-          cargo: registerForm.cargo,
-          phone: registerForm.phone,
-          cep: registerForm.cep,
-          password: registerForm.password,
-          passwordConfirmation: registerForm.passwordConfirmation,
-        }),
-      });
-
-      setToken(response.token);
-      window.localStorage.setItem(TOKEN_KEY, response.token);
-      setUser(response.supergestora);
-      setPage('dashboard');
-      setNotice('Cadastro realizado com sucesso.');
+      // A Supergestora não possui auto-cadastro público: o perfil é criado e
+      // concedido pelo administrador da plataforma dentro do Supabase.
+      setNotice('Solicitação registrada. Um administrador precisa conceder o perfil Supergestora para este e-mail.');
+      setPage('login');
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : 'Falha ao cadastrar.');
     } finally {
@@ -654,29 +575,9 @@ function App() {
     setNotice(null);
 
     try {
-      if (!forgotForm.code) {
-        const response = await apiFetch<{ message: string; code?: string; expiresAt?: string }>('/supergestora/forgot-password', {
-          method: 'POST',
-          body: JSON.stringify({ email: forgotForm.email }),
-        });
-        setNotice(response.message || 'Código enviado por e-mail.');
-        setForgotForm((current) => ({ ...current, code: response.code ?? current.code }));
-        return;
-      }
-
-      const response = await apiFetch<{ message: string }>('/supergestora/reset-password', {
-        method: 'POST',
-        body: JSON.stringify({
-          email: forgotForm.email,
-          code: forgotForm.code,
-          password: forgotForm.password,
-          passwordConfirmation: forgotForm.passwordConfirmation,
-        }),
-      });
-
-      setNotice(response.message || 'Senha redefinida com sucesso.');
-      setForgotForm({ email: '', code: '', password: '', passwordConfirmation: '' });
-      setPage('login');
+      const { error: resetError } = await supabase.auth.resetPasswordForEmail(forgotForm.email, { redirectTo: `${window.location.origin}/` });
+      if (resetError) throw resetError;
+      setNotice('Enviamos o link seguro de recuperação para seu e-mail.');
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : 'Falha ao processar recuperação.');
     } finally {
@@ -691,16 +592,7 @@ function App() {
     setNotice(null);
 
     try {
-      await apiFetch('/supergestora/representatives', {
-        method: 'POST',
-        body: JSON.stringify({
-          name: newRepresentative.name,
-          email: newRepresentative.email,
-          cities: newRepresentative.cities,
-          revenue: Number(newRepresentative.revenue || 0),
-          managers: Number(newRepresentative.managers || 0),
-        }),
-      }, token);
+      await platformInvoke('representatives.create', { name: newRepresentative.name, email: newRepresentative.email, cities: newRepresentative.cities, revenue: Number(newRepresentative.revenue || 0), managers: Number(newRepresentative.managers || 0) });
 
       setNotice('Representante cadastrado com sucesso.');
       setNewRepresentative({ name: '', email: '', cities: '', revenue: '0', managers: '0' });
@@ -714,7 +606,7 @@ function App() {
 
   const handleDeleteRepresentative = async (id: string) => {
     try {
-      await apiFetch(`/supergestora/representatives/${id}`, { method: 'DELETE' }, token);
+      await platformInvoke('representatives.delete', { id });
       await loadRepresentatives();
       setNotice('Representante removido.');
     } catch (submitError) {
@@ -728,18 +620,7 @@ function App() {
     setNotice(null);
 
     try {
-      const response = await apiFetch<{ code: string; establishmentName: string; personName: string; personEmail: string }>(
-        '/supergestora/activation-codes/auto',
-        {
-          method: 'POST',
-          body: JSON.stringify({
-            establishmentName: codeForm.establishmentName || 'Estabelecimento',
-            personName: codeForm.personName || 'Pessoa',
-            email: codeForm.personEmail || user?.email || 'contato@miar.ai',
-          }),
-        },
-        token,
-      );
+      const response = await platformInvoke<ActivationCode>('activation.create', { establishmentName: codeForm.establishmentName || 'Estabelecimento', personName: codeForm.personName || 'Pessoa', email: codeForm.personEmail || user?.email || '' });
       setNotice(`Código gerado: ${response.code}`);
       setCodeForm({ establishmentName: '', personName: '', personEmail: '' });
       await loadSummary();
@@ -756,28 +637,12 @@ function App() {
     setError(null);
     setNotice(null);
     try {
-      const response = await apiFetch<{ message: string; code: string }>(`/supergestora/activation-codes/${id}/send-email`, { method: 'POST' }, token);
-      setNotice(`${response.message} Código: ${response.code}`);
+      const response = await platformInvoke<ActivationCode>('activation.mark_sent', { id });
+      setNotice(`Envio registrado para o código: ${response.code}`);
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : 'Erro ao enviar e-mail.');
     } finally {
       setBusy(false);
-    }
-  };
-
-  const handleCepLookup = async () => {
-    const digits = registerForm.cep.replace(/\D/g, '');
-    if (digits.length !== 8) return;
-
-    try {
-      const data = await fetch(`https://viacep.com.br/ws/${digits}/json`).then((response) => response.json());
-      if (data?.erro) {
-        setError('CEP não encontrado.');
-        return;
-      }
-      setNotice(`CEP preenchido: ${data.localidade} / ${data.uf}`);
-    } catch {
-      setError('Não foi possível consultar o CEP.');
     }
   };
 
@@ -792,6 +657,7 @@ function App() {
   }, [representatives]);
 
   const logout = () => {
+    void supabase.auth.signOut();
     window.localStorage.removeItem(TOKEN_KEY);
     window.sessionStorage.removeItem(TOKEN_KEY);
     setToken(null);
@@ -872,7 +738,7 @@ function App() {
                 </label>
                 <label>
                   CEP
-                  <input value={registerForm.cep} onChange={(event) => setRegisterForm({ ...registerForm, cep: maskCep(event.target.value) })} type="text" inputMode="numeric" onBlur={handleCepLookup} required />
+                  <input value={registerForm.cep} onChange={(event) => setRegisterForm({ ...registerForm, cep: maskCep(event.target.value) })} type="text" inputMode="numeric" required />
                 </label>
               </div>
               <label>
@@ -1025,6 +891,7 @@ function App() {
                     <th>Nome</th>
                     <th>Dono</th>
                     <th>E-mail</th>
+                    <th>Plano / validade</th>
                     <th>Status</th>
                     <th>Cadastro</th>
                     <th>Ações</th>
@@ -1032,14 +899,15 @@ function App() {
                 </thead>
                 <tbody>
                   {companies.length === 0 ? (
-                    <tr><td colSpan={6}>Nenhuma empresa cadastrada ainda.</td></tr>
+                    <tr><td colSpan={7}>Nenhuma empresa cadastrada ainda.</td></tr>
                   ) : (
                     companies.map((c) => (
                       <tr key={c.id}>
                         <td>{c.name}</td>
                         <td>{c.ownerName}</td>
                         <td>{c.email}</td>
-                        <td><span className={c.active ? 'badge-ativa' : 'badge-suspensa'}>{c.active ? 'Ativa' : 'Suspensa'}</span></td>
+                        <td>{c.subscriptionStatus === 'trialing' ? <>Trial ativo até {c.trialEndsAt ? new Date(c.trialEndsAt).toLocaleDateString('pt-BR') : '—'}</> : (c.plan ?? 'Sem plano')}</td>
+                        <td><span className={c.active ? 'badge-ativa' : 'badge-suspensa'}>{c.subscriptionStatus === 'trialing' ? 'Trial ativo' : c.active ? 'Ativa' : 'Sem acesso ativo'}</span></td>
                         <td>{new Date(c.createdAt).toLocaleDateString('pt-BR')}</td>
                         <td><button className="primary-button" onClick={() => openCompany(c.id)}>Ver detalhes</button></td>
                       </tr>
@@ -1671,7 +1539,7 @@ function App() {
                         <td>{code.person_name || 'Pessoa'}</td>
                         <td>{code.person_email || '—'}</td>
                         <td>{code.status}</td>
-                        <td><button className="primary-button small" onClick={() => handleSendCode(code.id)}>Enviar e-mail</button></td>
+                        <td><button className="primary-button small" onClick={() => handleSendCode(code.id)}>Registrar envio</button></td>
                       </tr>
                     ))
                   )}
