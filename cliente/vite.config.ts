@@ -1,6 +1,5 @@
 import path from 'path';
 import react from '@vitejs/plugin-react';
-import tailwindcss from '@tailwindcss/vite';
 import { defineConfig } from 'vite';
 
 const rawPort = process.env.PORT ?? '5173';
@@ -12,7 +11,9 @@ const apiProxyTarget = process.env.API_PROXY_TARGET ?? 'http://localhost:3000';
 export default defineConfig({
   envDir: path.resolve(import.meta.dirname, '..'),
   base: basePath,
-  plugins: [react(), tailwindcss()],
+  // Tailwind 3 é processado pelo PostCSS local. O plugin Vite v4 ignorava
+  // as diretivas @tailwind deste app e publicava somente o HTML sem estilos.
+  plugins: [react()],
   resolve: {
     alias: {
       '@': path.resolve(import.meta.dirname, 'src'),

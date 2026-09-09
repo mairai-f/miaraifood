@@ -1,9 +1,7 @@
 @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap');
 /* O PostCSS compartilhado usa Tailwind 3. Mantemos diretivas v3 para que
    este aplicativo não quebre ao encontrar @layer base de dependências. */
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
 
 @theme inline {
   /* Brand aliases: keep existing utility classes aligned with Midnight Appetite. */

@@ -1,6 +1,5 @@
 import path from 'path';
 import react from '@vitejs/plugin-react';
-import tailwindcss from '@tailwindcss/vite';
 import { defineConfig } from 'vite';
 
 const rawPort = process.env.PORT ?? '5179';
@@ -12,7 +11,8 @@ const apiProxyTarget = process.env.API_PROXY_TARGET ?? 'http://localhost:3000';
 export default defineConfig({
   envDir: path.resolve(import.meta.dirname, '..'),
   base: basePath,
-  plugins: [react(), tailwindcss()],
+  // Mantém Tailwind 3 via PostCSS local; evita o CSS vazio em produção.
+  plugins: [react()],
   resolve: {
     alias: {
       '@': path.resolve(import.meta.dirname, 'src'),
