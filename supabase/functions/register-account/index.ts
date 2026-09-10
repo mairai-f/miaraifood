@@ -7,6 +7,7 @@ import {
 import { getPasswordPolicyError } from "../_shared/passwordPolicy.ts";
 import { normalizeProductContext, resolveProductContextFromPlanId } from "../_shared/productContext.ts";
 import { checkRedisRateLimit, readRateLimitEnv } from "../_shared/rateLimit.ts";
+import { ValidationError, isValidationError } from "../_shared/validationError.ts";
 
 interface RegisterAccountRequest {
   email?: string;
@@ -240,17 +241,17 @@ const validatePayload = (payload: RegisterAccountRequest) => {
   const passwordError = getPasswordPolicyError(password);
   const legalAcceptance = requireLegalAcceptance(payload, LEGAL_ACCEPTANCE_SOURCES.siteSignup);
 
-  if (!email || !email.includes("@")) throw new Error("Informe um email valido.");
-  if (passwordError) throw new Error(passwordError);
-  if (!nomeCliente) throw new Error("Informe o nome completo.");
-  if (telefone.length < 10) throw new Error("Informe um telefone valido.");
-  if (![11, 14].includes(cpfCnpj.length)) throw new Error("Informe um CPF ou CNPJ valido.");
-  if (!nomeEstabelecimento) throw new Error("Informe o nome do estabelecimento.");
-  if (!tipoEstabelecimento) throw new Error("Selecione o tipo de estabelecimento.");
-  if (cep.length !== 8) throw new Error("Informe um CEP valido.");
-  if (!nomeRua) throw new Error("Informe a rua.");
-  if (!cidade) throw new Error("Informe a cidade.");
-  if (estado.length !== 2) throw new Error("Selecione o estado.");
+  if (!email || !email.includes("@")) throw new ValidationError("Informe um email valido.");
+  if (passwordError) throw new ValidationError(passwordError);
+  if (!nomeCliente) throw new ValidationError("Informe o nome completo.");
+  if (telefone.length < 10) throw new ValidationError("Informe um telefone valido.");
+  if (![11, 14].includes(cpfCnpj.length)) throw new ValidationError("Informe um CPF ou CNPJ valido.");
+  if (!nomeEstabelecimento) throw new ValidationError("Informe o nome do estabelecimento.");
+  if (!tipoEstabelecimento) throw new ValidationError("Selecione o tipo de estabelecimento.");
+  if (cep.length !== 8) throw new ValidationError("Informe um CEP valido.");
+  if (!nomeRua) throw new ValidationError("Informe a rua.");
+  if (!cidade) throw new ValidationError("Informe a cidade.");
+  if (estado.length !== 2) throw new ValidationError("Selecione o estado.");
 
   return {
     email,
@@ -328,7 +329,7 @@ const getAttemptCounts = async (
   ]);
 
   if (ipError || emailError) {
-    throw new Error("Nao foi possivel validar a seguranca do cadastro agora.");
+    throw new ValidationError("Nao foi possivel validar a seguranca do cadastro agora.");
   }
 
   return {
@@ -501,7 +502,7 @@ Deno.serve(async (request) => {
       .maybeSingle();
 
     if (existingProfileError) {
-      throw new Error("Nao foi possivel verificar se esse email ja esta em uso.");
+      throw new ValidationError("Nao foi possivel verificar se esse email ja esta em uso.");
     }
 
     if (existingProfile?.user_id) {
@@ -526,7 +527,7 @@ Deno.serve(async (request) => {
       ]);
 
       if (existingStoreByOwnerResult.error || existingPendingByOwnerResult.error) {
-        throw new Error("Nao foi possivel verificar o cadastro existente.");
+        throw new ValidationError("Nao foi possivel verificar o cadastro existente.");
       }
 
       if (!existingStoreByOwnerResult.data && !existingPendingByOwnerResult.data) {
@@ -582,7 +583,7 @@ Deno.serve(async (request) => {
           );
 
         if (resumeRegistrationError) {
-          throw new Error("Nao foi possivel retomar seu cadastro agora.");
+          throw new ValidationError("Nao foi possivel retomar seu cadastro agora.");
         }
 
         await logAttempt(serviceClient, {
@@ -625,7 +626,7 @@ Deno.serve(async (request) => {
       .maybeSingle();
 
     if (existingStoreAccountEmailError) {
-      throw new Error("Nao foi possivel verificar se esse email ja esta em uso.");
+      throw new ValidationError("Nao foi possivel verificar se esse email ja esta em uso.");
     }
 
     if ((existingStoreAccountByEmail as StoreAccountRow | null)?.id) {
@@ -654,7 +655,7 @@ Deno.serve(async (request) => {
       .maybeSingle();
 
     if (existingStoreAccountDocumentError) {
-      throw new Error("Nao foi possivel verificar se esse CPF ou CNPJ ja esta em uso.");
+      throw new ValidationError("Nao foi possivel verificar se esse CPF ou CNPJ ja esta em uso.");
     }
 
     if ((existingStoreAccountByDocument as StoreAccountRow | null)?.id) {
@@ -678,7 +679,7 @@ Deno.serve(async (request) => {
       .maybeSingle();
 
     if (existingPendingError) {
-      throw new Error("Nao foi possivel verificar se esse email ja esta em uso.");
+      throw new ValidationError("Nao foi possivel verificar se esse email ja esta em uso.");
     }
 
     if ((existingPending as PendingRegistrationRow | null)?.owner_user_id) {
@@ -708,7 +709,7 @@ Deno.serve(async (request) => {
       .maybeSingle();
 
     if (existingPendingDocumentError) {
-      throw new Error("Nao foi possivel verificar se esse CPF ou CNPJ ja esta em uso.");
+      throw new ValidationError("Nao foi possivel verificar se esse CPF ou CNPJ ja esta em uso.");
     }
 
     if ((existingPendingDocument as PendingRegistrationRow | null)?.owner_user_id) {
@@ -848,6 +849,14 @@ Deno.serve(async (request) => {
       email: data.email,
     });
   } catch (error) {
+    // O motivo real era descartado aqui: qualquer falha virava a mesma frase
+    // generica, sem deixar rastro nem nos logs da function.
+    console.error("register-account failed", {
+      name: error instanceof Error ? error.name : "unknown",
+      message: error instanceof Error ? error.message : String(error),
+      emailHash,
+    });
+
     await logAttempt(serviceClient, {
       emailHash,
       ipHash,
@@ -856,6 +865,15 @@ Deno.serve(async (request) => {
       userAgent,
     });
 
-    return jsonResponse(request, { success: false, error: "Nao foi possivel concluir o cadastro." }, 400);
+    // Mensagens de ValidationError sao escritas para o usuario ler; qualquer
+    // outro erro fica generico para nao vazar detalhe interno.
+    return jsonResponse(
+      request,
+      {
+        success: false,
+        error: isValidationError(error) ? error.message : "Nao foi possivel concluir o cadastro.",
+      },
+      400,
+    );
   }
 });

@@ -339,6 +339,28 @@ const Cadastro = () => {
         setIncompleteModalOpen(true);
         return;
       }
+      // O servidor exige endereco completo. Sem checar aqui, dava para chegar
+      // ate o passo 5 com tudo vazio e so entao levar uma recusa.
+      const blockStep2 = (message: string) => {
+        setIncompleteMessage(message);
+        setIncompleteModalOpen(true);
+      };
+      if (cep.replace(/\D/g, "").length !== 8) {
+        blockStep2("Informe um CEP valido com 8 digitos.");
+        return;
+      }
+      if (!nomeRua.trim()) {
+        blockStep2("Informe o nome da rua. Use a busca do CEP para preencher automaticamente.");
+        return;
+      }
+      if (!cidade.trim()) {
+        blockStep2("Informe a cidade. Use a busca do CEP para preencher automaticamente.");
+        return;
+      }
+      if (estado.trim().length !== 2) {
+        blockStep2("Selecione o estado.");
+        return;
+      }
       setStep(3);
     } else if (step === 3) {
       setStep(4);

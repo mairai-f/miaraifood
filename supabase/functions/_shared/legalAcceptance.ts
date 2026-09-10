@@ -1,3 +1,4 @@
+import { ValidationError } from "./validationError.ts";
 export const LEGAL_TERMS_VERSION = "2026-07-09";
 export const LEGAL_PRIVACY_VERSION = "2026-07-09";
 export const LEGAL_LGPD_VERSION = "2026-07-09";
@@ -31,19 +32,19 @@ export const requireLegalAcceptance = (
   expectedSource: LegalAcceptanceSource,
 ) => {
   if (!payload.termsAccepted || !payload.privacyAccepted || !payload.lgpdAccepted) {
-    throw new Error("Concorde com os Termos de Uso, a Politica de Privacidade e a LGPD para continuar.");
+    throw new ValidationError("Concorde com os Termos de Uso, a Politica de Privacidade e a LGPD para continuar.");
   }
 
   if ((payload.termsVersion ?? "").trim() !== LEGAL_TERMS_VERSION) {
-    throw new Error("Os Termos de Uso desta versao precisam ser aceitos novamente.");
+    throw new ValidationError("Os Termos de Uso desta versao precisam ser aceitos novamente.");
   }
 
   if ((payload.privacyVersion ?? "").trim() !== LEGAL_PRIVACY_VERSION) {
-    throw new Error("A Politica de Privacidade desta versao precisa ser aceita novamente.");
+    throw new ValidationError("A Politica de Privacidade desta versao precisa ser aceita novamente.");
   }
 
   if ((payload.lgpdVersion ?? "").trim() !== LEGAL_LGPD_VERSION) {
-    throw new Error("O aviso LGPD desta versao precisa ser aceito novamente.");
+    throw new ValidationError("O aviso LGPD desta versao precisa ser aceito novamente.");
   }
 
   const acceptedAt = new Date().toISOString();
