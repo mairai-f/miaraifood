@@ -3,7 +3,7 @@ export const LEGAL_PRIVACY_VERSION = '2026-07-09';
 export const LEGAL_LGPD_VERSION = '2026-07-09';
 export const LEGAL_UPDATED_AT_LABEL = '9 de julho de 2026';
 export const LEGAL_SUPPORT_EMAIL = 'suporte@miaraifood.com.br';
-export const LEGAL_SITE_ORIGIN = 'https://miar-site.vercel.app';
+export const LEGAL_SITE_ORIGIN = 'https://www.miaraifood.com.br';
 
 export const LEGAL_PATHS = {
   privacy: '/politica-de-privacidade',

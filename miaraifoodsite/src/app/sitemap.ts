@@ -1,9 +1,10 @@
 import { MetadataRoute } from 'next';
 import { portfolioData } from '@/data/portfolio';
 import { supabase } from '@/lib/supabase';
+import { SITE_ORIGIN } from '@/lib/siteSeo';
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const baseUrl = 'https://miar-site.vercel.app';
+  const baseUrl = SITE_ORIGIN;
 
   const staticRoutes = [
     '',
@@ -17,9 +18,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     '/telas',
     '/entregador',
     '/representante',
-    '/login',
-    '/cadastro',
-    '/dashboard',
     '/downloads'
   ].map((route) => ({
     url: `${baseUrl}${route}`,

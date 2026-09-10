@@ -65,7 +65,7 @@ export const metadata: Metadata = {
         siteName: 'MIAR AI/FOOD',
         images: [
             {
-                url: '/miar-logo-bg-white.svg',
+                url: '/miar-logo-bg-white.svg?v=20260910',
                 width: 1200,
                 height: 630,
                 alt: 'MIAR AI/FOOD - Da mesa à entrega, toda a operação conectada',
@@ -78,7 +78,7 @@ export const metadata: Metadata = {
         description:
             'Da mesa à entrega, toda a operação conectada.',
         creator: '@miaraifood',
-        images: ['/miar-logo-bg-white.svg'],
+        images: ['/miar-logo-bg-white.svg?v=20260910'],
     },
     robots: {
         index: true,

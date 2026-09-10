@@ -73,7 +73,7 @@ const loginFeatureCards = [
   { label: 'Estoque', image: loginEstoque, imageClassName: 'w-full scale-[1.28]' },
 ];
 
-const MIAR_SITE_RECOVERY_URL = 'https://miar-site.vercel.app/login?recovery=1';
+const MIAR_SITE_RECOVERY_URL = 'https://www.miaraifood.com.br/login?recovery=1';
 
 /*
   Componente Login – ponto de entrada da UI de autenticação.

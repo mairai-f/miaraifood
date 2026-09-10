@@ -13,9 +13,12 @@ const DEFAULT_ALLOWED_ORIGINS = [
   "http://localhost:4173",
   "http://localhost:4174",
   "http://localhost:4175",
-  "https://miar-site.vercel.app",
   "https://www.miaraifood.com.br",
   "https://miaraifood.com.br",
+  "https://app.miaraifood.com.br",
+  "https://representante.miaraifood.com.br",
+  "https://supergestora.miaraifood.com.br",
+  "https://entregador.miaraifood.com.br",
   "https://miar-ai-food-khaki.vercel.app",
   "https://miar-ai-food-miaraifood-1654.vercel.app",
 ];

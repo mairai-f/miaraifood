@@ -24,7 +24,7 @@ describe('Turnstile do Desktop no navegador padrao', () => {
 
     const resultPromise = requestDesktopTurnstileToken({
       action: 'App Login',
-      appOrigin: 'https://app.happycashsite.com.br',
+      appOrigin: 'https://app.miaraifood.com.br',
       openExternal,
       timeoutMs: 5_000,
     });
@@ -32,7 +32,7 @@ describe('Turnstile do Desktop no navegador padrao', () => {
     const callbackUrl = new URL(challengeUrl.searchParams.get('callback') ?? '');
     const state = challengeUrl.searchParams.get('state') ?? '';
 
-    expect(challengeUrl.origin).toBe('https://app.happycashsite.com.br');
+    expect(challengeUrl.origin).toBe('https://app.miaraifood.com.br');
     expect(challengeUrl.pathname).toBe('/desktop-turnstile');
     expect(challengeUrl.searchParams.get('action')).toBe('app-login');
     expect(callbackUrl.hostname).toBe('127.0.0.1');
@@ -57,7 +57,7 @@ describe('Turnstile do Desktop no navegador padrao', () => {
   it('falha sem deixar servidor pendurado quando o navegador nao abre', async () => {
     await expect(requestDesktopTurnstileToken({
       action: 'app-login',
-      appOrigin: 'https://app.happycashsite.com.br',
+      appOrigin: 'https://app.miaraifood.com.br',
       openExternal: async () => {
         throw new Error('navegador indisponivel');
       },

@@ -65,6 +65,7 @@ import {
 } from "@/components/ui/select";
 import { DesktopOfflineAdminSetupDialog } from "@/components/DesktopOfflineAdminSetupDialog";
 import { WaiterLayout } from "@/components/WaiterLayout";
+import { MiarAssistantWidget } from "@/components/miar/MiarAssistantWidget";
 import { ThemeModeToggle } from "@/components/ThemeModeToggle";
 import {
   getPublicErrorMessage,
@@ -1403,6 +1404,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
           {children}
         </main>
       </div>
+      {role !== "hr" && <MiarAssistantWidget />}
     </div>
   );
 }

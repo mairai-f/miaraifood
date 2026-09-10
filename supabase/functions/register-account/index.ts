@@ -68,12 +68,15 @@ const registrationCorsOptions = {
 
 const MAX_IP_ATTEMPTS_PER_15_MIN = 5;
 const MAX_EMAIL_ATTEMPTS_PER_HOUR = 3;
-const DEFAULT_CONFIRM_REDIRECT = "https://miar-site.vercel.app/auth/callback";
-const DEFAULT_RECOVERY_REDIRECT = "https://miar-site.vercel.app/login?recovery=1";
+const DEFAULT_CONFIRM_REDIRECT = "https://www.miaraifood.com.br/auth/callback";
+const DEFAULT_RECOVERY_REDIRECT = "https://www.miaraifood.com.br/login?recovery=1";
 const DEFAULT_CONFIRM_REDIRECT_ORIGINS = [
-  "https://miar-site.vercel.app",
   "https://www.miaraifood.com.br",
   "https://miaraifood.com.br",
+  "https://app.miaraifood.com.br",
+  "https://representante.miaraifood.com.br",
+  "https://supergestora.miaraifood.com.br",
+  "https://entregador.miaraifood.com.br",
 ];
 const EXISTING_ACCOUNT_EMAIL_MESSAGE =
   "Se esse email ja estiver cadastrado, enviamos instrucoes para recuperar o acesso ou continuar o cadastro.";

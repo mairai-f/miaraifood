@@ -1,7 +1,2 @@
 User-agent: *
-Allow: /
-Disallow: /dashboard
-Disallow: /login
-Disallow: /pix
-Disallow: /reset-password
-Disallow: /downloads/
+Disallow: /

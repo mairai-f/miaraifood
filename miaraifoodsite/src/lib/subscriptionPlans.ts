@@ -64,7 +64,7 @@ export const publicPlanContent: Record<PublicPlanId, PublicPlanContent> = {
       "Sem Inteligência Artificial (IA)",
       "Sem Câmeras / Computer Vision",
     ],
-    ctaLink: "https://miar-site.vercel.app/cadastro?plano=tiozao",
+    ctaLink: "https://www.miaraifood.com.br/cadastro?plano=tiozao",
     buttonText: "Escolher Tiozão do Hotdog",
   },
   inicial: {
@@ -91,7 +91,7 @@ export const publicPlanContent: Record<PublicPlanId, PublicPlanContent> = {
     excludedFeatures: [
       "Sem Recursos de IA",
     ],
-    ctaLink: "https://miar-site.vercel.app/cadastro?plano=inicial",
+    ctaLink: "https://www.miaraifood.com.br/cadastro?plano=inicial",
     buttonText: "Escolher Inicial",
   },
   intermediario: {
@@ -115,7 +115,7 @@ export const publicPlanContent: Record<PublicPlanId, PublicPlanContent> = {
       "Criação automática de campanhas",
       "Recomendação por IA no Feed Gastronômico",
     ],
-    ctaLink: "https://miar-site.vercel.app/cadastro?plano=intermediario",
+    ctaLink: "https://www.miaraifood.com.br/cadastro?plano=intermediario",
     buttonText: "Escolher Intermediário",
   },
   premium: {
@@ -139,7 +139,7 @@ export const publicPlanContent: Record<PublicPlanId, PublicPlanContent> = {
       "PUBLICIDADE E IMPULSIONAMENTO PAGO NO FEED (BOOST ECOSSISTEMA)",
       "Suporte VIP 24/7 Dedicado com SLA Prioritário",
     ],
-    ctaLink: "https://miar-site.vercel.app/cadastro?plano=premium",
+    ctaLink: "https://www.miaraifood.com.br/cadastro?plano=premium",
     buttonText: "Escolher Premium",
   },
   // Legacy aliases for backward compatibility
@@ -166,7 +166,7 @@ export const publicPlanContent: Record<PublicPlanId, PublicPlanContent> = {
       "Sem Inteligência Artificial (IA)",
       "Sem Câmeras / Computer Vision",
     ],
-    ctaLink: "https://miar-site.vercel.app/cadastro?plano=tiozao",
+    ctaLink: "https://www.miaraifood.com.br/cadastro?plano=tiozao",
     buttonText: "Escolher Tiozão do Hotdog",
   },
   completo: {
@@ -193,7 +193,7 @@ export const publicPlanContent: Record<PublicPlanId, PublicPlanContent> = {
     excludedFeatures: [
       "Sem Recursos de IA",
     ],
-    ctaLink: "https://miar-site.vercel.app/cadastro?plano=inicial",
+    ctaLink: "https://www.miaraifood.com.br/cadastro?plano=inicial",
     buttonText: "Escolher Inicial",
   },
   pro: {
@@ -217,7 +217,7 @@ export const publicPlanContent: Record<PublicPlanId, PublicPlanContent> = {
       "Criação automática de campanhas",
       "Recomendação por IA no Feed Gastronômico",
     ],
-    ctaLink: "https://miar-site.vercel.app/cadastro?plano=intermediario",
+    ctaLink: "https://www.miaraifood.com.br/cadastro?plano=intermediario",
     buttonText: "Escolher Intermediário",
   },
 };

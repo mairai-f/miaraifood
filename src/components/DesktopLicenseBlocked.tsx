@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { useAuth } from '@/contexts/AuthContext';
 import { useDesktopRuntime } from '@/contexts/DesktopRuntimeContext';
 
-const SALES_PAGE_URL = 'https://miar-site.vercel.app/#planos';
+const SALES_PAGE_URL = 'https://www.miaraifood.com.br/#planos';
 
 export function DesktopLicenseBlocked() {
   const { logout } = useAuth();

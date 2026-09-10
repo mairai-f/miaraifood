@@ -1,15 +1,13 @@
 // Os nomes HAPPYCASH_* permanecem apenas para não invalidar secrets já
 // configurados. A marca exibida e os novos secrets usam MIAR AI/FOOD.
 export const HAPPYCASH_DEFAULT_FROM_EMAIL = Deno.env.get("MIAR_FROM_EMAIL")?.trim()
-  || "MIAR AI/FOOD <no-reply@auth.miaraifood.com.br>";
+  || "MIAR AI/FOOD <no-reply@miaraifood.com.br>";
 export const HAPPYCASH_SUPPORT_EMAIL = Deno.env.get("MIAR_SUPPORT_EMAIL")?.trim()
   || "suporte@miaraifood.com.br";
 export const HAPPYCASH_BRAND_LOGO_URL = Deno.env.get("MIAR_BRAND_LOGO_URL")?.trim()
-  || Deno.env.get("HAPPYCASH_BRAND_LOGO_URL")?.trim()
-  || "https://miar-site.vercel.app/miar-logo-white.svg";
+  || "https://www.miaraifood.com.br/miar-logo-white.svg";
 export const HAPPYCASH_BRAND_FAVICON_URL = Deno.env.get("MIAR_BRAND_FAVICON_URL")?.trim()
-  || Deno.env.get("HAPPYCASH_BRAND_FAVICON_URL")?.trim()
-  || "https://miar-site.vercel.app/miafavico.svg";
+  || "https://www.miaraifood.com.br/miafavico.svg";
 
 export const escapeHtml = (value: string | number | null | undefined) =>
   String(value ?? "")

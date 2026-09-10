@@ -5,14 +5,16 @@ enabled = false
 
 [auth]
 enabled = true
-site_url = "https://miar-site.vercel.app"
+site_url = "https://www.miaraifood.com.br"
 minimum_password_length = 6
 password_requirements = ""
 additional_redirect_urls = [
-  "https://miar-site.vercel.app/**",
   "https://www.miaraifood.com.br/**",
   "https://miaraifood.com.br/**",
   "https://app.miaraifood.com.br/**",
+  "https://representante.miaraifood.com.br/**",
+  "https://supergestora.miaraifood.com.br/**",
+  "https://entregador.miaraifood.com.br/**",
   "https://miar-ai-food-khaki.vercel.app/**",
   "http://localhost:8080/**",
   "http://localhost:8081/**",
@@ -41,7 +43,7 @@ host = "smtp.resend.com"
 port = 465
 user = "resend"
 pass = "env(RESEND_API_KEY)"
-admin_email = "no-reply@auth.miaraifood.com.br"
+admin_email = "no-reply@miaraifood.com.br"
 sender_name = "MIAR AI/FOOD"
 
 [auth.email.template.invite]
@@ -117,6 +119,9 @@ rp_id = "miaraifood.com.br"
 rp_origins = [
   "https://www.miaraifood.com.br",
   "https://app.miaraifood.com.br",
+  "https://representante.miaraifood.com.br",
+  "https://supergestora.miaraifood.com.br",
+  "https://entregador.miaraifood.com.br",
 ]
 
 [auth.external.apple]
@@ -186,4 +191,7 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.authorize-store-admin]
+verify_jwt = false
+
+[functions.miar-assistant]
 verify_jwt = false

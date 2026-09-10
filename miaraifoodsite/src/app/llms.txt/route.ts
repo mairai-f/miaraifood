@@ -13,13 +13,13 @@ A MIAR AI/FOOD é uma plataforma SaaS que conecta a operação do estabeleciment
 - **Delivery e marketplace:** Pedidos, clientes e entregadores vinculados à operação.
 
 ## Links Úteis
-- Início: https://miar-site.vercel.app
-- Planos e Preços: https://miar-site.vercel.app/planos
-- Cadastro: https://miar-site.vercel.app/cadastro
-- Programa de representantes: https://miar-site.vercel.app/representante
-- Entregadores: https://miar-site.vercel.app/entregador
-- Dashboard: https://miar-site.vercel.app/dashboard
-- Login: https://miar-site.vercel.app/login
+- Início: https://www.miaraifood.com.br
+- Planos e Preços: https://www.miaraifood.com.br/planos
+- Cadastro: https://www.miaraifood.com.br/cadastro
+- Programa de representantes: https://representante.miaraifood.com.br
+- Entregadores: https://entregador.miaraifood.com.br
+- Dashboard: https://app.miaraifood.com.br
+- Login: https://www.miaraifood.com.br/login
 
 Este documento facilita a indexação de informações da plataforma MIAR AI/FOOD por modelos de linguagem e inteligências artificiais.
 `;

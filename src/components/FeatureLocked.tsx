@@ -12,7 +12,7 @@ const planLabels: Record<string, string> = {
   pro: 'Plano PRO - 30 dias',
 };
 
-const MIAR_SITE_PAYMENT_URL = 'https://miar-site.vercel.app/dashboard';
+const MIAR_SITE_PAYMENT_URL = 'https://www.miaraifood.com.br/dashboard';
 
 export function FeatureLocked() {
   const { planId } = usePlanAccess();
