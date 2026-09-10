@@ -353,7 +353,7 @@ const Login = () => {
     setResettingPassword(true);
 
     try {
-      const { error: verifyError } = await supabase.auth.verifyOtp({
+      const { data: verificationData, error: verifyError } = await supabase.auth.verifyOtp({
         email: normalizedResetEmail,
         token: code,
         type: 'recovery',
@@ -363,6 +363,30 @@ const Login = () => {
         toast({
           title: 'Codigo invalido ou expirado',
           description: getPublicAuthErrorMessage(verifyError, 'Solicite um novo codigo e tente novamente.'),
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      const recoverySession = verificationData.session;
+      if (!recoverySession?.access_token || !recoverySession.refresh_token) {
+        toast({
+          title: 'Sessao de recuperacao indisponivel',
+          description: 'O codigo foi aceito, mas a sessao nao foi criada. Solicite um novo codigo.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      const { error: recoverySessionError } = await supabase.auth.setSession({
+        access_token: recoverySession.access_token,
+        refresh_token: recoverySession.refresh_token,
+      });
+
+      if (recoverySessionError) {
+        toast({
+          title: 'Sessao de recuperacao indisponivel',
+          description: 'Nao foi possivel preparar a alteracao segura da senha. Solicite um novo codigo.',
           variant: 'destructive',
         });
         return;
