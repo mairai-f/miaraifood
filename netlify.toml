@@ -8,7 +8,7 @@
 
 [[redirects]]
   from = "/auth/v1/*"
-  to = "https://ymffclntmynwfdiarlaw.supabase.co/auth/v1/:splat"
+  to = "https://ucxbmxwonkkkpkqkevdc.supabase.co/auth/v1/:splat"
   status = 200
   force = true
 

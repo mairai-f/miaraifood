@@ -64,16 +64,16 @@ Fluxos cobertos:
 Para ativar em producao, verifique o dominio no Resend, publique as funcoes e configure a API key:
 
 ```bash
-npx supabase functions deploy finalize-site-registration send-cash-close-report send-fiscal-document-email --project-ref ymffclntmynwfdiarlaw
+npx supabase functions deploy finalize-site-registration send-cash-close-report send-fiscal-document-email --project-ref ucxbmxwonkkkpkqkevdc
 
-npx supabase secrets set --project-ref ymffclntmynwfdiarlaw RESEND_API_KEY="sua-chave-resend"
-npx supabase config push --project-ref ymffclntmynwfdiarlaw
+npx supabase secrets set --project-ref ucxbmxwonkkkpkqkevdc RESEND_API_KEY="sua-chave-resend"
+npx supabase config push --project-ref ucxbmxwonkkkpkqkevdc
 ```
 
 Secrets opcionais para sobrescrever remetente/fallbacks:
 
 ```bash
-npx supabase secrets set --project-ref ymffclntmynwfdiarlaw \
+npx supabase secrets set --project-ref ucxbmxwonkkkpkqkevdc \
   HAPPYCASH_FROM_EMAIL="HappyCash <no-reply@auth.happycashsite.com.br>" \
   CASH_CLOSE_REPORT_FROM_EMAIL="HappyCash <no-reply@auth.happycashsite.com.br>" \
   FISCAL_DOCUMENT_FROM_EMAIL="HappyCash <no-reply@auth.happycashsite.com.br>" \
