@@ -48,6 +48,7 @@ import {
   ArrowLeft
 } from "lucide-react";
 import { getPasswordPolicyError, passwordPolicyHint } from "@/shared/security/passwordPolicy";
+import { requestTurnstileToken } from "@/shared/security/turnstile";
 import {
   LEGAL_ACCEPTANCE_SOURCES,
   LEGAL_LGPD_VERSION,
@@ -357,6 +358,11 @@ const Cadastro = () => {
 
     setLoading(true);
     try {
+      const captchaToken = await requestTurnstileToken("site-registration", { visible: true });
+      if (!captchaToken) {
+        throw new Error("Verificacao de seguranca indisponivel. Recarregue a pagina e tente novamente.");
+      }
+
       const { data, error } = await supabase.functions.invoke<{
         success?: boolean;
         error?: string;
@@ -388,6 +394,7 @@ const Cadastro = () => {
           lgpdAccepted: legalDecision === "accepted",
           lgpdVersion: LEGAL_LGPD_VERSION,
             legalAcceptanceSource: LEGAL_ACCEPTANCE_SOURCES.siteSignup,
+            captchaToken,
             setupConfig: {
               segmento,
               quantidadeMesas,
