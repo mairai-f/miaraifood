@@ -38,6 +38,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { supabase } from '@/integrations/supabase/client';
+import { compressImageForUpload } from '@/lib/imageCompression';
 import { useAuth } from '@/contexts/AuthContext';
 import { FoodMenuAddonsDialog } from '@/components/FoodMenuAddonsDialog';
 
@@ -303,12 +304,12 @@ export default function FoodMenuSettings() {
     if (!user) return;
     setSaving(product.id);
 
-    const ext = file.name.split('.').pop() || 'jpg';
-    const path = `${user.id}/${product.id}-${Date.now()}.${ext}`;
+    const compressed = await compressImageForUpload(file);
+    const path = `${user.id}/${product.id}-${Date.now()}.${compressed.extension}`;
 
     const { error: uploadErr } = await supabase.storage
       .from('food-menu-images')
-      .upload(path, file, { contentType: file.type, upsert: true });
+      .upload(path, compressed.file, { contentType: compressed.contentType, upsert: true });
 
     if (uploadErr) {
       setSaving(null);
@@ -328,12 +329,12 @@ export default function FoodMenuSettings() {
     }
     if (!user) return;
 
-    const ext = file.name.split('.').pop() || 'jpg';
-    const path = `${user.id}/branding-${type}-${Date.now()}.${ext}`;
+    const compressed = await compressImageForUpload(file);
+    const path = `${user.id}/branding-${type}-${Date.now()}.${compressed.extension}`;
 
     const { error: uploadErr } = await supabase.storage
       .from('food-menu-images')
-      .upload(path, file, { contentType: file.type, upsert: true });
+      .upload(path, compressed.file, { contentType: compressed.contentType, upsert: true });
 
     if (uploadErr) {
       toast.error(`Não foi possível enviar ${type === 'cover' ? 'o banner' : 'a logo'}.`);
@@ -392,12 +393,12 @@ export default function FoodMenuSettings() {
 
       let imageUrl = '';
       if (newImageFile && user) {
-        const ext = newImageFile.name.split('.').pop() || 'jpg';
-        const path = `${user.id}/${prodData.id}-${Date.now()}.${ext}`;
+        const compressed = await compressImageForUpload(newImageFile);
+        const path = `${user.id}/${prodData.id}-${Date.now()}.${compressed.extension}`;
 
         const { error: uploadErr } = await supabase.storage
           .from('food-menu-images')
-          .upload(path, newImageFile, { contentType: newImageFile.type, upsert: true });
+          .upload(path, compressed.file, { contentType: compressed.contentType, upsert: true });
 
         if (!uploadErr) {
           const { data: urlData } = supabase.storage.from('food-menu-images').getPublicUrl(path);

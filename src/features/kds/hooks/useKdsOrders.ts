@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import type { KdsOrder, KdsOrderStatus } from '../types';
 
@@ -6,6 +6,8 @@ export function useKdsOrders(locationId?: string) {
   const [orders, setOrders] = useState<KdsOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const knownOrderIdsRef = useRef<Set<string>>(new Set());
+  const refetchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const fetchOrders = useCallback(async () => {
     try {
@@ -41,7 +43,10 @@ export function useKdsOrders(locationId?: string) {
             status
           )
         `)
-        .neq('status', 'cancelled')
+        // A tela so renderiza estas tres colunas; buscar 'delivered' e
+        // 'cancelled' significava baixar todo o historico do restaurante a
+        // cada evento do Realtime, so para descartar no cliente.
+        .in('status', ['submitted', 'preparing', 'ready'])
         .order('created_at', { ascending: false });
 
       if (locationId) {
@@ -85,6 +90,7 @@ export function useKdsOrders(locationId?: string) {
         };
       });
 
+      knownOrderIdsRef.current = new Set(mapped.map((o) => o.id));
       setOrders(mapped);
     } catch (err: any) {
       console.error('Erro ao carregar pedidos do KDS:', err);
@@ -97,29 +103,47 @@ export function useKdsOrders(locationId?: string) {
   useEffect(() => {
     void fetchOrders();
 
-    // Supabase Realtime Subscription for instantaneous order updates
+    // Um pedido com 10 itens gerava 10 recargas completas. Agrupamos a rajada
+    // numa unica consulta.
+    const scheduleRefetch = () => {
+      if (refetchTimerRef.current) clearTimeout(refetchTimerRef.current);
+      refetchTimerRef.current = setTimeout(() => {
+        refetchTimerRef.current = null;
+        void fetchOrders();
+      }, 400);
+    };
+
+    // Sem filtro, qualquer pedido de qualquer loja acordava esta cozinha.
+    const orderFilter = locationId ? { filter: `location_id=eq.${locationId}` } : {};
+
     const channel = supabase
-      .channel('kds-orders-changes')
+      .channel(`kds-orders-changes:${locationId ?? 'all'}`)
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'food_orders' },
+        { event: '*', schema: 'public', table: 'food_orders', ...orderFilter },
         () => {
-          void fetchOrders();
+          scheduleRefetch();
         }
       )
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'food_order_items' },
-        () => {
-          void fetchOrders();
+        (payload: { new?: { order_id?: string }; old?: { order_id?: string } }) => {
+          // food_order_items nao tem location_id para filtrar no servidor:
+          // descartamos aqui o que nao pertence a um pedido em tela, sem
+          // gastar uma consulta.
+          const orderId = payload.new?.order_id ?? payload.old?.order_id;
+          if (orderId && !knownOrderIdsRef.current.has(orderId)) return;
+          scheduleRefetch();
         }
       )
       .subscribe();
 
     return () => {
+      if (refetchTimerRef.current) clearTimeout(refetchTimerRef.current);
       void supabase.removeChannel(channel);
     };
-  }, [fetchOrders]);
+  }, [fetchOrders, locationId]);
 
   const updateOrderStatus = useCallback(async (orderId: string, newStatus: KdsOrderStatus) => {
     try {

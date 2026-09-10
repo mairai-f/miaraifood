@@ -35,6 +35,10 @@ export type DeliveryStatus =
 
 export interface DeliveryOffer {
   id: string;
+  // A oferta aponta para a entrega: o codigo lia isso via `as any`, o que
+  // escondia o campo do compilador.
+  deliveryId?: string;
+  deliveryAddress?: string;
   orderId: string;
   restaurantId: string;
   driverId?: string;
@@ -155,53 +159,103 @@ function DeliveryBoard({ token, name, onLogout }: { token: string; name: string;
   const supabase = getSupabaseClient();
 
   // Load Driver Stats & Active Offer
+  // O id do entregador nao muda durante a sessao. Resolvemos uma vez e
+  // reaproveitamos, em vez de repetir getUser + lookup a cada ciclo.
+  const driverIdRef = useRef<string | null>(null);
+  const [driverId, setDriverId] = useState<string | null>(null);
+
+  const resolveDriverId = useCallback(async () => {
+    if (driverIdRef.current) return driverIdRef.current;
+    const { data: auth } = await supabase.auth.getUser();
+    if (!auth.user) return null;
+    const { data: driver } = await supabase
+      .from('delivery_drivers')
+      .select('id')
+      .eq('user_id', auth.user.id)
+      .maybeSingle();
+    if (!driver) return null;
+    driverIdRef.current = driver.id;
+    setDriverId(driver.id);
+    return driver.id as string;
+  }, []);
+
   const loadData = useCallback(async () => {
     try {
-      const { data: auth } = await supabase.auth.getUser();
-      if (!auth.user) return;
-      const { data: driver } = await supabase.from('delivery_drivers').select('*').eq('user_id', auth.user.id).maybeSingle();
+      const id = await resolveDriverId();
+      if (!id) return;
+      const { data: driver } = await supabase
+        .from('delivery_drivers')
+        .select('availability')
+        .eq('id', id)
+        .maybeSingle();
       if (!driver) return;
       const statusMap: Record<string, "ONLINE" | "PAUSADO" | "OFFLINE"> = { online: 'ONLINE', paused: 'PAUSADO', offline: 'OFFLINE' };
       setStatus(statusMap[driver.availability] ?? 'OFFLINE');
-      const { data: offers } = await supabase.from('delivery_offers').select('id,status,delivery_id,deliveries(*)').eq('driver_id', driver.id).eq('status', 'offered').order('offered_at', { ascending: false }).limit(1);
+      const { data: offers } = await supabase
+        .from('delivery_offers')
+        .select('id,status,delivery_id,deliveries(order_id,store_account_id,status,customer_name,delivery_address)')
+        .eq('driver_id', id)
+        .eq('status', 'offered')
+        .order('offered_at', { ascending: false })
+        .limit(1);
       const current: any = offers?.[0];
       setOffer(current ? { id: current.id, deliveryId: current.delivery_id, orderId: current.deliveries?.order_id ?? '', restaurantId: current.deliveries?.store_account_id ?? '', status: current.deliveries?.status ?? 'OFERTADA', customerName: current.deliveries?.customer_name ?? '', deliveryAddress: current.deliveries?.delivery_address ?? '' } : null);
       setStats((prev) => ({ ...(prev ?? {}), status: statusMap[driver.availability] ?? 'OFFLINE' } as DriverStats));
     } catch (err) {
       console.error("Erro ao carregar dados do entregador:", err);
     }
-  }, []);
+  }, [resolveDriverId]);
 
   useEffect(() => {
     void loadData();
-    const interval = setInterval(() => void loadData(), 4000);
-    const channel = supabase
-      .channel('miaifood-delivery-realtime')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'delivery_offers' }, () => { void loadData(); })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'deliveries' }, () => { void loadData(); })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'delivery_events' }, () => { void loadData(); })
-      .subscribe();
+
+    // O Realtime ja avisa sobre ofertas e entregas deste entregador, entao o
+    // intervalo fica so como rede de seguranca se a conexao cair. Com a aba
+    // em segundo plano nao vale gastar requisicao.
+    const interval = setInterval(() => {
+      if (document.visibilityState === 'visible') void loadData();
+    }, 30000);
+
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') void loadData();
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+
     return () => {
       clearInterval(interval);
-      void supabase.removeChannel(channel);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
     };
   }, [loadData]);
+
+  useEffect(() => {
+    if (!driverId) return;
+    // Sem filtro, todo entregador recebia cada mudanca de entrega de todas as
+    // lojas e recarregava tudo a cada evento. Restringimos ao proprio
+    // entregador; delivery_events foi removido porque nao tem coluna que
+    // permita esse filtro e as duas tabelas abaixo ja cobrem a UI.
+    const channel = supabase
+      .channel(`miaifood-delivery-realtime:${driverId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'delivery_offers', filter: `driver_id=eq.${driverId}` }, () => { void loadData(); })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'deliveries', filter: `driver_id=eq.${driverId}` }, () => { void loadData(); })
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [driverId, loadData]);
 
   // High-frequency Realtime GPS Location Emission (every 5 seconds)
   useEffect(() => {
     if (status !== "ONLINE") return;
+    const deliveryId = offer?.deliveryId;
+    if (!deliveryId || !driverId) return;
     const gpsInterval = setInterval(() => {
       if (!navigator.geolocation) return;
       navigator.geolocation.getCurrentPosition(
         (pos) => {
-          void supabase.auth.getUser().then(async ({ data }) => {
-            if (!data.user || !offer?.id) return;
-            const { data: currentOffer } = await supabase.from('delivery_offers').select('driver_id,delivery_id').eq('id', offer.id).maybeSingle();
-            if (!currentOffer) return;
-            const { data: driver } = await supabase.from('delivery_drivers').select('id').eq('user_id', data.user.id).maybeSingle();
-            if (!driver) return;
-            await supabase.from('delivery_locations').insert({ delivery_id: currentOffer.delivery_id, driver_id: driver.id, latitude: pos.coords.latitude, longitude: pos.coords.longitude, accuracy: pos.coords.accuracy });
-          });
+          // Entrega e entregador ja estao em memoria: o ping vira um unico
+          // insert, em vez de getUser + dois selects a cada 5s.
+          void supabase.from('delivery_locations').insert({ delivery_id: deliveryId, driver_id: driverId, latitude: pos.coords.latitude, longitude: pos.coords.longitude, accuracy: pos.coords.accuracy });
         },
         () => {},
         { enableHighAccuracy: true, timeout: 4000 }
@@ -209,7 +263,7 @@ function DeliveryBoard({ token, name, onLogout }: { token: string; name: string;
     }, 5000);
 
     return () => clearInterval(gpsInterval);
-  }, [offer?.id, status]);
+  }, [offer?.deliveryId, status, driverId]);
 
   // Toggle Availability Status (🟢 Online / 🟡 Pausado / 🔴 Offline)
   const toggleStatus = async (newStatus: "ONLINE" | "PAUSADO" | "OFFLINE") => {
