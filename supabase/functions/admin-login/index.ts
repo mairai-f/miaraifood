@@ -65,7 +65,7 @@ const normalizeEmail = (value: string) => value.trim().toLowerCase();
 const normalizeAccessCode = (value: string | null | undefined) => (value ?? "").replace(/\D/g, "").slice(0, 8);
 const normalizeLoginSurface = (value: string | null | undefined) => {
   const normalized = value?.trim().toLowerCase();
-  if (normalized === "happycashsite" || normalized === "web" || normalized === "desktop" || normalized === "mobile") {
+  if (normalized === "miaraifoodsite" || normalized === "happycashsite" || normalized === "web" || normalized === "desktop" || normalized === "mobile") {
     return normalized;
   }
   return "unknown";
@@ -84,7 +84,7 @@ const getBody = async (request: Request): Promise<AdminLoginRequest | null> => {
 const readFailedAttemptLimit = () => readRateLimitEnv("ADMIN_LOGIN_MAX_FAILED_ATTEMPTS_PER_15_MIN", 4);
 const readVerificationEmailLimit = () => readRateLimitEnv("ADMIN_LOGIN_VERIFICATION_EMAILS_PER_15_MIN", 3);
 const shouldRequireEmailVerification = (loginSurface: string) =>
-  loginSurface === "web" || loginSurface === "happycashsite";
+  loginSurface === "web" || loginSurface === "happycashsite" || loginSurface === "miaraifoodsite";
 
 const buildVerificationIdentifier = (email: string) => email;
 const buildVerificationDigest = (email: string, code: string) =>
@@ -170,7 +170,7 @@ const clearFailedAttempts = async (request: Request, email: string) => {
 };
 
 const getSurfaceLabel = (loginSurface: string) =>
-  loginSurface === "happycashsite" ? "MIAR Site" : "MIAR AI/FOOD";
+  loginSurface === "happycashsite" || loginSurface === "miaraifoodsite" ? "MIAR Site" : "MIAR AI/FOOD";
 
 const sendLoginVerificationCode = async (
   request: Request,
