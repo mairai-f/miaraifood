@@ -66,8 +66,11 @@ const registrationCorsOptions = {
   allowOriginless: false,
 };
 
-const MAX_IP_ATTEMPTS_PER_15_MIN = 5;
-const MAX_EMAIL_ATTEMPTS_PER_HOUR = 3;
+// CAPTCHA already protects the public form. These limits are only a second
+// line of defence for actual failed/bot submissions, not for normal retries.
+const MAX_IP_ATTEMPTS_PER_15_MIN = 10;
+const MAX_EMAIL_ATTEMPTS_PER_HOUR = 5;
+const RATE_LIMITED_ATTEMPT_STATUSES: AttemptStatus[] = ["failed", "honeypot"];
 const DEFAULT_CONFIRM_REDIRECT = "https://www.miaraifood.com.br/auth/callback";
 const DEFAULT_RECOVERY_REDIRECT = "https://www.miaraifood.com.br/login?recovery=1";
 const DEFAULT_CONFIRM_REDIRECT_ORIGINS = [
@@ -267,6 +270,7 @@ const getAttemptCounts = async (
         .from("site_registration_attempts")
         .select("id", { count: "exact", head: true })
         .eq("ip_hash", details.ipHash)
+        .in("status", RATE_LIMITED_ATTEMPT_STATUSES)
         .gte("created_at", fifteenMinutesAgo)
     : Promise.resolve({ count: 0, error: null });
 
@@ -275,6 +279,7 @@ const getAttemptCounts = async (
         .from("site_registration_attempts")
         .select("id", { count: "exact", head: true })
         .eq("email_hash", details.emailHash)
+        .in("status", RATE_LIMITED_ATTEMPT_STATUSES)
         .gte("created_at", oneHourAgo)
     : Promise.resolve({ count: 0, error: null });
 
