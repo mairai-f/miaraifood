@@ -84,6 +84,45 @@ const DEFAULT_CONFIRM_REDIRECT_ORIGINS = [
 const EXISTING_ACCOUNT_EMAIL_MESSAGE =
   "Se esse email ja estiver cadastrado, enviamos instrucoes para recuperar o acesso ou continuar o cadastro.";
 
+type SignUpFailure = {
+  attemptStatus: AttemptStatus;
+  message: string;
+};
+
+// GoTrue deliberately returns compact errors to the browser. Keep the raw
+// message only in the Edge Function logs, while giving the person registering
+// a useful next action and avoiding a local rate-limit for a mail/provider
+// outage.
+const explainSignUpFailure = (error: { message?: string; code?: string } | null): SignUpFailure => {
+  const detail = `${error?.code || ""} ${error?.message || ""}`.toLowerCase();
+
+  if (/captcha|turnstile/.test(detail)) {
+    return {
+      attemptStatus: "invalid",
+      message: "A verificacao de seguranca falhou. Recarregue a pagina e tente novamente.",
+    };
+  }
+
+  if (/rate limit|too many requests|over.*limit/.test(detail)) {
+    return {
+      attemptStatus: "config_error",
+      message: "O servico de cadastro atingiu um limite temporario. Aguarde alguns minutos e tente novamente.",
+    };
+  }
+
+  if (/smtp|send.*email|email.*send|confirmation.*email|mail/.test(detail)) {
+    return {
+      attemptStatus: "config_error",
+      message: "Nao foi possivel enviar o e-mail de confirmacao. A configuracao de e-mail sera verificada.",
+    };
+  }
+
+  return {
+    attemptStatus: "failed",
+    message: "Nao foi possivel criar sua conta agora. Tente novamente em instantes.",
+  };
+};
+
 const jsonResponse = (request: Request, body: RegisterAccountResponse, status = 200) =>
   new Response(JSON.stringify(body), {
     status,
@@ -705,15 +744,21 @@ Deno.serve(async (request) => {
     });
 
     if (signUpError || !signUpData.user?.id) {
+      const failure = explainSignUpFailure(signUpError);
+      console.error("Supabase sign-up failed", {
+        code: signUpError?.code || null,
+        message: signUpError?.message || "No user returned by Supabase Auth",
+      });
+
       await logAttempt(serviceClient, {
         emailHash,
         ipHash,
         origin,
-        status: "failed",
+        status: failure.attemptStatus,
         userAgent,
       });
 
-      return jsonResponse(request, { success: false, error: "Nao foi possivel criar sua conta agora." }, 400);
+      return jsonResponse(request, { success: false, error: failure.message }, 400);
     }
 
     const createdUserId = signUpData.user.id;
