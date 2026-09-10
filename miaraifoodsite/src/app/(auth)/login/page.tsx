@@ -65,14 +65,16 @@ interface AdminLoginResponse {
 }
 
 const Login = () => {
-  const [initialPreferences] = useState(getSiteLoginPreferences);
-  const [email, setEmail] = useState(initialPreferences.email);
+  // The server cannot read localStorage. Loading these preferences during the
+  // first render made the browser markup differ from the server markup when a
+  // saved preference existed, causing a React hydration error (#418).
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [accessCode, setAccessCode] = useState('');
   const [loginVerificationRequired, setLoginVerificationRequired] = useState(false);
-  const [rememberAccount, setRememberAccount] = useState(initialPreferences.rememberAccount);
-  const [keepConnected, setKeepConnected] = useState(initialPreferences.keepConnected);
+  const [rememberAccount, setRememberAccount] = useState(false);
+  const [keepConnected, setKeepConnected] = useState(false);
   const [loading, setLoading] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
   const [resetOpen, setResetOpen] = useState(false);
@@ -125,6 +127,13 @@ const Login = () => {
   })();
 
   const selectedPlan = selectedPlanId ? publicPlanContent[selectedPlanId] : null;
+
+  useEffect(() => {
+    const preferences = getSiteLoginPreferences();
+    setRememberAccount(preferences.rememberAccount);
+    setKeepConnected(preferences.keepConnected);
+    setEmail((currentEmail) => currentEmail || preferences.email);
+  }, []);
 
   const handleLogin = async (e: FormEvent) => {
     e.preventDefault();
@@ -731,4 +740,3 @@ export default function LoginPage() {
     </Suspense>
   )
 }
-
