@@ -322,13 +322,9 @@ const failedLoginResponse = async (
   request: Request,
   email: string,
   failure: Awaited<ReturnType<typeof recordFailedAttempts>>,
-  loginSurface: string,
+  _loginSurface: string,
 ) => {
-  if (shouldRequireEmailVerification(loginSurface) && !failure.allowed) {
-    return verificationRequiredResponse(request, email, loginSurface, { sendCode: true });
-  }
-
-  const errorMessage = failure.allowed && shouldRequireEmailVerification(loginSurface) && failure.remaining === 1
+  const errorMessage = failure.allowed && failure.remaining === 1
     ? LAST_LOGIN_ATTEMPT_MESSAGE
     : failure.allowed
       ? INVALID_LOGIN_MESSAGE
@@ -390,41 +386,6 @@ Deno.serve(async (request) => {
       await recordIpFailedAttempt(request, email);
     }
     return jsonResponse(request, { error: INVALID_LOGIN_MESSAGE }, 401);
-  }
-
-  const failedAttemptLimit = await checkFailedAttemptLimits(request, email);
-  if (!failedAttemptLimit.allowed) {
-    if (!shouldRequireEmailVerification(loginSurface)) {
-      return jsonResponse(
-        request,
-        {
-          error: LOGIN_LOCK_MESSAGE,
-          retryAfterSeconds: failedAttemptLimit.retryAfterSeconds,
-          maxFailedAttempts: readFailedAttemptLimit(),
-          remainingAttempts: 0,
-        },
-        429,
-      );
-    }
-
-    if (!accessCode) {
-      return verificationRequiredResponse(request, email, loginSurface, {
-        sendCode: true,
-        retryAfterSeconds: failedAttemptLimit.retryAfterSeconds,
-      });
-    }
-
-    const accessCodeValid = await verifyLoginAccessCode(request, email, accessCode);
-    if (!accessCodeValid) {
-      return verificationRequiredResponse(request, email, loginSurface, {
-        sendCode: false,
-        message: LOGIN_VERIFICATION_INVALID_MESSAGE,
-        status: 401,
-        retryAfterSeconds: failedAttemptLimit.retryAfterSeconds,
-      });
-    }
-
-    await clearFailedAttempts(request, email);
   }
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
