@@ -531,7 +531,10 @@ Deno.serve(async (request) => {
     // Materializa as escolhas feitas no cadastro: filial, mesas e cardápio
     // inicial. A operação é idempotente para reprocessamentos após confirmação.
     const setup = registration.setup_config || {};
-    const requestedTables = Math.min(100, Math.max(1, Number(setup.quantidadeMesas) || 1));
+    const isMarketRegistration = ["mercado", "supermercado", "mercearia"].includes(
+      String(setup.segmento || registration.tipo_estabelecimento || "").trim().toLowerCase(),
+    );
+    const requestedTables = isMarketRegistration ? 0 : Math.min(100, Math.max(1, Number(setup.quantidadeMesas) || 1));
     const { data: locationData, error: locationError } = await serviceClient
       .from("store_locations")
       .upsert({

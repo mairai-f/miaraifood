@@ -42,6 +42,7 @@ import {
   Sparkles,
   MapPin,
   Building2,
+  ShoppingBasket,
   Smartphone,
   ChevronRight,
   ArrowLeft
@@ -80,6 +81,12 @@ const segmentosComercio = [
     title: "Hamburgueria & Artesanal",
     desc: "Combos, adicionais (bacon, queijo extra) e embalagens",
     icon: Store,
+  },
+  {
+    id: "mercado",
+    title: "Mercado / Mercearia",
+    desc: "Catálogo inicial com 178 produtos, PDV, estoque e precificação",
+    icon: ShoppingBasket,
   },
   {
     id: "bar",
@@ -387,8 +394,8 @@ const Cadastro = () => {
               modalidades,
               cobrancas,
               pagamentos,
-              skipCatalog,
-              catalog: skipCatalog ? [] : (defaultPreCatalog[segmento] || defaultPreCatalog.restaurante),
+              skipCatalog: segmento === "mercado" || skipCatalog,
+              catalog: segmento === "mercado" || skipCatalog ? [] : (defaultPreCatalog[segmento] || defaultPreCatalog.restaurante),
             },
           },
       });
@@ -744,7 +751,10 @@ const Cadastro = () => {
                     return (
                       <div
                         key={seg.id}
-                        onClick={() => setSegmento(seg.id)}
+                        onClick={() => {
+                          setSegmento(seg.id);
+                          if (seg.id === "mercado") setQuantidadeMesas(0);
+                        }}
                         className={`cursor-pointer rounded-xl p-3 border transition-all duration-300 flex items-start gap-3 ${
                           isSelected
                             ? "border-[#70E000] bg-[#70E000]/15 shadow-[0_0_15px_rgba(112,224,0,0.2)]"
@@ -822,7 +832,12 @@ const Cadastro = () => {
               </div>
 
               {/* Quantidade de Mesas */}
-              <div className="bg-emerald-950/40 border border-emerald-500/30 p-3 sm:p-4 rounded-xl flex items-center justify-between gap-4">
+              {segmento === "mercado" ? (
+                <div className="bg-emerald-950/40 border border-emerald-500/30 p-3 sm:p-4 rounded-xl">
+                  <p className="text-sm font-bold text-white">Catálogo inicial de Mercado</p>
+                  <p className="text-[11px] text-zinc-300 mt-1">Após confirmar o cadastro, 178 produtos organizados em 20 departamentos serão adicionados ao estoque da sua loja com saldo inicial zerado.</p>
+                </div>
+              ) : <div className="bg-emerald-950/40 border border-emerald-500/30 p-3 sm:p-4 rounded-xl flex items-center justify-between gap-4">
                 <div>
                   <Label className="text-xs sm:text-sm font-bold text-white flex items-center gap-1.5">
                     🪑 Quantidade de Mesas no Salão
@@ -839,7 +854,7 @@ const Cadastro = () => {
                   onChange={e => setQuantidadeMesas(parseInt(e.target.value) || 1)} 
                   className="w-20 h-10 text-center text-base font-bold bg-black/60 border-[#70E000]/40 text-[#70E000] shrink-0" 
                 />
-              </div>
+              </div>}
             </div>
           )}
 
@@ -937,7 +952,7 @@ const Cadastro = () => {
                   <h4 className="text-[11px] uppercase font-bold text-zinc-400 tracking-wider">Estabelecimento</h4>
                   <p className="text-sm font-bold text-white mt-0.5">{nomeEstabelecimento}</p>
                   <p className="text-xs text-zinc-300">{cidade} - {estado}</p>
-                  <p className="text-xs text-[#70E000] font-bold mt-0.5">{quantidadeMesas} Mesas com QR Code Geradas</p>
+                  <p className="text-xs text-[#70E000] font-bold mt-0.5">{segmento === "mercado" ? "Catálogo inicial de Mercado: 178 produtos" : `${quantidadeMesas} Mesas com QR Code Geradas`}</p>
                 </div>
               </div>
             </div>
