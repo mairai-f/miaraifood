@@ -50,6 +50,9 @@ const LOGIN_ATTEMPT_WINDOW_SECONDS = 15 * 60;
 const LOGIN_VERIFICATION_WINDOW_SECONDS = 10 * 60;
 const DEFAULT_HAPPYCASH_SITE_ORIGIN = "https://www.miaraifood.com.br";
 
+const isCaptchaVerificationError = (error: unknown) =>
+  /captcha|turnstile/i.test(error instanceof Error ? error.message : String(error ?? ""));
+
 const jsonResponse = (request: Request, body: Record<string, unknown>, status = 200) =>
   new Response(JSON.stringify(body), {
     status,
@@ -417,6 +420,14 @@ Deno.serve(async (request) => {
   });
 
   if (loginError || !sessionData.session || !sessionData.user) {
+    if (isCaptchaVerificationError(loginError)) {
+      return jsonResponse(
+        request,
+        { error: "A verificacao de seguranca falhou. Recarregue a pagina e tente novamente." },
+        400,
+      );
+    }
+
     const failure = await recordFailedAttempts(request, email);
     return failedLoginResponse(request, email, failure, loginSurface);
   }
