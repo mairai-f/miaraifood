@@ -17,7 +17,7 @@ import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Eye, EyeOff, Loader2 } from 'lucide-react';
+import { Download, Eye, EyeOff, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import loginPdvRapido from '@/assets/login/pdvrapido.webp';
@@ -35,6 +35,7 @@ import { isLocalAppRuntime, isMobileAppRuntime } from '@/lib/offlineConcentrator
 import type { Database } from '@/integrations/supabase/types';
 import { getOperatorCredentialError } from '../../shared/security/operatorCredential';
 import { requestTurnstileToken } from '../../shared/security/turnstile';
+import { usePwaInstall } from '@/hooks/usePwaInstall';
 
 type LoginMode = 'admin' | 'operator';
 type AdminAccessMode = 'online' | 'offline';
@@ -110,6 +111,7 @@ export default function Login() {
   const [submitting, setSubmitting] = useState(false);
   const [oauthSubmitting, setOauthSubmitting] = useState(false);
   const { login, signInWithGoogle, loginOfflineAdmin, loginOperator } = useAuth();
+  const { canInstall: canInstallPwa, isInstalling: installingPwa, install: installPwa } = usePwaInstall();
   const isLocalRuntime = isLocalAppRuntime();
   const isMobileApp = isMobileAppRuntime();
   const localDeviceReference = isMobileApp ? 'este aparelho' : 'esta maquina';
@@ -462,6 +464,19 @@ return (
                 <div className="mt-2 rounded-[20px] border border-red-500/30 bg-red-500/20 px-4 py-3 text-[13px] leading-5 text-red-100 sm:text-sm sm:leading-6">
                   {isMobileApp ? 'Este aparelho' : 'Esta maquina'} ainda nao tem usuario admin offline configurado. Conecte a internet, entre com email e senha e finalize o cadastro local.
                 </div>
+              )}
+
+              {canInstallPwa && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => void installPwa()}
+                  disabled={installingPwa}
+                  className="mt-4 h-10 w-full rounded-2xl border-cyan-300/30 bg-cyan-300/10 text-sm font-semibold text-cyan-50 hover:bg-cyan-300/20 hover:text-white sm:h-11"
+                >
+                  {installingPwa ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
+                  {installingPwa ? 'Abrindo instalação...' : 'Instalar app neste aparelho'}
+                </Button>
               )}
 
               <Tabs value={loginMode} onValueChange={value => setLoginMode(value as LoginMode)} className="mt-4 w-full">
