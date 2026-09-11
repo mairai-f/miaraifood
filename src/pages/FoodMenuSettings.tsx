@@ -247,7 +247,9 @@ export default function FoodMenuSettings() {
       product_id: product.id,
       description: entry?.description ?? '',
       image_url: entry?.image_url ?? '',
-      active: entry?.active ?? true,
+      // Produto do estoque só entra no QR Menu depois de uma publicação
+      // explícita do gestor. Isso evita expor insumos e itens internos.
+      active: entry?.active ?? false,
       featured: entry?.featured ?? false,
       sort_order: entry?.sort_order ?? 0,
       ...changes,
@@ -947,11 +949,11 @@ export default function FoodMenuSettings() {
                     <div className="grid grid-cols-2 gap-4 p-3.5 border rounded-2xl bg-muted/20">
                       <div className="flex items-center justify-between">
                         <div>
-                          <p className="text-xs font-bold">Publicado no Menu</p>
-                          <p className="text-[10px] text-muted-foreground">Exibir para o cliente</p>
+                          <p className="text-xs font-bold">Exibir no QR Menu</p>
+                          <p className="text-[10px] text-muted-foreground">Somente este produto ficará disponível para pedidos na mesa</p>
                         </div>
                         <Switch
-                          checked={selectedEntry?.active ?? true}
+                          checked={selectedEntry?.active ?? false}
                           onCheckedChange={(val) => void saveEntry(selectedProduct, { active: val })}
                         />
                       </div>

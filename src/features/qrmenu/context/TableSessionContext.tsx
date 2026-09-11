@@ -47,8 +47,9 @@ const fetchCatalogProducts = async (): Promise<MenuItem[]> => {
     for (const prod of prodRes.data) {
       const entry = menuEntriesMap.get(prod.id);
 
-      // If explicit menu entry exists and is set to active = false, hide from QR menu
-      if (entry && entry.active === false) {
+      // O QR Menu nunca herda automaticamente todo o estoque. Só produtos
+      // explicitamente publicados pelo gestor ficam disponíveis para a mesa.
+      if (!entry || entry.active !== true) {
         continue;
       }
 
