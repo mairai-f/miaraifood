@@ -8,6 +8,7 @@ happycashsite/node_modules
 dist
 dist-site
 release
+release-test
 win-unpacked
 linux-unpacked
 *.log
