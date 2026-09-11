@@ -37,10 +37,10 @@ export interface GitHubMobileReleaseAsset {
 
 export type DesktopReleaseContext = "happycash";
 
-const DEFAULT_OWNER = "celioantonio7";
+const DEFAULT_OWNER = "mairai-f";
 const DEFAULT_CHANNEL = "latest";
 const DEFAULT_REPOSITORIES: Record<DesktopReleaseContext, string> = {
-  happycash: "HappyCash-Releases",
+  happycash: "miaraifood",
 };
 
 const readReleaseConfig = (_context: DesktopReleaseContext) => {

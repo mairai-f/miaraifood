@@ -1,7 +1,7 @@
 {
   "name": "miar-ai-food",
   "private": true,
-  "version": "0.1.81",
+  "version": "0.1.82",
   "description": "MIAR AI/FOOD: operação completa para food service, PDV e atendimento.",
   "author": "Celio Antonio <celioantonio7@users.noreply.github.com>",
   "main": "electron/main.cjs",
@@ -157,8 +157,8 @@
     "publish": [
       {
         "provider": "github",
-        "owner": "celioantonio7",
-        "repo": "HappyCash-Releases",
+        "owner": "mairai-f",
+        "repo": "miaraifood",
         "channel": "latest",
         "releaseType": "release"
       }
