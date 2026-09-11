@@ -1,7 +1,7 @@
 {
   "name": "miar-ai-food",
   "private": true,
-  "version": "0.1.83",
+  "version": "0.1.84",
   "description": "MIAR AI/FOOD: operação completa para food service, PDV e atendimento.",
   "author": "Celio Antonio <celioantonio7@users.noreply.github.com>",
   "main": "electron/main.cjs",

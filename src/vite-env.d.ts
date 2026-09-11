@@ -8,6 +8,9 @@ interface ImportMetaEnv {
 interface Window {
   electronAPI?: {
     openExternal: (url: string) => boolean;
+    tv?: {
+      openWindow: (code: string) => Promise<{ success: boolean; externalDisplay?: boolean; error?: string }>;
+    };
     printHtml: (html: string) => Promise<boolean>;
     // Exposto por electron/preload.cjs: leitura e escrita passam pelo keychain
     // do sistema via IPC, nunca pelo renderer.

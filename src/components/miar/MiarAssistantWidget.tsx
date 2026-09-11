@@ -18,9 +18,31 @@ const SUGGESTIONS = [
   'Quais produtos venderam menos esta semana?',
   'O que devo comprar para não faltar estoque?',
   'Qual produto tem margem baixa?',
-  'Qual foi o melhor horário de vendas?',
-  'Que promoção posso criar?',
+  'Que promoção posso criar para passar na TV?',
+  'Como registro uma venda de balcão com você?',
 ];
+
+const brl = (value: unknown) =>
+  Number(value ?? 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
+/** Resumo do que a ação confirmada realmente fez, a partir do resultado devolvido pela função. */
+function confirmedDetail(action: MiarAction): string {
+  const result = action.result ?? {};
+  switch (action.tool_name) {
+    case 'registrar_venda':
+      return result.total !== undefined ? `Venda de ${brl(result.total)} registrada no seu caixa.` : 'Venda registrada.';
+    case 'ajustar_estoque':
+      return result.estoque_novo !== undefined ? `Estoque agora: ${result.estoque_novo}.` : 'Estoque atualizado.';
+    case 'criar_promocao':
+      return result.preco_promocional !== undefined
+        ? `Promoção criada: sai por ${brl(result.preco_promocional)}. Já entra nas TVs.`
+        : 'Promoção criada.';
+    case 'gerar_foto_produto':
+      return result.publicado ? 'Foto salva no cardápio.' : 'Foto salva. Publique o item em Configurações > QR Menu.';
+    default:
+      return 'Aplicado.';
+  }
+}
 
 interface Position { x: number; y: number }
 
@@ -46,11 +68,12 @@ const clampButtonToViewport = (position: Position): Position => ({
 
 function ActionCard({
   action,
-  canExecute,
+  blockReason,
   onDecide,
 }: {
   action: MiarAction;
-  canExecute: boolean;
+  /** Motivo real de não poder confirmar (plano ou permissão); null quando pode. */
+  blockReason: string | null;
   onDecide: (id: string, approved: boolean) => Promise<unknown>;
 }) {
   const [busy, setBusy] = useState(false);
@@ -66,12 +89,14 @@ function ActionCard({
     }
   };
 
+  const imageUrl = typeof action.result?.image_url === 'string' ? action.result.image_url : null;
+
   return (
     <div className="mt-2 rounded-lg border border-primary/30 bg-primary/5 p-3">
       <p className="text-xs font-medium text-foreground">{action.summary}</p>
 
       {action.status === 'pending' && (
-        canExecute ? (
+        !blockReason ? (
           <div className="mt-2 flex gap-2">
             <Button size="sm" className="h-7 flex-1 text-xs" disabled={busy} onClick={() => void decide(true)}>
               {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
@@ -82,16 +107,19 @@ function ActionCard({
             </Button>
           </div>
         ) : (
-          <p className="mt-2 text-[11px] text-muted-foreground">
-            Você não tem permissão para aplicar alterações da MIAR. Peça a um administrador.
-          </p>
+          <p className="mt-2 text-[11px] text-muted-foreground">{blockReason}</p>
         )
       )}
 
       {action.status === 'confirmed' && (
-        <p className="mt-2 flex items-center gap-1 text-[11px] text-emerald-600">
-          <Check className="h-3 w-3" /> Aplicado.
-        </p>
+        <>
+          <p className="mt-2 flex items-center gap-1 text-[11px] text-emerald-600">
+            <Check className="h-3 w-3" /> {confirmedDetail(action)}
+          </p>
+          {imageUrl && (
+            <img src={imageUrl} alt="" loading="lazy" className="mt-2 h-28 w-28 rounded-md border border-border object-cover" />
+          )}
+        </>
       )}
       {action.status === 'rejected' && <p className="mt-2 text-[11px] text-muted-foreground">Recusado.</p>}
       {(action.status === 'failed' || action.status === 'expired') && (
@@ -209,6 +237,14 @@ export function MiarAssistantWidget() {
 
   const quotaExhausted = Boolean(access && access.messages_remaining <= 0 && access.message_limit > 0);
   const blocked = Boolean(access && !access.has_access);
+  // Mostra o motivo verdadeiro: plano sem ações é diferente de usuário sem permissão.
+  const actionBlockReason = !access
+    ? 'Verificando se você pode aplicar alterações...'
+    : !access.plan_allows_actions
+      ? `O plano ${access.plan_id ?? planId ?? 'atual'} não permite que a MIAR aplique alterações. Ela continua analisando; aplicar é liberado nos planos Intermediário e Premium.`
+      : !access.user_can_execute
+        ? 'Seu usuário não tem a permissão "Aplicar ações sugeridas pela MIAR". Peça a um administrador.'
+        : null;
 
   return (
     <>
@@ -287,8 +323,12 @@ export function MiarAssistantWidget() {
             {!loadingAccess && !blocked && messages.length === 0 && (
               <div className="space-y-2">
                 <p className="text-xs text-muted-foreground">
-                  Pergunte sobre a operação da sua loja. Eu leio suas vendas, estoque e financeiro.
+                  Pergunte sobre a operação da sua loja ou peça para cadastrar produto, lançar estoque,
+                  registrar venda de balcão ou criar promoção. Nada muda sem a sua confirmação.
                 </p>
+                {access && !access.plan_allows_actions && (
+                  <Badge variant="secondary" className="text-[10px]">Neste plano a MIAR só analisa, sem alterar dados</Badge>
+                )}
                 {SUGGESTIONS.map((suggestion) => (
                   <button
                     key={suggestion}
@@ -316,7 +356,7 @@ export function MiarAssistantWidget() {
                       <ActionCard
                         key={action.id}
                         action={action}
-                        canExecute={Boolean(access?.user_can_execute && access?.plan_allows_actions)}
+                        blockReason={actionBlockReason}
                         onDecide={decide}
                       />
                     ))}
@@ -355,7 +395,7 @@ export function MiarAssistantWidget() {
                         submit();
                       }
                     }}
-                    placeholder="Pergunte sobre vendas, estoque, margem..."
+                    placeholder="Pergunte ou peça: venda, estoque, promoção..."
                     rows={2}
                     disabled={sending}
                     className="min-h-[44px] resize-none text-xs"

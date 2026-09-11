@@ -126,6 +126,10 @@ verify_jwt = false
 [functions.food-qrmenu]
 verify_jwt = false
 
+# Tela pública de promoções para TV: autoriza pelo código da TV, sem login.
+[functions.tv-display]
+verify_jwt = false
+
 # Estas funcoes validam o Bearer token manualmente com auth.getUser().
 # Mantemos verify_jwt desativado para evitar falha do gateway com JWTs
 # assinados de forma assimetrica, como ES256.

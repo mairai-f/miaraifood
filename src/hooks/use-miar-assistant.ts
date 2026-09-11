@@ -20,6 +20,7 @@ export interface MiarAction {
   summary: string;
   status: 'pending' | 'confirmed' | 'rejected' | 'failed' | 'expired';
   error_message?: string | null;
+  result?: Record<string, unknown> | null;
 }
 
 export interface MiarMessage {
@@ -135,20 +136,24 @@ export function useMiarAssistant(enabled: boolean) {
   }, [call, conversationId, refreshAccess, sending]);
 
   const decide = useCallback(async (actionId: string, approved: boolean) => {
-    const setStatus = (status: MiarAction['status'], errorMessage?: string) => {
+    const setStatus = (
+      status: MiarAction['status'],
+      errorMessage?: string,
+      result?: Record<string, unknown> | null,
+    ) => {
       setMessages((current) => current.map((message) => ({
         ...message,
         actions: message.actions?.map((item) =>
-          item.id === actionId ? { ...item, status, error_message: errorMessage ?? null } : item),
+          item.id === actionId ? { ...item, status, error_message: errorMessage ?? null, result: result ?? null } : item),
       })));
     };
 
     try {
-      const result = await call<{ status: MiarAction['status']; error?: string }>({
+      const response = await call<{ status: MiarAction['status']; error?: string; result?: Record<string, unknown> }>({
         action: 'decide', action_id: actionId, approved,
       });
-      setStatus(result.status, result.error);
-      return result;
+      setStatus(response.status, response.error, response.result);
+      return response;
     } catch (decideError) {
       const message = decideError instanceof Error ? decideError.message : 'Falha ao aplicar.';
       setStatus('failed', message);

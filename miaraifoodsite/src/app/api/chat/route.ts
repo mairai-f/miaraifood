@@ -34,7 +34,7 @@ ${projectList}
 
 function getLocalMiarFoodReply(userQuery: string): string {
     const query = userQuery.toLowerCase();
-    
+
     if (query.includes("pdv") || query.includes("venda") || query.includes("caixa")) {
         return "O **PDV MIAR AI/FOOD** é nossa frente de caixa ultra ágil! Registre vendas, feche mesas, divida contas e emita notas fiscais em segundos. Como é a operação do seu caixa hoje?";
     }
@@ -64,75 +64,139 @@ interface ChatRequest {
     locale?: string;
 }
 
-// ─── Groq API call ───────────────────────────────────────────────────────────
-async function callGroq(messages: Message[], systemPrompt: string): Promise<string> {
-    const apiKey = process.env.GROQ_API_KEY;
-    if (!apiKey) throw new Error('GROQ_API_KEY not configured');
+// ─── Models ──────────────────────────────────────────────────────────────────
+// Overridable by env because provider catalogs change faster than this code
+// (Groq retired the Llama models, Google retired Gemini 1.5).
+const GROQ_MODEL = process.env.MIAR_AI_GROQ_MODEL || 'openai/gpt-oss-20b';
+const GEMINI_MODEL = process.env.MIAR_AI_GEMINI_MODEL || 'gemini-flash-latest';
+const MISTRAL_MODEL = process.env.MIAR_AI_MISTRAL_MODEL || 'mistral-small-latest';
+const OPENROUTER_MODEL = process.env.MIAR_AI_OPENROUTER_MODEL || 'nvidia/nemotron-3-super-120b-a12b:free';
 
-    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${apiKey}`,
-        },
-        body: JSON.stringify({
-            model: 'llama-3.1-8b-instant',
-            messages: [
-                { role: 'system', content: systemPrompt },
-                ...messages,
-            ],
-            max_tokens: 1024,
-            temperature: 0.7,
-        }),
-    });
+// ─── API key pool ────────────────────────────────────────────────────────────
+// Each provider accepts numbered keys (GROQ_API_KEY_1, GROQ_API_KEY_2, ...) used
+// in rotation; the unnumbered name still works and is tried last.
+const MAX_KEYS_PER_PROVIDER = 50;
+// Caps attempts per provider so a batch of exhausted keys doesn't stall the reply.
+const MAX_KEY_ATTEMPTS = 4;
+// Invalid, blocked or rate-limited key: another key of the same provider may work.
+const RETRY_WITH_NEXT_KEY = new Set([401, 402, 403, 429]);
 
-    if (!response.ok) {
-        const errorBody = await response.text();
-        throw new Error(`Groq API error ${response.status}: ${errorBody}`);
+class ProviderHttpError extends Error {
+    status: number;
+
+    constructor(status: number, message: string) {
+        super(message);
+        this.status = status;
     }
+}
 
-    const data = await response.json();
-    const content = data?.choices?.[0]?.message?.content;
-    if (!content) throw new Error('Empty response from Groq');
-    return content;
+function apiKeys(keyName: string): string[] {
+    const names = [...Array.from({ length: MAX_KEYS_PER_PROVIDER }, (_, i) => `${keyName}_${i + 1}`), keyName];
+    const values = names
+        .map((name) => process.env[name]?.trim())
+        .filter((value): value is string => Boolean(value));
+    return [...new Set(values)];
+}
+
+const nextKeyIndex = new Map<string, number>();
+
+async function withKeyPool<T>(keyName: string, run: (apiKey: string) => Promise<T>): Promise<T> {
+    const keys = apiKeys(keyName);
+    if (!keys.length) throw new Error(`${keyName} not configured`);
+
+    const start = (nextKeyIndex.get(keyName) ?? 0) % keys.length;
+    nextKeyIndex.set(keyName, (start + 1) % keys.length);
+
+    let lastError: unknown;
+    for (let offset = 0; offset < Math.min(keys.length, MAX_KEY_ATTEMPTS); offset++) {
+        const slot = (start + offset) % keys.length;
+        try {
+            return await run(keys[slot]);
+        } catch (error) {
+            lastError = error;
+            if (!(error instanceof ProviderHttpError) || !RETRY_WITH_NEXT_KEY.has(error.status)) throw error;
+            console.warn(`[Chat] ${keyName} #${slot + 1} rejected (${error.status}), trying another key`);
+        }
+    }
+    throw lastError;
+}
+
+// ─── OpenAI-compatible call (Groq, Mistral, OpenRouter) ──────────────────────
+async function callOpenAiCompatible(
+    keyName: string,
+    endpoint: string,
+    model: string,
+    messages: Message[],
+    systemPrompt: string
+): Promise<string> {
+    return withKeyPool(keyName, async (apiKey) => {
+        const response = await fetch(endpoint, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${apiKey}`,
+            },
+            body: JSON.stringify({
+                model,
+                messages: [
+                    { role: 'system', content: systemPrompt },
+                    ...messages,
+                ],
+                max_tokens: 1024,
+                temperature: 0.7,
+            }),
+        });
+
+        if (!response.ok) {
+            const errorBody = await response.text();
+            throw new ProviderHttpError(response.status, `${keyName} API error ${response.status}: ${errorBody}`);
+        }
+
+        const data = await response.json();
+        const content = data?.choices?.[0]?.message?.content;
+        if (!content) throw new Error(`Empty response for ${keyName}`);
+        return content;
+    });
 }
 
 // ─── Gemini API call ─────────────────────────────────────────────────────────
 async function callGemini(messages: Message[], systemPrompt: string): Promise<string> {
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) throw new Error('GEMINI_API_KEY not configured');
-
     // Convert messages to Gemini format
     const geminiContents = messages.map((m) => ({
         role: m.role === 'assistant' ? 'model' : 'user',
         parts: [{ text: m.content }],
     }));
 
-    const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
-        {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                systemInstruction: { parts: [{ text: systemPrompt }] },
-                contents: geminiContents,
-                generationConfig: {
-                    maxOutputTokens: 1024,
-                    temperature: 0.7,
-                },
-            }),
+    return withKeyPool('GEMINI_API_KEY', async (apiKey) => {
+        // Key goes in a header, not the URL, so it never lands in error logs.
+        const response = await fetch(
+            `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`,
+            {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
+                body: JSON.stringify({
+                    systemInstruction: { parts: [{ text: systemPrompt }] },
+                    contents: geminiContents,
+                    generationConfig: {
+                        maxOutputTokens: 1024,
+                        temperature: 0.7,
+                    },
+                }),
+            }
+        );
+
+        if (!response.ok) {
+            const errorBody = await response.text();
+            throw new ProviderHttpError(response.status, `Gemini API error ${response.status}: ${errorBody}`);
         }
-    );
 
-    if (!response.ok) {
-        const errorBody = await response.text();
-        throw new Error(`Gemini API error ${response.status}: ${errorBody}`);
-    }
-
-    const data = await response.json();
-    const content = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-    if (!content) throw new Error('Empty response from Gemini');
-    return content;
+        const data = await response.json();
+        const content = (data?.candidates?.[0]?.content?.parts ?? [])
+            .map((part: { text?: string }) => part.text ?? '')
+            .join('');
+        if (!content) throw new Error('Empty response from Gemini');
+        return content;
+    });
 }
 
 // ─── POST handler ─────────────────────────────────────────────────────────────
@@ -167,27 +231,26 @@ export async function POST(req: NextRequest) {
         const messages = body.messages.slice(-20);
         const systemPrompt = buildSystemPrompt(body.locale);
 
-        let reply: string;
-        let provider: string;
+        // Groq → Gemini → Mistral → OpenRouter, and finally the local MIAR AI/FOOD fallback
+        const providers: Array<[string, () => Promise<string>]> = [
+            ['groq', () => callOpenAiCompatible('GROQ_API_KEY', 'https://api.groq.com/openai/v1/chat/completions', GROQ_MODEL, messages, systemPrompt)],
+            ['gemini', () => callGemini(messages, systemPrompt)],
+            ['mistral', () => callOpenAiCompatible('MISTRAL_API_KEY', 'https://api.mistral.ai/v1/chat/completions', MISTRAL_MODEL, messages, systemPrompt)],
+            ['openrouter', () => callOpenAiCompatible('OPENROUTER_API_KEY', 'https://openrouter.ai/api/v1/chat/completions', OPENROUTER_MODEL, messages, systemPrompt)],
+        ];
 
-        // Try Groq first, then fallback to Gemini, and finally to local MIAR AI/FOOD fallback
-        try {
-            reply = await callGroq(messages, systemPrompt);
-            provider = 'groq';
-        } catch (groqError) {
-            console.warn('[Chat] Groq failed, falling back to Gemini:', groqError);
+        for (const [provider, call] of providers) {
             try {
-                reply = await callGemini(messages, systemPrompt);
-                provider = 'gemini';
-            } catch (geminiError) {
-                console.warn('[Chat] Gemini also failed, using local MIAR AI/FOOD fallback');
-                const lastUserMessage = messages.filter(m => m.role === 'user').pop()?.content || '';
-                reply = getLocalMiarFoodReply(lastUserMessage);
-                provider = 'local-fallback';
+                const reply = await call();
+                return NextResponse.json({ reply, provider });
+            } catch (error) {
+                console.warn(`[Chat] ${provider} failed:`, error instanceof Error ? error.message : error);
             }
         }
 
-        return NextResponse.json({ reply, provider });
+        console.warn('[Chat] All providers failed, using local MIAR AI/FOOD fallback');
+        const lastUserMessage = messages.filter(m => m.role === 'user').pop()?.content || '';
+        return NextResponse.json({ reply: getLocalMiarFoodReply(lastUserMessage), provider: 'local-fallback' });
     } catch (error) {
         console.error('[Chat] Unexpected error:', error);
         return NextResponse.json(
@@ -199,10 +262,13 @@ export async function POST(req: NextRequest) {
 
 // ─── GET health check ─────────────────────────────────────────────────────────
 export async function GET() {
-    const hasGroq = !!process.env.GROQ_API_KEY;
-    const hasGemini = !!process.env.GEMINI_API_KEY;
     return NextResponse.json({
         status: 'ok',
-        providers: { groq: hasGroq, gemini: hasGemini },
+        providers: {
+            groq: apiKeys('GROQ_API_KEY').length > 0,
+            gemini: apiKeys('GEMINI_API_KEY').length > 0,
+            mistral: apiKeys('MISTRAL_API_KEY').length > 0,
+            openrouter: apiKeys('OPENROUTER_API_KEY').length > 0,
+        },
     });
 }

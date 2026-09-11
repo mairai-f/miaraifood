@@ -1656,6 +1656,63 @@ ipcMain.handle('printer:test', async () => printHtml(`
   </body></html>
 `));
 
+// Tela de promoções na TV ligada ao PC por HDMI: abre em tela cheia no monitor
+// externo, ou no principal quando só houver um. Esc fecha.
+let tvWindow = null;
+
+ipcMain.handle('tv:open-window', async (_event, code) => {
+  const normalized = typeof code === 'string' ? code.trim().toUpperCase() : '';
+  if (!/^[23456789ABCDEFGHJKMNPQRSTUVWXYZ]{8}$/.test(normalized)) {
+    return { success: false, error: 'Código de TV inválido.' };
+  }
+
+  const { screen } = require('electron');
+  const primaryDisplay = screen.getPrimaryDisplay();
+  const targetDisplay = screen.getAllDisplays().find((display) => display.id !== primaryDisplay.id) ?? primaryDisplay;
+
+  if (tvWindow && !tvWindow.isDestroyed()) {
+    tvWindow.close();
+  }
+
+  tvWindow = new BrowserWindow({
+    x: targetDisplay.bounds.x,
+    y: targetDisplay.bounds.y,
+    width: targetDisplay.bounds.width,
+    height: targetDisplay.bounds.height,
+    fullscreen: true,
+    autoHideMenuBar: true,
+    backgroundColor: '#000000',
+    icon: getWindowIconPath(),
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.cjs'),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+      devTools: isDevelopment,
+    },
+  });
+
+  tvWindow.on('closed', () => {
+    tvWindow = null;
+  });
+  tvWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+  tvWindow.webContents.on('before-input-event', (event, input) => {
+    if (input.type === 'keyDown' && input.key === 'Escape') {
+      event.preventDefault();
+      tvWindow?.close();
+    }
+  });
+
+  const rendererEntry = resolveRendererEntry();
+  if (rendererEntry.startsWith('http://') || rendererEntry.startsWith('https://')) {
+    await tvWindow.loadURL(`${rendererEntry.replace(/\/+$/, '')}/tv/${normalized}`);
+  } else {
+    await tvWindow.loadFile(rendererEntry, { hash: `/tv/${normalized}` });
+  }
+
+  return { success: true, externalDisplay: targetDisplay.id !== primaryDisplay.id };
+});
+
 ipcMain.handle('app:get-runtime-info', () => getRuntimeInfo());
 
 ipcMain.on('app:get-runtime-info-sync', (event) => {

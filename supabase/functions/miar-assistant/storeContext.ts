@@ -1,250 +1,217 @@
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@2';
+import { getRedisConfig, runRedisPipeline } from '../_shared/rateLimit.ts';
 
-// Todas as consultas aqui rodam com o JWT do próprio usuário, então as
-// políticas RLS do ERP já limitam as linhas ao estabelecimento dele. Nenhum
-// filtro manual de tenant é aplicado de propósito: duplicar a regra no código
-// criaria uma segunda fonte de verdade que pode divergir da do banco.
+// O retrato é apurado no Postgres (get_miar_store_snapshot) e chega pronto,
+// em poucos KB. A função roda com o JWT do usuário, então o RLS do ERP continua
+// sendo a barreira entre estabelecimentos.
+//
+// Conversa costuma vir em rajada e os números de alguns minutos atrás ainda
+// servem. O cache evita refazer as somas a cada pergunta e é descartado quando
+// uma ação confirmada muda os dados.
+const SNAPSHOT_TTL_SECONDS = 300;
+const snapshotKey = (userId: string) => `miar-snapshot:v1:${userId}`;
 
-const DAY_MS = 24 * 60 * 60 * 1000;
 const brl = (value: number) => `R$ ${value.toFixed(2).replace('.', ',')}`;
 const pct = (value: number) => `${(value * 100).toFixed(1)}%`;
 
-type SaleRow = { id: string; total: number; discount: number; payment_method: string; date: string; user_id: string };
-type SaleItemRow = {
-  sale_id: string;
-  product_id: string | null;
-  product_name: string;
-  quantity: number;
-  unit_price: number;
-  cost_price: number;
-  total: number;
-};
-type ProductRow = {
-  id: string; name: string; price: number; cost_price: number;
-  stock: number; min_stock: number; category: string;
-};
+type Row = Record<string, unknown>;
+const num = (value: unknown) => Number(value ?? 0) || 0;
+const rows = (value: unknown) => (Array.isArray(value) ? (value as Row[]) : []);
+const obj = (value: unknown) => (value && typeof value === 'object' ? (value as Row) : {});
 
 export interface StoreSnapshot {
   text: string;
   generatedAt: string;
 }
 
-const sum = (values: number[]) => values.reduce((acc, value) => acc + value, 0);
-
-/**
- * Monta um retrato compacto da operação para o system prompt. É o "R" do RAG:
- * em vez de deixar o modelo adivinhar, ele recebe números já apurados.
- */
-export async function buildStoreSnapshot(supabase: SupabaseClient): Promise<StoreSnapshot> {
-  const now = new Date();
-  const since30 = new Date(now.getTime() - 30 * DAY_MS).toISOString();
-  const since7 = new Date(now.getTime() - 7 * DAY_MS).toISOString();
-
-  const [salesResult, productsResult, expensesResult, movementsResult] = await Promise.all([
-    supabase.from('sales').select('id,total,discount,payment_method,date,user_id')
-      .gte('date', since30).order('date', { ascending: false }).limit(4000),
-    supabase.from('products').select('id,name,price,cost_price,stock,min_stock,category')
-      .eq('deleted', false).limit(2000),
-    supabase.from('expenses').select('description,amount,category,date').gte('date', since30).limit(1000),
-    supabase.from('stock_movements').select('product_id,type,quantity,reason,date').gte('date', since30).limit(2000),
-  ]);
-
-  const sales = (salesResult.data ?? []) as SaleRow[];
-  const products = (productsResult.data ?? []) as ProductRow[];
-  const expenses = (expensesResult.data ?? []) as Array<{ description: string; amount: number; category: string; date: string }>;
-  const movements = (movementsResult.data ?? []) as Array<{ product_id: string; type: string; quantity: number; reason: string; date: string }>;
-
-  // Itens só das vendas que o RLS já liberou acima.
-  const saleIds = sales.map((sale) => sale.id);
-  let items: SaleItemRow[] = [];
-  for (let index = 0; index < saleIds.length; index += 500) {
-    const chunk = saleIds.slice(index, index + 500);
-    const { data } = await supabase
-      .from('sale_items')
-      .select('sale_id,product_id,product_name,quantity,unit_price,cost_price,total')
-      .in('sale_id', chunk);
-    items = items.concat((data ?? []) as SaleItemRow[]);
-  }
-
+/** Transforma o JSON de get_miar_store_snapshot no texto do system prompt. */
+export function formatSnapshot(data: Row): string {
+  const sales = obj(data.sales);
   const lines: string[] = [];
-  const fmtDate = (value: string) => new Date(value).toLocaleDateString('pt-BR');
 
   // ── Faturamento ───────────────────────────────────────────────────────────
-  const sales7 = sales.filter((sale) => sale.date >= since7);
-  const revenue30 = sum(sales.map((sale) => sale.total));
-  const revenue7 = sum(sales7.map((sale) => sale.total));
-  const ticket30 = sales.length ? revenue30 / sales.length : 0;
-  const ticket7 = sales7.length ? revenue7 / sales7.length : 0;
+  const revenue30 = num(sales.revenue30);
+  const count30 = num(sales.count30);
+  const revenue7 = num(sales.revenue7);
+  const count7 = num(sales.count7);
 
   lines.push('## Faturamento');
-  lines.push(`- Últimos 30 dias: ${brl(revenue30)} em ${sales.length} vendas. Ticket médio ${brl(ticket30)}.`);
-  lines.push(`- Últimos 7 dias: ${brl(revenue7)} em ${sales7.length} vendas. Ticket médio ${brl(ticket7)}.`);
-  lines.push(`- Descontos concedidos em 30 dias: ${brl(sum(sales.map((sale) => sale.discount)))}.`);
+  lines.push(`- Últimos 30 dias: ${brl(revenue30)} em ${count30} vendas. Ticket médio ${brl(count30 ? revenue30 / count30 : 0)}.`);
+  lines.push(`- Últimos 7 dias: ${brl(revenue7)} em ${count7} vendas. Ticket médio ${brl(count7 ? revenue7 / count7 : 0)}.`);
+  lines.push(`- Descontos concedidos em 30 dias: ${brl(num(sales.discount30))}.`);
 
-  const byPayment = new Map<string, number>();
-  for (const sale of sales) byPayment.set(sale.payment_method, (byPayment.get(sale.payment_method) ?? 0) + sale.total);
-  if (byPayment.size) {
-    const formatted = [...byPayment.entries()]
-      .sort((a, b) => b[1] - a[1])
-      .map(([method, total]) => `${method} ${brl(total)}`)
-      .join(', ');
-    lines.push(`- Por forma de pagamento (30 dias): ${formatted}.`);
+  const byPayment = rows(data.by_payment);
+  if (byPayment.length) {
+    lines.push(`- Por forma de pagamento (30 dias): ${byPayment.map((row) => `${row.method} ${brl(num(row.total))}`).join(', ')}.`);
   }
 
   // ── Horários ──────────────────────────────────────────────────────────────
-  const byHour = new Map<number, { revenue: number; count: number }>();
-  for (const sale of sales) {
-    const hour = new Date(sale.date).getHours();
-    const bucket = byHour.get(hour) ?? { revenue: 0, count: 0 };
-    bucket.revenue += sale.total;
-    bucket.count += 1;
-    byHour.set(hour, bucket);
-  }
-  const bestHours = [...byHour.entries()].sort((a, b) => b[1].revenue - a[1].revenue).slice(0, 5);
+  const bestHours = rows(data.best_hours);
   if (bestHours.length) {
     lines.push('');
     lines.push('## Melhores horários (30 dias)');
-    for (const [hour, bucket] of bestHours) {
-      lines.push(`- ${String(hour).padStart(2, '0')}h: ${brl(bucket.revenue)} em ${bucket.count} vendas.`);
+    for (const row of bestHours) {
+      lines.push(`- ${String(num(row.hour)).padStart(2, '0')}h: ${brl(num(row.revenue))} em ${num(row.count)} vendas.`);
     }
   }
 
   // ── Produtos, margem e giro ───────────────────────────────────────────────
-  type Agg = { name: string; qty: number; revenue: number; cost: number };
-  const aggregate = (rows: SaleItemRow[]) => {
-    const map = new Map<string, Agg>();
-    for (const item of rows) {
-      const key = item.product_id ?? item.product_name;
-      const bucket = map.get(key) ?? { name: item.product_name, qty: 0, revenue: 0, cost: 0 };
-      bucket.qty += item.quantity;
-      bucket.revenue += item.total;
-      bucket.cost += item.cost_price * item.quantity;
-      map.set(key, bucket);
-    }
-    return map;
-  };
-
-  const sales7Ids = new Set(sales7.map((sale) => sale.id));
-  const agg30 = aggregate(items);
-  const agg7 = aggregate(items.filter((item) => sales7Ids.has(item.sale_id)));
-
-  const ranked30 = [...agg30.values()].sort((a, b) => b.revenue - a.revenue);
-  if (ranked30.length) {
+  const top = rows(data.top_products);
+  if (top.length) {
     lines.push('');
     lines.push('## Mais vendidos (30 dias)');
-    for (const row of ranked30.slice(0, 10)) {
-      const margin = row.revenue > 0 ? (row.revenue - row.cost) / row.revenue : 0;
-      lines.push(`- ${row.name}: ${row.qty} un, ${brl(row.revenue)}, margem ${pct(margin)}.`);
+    for (const row of top) {
+      const revenue = num(row.revenue);
+      const margin = revenue > 0 ? (revenue - num(row.cost)) / revenue : 0;
+      lines.push(`- ${row.name}: ${num(row.qty)} un, ${brl(revenue)}, margem ${pct(margin)}.`);
     }
   }
 
-  const ranked7 = [...agg7.values()].sort((a, b) => a.qty - b.qty);
-  if (ranked7.length) {
+  const least = rows(data.least_sold7);
+  if (least.length) {
     lines.push('');
     lines.push('## Venderam MENOS nos últimos 7 dias');
-    for (const row of ranked7.slice(0, 10)) {
-      lines.push(`- ${row.name}: apenas ${row.qty} un, ${brl(row.revenue)}.`);
+    for (const row of least) {
+      lines.push(`- ${row.name}: apenas ${num(row.qty)} un, ${brl(num(row.revenue))}.`);
     }
   }
 
-  // Produtos do catálogo sem nenhuma venda no período.
-  const soldNames = new Set([...agg30.values()].map((row) => row.name.toLowerCase()));
-  const stagnant = products.filter((product) => !soldNames.has(product.name.toLowerCase()));
+  const stagnant = rows(data.stagnant);
   if (stagnant.length) {
     lines.push('');
-    lines.push(`## Sem nenhuma venda em 30 dias (${stagnant.length} itens)`);
-    for (const product of stagnant.slice(0, 15)) {
-      lines.push(`- ${product.name} (estoque ${product.stock}, preço ${brl(product.price)}).`);
+    lines.push(`## Sem nenhuma venda em 30 dias (${num(data.stagnant_count)} itens)`);
+    for (const row of stagnant) {
+      lines.push(`- ${row.name} (estoque ${num(row.stock)}, preço ${brl(num(row.price))}).`);
     }
   }
 
   // ── Margem baixa ──────────────────────────────────────────────────────────
-  const withMargin = products
-    .filter((product) => product.price > 0 && product.cost_price > 0)
-    .map((product) => ({ ...product, margin: (product.price - product.cost_price) / product.price }))
-    .sort((a, b) => a.margin - b.margin);
-  if (withMargin.length) {
+  const lowMargin = rows(data.low_margin);
+  if (lowMargin.length) {
     lines.push('');
     lines.push('## Menores margens do catálogo');
-    for (const product of withMargin.slice(0, 10)) {
-      lines.push(`- ${product.name}: preço ${brl(product.price)}, custo ${brl(product.cost_price)}, margem ${pct(product.margin)}.`);
+    for (const row of lowMargin) {
+      lines.push(`- ${row.name}: preço ${brl(num(row.price))}, custo ${brl(num(row.cost_price))}, margem ${pct(num(row.margin))}.`);
     }
   }
 
   // ── Estoque e compras ─────────────────────────────────────────────────────
-  const lowStock = products.filter((product) => product.stock <= product.min_stock);
+  const lowStock = rows(data.low_stock);
   lines.push('');
-  lines.push(`## Estoque (${products.length} produtos ativos)`);
+  lines.push(`## Estoque (${num(data.product_count)} produtos ativos)`);
   if (lowStock.length) {
-    lines.push(`- ${lowStock.length} produto(s) no ou abaixo do mínimo:`);
-    for (const product of lowStock.slice(0, 20)) {
-      const velocity = (agg30.get(product.id)?.qty ?? 0) / 30;
-      const daysLeft = velocity > 0 ? (product.stock / velocity).toFixed(1) : 'sem giro';
-      lines.push(`- ${product.name}: estoque ${product.stock}, mínimo ${product.min_stock}, saída ${velocity.toFixed(2)} un/dia, cobertura ${daysLeft} dias.`);
+    lines.push(`- ${num(data.low_stock_count)} produto(s) no ou abaixo do mínimo:`);
+    for (const row of lowStock) {
+      const velocity = num(row.qty30) / 30;
+      const daysLeft = velocity > 0 ? (num(row.stock) / velocity).toFixed(1) : 'sem giro';
+      lines.push(`- ${row.name}: estoque ${num(row.stock)}, mínimo ${num(row.min_stock)}, saída ${velocity.toFixed(2)} un/dia, cobertura ${daysLeft} dias.`);
     }
   } else {
     lines.push('- Nenhum produto abaixo do estoque mínimo.');
   }
-  const stockValue = sum(products.map((product) => product.stock * product.cost_price));
-  lines.push(`- Capital parado em estoque (a custo): ${brl(stockValue)}.`);
+  lines.push(`- Capital parado em estoque (a custo): ${brl(num(data.stock_value))}.`);
 
   // ── Perdas ────────────────────────────────────────────────────────────────
-  const losses = movements.filter((movement) => /perda|quebra|desperd|vencid|avaria/i.test(`${movement.type} ${movement.reason}`));
-  if (losses.length) {
-    const productById = new Map(products.map((product) => [product.id, product]));
-    const lossValue = sum(losses.map((movement) => Math.abs(movement.quantity) * (productById.get(movement.product_id)?.cost_price ?? 0)));
+  const losses = obj(data.losses);
+  if (num(losses.count) > 0) {
     lines.push('');
     lines.push('## Perdas e desperdício (30 dias)');
-    lines.push(`- ${losses.length} lançamento(s), custo estimado ${brl(lossValue)}.`);
-    const byReason = new Map<string, number>();
-    for (const movement of losses) {
-      const reason = movement.reason || movement.type;
-      byReason.set(reason, (byReason.get(reason) ?? 0) + Math.abs(movement.quantity));
-    }
-    for (const [reason, qty] of [...byReason.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8)) {
-      lines.push(`- ${reason}: ${qty} un.`);
+    lines.push(`- ${num(losses.count)} lançamento(s), custo estimado ${brl(num(losses.value))}.`);
+    for (const row of rows(losses.by_reason)) {
+      lines.push(`- ${row.reason}: ${num(row.qty)} un.`);
     }
   }
 
   // ── Despesas ──────────────────────────────────────────────────────────────
-  if (expenses.length) {
-    const totalExpenses = sum(expenses.map((expense) => expense.amount));
+  const expenses = obj(data.expenses);
+  const byCategory = rows(expenses.by_category);
+  if (byCategory.length) {
+    const totalExpenses = num(expenses.total);
     lines.push('');
     lines.push('## Despesas (30 dias)');
     lines.push(`- Total ${brl(totalExpenses)}. Resultado bruto aproximado: ${brl(revenue30 - totalExpenses)}.`);
-    const byCategory = new Map<string, number>();
-    for (const expense of expenses) {
-      const category = expense.category || 'sem categoria';
-      byCategory.set(category, (byCategory.get(category) ?? 0) + expense.amount);
-    }
-    for (const [category, total] of [...byCategory.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8)) {
-      lines.push(`- ${category}: ${brl(total)}.`);
+    for (const row of byCategory) {
+      lines.push(`- ${row.category}: ${brl(num(row.total))}.`);
     }
   }
 
   // ── Equipe ────────────────────────────────────────────────────────────────
-  const byOperator = new Map<string, { revenue: number; count: number }>();
-  for (const sale of sales) {
-    const bucket = byOperator.get(sale.user_id) ?? { revenue: 0, count: 0 };
-    bucket.revenue += sale.total;
-    bucket.count += 1;
-    byOperator.set(sale.user_id, bucket);
-  }
-  if (byOperator.size > 1) {
+  const operators = rows(data.operators);
+  if (operators.length > 1) {
     lines.push('');
     lines.push('## Vendas por operador (30 dias)');
-    for (const [userId, bucket] of [...byOperator.entries()].sort((a, b) => b[1].revenue - a[1].revenue).slice(0, 10)) {
-      lines.push(`- Operador ${userId.slice(0, 8)}: ${brl(bucket.revenue)} em ${bucket.count} vendas, ticket ${brl(bucket.revenue / bucket.count)}.`);
+    for (const row of operators) {
+      const count = num(row.count);
+      lines.push(`- ${row.name}: ${brl(num(row.revenue))} em ${count} vendas, ticket ${brl(count ? num(row.revenue) / count : 0)}.`);
     }
   }
 
-  if (sales.length === 0 && products.length === 0) {
+  // ── Promoções ─────────────────────────────────────────────────────────────
+  const promotions = rows(data.promotions);
+  if (promotions.length) {
+    lines.push('');
+    lines.push('## Promoções ativas (aparecem nas TVs)');
+    for (const row of promotions) {
+      const value = num(row.discount_value);
+      const label = row.discount_type === 'percent'
+        ? `${value}% de desconto`
+        : row.discount_type === 'fixed_price' ? `por ${brl(value)}` : `${brl(value)} de desconto`;
+      lines.push(`- ${row.title || row.product_name} (${row.product_name}): ${label}${row.ends_at ? `, até ${row.ends_at}` : ''}.`);
+    }
+  }
+
+  if (count30 === 0 && num(data.product_count) === 0) {
     lines.push('');
     lines.push('> Ainda não há vendas nem produtos cadastrados neste estabelecimento.');
   }
 
-  return {
-    text: lines.join('\n'),
-    generatedAt: now.toISOString(),
+  return lines.join('\n');
+}
+
+async function readCachedSnapshot(userId: string): Promise<StoreSnapshot | null> {
+  const config = getRedisConfig();
+  if (!config) return null;
+  try {
+    const [reply] = await runRedisPipeline(config, [['GET', snapshotKey(userId)]]);
+    return typeof reply?.result === 'string' ? JSON.parse(reply.result) as StoreSnapshot : null;
+  } catch {
+    return null;
+  }
+}
+
+async function writeCachedSnapshot(userId: string, snapshot: StoreSnapshot) {
+  const config = getRedisConfig();
+  if (!config) return;
+  try {
+    await runRedisPipeline(config, [['SET', snapshotKey(userId), JSON.stringify(snapshot), 'EX', SNAPSHOT_TTL_SECONDS]]);
+  } catch {
+    // Cache é otimização: sem Redis, a próxima pergunta só recalcula.
+  }
+}
+
+/** Descarta o retrato em cache depois de uma ação que altera os dados. */
+export async function invalidateStoreSnapshot(userId: string) {
+  const config = getRedisConfig();
+  if (!config) return;
+  try {
+    await runRedisPipeline(config, [['DEL', snapshotKey(userId)]]);
+  } catch {
+    // Na pior hipótese o retrato fica até 5 minutos desatualizado.
+  }
+}
+
+export async function buildStoreSnapshot(supabase: SupabaseClient, userId: string): Promise<StoreSnapshot> {
+  const cached = await readCachedSnapshot(userId);
+  if (cached) return cached;
+
+  const { data, error } = await supabase.rpc('get_miar_store_snapshot');
+  if (error) throw new Error(`Retrato da loja indisponível: ${error.message}`);
+
+  const payload = obj(data);
+  const snapshot = {
+    text: formatSnapshot(payload),
+    generatedAt: String(payload.generated_at ?? new Date().toISOString()),
   };
+  await writeCachedSnapshot(userId, snapshot);
+  return snapshot;
 }

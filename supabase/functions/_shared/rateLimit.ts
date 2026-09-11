@@ -26,7 +26,7 @@ export const sha256 = async (value: string) => {
 
 type RedisCommandResult = { result?: unknown; error?: string };
 
-const getRedisConfig = () => {
+export const getRedisConfig = () => {
   const redisUrl = Deno.env.get("UPSTASH_REDIS_REST_URL")?.replace(/\/+$/, "");
   const redisToken = Deno.env.get("UPSTASH_REDIS_REST_TOKEN");
 
@@ -34,7 +34,7 @@ const getRedisConfig = () => {
   return { redisUrl, redisToken };
 };
 
-const runRedisPipeline = async (
+export const runRedisPipeline = async (
   config: { redisUrl: string; redisToken: string },
   commands: unknown[][],
 ) => {

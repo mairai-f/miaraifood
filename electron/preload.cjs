@@ -26,6 +26,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
     write: (key, value) => ipcRenderer.invoke('secure-storage:write', key, value),
     delete: (key) => ipcRenderer.invoke('secure-storage:delete', key),
   },
+  // Abre a tela de promoções em tela cheia no monitor/TV externo.
+  tv: {
+    openWindow: (code) => ipcRenderer.invoke('tv:open-window', code),
+  },
   app: {
     getRuntimeInfo: () => ipcRenderer.invoke('app:get-runtime-info'),
     getRuntimeInfoSync: () => ipcRenderer.sendSync('app:get-runtime-info-sync'),
