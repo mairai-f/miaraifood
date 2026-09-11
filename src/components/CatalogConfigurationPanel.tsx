@@ -23,7 +23,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { getRedactedLogValue } from '../../shared/security/redaction';
+import { getPublicErrorMessage, getRedactedLogValue } from '../../shared/security/redaction';
 
 type StructureKind = 'department' | 'brand' | 'group' | 'subgroup';
 type StructureTable = 'product_departments' | 'product_brands' | 'product_groups' | 'product_subgroups';
@@ -131,9 +131,12 @@ export function CatalogConfigurationPanel() {
       setConversions((results[5].data ?? []) as UnitConversionRow[]);
       setPriceTables((results[6].data ?? []) as ProductPriceTableOption[]);
       setTransportCompanies((results[7].data ?? []) as TransportCompanyOption[]);
-    } catch (error) {
-      console.error('Erro ao carregar catalogo avancado:', getRedactedLogValue(error));
-      toast.error('Nao foi possivel carregar o catalogo avancado. Aplique a migracao da Fase 3.');
+      } catch (error) {
+        console.error('Erro ao carregar catalogo avancado:', getRedactedLogValue(error));
+        toast.error(getPublicErrorMessage(
+          error,
+          'Não foi possível carregar o catálogo avançado. Tente novamente.',
+        ));
     } finally {
       setLoading(false);
     }

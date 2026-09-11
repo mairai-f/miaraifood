@@ -221,7 +221,10 @@ export default function Products() {
         })));
       } catch (error) {
         console.error('Erro ao carregar dependencias do catalogo:', getRedactedLogValue(error));
-        toast.error('Catalogo avancado indisponivel. Aplique a migracao da Fase 3.');
+        toast.error(getPublicErrorMessage(
+          error,
+          'Não foi possível carregar os dados complementares deste produto. Tente novamente.',
+        ));
       }
     };
     void loadCatalogDependencies();
