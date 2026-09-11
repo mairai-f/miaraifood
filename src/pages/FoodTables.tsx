@@ -57,6 +57,7 @@ export default function FoodTables() {
   const [paymentParts, setPaymentParts] = useState<Array<{ method: string; provider: string | null; amount: number; label?: string }>>([]);
   const [paymentConfirmed, setPaymentConfirmed] = useState(false);
   const [confirmedPaid, setConfirmedPaid] = useState(0);
+  const [confirmingPayment, setConfirmingPayment] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<PaymentOptionId>('pix');
   const [paymentAmount, setPaymentAmount] = useState('');
   const [splitting, setSplitting] = useState(false);
@@ -228,7 +229,7 @@ export default function FoodTables() {
   const money = (value: number) => value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
   const paymentTotal = consumption.reduce((sum, item) => sum + item.line_total, 0);
   const paidParts = paymentParts.reduce((sum, part) => sum + part.amount, 0);
-  const paymentRemaining = Math.max(0, paymentTotal - paidParts);
+  const paymentRemaining = Math.max(0, paymentTotal - confirmedPaid - paidParts);
   const buildPaymentPart = (amount: number) => ({
     method: PAYMENT_OPTIONS[paymentMethod].method,
     provider: PAYMENT_OPTIONS[paymentMethod].provider,
@@ -246,26 +247,28 @@ export default function FoodTables() {
   };
   const removePaymentPart = (index: number) => setPaymentParts((parts) => parts.filter((_, position) => position !== index));
   const confirmSplitPayment = async () => {
-    if (!selectedTable?.activeSession) return;
+    if (!selectedTable?.activeSession || confirmingPayment) return;
     // Confirma o que já está na lista. Antes esta função exigia um valor novo
     // no campo, então quem adicionava o total e clicava em confirmar era
     // barrado com "saldo restante" e a mesa nunca era paga.
     const pending = readPaymentAmount();
-    const plan = planTablePaymentConfirmation(paymentTotal, paymentParts.map((part) => part.amount), pending);
+    const plan = planTablePaymentConfirmation(Math.max(0, paymentTotal - confirmedPaid), paymentParts.map((part) => part.amount), pending);
     if (plan.status === 'over') { toast.error(`Valor acima do saldo restante de ${money(plan.remaining)}.`); return; }
     if (plan.status === 'empty') { toast.error('Adicione ao menos um pagamento.'); return; }
     if (plan.status === 'short') { toast.error(`Faltam ${money(plan.missing)} para fechar a conta.`); return; }
     const parts = Number.isFinite(pending) && pending > 0 ? [...paymentParts, buildPaymentPart(pending)] : paymentParts;
-    const paid = plan.confirmedTotal;
     const payload = parts.map(({ method, provider, amount }) => ({ method, provider, amount }));
+    setConfirmingPayment(true);
+    try {
     const { error } = await (supabase as any).rpc('create_split_payment_group', { p_order_id: selectedTable.activeSession.id, p_parts: payload });
     if (error) { toast.error(error.message); return; }
-    toast.success('Todos os pagamentos foram registrados.');
+    toast.success('Pagamentos registrados. Os integrados dependem da confirmação do provedor.');
     setPaymentParts([]);
     setPaymentAmount('');
-    setPaymentConfirmed(true);
-    setConfirmedPaid(paid);
+    await openTableModal(selectedTable);
     await refresh();
+    } catch { toast.error('Não foi possível verificar o pagamento. Reabra a mesa para consultar antes de tentar novamente.'); }
+    finally { setConfirmingPayment(false); }
   };
 
   const qrUrl = qrToken ? `${window.location.origin}/qrmenu/${qrToken}` : '';
@@ -410,7 +413,7 @@ export default function FoodTables() {
                     ))}
                   </div>
                 )}
-                {hasPermission('food.tables.close') && <Button className="w-full" disabled={paymentRemaining > 0.01} onClick={() => void closeTable()}><CheckCircle2 className="mr-2 h-4 w-4" />Fechar mesa</Button>}
+                {hasPermission('food.tables.close') && <Button className="w-full" disabled={confirmingPayment || paymentTotal - confirmedPaid > 0.01} onClick={() => void closeTable()}><CheckCircle2 className="mr-2 h-4 w-4" />Fechar mesa</Button>}
               </div>
             )}
           </section>
