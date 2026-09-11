@@ -5,6 +5,8 @@ import { toolDefinitions } from './tools.ts';
 // catálogo de modelo muda mais rápido que o código.
 const GROQ_MODEL = Deno.env.get('MIAR_AI_GROQ_MODEL') || 'llama-3.3-70b-versatile';
 const GEMINI_MODEL = Deno.env.get('MIAR_AI_GEMINI_MODEL') || 'gemini-1.5-flash';
+const MISTRAL_MODEL = Deno.env.get('MIAR_AI_MISTRAL_MODEL') || 'mistral-small-latest';
+const OPENROUTER_MODEL = Deno.env.get('MIAR_AI_OPENROUTER_MODEL') || 'meta-llama/llama-3.3-70b-instruct:free';
 
 export interface ChatMessage {
   role: 'system' | 'user' | 'assistant' | 'tool';
@@ -35,14 +37,36 @@ const openAiTools = toolDefinitions.map((tool) => ({
 }));
 
 async function callGroq(messages: ChatMessage[], allowTools: boolean): Promise<ProviderReply> {
-  const apiKey = Deno.env.get('GROQ_API_KEY');
-  if (!apiKey) throw new Error('GROQ_API_KEY não configurada');
+  return callOpenAiCompatible({
+    apiKey: Deno.env.get('GROQ_API_KEY'),
+    apiKeyName: 'GROQ_API_KEY',
+    endpoint: 'https://api.groq.com/openai/v1/chat/completions',
+    model: GROQ_MODEL,
+    provider: 'groq',
+    messages,
+    allowTools,
+  });
+}
 
-  const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+interface OpenAiCompatibleOptions {
+  apiKey: string | undefined;
+  apiKeyName: string;
+  endpoint: string;
+  model: string;
+  provider: string;
+  messages: ChatMessage[];
+  allowTools: boolean;
+}
+
+async function callOpenAiCompatible(options: OpenAiCompatibleOptions): Promise<ProviderReply> {
+  const { apiKey, apiKeyName, endpoint, model, provider, messages, allowTools } = options;
+  if (!apiKey) throw new Error(`${apiKeyName} não configurada`);
+
+  const response = await fetch(endpoint, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
     body: JSON.stringify({
-      model: GROQ_MODEL,
+      model,
       messages,
       ...(allowTools ? { tools: openAiTools, tool_choice: 'auto' } : {}),
       max_tokens: 2048,
@@ -50,20 +74,44 @@ async function callGroq(messages: ChatMessage[], allowTools: boolean): Promise<P
     }),
   });
 
-  if (!response.ok) throw new Error(`Groq ${response.status}: ${await response.text()}`);
+  if (!response.ok) throw new Error(`${provider} ${response.status}: ${await response.text()}`);
   const data = await response.json();
   const choice = data?.choices?.[0]?.message;
-  if (!choice) throw new Error('Resposta vazia do Groq');
+  if (!choice) throw new Error(`Resposta vazia do ${provider}`);
 
   return {
     content: choice.content ?? '',
-    provider: 'groq',
+    provider,
     toolCalls: (choice.tool_calls ?? []).map((call: { id: string; function: { name: string; arguments: string } }) => ({
       id: call.id,
       name: call.function.name,
       arguments: parseArguments(call.function.arguments),
     })),
   };
+}
+
+async function callMistral(messages: ChatMessage[], allowTools: boolean): Promise<ProviderReply> {
+  return callOpenAiCompatible({
+    apiKey: Deno.env.get('MISTRAL_API_KEY'),
+    apiKeyName: 'MISTRAL_API_KEY',
+    endpoint: 'https://api.mistral.ai/v1/chat/completions',
+    model: MISTRAL_MODEL,
+    provider: 'mistral',
+    messages,
+    allowTools,
+  });
+}
+
+async function callOpenRouter(messages: ChatMessage[], allowTools: boolean): Promise<ProviderReply> {
+  return callOpenAiCompatible({
+    apiKey: Deno.env.get('OPENROUTER_API_KEY'),
+    apiKeyName: 'OPENROUTER_API_KEY',
+    endpoint: 'https://openrouter.ai/api/v1/chat/completions',
+    model: OPENROUTER_MODEL,
+    provider: 'openrouter',
+    messages,
+    allowTools,
+  });
 }
 
 async function callGemini(messages: ChatMessage[], allowTools: boolean): Promise<ProviderReply> {
@@ -123,17 +171,40 @@ async function callGemini(messages: ChatMessage[], allowTools: boolean): Promise
   return { content, provider: 'gemini', toolCalls };
 }
 
-/** Groq primeiro, Gemini como reserva — mesma ordem do chat do site. */
+/** Usa provedores configurados em sequência, para que uma indisponibilidade não derrube a IA. */
 export async function callModel(messages: ChatMessage[], allowTools: boolean): Promise<ProviderReply> {
+  const errors: string[] = [];
+
   try {
     return await callGroq(messages, allowTools);
   } catch (groqError) {
-    console.warn('[miar-assistant] Groq falhou, tentando Gemini:', groqError);
-    return await callGemini(messages, allowTools);
+    errors.push(`Groq: ${groqError instanceof Error ? groqError.message : String(groqError)}`);
   }
+
+  try {
+    return await callGemini(messages, allowTools);
+  } catch (geminiError) {
+    errors.push(`Gemini: ${geminiError instanceof Error ? geminiError.message : String(geminiError)}`);
+  }
+
+  try {
+    return await callMistral(messages, allowTools);
+  } catch (mistralError) {
+    errors.push(`Mistral: ${mistralError instanceof Error ? mistralError.message : String(mistralError)}`);
+  }
+
+  try {
+    return await callOpenRouter(messages, allowTools);
+  } catch (openRouterError) {
+    errors.push(`OpenRouter: ${openRouterError instanceof Error ? openRouterError.message : String(openRouterError)}`);
+  }
+
+  throw new Error(`Nenhum provedor de IA respondeu. ${errors.join(' | ')}`);
 }
 
 export const configuredProviders = () => ({
   groq: Boolean(Deno.env.get('GROQ_API_KEY')),
   gemini: Boolean(Deno.env.get('GEMINI_API_KEY')),
+  mistral: Boolean(Deno.env.get('MISTRAL_API_KEY')),
+  openrouter: Boolean(Deno.env.get('OPENROUTER_API_KEY')),
 });
