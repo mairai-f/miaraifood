@@ -184,8 +184,8 @@ function TvPlayer({ code }: { code: string }) {
     };
   }, []);
 
-  const slides = useMemo(() => (payload ? buildTvSlides(payload, formatMoney) : []), [payload]);
-  const slideSeconds = payload?.screen.slide_seconds ?? 10;
+  const slides = useMemo(() => (payload ? buildTvSlides(payload, formatMoney, now.getTime()) : []), [payload, now]);
+  const slideSeconds = slides[index % slides.length]?.seconds ?? payload?.screen.slide_seconds ?? 10;
   const current = slides.length ? slides[index % slides.length] : null;
   const next = slides.length > 1 ? slides[(index + 1) % slides.length] : null;
 
@@ -226,6 +226,8 @@ function TvPlayer({ code }: { code: string }) {
           <p className="w-full text-center text-[3vw] text-white/70">Carregando promoções...</p>
         ) : !current ? (
           <p className="w-full text-center text-[3vw] text-white/70">Nenhuma promoção ativa no momento.</p>
+        ) : current.artwork ? (
+          <img src={current.imageUrl!} alt={current.title} className="h-full w-full object-contain" />
         ) : (
           <div key={current.key} className="flex h-full w-full items-center gap-[4vw] animate-in fade-in duration-700">
             {current.imageUrl ? (

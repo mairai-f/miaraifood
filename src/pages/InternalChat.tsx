@@ -672,6 +672,8 @@ export default function InternalChat() {
           )}
           {menu && current && (
             <div className="absolute right-3 top-14 z-20 w-56 rounded border bg-card p-1 shadow">
+              <button className="w-full rounded p-2 text-left hover:bg-muted" onClick={() => { setMenu(false); avatarInputRef.current?.click(); }}>Alterar minha foto</button>
+              {can("chat.group.create") && <button className="w-full rounded p-2 text-left hover:bg-muted" onClick={() => { setMenu(false); setNewGroup(true); }}>Criar grupo</button>}
               {current.kind === "group" && can("chat.group.edit") && (
                 <button
                   className="w-full rounded p-2 text-left hover:bg-muted"

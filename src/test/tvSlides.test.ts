@@ -21,6 +21,13 @@ const payload = (overrides: Partial<TvPayload> = {}): TvPayload => ({
 });
 
 describe('tela de TV', () => {
+  it('alterna arte válida com produto e respeita período, destino e duração', () => {
+    const art = { id: 'a', title: 'Oferta', image_url: '/a.png', format: 'tv', starts_at: '2026-09-01T00:00:00Z', ends_at: '2026-10-01T00:00:00Z', seconds: 17, sort_order: 0, active: true };
+    const data = payload({products: [{id:'p',name:'Produto',price:10,image_url:null,description:null}], artworks: [art, {...art,id:'b',format:'stories'}, {...art,id:'c',active:false}]});
+    expect(buildTvSlides(data,money,Date.parse('2026-09-11T00:00:00Z')).map(s => s.key)).toEqual(['product-p','art-a']);
+    expect(buildTvSlides(data,money,Date.parse('2026-09-11T00:00:00Z'))[1].seconds).toBe(17);
+    expect(buildTvSlides(data,money,Date.parse(art.ends_at)).map(s => s.key)).toEqual(['product-p']);
+  });
   it('calcula o preço promocional de cada tipo sem ficar negativo', () => {
     expect(promotionPrice(30, 'percent', 20)).toBe(24);
     expect(promotionPrice(12, 'amount', 5)).toBe(7);

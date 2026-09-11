@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { supabase } from '@/integrations/supabase/client';
 import { generateTvCode } from '@/features/tv/tvSlides';
+import { TvContentButtons } from './TvContentButtons';
 
 interface TvScreen {
   id: string;
@@ -190,6 +191,7 @@ export function TvScreensPanel() {
                 </div>
 
                 <div className="flex flex-wrap gap-2">
+                  <TvContentButtons screenId={screen.id} productIds={screen.product_ids ?? []} onSaved={load} />
                   <Button size="sm" variant="outline" onClick={() => void copyLink(screen.access_code)}>
                     <Copy className="h-4 w-4" /> Copiar link
                   </Button>

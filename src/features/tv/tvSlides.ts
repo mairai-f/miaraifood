@@ -31,6 +31,7 @@ export interface TvProduct {
 }
 
 export interface TvPayload {
+  artworks?: { id: string; title: string; image_url: string; format: string; starts_at: string | null; ends_at: string | null; seconds: number; sort_order: number; active: boolean }[];
   version: string;
   store_name: string | null;
   screen: {
@@ -45,6 +46,8 @@ export interface TvPayload {
 }
 
 export interface TvSlide {
+  artwork?: boolean;
+  seconds?: number;
   key: string;
   title: string;
   subtitle: string | null;
@@ -84,7 +87,7 @@ export function generateTvCode(randomBytes: (array: Uint8Array) => Uint8Array = 
 }
 
 /** Promoções primeiro; depois os produtos escolhidos para a TV, sem repetir produto em promoção. */
-export function buildTvSlides(payload: TvPayload, formatMoney: (value: number) => string): TvSlide[] {
+export function buildTvSlides(payload: TvPayload, formatMoney: (value: number) => string, now = Date.now()): TvSlide[] {
   const promotedProductIds = new Set<string>();
   const slides: TvSlide[] = [];
 
@@ -119,5 +122,12 @@ export function buildTvSlides(payload: TvPayload, formatMoney: (value: number) =
     });
   }
 
-  return slides;
+  const arts = (payload.artworks ?? []).filter(a => a.active && ['tv', 'panel'].includes(a.format) && (!a.starts_at || Date.parse(a.starts_at) <= now) && (!a.ends_at || Date.parse(a.ends_at) > now)).sort((a,b) => a.sort_order - b.sort_order);
+  const result: TvSlide[] = [];
+  for (let i = 0; i < Math.max(slides.length, arts.length); i++) {
+    if (slides[i]) result.push(slides[i]);
+    const art = arts[i];
+    if (art) result.push({key: `art-${art.id}`, title: art.title, imageUrl: art.image_url, artwork: true, seconds: art.seconds, subtitle: null, originalPrice: null, price: null, badge: null, endsAt: null});
+  }
+  return result;
 }
