@@ -1,11 +1,11 @@
-TERMOS DE USO E POLITICA DE PRIVACIDADE DO HAPPYCASH
+TERMOS DE USO E POLITICA DE PRIVACIDADE DO MIAR AI/FOOD
 
-Leia este resumo antes de instalar o HappyCash. Ao escolher Concordo,
+Leia este resumo antes de instalar o MIAR AI/FOOD. Ao escolher Concordo,
 voce declara que leu e aceita os Termos de Uso e a Politica de
 Privacidade vigentes para esta instalacao.
 
 1. FINALIDADE DO SISTEMA
-O HappyCash e um ERP com recursos de PDV, estoque, fiado, cadastros,
+O MIAR AI/FOOD e um ERP com recursos de PDV, estoque, fiado, cadastros,
 relatorios e sincronizacao entre ambientes compativeis.
 
 2. DADOS QUE PODEM SER TRATADOS
@@ -19,7 +19,7 @@ fiado, estoque, despesas, observacoes, agendamentos e demais registros
 do negocio.
 
 3. PRIVACIDADE E LGPD
-O HappyCash deve controlar acesso por usuario e permissao, separar os
+O MIAR AI/FOOD deve controlar acesso por usuario e permissao, separar os
 dados por empresa, manter registros tecnicos quando aplicavel e permitir
 correcao ou exclusao quando for tecnicamente possivel e juridicamente
 cabivel.
@@ -29,23 +29,23 @@ Privacidade e nos limites da LGPD.
 
 4. RESPONSABILIDADES DA EMPRESA USUARIA
 - Informar dados verdadeiros e atualizados.
-- Usar o sistema conforme a legislacao aplicavel.
+- Usar o sistema conforme a legislacao aplicavel e as regras do MIAR AI/FOOD.
 - Proteger senha, chave de licenca, usuarios, PINs e equipamentos.
 - Obter autorizacao adequada para cadastrar dados pessoais de clientes,
   colaboradores e terceiros.
 
 5. CANAIS OFICIAIS
 Termos de Uso:
-https://www.happycashsite.com.br/termos-de-uso
+https://www.miaraifood.com.br/termos
 
 Politica de Privacidade:
-https://www.happycashsite.com.br/politica-de-privacidade
+https://www.miaraifood.com.br/politica-de-privacidade
 
 LGPD:
-https://www.happycashsite.com.br/lgpd
+https://www.miaraifood.com.br/lgpd
 
 Suporte:
-happycashsupport@gmail.com
+suporte@miaraifood.com.br
 
 Se voce nao concorda com estes termos, escolha Nao concordo e cancele a
 instalacao.

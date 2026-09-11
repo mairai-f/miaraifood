@@ -74,9 +74,9 @@ export function LocaleGatewayModal({ onDone }: { onDone?: () => void }) {
       <div className="relative z-10 w-full max-w-md rounded-[2rem] border border-white/10 bg-white/[0.03] p-7 shadow-[0_0_80px_rgba(0,150,255,0.08)] backdrop-blur-3xl sm:p-9">
         <div className="flex flex-col items-center text-center">
           <img
-            src="/miafavico.svg?v=miar-20260908"
+            src="/miar-logo-white.svg?v=miar-20260911"
             alt="MIAR AI/FOOD"
-            className="h-16 w-16 object-contain drop-shadow-[0_0_15px_rgba(0,200,255,0.3)]"
+            className="h-16 w-auto max-w-[14rem] object-contain drop-shadow-[0_0_15px_rgba(0,200,255,0.3)]"
           />
           <h1 className="mt-5 text-xl font-bold tracking-tight text-white sm:text-2xl">
             {headings[selected]}

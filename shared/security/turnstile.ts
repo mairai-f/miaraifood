@@ -97,8 +97,8 @@ export const requestTurnstileToken = async (
   options: TurnstileRequestOptions = {},
 ): Promise<string | undefined> => {
   if (typeof window !== 'undefined' && window.electronAPI?.turnstile?.requestToken) {
-    // Desktop bypass: Retorna undefined para pular a UI do Turnstile.
-    // Lembre-se de DESATIVAR a proteção global de CAPTCHA no painel do Supabase.
+    // O executavel usa os controles de taxa e credenciais do backend, sem
+    // abrir CAPTCHA no navegador nem interromper o login do operador.
     return undefined;
   }
 

@@ -526,8 +526,7 @@ const Dashboard = () => {
   const trialLabel = registrationIncomplete ? "Trial de 30 dias reservado" : null;
   const countdown = getSubscriptionCountdown(currentSubscription);
   const currentDeadline = getSubscriptionEndAt(currentSubscription);
-  const isCurrentProPlan = currentPlanId === "pro" && isCurrentSubscription(currentSubscription);
-  const hasOfflineDownloads = isCurrentProPlan;
+  const hasOfflineDownloads = true;
   const pendingSubscription = compatibleSubscriptions.find((subscription) => subscription.status === "pending") || null;
   const pendingPlanId = pendingSubscription && isPaidPlanId(pendingSubscription.plan_id) ? pendingSubscription.plan_id : null;
   const pendingPlanContent = pendingPlanId ? publicPlanContent[pendingPlanId] : null;
@@ -1368,7 +1367,7 @@ const Dashboard = () => {
                 </div>
               ) : (
                 <div className="rounded-2xl border border-border bg-background/70 p-4 text-sm text-muted-foreground">
-                  Ative o plano PRO para liberar os downloads.
+                  Entre na sua conta para liberar os downloads.
                 </div>
               )}
 

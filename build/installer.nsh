@@ -1,7 +1,7 @@
 !include "FileFunc.nsh"
 
 !define MUI_PAGE_HEADER_TEXT "Termos de Uso e Politica de Privacidade"
-!define MUI_PAGE_HEADER_SUBTEXT "Leia o resumo legal antes de instalar o HappyCash."
+!define MUI_PAGE_HEADER_SUBTEXT "Leia o resumo legal antes de instalar o MIAR AI/FOOD."
 !define MUI_LICENSEPAGE_RADIOBUTTONS
 !define MUI_LICENSEPAGE_TEXT_TOP "Leia todo o texto abaixo antes de escolher uma das opcoes."
 !define MUI_LICENSEPAGE_TEXT_BOTTOM "Para continuar a instalacao, escolha uma opcao abaixo. Sem aceite, a instalacao sera cancelada."

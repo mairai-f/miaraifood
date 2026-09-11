@@ -1,6 +1,6 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { buildCorsHeaders, handleCorsPreflight } from "../_shared/cors.ts";
-import { validateDesktopLicense, type SupportedDesktopPlatform } from "../_shared/desktopAccess.ts";
+import { type SupportedDesktopPlatform } from "../_shared/desktopAccess.ts";
 import { fetchLatestDesktopReleaseAsset, type DesktopReleaseContext } from "../_shared/githubRelease.ts";
 import { checkRedisRateLimit, readRateLimitEnv } from "../_shared/rateLimit.ts";
 
@@ -128,23 +128,7 @@ Deno.serve(async (request) => {
     return jsonResponse(request, { error: "Plataforma inválida." }, 400);
   }
 
-  const license = await validateDesktopLicense(serviceClient, user.id);
-
-  if (!license.ok) {
-    return jsonResponse(
-      request,
-      {
-        error: "Nao foi possivel liberar o download desktop para esta conta.",
-        code: license.code,
-        planId: license.planId,
-        validUntil: license.validUntil,
-        offlineEnabled: license.offlineEnabled,
-      },
-      403,
-    );
-  }
-
-  const downloadContext = resolveDownloadContext(license.planId);
+  const downloadContext = resolveDownloadContext();
   const bucketEnvKey = contextBucketEnvKeys[downloadContext];
   const objectPathKey = contextPlatformEnvKeys[downloadContext][platform];
 
@@ -160,8 +144,8 @@ Deno.serve(async (request) => {
         releaseVersion: release.version,
         publishedAt: release.publishedAt,
         size: release.size,
-        offlineEnabled: license.offlineEnabled,
-        validUntil: license.validUntil,
+        offlineEnabled: true,
+        validUntil: null,
       });
     } catch (error) {
       console.error("GitHub desktop release lookup failed:", error);
@@ -207,7 +191,7 @@ Deno.serve(async (request) => {
     success: true,
     downloadUrl: signedUrlData.signedUrl,
     expiresIn,
-    offlineEnabled: license.offlineEnabled,
-    validUntil: license.validUntil,
+    offlineEnabled: true,
+    validUntil: null,
   });
 });

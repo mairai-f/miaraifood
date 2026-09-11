@@ -1,7 +1,6 @@
 import type { SupabaseClient } from "npm:@supabase/supabase-js@2";
 import {
   isCurrentSubscriptionPlanAllowedForProductContext,
-  isDesktopPlanAllowedForProductContext,
   normalizeProductContext,
   resolveProductContextFromPlanId,
   type ProductContext,
@@ -96,14 +95,12 @@ export const validateDesktopLicense = async (
 
   if (subscriptionsError) {
     return {
-      ok: false,
-      code: "SUBSCRIPTION_LOOKUP_FAILED",
-      message: "Nao foi possivel validar sua licenca desktop agora.",
+      ok: true,
       planId: null,
       status: null,
       validUntil: null,
-      features: [],
-      offlineEnabled: false,
+      features: ["desktop.app", "offline.access"],
+      offlineEnabled: true,
     };
   }
 
@@ -117,28 +114,17 @@ export const validateDesktopLicense = async (
   );
   const currentSubscription = compatibleSubscriptions.find(isCurrentSubscription) ?? compatibleSubscriptions[0] ?? null;
   const validUntil = getSubscriptionEndAt(currentSubscription);
-  const normalizedProductContext = explicitProductContext ?? resolveProductContextFromPlanId(currentSubscription?.plan_id);
-
-  // O período gratuito de 30 dias libera o mesmo acesso operacional do plano
-  // pago. A expiração é validada por isCurrentSubscription acima; depois dela
-  // nenhum acesso é concedido.
-  const hasActiveDesktopPlan = Boolean(
-    currentSubscription
-    && isDesktopPlanAllowedForProductContext(normalizedProductContext, currentSubscription.plan_id)
-    && ["trialing", "active", "past_due"].includes(currentSubscription.status)
-    && isCurrentSubscription(currentSubscription),
-  );
-
-  if (!hasActiveDesktopPlan) {
+  // Qualquer conta autenticada pode ativar e testar o desktop completo.
+  // O plano organiza beneficios comerciais, capacidade e suporte; ele nao
+  // bloqueia o acesso operacional do aplicativo.
+  if (!currentSubscription) {
     return {
-      ok: false,
-      code: "PRO_ACTIVE_REQUIRED",
-      message: "Seu período gratuito ou plano pago está ativo para este recurso.",
-      planId: currentSubscription?.plan_id ?? null,
-      status: currentSubscription?.status ?? null,
-      validUntil,
-      features: [],
-      offlineEnabled: false,
+      ok: true,
+      planId: null,
+      status: null,
+      validUntil: null,
+      features: ["desktop.app", "offline.access"],
+      offlineEnabled: true,
     };
   }
 
@@ -151,14 +137,12 @@ export const validateDesktopLicense = async (
 
   if (featureError) {
     return {
-      ok: false,
-      code: "FEATURE_LOOKUP_FAILED",
-      message: "Nao foi possivel validar os recursos do plano desktop agora.",
+      ok: true,
       planId: currentSubscription.plan_id,
       status: currentSubscription.status,
       validUntil,
-      features: [],
-      offlineEnabled: false,
+      features: ["desktop.app", "offline.access"],
+      offlineEnabled: true,
     };
   }
 
@@ -166,25 +150,12 @@ export const validateDesktopLicense = async (
     ((featureRows as SubscriptionPlanFeatureRow[] | null) ?? []).map((row) => row.feature_key),
   );
 
-  if (!features.has("desktop.app")) {
-    return {
-      ok: false,
-      code: "DESKTOP_NOT_INCLUDED",
-      message: "Seu plano atual nao inclui acesso ao aplicativo desktop.",
-      planId: currentSubscription.plan_id,
-      status: currentSubscription.status,
-      validUntil,
-      features: [...features],
-      offlineEnabled: features.has("offline.access"),
-    };
-  }
-
   return {
     ok: true,
     planId: currentSubscription.plan_id,
     status: currentSubscription.status,
     validUntil,
-    features: [...features],
-    offlineEnabled: features.has("offline.access"),
+    features: [...new Set(["desktop.app", "offline.access", ...features])],
+    offlineEnabled: true,
   };
 };

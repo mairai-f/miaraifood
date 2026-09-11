@@ -106,23 +106,7 @@ subject = "Metodo de login removido no MIAR AI/FOOD"
 content_path = "./templates/identity-unlinked.html"
 
 [auth.captcha]
-enabled = true
-provider = "turnstile"
-secret = "env(SUPABASE_AUTH_CAPTCHA_SECRET)"
-
-[auth.passkey]
-enabled = true
-
-[auth.webauthn]
-rp_display_name = "MIAR AI/FOOD"
-rp_id = "miaraifood.com.br"
-rp_origins = [
-  "https://www.miaraifood.com.br",
-  "https://app.miaraifood.com.br",
-  "https://representante.miaraifood.com.br",
-  "https://supergestora.miaraifood.com.br",
-  "https://entregador.miaraifood.com.br",
-]
+enabled = false
 
 [auth.external.apple]
 skip_nonce_check = true
