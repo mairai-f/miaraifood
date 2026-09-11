@@ -288,6 +288,7 @@ export default function MenuScreen() {
               <img
                 src={detailItem.imageUrl?.trim() || PLACEHOLDER_IMG}
                 alt={detailItem.name}
+                decoding="async"
                 className="h-full w-full object-cover"
               />
               <button

@@ -12,6 +12,7 @@ import { MiarAvatar } from './MiarAvatar';
 const PANEL_WIDTH = 400;
 const PANEL_HEIGHT = 560;
 const POSITION_KEY = 'miar:assistant:position';
+const BUTTON_POSITION_KEY = 'miar:assistant:button-position';
 
 const SUGGESTIONS = [
   'Quais produtos venderam menos esta semana?',
@@ -31,6 +32,16 @@ const clampToViewport = (position: Position): Position => ({
 const defaultPosition = (): Position => ({
   x: Math.max(window.innerWidth - PANEL_WIDTH - 24, 8),
   y: Math.max(window.innerHeight - PANEL_HEIGHT - 96, 8),
+});
+
+const defaultButtonPosition = (): Position => ({
+  x: Math.max(window.innerWidth - 220, 8),
+  y: Math.max(window.innerHeight - 72, 8),
+});
+
+const clampButtonToViewport = (position: Position): Position => ({
+  x: Math.min(Math.max(position.x, 8), Math.max(window.innerWidth - 220, 8)),
+  y: Math.min(Math.max(position.y, 8), Math.max(window.innerHeight - 56, 8)),
 });
 
 function ActionCard({
@@ -98,7 +109,9 @@ export function MiarAssistantWidget() {
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState('');
   const [position, setPosition] = useState<Position | null>(null);
+  const [buttonPosition, setButtonPosition] = useState<Position | null>(null);
   const dragOffset = useRef<Position | null>(null);
+  const buttonDragOffset = useRef<Position | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const { access, messages, sending, loadingAccess, error, send, decide } = useMiarAssistant(open);
@@ -113,6 +126,16 @@ export function MiarAssistantWidget() {
       setPosition(defaultPosition());
     }
   }, [open, position]);
+
+  useEffect(() => {
+    if (open || buttonPosition) return;
+    try {
+      const stored = window.localStorage.getItem(BUTTON_POSITION_KEY);
+      setButtonPosition(stored ? clampButtonToViewport(JSON.parse(stored) as Position) : defaultButtonPosition());
+    } catch {
+      setButtonPosition(defaultButtonPosition());
+    }
+  }, [buttonPosition, open]);
 
   useEffect(() => {
     if (!open) return;
@@ -152,6 +175,32 @@ export function MiarAssistantWidget() {
     });
   }, []);
 
+  const handleButtonPointerDown = useCallback((event: React.PointerEvent<HTMLButtonElement>) => {
+    if (!buttonPosition) return;
+    event.currentTarget.setPointerCapture(event.pointerId);
+    buttonDragOffset.current = { x: event.clientX - buttonPosition.x, y: event.clientY - buttonPosition.y };
+  }, [buttonPosition]);
+
+  const handleButtonPointerMove = useCallback((event: React.PointerEvent<HTMLButtonElement>) => {
+    if (!buttonDragOffset.current) return;
+    event.preventDefault();
+    setButtonPosition(clampButtonToViewport({
+      x: event.clientX - buttonDragOffset.current.x,
+      y: event.clientY - buttonDragOffset.current.y,
+    }));
+  }, []);
+
+  const handleButtonPointerUp = useCallback(() => {
+    if (!buttonDragOffset.current) return;
+    buttonDragOffset.current = null;
+    setButtonPosition((current) => {
+      if (current) {
+        try { window.localStorage.setItem(BUTTON_POSITION_KEY, JSON.stringify(current)); } catch { /* opcional */ }
+      }
+      return current;
+    });
+  }, []);
+
   const submit = () => {
     if (!draft.trim() || sending) return;
     void send(draft);
@@ -164,12 +213,17 @@ export function MiarAssistantWidget() {
   return (
     <>
       {/* Botão flutuante */}
-      {!open && (
+      {!open && buttonPosition && (
         <button
           type="button"
           onClick={() => setOpen(true)}
+          onPointerDown={handleButtonPointerDown}
+          onPointerMove={handleButtonPointerMove}
+          onPointerUp={handleButtonPointerUp}
+          onPointerCancel={handleButtonPointerUp}
           aria-label="Abrir MIAR Gestora IA"
-          className="fixed bottom-5 right-5 z-50 flex items-center gap-2 rounded-full border border-primary/20 bg-background/95 py-2 pl-2 pr-4 shadow-lg backdrop-blur transition hover:shadow-xl"
+          style={{ left: buttonPosition.x, top: buttonPosition.y, touchAction: 'none' }}
+          className="fixed z-50 flex cursor-grab items-center gap-2 rounded-full border border-primary/20 bg-background/95 py-2 pl-2 pr-4 shadow-lg backdrop-blur transition hover:shadow-xl active:cursor-grabbing"
         >
           <span className="relative">
             <MiarAvatar className="h-9 w-9" iconClassName="h-5 w-5" />

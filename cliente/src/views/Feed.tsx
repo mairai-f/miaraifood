@@ -47,10 +47,10 @@ export default function Feed({ user, onRequireLogin, onBack }: {
                   <h2 className="mt-1 text-sm font-semibold">{post.title}</h2>
                   <p className="mt-1 text-sm text-slate-400">{post.content}</p>
                   {post.mediaType === 'imagem' && post.mediaUrl && (
-                    <img src={post.mediaUrl} alt={post.title} className="mt-2 w-full rounded-xl object-cover" style={{ maxHeight: 260 }} />
+                    <img src={post.mediaUrl} alt={post.title} loading="lazy" decoding="async" className="mt-2 w-full rounded-xl object-cover" style={{ maxHeight: 260 }} />
                   )}
                   {post.mediaType === 'video' && post.mediaUrl && (
-                    <video src={post.mediaUrl} controls className="mt-2 w-full rounded-xl" style={{ maxHeight: 260 }} />
+                    <video src={post.mediaUrl} controls preload="metadata" className="mt-2 w-full rounded-xl" style={{ maxHeight: 260 }} />
                   )}
                   {post.mediaType === 'publicidade' && (
                     <span className="mt-2 inline-block rounded-md bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-medium text-amber-300">Publicidade</span>

@@ -33,6 +33,8 @@ export default function FeaturedCarousel({ items, onSelectItem, onQuickAdd }: Fe
               <img
                 src={item.imageUrl?.trim() || PLACEHOLDER_IMG}
                 alt={item.name}
+                loading="lazy"
+                decoding="async"
                 className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-300 pointer-events-none"
               />
               <span className="absolute top-2 left-2 bg-amber-500 text-black text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider shadow">

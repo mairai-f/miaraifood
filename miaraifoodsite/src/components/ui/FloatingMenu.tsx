@@ -134,7 +134,7 @@ export function FloatingMenu({
           }}
           transition={{ type: 'spring', stiffness: 300, damping: 30, mass: 0.8 }}
           className={cn(
-            'flex items-center justify-between gap-4 p-2 px-5 rounded-full bg-[#081220]/95 border border-[#70E000]/40 backdrop-blur-2xl shadow-[0_10px_40px_rgba(0,0,0,0.8)] transition-[border-color] duration-300 hover:border-[#70E000] max-w-[92vw] sm:max-w-max',
+            'flex w-[calc(100vw-16px)] items-center justify-between gap-1 rounded-full bg-[#081220]/95 p-1.5 px-2 border border-[#70E000]/40 backdrop-blur-2xl shadow-[0_10px_40px_rgba(0,0,0,0.8)] transition-[border-color] duration-300 hover:border-[#70E000] sm:w-auto sm:gap-4 sm:p-2 sm:px-5',
             className,
             classes.root
           )}
@@ -144,7 +144,7 @@ export function FloatingMenu({
             <Link
               href={secondaryButton.href}
               className={cn(
-                'text-xs sm:text-sm font-extrabold text-zinc-200 hover:text-[#70E000] transition-colors whitespace-nowrap px-2',
+                'min-w-0 max-w-[76px] truncate px-1 text-[10px] font-extrabold text-zinc-200 hover:text-[#70E000] transition-colors whitespace-nowrap sm:max-w-none sm:px-2 sm:text-sm',
                 classes.secondaryButton
               )}
             >
@@ -161,7 +161,7 @@ export function FloatingMenu({
             aria-label={isOpen ? 'Fechar menu' : 'Abrir menu'}
             title="Clique para abrir o menu completo"
             className={cn(
-              'group relative flex items-center justify-center p-2 rounded-full hover:scale-110 active:scale-95 transition-all duration-300 mx-1',
+              'group relative flex shrink-0 items-center justify-center p-1.5 rounded-full hover:scale-110 active:scale-95 transition-all duration-300 mx-0.5 sm:mx-1 sm:p-2',
               isOpen ? 'bg-[#70E000] shadow-[0_0_25px_rgba(112,224,0,0.9)]' : 'bg-white/5 hover:bg-[#70E000]/20',
               classes.toggleButton
             )}
@@ -170,7 +170,7 @@ export function FloatingMenu({
               src="/miar-collapsed-icon-white.svg"
               alt="MIAR Icon"
               className={cn(
-                'h-8 sm:h-10 w-auto object-contain transition-all duration-300',
+                'h-7 w-auto object-contain transition-all duration-300 sm:h-10',
                 isOpen ? 'brightness-0' : 'group-hover:drop-shadow-[0_0_15px_rgba(112,224,0,0.8)]'
               )}
             />
@@ -183,7 +183,7 @@ export function FloatingMenu({
             <Link
               href={primaryButton.href}
               className={cn(
-                'px-4 py-2 text-xs sm:text-sm font-black rounded-full bg-[#70E000] text-black hover:bg-[#9EF01A] transition-all duration-300 flex items-center gap-1.5 shadow-[0_0_20px_rgba(112,224,0,0.5)] whitespace-nowrap',
+                'shrink-0 px-2 py-1.5 text-[10px] font-black rounded-full bg-[#70E000] text-black hover:bg-[#9EF01A] transition-all duration-300 flex items-center gap-1 shadow-[0_0_20px_rgba(112,224,0,0.5)] whitespace-nowrap sm:px-4 sm:py-2 sm:gap-1.5 sm:text-sm',
                 classes.primaryButton
               )}
             >
@@ -204,22 +204,22 @@ export function FloatingMenu({
             exit={{ opacity: 0 }}
             transition={{ duration: 0.3 }}
             className={cn(
-              'fixed inset-0 z-[95] bg-[#050b14]/95 backdrop-blur-2xl flex flex-col justify-between p-6 md:p-12 overflow-y-auto pt-28',
+              'fixed inset-0 z-[95] bg-[#050b14]/95 backdrop-blur-2xl flex flex-col justify-between p-3 sm:p-6 md:p-12 overflow-y-auto pt-24 sm:pt-28',
               classes.overlay
             )}
           >
             {/* Header in Overlay */}
-            <div className={cn('flex items-center justify-between max-w-7xl mx-auto w-full pb-8 border-b border-white/10', classes.header)}>
+            <div className={cn('flex items-center justify-between gap-2 max-w-7xl mx-auto w-full pb-5 sm:pb-8 border-b border-white/10', classes.header)}>
               <Link href="/" onClick={() => setIsOpen(false)} className="flex items-center gap-3">
-                <img src="/miar-logo-white.svg" alt="MIAR Logo" className="h-8 w-auto object-contain" />
+                <img src="/miar-logo-white.svg" alt="MIAR Logo" className="h-6 w-auto max-w-[42vw] object-contain sm:h-8" />
               </Link>
 
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-1 sm:gap-3">
                 {secondaryButton && (
                   <Link
                     href={secondaryButton.href}
                     onClick={() => setIsOpen(false)}
-                    className="px-5 py-2.5 text-xs font-bold text-zinc-300 hover:text-white rounded-full bg-white/5 border border-white/10 transition"
+                    className="hidden px-5 py-2.5 text-xs font-bold text-zinc-300 hover:text-white rounded-full bg-white/5 border border-white/10 transition sm:block"
                   >
                     {secondaryButton.label}
                   </Link>
@@ -228,9 +228,9 @@ export function FloatingMenu({
                   <Link
                     href={primaryButton.href}
                     onClick={() => setIsOpen(false)}
-                    className="px-5 py-2.5 text-xs font-extrabold rounded-full bg-[#70E000] text-black hover:bg-[#9EF01A] transition shadow-[0_0_20px_rgba(112,224,0,0.5)] flex items-center gap-1.5"
+                    className="px-2.5 py-2 text-[10px] font-extrabold rounded-full bg-[#70E000] text-black hover:bg-[#9EF01A] transition shadow-[0_0_20px_rgba(112,224,0,0.5)] flex items-center gap-1.5 sm:px-5 sm:py-2.5 sm:text-xs"
                   >
-                    <Zap className="w-3.5 h-3.5 fill-black" />
+                    <Zap className="hidden h-3.5 w-3.5 fill-black sm:block" />
                     {primaryButton.label}
                   </Link>
                 )}

@@ -19,6 +19,7 @@ export function ChatEquipe({ token, onClose }: { token: string; onClose: () => v
   const [messages, setMessages] = useState<Message[]>([]);
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
+  const [hasOlderMessages, setHasOlderMessages] = useState(false);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const authHeaders = { Authorization: `Bearer ${token}` };
 
@@ -32,9 +33,16 @@ export function ChatEquipe({ token, onClose }: { token: string; onClose: () => v
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
-  const loadMessages = useCallback(async (channelId: string) => {
-    const { data } = await getSupabaseClient().from('chat_messages').select('id,sender_user_id,body,created_at').eq('channel_id', channelId).order('created_at', { ascending: true });
-    if (data) setMessages(data.map((row: any) => ({ id: row.id, sender_type: row.sender_user_id ? 'employee' : 'owner', sender_name: row.sender_user_id ?? 'Equipe', content: row.body, created_at: row.created_at })));
+  const toMessage = (row: any): Message => ({ id: row.id, sender_type: row.sender_user_id ? 'employee' : 'owner', sender_name: row.sender_user_id ?? 'Equipe', content: row.body, created_at: row.created_at });
+
+  const loadMessages = useCallback(async (channelId: string, before?: string) => {
+    let query = getSupabaseClient().from('chat_messages').select('id,sender_user_id,body,created_at').eq('channel_id', channelId);
+    if (before) query = query.lt('created_at', before);
+    const { data } = await query.order('created_at', { ascending: false }).limit(50);
+    if (!data) return;
+    const page = data.map(toMessage).reverse();
+    setHasOlderMessages(data.length === 50);
+    setMessages((current) => before ? [...page, ...current] : page);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
@@ -43,9 +51,11 @@ export function ChatEquipe({ token, onClose }: { token: string; onClose: () => v
   useEffect(() => {
     if (!activeChannelId) return;
     void loadMessages(activeChannelId);
-    const interval = setInterval(() => void loadMessages(activeChannelId), 4000);
-    const channel = getSupabaseClient().channel(`chat-${activeChannelId}`).on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_messages', filter: `channel_id=eq.${activeChannelId}` }, () => { void loadMessages(activeChannelId); }).subscribe();
-    return () => { clearInterval(interval); void getSupabaseClient().removeChannel(channel); };
+    const channel = getSupabaseClient().channel(`chat-${activeChannelId}`).on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_messages', filter: `channel_id=eq.${activeChannelId}` }, (payload: any) => {
+      const incoming = toMessage(payload.new);
+      setMessages((current) => current.some((message) => message.id === incoming.id) ? current : [...current, incoming]);
+    }).subscribe();
+    return () => { void getSupabaseClient().removeChannel(channel); };
   }, [activeChannelId, loadMessages]);
 
   useEffect(() => {
@@ -57,8 +67,11 @@ export function ChatEquipe({ token, onClose }: { token: string; onClose: () => v
     setSending(true);
     try {
       const { data: userData } = await getSupabaseClient().auth.getUser();
-      const { error } = await getSupabaseClient().from('chat_messages').insert({ channel_id: activeChannelId, sender_user_id: userData.user?.id, body: draft.trim() });
-      if (!error) { setDraft(''); await loadMessages(activeChannelId); }
+      const { data, error } = await getSupabaseClient().from('chat_messages').insert({ channel_id: activeChannelId, sender_user_id: userData.user?.id, body: draft.trim() }).select('id,sender_user_id,body,created_at').single();
+      if (!error) {
+        if (data) setMessages((current) => current.some((message) => message.id === data.id) ? current : [...current, toMessage(data)]);
+        setDraft('');
+      }
     } finally {
       setSending(false);
     }
@@ -91,6 +104,9 @@ export function ChatEquipe({ token, onClose }: { token: string; onClose: () => v
       </div>
 
       <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-3">
+        {hasOlderMessages && messages.length > 0 && (
+          <button type="button" onClick={() => void loadMessages(activeChannelId!, messages[0]?.created_at)} className="mx-auto block text-xs text-orange-300 hover:text-orange-200">Carregar mensagens anteriores</button>
+        )}
         {!activeChannel && <p className="text-xs text-slate-500">Nenhum canal disponível.</p>}
         {activeChannel && messages.length === 0 && <p className="text-xs text-slate-500">Nenhuma mensagem ainda.</p>}
         {messages.map((m) => (

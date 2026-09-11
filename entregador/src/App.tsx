@@ -1,4 +1,4 @@
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { QueryClientProvider } from '@tanstack/react-query';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Toaster } from '@/components/ui/toaster';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -14,8 +14,9 @@ import { EmployeePasskeyPrompt } from './components/EmployeePasskeyPrompt';
 import { InstallPrompt } from './components/InstallPrompt';
 import { RealLeafletMap } from './components/RealLeafletMap';
 import { getSupabaseClient } from '@workspace/api-client-react';
+import { createAppQueryClient } from '../../src/lib/queryClient';
 
-const queryClient = new QueryClient();
+const queryClient = createAppQueryClient();
 
 export type DeliveryStatus =
   | "CRIADA"
@@ -162,6 +163,7 @@ function DeliveryBoard({ token, name, onLogout }: { token: string; name: string;
   // O id do entregador nao muda durante a sessao. Resolvemos uma vez e
   // reaproveitamos, em vez de repetir getUser + lookup a cada ciclo.
   const driverIdRef = useRef<string | null>(null);
+  const lastLocationRef = useRef<{ latitude: number; longitude: number; sentAt: number } | null>(null);
   const [driverId, setDriverId] = useState<string | null>(null);
 
   const resolveDriverId = useCallback(async () => {
@@ -214,7 +216,7 @@ function DeliveryBoard({ token, name, onLogout }: { token: string; name: string;
     // em segundo plano nao vale gastar requisicao.
     const interval = setInterval(() => {
       if (document.visibilityState === 'visible') void loadData();
-    }, 30000);
+    }, 60000);
 
     const onVisibilityChange = () => {
       if (document.visibilityState === 'visible') void loadData();
@@ -231,38 +233,74 @@ function DeliveryBoard({ token, name, onLogout }: { token: string; name: string;
     if (!driverId) return;
     // Sem filtro, todo entregador recebia cada mudanca de entrega de todas as
     // lojas e recarregava tudo a cada evento. Restringimos ao proprio
-    // entregador; delivery_events foi removido porque nao tem coluna que
-    // permita esse filtro e as duas tabelas abaixo ja cobrem a UI.
+  // entregador; delivery_events foi removido porque nao tem coluna que
+  // permita esse filtro e as duas tabelas abaixo ja cobrem a UI.
+    let refreshTimer: number | null = null;
+    const scheduleRefresh = () => {
+      if (refreshTimer !== null) return;
+      refreshTimer = window.setTimeout(() => {
+        refreshTimer = null;
+        void loadData();
+      }, 1200);
+    };
     const channel = supabase
       .channel(`miaifood-delivery-realtime:${driverId}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'delivery_offers', filter: `driver_id=eq.${driverId}` }, () => { void loadData(); })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'deliveries', filter: `driver_id=eq.${driverId}` }, () => { void loadData(); })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'delivery_offers', filter: `driver_id=eq.${driverId}` }, (payload: any) => {
+        // Uma oferta nova precisa do join com a entrega; eventos em rajada usam
+        // uma unica leitura. Recusas/aceites apenas limpam a oferta em memoria.
+        if (payload.new?.status === 'offered') scheduleRefresh();
+        if (payload.new?.id === offer?.id && payload.new?.status !== 'offered') setOffer(null);
+      })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'deliveries', filter: `driver_id=eq.${driverId}` }, (payload: any) => {
+        if (payload.new?.id === offer?.deliveryId) {
+          setOffer((current) => current ? { ...current, status: payload.new.status ?? current.status } : current);
+        }
+      })
       .subscribe();
 
     return () => {
+      if (refreshTimer !== null) window.clearTimeout(refreshTimer);
       void supabase.removeChannel(channel);
     };
-  }, [driverId, loadData]);
+  }, [driverId, loadData, offer?.deliveryId, offer?.id]);
 
-  // High-frequency Realtime GPS Location Emission (every 5 seconds)
+  // GPS e caro em rede e bateria. So enviamos pontos visiveis e com deslocamento
+  // material, ou um sinal de vida a cada dois minutos.
   useEffect(() => {
     if (status !== "ONLINE") return;
     const deliveryId = offer?.deliveryId;
     if (!deliveryId || !driverId) return;
-    const gpsInterval = setInterval(() => {
-      if (!navigator.geolocation) return;
+    const minimumDistanceMeters = 35;
+    const maximumSilenceMs = 120_000;
+    const distanceInMeters = (from: { latitude: number; longitude: number }, to: { latitude: number; longitude: number }) => {
+      const earthRadius = 6_371_000;
+      const radians = (degrees: number) => degrees * Math.PI / 180;
+      const latitudeDelta = radians(to.latitude - from.latitude);
+      const longitudeDelta = radians(to.longitude - from.longitude);
+      const a = Math.sin(latitudeDelta / 2) ** 2
+        + Math.cos(radians(from.latitude)) * Math.cos(radians(to.latitude)) * Math.sin(longitudeDelta / 2) ** 2;
+      return 2 * earthRadius * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    };
+    const sendLocationIfNeeded = () => {
+      if (document.visibilityState !== 'visible' || !navigator.geolocation) return;
       navigator.geolocation.getCurrentPosition(
         (pos) => {
-          // Entrega e entregador ja estao em memoria: o ping vira um unico
-          // insert, em vez de getUser + dois selects a cada 5s.
+          const point = { latitude: pos.coords.latitude, longitude: pos.coords.longitude };
+          const previous = lastLocationRef.current;
+          const movedEnough = !previous || distanceInMeters(previous, point) >= minimumDistanceMeters;
+          const silentTooLong = !previous || Date.now() - previous.sentAt >= maximumSilenceMs;
+          if (!movedEnough && !silentTooLong) return;
+          lastLocationRef.current = { ...point, sentAt: Date.now() };
           void supabase.from('delivery_locations').insert({ delivery_id: deliveryId, driver_id: driverId, latitude: pos.coords.latitude, longitude: pos.coords.longitude, accuracy: pos.coords.accuracy });
         },
         () => {},
-        { enableHighAccuracy: true, timeout: 4000 }
+        { enableHighAccuracy: true, timeout: 8000, maximumAge: 10_000 }
       );
-    }, 5000);
+    };
+    sendLocationIfNeeded();
+    const gpsInterval = window.setInterval(sendLocationIfNeeded, 20_000);
 
-    return () => clearInterval(gpsInterval);
+    return () => window.clearInterval(gpsInterval);
   }, [offer?.deliveryId, status, driverId]);
 
   // Toggle Availability Status (🟢 Online / 🟡 Pausado / 🔴 Offline)

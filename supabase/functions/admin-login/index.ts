@@ -41,6 +41,7 @@ type StoreAccountRow = {
 
 const LOGIN_LOCK_MESSAGE = "Muitas tentativas de login. Aguarde alguns minutos e tente novamente.";
 const INVALID_LOGIN_MESSAGE = "Email ou senha incorretos.";
+const UNKNOWN_EMAIL_MESSAGE = "Email inexistente.";
 const LAST_LOGIN_ATTEMPT_MESSAGE = "Voce tem apenas mais uma tentativa de login.";
 const LOGIN_VERIFICATION_REQUIRED_CODE = "LOGIN_VERIFICATION_REQUIRED";
 const LOGIN_VERIFICATION_REQUIRED_MESSAGE = "Por seguranca, enviamos um codigo para seu e-mail. Digite o codigo para reconhecer esta tentativa e entrar.";
@@ -412,6 +413,11 @@ Deno.serve(async (request) => {
       persistSession: false,
     },
   });
+
+  const { data: accountLookup } = await serviceClient.auth.admin.getUserByEmail(email);
+  if (!accountLookup?.user) {
+    return jsonResponse(request, { error: UNKNOWN_EMAIL_MESSAGE }, 401);
+  }
 
   const { data: sessionData, error: loginError } = await authClient.auth.signInWithPassword({
     email,

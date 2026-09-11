@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { QueryClientProvider } from '@tanstack/react-query';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Home as HomeIcon, Search, Newspaper, Bot, User, TrendingUp, Music, Receipt } from 'lucide-react';
 import { Toaster } from '@/components/ui/toaster';
@@ -29,8 +29,9 @@ import SearchView from './views/SearchView';
 import OrdersView from './views/OrdersView';
 import { IdiomaProvider } from './i18n/IdiomaContext';
 import { InstallPrompt } from './components/InstallPrompt';
+import { createAppQueryClient } from '../../src/lib/queryClient';
 
-const queryClient = new QueryClient();
+const queryClient = createAppQueryClient();
 
 type SubView = 'menu' | 'tracking' | 'reservation' | 'profile-setup' | null;
 

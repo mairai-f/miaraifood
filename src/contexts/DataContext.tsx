@@ -488,7 +488,6 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const lastPassiveRefreshAtRef = useRef(0);
   const loadingRef = useRef(true);
   const fullSnapshotPrimedRef = useRef(false);
-  const fullStorePrefetchStartedRef = useRef(false);
   const hrDataClearedRef = useRef(false);
   const dataScopeRef = useRef<string | null>(null);
   const routeRequiredModules = useMemo(
@@ -535,7 +534,6 @@ export function DataProvider({ children }: { children: ReactNode }) {
     setLoadedModules(createEmptyModuleLoadState());
     setLoadError(null);
     fullSnapshotPrimedRef.current = false;
-    fullStorePrefetchStartedRef.current = false;
   }, [dataScopeKey, ownerUserId, user?.id]);
 
   const markOfflineNotReady = useCallback((message = `Este ${localDeviceLabel} ainda nao foi preparado para uso offline. Conecte a internet, entre uma vez e aguarde o download dos dados da loja terminar.`) => {
@@ -1281,7 +1279,6 @@ export function DataProvider({ children }: { children: ReactNode }) {
   }, [authLoading, clearStoreData, fetchAll, handleFetchAllError, isDemoMode, isHrOnlySession, loadedModules, operationalScopeLoading, planLoading, routeRequiredModules, user]);
 
   useEffect(() => {
-    fullStorePrefetchStartedRef.current = false;
   }, [operationalLocationId, ownerUserId, user?.id]);
 
   useEffect(() => {
@@ -1301,30 +1298,6 @@ export function DataProvider({ children }: { children: ReactNode }) {
     }
 
     void fetchAll({ silent: true, fullStore: true }).catch(handleFetchAllError);
-  }, [authLoading, canUseOfflineConcentrator, fetchAll, handleFetchAllError, isDemoMode, isHrOnlySession, loading, ownerUserId, planLoading, user]);
-
-  useEffect(() => {
-    if (
-      authLoading
-      || planLoading
-      || !user
-      || !ownerUserId
-      || isDemoMode
-      || isHrOnlySession
-      || canUseOfflineConcentrator
-      || loading
-      || fullStorePrefetchStartedRef.current
-      || (typeof navigator !== 'undefined' && navigator.onLine === false)
-    ) {
-      return;
-    }
-
-    fullStorePrefetchStartedRef.current = true;
-
-    void fetchAll({ silent: true, fullStore: true }).catch((error: unknown) => {
-      fullStorePrefetchStartedRef.current = false;
-      handleFetchAllError(error);
-    });
   }, [authLoading, canUseOfflineConcentrator, fetchAll, handleFetchAllError, isDemoMode, isHrOnlySession, loading, ownerUserId, planLoading, user]);
 
   useEffect(() => {

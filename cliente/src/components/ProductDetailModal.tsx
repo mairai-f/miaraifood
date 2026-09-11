@@ -59,6 +59,7 @@ export default function ProductDetailModal({
               <img
                 src={product.imageUrl}
                 alt={product.name}
+                decoding="async"
                 className="h-full w-full object-cover"
               />
             ) : (

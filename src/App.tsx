@@ -1,5 +1,5 @@
 import { Suspense, lazy, useEffect, useState } from "react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, HashRouter, Route, Routes, Navigate } from "react-router-dom";
 import { Loader2 } from "lucide-react";
 import { ThemeProvider } from "next-themes";
@@ -22,11 +22,15 @@ import {
   type DesktopUpdateStatus,
 } from "@/lib/offlineConcentrator";
 import { LocaleProvider } from "../shared/locale/LocaleContext";
+import { LocaleGatewayModal } from "../shared/locale/LocaleGatewayModal";
+import { LanguageSwitcher } from "../shared/locale/LanguageSwitcher";
+import { useLocale } from "../shared/locale/useLocale";
 import DesktopTurnstileChallenge from "@/pages/DesktopTurnstileChallenge";
 import PreloadSplash from "@/components/PreloadSplash";
 import { toast } from "sonner";
+import { createAppQueryClient } from "@/lib/queryClient";
 
-const queryClient = new QueryClient();
+const queryClient = createAppQueryClient();
 const Router = typeof window !== "undefined" && window.location.protocol === "file:" ? HashRouter : BrowserRouter;
 const AuthenticatedArea = lazy(() => import('@/routes/AuthenticatedArea'));
 const QrMenu = lazy(() => import('@/pages/QrMenu'));
@@ -44,6 +48,7 @@ function FullScreenLoader() {
 
 function AppRoutes() {
   const { isAuthenticated, loading, logout } = useAuth();
+  const { hasChosenLocale } = useLocale();
   const { checking: checkingDesktopLicense, isDesktop } = useDesktopRuntime();
   const { loading: planLoading } = usePlanAccess();
   const hasCompletedSplash = !isDesktop && hasSeenAppSplash();
@@ -196,11 +201,26 @@ function AppRoutes() {
     return <SplashScreen />;
   }
 
+  // Selecao de idioma antes da tela de login, apenas ate o usuario escolher.
+  // O cardapio publico (QR) fica de fora: o cliente da mesa nao passa por login.
+  if (!hasChosenLocale && !isAuthenticated && !isPublicQrRoute) {
+    return <LocaleGatewayModal />;
+  }
+
   return (
     <Routes>
       <Route path="/qrmenu/:token" element={<Suspense fallback={<FullScreenLoader />}><QrMenu /></Suspense>} />
       <Route path="/menu/:token" element={<Suspense fallback={<FullScreenLoader />}><QrMenu /></Suspense>} />
-      <Route path="/login" element={isAuthenticated ? <Navigate to="/" /> : <Login />} />
+      <Route
+        path="/login"
+        element={isAuthenticated ? <Navigate to="/" /> : (
+          <>
+            <Login />
+            {/* Permite corrigir a escolha feita no modal de entrada. */}
+            <LanguageSwitcher />
+          </>
+        )}
+      />
       <Route path="/reset-password" element={<ResetPassword />} />
       <Route
         path="/*"

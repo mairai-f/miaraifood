@@ -30,7 +30,7 @@ import { getPasswordPolicyError, passwordPolicyHint } from '@/shared/security/pa
 import { requestTurnstileToken } from '@/shared/security/turnstile';
 
 const resolveLoginErrorMessage = (error: unknown) => {
-  const message = getPublicAuthErrorMessage(error, 'Nao foi possivel entrar agora.');
+  const message = getPublicAuthErrorMessage(error, 'Email inexistente.');
   return /email not confirmed/i.test(message)
     ? 'Confirme seu email primeiro. Depois volte para entrar e liberar sua conta.'
     : message;

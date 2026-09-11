@@ -1,6 +1,14 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
-import { localeStorageKey, resolveLocale, translateTextValue, type Locale } from "./localeTranslations";
+import { translateTextValue } from "./localeTranslations";
+import {
+  defaultLocale,
+  getLocaleDefinition,
+  localeChoiceStorageKey,
+  localeStorageKey,
+  resolveLocale,
+  type Locale,
+} from "./locales";
 import { LocaleContext, type LocaleContextValue } from "./locale-context";
 
 const textNodeOrigins = new WeakMap<Text, string>();
@@ -8,7 +16,7 @@ const attributeOrigins = new WeakMap<Element, Map<string, string>>();
 const translatableAttributes = ["placeholder", "aria-label", "title", "alt"] as const;
 
 const readInitialLocale = (): Locale => {
-  if (typeof window === "undefined") return "pt-BR";
+  if (typeof window === "undefined") return defaultLocale;
 
   const storedLocale = window.localStorage.getItem(localeStorageKey);
   if (storedLocale) {
@@ -106,15 +114,24 @@ const applyTranslations = (root: ParentNode, locale: Locale, refreshOrigins = fa
   }
 };
 
+const readInitialChoice = (): boolean => {
+  if (typeof window === "undefined") return false;
+  return window.localStorage.getItem(localeChoiceStorageKey) === "1";
+};
+
 export function LocaleProvider({ children }: { children: ReactNode }) {
   const [locale, setLocale] = useState<Locale>(readInitialLocale);
+  const [hasChosenLocale, setHasChosenLocale] = useState<boolean>(readInitialChoice);
   const applyingRef = useRef(false);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
 
+    const definition = getLocaleDefinition(locale);
+
     window.localStorage.setItem(localeStorageKey, locale);
-    document.documentElement.lang = locale;
+    document.documentElement.lang = definition.htmlLang;
+    document.documentElement.dir = definition.dir;
     document.documentElement.dataset.locale = locale;
 
     if (!document.body) return;
@@ -173,9 +190,18 @@ export function LocaleProvider({ children }: { children: ReactNode }) {
 
   const value = useMemo<LocaleContextValue>(() => ({
     locale,
+    formatLocale: getLocaleDefinition(locale).formatLocale,
+    definition: getLocaleDefinition(locale),
+    hasChosenLocale,
     setLocale,
-    toggleLocale: () => setLocale((currentLocale) => (currentLocale === "pt-BR" ? "en" : "pt-BR")),
-  }), [locale]);
+    confirmLocale: (nextLocale: Locale) => {
+      setLocale(nextLocale);
+      setHasChosenLocale(true);
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem(localeChoiceStorageKey, "1");
+      }
+    },
+  }), [hasChosenLocale, locale]);
 
   return <LocaleContext.Provider value={value}>{children}</LocaleContext.Provider>;
 }

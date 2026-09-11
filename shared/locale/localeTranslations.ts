@@ -1,11 +1,26 @@
-export type Locale = "pt-BR" | "en";
+/*
+  localeTranslations.ts - motor de traducao por texto exato / regex.
 
-export const localeStorageKey = "happycash-locale";
+  Esta e a camada legada: ela casa a frase em portugues renderizada no DOM e
+  troca pelo equivalente no idioma ativo. Continua viva porque hoje ~2.000
+  strings ainda sao literais no JSX; ela sera aposentada na Fase 3, quando cada
+  texto virar uma chave de catalogo.
 
-export const resolveLocale = (value?: string | null): Locale =>
-  value?.toLowerCase().startsWith("en") ? "en" : "pt-BR";
+  O que muda na Fase 1: o motor deixa de ser PT->EN e passa a atender os quatro
+  idiomas. O dicionario ingles (ja revisado) segue neste arquivo; espanhol e
+  guarani vivem em ./dictionaries. Todo texto sem traducao cai em portugues.
+*/
 
-const exactTranslations: Record<string, string> = {
+import { esDictionary } from "./dictionaries/es";
+import { gnDictionary } from "./dictionaries/gn";
+import { emptyDictionary, type LocaleDictionary, type PatternRule } from "./dictionaries/types";
+import { defaultLocale, type Locale } from "./locales";
+
+// Reexportados para nao quebrar os imports que ja apontavam para este arquivo.
+export { localeStorageKey, resolveLocale, defaultLocale, supportedLocales } from "./locales";
+export type { Locale } from "./locales";
+
+const enExactTranslations: Record<string, string> = {
   "Painel": "Dashboard",
   "PDV Rápido": "POS Fast",
   "PDV Rapido": "POS Fast",
@@ -661,7 +676,7 @@ const exactTranslations: Record<string, string> = {
   "Expirado": "Expired",
 };
 
-const regexTranslations = [
+const enPatternTranslations: PatternRule[] = [
   {
     pattern: /^Valido ate (.+)$/i,
     replace: "Valid until $1",
@@ -756,24 +771,50 @@ const regexTranslations = [
   },
 ];
 
-export const translateTextValue = (value: string, locale: Locale) => {
-  if (locale === "pt-BR") return value;
-
-  const match = value.match(/^(\s*)(.*?)(\s*)$/s);
-  if (!match) return value;
-
-  const [, leadingWhitespace, core, trailingWhitespace] = match;
-  const translatedCore = exactTranslations[core] ?? translateWithPatterns(core);
-
-  return `${leadingWhitespace}${translatedCore}${trailingWhitespace}`;
+/** Dicionario por idioma. O portugues e a base: nao traduz nada. */
+const dictionaries: Record<Locale, LocaleDictionary> = {
+  "pt-BR": emptyDictionary,
+  en: { exact: enExactTranslations, patterns: enPatternTranslations },
+  es: esDictionary,
+  gn: gnDictionary,
 };
 
-const translateWithPatterns = (value: string) => {
-  for (const rule of regexTranslations) {
+const translateWithPatterns = (value: string, patterns: PatternRule[]) => {
+  for (const rule of patterns) {
     if (rule.pattern.test(value)) {
       return value.replace(rule.pattern, rule.replace);
     }
   }
 
-  return value;
+  return null;
+};
+
+/**
+ * Traduz um texto isolado para o idioma ativo, preservando os espacos das bordas
+ * (o DOM depende deles para nao colar palavras vizinhas).
+ * Sem traducao disponivel, devolve o texto original em portugues.
+ */
+export const translateTextValue = (value: string, locale: Locale) => {
+  if (locale === defaultLocale) return value;
+
+  const dictionary = dictionaries[locale];
+  if (!dictionary) return value;
+
+  const match = value.match(/^(\s*)(.*?)(\s*)$/s);
+  if (!match) return value;
+
+  const [, leadingWhitespace, core, trailingWhitespace] = match;
+  const translatedCore = dictionary.exact[core]
+    ?? translateWithPatterns(core, dictionary.patterns)
+    ?? core;
+
+  return `${leadingWhitespace}${translatedCore}${trailingWhitespace}`;
+};
+
+/** Cobertura do catalogo, usada para sinalizar idioma incompleto na interface. */
+export const getDictionarySize = (locale: Locale): number => {
+  const dictionary = dictionaries[locale];
+  if (!dictionary) return 0;
+
+  return Object.keys(dictionary.exact).length + dictionary.patterns.length;
 };
