@@ -34,6 +34,7 @@ const queryClient = createAppQueryClient();
 const Router = typeof window !== "undefined" && window.location.protocol === "file:" ? HashRouter : BrowserRouter;
 const AuthenticatedArea = lazy(() => import('@/routes/AuthenticatedArea'));
 const QrMenu = lazy(() => import('@/pages/QrMenu'));
+const TvDisplay = lazy(() => import('@/pages/TvDisplay'));
 
 function FullScreenLoader() {
   return (
@@ -195,7 +196,15 @@ function AppRoutes() {
     }
   }, [desktopUpdateStatus?.status, isDesktop]);
 
-  const isPublicQrRoute = typeof window !== 'undefined' && (window.location.pathname.startsWith('/qrmenu') || window.location.pathname.startsWith('/menu'));
+  // Rotas públicas (cardápio da mesa e tela de TV) não passam por splash, idioma nem login.
+  // No desktop o roteador usa hash, por isso a TV também é reconhecida por "#/tv".
+  const isPublicQrRoute = typeof window !== 'undefined' && (
+    window.location.pathname.startsWith('/qrmenu')
+    || window.location.pathname.startsWith('/menu')
+    || window.location.pathname === '/tv'
+    || window.location.pathname.startsWith('/tv/')
+    || window.location.hash.startsWith('#/tv')
+  );
 
   if (showSplash && !isAuthenticated && !isPublicQrRoute) {
     return <SplashScreen />;
@@ -211,6 +220,8 @@ function AppRoutes() {
     <Routes>
       <Route path="/qrmenu/:token" element={<Suspense fallback={<FullScreenLoader />}><QrMenu /></Suspense>} />
       <Route path="/menu/:token" element={<Suspense fallback={<FullScreenLoader />}><QrMenu /></Suspense>} />
+      <Route path="/tv" element={<Suspense fallback={<FullScreenLoader />}><TvDisplay /></Suspense>} />
+      <Route path="/tv/:token" element={<Suspense fallback={<FullScreenLoader />}><TvDisplay /></Suspense>} />
       <Route
         path="/login"
         element={isAuthenticated ? <Navigate to="/" /> : (

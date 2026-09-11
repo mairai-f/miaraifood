@@ -91,6 +91,7 @@ const WaiterCalls = lazy(() => import('@/pages/WaiterCalls'));
 const WaiterProfile = lazy(() => import('@/pages/WaiterProfile'));
 const SettingsTables = lazy(() => import('@/pages/SettingsTables'));
 const FoodMenuSettings = lazy(() => import('@/pages/FoodMenuSettings'));
+const TvSettings = lazy(() => import('@/pages/TvSettings'));
 const KdsPage = lazy(() => import('@/pages/KdsPage'));
 
 function FullScreenLoader() {
@@ -334,6 +335,7 @@ const AuthenticatedArea = () => {
           <Route path="/kds" element={<ProtectedRoute requiredPermission="food.kds.use" requiredFeature="food.kds"><LazyPage><KdsPage /></LazyPage></ProtectedRoute>} />
           <Route path="/conversas" element={<ProtectedRoute requiredPermission="chat.view" requiredFeature="dashboard.view"><LazyPage><InternalChat /></LazyPage></ProtectedRoute>} />
           <Route path="/configuracoes/qrmenu" element={<ProtectedRoute requiredPermission="food.qrmenu.manage" requiredFeature="food.qrmenu" runtimeScope="web"><LazyPage><FoodMenuSettings /></LazyPage></ProtectedRoute>} />
+          <Route path="/configuracoes/tv" element={<ProtectedRoute requiredPermission="settings.manage" requiredFeature="settings.manage" runtimeScope="both"><LazyPage><TvSettings /></LazyPage></ProtectedRoute>} />
           <Route path="/clientes" element={<ProtectedRoute requiredPermission="clients.view" requiredFeature="clients.manage"><LazyPage><Clients /></LazyPage></ProtectedRoute>} />
           <Route path="/produtos" element={<ProtectedRoute requiredPermission="products.view" requiredFeature="products.manage"><LazyPage><Products /></LazyPage></ProtectedRoute>} />
           <Route path="/estoque" element={<ProtectedRoute requiredPermission="stock.view" requiredFeature="stock.manage"><LazyPage><Stock /></LazyPage></ProtectedRoute>} />

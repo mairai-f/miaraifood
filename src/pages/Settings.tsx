@@ -1,5 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState, type ChangeEvent } from 'react';
-import { BarChart3, Building2, Calculator, ChevronRight, ClipboardList, Clock3, CreditCard, DatabaseBackup, Download, FileText, Gift, Laptop, Loader2, MapPinned, PackageSearch, Settings as SettingsIcon, ShieldAlert, Trash2, UserCog, WalletCards } from 'lucide-react';
+import { BarChart3, Building2, Calculator, ChevronRight, ClipboardList, Clock3, CreditCard, DatabaseBackup, Download, FileText, Gift, Laptop, Loader2, MapPinned, PackageSearch, Settings as SettingsIcon, ShieldAlert, Trash2, Tv, UserCog, WalletCards } from 'lucide-react';
 import { Link, useLocation, useParams } from 'react-router-dom';
 import { DataRouteLoader } from '@/components/DataRouteLoader';
 import { useAuth } from '@/contexts/AuthContext';
@@ -110,6 +110,7 @@ const settingsNavigationItems: SettingsNavigationItem[] = [
   { path: '/configuracoes/pagamentos', section: 'pagamentos', title: 'Pagamentos', description: 'Pix e provedores de pagamento do estabelecimento.', icon: CreditCard, featureKey: 'settings.manage', permissionKey: 'settings.manage', runtimeScope: 'web' },
   { path: '/configuracoes/mesas', section: 'mesas', title: 'Mesas e QR Codes', description: 'Gerencie mesas e imprima QR Codes.', icon: ClipboardList, featureKey: 'food.tables', permissionKey: 'food.tables.manage', runtimeScope: 'web' },
   { path: '/configuracoes/qrmenu', title: 'QR Menu', description: 'Cardápio, categorias, fotos e disponibilidade.', icon: ClipboardList, featureKey: 'food.qrmenu', permissionKey: 'food.qrmenu.manage', runtimeScope: 'web' },
+  { path: '/configuracoes/tv', title: 'TV', description: 'Promoções e produtos passando nas TVs do salão.', icon: Tv, featureKey: 'settings.manage', permissionKey: 'settings.manage', runtimeScope: 'both' },
   { path: '/financeiro', title: 'Financeiro', description: 'Despesas, fiados e fluxo financeiro.', icon: WalletCards, featureKey: 'financial.manage', permissionKey: 'financial.view', runtimeScope: 'both' },
   { path: '/notas', title: 'Notas', description: 'Configuracao e emissao fiscal.', icon: FileText, featureKey: 'notes.manage', permissionKey: 'fiscal.view', runtimeScope: 'both', fiscalDesktopAccess: true },
   { path: '/relatorios', title: 'Relatorios', description: 'Vendas, caixa, estoque e indicadores.', icon: BarChart3, featureKey: 'reports.view', permissionKey: 'reports.view', runtimeScope: 'both' },
