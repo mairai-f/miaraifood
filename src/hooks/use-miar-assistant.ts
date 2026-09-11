@@ -32,6 +32,18 @@ export interface MiarMessage {
 
 const FUNCTION_NAME = 'miar-assistant';
 
+async function readFunctionError(error: unknown): Promise<string | null> {
+  const response = (error as { context?: unknown } | null)?.context;
+  if (!(response instanceof Response)) return null;
+
+  try {
+    const payload = await response.clone().json() as { error?: unknown };
+    return typeof payload?.error === 'string' && payload.error.trim() ? payload.error : null;
+  } catch {
+    return null;
+  }
+}
+
 export function useMiarAssistant(enabled: boolean) {
   const [access, setAccess] = useState<MiarAccess | null>(null);
   const [messages, setMessages] = useState<MiarMessage[]>([]);
@@ -51,7 +63,7 @@ export function useMiarAssistant(enabled: boolean) {
     // O corpo de erro da função traz a mensagem útil (cota, plano, permissão).
     if (invokeError) {
       const detail = (data as { error?: string } | null)?.error;
-      throw new Error(detail || invokeError.message);
+      throw new Error(detail || await readFunctionError(invokeError) || invokeError.message);
     }
     if (data && typeof data === 'object' && 'error' in data && data.error) {
       throw new Error(String(data.error));
