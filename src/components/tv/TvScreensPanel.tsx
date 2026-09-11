@@ -4,6 +4,7 @@ import { Copy, ExternalLink, Loader2, MonitorUp, Plus, RefreshCw, Save, Trash2, 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { supabase } from '@/integrations/supabase/client';
@@ -44,6 +45,7 @@ export function TvScreensPanel() {
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [screenPendingDeletion, setScreenPendingDeletion] = useState<TvScreen | null>(null);
   const canOpenOnDesktop = typeof window !== 'undefined' && Boolean(window.electronAPI?.tv?.openWindow);
 
   const load = useCallback(async () => {
@@ -108,7 +110,6 @@ export function TvScreensPanel() {
   };
 
   const removeScreen = async (screen: TvScreen) => {
-    if (!window.confirm(`Excluir "${screen.name}"?`)) return;
     setBusyId(screen.id);
     const { error } = await tvScreensTable().delete().eq('id', screen.id);
     setBusyId(null);
@@ -117,6 +118,13 @@ export function TvScreensPanel() {
       return;
     }
     await load();
+  };
+
+  const confirmRemoveScreen = async () => {
+    if (!screenPendingDeletion) return;
+    const screen = screenPendingDeletion;
+    setScreenPendingDeletion(null);
+    await removeScreen(screen);
   };
 
   const copyLink = async (code: string) => {
@@ -198,7 +206,7 @@ export function TvScreensPanel() {
                   <Button size="sm" variant="ghost" disabled={busy} onClick={() => void changeCode(screen)}>
                     <RefreshCw className="h-4 w-4" /> Trocar código
                   </Button>
-                  <Button size="sm" variant="ghost" className="text-destructive" disabled={busy} onClick={() => void removeScreen(screen)}>
+                  <Button size="sm" variant="ghost" className="text-destructive" disabled={busy} onClick={() => setScreenPendingDeletion(screen)}>
                     <Trash2 className="h-4 w-4" /> Excluir
                   </Button>
                 </div>
@@ -257,6 +265,23 @@ export function TvScreensPanel() {
         <Button variant="outline" disabled={creating || loading} onClick={() => void createScreen()}>
           {creating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />} Adicionar TV
         </Button>
+
+        <AlertDialog open={Boolean(screenPendingDeletion)} onOpenChange={(open) => { if (!open) setScreenPendingDeletion(null); }}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Excluir esta TV?</AlertDialogTitle>
+              <AlertDialogDescription>
+                A tela “{screenPendingDeletion?.name}” será removida e o código atual deixará de funcionar. Essa ação não pode ser desfeita.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+              <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={() => void confirmRemoveScreen()}>
+                Excluir TV
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </CardContent>
     </Card>
   );
