@@ -72,6 +72,7 @@ import {
   getRedactedLogValue,
 } from "../../shared/security/redaction";
 import { readScopedCashSession } from "@/lib/cashSessionStorage";
+import { miarCollapsedIcon, miarCollapsedIconWhite, miarLogo, miarLogoWhite } from '@/lib/brandAssets';
 import {
   Dialog,
   DialogContent,
@@ -1040,14 +1041,14 @@ export function AppLayout({ children }: { children: ReactNode }) {
                 className="mx-auto hidden lg:flex flex-col items-center justify-center p-1.5 rounded-xl hover:bg-muted/50 transition group"
               >
                 <img
-                  src="/miar-collapsed-icon.svg"
+                  src={miarCollapsedIcon}
                   alt="MIAR AI/FOOD"
                   className="h-9 w-auto object-contain dark:hidden transition transform group-hover:scale-105"
                   loading="eager"
                   decoding="async"
                 />
                 <img
-                  src="/miar-collapsed-icon-white.svg"
+                  src={miarCollapsedIconWhite}
                   alt="MIAR AI/FOOD"
                   className="h-9 w-auto object-contain hidden dark:block transition transform group-hover:scale-105"
                   loading="eager"
@@ -1057,14 +1058,14 @@ export function AppLayout({ children }: { children: ReactNode }) {
             ) : (
               <div className="min-w-0 flex-1 pr-2 text-center">
                 <img
-                  src="/miar-logo.svg"
+                  src={miarLogo}
                   alt="MIAR AI/FOOD"
                   className="mx-auto h-auto w-full max-w-[140px] object-contain dark:hidden"
                   loading="eager"
                   decoding="async"
                 />
                 <img
-                  src="/miar-logo-white.svg"
+                  src={miarLogoWhite}
                   alt="MIAR AI/FOOD"
                   className="mx-auto h-auto w-full max-w-[140px] object-contain hidden dark:block"
                   loading="eager"
@@ -1176,12 +1177,12 @@ export function AppLayout({ children }: { children: ReactNode }) {
             title="Abrir menu"
           >
             <img
-              src="/miar-collapsed-icon.svg"
+              src={miarCollapsedIcon}
               alt="MIAR"
               className="h-8 w-8 object-contain dark:hidden"
             />
             <img
-              src="/miar-collapsed-icon-white.svg"
+              src={miarCollapsedIconWhite}
               alt="MIAR"
               className="hidden h-8 w-8 object-contain dark:block"
             />

@@ -59,26 +59,6 @@ const normalizeOptionalText = (value: string | null | undefined, maxLength: numb
   return normalized ? normalized.slice(0, maxLength) : null;
 };
 
-const activationRevokedResponse = (request: Request, license: {
-  planId?: string | null;
-  status?: string | null;
-  validUntil?: string | null;
-  features?: string[];
-  offlineEnabled?: boolean;
-}) => jsonResponse(
-  request,
-  {
-    licensed: false,
-    error: "Esta maquina foi desvinculada pelo administrador. Ative novamente com a license key.",
-    code: "DESKTOP_ACTIVATION_REVOKED",
-    planId: license.planId ?? null,
-    status: license.status ?? null,
-    validUntil: license.validUntil ?? null,
-    features: license.features ?? [],
-    offlineEnabled: Boolean(license.offlineEnabled),
-  },
-  403,
-);
 
 Deno.serve(async (request) => {
   if (request.method === "OPTIONS") {
@@ -191,51 +171,9 @@ Deno.serve(async (request) => {
     );
   }
 
-  const desktopInstallationId = normalizeOptionalText(body?.desktopInstallationId, 120);
-  const desktopStoreAccountId = normalizeOptionalText(body?.desktopStoreAccountId, 80);
-
-  if (desktopAppContext === "happycash" && desktopInstallationId) {
-    let activationQuery = serviceClient
-      .from("desktop_machine_activations")
-      .select("id, store_account_id, terminal_id")
-      .eq("owner_user_id", ownerUserId)
-      .eq("installation_id", desktopInstallationId)
-      .eq("app_context", "happycash");
-
-    if (desktopStoreAccountId) {
-      activationQuery = activationQuery.eq("store_account_id", desktopStoreAccountId);
-    }
-
-    const { data: activationData, error: activationError } = await activationQuery.maybeSingle();
-    if (activationError) {
-      return jsonResponse(request, { error: "Nao foi possivel validar a ativacao desta maquina agora." }, 503);
-    }
-
-    const activation = (activationData as DesktopActivationRow | null) ?? null;
-    if (!activation) {
-      return activationRevokedResponse(request, license);
-    }
-
-    let terminalQuery = serviceClient
-      .from("pos_terminals")
-      .select("id, active, installation_id")
-      .eq("owner_user_id", ownerUserId)
-      .eq("store_account_id", activation.store_account_id);
-
-    terminalQuery = activation.terminal_id
-      ? terminalQuery.eq("id", activation.terminal_id)
-      : terminalQuery.eq("installation_id", desktopInstallationId);
-
-    const { data: terminalData, error: terminalError } = await terminalQuery.maybeSingle();
-    if (terminalError) {
-      return jsonResponse(request, { error: "Nao foi possivel validar o terminal desta maquina agora." }, 503);
-    }
-
-    const terminal = (terminalData as PosTerminalActivationRow | null) ?? null;
-    if (!terminal || !terminal.active || terminal.installation_id !== desktopInstallationId) {
-      return activationRevokedResponse(request, license);
-    }
-  }
+  // A licenca segue o login e o plano do estabelecimento. Nao exigimos mais
+  // ativar cada maquina com chave: desktopInstallationId ainda chega no corpo
+  // por compatibilidade, mas nao bloqueia mais o uso do aplicativo.
 
   return jsonResponse(request, {
     licensed: true,

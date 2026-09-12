@@ -14,6 +14,7 @@ import { usePermissions } from '@/contexts/usePermissions';
 import { closeFoodTableSession, createFoodTable, getFoodTableQrToken, listFoodTableBoard, listFoodTableConsumption, listFoodTablePaymentSplits, openFoodTableSession, splitFoodTableBill } from '@/lib/food';
 import type { FoodTableBoardItem, FoodTablePaymentSplit } from '@/types/food';
 import { enableWaiterNotifications, notifyWaiterCall, playWaiterCallAlert, readWaiterAlertPreferences, writeWaiterAlertPreferences } from '@/lib/waiterAlerts';
+import { publicAppOrigin } from '@/lib/publicAppUrl';
 
 const statusLabel = {
   open: 'Ocupada',
@@ -143,12 +144,12 @@ export default function FoodTables() {
       try {
         const token = await getFoodTableQrToken(selectedTable.id);
         setQrToken(token);
-        const dataUrl = await QRCode.toDataURL(`${window.location.origin}/qrmenu/${token}`, { width: 360, margin: 2, errorCorrectionLevel: 'M' });
+        const dataUrl = await QRCode.toDataURL(`${publicAppOrigin()}/qrmenu/${token}`, { width: 360, margin: 2, errorCorrectionLevel: 'M' });
         setQrDataUrl(dataUrl);
       } catch (err) {
         const fallbackToken = (selectedTable.id.replace(/-/g, '') + '0123456789abcdef0123456789abcdef').slice(0, 64);
         setQrToken(fallbackToken);
-        const dataUrl = await QRCode.toDataURL(`${window.location.origin}/qrmenu/${fallbackToken}`, { width: 360, margin: 2 });
+        const dataUrl = await QRCode.toDataURL(`${publicAppOrigin()}/qrmenu/${fallbackToken}`, { width: 360, margin: 2 });
         setQrDataUrl(dataUrl);
       }
     })();
@@ -271,7 +272,7 @@ export default function FoodTables() {
     finally { setConfirmingPayment(false); }
   };
 
-  const qrUrl = qrToken ? `${window.location.origin}/qrmenu/${qrToken}` : '';
+  const qrUrl = qrToken ? `${publicAppOrigin()}/qrmenu/${qrToken}` : '';
   const groupedConsumption = Object.values(consumption.reduce<Record<string, { id: string; product_name: string; quantity: number; line_total: number }>>((acc, item) => {
     const key = item.product_name.trim().toLowerCase();
     const current = acc[key];

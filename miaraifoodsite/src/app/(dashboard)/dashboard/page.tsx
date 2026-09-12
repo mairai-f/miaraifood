@@ -12,10 +12,7 @@ import {
   CreditCard,
   Crown,
   Download,
-  Eye,
-  EyeOff,
   ExternalLink,
-  KeyRound,
   Loader2,
   LogOut,
   QrCode,
@@ -187,20 +184,6 @@ type DeleteAccountResponse = {
   error?: string;
 };
 
-type DesktopLicenseKeyResponse = {
-  success?: boolean;
-  licenseKey?: string;
-  storeAccountId?: string;
-  companyName?: string;
-  planId?: string | null;
-  status?: string | null;
-  validUntil?: string | null;
-  offlineEnabled?: boolean;
-  productContext?: ProductContext;
-  error?: string;
-  code?: string;
-};
-
 const SITE_SESSION_EXPIRED_MESSAGE = "Sua sessao expirou. Entre novamente para continuar.";
 const DELETE_ACCOUNT_CONFIRM_TEXT = "APAGAR";
 const SITE_REGISTRATION_FUNCTION_MISSING_MESSAGE =
@@ -269,10 +252,6 @@ const Dashboard = () => {
   const [deleteAccountConfirmation, setDeleteAccountConfirmation] = useState("");
   const [deleteAccountError, setDeleteAccountError] = useState("");
   const [deletingAccount, setDeletingAccount] = useState(false);
-  const [desktopLicenseKey, setDesktopLicenseKey] = useState<string | null>(null);
-  const [desktopLicenseKeyVisible, setDesktopLicenseKeyVisible] = useState(false);
-  const [desktopLicenseKeyLoading, setDesktopLicenseKeyLoading] = useState(false);
-  const [desktopLicenseKeyError, setDesktopLicenseKeyError] = useState<string | null>(null);
   const router = useRouter();
   const { toast } = useToast();
   const isMobile = useIsMobile();
@@ -307,9 +286,6 @@ const Dashboard = () => {
     setBillingCustomer(null);
     setPlanCheckout(null);
     setCheckoutDialogOpen(false);
-    setDesktopLicenseKey(null);
-    setDesktopLicenseKeyVisible(false);
-    setDesktopLicenseKeyError(null);
   };
 
   const ensureSiteRegistrationReady = async (accessToken: string) => {
@@ -550,13 +526,6 @@ const Dashboard = () => {
     { title: "Android", detail: "APK", route: downloads.android.route },
   ] as const;
 
-  useEffect(() => {
-    setDesktopLicenseKey(null);
-    setDesktopLicenseKeyVisible(false);
-    setDesktopLicenseKeyLoading(false);
-    setDesktopLicenseKeyError(null);
-  }, [storeAccount?.id, currentPlanId, hasOfflineDownloads]);
-
   const allowedPlanIds = new Set(getPublicPlanIdsForProductContext(siteProductContext));
   const sortedPlans = publicPlanList
     .filter((fallbackPlan) => allowedPlanIds.has(fallbackPlan.id))
@@ -671,99 +640,6 @@ const Dashboard = () => {
       });
     } finally {
       setDeletingAccount(false);
-    }
-  };
-
-  const handleLoadDesktopLicenseKey = async () => {
-    if (desktopLicenseKey) {
-      setDesktopLicenseKeyVisible((current) => !current);
-      return;
-    }
-
-    if (desktopLicenseKeyLoading) return;
-
-    setDesktopLicenseKeyLoading(true);
-    setDesktopLicenseKeyError(null);
-
-    try {
-      const session = await getFreshSiteSession();
-
-      if (!session?.access_token) {
-        await clearInvalidSiteSession();
-        router.push(`/login${querySuffix}`);
-        return;
-      }
-
-      const { data, error } = await supabase.functions.invoke<DesktopLicenseKeyResponse>("desktop-license-key", {
-        headers: {
-          Authorization: `Bearer ${session.access_token}`,
-        },
-        body: {
-          productContext: accountProductContext,
-        },
-      });
-
-      if (error || !data?.success || !data.licenseKey) {
-        let functionErrorMessage = data?.error || "Nao foi possivel carregar a chave da empresa agora.";
-
-        if (error instanceof FunctionsHttpError) {
-          try {
-            const errorPayload = await error.context.clone().json() as DesktopLicenseKeyResponse;
-            functionErrorMessage = errorPayload.error || functionErrorMessage;
-          } catch {
-            functionErrorMessage = error.context.status === 401
-              ? SITE_SESSION_EXPIRED_MESSAGE
-              : functionErrorMessage;
-          }
-        } else if (error instanceof FunctionsFetchError) {
-          functionErrorMessage = "Nao foi possivel conectar ao servico da chave desktop.";
-        } else if (error instanceof FunctionsRelayError) {
-          functionErrorMessage = "Nao foi possivel encaminhar a solicitacao da chave desktop.";
-        } else if (error instanceof Error && error.message.trim()) {
-          functionErrorMessage = error.message;
-        }
-
-        throw new Error(functionErrorMessage);
-      }
-
-      setDesktopLicenseKey(data.licenseKey);
-      setDesktopLicenseKeyVisible(true);
-      toast({
-        title: "Chave validada",
-        description: "A chave da empresa foi liberada para esta conta.",
-      });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Nao foi possivel carregar a chave da empresa agora.";
-      setDesktopLicenseKeyError(message);
-      toast({
-        title: "Erro ao carregar chave",
-        description: message,
-        variant: "destructive",
-      });
-      if (error instanceof Error && error.message === SITE_SESSION_EXPIRED_MESSAGE) {
-        await clearInvalidSiteSession();
-        router.push(`/login${querySuffix}`);
-      }
-    } finally {
-      setDesktopLicenseKeyLoading(false);
-    }
-  };
-
-  const handleCopyDesktopLicenseKey = async () => {
-    if (!desktopLicenseKey) return;
-
-    try {
-      await navigator.clipboard.writeText(desktopLicenseKey);
-      toast({
-        title: "Chave copiada",
-        description: "Cole esta chave na ativacao do aplicativo desktop.",
-      });
-    } catch {
-      toast({
-        title: "Nao foi possivel copiar",
-        description: "Copie a chave manualmente.",
-        variant: "destructive",
-      });
     }
   };
 
@@ -1315,61 +1191,6 @@ const Dashboard = () => {
             </Card>
 
             <div className="grid content-start gap-4">
-              {hasOfflineDownloads ? (
-                <div className="rounded-2xl border border-primary/20 bg-primary/5 p-4">
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                    <div className="flex min-w-0 items-center gap-3">
-                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground">
-                        <KeyRound className="h-4 w-4" />
-                      </div>
-                      <p className="text-sm font-semibold">Chave da empresa</p>
-                    </div>
-                    <div className="grid grid-cols-2 gap-2 sm:flex sm:w-auto">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        className="min-h-10 px-3 font-semibold"
-                        onClick={handleLoadDesktopLicenseKey}
-                        disabled={desktopLicenseKeyLoading}
-                      >
-                        {desktopLicenseKeyLoading ? (
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        ) : desktopLicenseKeyVisible ? (
-                          <EyeOff className="mr-2 h-4 w-4" />
-                        ) : (
-                          <Eye className="mr-2 h-4 w-4" />
-                        )}
-                        {desktopLicenseKeyVisible ? "Ocultar" : "Mostrar chave"}
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        className="min-h-10 px-3 font-semibold"
-                        onClick={handleCopyDesktopLicenseKey}
-                        disabled={!desktopLicenseKey}
-                      >
-                        <Copy className="mr-2 h-4 w-4" />
-                        Copiar
-                      </Button>
-                    </div>
-                  </div>
-
-                  <div className="mt-3 min-h-10 w-full break-all rounded-xl border border-border bg-background px-3 py-2 font-mono text-sm font-semibold text-foreground">
-                    {desktopLicenseKey && desktopLicenseKeyVisible ? desktopLicenseKey : "HC-****-****-****"}
-                  </div>
-
-                  {desktopLicenseKeyError ? (
-                    <Alert variant="destructive" className="mt-4">
-                      <AlertTitle>Nao foi possivel mostrar a chave</AlertTitle>
-                      <AlertDescription>{desktopLicenseKeyError}</AlertDescription>
-                    </Alert>
-                  ) : null}
-                </div>
-              ) : (
-                <div className="rounded-2xl border border-border bg-background/70 p-4 text-sm text-muted-foreground">
-                  Entre na sua conta para liberar os downloads.
-                </div>
-              )}
 
               <div className="grid gap-3">
                 <Button asChild className="h-12 text-base font-semibold">

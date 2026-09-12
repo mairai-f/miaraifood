@@ -2398,10 +2398,10 @@ repoUrl: "#",
     },
     {
       id: "help-7",
-      title: "Passo 2: Baixe o sistema e pegue sua Chave",
+      title: "Passo 2: Baixe o sistema",
       issuer: "Suporte MIAR AI/FOOD",
       date: "2026-08-01",
-      description: "No seu Dashboard, você gerencia seu plano (ativo, PRO, validade) e encontra os botões para baixar o sistema (Windows, Linux, Android). IMPORTANTE: Copie a sua 'Chave da empresa' que aparece na tela, você vai precisar dela para ativar o aplicativo no seu computador.",
+      description: "No seu Dashboard, você gerencia seu plano (ativo, PRO, validade) e encontra os botões para baixar o sistema (Windows, Linux, Android). Depois de instalar, basta entrar com o mesmo e-mail e senha da sua conta: não existe chave para digitar.",
       category: "Começando no MIAR AI/FOOD",
       type: "Tutorial",
       image: "/telasdosistema/paineldecontrole.png"

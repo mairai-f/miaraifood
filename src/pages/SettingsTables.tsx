@@ -10,6 +10,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useOperationalScope } from '@/contexts/useOperationalScope';
 import { usePermissions } from '@/contexts/usePermissions';
 import { listFoodTableBoard, getFoodTableQrToken, createFoodTable } from '@/lib/food';
+import { publicAppOrigin } from '@/lib/publicAppUrl';
 
 export default function SettingsTables() {
   const { scope } = useOperationalScope(); const { hasPermission } = usePermissions();
@@ -23,7 +24,7 @@ export default function SettingsTables() {
   }, [scope?.location.id]);
   useEffect(() => { void loadTables(); }, [loadTables]);
   if (!hasPermission('food.tables.manage')) return <Card><CardContent className="p-6">Acesso restrito ao administrador.</CardContent></Card>;
-  const prepare = async (table: any) => { const token = await getFoodTableQrToken(table.id); const url = `${window.location.origin}/qrmenu/${token}`; const data = await QRCode.toDataURL(url, { width: 360, margin: 2 }); setQr((current) => ({ ...current, [table.id]: data })); };
+  const prepare = async (table: any) => { const token = await getFoodTableQrToken(table.id); const url = `${publicAppOrigin()}/qrmenu/${token}`; const data = await QRCode.toDataURL(url, { width: 360, margin: 2 }); setQr((current) => ({ ...current, [table.id]: data })); };
   const openTable = async (table: any) => { setSelected(table); setDescription(table.name ?? ''); await prepare(table); };
   const saveDescription = async () => { if (!selected) return; await (supabase as any).from('food_tables').update({ name: description.trim() }).eq('id', selected.id); setTables((items) => items.map((item) => item.id === selected.id ? { ...item, name: description.trim() } : item)); setSelected((item: any) => ({ ...item, name: description.trim() })); };
   const createBulk = async () => {

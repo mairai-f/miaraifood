@@ -1,0 +1,12 @@
+version: 0.1.83
+files:
+  - url: MIAR-AI-FOOD-0.1.83.AppImage
+    sha512: v36CJzqztW9J6tqakZDSQ6ix2FyOm3bykcwDdr9Eb+KtvVDcISNvgUlTYh3V93AO5s1MJ2y23k3l04LlFD9akg==
+    size: 143088403
+    blockMapSize: 150311
+  - url: MIAR-AI-FOOD-0.1.83.deb
+    sha512: ePun/aki0SXxztdZQgd06uByCy8/KA40MslsrrVHvcyKmKeErHsliDc3kuJveawl2TqOWhuHqW5MjUsa3qbZwQ==
+    size: 106431108
+path: MIAR-AI-FOOD-0.1.83.AppImage
+sha512: v36CJzqztW9J6tqakZDSQ6ix2FyOm3bykcwDdr9Eb+KtvVDcISNvgUlTYh3V93AO5s1MJ2y23k3l04LlFD9akg==
+releaseDate: '2026-09-11T16:54:57.932Z'

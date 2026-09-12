@@ -10,6 +10,7 @@ import { Switch } from '@/components/ui/switch';
 import { supabase } from '@/integrations/supabase/client';
 import { generateTvCode } from '@/features/tv/tvSlides';
 import { TvContentButtons } from './TvContentButtons';
+import { publicAppOrigin } from '@/lib/publicAppUrl';
 
 interface TvScreen {
   id: string;
@@ -31,10 +32,6 @@ const ONLINE_WINDOW_MS = 15 * 60 * 1000;
 // tv_screens ainda não está nos tipos gerados do Supabase.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const tvScreensTable = () => (supabase as any).from('tv_screens');
-
-// No app desktop a página roda em file://, então o link precisa apontar para o endereço público.
-const publicAppOrigin = () =>
-  window.location.protocol.startsWith('http') ? window.location.origin : 'https://app.miaraifood.com.br';
 
 const formatCode = (code: string) => `${code.slice(0, 4)}-${code.slice(4)}`;
 const isOnline = (lastSeenAt: string | null) =>

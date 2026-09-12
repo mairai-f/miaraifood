@@ -334,7 +334,7 @@ const AuthenticatedArea = () => {
           <Route path="/configuracoes/mesas" element={<ProtectedRoute requiredPermission="food.tables.manage" requiredFeature="food.tables"><LazyPage><SettingsTables /></LazyPage></ProtectedRoute>} />
           <Route path="/kds" element={<ProtectedRoute requiredPermission="food.kds.use" requiredFeature="food.kds"><LazyPage><KdsPage /></LazyPage></ProtectedRoute>} />
           <Route path="/conversas" element={<ProtectedRoute requiredPermission="chat.view" requiredFeature="dashboard.view"><LazyPage><InternalChat /></LazyPage></ProtectedRoute>} />
-          <Route path="/configuracoes/qrmenu" element={<ProtectedRoute requiredPermission="food.qrmenu.manage" requiredFeature="food.qrmenu" runtimeScope="web"><LazyPage><FoodMenuSettings /></LazyPage></ProtectedRoute>} />
+          <Route path="/configuracoes/qrmenu" element={<ProtectedRoute requiredPermission="food.qrmenu.manage" requiredFeature="food.qrmenu" runtimeScope="both"><LazyPage><FoodMenuSettings /></LazyPage></ProtectedRoute>} />
           <Route path="/configuracoes/tv" element={<ProtectedRoute requiredPermission="settings.manage" requiredFeature="settings.manage" runtimeScope="both"><LazyPage><TvSettings /></LazyPage></ProtectedRoute>} />
           <Route path="/clientes" element={<ProtectedRoute requiredPermission="clients.view" requiredFeature="clients.manage"><LazyPage><Clients /></LazyPage></ProtectedRoute>} />
           <Route path="/produtos" element={<ProtectedRoute requiredPermission="products.view" requiredFeature="products.manage"><LazyPage><Products /></LazyPage></ProtectedRoute>} />

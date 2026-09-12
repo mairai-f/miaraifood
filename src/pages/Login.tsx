@@ -36,6 +36,7 @@ import type { Database } from '@/integrations/supabase/types';
 import { getOperatorCredentialError } from '../../shared/security/operatorCredential';
 import { requestTurnstileToken } from '../../shared/security/turnstile';
 import { usePwaInstall } from '@/hooks/usePwaInstall';
+import { miarCollapsedIconWhite } from '@/lib/brandAssets';
 
 type LoginMode = 'admin' | 'operator';
 type AdminAccessMode = 'online' | 'offline';
@@ -424,7 +425,7 @@ return (
           <div className="space-y-1 text-center mb-6">
             <div className="flex flex-col items-center justify-center">
               <motion.img
-                src="/miar-collapsed-icon-white.svg"
+                src={miarCollapsedIconWhite}
                 alt="MIAR AI/FOOD"
                 className="h-16 w-auto object-contain sm:h-20"
                 loading="eager"

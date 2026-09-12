@@ -1,4 +1,5 @@
 import { motion } from "framer-motion";
+import { miarLogoWhite } from '@/lib/brandAssets';
 
 export function SplashScreen() {
   return (
@@ -35,7 +36,7 @@ export function SplashScreen() {
           />
           
           <img
-            src="/miar-logo-white.svg?v=miar-20260911"
+            src={miarLogoWhite}
             alt="MIAR AI/FOOD Logo"
             className="relative z-10 h-28 w-auto max-w-[15rem] object-contain drop-shadow-[0_0_15px_rgba(0,200,255,0.3)]"
           />

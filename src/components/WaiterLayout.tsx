@@ -4,6 +4,7 @@ import { Armchair, BellRing, MessageCircle, UserRound } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useOperationalScope } from '@/contexts/useOperationalScope';
 import { usePermissions } from '@/contexts/usePermissions';
+import { miarCollapsedIcon } from '@/lib/brandAssets';
 
 type Item = { path: string; label: string; icon: typeof Armchair; permission: 'food.tables.view' | 'food.waiter_calls.handle' | 'chat.view' };
 
@@ -28,7 +29,7 @@ export function WaiterLayout({ children }: { children: ReactNode }) {
     <div className="min-h-dvh bg-background pb-[calc(4.75rem+env(safe-area-inset-bottom))]">
       <header className="sticky top-0 z-30 border-b border-border bg-card/95 px-4 pb-3 pt-[calc(0.75rem+env(safe-area-inset-top))] backdrop-blur">
         <div className="flex items-center gap-3">
-          <img src="/miar-collapsed-icon.svg" alt="MIAR" className="h-9 w-9 rounded-xl" />
+          <img src={miarCollapsedIcon} alt="MIAR" className="h-9 w-9 rounded-xl" />
           <div className="min-w-0">
             <p className="text-sm font-bold text-foreground">Olá, {username || user?.email?.split('@')[0] || 'Garçom'}</p>
             <p className="truncate text-xs text-muted-foreground">{scope?.location.name || 'Salão'}</p>
